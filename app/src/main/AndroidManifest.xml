@@ -1,14 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
+
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Internet: dùng cho các chức năng online sau này -->
+    <!-- Kết nối Internet -->
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- Đọc nhạc trong điện thoại -->
+    <!-- Đọc nhạc trên thiết bị -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
 
-    <!-- Thông báo điều khiển nhạc -->
+    <!-- Thông báo -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- Phát nhạc nền -->
@@ -33,7 +34,7 @@
 
         </activity>
 
-        <!-- Trình phát nhạc nền Media3 -->
+        <!-- Media3 Music Service -->
         <service
             android:name=".MusicService"
             android:exported="true"
@@ -48,35 +49,3 @@
     </application>
 
 </manifest>
-<uses-permission android:name="android.permission.POST_NOTIFICATIONS" /><uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-<uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" /><service
-    android:name=".MusicService"
-    android:exported="false"
-    android:foregroundServiceType="mediaPlayback" />
-<application
-    ...
-    >
-
-    <activity
-        ...
-        />
-
-    <service
-        android:name=".MusicService"
-        android:exported="false"
-        android:foregroundServiceType="mediaPlayback" />
-
-</application><application
-    ...
-    >
-
-    <activity
-        ...
-        />
-
-    <service
-        android:name=".MusicService"
-        android:exported="false"
-        android:foregroundServiceType="mediaPlayback" />
-
-</application>
