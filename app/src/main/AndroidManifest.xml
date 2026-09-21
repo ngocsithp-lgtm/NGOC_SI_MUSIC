@@ -53,3 +53,30 @@
     android:name=".MusicService"
     android:exported="false"
     android:foregroundServiceType="mediaPlayback" />
+<application
+    ...
+    >
+
+    <activity
+        ...
+        />
+
+    <service
+        android:name=".MusicService"
+        android:exported="false"
+        android:foregroundServiceType="mediaPlayback" />
+
+</application><application
+    ...
+    >
+
+    <activity
+        ...
+        />
+
+    <service
+        android:name=".MusicService"
+        android:exported="false"
+        android:foregroundServiceType="mediaPlayback" />
+
+</application>
