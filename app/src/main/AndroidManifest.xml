@@ -1,7 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Internet: dùng cho các chức năng online sau này -->
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Đọc nhạc trong điện thoại -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+
+    <!-- Thông báo điều khiển nhạc -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Phát nhạc nền -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 
     <application
         android:theme="@style/Theme.NgocSiMusic"
@@ -9,6 +21,7 @@
         android:allowBackup="true"
         android:supportsRtl="true">
 
+        <!-- Màn hình chính -->
         <activity
             android:name=".MainActivity"
             android:exported="true">
@@ -19,6 +32,18 @@
             </intent-filter>
 
         </activity>
+
+        <!-- Trình phát nhạc nền Media3 -->
+        <service
+            android:name=".MusicService"
+            android:exported="true"
+            android:foregroundServiceType="mediaPlayback">
+
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaSessionService" />
+            </intent-filter>
+
+        </service>
 
     </application>
 
