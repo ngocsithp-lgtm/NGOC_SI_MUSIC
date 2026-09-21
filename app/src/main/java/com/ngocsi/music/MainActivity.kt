@@ -1,6 +1,5 @@
 package com.ngocsi.music
 
-import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -37,14 +36,10 @@ class MainActivity : ComponentActivity() {
         var isPlaying by remember { mutableStateOf(false) }
 
         val mediaPlayer = remember {
-            MediaPlayer.create(this@MainActivity, R.raw.viber_message)?.apply {
-                setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_MEDIA)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                        .build()
-                )
-            }
+            MediaPlayer.create(
+                this@MainActivity,
+                R.raw.viber_message
+            )
         }
 
         DisposableEffect(mediaPlayer) {
