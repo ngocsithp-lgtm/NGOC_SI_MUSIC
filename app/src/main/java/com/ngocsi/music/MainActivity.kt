@@ -17,12 +17,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -34,6 +36,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
 
@@ -48,6 +51,7 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun MusicScreen() {
         var isPlaying by remember { mutableStateOf(false) }
+        var currentPosition by remember { mutableFloatStateOf(0f) }
 
         val mediaPlayer = remember {
             MediaPlayer.create(
@@ -56,14 +60,24 @@ class MainActivity : ComponentActivity() {
             )
         }
 
+        val duration = mediaPlayer?.duration ?: 0
+
         DisposableEffect(mediaPlayer) {
             mediaPlayer?.setOnCompletionListener {
                 isPlaying = false
                 mediaPlayer.seekTo(0)
+                currentPosition = 0f
             }
 
             onDispose {
                 mediaPlayer?.release()
+            }
+        }
+
+        LaunchedEffect(isPlaying) {
+            while (isPlaying && mediaPlayer != null) {
+                currentPosition = mediaPlayer.currentPosition.toFloat()
+                delay(500)
             }
         }
 
@@ -125,12 +139,49 @@ class MainActivity : ComponentActivity() {
                     Spacer(modifier = Modifier.height(8.dp))
 
                     Text(
-                        text = if (isPlaying) "Đang phát nhạc" else "Sẵn sàng phát",
+                        text = if (isPlaying) {
+                            "Đang phát nhạc"
+                        } else {
+                            "Sẵn sàng phát"
+                        },
                         color = Color(0xFFBBBBBB),
                         fontSize = 14.sp
                     )
 
-                    Spacer(modifier = Modifier.height(28.dp))
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Slider(
+                        value = currentPosition,
+                        onValueChange = { newPosition ->
+                            currentPosition = newPosition
+
+                            mediaPlayer?.seekTo(
+                                newPosition.toInt()
+                            )
+                        },
+                        valueRange = 0f..duration.toFloat(),
+                        enabled = mediaPlayer != null && duration > 0,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = formatTime(currentPosition.toInt()),
+                            color = Color(0xFFAAAAAA),
+                            fontSize = 12.sp
+                        )
+
+                        Text(
+                            text = formatTime(duration),
+                            color = Color(0xFFAAAAAA),
+                            fontSize = 12.sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -179,6 +230,7 @@ class MainActivity : ComponentActivity() {
                                     }
 
                                     it.seekTo(0)
+                                    currentPosition = 0f
                                     isPlaying = false
                                 }
                             },
@@ -202,11 +254,23 @@ class MainActivity : ComponentActivity() {
                 Spacer(modifier = Modifier.height(30.dp))
 
                 Text(
-                    text = "NGỌC SĨ MUSIC • VERSION 1.0",
+                    text = "NGỌC SĨ MUSIC • VERSION 1.1",
                     color = Color(0xFF66666F),
                     fontSize = 12.sp
                 )
             }
         }
+    }
+
+    private fun formatTime(milliseconds: Int): String {
+        val totalSeconds = milliseconds / 1000
+        val minutes = totalSeconds / 60
+        val seconds = totalSeconds % 60
+
+        return String.format(
+            "%02d:%02d",
+            minutes,
+            seconds
+        )
     }
 }
