@@ -157,7 +157,13 @@ class MainActivity : ComponentActivity() {
     private fun loadSongs() {
         val result = mutableListOf<Song>()
         val collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
-        val projection = arrayOf(\n            MediaStore.Audio.Media._ID,\n            MediaStore.Audio.Media.TITLE,\n            MediaStore.Audio.Media.ARTIST,\n            MediaStore.Audio.Media.DURATION,\n            MediaStore.Audio.Media.ALBUM_ID\n        )
+        val projection = arrayOf(
+            MediaStore.Audio.Media._ID,
+            MediaStore.Audio.Media.TITLE,
+            MediaStore.Audio.Media.ARTIST,
+            MediaStore.Audio.Media.DURATION,
+            MediaStore.Audio.Media.ALBUM_ID
+        )
         val selection = MediaStore.Audio.Media.IS_MUSIC + " != 0"
         val sort = MediaStore.Audio.Media.TITLE + " COLLATE NOCASE ASC"
         contentResolver.query(collection, projection, selection, null, sort)?.use { cursor ->
