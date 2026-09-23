@@ -61,6 +61,8 @@ class MainActivity : ComponentActivity() {
     private var showNowPlaying by mutableStateOf(false)
     private var showSleepTimer by mutableStateOf(false)
     private var sleepMinutes by mutableIntStateOf(0)
+    private var lastSongUri by mutableStateOf<String?>(null)
+    private var savedPosition by mutableLongStateOf(0L)
     private var shuffleEnabled by mutableStateOf(false)
     private var repeatMode by mutableIntStateOf(Player.REPEAT_MODE_OFF)
     private val favorites = mutableStateMapOf<Long, Boolean>()
@@ -79,10 +81,20 @@ class MainActivity : ComponentActivity() {
     }
 
     private val playerListener = object : Player.Listener {
-        override fun onIsPlayingChanged(playing: Boolean) { isPlaying = playing }
+        override fun onIsPlayingChanged(playing: Boolean) {
+            isPlaying = playing
+            savePlaybackState()
+        }
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             val index = controller?.currentMediaItemIndex ?: -1
-            if (index >= 0) currentIndex = index
+            if (index >= 0) {
+                currentIndex = index
+                songs.getOrNull(index)?.let {
+                    lastSongUri = it.uri.toString()
+                    savedPosition = 0L
+                    savePlaybackState()
+                }
+            }
         }
         override fun onPlaybackStateChanged(playbackState: Int) {
             if (playbackState == Player.STATE_ENDED && repeatMode == Player.REPEAT_MODE_OFF) {
@@ -168,6 +180,14 @@ class MainActivity : ComponentActivity() {
                 c.setMediaItems(songs.map { mediaItemFor(it) })
                 c.prepare()
             }
+            val restoreIndex = lastSongUri?.let { uri ->
+                songs.indexOfFirst { it.uri.toString() == uri }
+            } ?: -1
+            if (restoreIndex >= 0) {
+                currentIndex = restoreIndex
+                c.seekToDefaultPosition(restoreIndex)
+                if (savedPosition > 0L) c.seekTo(savedPosition)
+            }
         }
     }
 
@@ -175,7 +195,7 @@ class MainActivity : ComponentActivity() {
         if (index !in songs.indices) return
         val c = controller ?: run { errorMessage = "Trình phát đang khởi động, thử lại sau."; return }
         if (c.mediaItemCount != songs.size) {
-            c.setMediaItems(songs.map { MediaItem.fromUri(it.uri) })
+            c.setMediaItems(songs.map { mediaItemFor(it) })
             c.prepare()
         }
         currentIndex = index
@@ -338,6 +358,7 @@ class MainActivity : ComponentActivity() {
             val safe = value.coerceIn(0L, max(0L, it.duration))
             it.seekTo(safe)
             position = safe
+            savePlaybackState()
         }
     }
 
@@ -362,6 +383,16 @@ class MainActivity : ComponentActivity() {
         savedFavorites.forEach { it.toLongOrNull()?.let { id -> favorites[id] = true } }
         shuffleEnabled = prefs.getBoolean("shuffle", false)
         repeatMode = prefs.getInt("repeat", Player.REPEAT_MODE_OFF)
+        lastSongUri = prefs.getString("last_song_uri", null)
+        savedPosition = prefs.getLong("last_position", 0L)
+    }
+
+    private fun savePlaybackState() {
+        val uri = songs.getOrNull(currentIndex)?.uri?.toString() ?: lastSongUri
+        prefs.edit()
+            .putString("last_song_uri", uri)
+            .putLong("last_position", position.coerceAtLeast(0L))
+            .apply()
     }
 
     private fun clearDriveLibrary() {
@@ -386,6 +417,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        savePlaybackState()
         controller?.removeListener(playerListener)
         controller?.release()
         controller = null
@@ -407,7 +439,10 @@ class MainActivity : ComponentActivity() {
         }
         LaunchedEffect(isPlaying, currentIndex) {
             while (isPlaying) {
-                controller?.let { position = max(0L, it.currentPosition) }
+                controller?.let {
+                    position = max(0L, it.currentPosition)
+                    if (currentIndex >= 0) savePlaybackState()
+                }
                 delay(500)
             }
         }
