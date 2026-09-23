@@ -120,18 +120,18 @@ class MainActivity : ComponentActivity() {
                 setDataSource(this@MainActivity, song.uri)
                 setOnPreparedListener {
                     it.start()
-                    isPlaying = true
-                    currentIndex = index
+                    this@MainActivity.isPlaying = true
+                    this@MainActivity.currentIndex = index
                 }
                 setOnCompletionListener {
                     if (index + 1 < songs.size) play(index + 1) else {
-                        isPlaying = false
-                        position = 0
+                        this@MainActivity.isPlaying = false
+                        this@MainActivity.position = 0
                     }
                 }
                 setOnErrorListener { _, _, _ ->
-                    isPlaying = false
-                    errorMessage = "Không thể phát: " + song.title
+                    this@MainActivity.isPlaying = false
+                    this@MainActivity.errorMessage = "Không thể phát: " + song.title
                     true
                 }
                 prepareAsync()
