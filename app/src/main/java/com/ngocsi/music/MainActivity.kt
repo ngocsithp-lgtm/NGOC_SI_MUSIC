@@ -183,7 +183,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun importDriveSongs(uris: List<Uri>) {
-        val saved = prefs.getStringSet("drive_uris", emptySet()).toMutableSet()
+        val saved = (prefs.getStringSet("drive_uris", emptySet()) ?: emptySet()).toMutableSet()
         var added = 0
         uris.forEach { uri ->
             try {
