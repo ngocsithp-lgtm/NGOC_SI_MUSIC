@@ -29,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -55,6 +56,7 @@ class MainActivity : ComponentActivity() {
     private var searchQuery by mutableStateOf("")
     private var youtubeQuery by mutableStateOf("")
     private var selectedLibrary by mutableStateOf("Tất cả")
+    private var selectedSection by mutableStateOf("Trang chủ")
     private var shuffleEnabled by mutableStateOf(false)
     private var repeatMode by mutableIntStateOf(Player.REPEAT_MODE_OFF)
     private val favorites = mutableStateMapOf<Long, Boolean>()
@@ -411,7 +413,7 @@ class MainActivity : ComponentActivity() {
                         OnlineSourcesCard()
                         Spacer(Modifier.height(14.dp))
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Text("THƯ VIỆN • ${songs.size} bài", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
+                            Text("THƯ VIỆN • ${songs.size} bài", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, modifier = Modifier.weight(1f))
                             TextButton(onClick = ::loadSongs) { Text("LÀM MỚI") }
                         }
                         errorMessage?.let { Text(it, color = Color(0xFFFFB4AB), fontSize = 13.sp, modifier = Modifier.padding(bottom = 8.dp)) }
@@ -499,10 +501,10 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun PlayerCard(song: Song?) {
         val duration = song?.duration ?: 0L
-        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Color(0xFF181820)).padding(18.dp)) {
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Brush.linearGradient(listOf(Color(0xFF211A35), Color(0xFF12151D)))).padding(18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(74.dp).clip(RoundedCornerShape(18.dp)).background(Color(0xFF2B2639)), contentAlignment = Alignment.Center) {
-                    Text("♫", color = Color(0xFFC8B7FF), fontSize = 38.sp)
+                Box(Modifier.size(82.dp).clip(RoundedCornerShape(22.dp)).background(Brush.linearGradient(listOf(Color(0xFF6D4CC5), Color(0xFF24283A)))), contentAlignment = Alignment.Center) {
+                    Text("♫", color = Color(0xFFC8B7FF), fontSize = 42.sp)
                 }
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
