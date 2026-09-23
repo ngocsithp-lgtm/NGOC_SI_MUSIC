@@ -66,6 +66,7 @@ class MainActivity : ComponentActivity() {
     private var searchQuery by mutableStateOf("")
     private var youtubeQuery by mutableStateOf("")
     private var youtubeWebUrl by mutableStateOf("https://m.youtube.com/")
+    private val youtubeHistory = mutableStateListOf<String>()
     private var onlineUrl by mutableStateOf("")
     private var selectedLibrary by mutableStateOf("Tất cả")
     private var libraryView by mutableStateOf("Bài hát")
@@ -432,6 +433,10 @@ class MainActivity : ComponentActivity() {
             errorMessage = "Nhập tên bài hát để tìm trên YouTube."
             return
         }
+        youtubeHistory.remove(q)
+        youtubeHistory.add(0, q)
+        while (youtubeHistory.size > 8) youtubeHistory.removeAt(youtubeHistory.lastIndex)
+        prefs.edit().putStringSet("youtube_history", youtubeHistory.toSet()).apply()
         youtubeWebUrl = "https://m.youtube.com/results?search_query=" + Uri.encode(q)
         selectedSection = "Online"
         errorMessage = null
@@ -492,6 +497,8 @@ class MainActivity : ComponentActivity() {
         savedFavorites.forEach { it.toLongOrNull()?.let { id -> favorites[id] = true } }
         shuffleEnabled = prefs.getBoolean("shuffle", false)
         repeatMode = prefs.getInt("repeat", Player.REPEAT_MODE_OFF)
+        youtubeHistory.clear()
+        youtubeHistory.addAll((prefs.getStringSet("youtube_history", emptySet()) ?: emptySet()).toList().take(8))
         lastSongUri = prefs.getString("last_song_uri", null)
         savedPosition = prefs.getLong("last_position", 0L)
     }
@@ -891,6 +898,22 @@ class MainActivity : ComponentActivity() {
             Spacer(Modifier.height(10.dp))
             YouTubePad(url = youtubeWebUrl)
             Spacer(Modifier.height(12.dp))
+            if (youtubeHistory.isNotEmpty()) {
+                Text("TIM KIEM GAN DAY", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    youtubeHistory.forEach { item ->
+                        AssistChip(
+                            onClick = { youtubeQuery = item; searchYouTube() },
+                            label = { Text(item, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                        )
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+            }
             Text("YOUTUBE PAD", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
