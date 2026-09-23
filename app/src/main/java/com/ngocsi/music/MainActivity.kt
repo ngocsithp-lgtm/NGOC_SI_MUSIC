@@ -112,8 +112,7 @@ class MainActivity : ComponentActivity() {
         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
             isPlaying = false
             errorMessage = when (error.errorCode) {
-                androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
-                androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_TIMEOUT ->
+                androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ->
                     "Mất kết nối mạng khi phát nhạc online."
                 androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED,
                 androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED ->
