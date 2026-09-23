@@ -32,6 +32,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.documentfile.provider.DocumentFile
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
@@ -62,6 +63,10 @@ class MainActivity : ComponentActivity() {
     private val notificationPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
     private val drivePickerLauncher = registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty()) importDriveSongs(uris)
+    }
+
+    private val driveFolderLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri != null) importDriveFolder(uri)
     }
 
     private val playerListener = object : Player.Listener {
@@ -222,6 +227,69 @@ class MainActivity : ComponentActivity() {
         drivePickerLauncher.launch(arrayOf("audio/*"))
     }
 
+    private fun openDriveFolderPicker() {
+        driveFolderLauncher.launch(null)
+    }
+
+    private fun importDriveFolder(treeUri: Uri) {
+        try {
+            contentResolver.takePersistableUriPermission(
+                treeUri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+        } catch (_: Exception) {
+            try {
+                contentResolver.takePersistableUriPermission(
+                    treeUri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            } catch (_: Exception) { }
+        }
+
+        val root = DocumentFile.fromTreeUri(this, treeUri)
+        if (root == null) {
+            errorMessage = "Không mở được thư mục Google Drive."
+            return
+        }
+
+        val audioUris = mutableListOf<Uri>()
+        collectDriveAudioFiles(root, audioUris)
+
+        if (audioUris.isEmpty()) {
+            errorMessage = "Không tìm thấy file âm thanh trong thư mục đã chọn."
+            return
+        }
+
+        importDriveSongs(audioUris)
+    }
+
+    private fun collectDriveAudioFiles(
+        folder: DocumentFile,
+        result: MutableList<Uri>
+    ) {
+        folder.listFiles().forEach { file ->
+            if (file.isDirectory) {
+                collectDriveAudioFiles(file, result)
+            } else if (file.isFile && isAudioFile(file)) {
+                result += file.uri
+            }
+        }
+    }
+
+    private fun isAudioFile(file: DocumentFile): Boolean {
+        val type = file.type.orEmpty().lowercase()
+        val name = file.name.orEmpty().lowercase()
+        return type.startsWith("audio/") ||
+            name.endsWith(".mp3") ||
+            name.endsWith(".m4a") ||
+            name.endsWith(".aac") ||
+            name.endsWith(".flac") ||
+            name.endsWith(".wav") ||
+            name.endsWith(".ogg") ||
+            name.endsWith(".opus") ||
+            name.endsWith(".wma")
+    }
+
     private fun searchYouTube() {
         val q = youtubeQuery.trim()
         if (q.isBlank()) {
@@ -364,15 +432,21 @@ class MainActivity : ComponentActivity() {
                 .background(Color(0xFF14141B)).padding(14.dp)
         ) {
             Text("KHO NHẠC ONLINE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-            Text("Google Drive là thư viện online chính. YouTube dùng trình phát chính thức.",
+            Text("Drive: chọn file hoặc cả thư mục để đưa nhạc vào thư viện. YouTube: tìm và phát bằng trình phát chính thức.",
                 color = Color(0xFF8F8F9A), fontSize = 12.sp)
             Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = ::openDrivePicker, modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(14.dp)) { Text("☁ Drive") }
-                OutlinedButton(onClick = ::searchYouTube, modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(14.dp)) { Text("▶ YouTube") }
+                    shape = RoundedCornerShape(14.dp)) { Text("☁ File Drive") }
+                OutlinedButton(onClick = ::openDriveFolderPicker, modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp)) { Text("📁 Thư mục") }
             }
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = ::searchYouTube,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) { Text("▶ Mở kho YouTube") }
             Spacer(Modifier.height(8.dp))
             OutlinedTextField(value = youtubeQuery, onValueChange = { youtubeQuery = it },
                 modifier = Modifier.fillMaxWidth(), singleLine = true,
