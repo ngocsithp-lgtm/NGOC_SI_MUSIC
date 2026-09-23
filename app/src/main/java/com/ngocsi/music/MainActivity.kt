@@ -538,6 +538,7 @@ class MainActivity : ComponentActivity() {
                 "Yêu thích" -> byText.filter { favorites[it.id] == true }
                 "Thiết bị" -> byText.filter { it.source == "Thiết bị" }
                 "Google Drive" -> byText.filter { it.source == "Google Drive" }
+                "Online" -> byText.filter { it.source == "Online" }
                 else -> byText
             }
             when (libraryView) {
@@ -660,7 +661,7 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun LibraryChips() {
-        val tabs = listOf("Tất cả", "Yêu thích", "Thiết bị", "Google Drive")
+        val tabs = listOf("Tất cả", "Yêu thích", "Thiết bị", "Google Drive", "Online")
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             tabs.forEach { tab ->
                 FilterChip(selected = selectedLibrary == tab, onClick = { selectedLibrary = tab }, label = { Text(tab) }, shape = RoundedCornerShape(14.dp))
@@ -894,6 +895,12 @@ class MainActivity : ComponentActivity() {
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp)
             ) { Text("▶ PHÁT NHẠC ONLINE") }
+            Spacer(Modifier.height(6.dp))
+            OutlinedButton(
+                onClick = ::clearOnlineLibrary,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) { Text("🗑 XÓA URL ONLINE ĐÃ LƯU") }
             Spacer(Modifier.height(8.dp))
             OutlinedTextField(value = youtubeQuery, onValueChange = { youtubeQuery = it },
                 modifier = Modifier.fillMaxWidth(), singleLine = true,
