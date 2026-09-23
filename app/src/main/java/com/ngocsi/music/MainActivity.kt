@@ -57,6 +57,8 @@ class MainActivity : ComponentActivity() {
     private var searchQuery by mutableStateOf("")
     private var youtubeQuery by mutableStateOf("")
     private var selectedLibrary by mutableStateOf("Tất cả")
+    private var libraryView by mutableStateOf("Bài hát")
+    private var showQueue by mutableStateOf(false)
     private var selectedSection by mutableStateOf("Trang chủ")
     private var showNowPlaying by mutableStateOf(false)
     private var showSleepTimer by mutableStateOf(false)
@@ -343,7 +345,7 @@ class MainActivity : ComponentActivity() {
     private fun togglePlayPause() {
         val c = controller ?: return
         if (c.mediaItemCount == 0 && songs.isNotEmpty()) {
-            c.setMediaItems(songs.map { MediaItem.fromUri(it.uri) })
+            c.setMediaItems(songs.map { mediaItemFor(it) })
             c.prepare()
             c.play()
         } else if (c.isPlaying) c.pause() else c.play()
@@ -427,14 +429,22 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun NgocSiMusicApp() {
         val currentSong = songs.getOrNull(currentIndex)
-        val filteredSongs = remember(searchQuery, songs.size, selectedLibrary, favorites.size) {
+        val filteredSongs = remember(searchQuery, songs.size, selectedLibrary, favorites.size, libraryView) {
             val q = searchQuery.trim()
-            val byText = if (q.isBlank()) songs.toList() else songs.filter { it.title.contains(q, true) || it.artist.contains(q, true) || it.source.contains(q, true) }
-            when (selectedLibrary) {
+            val byText = if (q.isBlank()) songs.toList() else songs.filter {
+                it.title.contains(q, true) || it.artist.contains(q, true) || it.source.contains(q, true)
+            }
+            val bySource = when (selectedLibrary) {
                 "Yêu thích" -> byText.filter { favorites[it.id] == true }
                 "Thiết bị" -> byText.filter { it.source == "Thiết bị" }
                 "Google Drive" -> byText.filter { it.source == "Google Drive" }
                 else -> byText
+            }
+            when (libraryView) {
+                "Nghệ sĩ" -> bySource.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.artist })
+                "Album" -> bySource.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title.substringBefore(" - ") })
+                "Thư mục" -> bySource.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.source })
+                else -> bySource.sortedBy { it.title.lowercase() }
             }
         }
         LaunchedEffect(isPlaying, currentIndex) {
@@ -468,11 +478,17 @@ class MainActivity : ComponentActivity() {
                                 PlayerCard(currentSong)
                                 Spacer(Modifier.height(12.dp))
                                 QuickActions()
+                                Spacer(Modifier.height(8.dp))
+                                OutlinedButton(onClick = { showQueue = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                                    Text("☷  Hàng đợi phát • " + songs.size + " bài")
+                                }
                             }
                         }
                         "Thư viện" -> {
                             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
                                 SearchBarModern()
+                                Spacer(Modifier.height(10.dp))
+                                LibraryViewTabs()
                                 Spacer(Modifier.height(10.dp))
                                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                     Text("THƯ VIỆN • ${filteredSongs.size} bài", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, modifier = Modifier.weight(1f))
@@ -509,6 +525,7 @@ class MainActivity : ComponentActivity() {
             }
         }
         currentSong?.let { if (showNowPlaying) NowPlayingDialog(it) }
+        if (showQueue) QueueDialog()
     }
 
     @Composable
@@ -547,6 +564,16 @@ class MainActivity : ComponentActivity() {
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             tabs.forEach { tab ->
                 FilterChip(selected = selectedLibrary == tab, onClick = { selectedLibrary = tab }, label = { Text(tab) }, shape = RoundedCornerShape(14.dp))
+            }
+        }
+    }
+
+    @Composable
+    private fun LibraryViewTabs() {
+        val tabs = listOf("Bài hát", "Nghệ sĩ", "Album", "Thư mục")
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            tabs.forEach { tab ->
+                FilterChip(selected = libraryView == tab, onClick = { libraryView = tab }, label = { Text(tab) }, shape = RoundedCornerShape(14.dp))
             }
         }
     }
@@ -670,7 +697,45 @@ class MainActivity : ComponentActivity() {
                         Button(onClick = ::togglePlayPause, modifier = Modifier.size(62.dp), shape = CircleShape) { Text(if (isPlaying) "⏸" else "▶", fontSize = 22.sp) }
                         SmallControl("⏭", ::next)
                     }
-                    TextButton(onClick = { showNowPlaying = false }) { Text("Đóng") }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { showQueue = true }) { Text("☷ Hàng đợi") }
+                        TextButton(onClick = { showNowPlaying = false }) { Text("Đóng") }
+                    }
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun QueueDialog() {
+        Dialog(onDismissRequest = { showQueue = false }) {
+            Surface(shape = RoundedCornerShape(26.dp), color = Color(0xFF101117), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(18.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("HÀNG ĐỢI PHÁT", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+                            Text(songs.size.toString() + " bài • " + if (shuffleEnabled) "Ngẫu nhiên" else "Theo thư viện", color = Color(0xFF888894), fontSize = 12.sp)
+                        }
+                        TextButton(onClick = { showQueue = false }) { Text("Đóng") }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    LazyColumn(modifier = Modifier.heightIn(max = 460.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        itemsIndexed(songs, key = { _, song -> song.id }) { index, song ->
+                            Row(
+                                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                                    .background(if (index == currentIndex) Color(0xFF29213E) else Color(0xFF17181F))
+                                    .clickable { play(index); showQueue = false }.padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(if (index == currentIndex) "▶" else String.format("%02d", index + 1), color = Color(0xFFC8B7FF), fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(32.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(song.title, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(song.artist, color = Color(0xFF888894), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                                Text(formatTime(song.duration), color = Color(0xFF777783), fontSize = 11.sp)
+                            }
+                        }
+                    }
                 }
             }
         }
