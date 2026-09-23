@@ -2,6 +2,8 @@ package com.ngocsi.music
 
 import android.app.PendingIntent
 import android.content.Intent
+import android.os.Handler
+import android.os.Looper
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.Player
@@ -13,10 +15,19 @@ class MusicService : MediaSessionService() {
 
     private lateinit var player: ExoPlayer
     private lateinit var mediaSession: MediaSession
+    private val widgetHandler = Handler(Looper.getMainLooper())
+    private val widgetTicker = object : Runnable {
+        override fun run() {
+            broadcastWidget()
+            if (player.isPlaying) widgetHandler.postDelayed(this, 2000L)
+        }
+    }
 
     private val playerListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             broadcastWidget()
+            widgetHandler.removeCallbacks(widgetTicker)
+            if (isPlaying) widgetHandler.postDelayed(widgetTicker, 2000L)
         }
 
         override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
@@ -43,6 +54,7 @@ class MusicService : MediaSessionService() {
 
         player.setHandleAudioBecomingNoisy(true)
         player.addListener(playerListener)
+        broadcastWidget()
 
         val sessionActivity = PendingIntent.getActivity(
             this,
@@ -77,6 +89,7 @@ class MusicService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        widgetHandler.removeCallbacks(widgetTicker)
         player.removeListener(playerListener)
         mediaSession.release()
         player.release()
