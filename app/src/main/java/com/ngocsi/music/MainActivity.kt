@@ -24,6 +24,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
+import androidx.compose.ui.window.Dialog
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,6 +58,9 @@ class MainActivity : ComponentActivity() {
     private var youtubeQuery by mutableStateOf("")
     private var selectedLibrary by mutableStateOf("Tất cả")
     private var selectedSection by mutableStateOf("Trang chủ")
+    private var showNowPlaying by mutableStateOf(false)
+    private var showSleepTimer by mutableStateOf(false)
+    private var sleepMinutes by mutableIntStateOf(0)
     private var shuffleEnabled by mutableStateOf(false)
     private var repeatMode by mutableIntStateOf(Player.REPEAT_MODE_OFF)
     private val favorites = mutableStateMapOf<Long, Boolean>()
@@ -360,6 +364,14 @@ class MainActivity : ComponentActivity() {
         repeatMode = prefs.getInt("repeat", Player.REPEAT_MODE_OFF)
     }
 
+    private fun clearDriveLibrary() {
+        prefs.edit().remove("drive_uris").apply()
+        songs.removeAll { it.source == "Google Drive" }
+        if (currentIndex >= songs.size) currentIndex = -1
+        syncControllerQueue()
+        errorMessage = "Đã xóa các bài Google Drive khỏi thư viện ứng dụng."
+    }
+
     private fun savePlayerPreferences() {
         prefs.edit()
             .putStringSet("favorites", favorites.filterValues { it }.keys.map(Long::toString).toSet())
@@ -399,34 +411,69 @@ class MainActivity : ComponentActivity() {
                 delay(500)
             }
         }
+        LaunchedEffect(sleepMinutes, isPlaying) {
+            if (sleepMinutes > 0 && isPlaying) {
+                val minutes = sleepMinutes
+                delay(minutes * 60_000L)
+                controller?.pause()
+                sleepMinutes = 0
+            }
+        }
         MaterialTheme(colorScheme = darkColorScheme(background = Color(0xFF08090D), surface = Color(0xFF11131A), primary = Color(0xFFB18CFF), secondary = Color(0xFF7DD3FC))) {
             Surface(Modifier.fillMaxSize(), color = Color(0xFF0B0B0F)) {
                 Column(Modifier.fillMaxSize()) {
                     Header()
-                    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                        SearchBarModern()
-                        Spacer(Modifier.height(10.dp))
-                        LibraryChips()
-                        Spacer(Modifier.height(12.dp))
-                        PlayerCard(currentSong)
-                        Spacer(Modifier.height(12.dp))
-                        OnlineSourcesCard()
-                        Spacer(Modifier.height(14.dp))
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Text("THƯ VIỆN • ${songs.size} bài", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, modifier = Modifier.weight(1f))
-                            TextButton(onClick = ::loadSongs) { Text("LÀM MỚI") }
+                    when (selectedSection) {
+                        "Trang chủ" -> {
+                            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                                SearchBarModern()
+                                Spacer(Modifier.height(10.dp))
+                                LibraryChips()
+                                Spacer(Modifier.height(12.dp))
+                                PlayerCard(currentSong)
+                                Spacer(Modifier.height(12.dp))
+                                QuickActions()
+                            }
                         }
-                        errorMessage?.let { Text(it, color = Color(0xFFFFB4AB), fontSize = 13.sp, modifier = Modifier.padding(bottom = 8.dp)) }
+                        "Thư viện" -> {
+                            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                                SearchBarModern()
+                                Spacer(Modifier.height(10.dp))
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    Text("THƯ VIỆN • ${filteredSongs.size} bài", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, modifier = Modifier.weight(1f))
+                                    TextButton(onClick = ::loadSongs) { Text("LÀM MỚI") }
+                                }
+                                errorMessage?.let { Text(it, color = Color(0xFFFFB4AB), fontSize = 13.sp, modifier = Modifier.padding(bottom = 8.dp)) }
+                            }
+                        }
+                        "Online" -> {
+                            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                                OnlineSourcesCard()
+                                Spacer(Modifier.height(12.dp))
+                                Text("Nguồn đã nhập: ${songs.count { it.source == "Google Drive" }} bài", color = Color(0xFF9B9BA8), fontSize = 13.sp)
+                            }
+                        }
+                        "Cài đặt" -> SettingsPanel()
                     }
-                    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        itemsIndexed(filteredSongs, key = { _, song -> song.id }) { _, song ->
-                            val realIndex = songs.indexOfFirst { it.id == song.id }
-                            SongRow(song, realIndex, realIndex == currentIndex)
+                    Spacer(Modifier.height(8.dp))
+                    LazyColumn(
+                        Modifier.weight(1f),
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (selectedSection == "Trang chủ" || selectedSection == "Thư viện") {
+                            itemsIndexed(filteredSongs.take(if (selectedSection == "Trang chủ") 12 else filteredSongs.size), key = { _, song -> song.id }) { _, song ->
+                                val realIndex = songs.indexOfFirst { it.id == song.id }
+                                SongRow(song, realIndex, realIndex == currentIndex)
+                            }
                         }
                     }
+                    currentSong?.let { MiniPlayer(it) }
+                    BottomNav()
                 }
             }
         }
+        currentSong?.let { if (showNowPlaying) NowPlayingDialog(it) }
     }
 
     @Composable
@@ -465,6 +512,131 @@ class MainActivity : ComponentActivity() {
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             tabs.forEach { tab ->
                 FilterChip(selected = selectedLibrary == tab, onClick = { selectedLibrary = tab }, label = { Text(tab) }, shape = RoundedCornerShape(14.dp))
+            }
+        }
+    }
+
+    @Composable
+    private fun QuickActions() {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            FilledTonalButton(onClick = { selectedSection = "Thư viện" }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(16.dp)) {
+                Text("🎵 Thư viện")
+            }
+            FilledTonalButton(onClick = { selectedSection = "Online" }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(16.dp)) {
+                Text("☁ Online")
+            }
+        }
+    }
+
+    @Composable
+    private fun MiniPlayer(song: Song) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)
+                .clip(RoundedCornerShape(18.dp)).background(Color(0xFF1A1722))
+                .clickable { showNowPlaying = true }.padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(Modifier.size(42.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFF5C43A2)), contentAlignment = Alignment.Center) {
+                Text("♫", color = Color.White, fontSize = 20.sp)
+            }
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(song.title, color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(song.artist, color = Color(0xFF9999A5), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            IconButton(onClick = ::togglePlayPause) { Text(if (isPlaying) "⏸" else "▶", fontSize = 20.sp) }
+        }
+    }
+
+    @Composable
+    private fun BottomNav() {
+        NavigationBar(containerColor = Color(0xFF0F1016)) {
+            listOf("Trang chủ" to "⌂", "Thư viện" to "♫", "Online" to "☁", "Cài đặt" to "⚙").forEach { (name, icon) ->
+                NavigationBarItem(
+                    selected = selectedSection == name,
+                    onClick = { selectedSection = name },
+                    icon = { Text(icon, fontSize = 20.sp) },
+                    label = { Text(name, fontSize = 10.sp) }
+                )
+            }
+        }
+    }
+
+    @Composable
+    private fun SettingsPanel() {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("CÀI ĐẶT", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+            SettingsRow("⏱", "Hẹn giờ tắt nhạc", if (sleepMinutes > 0) "${sleepMinutes} phút" else "Tắt") { showSleepTimer = true }
+            SettingsRow("🔀", "Phát ngẫu nhiên", if (shuffleEnabled) "Đang bật" else "Đang tắt") { toggleShuffle() }
+            SettingsRow("🔁", "Lặp lại", when (repeatMode) { Player.REPEAT_MODE_ONE -> "Một bài"; Player.REPEAT_MODE_ALL -> "Tất cả"; else -> "Tắt" }) { cycleRepeat() }
+            SettingsRow("☁", "Google Drive", "${songs.count { it.source == "Google Drive" }} bài đã nhập") { selectedSection = "Online" }
+            OutlinedButton(onClick = ::clearDriveLibrary, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                Text("XÓA NHẠC GOOGLE DRIVE KHỎI ỨNG DỤNG")
+            }
+        }
+        if (showSleepTimer) {
+            AlertDialog(
+                onDismissRequest = { showSleepTimer = false },
+                title = { Text("Hẹn giờ tắt nhạc") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(15, 30, 45, 60, 90).forEach { min ->
+                            OutlinedButton(onClick = {
+                                sleepMinutes = min
+                                showSleepTimer = false
+                            }, modifier = Modifier.fillMaxWidth()) { Text("${min} phút") }
+                        }
+                        TextButton(onClick = { sleepMinutes = 0; showSleepTimer = false }) { Text("Tắt hẹn giờ") }
+                    }
+                },
+                confirmButton = {}
+            )
+        }
+    }
+
+    @Composable
+    private fun SettingsRow(icon: String, title: String, value: String, action: () -> Unit) {
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0xFF15161D))
+                .clickable(onClick = action).padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(icon, fontSize = 22.sp)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, color = Color.White, fontWeight = FontWeight.SemiBold)
+                Text(value, color = Color(0xFF8E8E99), fontSize = 12.sp)
+            }
+            Text("›", color = Color(0xFFB18CFF), fontSize = 24.sp)
+        }
+    }
+
+    @Composable
+    private fun NowPlayingDialog(song: Song) {
+        Dialog(onDismissRequest = { showNowPlaying = false }) {
+            Surface(shape = RoundedCornerShape(28.dp), color = Color(0xFF101117), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("ĐANG PHÁT", color = Color(0xFFB18CFF), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
+                    Spacer(Modifier.height(18.dp))
+                    Box(Modifier.size(220.dp).clip(RoundedCornerShape(30.dp)).background(Brush.linearGradient(listOf(Color(0xFF7657D8), Color(0xFF211A35)))), contentAlignment = Alignment.Center) {
+                        Text("♫", color = Color.White, fontSize = 82.sp)
+                    }
+                    Spacer(Modifier.height(18.dp))
+                    Text(song.title, color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(song.artist, color = Color(0xFF9999A5), fontSize = 14.sp)
+                    Spacer(Modifier.height(14.dp))
+                    Slider(value = if (song.duration > 0) position.coerceIn(0, song.duration).toFloat() else 0f, onValueChange = { seekTo(it.toLong()) }, valueRange = 0f..max(1L, song.duration).toFloat())
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(formatTime(position), color = Color(0xFF888894), fontSize = 12.sp)
+                        Text(formatTime(song.duration), color = Color(0xFF888894), fontSize = 12.sp)
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                        SmallControl("⏮", ::previous)
+                        Button(onClick = ::togglePlayPause, modifier = Modifier.size(62.dp), shape = CircleShape) { Text(if (isPlaying) "⏸" else "▶", fontSize = 22.sp) }
+                        SmallControl("⏭", ::next)
+                    }
+                    TextButton(onClick = { showNowPlaying = false }) { Text("Đóng") }
+                }
             }
         }
     }
