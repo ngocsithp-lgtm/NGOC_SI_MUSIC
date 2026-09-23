@@ -6,8 +6,6 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.graphics.Bitmap
-import android.net.Uri
 import android.widget.RemoteViews
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
@@ -104,12 +102,18 @@ class MusicWidgetProvider : AppWidgetProvider() {
         val title = metadata?.title?.toString()?.ifBlank { null } ?: "Chưa chọn bài hát"
         val artist = metadata?.artist?.toString()?.ifBlank { null } ?: "NGỌC SĨ MUSIC"
         val playIcon = if (controller.isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play
+        val duration = controller.duration.coerceAtLeast(0L)
+        val position = controller.currentPosition.coerceIn(0L, duration.coerceAtLeast(1L))
+        val progress = if (duration > 0L) ((position * 1000L) / duration).toInt().coerceIn(0, 1000) else 0
+        val time = formatTime(position)
 
         ids.forEach { id ->
             val views = RemoteViews(context.packageName, R.layout.music_widget)
             views.setTextViewText(R.id.widget_title, title)
             views.setTextViewText(R.id.widget_artist, artist)
             views.setImageViewResource(R.id.widget_play, playIcon)
+            views.setProgressBar(R.id.widget_progress, 1000, progress, false)
+            views.setTextViewText(R.id.widget_time, time)
             views.setOnClickPendingIntent(R.id.widget_previous, broadcastPending(context, ACTION_PREVIOUS, id))
             views.setOnClickPendingIntent(R.id.widget_play, broadcastPending(context, ACTION_PLAY_PAUSE, id))
             views.setOnClickPendingIntent(R.id.widget_next, broadcastPending(context, ACTION_NEXT, id))
@@ -131,11 +135,18 @@ class MusicWidgetProvider : AppWidgetProvider() {
         views.setTextViewText(R.id.widget_artist, "Sẵn sàng phát nhạc")
         views.setImageViewResource(R.id.widget_play, android.R.drawable.ic_media_play)
         views.setImageViewResource(R.id.widget_art, android.R.drawable.ic_media_play)
+        views.setProgressBar(R.id.widget_progress, 1000, 0, false)
+        views.setTextViewText(R.id.widget_time, "00:00")
         views.setOnClickPendingIntent(R.id.widget_previous, broadcastPending(context, ACTION_PREVIOUS, id))
         views.setOnClickPendingIntent(R.id.widget_play, broadcastPending(context, ACTION_PLAY_PAUSE, id))
         views.setOnClickPendingIntent(R.id.widget_next, broadcastPending(context, ACTION_NEXT, id))
         views.setOnClickPendingIntent(R.id.widget_root, broadcastPending(context, ACTION_OPEN, id))
         manager.updateAppWidget(id, views)
+    }
+
+    private fun formatTime(milliseconds: Long): String {
+        val totalSeconds = milliseconds.coerceAtLeast(0L) / 1000L
+        return String.format("%02d:%02d", totalSeconds / 60L, totalSeconds % 60L)
     }
 
     private fun broadcastPending(context: Context, action: String, id: Int): PendingIntent {
