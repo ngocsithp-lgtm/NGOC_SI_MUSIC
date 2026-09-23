@@ -218,6 +218,16 @@ class MainActivity : ComponentActivity() {
                 androidx.media3.common.MediaMetadata.Builder()
                     .setTitle(song.title)
                     .setArtist(song.artist)
+                    .apply {
+                        if (song.albumId >= 0) {
+                            setArtworkUri(
+                                ContentUris.withAppendedId(
+                                    MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI,
+                                    song.albumId
+                                )
+                            )
+                        }
+                    }
                     .build()
             )
             .build()
