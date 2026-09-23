@@ -111,7 +111,15 @@ class MainActivity : ComponentActivity() {
         }
         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
             isPlaying = false
-            errorMessage = "Không thể phát bài hát."
+            errorMessage = when (error.errorCode) {
+                androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+                androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_TIMEOUT ->
+                    "Mất kết nối mạng khi phát nhạc online."
+                androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED,
+                androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED ->
+                    "Luồng âm thanh không được hỗ trợ hoặc URL không phải luồng nhạc trực tiếp."
+                else -> "Không thể phát bài hát. Hãy kiểm tra URL và định dạng âm thanh."
+            }
         }
     }
 
@@ -180,11 +188,16 @@ class MainActivity : ComponentActivity() {
                     cursor.getLong(durationCol), ContentUris.withAppendedId(collection, id), "Thiết bị", cursor.getLong(albumIdCol))
             }
         }
-        val savedOnlineUris = prefs.getStringSet("drive_uris", emptySet()) ?: emptySet()
+        val savedDriveUris = prefs.getStringSet("drive_uris", emptySet()) ?: emptySet()
+        val savedOnlineUris = prefs.getStringSet("online_uris", emptySet()) ?: emptySet()
         val existing = result.map { it.uri.toString() }.toMutableSet()
-        savedOnlineUris.forEach { raw ->
+        savedDriveUris.forEach { raw ->
             val uri = Uri.parse(raw)
             if (existing.add(raw)) result += songFromUri(uri)
+        }
+        savedOnlineUris.forEach { raw ->
+            val uri = Uri.parse(raw)
+            if (existing.add(raw)) result += onlineSongFromUri(uri)
         }
         songs.clear()
         songs.addAll(result)
@@ -350,11 +363,16 @@ class MainActivity : ComponentActivity() {
             return
         }
         val uri = try { Uri.parse(raw) } catch (_: Exception) { null }
-        if (uri == null || uri.scheme !in listOf("https", "http")) {
-            errorMessage = "URL không hợp lệ. Hãy dùng HTTPS."
+        if (uri == null || uri.scheme != "https" || uri.host.isNullOrBlank()) {
+            errorMessage = "URL không hợp lệ. Hãy dùng HTTPS có tên miền."
             return
         }
-        val title = uri.lastPathSegment?.substringBeforeLast(".")?.ifBlank { null } ?: "Nhạc Online"
+
+        val title = uri.lastPathSegment
+            ?.substringBeforeLast(".")
+            ?.ifBlank { null }
+            ?: uri.host.orEmpty().ifBlank { "Nhạc Online" }
+
         val song = Song(
             id = -kotlin.math.abs(raw.hashCode().toLong()),
             title = title,
@@ -363,14 +381,44 @@ class MainActivity : ComponentActivity() {
             uri = uri,
             source = "Online"
         )
+
+        val saved = (prefs.getStringSet("online_uris", emptySet()) ?: emptySet()).toMutableSet()
+        saved.add(raw)
+        prefs.edit().putStringSet("online_uris", saved).apply()
+
         val existingIndex = songs.indexOfFirst { it.uri.toString() == raw }
         val index = if (existingIndex >= 0) existingIndex else {
             songs.add(song)
             songs.lastIndex
         }
+
         syncControllerQueue()
         play(index)
-        errorMessage = null
+        errorMessage = "Đang kết nối luồng âm thanh online…"
+    }
+
+    private fun onlineSongFromUri(uri: Uri): Song {
+        val title = uri.lastPathSegment
+            ?.substringBeforeLast(".")
+            ?.ifBlank { null }
+            ?: uri.host.orEmpty().ifBlank { "Nhạc Online" }
+
+        return Song(
+            id = -kotlin.math.abs(uri.toString().hashCode().toLong()),
+            title = title,
+            artist = "Online",
+            duration = 0L,
+            uri = uri,
+            source = "Online"
+        )
+    }
+
+    private fun clearOnlineLibrary() {
+        prefs.edit().remove("online_uris").apply()
+        songs.removeAll { it.source == "Online" }
+        if (currentIndex >= songs.size) currentIndex = -1
+        syncControllerQueue()
+        errorMessage = "Đã xóa các luồng online đã lưu."
     }
 
     private fun searchYouTube() {
