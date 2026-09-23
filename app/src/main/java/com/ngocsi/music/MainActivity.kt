@@ -362,8 +362,8 @@ class MainActivity : ComponentActivity() {
             return
         }
         val uri = try { Uri.parse(raw) } catch (_: Exception) { null }
-        if (uri == null || uri.scheme != "https" || uri.host.isNullOrBlank()) {
-            errorMessage = "URL không hợp lệ. Hãy dùng HTTPS có tên miền."
+        if (uri == null || (uri.scheme != "https" && uri.scheme != "http") || uri.host.isNullOrBlank()) {
+            errorMessage = "URL không hợp lệ. Hãy dùng URL HTTP/HTTPS trỏ trực tiếp tới luồng âm thanh."
             return
         }
 
@@ -864,7 +864,7 @@ class MainActivity : ComponentActivity() {
                 .background(Color(0xFF14141B)).padding(14.dp)
         ) {
             Text("KHO NHẠC ONLINE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-            Text("Phát nhạc online từ URL âm thanh trực tiếp. YouTube vẫn mở bằng trình phát chính thức.",
+            Text("Phát URL âm thanh trực tiếp HTTP/HTTPS. Link YouTube/web không phải luồng âm thanh nên không phát trực tiếp.",
                 color = Color(0xFF8F8F9A), fontSize = 12.sp)
             Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -894,6 +894,15 @@ class MainActivity : ComponentActivity() {
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp)
             ) { Text("▶ PHÁT NHẠC ONLINE") }
+            Spacer(Modifier.height(6.dp))
+            OutlinedButton(
+                onClick = {
+                    onlineUrl = "http://stream-tx3.radioparadise.com/mp3-192"
+                    playOnlineUrl()
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) { Text("📻 THỬ RADIO ONLINE") }
             Spacer(Modifier.height(6.dp))
             OutlinedButton(
                 onClick = ::clearOnlineLibrary,
