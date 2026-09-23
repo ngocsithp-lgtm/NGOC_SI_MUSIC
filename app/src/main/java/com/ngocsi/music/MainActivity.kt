@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
+import android.content.SharedPreferences
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -49,6 +50,7 @@ class MainActivity : ComponentActivity() {
     private var shuffleEnabled by mutableStateOf(false)
     private var repeatMode by mutableIntStateOf(Player.REPEAT_MODE_OFF)
     private val favorites = mutableStateMapOf<Long, Boolean>()
+    private lateinit var prefs: SharedPreferences
 
     private val permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) loadSongs() else errorMessage = "Cần cấp quyền đọc nhạc để quét thư viện."
@@ -75,6 +77,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+        loadSavedState()
         setContent { NgocSiMusicApp() }
         requestMusicPermissionIfNeeded()
         requestNotificationPermissionIfNeeded()
@@ -177,6 +181,7 @@ class MainActivity : ComponentActivity() {
     private fun toggleShuffle() {
         shuffleEnabled = !shuffleEnabled
         controller?.shuffleModeEnabled = shuffleEnabled
+        savePlayerPreferences()
     }
 
     private fun cycleRepeat() {
@@ -186,9 +191,28 @@ class MainActivity : ComponentActivity() {
             else -> Player.REPEAT_MODE_OFF
         }
         controller?.repeatMode = repeatMode
+        savePlayerPreferences()
     }
 
-    private fun toggleFavorite(song: Song) { favorites[song.id] = !(favorites[song.id] ?: false) }
+    private fun loadSavedState() {
+        val savedFavorites = prefs.getStringSet("favorites", emptySet()).orEmpty()
+        savedFavorites.forEach { it.toLongOrNull()?.let { id -> favorites[id] = true } }
+        shuffleEnabled = prefs.getBoolean("shuffle", false)
+        repeatMode = prefs.getInt("repeat", Player.REPEAT_MODE_OFF)
+    }
+
+    private fun savePlayerPreferences() {
+        prefs.edit()
+            .putStringSet("favorites", favorites.filterValues { it }.keys.map(Long::toString).toSet())
+            .putBoolean("shuffle", shuffleEnabled)
+            .putInt("repeat", repeatMode)
+            .apply()
+    }
+
+    private fun toggleFavorite(song: Song) {
+        favorites[song.id] = !(favorites[song.id] ?: false)
+        savePlayerPreferences()
+    }
 
     override fun onDestroy() {
         controller?.removeListener(playerListener)
@@ -241,7 +265,7 @@ class MainActivity : ComponentActivity() {
     private fun Header() {
         Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 18.dp)) {
             Text("NGỌC SĨ MUSIC", color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.ExtraBold)
-            Text("MUSIC PLAYER 2.1 PRO", color = Color(0xFFAAA5B8), fontSize = 12.sp, letterSpacing = 3.sp)
+            Text("MUSIC PLAYER 2.5 PRO MAX", color = Color(0xFFAAA5B8), fontSize = 12.sp, letterSpacing = 3.sp)
         }
     }
 
