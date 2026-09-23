@@ -891,6 +891,26 @@ class MainActivity : ComponentActivity() {
             Spacer(Modifier.height(10.dp))
             YouTubePad(url = youtubeWebUrl)
             Spacer(Modifier.height(12.dp))
+            Text("YOUTUBE PAD", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = { youtubeWebUrl = "https://m.youtube.com/" },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp)
+                ) { Text("TRANG CHU") }
+                OutlinedButton(
+                    onClick = { if (youtubeQuery.isBlank()) errorMessage = "Nhap tu khoa truoc." else searchYouTube() },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp)
+                ) { Text("TIM LAI") }
+                OutlinedButton(
+                    onClick = { youtubeWebUrl = "https://m.youtube.com/feed/subscriptions" },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp)
+                ) { Text("KENH") }
+            }
+            Spacer(Modifier.height(12.dp))
             Text("NHAC ONLINE KHAC", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
