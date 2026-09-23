@@ -16,8 +16,7 @@ class MusicService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
 
-        player = ExoPlayer.Builder(this)
-            .build()
+        player = ExoPlayer.Builder(this).build()
 
         player.setAudioAttributes(
             AudioAttributes.Builder()
@@ -33,22 +32,23 @@ class MusicService : MediaSessionService() {
             this,
             0,
             Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_UPDATE_CURRENT or
-                    PendingIntent.FLAG_IMMUTABLE
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        mediaSession = MediaSession.Builder(
-            this,
-            player
-        )
+        mediaSession = MediaSession.Builder(this, player)
             .setSessionActivity(sessionActivity)
             .build()
     }
 
-    override fun onGetSession(
-        controllerInfo: MediaSession.ControllerInfo
-    ): MediaSession {
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession {
         return mediaSession
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        // Keep playback alive when the app task is removed.
+        if (!player.isPlaying) {
+            stopSelf()
+        }
     }
 
     override fun onDestroy() {
