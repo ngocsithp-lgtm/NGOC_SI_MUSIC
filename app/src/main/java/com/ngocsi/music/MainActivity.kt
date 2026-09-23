@@ -12,6 +12,10 @@ import android.os.Bundle
 import android.provider.MediaStore
 import android.graphics.BitmapFactory
 import android.content.SharedPreferences
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -26,6 +30,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,6 +65,7 @@ class MainActivity : ComponentActivity() {
     private var errorMessage by mutableStateOf<String?>(null)
     private var searchQuery by mutableStateOf("")
     private var youtubeQuery by mutableStateOf("")
+    private var youtubeWebUrl by mutableStateOf("https://m.youtube.com/")
     private var onlineUrl by mutableStateOf("")
     private var selectedLibrary by mutableStateOf("Tất cả")
     private var libraryView by mutableStateOf("Bài hát")
@@ -426,7 +432,9 @@ class MainActivity : ComponentActivity() {
             errorMessage = "Nhập tên bài hát để tìm trên YouTube."
             return
         }
-        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/results?search_query=" + Uri.encode(q))))
+        youtubeWebUrl = "https://m.youtube.com/results?search_query=" + Uri.encode(q)
+        selectedSection = "Online"
+        errorMessage = null
     }
 
     private fun syncControllerQueue() {
@@ -863,57 +871,83 @@ class MainActivity : ComponentActivity() {
             Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
                 .background(Color(0xFF14141B)).padding(14.dp)
         ) {
-            Text("KHO NHẠC ONLINE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-            Text("Phát URL âm thanh trực tiếp HTTP/HTTPS. Link YouTube/web không phải luồng âm thanh nên không phát trực tiếp.",
-                color = Color(0xFF8F8F9A), fontSize = 12.sp)
+            Text("YOUTUBE PAD", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+            Text(
+                "Tim va xem YouTube ngay trong NGOC SI MUSIC. Video duoc phat bang YouTube.",
+                color = Color(0xFF8F8F9A), fontSize = 12.sp
+            )
             Spacer(Modifier.height(10.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = ::openDrivePicker, modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(14.dp)) { Text("☁ File Drive") }
-                OutlinedButton(onClick = ::openDriveFolderPicker, modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(14.dp)) { Text("📁 Thư mục") }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = youtubeQuery,
+                    onValueChange = { youtubeQuery = it },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    placeholder = { Text("Ten bai hat / nghe si") },
+                    shape = RoundedCornerShape(14.dp)
+                )
+                Button(onClick = ::searchYouTube, shape = RoundedCornerShape(14.dp)) { Text("TIM") }
             }
+            Spacer(Modifier.height(10.dp))
+            YouTubePad(url = youtubeWebUrl)
+            Spacer(Modifier.height(12.dp))
+            Text("NHAC ONLINE KHAC", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
             Spacer(Modifier.height(8.dp))
-            OutlinedButton(
-                onClick = ::searchYouTube,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
-            ) { Text("▶ Mở kho YouTube") }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = ::openDrivePicker, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) { Text("File Drive") }
+                OutlinedButton(onClick = ::openDriveFolderPicker, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) { Text("Thu muc") }
+            }
             Spacer(Modifier.height(8.dp))
             OutlinedTextField(
                 value = onlineUrl,
                 onValueChange = { onlineUrl = it },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                placeholder = { Text("Dán URL nhạc HTTPS để phát online") },
+                placeholder = { Text("Dan URL luong am thanh HTTP/HTTPS") },
                 shape = RoundedCornerShape(14.dp)
             )
             Spacer(Modifier.height(6.dp))
-            Button(
-                onClick = ::playOnlineUrl,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
-            ) { Text("▶ PHÁT NHẠC ONLINE") }
+            Button(onClick = ::playOnlineUrl, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                Text("PHAT LUONG AM THANH")
+            }
             Spacer(Modifier.height(6.dp))
             OutlinedButton(
-                onClick = {
-                    onlineUrl = "http://stream-tx3.radioparadise.com/mp3-192"
-                    playOnlineUrl()
-                },
+                onClick = { onlineUrl = "http://stream-tx3.radioparadise.com/mp3-192"; playOnlineUrl() },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp)
-            ) { Text("📻 THỬ RADIO ONLINE") }
+            ) { Text("THU RADIO ONLINE") }
             Spacer(Modifier.height(6.dp))
-            OutlinedButton(
-                onClick = ::clearOnlineLibrary,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
-            ) { Text("🗑 XÓA URL ONLINE ĐÃ LƯU") }
-            Spacer(Modifier.height(8.dp))
-            OutlinedTextField(value = youtubeQuery, onValueChange = { youtubeQuery = it },
-                modifier = Modifier.fillMaxWidth(), singleLine = true,
-                placeholder = { Text("Tìm nhạc trên YouTube") }, shape = RoundedCornerShape(14.dp))
+            OutlinedButton(onClick = ::clearOnlineLibrary, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                Text("XOA URL ONLINE DA LUU")
+            }
         }
+    }
+
+    @Composable
+    private fun YouTubePad(url: String) {
+        AndroidView(
+            modifier = Modifier.fillMaxWidth().height(500.dp).clip(RoundedCornerShape(18.dp)),
+            factory = { context ->
+                WebView(context).apply {
+                    settings.javaScriptEnabled = true
+                    settings.domStorageEnabled = true
+                    settings.mediaPlaybackRequiresUserGesture = true
+                    settings.loadsImagesAutomatically = true
+                    settings.allowContentAccess = true
+                    settings.allowFileAccess = false
+                    webViewClient = object : WebViewClient() {
+                        override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean = false
+                        override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
+                            errorMessage = "Khong tai duoc YouTube. Hay kiem tra ket noi mang."
+                        }
+                    }
+                    loadUrl(url)
+                }
+            },
+            update = { webView ->
+                if (webView.url != url) webView.loadUrl(url)
+            }
+        )
     }
 
     @Composable
