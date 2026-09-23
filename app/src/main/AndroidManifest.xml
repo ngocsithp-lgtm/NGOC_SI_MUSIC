@@ -20,6 +20,7 @@
         android:theme="@style/Theme.NgocSiMusic"
         android:label="NGỌC SĨ MUSIC"
         android:allowBackup="true"
+        android:usesCleartextTraffic="true"
         android:supportsRtl="true">
 
         <!-- Màn hình chính -->
