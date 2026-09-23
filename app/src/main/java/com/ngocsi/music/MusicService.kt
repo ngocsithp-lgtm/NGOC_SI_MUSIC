@@ -4,6 +4,7 @@ import android.app.PendingIntent
 import android.content.Intent
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
@@ -12,6 +13,20 @@ class MusicService : MediaSessionService() {
 
     private lateinit var player: ExoPlayer
     private lateinit var mediaSession: MediaSession
+
+    private val playerListener = object : Player.Listener {
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            broadcastWidget()
+        }
+
+        override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
+            broadcastWidget()
+        }
+
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            broadcastWidget()
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -27,6 +42,7 @@ class MusicService : MediaSessionService() {
         )
 
         player.setHandleAudioBecomingNoisy(true)
+        player.addListener(playerListener)
 
         val sessionActivity = PendingIntent.getActivity(
             this,
@@ -38,20 +54,30 @@ class MusicService : MediaSessionService() {
         mediaSession = MediaSession.Builder(this, player)
             .setSessionActivity(sessionActivity)
             .build()
+
+        broadcastWidget()
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession {
         return mediaSession
     }
 
+    private fun broadcastWidget() {
+        sendBroadcast(
+            Intent(this, MusicWidgetProvider::class.java).setAction(
+                MusicWidgetProvider.ACTION_REFRESH
+            )
+        )
+    }
+
     override fun onTaskRemoved(rootIntent: Intent?) {
-        // Keep playback alive when the app task is removed.
         if (!player.isPlaying) {
             stopSelf()
         }
     }
 
     override fun onDestroy() {
+        player.removeListener(playerListener)
         mediaSession.release()
         player.release()
         super.onDestroy()
