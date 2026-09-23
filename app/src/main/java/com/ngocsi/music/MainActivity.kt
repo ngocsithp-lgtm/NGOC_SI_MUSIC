@@ -10,6 +10,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
+import android.graphics.BitmapFactory
 import android.content.SharedPreferences
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -31,7 +32,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.Image
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -45,7 +49,7 @@ import com.google.common.util.concurrent.MoreExecutors
 import kotlinx.coroutines.delay
 import kotlin.math.max
 
-data class Song(val id: Long, val title: String, val artist: String, val duration: Long, val uri: Uri, val source: String = "Thiết bị")
+data class Song(val id: Long, val title: String, val artist: String, val duration: Long, val uri: Uri, val source: String = "Thiết bị", val albumId: Long = -1L)
 
 class MainActivity : ComponentActivity() {
     private var controller: MediaController? = null
@@ -161,11 +165,12 @@ class MainActivity : ComponentActivity() {
             val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
             val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
             val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+            val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idCol)
                 result += Song(id, cursor.getString(titleCol).orEmpty().ifBlank { "Không có tên" },
                     cursor.getString(artistCol).orEmpty().ifBlank { "Nghệ sĩ không rõ" },
-                    cursor.getLong(durationCol), ContentUris.withAppendedId(collection, id), "Thiết bị")
+                    cursor.getLong(durationCol), ContentUris.withAppendedId(collection, id), "Thiết bị", cursor.getLong(albumIdCol))
             }
         }
         val savedOnlineUris = prefs.getStringSet("drive_uris", emptySet()) ?: emptySet()
@@ -590,6 +595,26 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun albumArtBitmap(song: Song): androidx.compose.ui.graphics.ImageBitmap? {
+        if (song.albumId < 0) return null
+        return try {
+            val artUri = ContentUris.withAppendedId(MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI, song.albumId)
+            contentResolver.openInputStream(artUri)?.use { BitmapFactory.decodeStream(it)?.asImageBitmap() }
+        } catch (_: Exception) { null }
+    }
+
+    @Composable
+    private fun AlbumArt(song: Song, modifier: Modifier = Modifier) {
+        val bitmap = remember(song.uri.toString(), song.albumId) { albumArtBitmap(song) }
+        if (bitmap != null) {
+            Image(bitmap = bitmap, contentDescription = "Ảnh bìa " + song.title, modifier = modifier.clip(RoundedCornerShape(22.dp)), contentScale = ContentScale.Crop)
+        } else {
+            Box(modifier.clip(RoundedCornerShape(22.dp)).background(Brush.linearGradient(listOf(Color(0xFF6D4CC5), Color(0xFF24283A)))), contentAlignment = Alignment.Center) {
+                Text("♫", color = Color(0xFFC8B7FF), fontSize = 42.sp)
+            }
+        }
+    }
+
     @Composable
     private fun MiniPlayer(song: Song) {
         Row(
@@ -598,9 +623,7 @@ class MainActivity : ComponentActivity() {
                 .clickable { showNowPlaying = true }.padding(10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(Modifier.size(42.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFF5C43A2)), contentAlignment = Alignment.Center) {
-                Text("♫", color = Color.White, fontSize = 20.sp)
-            }
+            AlbumArt(song, Modifier.size(42.dp))
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
                 Text(song.title, color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -680,9 +703,7 @@ class MainActivity : ComponentActivity() {
                 Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("ĐANG PHÁT", color = Color(0xFFB18CFF), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
                     Spacer(Modifier.height(18.dp))
-                    Box(Modifier.size(220.dp).clip(RoundedCornerShape(30.dp)).background(Brush.linearGradient(listOf(Color(0xFF7657D8), Color(0xFF211A35)))), contentAlignment = Alignment.Center) {
-                        Text("♫", color = Color.White, fontSize = 82.sp)
-                    }
+                    AlbumArt(song, Modifier.size(220.dp))
                     Spacer(Modifier.height(18.dp))
                     Text(song.title, color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(song.artist, color = Color(0xFF9999A5), fontSize = 14.sp)
