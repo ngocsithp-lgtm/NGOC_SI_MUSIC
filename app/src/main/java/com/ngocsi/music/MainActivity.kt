@@ -60,6 +60,7 @@ class MainActivity : ComponentActivity() {
     private var errorMessage by mutableStateOf<String?>(null)
     private var searchQuery by mutableStateOf("")
     private var youtubeQuery by mutableStateOf("")
+    private var onlineUrl by mutableStateOf("")
     private var selectedLibrary by mutableStateOf("Tất cả")
     private var libraryView by mutableStateOf("Bài hát")
     private var showQueue by mutableStateOf(false)
@@ -340,6 +341,36 @@ class MainActivity : ComponentActivity() {
             name.endsWith(".ogg") ||
             name.endsWith(".opus") ||
             name.endsWith(".wma")
+    }
+
+    private fun playOnlineUrl() {
+        val raw = onlineUrl.trim()
+        if (raw.isBlank()) {
+            errorMessage = "Nhập URL âm thanh trực tiếp (HTTPS)."
+            return
+        }
+        val uri = try { Uri.parse(raw) } catch (_: Exception) { null }
+        if (uri == null || uri.scheme !in listOf("https", "http")) {
+            errorMessage = "URL không hợp lệ. Hãy dùng HTTPS."
+            return
+        }
+        val title = uri.lastPathSegment?.substringBeforeLast(".")?.ifBlank { null } ?: "Nhạc Online"
+        val song = Song(
+            id = -kotlin.math.abs(raw.hashCode().toLong()),
+            title = title,
+            artist = "Online",
+            duration = 0L,
+            uri = uri,
+            source = "Online"
+        )
+        val existingIndex = songs.indexOfFirst { it.uri.toString() == raw }
+        val index = if (existingIndex >= 0) existingIndex else {
+            songs.add(song)
+            songs.lastIndex
+        }
+        syncControllerQueue()
+        play(index)
+        errorMessage = null
     }
 
     private fun searchYouTube() {
@@ -785,7 +816,7 @@ class MainActivity : ComponentActivity() {
                 .background(Color(0xFF14141B)).padding(14.dp)
         ) {
             Text("KHO NHẠC ONLINE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-            Text("Drive: chọn file hoặc cả thư mục để đưa nhạc vào thư viện. YouTube: tìm và phát bằng trình phát chính thức.",
+            Text("Phát nhạc online từ URL âm thanh trực tiếp. YouTube vẫn mở bằng trình phát chính thức.",
                 color = Color(0xFF8F8F9A), fontSize = 12.sp)
             Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -800,6 +831,21 @@ class MainActivity : ComponentActivity() {
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp)
             ) { Text("▶ Mở kho YouTube") }
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(
+                value = onlineUrl,
+                onValueChange = { onlineUrl = it },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                placeholder = { Text("Dán URL nhạc HTTPS để phát online") },
+                shape = RoundedCornerShape(14.dp)
+            )
+            Spacer(Modifier.height(6.dp))
+            Button(
+                onClick = ::playOnlineUrl,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) { Text("▶ PHÁT NHẠC ONLINE") }
             Spacer(Modifier.height(8.dp))
             OutlinedTextField(value = youtubeQuery, onValueChange = { youtubeQuery = it },
                 modifier = Modifier.fillMaxWidth(), singleLine = true,
