@@ -19,6 +19,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -52,6 +54,7 @@ class MainActivity : ComponentActivity() {
     private var errorMessage by mutableStateOf<String?>(null)
     private var searchQuery by mutableStateOf("")
     private var youtubeQuery by mutableStateOf("")
+    private var selectedLibrary by mutableStateOf("Tất cả")
     private var shuffleEnabled by mutableStateOf(false)
     private var repeatMode by mutableIntStateOf(Player.REPEAT_MODE_OFF)
     private val favorites = mutableStateMapOf<Long, Boolean>()
@@ -378,9 +381,15 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun NgocSiMusicApp() {
         val currentSong = songs.getOrNull(currentIndex)
-        val filteredSongs = remember(searchQuery, songs.size) {
+        val filteredSongs = remember(searchQuery, songs.size, selectedLibrary, favorites.size) {
             val q = searchQuery.trim()
-            if (q.isBlank()) songs.toList() else songs.filter { it.title.contains(q, true) || it.artist.contains(q, true) || it.source.contains(q, true) }
+            val byText = if (q.isBlank()) songs.toList() else songs.filter { it.title.contains(q, true) || it.artist.contains(q, true) || it.source.contains(q, true) }
+            when (selectedLibrary) {
+                "Yêu thích" -> byText.filter { favorites[it.id] == true }
+                "Thiết bị" -> byText.filter { it.source == "Thiết bị" }
+                "Google Drive" -> byText.filter { it.source == "Google Drive" }
+                else -> byText
+            }
         }
         LaunchedEffect(isPlaying, currentIndex) {
             while (isPlaying) {
@@ -388,13 +397,14 @@ class MainActivity : ComponentActivity() {
                 delay(500)
             }
         }
-        MaterialTheme(colorScheme = darkColorScheme(background = Color(0xFF0B0B0F), surface = Color(0xFF15151B), primary = Color(0xFF9B7BFF))) {
+        MaterialTheme(colorScheme = darkColorScheme(background = Color(0xFF08090D), surface = Color(0xFF11131A), primary = Color(0xFFB18CFF), secondary = Color(0xFF7DD3FC))) {
             Surface(Modifier.fillMaxSize(), color = Color(0xFF0B0B0F)) {
                 Column(Modifier.fillMaxSize()) {
                     Header()
                     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                        OutlinedTextField(value = searchQuery, onValueChange = { searchQuery = it }, modifier = Modifier.fillMaxWidth(),
-                            singleLine = true, placeholder = { Text("Tìm bài hát hoặc nghệ sĩ") }, leadingIcon = { Text("🔎") }, shape = RoundedCornerShape(16.dp))
+                        SearchBarModern()
+                        Spacer(Modifier.height(10.dp))
+                        LibraryChips()
                         Spacer(Modifier.height(12.dp))
                         PlayerCard(currentSong)
                         Spacer(Modifier.height(12.dp))
@@ -419,9 +429,41 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun Header() {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 18.dp)) {
-            Text("NGỌC SĨ MUSIC", color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.ExtraBold)
-            Text("MUSIC PLAYER 2.5 PRO MAX", color = Color(0xFFAAA5B8), fontSize = 12.sp, letterSpacing = 3.sp)
+        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("NGỌC SĨ", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold)
+                Text("MUSIC", color = Color(0xFFB18CFF), fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 5.sp)
+            }
+            Box(Modifier.size(46.dp).clip(CircleShape).background(Color(0xFF1D172B)), contentAlignment = Alignment.Center) {
+                Text("♫", color = Color(0xFFCDBAFF), fontSize = 24.sp)
+            }
+        }
+    }
+
+    @Composable
+    private fun SearchBarModern() {
+        OutlinedTextField(
+            value = searchQuery, onValueChange = { searchQuery = it },
+            modifier = Modifier.fillMaxWidth(), singleLine = true,
+            placeholder = { Text("Tìm bài hát, nghệ sĩ...", color = Color(0xFF777D8D)) },
+            leadingIcon = { Text("⌕", color = Color(0xFFB18CFF), fontSize = 25.sp) },
+            shape = RoundedCornerShape(18.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                unfocusedContainerColor = Color(0xFF11131A),
+                focusedContainerColor = Color(0xFF151722),
+                unfocusedBorderColor = Color(0xFF252936),
+                focusedBorderColor = Color(0xFF8F6FE8)
+            )
+        )
+    }
+
+    @Composable
+    private fun LibraryChips() {
+        val tabs = listOf("Tất cả", "Yêu thích", "Thiết bị", "Google Drive")
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            tabs.forEach { tab ->
+                FilterChip(selected = selectedLibrary == tab, onClick = { selectedLibrary = tab }, label = { Text(tab) }, shape = RoundedCornerShape(14.dp))
+            }
         }
     }
 
