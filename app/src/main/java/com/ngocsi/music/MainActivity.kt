@@ -140,7 +140,7 @@ class MainActivity : ComponentActivity() {
                     cursor.getLong(durationCol), ContentUris.withAppendedId(collection, id), "Thiết bị")
             }
         }
-        val savedOnlineUris = prefs.getStringSet("drive_uris", emptySet()).orEmpty()
+        val savedOnlineUris = prefs.getStringSet("drive_uris", emptySet()) ?: emptySet()
         val existing = result.map { it.uri.toString() }.toMutableSet()
         savedOnlineUris.forEach { raw ->
             val uri = Uri.parse(raw)
