@@ -2,6 +2,9 @@ package com.ngocsi.music
 
 import android.Manifest
 import android.content.ComponentName
+import android.content.Intent
+import android.net.Uri
+import android.provider.OpenableColumns
 import android.content.ContentUris
 import android.content.pm.PackageManager
 import android.os.Build
@@ -37,7 +40,7 @@ import com.google.common.util.concurrent.MoreExecutors
 import kotlinx.coroutines.delay
 import kotlin.math.max
 
-data class Song(val id: Long, val title: String, val artist: String, val duration: Long, val uri: android.net.Uri)
+data class Song(val id: Long, val title: String, val artist: String, val duration: Long, val uri: Uri, val source: String = "Thiết bị")
 
 class MainActivity : ComponentActivity() {
     private var controller: MediaController? = null
@@ -47,6 +50,7 @@ class MainActivity : ComponentActivity() {
     private var position by mutableLongStateOf(0L)
     private var errorMessage by mutableStateOf<String?>(null)
     private var searchQuery by mutableStateOf("")
+    private var youtubeQuery by mutableStateOf("")
     private var shuffleEnabled by mutableStateOf(false)
     private var repeatMode by mutableIntStateOf(Player.REPEAT_MODE_OFF)
     private val favorites = mutableStateMapOf<Long, Boolean>()
@@ -56,6 +60,9 @@ class MainActivity : ComponentActivity() {
         if (granted) loadSongs() else errorMessage = "Cần cấp quyền đọc nhạc để quét thư viện."
     }
     private val notificationPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    private val drivePickerLauncher = registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isNotEmpty()) importDriveSongs(uris)
+    }
 
     private val playerListener = object : Player.Listener {
         override fun onIsPlayingChanged(playing: Boolean) { isPlaying = playing }
@@ -130,15 +137,21 @@ class MainActivity : ComponentActivity() {
                 val id = cursor.getLong(idCol)
                 result += Song(id, cursor.getString(titleCol).orEmpty().ifBlank { "Không có tên" },
                     cursor.getString(artistCol).orEmpty().ifBlank { "Nghệ sĩ không rõ" },
-                    cursor.getLong(durationCol), ContentUris.withAppendedId(collection, id))
+                    cursor.getLong(durationCol), ContentUris.withAppendedId(collection, id), "Thiết bị")
             }
+        }
+        val savedOnlineUris = prefs.getStringSet("drive_uris", emptySet()).orEmpty()
+        val existing = result.map { it.uri.toString() }.toMutableSet()
+        savedOnlineUris.forEach { raw ->
+            val uri = Uri.parse(raw)
+            if (existing.add(raw)) result += songFromUri(uri)
         }
         songs.clear()
         songs.addAll(result)
         errorMessage = if (songs.isEmpty()) "Chưa tìm thấy file nhạc trong thiết bị." else null
         controller?.let { c ->
             if (c.mediaItemCount == 0 && songs.isNotEmpty()) {
-                c.setMediaItems(songs.map { MediaItem.fromUri(it.uri) })
+                c.setMediaItems(songs.map { mediaItemFor(it) })
                 c.prepare()
             }
         }
@@ -155,6 +168,79 @@ class MainActivity : ComponentActivity() {
         c.seekToDefaultPosition(index)
         c.play()
         errorMessage = null
+    }
+
+    private fun mediaItemFor(song: Song): MediaItem {
+        return MediaItem.Builder()
+            .setUri(song.uri)
+            .setMediaMetadata(
+                androidx.media3.common.MediaMetadata.Builder()
+                    .setTitle(song.title)
+                    .setArtist(song.artist)
+                    .build()
+            )
+            .build()
+    }
+
+    private fun importDriveSongs(uris: List<Uri>) {
+        val saved = prefs.getStringSet("drive_uris", emptySet()).toMutableSet()
+        var added = 0
+        uris.forEach { uri ->
+            try {
+                contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            } catch (_: Exception) { }
+            val raw = uri.toString()
+            if (saved.add(raw) && songs.none { it.uri == uri }) {
+                songs.add(songFromUri(uri))
+                added++
+            }
+        }
+        prefs.edit().putStringSet("drive_uris", saved).apply()
+        errorMessage = if (added > 0) "Đã thêm $added bài từ Google Drive." else "Các bài đã chọn đã có trong thư viện."
+        syncControllerQueue()
+    }
+
+    private fun songFromUri(uri: Uri): Song {
+        var title = "Nhạc online"
+        contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                title = cursor.getString(cursor.getColumnIndexOrThrow(OpenableColumns.DISPLAY_NAME))
+                    .substringBeforeLast(".").ifBlank { "Nhạc online" }
+            }
+        }
+        return Song(
+            id = -kotlin.math.abs(uri.toString().hashCode().toLong()),
+            title = title,
+            artist = "Google Drive",
+            duration = 0L,
+            uri = uri,
+            source = "Google Drive"
+        )
+    }
+
+    private fun openDrivePicker() {
+        drivePickerLauncher.launch(arrayOf("audio/*"))
+    }
+
+    private fun searchYouTube() {
+        val q = youtubeQuery.trim()
+        if (q.isBlank()) {
+            errorMessage = "Nhập tên bài hát để tìm trên YouTube."
+            return
+        }
+        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/results?search_query=" + Uri.encode(q))))
+    }
+
+    private fun syncControllerQueue() {
+        controller?.let { c ->
+            if (songs.isNotEmpty()) {
+                val selectedUri = c.currentMediaItem?.localConfiguration?.uri
+                c.setMediaItems(songs.map { mediaItemFor(it) })
+                c.prepare()
+                val index = selectedUri?.let { uri -> songs.indexOfFirst { it.uri == uri } } ?: -1
+                if (index >= 0) c.seekToDefaultPosition(index)
+            }
+        }
     }
 
     private fun togglePlayPause() {
@@ -226,7 +312,7 @@ class MainActivity : ComponentActivity() {
         val currentSong = songs.getOrNull(currentIndex)
         val filteredSongs = remember(searchQuery, songs.size) {
             val q = searchQuery.trim()
-            if (q.isBlank()) songs.toList() else songs.filter { it.title.contains(q, true) || it.artist.contains(q, true) }
+            if (q.isBlank()) songs.toList() else songs.filter { it.title.contains(q, true) || it.artist.contains(q, true) || it.source.contains(q, true) }
         }
         LaunchedEffect(isPlaying, currentIndex) {
             while (isPlaying) {
@@ -243,6 +329,8 @@ class MainActivity : ComponentActivity() {
                             singleLine = true, placeholder = { Text("Tìm bài hát hoặc nghệ sĩ") }, leadingIcon = { Text("🔎") }, shape = RoundedCornerShape(16.dp))
                         Spacer(Modifier.height(12.dp))
                         PlayerCard(currentSong)
+                        Spacer(Modifier.height(12.dp))
+                        OnlineSourcesCard()
                         Spacer(Modifier.height(14.dp))
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Text("THƯ VIỆN • ${songs.size} bài", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
@@ -266,6 +354,29 @@ class MainActivity : ComponentActivity() {
         Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 18.dp)) {
             Text("NGỌC SĨ MUSIC", color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.ExtraBold)
             Text("MUSIC PLAYER 2.5 PRO MAX", color = Color(0xFFAAA5B8), fontSize = 12.sp, letterSpacing = 3.sp)
+        }
+    }
+
+    @Composable
+    private fun OnlineSourcesCard() {
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
+                .background(Color(0xFF14141B)).padding(14.dp)
+        ) {
+            Text("KHO NHẠC ONLINE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            Text("Google Drive là thư viện online chính. YouTube dùng trình phát chính thức.",
+                color = Color(0xFF8F8F9A), fontSize = 12.sp)
+            Spacer(Modifier.height(10.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = ::openDrivePicker, modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp)) { Text("☁ Drive") }
+                OutlinedButton(onClick = ::searchYouTube, modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp)) { Text("▶ YouTube") }
+            }
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(value = youtubeQuery, onValueChange = { youtubeQuery = it },
+                modifier = Modifier.fillMaxWidth(), singleLine = true,
+                placeholder = { Text("Tìm nhạc trên YouTube") }, shape = RoundedCornerShape(14.dp))
         }
     }
 
@@ -319,7 +430,7 @@ class MainActivity : ComponentActivity() {
                 fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(34.dp))
             Column(Modifier.weight(1f)) {
                 Text(song.title, color = Color.White, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(song.artist, color = Color(0xFF8F8F9A), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("${song.artist} • ${song.source}", color = Color(0xFF8F8F9A), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             IconButton(onClick = { toggleFavorite(song) }) {
                 Text(if (favorites[song.id] == true) "♥" else "♡", color = if (favorites[song.id] == true) Color(0xFFFF6B81) else Color(0xFF777783), fontSize = 22.sp)
