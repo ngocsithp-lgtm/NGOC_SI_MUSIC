@@ -1571,9 +1571,12 @@ class MainActivity : ComponentActivity() {
                                         "Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/140 Mobile Safari/537.36"
                                     CookieManager.getInstance().setAcceptCookie(true)
                                     CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-                                    loadUrl(
+                                    val youtubeUrl =
                                         "https://www.youtube.com/embed/" + videoId +
-                                            "?autoplay=1&playsinline=1&rel=0"
+                                            "?autoplay=1&playsinline=1&rel=0&origin=https%3A%2F%2Fcom.ngocsi.music"
+                                    loadUrl(
+                                        youtubeUrl,
+                                        mapOf("Referer" to "https://com.ngocsi.music/")
                                     )
                                 }
                             }
