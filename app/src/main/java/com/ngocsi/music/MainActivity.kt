@@ -16,6 +16,8 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebChromeClient
+import android.webkit.CookieManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -995,10 +997,16 @@ class MainActivity : ComponentActivity() {
                                 settings.domStorageEnabled = true
                                 settings.mediaPlaybackRequiresUserGesture = false
                                 settings.useWideViewPort = true
-                                settings.loadWithOverviewMode = true
+                                settings.loadWithOverviewMode = false
                                 settings.loadsImagesAutomatically = true
                                 settings.allowContentAccess = true
                                 settings.allowFileAccess = false
+                                settings.javaScriptCanOpenWindowsAutomatically = true
+                                settings.setSupportMultipleWindows(true)
+                                settings.userAgentString = "Mozilla/5.0 (Linux; Android 16; SM-S938B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36"
+                                CookieManager.getInstance().setAcceptCookie(true)
+                                CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                                webChromeClient = WebChromeClient()
                                 webViewClient = object : WebViewClient() {
                                     override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean = false
                                     override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
