@@ -125,7 +125,7 @@ class MainActivity : ComponentActivity() {
     private var onlineUrl by mutableStateOf("")
     private var selectedLibrary by mutableStateOf("Tất cả")
     private var libraryView by mutableStateOf("Bài hát")
-    private var showQueue by mutableStateOf(false)
+    private var showQueue by mutableStateOf(false) // #145 queue upgrade
     private var selectedSection by mutableStateOf("Trang chủ")
     private var showNowPlaying by mutableStateOf(false)
     private var showYoutube by mutableStateOf(false)
