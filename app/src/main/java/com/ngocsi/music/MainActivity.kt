@@ -69,15 +69,6 @@ data class JamendoTrack(
     val imageUrl: String
 )
 
-data class DeezerTrack(
-    val id: Long,
-    val title: String,
-    val artist: String,
-    val duration: Long,
-    val previewUrl: String,
-    val imageUrl: String
-)
-
 data class AudiusTrack(
     val id: String,
     val title: String,
@@ -98,8 +89,6 @@ class MainActivity : ComponentActivity() {
     private var jamendoQuery by mutableStateOf("")
     private val jamendoTracks = mutableStateListOf<JamendoTrack>()
     private var jamendoLoading by mutableStateOf(false)
-    private val deezerTracks = mutableStateListOf<DeezerTrack>()
-    private var deezerLoading by mutableStateOf(false)
     private val audiusTracks = mutableStateListOf<AudiusTrack>()
     private var audiusLoading by mutableStateOf(false)
     private val youtubeHistory = mutableStateListOf<String>()
@@ -623,85 +612,6 @@ class MainActivity : ComponentActivity() {
                 runOnUiThread {
                     audiusTracks.clear()
                     audiusLoading = false
-                }
-            } finally {
-                connection?.disconnect()
-            }
-        }
-    }
-
-    private fun playDeezerPreview(track: DeezerTrack) {
-        val raw = track.previewUrl.trim()
-        if (raw.isBlank()) {
-            errorMessage = "Bài này không có bản nghe thử."
-            return
-        }
-        val uri = Uri.parse(raw)
-        val song = Song(
-            id = -kotlin.math.abs(("deezer:" + track.id).hashCode().toLong()),
-            title = track.title,
-            artist = track.artist,
-            duration = track.duration.coerceAtMost(30000L),
-            uri = uri,
-            source = "Deezer"
-        )
-        val existingIndex = songs.indexOfFirst { it.uri.toString() == raw }
-        val index = if (existingIndex >= 0) existingIndex else {
-            songs.add(song)
-            songs.lastIndex
-        }
-        syncControllerQueue()
-        play(index)
-    }
-
-    private fun searchDeezer(q: String) {
-        deezerLoading = true
-        lifecycleScope.launch(Dispatchers.IO) {
-            var connection: java.net.HttpURLConnection? = null
-            try {
-                val endpoint = "https://api.deezer.com/search"
-                val encoded = java.net.URLEncoder.encode(q, "UTF-8")
-                connection = (java.net.URL("$endpoint?q=$encoded&limit=25").openConnection() as java.net.HttpURLConnection).apply {
-                    requestMethod = "GET"
-                    connectTimeout = 15000
-                    readTimeout = 20000
-                    useCaches = false
-                    setRequestProperty("Accept", "application/json")
-                    setRequestProperty("User-Agent", "NGOC-SI-MUSIC/3.1")
-                }
-                val code = connection.responseCode
-                val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-                val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
-                if (code !in 200..299) throw java.io.IOException("Deezer HTTP $code")
-                val json = org.json.JSONObject(body)
-                val data = json.optJSONArray("data")
-                val found = mutableListOf<DeezerTrack>()
-                if (data != null) {
-                    for (i in 0 until data.length()) {
-                        val item = data.optJSONObject(i) ?: continue
-                        val preview = item.optString("preview").trim()
-                        if (preview.isBlank()) continue
-                        val artist = item.optJSONObject("artist")
-                        val album = item.optJSONObject("album")
-                        found += DeezerTrack(
-                            id = item.optLong("id"),
-                            title = item.optString("title").ifBlank { "Không có tên" },
-                            artist = artist?.optString("name").orEmpty().ifBlank { "Nghệ sĩ không rõ" },
-                            duration = item.optLong("duration").coerceAtLeast(0L) * 1000L,
-                            previewUrl = preview,
-                            imageUrl = album?.optString("cover_medium").orEmpty()
-                        )
-                    }
-                }
-                runOnUiThread {
-                    deezerTracks.clear()
-                    deezerTracks.addAll(found)
-                    deezerLoading = false
-                }
-            } catch (e: Exception) {
-                runOnUiThread {
-                    deezerTracks.clear()
-                    deezerLoading = false
                 }
             } finally {
                 connection?.disconnect()
@@ -1243,7 +1153,6 @@ class MainActivity : ComponentActivity() {
                     errorMessage = "Nhập tên bài hát hoặc nghệ sĩ để tìm."
                 } else {
                     searchJamendo()
-                    searchDeezer(q)
                     searchAudius(q)
                 }
             }, shape = RoundedCornerShape(14.dp)) { Text("TÌM") }
@@ -1267,24 +1176,6 @@ class MainActivity : ComponentActivity() {
                             Text(track.artist + " • " + formatTime(track.duration), color = Color(0xFF8F8F9A), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                         FilledTonalButton(onClick = { playAudiusTrack(track) }, shape = CircleShape) { Text("▶") }
-                    }
-                    Spacer(Modifier.height(6.dp))
-                }
-            }
-            if (deezerLoading) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.height(8.dp))
-            }
-            if (deezerTracks.isNotEmpty()) {
-                Text("KẾT QUẢ DEEZER", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                Spacer(Modifier.height(8.dp))
-                deezerTracks.forEach { track ->
-                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFF1B1B23)).clickable { playDeezerPreview(track) }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(track.title, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(track.artist + " • " + formatTime(track.duration), color = Color(0xFF8F8F9A), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                        FilledTonalButton(onClick = { playDeezerPreview(track) }, shape = CircleShape) { Text("▶") }
                     }
                     Spacer(Modifier.height(6.dp))
                 }
