@@ -131,7 +131,7 @@ class MainActivity : ComponentActivity() {
     private var onlineSort by mutableStateOf("Tên A-Z")
     private val youtubeHistory = mutableStateListOf<String>()
     private val youtubeTracks = mutableStateListOf<YouTubeTrack>()
-    private val youtubeFavoriteSet = mutableStateSetOf<String>()
+    private val youtubeFavoriteSet = mutableStateMapOf<String, Boolean>()
     private var youtubeLoading by mutableStateOf(false)
     private var youtubeSelectedVideoId by mutableStateOf<String?>(null)
     private var onlineUrl by mutableStateOf("")
@@ -895,7 +895,7 @@ class MainActivity : ComponentActivity() {
         repeatMode = prefs.getInt("repeat", Player.REPEAT_MODE_OFF)
         youtubeHistory.clear()
         youtubeHistory.addAll((prefs.getStringSet("youtube_history", emptySet()) ?: emptySet()).toList().take(8))
-        youtubeFavoriteSet.addAll(prefs.getStringSet("youtube_favorites", emptySet()) ?: emptySet())
+        (prefs.getStringSet("youtube_favorites", emptySet()) ?: emptySet()).forEach { youtubeFavoriteSet[it] = true }
         onlineFavoriteSet.addAll(prefs.getStringSet("online_favorites", emptySet()) ?: emptySet())
         onlineFavorites.addAll(onlineFavoriteSet)
         lastSongUri = prefs.getString("last_song_uri", null)
@@ -1506,9 +1506,9 @@ class MainActivity : ComponentActivity() {
         if (youtubeFavoriteSet.contains(track.videoId)) {
             youtubeFavoriteSet.remove(track.videoId)
         } else {
-            youtubeFavoriteSet.add(track.videoId)
+            youtubeFavoriteSet[track.videoId] = true
         }
-        prefs.edit().putStringSet("youtube_favorites", youtubeFavoriteSet).apply()
+        prefs.edit().putStringSet("youtube_favorites", youtubeFavoriteSet.keys).apply()
     }
 
     @Composable
