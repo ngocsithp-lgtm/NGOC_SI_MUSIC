@@ -437,42 +437,92 @@ class MainActivity : ComponentActivity() {
 
     private fun searchJamendo() {
         val q = jamendoQuery.trim()
-        if (q.isBlank()) { errorMessage = "Nhập tên bài hát hoặc nghệ sĩ để tìm."; return }
+        if (q.isBlank()) {
+            errorMessage = "Nhập tên bài hát hoặc nghệ sĩ để tìm."
+            return
+        }
+
         jamendoLoading = true
         errorMessage = null
+
         lifecycleScope.launch(Dispatchers.IO) {
+            var connection: java.net.HttpURLConnection? = null
             try {
-                val url = java.net.URL("https://api.jamendo.com/v3.0/tracks/?client_id=709fa152&format=json&limit=20&audioformat=mp32&namesearch=" + Uri.encode(q))
-                val connection = url.openConnection() as java.net.HttpURLConnection
-                connection.connectTimeout = 15000
-                connection.readTimeout = 20000
-                val body = connection.inputStream.bufferedReader().use { it.readText() }
-                connection.disconnect()
-                val results = org.json.JSONObject(body).optJSONArray("results")
-                val found = mutableListOf<JamendoTrack>()
-                if (results != null) for (i in 0 until results.length()) {
-                    val item = results.getJSONObject(i)
-                    val audio = item.optString("audio")
-                    if (audio.isNotBlank()) found += JamendoTrack(
-                        item.optLong("id"),
-                        item.optString("name").ifBlank { "Không có tên" },
-                        item.optString("artist_name").ifBlank { "Nghệ sĩ không rõ" },
-                        item.optLong("duration") * 1000L,
-                        audio,
-                        item.optString("image")
-                    )
+                // Jamendo's documented free-text "search" parameter searches
+                // track name, album, artist, tags and similar artists.
+                val endpoint = "https://api.jamendo.com/v3.0/tracks/"
+                val query = buildString {
+                    append("client_id=709fa152")
+                    append("&format=json")
+                    append("&limit=30")
+                    append("&audioformat=mp31")
+                    append("&type=single%20albumtrack")
+                    append("&search=")
+                    append(java.net.URLEncoder.encode(q, "UTF-8"))
                 }
+
+                connection = (java.net.URL("$endpoint?$query").openConnection() as java.net.HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 15000
+                    readTimeout = 20000
+                    useCaches = false
+                    setRequestProperty("Accept", "application/json")
+                    setRequestProperty("User-Agent", "NGOC-SI-MUSIC/3.1")
+                }
+
+                val code = connection.responseCode
+                val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+                val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+
+                if (code !in 200..299) {
+                    throw java.io.IOException("Jamendo HTTP $code: $body")
+                }
+
+                val json = org.json.JSONObject(body)
+                val headers = json.optJSONObject("headers")
+                val apiError = headers?.optString("error_message").orEmpty()
+                if (headers?.optString("status") == "success" && apiError.isNotBlank()) {
+                    throw java.io.IOException(apiError)
+                }
+
+                val results = json.optJSONArray("results")
+                val found = mutableListOf<JamendoTrack>()
+
+                if (results != null) {
+                    for (i in 0 until results.length()) {
+                        val item = results.optJSONObject(i) ?: continue
+                        val audio = item.optString("audio").trim()
+                        if (audio.isBlank()) continue
+
+                        found += JamendoTrack(
+                            id = item.optLong("id"),
+                            title = item.optString("name").ifBlank { "Không có tên" },
+                            artist = item.optString("artist_name").ifBlank { "Nghệ sĩ không rõ" },
+                            duration = item.optLong("duration").coerceAtLeast(0L) * 1000L,
+                            audioUrl = audio,
+                            imageUrl = item.optString("image")
+                        )
+                    }
+                }
+
                 runOnUiThread {
                     jamendoTracks.clear()
                     jamendoTracks.addAll(found)
                     jamendoLoading = false
-                    errorMessage = if (found.isEmpty()) "Không tìm thấy bài phù hợp trên Jamendo." else null
+                    errorMessage = if (found.isEmpty()) {
+                        "Không tìm thấy bài phù hợp trên Jamendo. Thử tên bài hát hoặc nghệ sĩ bằng tiếng Anh."
+                    } else {
+                        null
+                    }
                 }
-            } catch (_: Exception) {
+            } catch (e: Exception) {
                 runOnUiThread {
+                    jamendoTracks.clear()
                     jamendoLoading = false
-                    errorMessage = "Không kết nối được Jamendo. Hãy kiểm tra Internet."
+                    errorMessage = "Lỗi tìm nhạc online: ${e.message ?: "Không kết nối được Jamendo"}"
                 }
+            } finally {
+                connection?.disconnect()
             }
         }
     }
