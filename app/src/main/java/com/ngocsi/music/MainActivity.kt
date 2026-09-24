@@ -639,11 +639,11 @@ class MainActivity : ComponentActivity() {
         val uri = Uri.parse(raw)
         val song = Song(
             id = -kotlin.math.abs(("deezer:" + track.id).hashCode().toLong()),
-            title = track.title + " • Preview",
+            title = track.title,
             artist = track.artist,
             duration = track.duration.coerceAtMost(30000L),
             uri = uri,
-            source = "Deezer Preview"
+            source = "Deezer"
         )
         val existingIndex = songs.indexOfFirst { it.uri.toString() == raw }
         val index = if (existingIndex >= 0) existingIndex else {
@@ -1276,7 +1276,7 @@ class MainActivity : ComponentActivity() {
                 Spacer(Modifier.height(8.dp))
             }
             if (deezerTracks.isNotEmpty()) {
-                Text("KẾT QUẢ DEEZER • BẢN NGHE THỬ 30 GIÂY", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text("KẾT QUẢ DEEZER", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Spacer(Modifier.height(8.dp))
                 deezerTracks.forEach { track ->
                     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFF1B1B23)).clickable { playDeezerPreview(track) }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
