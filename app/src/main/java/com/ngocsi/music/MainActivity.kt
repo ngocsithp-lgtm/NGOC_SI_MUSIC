@@ -208,6 +208,7 @@ class MainActivity : ComponentActivity() {
 
     private var usingOnDeviceRecognizer = false
     private var voiceFallbackAttempted = false
+    private var voiceStartInProgress = false
 
     private fun createSpeechRecognizerSafely(): SpeechRecognizer? {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) return null
@@ -267,11 +268,12 @@ class MainActivity : ComponentActivity() {
 
                 if (canFallback) {
                     voiceFallbackAttempted = true
-                    speechRecognizer?.let {
-                        try { it.destroy() } catch (_: Exception) {}
-                    }
+                    val oldRecognizer = speechRecognizer
                     speechRecognizer = null
-                    startVoiceRecognition()
+                    try { oldRecognizer?.cancel() } catch (_: Exception) {}
+                    try { oldRecognizer?.destroy() } catch (_: Exception) {}
+                    errorMessage = "Đang chuyển sang nhận diện giọng nói của hệ thống…"
+                    window.decorView.postDelayed({ startVoiceRecognitionInternal(forceSystemRecognizer = true) }, 250L)
                     return
                 }
 
@@ -332,6 +334,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startVoiceRecognition() {
+        startVoiceRecognitionInternal(forceSystemRecognizer = false)
+    }
+
+    private fun startVoiceRecognitionInternal(forceSystemRecognizer: Boolean) {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             isVoiceSearching = false
             microphonePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
@@ -339,23 +345,31 @@ class MainActivity : ComponentActivity() {
         }
 
         runOnUiThread {
+            if (voiceStartInProgress) return@runOnUiThread
+            voiceStartInProgress = true
+
             if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+                voiceStartInProgress = false
                 isVoiceSearching = false
                 errorMessage = "Điện thoại chưa có dịch vụ nhận diện giọng nói. Hãy cài hoặc bật Google/Samsung Speech Recognition."
                 return@runOnUiThread
             }
 
-            voiceFallbackAttempted = false
+            if (forceSystemRecognizer) usingOnDeviceRecognizer = false
+            if (!forceSystemRecognizer) voiceFallbackAttempted = false
+
             if (!initSpeechRecognizer()) {
+                voiceStartInProgress = false
                 isVoiceSearching = false
                 errorMessage = "Không thể khởi tạo bộ nhận diện giọng nói trên điện thoại."
                 return@runOnUiThread
             }
 
             val recognizer = speechRecognizer ?: run {
+                voiceStartInProgress = false
                 isVoiceSearching = false
                 errorMessage = "Không thể khởi tạo bộ nhận diện giọng nói."
-                return@runOnUiThread
+                return@runUiThread
             }
 
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
@@ -372,13 +386,18 @@ class MainActivity : ComponentActivity() {
             isVoiceSearching = true
             try {
                 recognizer.startListening(intent)
+                voiceStartInProgress = false
             } catch (_: SecurityException) {
+                voiceStartInProgress = false
                 isVoiceSearching = false
+                try { recognizer.cancel() } catch (_: Exception) {}
                 try { recognizer.destroy() } catch (_: Exception) {}
                 speechRecognizer = null
                 errorMessage = "Quyền microphone chưa được cấp. Hãy cho phép microphone rồi thử lại."
             } catch (_: Exception) {
+                voiceStartInProgress = false
                 isVoiceSearching = false
+                try { recognizer.cancel() } catch (_: Exception) {}
                 try { recognizer.destroy() } catch (_: Exception) {}
                 speechRecognizer = null
                 errorMessage = "Không thể bắt đầu nghe. Hãy kiểm tra dịch vụ nhận diện giọng nói trên điện thoại."
