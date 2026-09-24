@@ -73,6 +73,7 @@ class MainActivity : ComponentActivity() {
     private var jamendoQuery by mutableStateOf("")
     private val jamendoTracks = mutableStateListOf<JamendoTrack>()
     private var jamendoLoading by mutableStateOf(false)
+    private val youtubeHistory = mutableStateListOf<String>()
     private var onlineUrl by mutableStateOf("")
     private var selectedLibrary by mutableStateOf("Tất cả")
     private var libraryView by mutableStateOf("Bài hát")
