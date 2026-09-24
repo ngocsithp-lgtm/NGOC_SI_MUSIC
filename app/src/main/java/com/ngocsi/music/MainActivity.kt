@@ -703,7 +703,7 @@ class MainActivity : ComponentActivity() {
         repeatMode = prefs.getInt("repeat", Player.REPEAT_MODE_OFF)
         youtubeHistory.clear()
         youtubeHistory.addAll((prefs.getStringSet("youtube_history", emptySet()) ?: emptySet()).toList().take(8))
-        onlineFavoriteSet.addAll(prefs.getStringSet("online_favorites", emptySet()))
+        onlineFavoriteSet.addAll(prefs.getStringSet("online_favorites", emptySet()) ?: emptySet())
         onlineFavorites.addAll(onlineFavoriteSet)
         lastSongUri = prefs.getString("last_song_uri", null)
         savedPosition = prefs.getLong("last_position", 0L)
