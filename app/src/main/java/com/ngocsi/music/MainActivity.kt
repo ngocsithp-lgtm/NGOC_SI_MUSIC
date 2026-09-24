@@ -12,12 +12,6 @@ import android.os.Bundle
 import android.provider.MediaStore
 import android.graphics.BitmapFactory
 import android.content.SharedPreferences
-import android.webkit.WebView
-import android.webkit.WebViewClient
-import android.webkit.WebResourceError
-import android.webkit.WebResourceRequest
-import android.webkit.WebChromeClient
-import android.webkit.CookieManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -31,9 +25,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,9 +46,20 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.MoreExecutors
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlin.math.max
 
 data class Song(val id: Long, val title: String, val artist: String, val duration: Long, val uri: Uri, val source: String = "Thiết bị", val albumId: Long = -1L)
+
+data class JamendoTrack(
+    val id: Long,
+    val title: String,
+    val artist: String,
+    val duration: Long,
+    val audioUrl: String,
+    val imageUrl: String
+)
 
 class MainActivity : ComponentActivity() {
     private var controller: MediaController? = null
@@ -67,16 +69,15 @@ class MainActivity : ComponentActivity() {
     private var position by mutableLongStateOf(0L)
     private var errorMessage by mutableStateOf<String?>(null)
     private var searchQuery by mutableStateOf("")
-    private var youtubeQuery by mutableStateOf("")
-    private var youtubeWebUrl by mutableStateOf("https://www.youtube.com/")
-    private val youtubeHistory = mutableStateListOf<String>()
+    private var jamendoQuery by mutableStateOf("")
+    private val jamendoTracks = mutableStateListOf<JamendoTrack>()
+    private var jamendoLoading by mutableStateOf(false)
     private var onlineUrl by mutableStateOf("")
     private var selectedLibrary by mutableStateOf("Tất cả")
     private var libraryView by mutableStateOf("Bài hát")
     private var showQueue by mutableStateOf(false)
     private var selectedSection by mutableStateOf("Trang chủ")
     private var showNowPlaying by mutableStateOf(false)
-    private var showYoutubeFullscreen by mutableStateOf(false)
     private var showSleepTimer by mutableStateOf(false)
     private var sleepMinutes by mutableIntStateOf(0)
     private var lastSongUri by mutableStateOf<String?>(null)
@@ -431,19 +432,62 @@ class MainActivity : ComponentActivity() {
         errorMessage = "Đã xóa các luồng online đã lưu."
     }
 
-    private fun searchYouTube() {
-        val q = youtubeQuery.trim()
-        if (q.isBlank()) {
-            errorMessage = "Nhập tên bài hát để tìm trên YouTube."
-            return
-        }
-        youtubeHistory.remove(q)
-        youtubeHistory.add(0, q)
-        while (youtubeHistory.size > 8) youtubeHistory.removeAt(youtubeHistory.lastIndex)
-        prefs.edit().putStringSet("youtube_history", youtubeHistory.toSet()).apply()
-        youtubeWebUrl = "https://www.youtube.com/results?search_query=" + Uri.encode(q)
-        selectedSection = "Online"
+    private fun searchJamendo() {
+        val q = jamendoQuery.trim()
+        if (q.isBlank()) { errorMessage = "Nhập tên bài hát hoặc nghệ sĩ để tìm."; return }
+        jamendoLoading = true
         errorMessage = null
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val url = java.net.URL("https://api.jamendo.com/v3.0/tracks/?client_id=709fa152&format=json&limit=20&audioformat=mp32&namesearch=" + Uri.encode(q))
+                val connection = url.openConnection() as java.net.HttpURLConnection
+                connection.connectTimeout = 15000
+                connection.readTimeout = 20000
+                val body = connection.inputStream.bufferedReader().use { it.readText() }
+                connection.disconnect()
+                val results = org.json.JSONObject(body).optJSONArray("results")
+                val found = mutableListOf<JamendoTrack>()
+                if (results != null) for (i in 0 until results.length()) {
+                    val item = results.getJSONObject(i)
+                    val audio = item.optString("audio")
+                    if (audio.isNotBlank()) found += JamendoTrack(
+                        item.optLong("id"),
+                        item.optString("name").ifBlank { "Không có tên" },
+                        item.optString("artist_name").ifBlank { "Nghệ sĩ không rõ" },
+                        item.optLong("duration") * 1000L,
+                        audio,
+                        item.optString("image")
+                    )
+                }
+                runOnUiThread {
+                    jamendoTracks.clear()
+                    jamendoTracks.addAll(found)
+                    jamendoLoading = false
+                    errorMessage = if (found.isEmpty()) "Không tìm thấy bài phù hợp trên Jamendo." else null
+                }
+            } catch (_: Exception) {
+                runOnUiThread {
+                    jamendoLoading = false
+                    errorMessage = "Không kết nối được Jamendo. Hãy kiểm tra Internet."
+                }
+            }
+        }
+    }
+
+    private fun playJamendoTrack(track: JamendoTrack) {
+        val raw = track.audioUrl
+        val song = Song(
+            id = -kotlin.math.abs(("jamendo:" + track.id).hashCode().toLong()),
+            title = track.title,
+            artist = track.artist,
+            duration = track.duration,
+            uri = Uri.parse(raw),
+            source = "Jamendo"
+        )
+        val existingIndex = songs.indexOfFirst { it.uri.toString() == raw }
+        val index = if (existingIndex >= 0) existingIndex else { songs.add(song); songs.lastIndex }
+        syncControllerQueue()
+        play(index)
     }
 
     private fun syncControllerQueue() {
@@ -878,150 +922,48 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun OnlineSourcesCard() {
-        Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
-                .background(Color(0xFF14141B)).padding(14.dp)
-        ) {
-            Text("YOUTUBE PAD", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-            Text(
-                "Tim va xem YouTube ngay trong NGOC SI MUSIC. Video duoc phat bang YouTube.",
-                color = Color(0xFF8F8F9A), fontSize = 12.sp
-            )
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color(0xFF14141B)).padding(14.dp)) {
+            Text("NGỌC SĨ ONLINE MUSIC", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+            Text("Tìm và phát nhạc từ Jamendo qua API chính thức.", color = Color(0xFF8F8F9A), fontSize = 12.sp)
             Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    value = youtubeQuery,
-                    onValueChange = { youtubeQuery = it },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
-                    placeholder = { Text("Ten bai hat / nghe si") },
-                    shape = RoundedCornerShape(14.dp)
-                )
-                Button(onClick = ::searchYouTube, shape = RoundedCornerShape(14.dp)) { Text("TIM") }
+                OutlinedTextField(value = jamendoQuery, onValueChange = { jamendoQuery = it }, modifier = Modifier.weight(1f), singleLine = true, placeholder = { Text("Tên bài hát / nghệ sĩ") }, shape = RoundedCornerShape(14.dp))
+                Button(onClick = ::searchJamendo, shape = RoundedCornerShape(14.dp)) { Text("TÌM") }
             }
             Spacer(Modifier.height(10.dp))
-            Button(onClick = { showYoutubeFullscreen = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text("MO YOUTUBE TOAN MAN HINH") }
-            Spacer(Modifier.height(12.dp))
-            if (youtubeHistory.isNotEmpty()) {
-                Text("TIM KIEM GAN DAY", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            if (jamendoLoading) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
-                Row(
-                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    youtubeHistory.forEach { item ->
-                        AssistChip(
-                            onClick = { youtubeQuery = item; searchYouTube() },
-                            label = { Text(item, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                        )
+            }
+            if (jamendoTracks.isNotEmpty()) {
+                Text("KẾT QUẢ ONLINE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Spacer(Modifier.height(8.dp))
+                jamendoTracks.forEach { track ->
+                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFF1B1B23)).clickable { playJamendoTrack(track) }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(track.title, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(track.artist + " • " + formatTime(track.duration), color = Color(0xFF8F8F9A), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        FilledTonalButton(onClick = { playJamendoTrack(track) }, shape = CircleShape) { Text("▶") }
                     }
+                    Spacer(Modifier.height(6.dp))
                 }
-                Spacer(Modifier.height(10.dp))
             }
-            Text("YOUTUBE PAD", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            Spacer(Modifier.height(8.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(
-                    onClick = { youtubeWebUrl = "https://www.youtube.com/" },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(14.dp)
-                ) { Text("TRANG CHU") }
-                OutlinedButton(
-                    onClick = { if (youtubeQuery.isBlank()) errorMessage = "Nhap tu khoa truoc." else searchYouTube() },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(14.dp)
-                ) { Text("TIM LAI") }
-                OutlinedButton(
-                    onClick = { youtubeWebUrl = "https://www.youtube.com/feed/subscriptions" },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(14.dp)
-                ) { Text("KENH") }
-            }
-            Spacer(Modifier.height(12.dp))
-            Text("NHAC ONLINE KHAC", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Spacer(Modifier.height(10.dp))
+            Text("NHẠC ONLINE KHÁC", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = ::openDrivePicker, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) { Text("File Drive") }
-                OutlinedButton(onClick = ::openDriveFolderPicker, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) { Text("Thu muc") }
+                OutlinedButton(onClick = ::openDriveFolderPicker, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) { Text("Thư mục") }
             }
             Spacer(Modifier.height(8.dp))
-            OutlinedTextField(
-                value = onlineUrl,
-                onValueChange = { onlineUrl = it },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                placeholder = { Text("Dan URL luong am thanh HTTP/HTTPS") },
-                shape = RoundedCornerShape(14.dp)
-            )
+            OutlinedTextField(value = onlineUrl, onValueChange = { onlineUrl = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, placeholder = { Text("Dán URL luồng âm thanh HTTP/HTTPS") }, shape = RoundedCornerShape(14.dp))
             Spacer(Modifier.height(6.dp))
-            Button(onClick = ::playOnlineUrl, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
-                Text("PHAT LUONG AM THANH")
-            }
+            Button(onClick = ::playOnlineUrl, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text("PHÁT LUỒNG ÂM THANH") }
             Spacer(Modifier.height(6.dp))
-            OutlinedButton(
-                onClick = { onlineUrl = "http://stream-tx3.radioparadise.com/mp3-192"; playOnlineUrl() },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
-            ) { Text("THU RADIO ONLINE") }
+            OutlinedButton(onClick = { onlineUrl = "http://stream-tx3.radioparadise.com/mp3-192"; playOnlineUrl() }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text("THỬ RADIO ONLINE") }
             Spacer(Modifier.height(6.dp))
-            OutlinedButton(onClick = ::clearOnlineLibrary, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
-                Text("XOA URL ONLINE DA LUU")
-            }
-        }
-    }
-
-    @Composable
-    private fun YouTubePad(url: String) {
-        if (!showYoutubeFullscreen) return
-        Dialog(
-            onDismissRequest = { showYoutubeFullscreen = false },
-            properties = DialogProperties(
-                usePlatformDefaultWidth = false,
-                decorFitsSystemWindows = false
-            )
-        ) {
-            Surface(modifier = Modifier.fillMaxSize(), color = Color.Black) {
-                Column(Modifier.fillMaxSize()) {
-                    Row(
-                        Modifier.fillMaxWidth().background(Color(0xFF111218)).padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("YOUTUBE", color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                        TextButton(onClick = { showYoutubeFullscreen = false }) { Text("ĐÓNG") }
-                    }
-                    AndroidView(
-                        modifier = Modifier.fillMaxSize(),
-                        factory = { context ->
-                            WebView(context).apply {
-                                settings.javaScriptEnabled = true
-                                settings.domStorageEnabled = true
-                                settings.mediaPlaybackRequiresUserGesture = false
-                                settings.useWideViewPort = true
-                                settings.loadWithOverviewMode = false
-                                settings.loadsImagesAutomatically = true
-                                settings.allowContentAccess = true
-                                settings.allowFileAccess = false
-                                settings.javaScriptCanOpenWindowsAutomatically = true
-                                settings.setSupportMultipleWindows(true)
-                                settings.userAgentString = "Mozilla/5.0 (Linux; Android 16; SM-S938B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36"
-                                CookieManager.getInstance().setAcceptCookie(true)
-                                CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-                                webChromeClient = WebChromeClient()
-                                webViewClient = object : WebViewClient() {
-                                    override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean = false
-                                    override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
-                                        errorMessage = "Không tải được YouTube. Hãy kiểm tra kết nối mạng."
-                                    }
-                                }
-                                loadUrl(url)
-                            }
-                        },
-                        update = { webView ->
-                            if (webView.url != url) webView.loadUrl(url)
-                        }
-                    )
-                }
-            }
+            OutlinedButton(onClick = ::clearOnlineLibrary, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text("XÓA URL ONLINE ĐÃ LƯU") }
         }
     }
 
