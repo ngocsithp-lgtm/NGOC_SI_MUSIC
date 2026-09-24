@@ -95,6 +95,13 @@ data class OnlineSearchItem(
     val duration: Long
 )
 
+data class YouTubeTrack(
+    val videoId: String,
+    val title: String,
+    val channelTitle: String,
+    val thumbnailUrl: String
+)
+
 data class OnlineFavoriteMeta(
     val source: String,
     val title: String,
@@ -123,6 +130,10 @@ class MainActivity : ComponentActivity() {
     private var onlineHubTab by mutableStateOf("Tất cả")
     private var onlineSort by mutableStateOf("Tên A-Z")
     private val youtubeHistory = mutableStateListOf<String>()
+    private val youtubeTracks = mutableStateListOf<YouTubeTrack>()
+    private val youtubeFavoriteSet = mutableStateSetOf<String>()
+    private var youtubeLoading by mutableStateOf(false)
+    private var youtubeSelectedVideoId by mutableStateOf<String?>(null)
     private var onlineUrl by mutableStateOf("")
     private var selectedLibrary by mutableStateOf("Tất cả")
     private var libraryView by mutableStateOf("Bài hát")
@@ -884,6 +895,7 @@ class MainActivity : ComponentActivity() {
         repeatMode = prefs.getInt("repeat", Player.REPEAT_MODE_OFF)
         youtubeHistory.clear()
         youtubeHistory.addAll((prefs.getStringSet("youtube_history", emptySet()) ?: emptySet()).toList().take(8))
+        youtubeFavoriteSet.addAll(prefs.getStringSet("youtube_favorites", emptySet()) ?: emptySet())
         onlineFavoriteSet.addAll(prefs.getStringSet("online_favorites", emptySet()) ?: emptySet())
         onlineFavorites.addAll(onlineFavoriteSet)
         lastSongUri = prefs.getString("last_song_uri", null)
@@ -1383,12 +1395,131 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun searchYouTube() {
+        val q = youtubeQuery.trim()
+        if (q.isBlank()) {
+            errorMessage = "Nhập tên bài hát hoặc nghệ sĩ để tìm trên YouTube."
+            return
+        }
+
+        val apiKey = BuildConfig.YOUTUBE_API_KEY.trim()
+        if (apiKey.isBlank()) {
+            errorMessage = "YouTube chưa được cấu hình API key. Hãy thêm GitHub Secret YOUTUBE_API_KEY."
+            return
+        }
+
+        youtubeLoading = true
+        errorMessage = null
+        lifecycleScope.launch(Dispatchers.IO) {
+            var connection: java.net.HttpURLConnection? = null
+            try {
+                val params = buildString {
+                    append("part=snippet")
+                    append("&type=video")
+                    append("&videoEmbeddable=true")
+                    append("&maxResults=20")
+                    append("&order=relevance")
+                    append("&regionCode=VN")
+                    append("&relevanceLanguage=vi")
+                    append("&safeSearch=moderate")
+                    append("&q=")
+                    append(java.net.URLEncoder.encode(q, "UTF-8"))
+                    append("&key=")
+                    append(java.net.URLEncoder.encode(apiKey, "UTF-8"))
+                }
+                val endpoint = "https://www.googleapis.com/youtube/v3/search?$params"
+                connection = (java.net.URL(endpoint).openConnection() as java.net.HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 15000
+                    readTimeout = 20000
+                    useCaches = false
+                    setRequestProperty("Accept", "application/json")
+                    setRequestProperty("User-Agent", "NGOC-SI-MUSIC/3.1")
+                }
+                val code = connection.responseCode
+                val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+                val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                if (code !in 200..299) {
+                    val message = runCatching {
+                        org.json.JSONObject(body).optJSONObject("error")?.optString("message").orEmpty()
+                    }.getOrDefault("")
+                    throw java.io.IOException(
+                        if (message.isBlank()) "YouTube HTTP $code" else message
+                    )
+                }
+
+                val json = org.json.JSONObject(body)
+                val items = json.optJSONArray("items")
+                val found = mutableListOf<YouTubeTrack>()
+                if (items != null) {
+                    for (i in 0 until items.length()) {
+                        val item = items.optJSONObject(i) ?: continue
+                        val id = item.optJSONObject("id")?.optString("videoId").orEmpty().trim()
+                        val snippet = item.optJSONObject("snippet") ?: continue
+                        if (id.isBlank()) continue
+                        val title = snippet.optString("title").orEmpty()
+                            .replace("&amp;", "&")
+                            .ifBlank { "Video YouTube" }
+                        val channel = snippet.optString("channelTitle").ifBlank { "YouTube" }
+                        val thumbs = snippet.optJSONObject("thumbnails")
+                        val thumb = thumbs?.optJSONObject("medium")?.optString("url").orEmpty()
+                            .ifBlank { thumbs?.optJSONObject("high")?.optString("url").orEmpty() }
+                            .ifBlank { thumbs?.optJSONObject("default")?.optString("url").orEmpty() }
+                        found += YouTubeTrack(id, title, channel, thumb)
+                    }
+                }
+
+                withContext(Dispatchers.Main) {
+                    if (youtubeQuery.trim() == q) {
+                        youtubeTracks.clear()
+                        youtubeTracks.addAll(found)
+                        youtubeLoading = false
+                        if (found.isEmpty()) {
+                            errorMessage = "Không tìm thấy nội dung YouTube phù hợp."
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    youtubeLoading = false
+                    errorMessage = "YouTube: " + (e.message ?: "không thể tìm kiếm")
+                }
+            } finally {
+                connection?.disconnect()
+            }
+        }
+    }
+
+    private fun playYouTube(track: YouTubeTrack) {
+        youtubeSelectedVideoId = track.videoId
+        showYoutube = true
+        youtubeQuery = youtubeQuery.ifBlank { track.title }
+        val history = (prefs.getStringSet("youtube_history", emptySet()) ?: emptySet()).toMutableList()
+        history.remove(track.title)
+        history.add(0, track.title)
+        prefs.edit().putStringSet("youtube_history", history.take(8).toSet()).apply()
+        youtubeHistory.clear()
+        youtubeHistory.addAll(history.take(8))
+    }
+
+    private fun toggleYouTubeFavorite(track: YouTubeTrack) {
+        if (youtubeFavoriteSet.contains(track.videoId)) {
+            youtubeFavoriteSet.remove(track.videoId)
+        } else {
+            youtubeFavoriteSet.add(track.videoId)
+        }
+        prefs.edit().putStringSet("youtube_favorites", youtubeFavoriteSet).apply()
+    }
+
     @Composable
     private fun YouTubeDialog() {
         if (!showYoutube) return
-        val query = youtubeQuery.trim()
+        val videoId = youtubeSelectedVideoId
         Dialog(
-            onDismissRequest = { showYoutube = false },
+            onDismissRequest = {
+                showYoutube = false
+                youtubeSelectedVideoId = null
+            },
             properties = DialogProperties(
                 usePlatformDefaultWidth = false,
                 decorFitsSystemWindows = false
@@ -1400,7 +1531,9 @@ class MainActivity : ComponentActivity() {
             ) {
                 Column(Modifier.fillMaxSize()) {
                     Row(
-                        Modifier.fillMaxWidth().background(Color(0xFF15161D)).padding(horizontal = 10.dp, vertical = 8.dp),
+                        Modifier.fillMaxWidth()
+                            .background(Color(0xFF15161D))
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
@@ -1409,48 +1542,43 @@ class MainActivity : ComponentActivity() {
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.weight(1f)
                         )
-                        TextButton(onClick = { showYoutube = false }) { Text("Đóng") }
+                        TextButton(onClick = {
+                            showYoutube = false
+                            youtubeSelectedVideoId = null
+                        }) { Text("Đóng") }
                     }
-                    AndroidView(
-                        modifier = Modifier.fillMaxSize(),
-                        factory = { context ->
-                            WebView(context).apply {
-                                webViewClient = WebViewClient()
-                                webChromeClient = WebChromeClient()
-                                settings.javaScriptEnabled = true
-                                settings.domStorageEnabled = true
-                                settings.mediaPlaybackRequiresUserGesture = true
-                                settings.useWideViewPort = true
-                                settings.loadWithOverviewMode = true
-                                settings.loadsImagesAutomatically = true
-                                settings.allowContentAccess = true
-                                settings.javaScriptCanOpenWindowsAutomatically = true
-                                settings.setSupportMultipleWindows(true)
-                                settings.userAgentString =
-                                    "Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/140 Mobile Safari/537.36"
-                                CookieManager.getInstance().setAcceptCookie(true)
-                                CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-                                val target = if (query.isBlank()) {
-                                    "https://www.youtube.com/"
-                                } else {
-                                    "https://www.youtube.com/results?search_query=" +
-                                        java.net.URLEncoder.encode(query, "UTF-8")
-                                }
-                                loadUrl(target)
-                            }
-                        },
-                        update = { webView ->
-                            val target = if (query.isBlank()) {
-                                "https://www.youtube.com/"
-                            } else {
-                                "https://www.youtube.com/results?search_query=" +
-                                    java.net.URLEncoder.encode(query, "UTF-8")
-                            }
-                            if (webView.url != target && !query.isBlank()) {
-                                webView.loadUrl(target)
-                            }
+                    if (videoId.isNullOrBlank()) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("Chưa chọn video YouTube.", color = Color.White)
                         }
-                    )
+                    } else {
+                        AndroidView(
+                            modifier = Modifier.fillMaxSize(),
+                            factory = { context ->
+                                WebView(context).apply {
+                                    webViewClient = WebViewClient()
+                                    webChromeClient = WebChromeClient()
+                                    settings.javaScriptEnabled = true
+                                    settings.domStorageEnabled = true
+                                    settings.mediaPlaybackRequiresUserGesture = true
+                                    settings.useWideViewPort = true
+                                    settings.loadWithOverviewMode = true
+                                    settings.loadsImagesAutomatically = true
+                                    settings.allowContentAccess = true
+                                    settings.javaScriptCanOpenWindowsAutomatically = true
+                                    settings.setSupportMultipleWindows(true)
+                                    settings.userAgentString =
+                                        "Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/140 Mobile Safari/537.36"
+                                    CookieManager.getInstance().setAcceptCookie(true)
+                                    CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                                    loadUrl(
+                                        "https://www.youtube.com/embed/" + videoId +
+                                            "?autoplay=1&playsinline=1&rel=0"
+                                    )
+                                }
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -1868,30 +1996,129 @@ class MainActivity : ComponentActivity() {
             }
             if (onlineHubTab == "Tất cả" || onlineHubTab == "YouTube") {
             Spacer(Modifier.height(10.dp))
-            Text("YOUTUBE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Text("YOUTUBE MUSIC", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Kho tìm kiếm YouTube chính thức • phát bằng trình phát YouTube nhúng. Không tải hoặc tách luồng âm thanh.",
+                color = Color(0xFF8F8F9A),
+                fontSize = 12.sp
+            )
             Spacer(Modifier.height(8.dp))
-            Text("Tìm và xem/nghe nội dung YouTube bằng trình phát chính thức. Ứng dụng không tải hoặc tách luồng âm thanh khỏi YouTube.", color = Color(0xFF8F8F9A), fontSize = 12.sp)
-            Spacer(Modifier.height(8.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    value = youtubeQuery,
-                    onValueChange = { youtubeQuery = it },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
-                    placeholder = { Text("Tìm bài hát / nghệ sĩ trên YouTube") },
-                    shape = RoundedCornerShape(14.dp)
-                )
-                Button(
-                    onClick = { showYoutube = true },
-                    shape = RoundedCornerShape(14.dp)
-                ) { Text("MỞ") }
-            }
-            Spacer(Modifier.height(8.dp))
-            OutlinedButton(
-                onClick = { youtubeQuery = ""; showYoutube = true },
+            OutlinedTextField(
+                value = youtubeQuery,
+                onValueChange = { youtubeQuery = it },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
-            ) { Text("MỞ YOUTUBE") }
+                singleLine = true,
+                placeholder = { Text("Tìm bài hát / nghệ sĩ trên YouTube") },
+                shape = RoundedCornerShape(14.dp),
+                keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(
+                    onSearch = { searchYouTube() },
+                    onDone = { searchYouTube() }
+                )
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = ::searchYouTube,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp),
+                    enabled = !youtubeLoading
+                ) { Text(if (youtubeLoading) "ĐANG TÌM..." else "TÌM YOUTUBE") }
+                OutlinedButton(
+                    onClick = {
+                        youtubeQuery = ""
+                        youtubeTracks.clear()
+                        errorMessage = null
+                    },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp)
+                ) { Text("XÓA") }
+            }
+
+            if (youtubeHistory.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                Text("TÌM GẦN ĐÂY", color = Color(0xFFB18CFF), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                Spacer(Modifier.height(4.dp))
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    youtubeHistory.take(8).forEach { item ->
+                        AssistChip(
+                            onClick = {
+                                youtubeQuery = item
+                                searchYouTube()
+                            },
+                            label = { Text(item, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                        )
+                    }
+                }
+            }
+
+            if (youtubeTracks.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "KẾT QUẢ YOUTUBE • " + youtubeTracks.size + " VIDEO",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
+                )
+                Spacer(Modifier.height(6.dp))
+                youtubeTracks.forEach { track ->
+                    Row(
+                        Modifier.fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Color(0xFF1B1B23))
+                            .clickable { playYouTube(track) }
+                            .padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OnlineArtwork(track.thumbnailUrl, Modifier.size(72.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                track.title,
+                                color = Color.White,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                track.channelTitle,
+                                color = Color(0xFF8F8F9A),
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                            FilledTonalButton(
+                                onClick = { playYouTube(track) },
+                                shape = CircleShape,
+                                contentPadding = PaddingValues(0.dp),
+                                modifier = Modifier.size(44.dp)
+                            ) { Text("▶") }
+                            FilledTonalButton(
+                                onClick = { toggleYouTubeFavorite(track) },
+                                shape = CircleShape,
+                                contentPadding = PaddingValues(0.dp),
+                                modifier = Modifier.size(44.dp)
+                            ) {
+                                Text(if (youtubeFavoriteSet.contains(track.videoId)) "♥" else "♡")
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(6.dp))
+                }
+            } else if (!youtubeLoading && youtubeQuery.isNotBlank()) {
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "Nhấn TÌM YOUTUBE để tải kho kết quả.",
+                    color = Color(0xFF8F8F9A),
+                    fontSize = 12.sp
+                )
+            }
             }
 
             Spacer(Modifier.height(10.dp))
