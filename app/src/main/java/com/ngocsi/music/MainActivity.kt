@@ -898,6 +898,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun seekBy(deltaMs: Long) {
+        controller?.let {
+            val duration = it.duration.coerceAtLeast(0L)
+            val target = (it.currentPosition + deltaMs).coerceIn(0L, duration)
+            it.seekTo(target)
+            position = target
+            savePlaybackState()
+        }
+    }
+
     private fun toggleShuffle() {
         shuffleEnabled = !shuffleEnabled
         controller?.shuffleModeEnabled = shuffleEnabled
@@ -1244,29 +1254,130 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun NowPlayingDialog(song: Song) {
-        Dialog(onDismissRequest = { showNowPlaying = false }) {
-            Surface(shape = RoundedCornerShape(28.dp), color = Color(0xFF101117), modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("ĐANG PHÁT", color = Color(0xFFB18CFF), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
-                    Spacer(Modifier.height(18.dp))
-                    AlbumArt(song, Modifier.size(220.dp))
-                    Spacer(Modifier.height(18.dp))
-                    Text(song.title, color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(song.artist, color = Color(0xFF9999A5), fontSize = 14.sp)
+        Dialog(
+            onDismissRequest = { showNowPlaying = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(28.dp),
+                color = Color(0xFF101117),
+                modifier = Modifier.fillMaxWidth(0.94f)
+            ) {
+                Column(
+                    Modifier.padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                "ĐANG PHÁT",
+                                color = Color(0xFFB18CFF),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 3.sp
+                            )
+                            Text(
+                                if (shuffleEnabled) "NGẪU NHIÊN • " + when (repeatMode) {
+                                    Player.REPEAT_MODE_ONE -> "LẶP 1"
+                                    Player.REPEAT_MODE_ALL -> "LẶP TẤT CẢ"
+                                    else -> "KHÔNG LẶP"
+                                } else "THƯ VIỆN • " + when (repeatMode) {
+                                    Player.REPEAT_MODE_ONE -> "LẶP 1"
+                                    Player.REPEAT_MODE_ALL -> "LẶP TẤT CẢ"
+                                    else -> "KHÔNG LẶP"
+                                },
+                                color = Color(0xFF777783),
+                                fontSize = 10.sp
+                            )
+                        }
+                        IconButton(onClick = { toggleFavorite(song) }) {
+                            Text(
+                                if (favorites[song.id] == true) "♥" else "♡",
+                                color = if (favorites[song.id] == true) Color(0xFFFF6B81) else Color(0xFF8A8A96),
+                                fontSize = 26.sp
+                            )
+                        }
+                    }
+
                     Spacer(Modifier.height(14.dp))
-                    Slider(value = if (song.duration > 0) position.coerceIn(0, song.duration).toFloat() else 0f, onValueChange = { seekTo(it.toLong()) }, valueRange = 0f..max(1L, song.duration).toFloat())
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    AlbumArt(song, Modifier.size(250.dp))
+                    Spacer(Modifier.height(18.dp))
+
+                    Text(
+                        song.title,
+                        color = Color.White,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        song.artist,
+                        color = Color(0xFF9999A5),
+                        fontSize = 14.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    Spacer(Modifier.height(14.dp))
+                    Slider(
+                        value = if (song.duration > 0) position.coerceIn(0, song.duration).toFloat() else 0f,
+                        onValueChange = { seekTo(it.toLong()) },
+                        valueRange = 0f..max(1L, song.duration).toFloat()
+                    )
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
                         Text(formatTime(position), color = Color(0xFF888894), fontSize = 12.sp)
                         Text(formatTime(song.duration), color = Color(0xFF888894), fontSize = 12.sp)
                     }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        SmallControl(if (shuffleEnabled) "🔀" else "⇄", ::toggleShuffle, shuffleEnabled)
+                        SmallControl("⏪10", { seekBy(-10_000L) })
                         SmallControl("⏮", ::previous)
-                        Button(onClick = ::togglePlayPause, modifier = Modifier.size(62.dp), shape = CircleShape) { Text(if (isPlaying) "⏸" else "▶", fontSize = 22.sp) }
+                        Button(
+                            onClick = ::togglePlayPause,
+                            modifier = Modifier.size(64.dp),
+                            shape = CircleShape
+                        ) {
+                            Text(if (isPlaying) "⏸" else "▶", fontSize = 23.sp)
+                        }
                         SmallControl("⏭", ::next)
+                        SmallControl("10⏩", { seekBy(10_000L) })
+                        SmallControl(
+                            when (repeatMode) {
+                                Player.REPEAT_MODE_ONE -> "🔂"
+                                Player.REPEAT_MODE_ALL -> "🔁"
+                                else -> "↻"
+                            },
+                            ::cycleRepeat,
+                            repeatMode != Player.REPEAT_MODE_OFF
+                        )
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { showQueue = true }) { Text("☷ Hàng đợi") }
-                        TextButton(onClick = { showNowPlaying = false }) { Text("Đóng") }
+
+                    Spacer(Modifier.height(10.dp))
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { showQueue = true },
+                            modifier = Modifier.weight(1f)
+                        ) { Text("☷ Hàng đợi") }
+                        TextButton(
+                            onClick = { showNowPlaying = false },
+                            modifier = Modifier.weight(1f)
+                        ) { Text("Đóng") }
                     }
                 }
             }
