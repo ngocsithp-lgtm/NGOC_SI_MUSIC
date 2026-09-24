@@ -1526,12 +1526,13 @@ class MainActivity : ComponentActivity() {
             )
         ) {
             Surface(
-                color = Color.Black,
+                color = Color(0xFF09090D),
                 modifier = Modifier.fillMaxSize()
             ) {
                 Column(Modifier.fillMaxSize()) {
                     Row(
-                        Modifier.fillMaxWidth()
+                        Modifier
+                            .fillMaxWidth()
                             .background(Color(0xFF15161D))
                             .padding(horizontal = 10.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -1547,40 +1548,74 @@ class MainActivity : ComponentActivity() {
                             youtubeSelectedVideoId = null
                         }) { Text("Đóng") }
                     }
+
                     if (videoId.isNullOrBlank()) {
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Text("Chưa chọn video YouTube.", color = Color.White)
                         }
                     } else {
-                        AndroidView(
-                            modifier = Modifier.fillMaxSize(),
-                            factory = { context ->
-                                WebView(context).apply {
-                                    webViewClient = WebViewClient()
-                                    webChromeClient = WebChromeClient()
-                                    settings.javaScriptEnabled = true
-                                    settings.domStorageEnabled = true
-                                    settings.mediaPlaybackRequiresUserGesture = true
-                                    settings.useWideViewPort = true
-                                    settings.loadWithOverviewMode = true
-                                    settings.loadsImagesAutomatically = true
-                                    settings.allowContentAccess = true
-                                    settings.javaScriptCanOpenWindowsAutomatically = true
-                                    settings.setSupportMultipleWindows(true)
-                                    settings.userAgentString =
-                                        "Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/140 Mobile Safari/537.36"
-                                    CookieManager.getInstance().setAcceptCookie(true)
-                                    CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-                                    val youtubeUrl =
-                                        "https://www.youtube.com/embed/" + videoId +
-                                            "?autoplay=1&playsinline=1&rel=0&origin=https%3A%2F%2Fcom.ngocsi.music"
-                                    loadUrl(
-                                        youtubeUrl,
-                                        mapOf("Referer" to "https://com.ngocsi.music/")
-                                    )
-                                }
+                        // #127: Thu gọn trình phát YouTube theo tỷ lệ 16:9,
+                        // giới hạn chiều cao để WebView không chiếm toàn màn hình.
+                        Column(
+                            Modifier
+                                .fillMaxWidth()
+                                .verticalScroll(rememberScrollState())
+                                .padding(horizontal = 12.dp, vertical = 12.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 230.dp)
+                                    .aspectRatio(16f / 9f)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(Color.Black)
+                                    .align(Alignment.CenterHorizontally)
+                            ) {
+                                AndroidView(
+                                    modifier = Modifier.fillMaxSize(),
+                                    factory = { context ->
+                                        WebView(context).apply {
+                                            webViewClient = WebViewClient()
+                                            webChromeClient = WebChromeClient()
+                                            settings.javaScriptEnabled = true
+                                            settings.domStorageEnabled = true
+                                            settings.mediaPlaybackRequiresUserGesture = true
+                                            settings.useWideViewPort = true
+                                            settings.loadWithOverviewMode = true
+                                            settings.loadsImagesAutomatically = true
+                                            settings.allowContentAccess = true
+                                            settings.javaScriptCanOpenWindowsAutomatically = true
+                                            settings.setSupportMultipleWindows(true)
+                                            settings.userAgentString =
+                                                "Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/140 Mobile Safari/537.36"
+                                            CookieManager.getInstance().setAcceptCookie(true)
+                                            CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                                            val youtubeUrl =
+                                                "https://www.youtube.com/embed/" + videoId +
+                                                    "?autoplay=1&playsinline=1&rel=0&origin=https%3A%2F%2Fcom.ngocsi.music"
+                                            loadUrl(
+                                                youtubeUrl,
+                                                mapOf("Referer" to "https://com.ngocsi.music/")
+                                            )
+                                        }
+                                    }
+                                )
                             }
-                        )
+
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                "Trình phát YouTube",
+                                color = Color.White,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                "Khung phát đã được thu gọn để ưu tiên không gian cho danh sách và điều khiển.",
+                                color = Color(0xFF8F8F9A),
+                                fontSize = 12.sp
+                            )
+                        }
                     }
                 }
             }
