@@ -1703,7 +1703,7 @@ class MainActivity : ComponentActivity() {
                                             loadUrl(embedUrl, headers)
                                         }
                                     }
-                                }
+                                )
 
                                 if (playerError) {
                                     Spacer(Modifier.height(10.dp))
