@@ -1555,69 +1555,66 @@ class MainActivity : ComponentActivity() {
                             Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
                                 .padding(12.dp)
                         ) {
-                            // Thumbnail luôn hiển thị để giao diện không bị trống khi WebView tải chậm.
+                            // Trình phát YouTube duy nhất: iframe chính thức trong WebView.
+                            // Không autoplay để thao tác bấm Play của người dùng là user gesture hợp lệ.
                             AndroidView(
-                                modifier = Modifier.fillMaxWidth().heightIn(max = 230.dp)
-                                    .aspectRatio(16f / 9f).clip(RoundedCornerShape(16.dp)),
-                                factory = { context ->
-                                    WebView(context).apply {
-                                        settings.javaScriptEnabled = true
-                                        settings.domStorageEnabled = true
-                                        settings.loadsImagesAutomatically = true
-                                        settings.useWideViewPort = true
-                                        settings.loadWithOverviewMode = true
-                                        val html = """
-                                            <!doctype html><html><head>
-                                            <meta name="viewport" content="width=device-width,initial-scale=1">
-                                            <style>
-                                            *{box-sizing:border-box}html,body{margin:0;background:#09090d}
-                                            .thumb{position:relative;width:100%;aspect-ratio:16/9;overflow:hidden;border-radius:16px;background:#15161d}
-                                            .thumb img{width:100%;height:100%;object-fit:cover}
-                                            .shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.05),rgba(0,0,0,.7))}
-                                            .play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:62px;height:62px;border-radius:50%;background:#e91e63;color:white;display:flex;align-items:center;justify-content:center;font-size:30px}
-                                            </style></head><body>
-                                            <div class="thumb">
-                                            <img src="${thumb.replace("&","&amp;").replace("\"", "&quot;")}" onerror="this.src='https://i.ytimg.com/vi/$videoId/hqdefault.jpg'">
-                                            <div class="shade"></div><div class="play">▶</div>
-                                            </div></body></html>
-                                        """.trimIndent()
-                                        loadDataWithBaseURL("https://www.youtube.com/", html, "text/html", "UTF-8", null)
-                                    }
-                                }
-                            )
-
-                            Spacer(Modifier.height(12.dp))
-                            Text(title, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold,
-                                maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            Spacer(Modifier.height(3.dp))
-                            Text(channel, color = Color(0xFFAAAAAF), fontSize = 13.sp,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis)
-
-                            Spacer(Modifier.height(14.dp))
-                            AndroidView(
-                                modifier = Modifier.fillMaxWidth().heightIn(max = 230.dp)
-                                    .aspectRatio(16f / 9f).clip(RoundedCornerShape(16.dp)),
+                                modifier = Modifier.fillMaxWidth()
+                                    .heightIn(max = 230.dp)
+                                    .aspectRatio(16f / 9f)
+                                    .clip(RoundedCornerShape(16.dp)),
                                 factory = { context ->
                                     WebView(context).apply {
                                         webViewClient = WebViewClient()
                                         webChromeClient = WebChromeClient()
+                                        setBackgroundColor(android.graphics.Color.BLACK)
+
                                         settings.javaScriptEnabled = true
                                         settings.domStorageEnabled = true
+                                        settings.loadsImagesAutomatically = true
                                         settings.mediaPlaybackRequiresUserGesture = true
                                         settings.useWideViewPort = true
                                         settings.loadWithOverviewMode = true
-                                        settings.loadsImagesAutomatically = true
                                         settings.allowContentAccess = true
+                                        settings.allowFileAccess = true
                                         settings.javaScriptCanOpenWindowsAutomatically = true
-                                        settings.setSupportMultipleWindows(true)
-                                        settings.userAgentString =
-                                            "Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/140 Mobile Safari/537.36"
+                                        settings.setSupportMultipleWindows(false)
+
                                         CookieManager.getInstance().setAcceptCookie(true)
                                         CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-                                        val youtubeUrl =
-                                            "https://www.youtube.com/embed/" + videoId +
-                                                "?autoplay=1&playsinline=1&rel=0&controls=1&modestbranding=1"
-                                        loadUrl(youtubeUrl, mapOf("Referer" to "https://www.youtube.com/"))
+
+                                        val safeId = videoId
+                                            .replace("&", "")
+                                            .replace(""", "")
+                                            .replace("'", "")
+
+                                        val html = """
+                                            <!doctype html>
+                                            <html>
+                                            <head>
+                                                <meta name="viewport" content="width=device-width,initial-scale=1">
+                                                <style>
+                                                    html,body{margin:0;padding:0;width:100%;height:100%;background:#000;overflow:hidden}
+                                                    iframe{border:0;width:100%;height:100%;display:block}
+                                                </style>
+                                            </head>
+                                            <body>
+                                                <iframe
+                                                    src="https://www.youtube.com/embed/$safeId?playsinline=1&rel=0&controls=1&modestbranding=1&enablejsapi=1"
+                                                    title="YouTube video"
+                                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                                    allowfullscreen>
+                                                </iframe>
+                                            </body>
+                                            </html>
+                                        """.trimIndent()
+
+                                        loadDataWithBaseURL(
+                                            "https://www.youtube.com/",
+                                            html,
+                                            "text/html",
+                                            "UTF-8",
+                                            null
+                                        )
                                     }
                                 }
                             )
