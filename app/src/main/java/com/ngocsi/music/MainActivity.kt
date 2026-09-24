@@ -102,6 +102,7 @@ class MainActivity : ComponentActivity() {
     private val onlineFavoriteSet = mutableSetOf<String>()
     private var audiusLoading by mutableStateOf(false)
     private var onlineSearchActive by mutableStateOf(false)
+    private var onlineHubTab by mutableStateOf("Tất cả")
     private val youtubeHistory = mutableStateListOf<String>()
     private var onlineUrl by mutableStateOf("")
     private var selectedLibrary by mutableStateOf("Tất cả")
@@ -1168,8 +1169,15 @@ class MainActivity : ComponentActivity() {
                 Spacer(Modifier.height(4.dp))
                 Text("YÊU THÍCH ONLINE • " + onlineFavorites.size, color = Color(0xFF8F8F9A), fontSize = 12.sp)
             }
-            Text("Tìm và phát nhạc từ Jamendo qua API chính thức.", color = Color(0xFF8F8F9A), fontSize = 12.sp)
+            Text("Trung tâm nhạc online • Audius + Jamendo + YouTube", color = Color(0xFF8F8F9A), fontSize = 12.sp)
             Spacer(Modifier.height(10.dp))
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf("Tất cả", "Audius", "Jamendo", "Yêu thích", "YouTube").forEach { tab ->
+                    FilterChip(selected = onlineHubTab == tab, onClick = { onlineHubTab = tab }, label = { Text(tab) })
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            if (onlineHubTab != "YouTube" && onlineHubTab != "Yêu thích") {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(value = jamendoQuery, onValueChange = { jamendoQuery = it }, modifier = Modifier.weight(1f), singleLine = true, placeholder = { Text("Tên bài hát / nghệ sĩ") }, shape = RoundedCornerShape(14.dp))
                 Button(onClick = {
@@ -1196,11 +1204,11 @@ class MainActivity : ComponentActivity() {
                 Spacer(Modifier.height(8.dp))
             }
             val onlineResults = buildList {
-                audiusTracks.forEachIndexed { index, track ->
-                    add(OnlineSearchItem("Audius", index, track.title, track.artist, track.duration))
+                if (onlineHubTab == "Tất cả" || onlineHubTab == "Audius") {
+                    audiusTracks.forEachIndexed { index, track -> add(OnlineSearchItem("Audius", index, track.title, track.artist, track.duration)) }
                 }
-                jamendoTracks.forEachIndexed { index, track ->
-                    add(OnlineSearchItem("Jamendo", index, track.title, track.artist, track.duration))
+                if (onlineHubTab == "Tất cả" || onlineHubTab == "Jamendo") {
+                    jamendoTracks.forEachIndexed { index, track -> add(OnlineSearchItem("Jamendo", index, track.title, track.artist, track.duration)) }
                 }
             }
 
@@ -1240,6 +1248,26 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+            }
+            if (onlineHubTab == "Yêu thích") {
+                Text("DANH SÁCH YÊU THÍCH ONLINE • ${onlineFavorites.size}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Spacer(Modifier.height(8.dp))
+                if (onlineFavorites.isEmpty()) Text("Chưa có bài online yêu thích.", color = Color(0xFF8F8F9A), fontSize = 13.sp)
+                else onlineFavorites.forEach { key ->
+                    val parts = key.split(":", limit = 3)
+                    if (parts.size == 3) {
+                        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFF1B1B23)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(parts[1], color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text("${parts[2]} • ${parts[0]}", color = Color(0xFF8F8F9A), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            Text("♥", color = Color(0xFFFF6B81), fontSize = 20.sp)
+                        }
+                        Spacer(Modifier.height(6.dp))
+                    }
+                }
+            }
+            if (onlineHubTab == "Tất cả" || onlineHubTab == "YouTube") {
             Spacer(Modifier.height(10.dp))
             Text("YOUTUBE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
             Spacer(Modifier.height(8.dp))
