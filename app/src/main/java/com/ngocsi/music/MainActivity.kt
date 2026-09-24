@@ -142,6 +142,14 @@ class MainActivity : ComponentActivity() {
         if (granted) loadSongs() else errorMessage = "Cần cấp quyền đọc nhạc để quét thư viện."
     }
     private val notificationPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    private val microphonePermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            startVoiceRecognition()
+        } else {
+            isVoiceSearching = false
+            errorMessage = "Cần cấp quyền microphone để tìm kiếm bằng giọng nói."
+        }
+    }
     private val drivePickerLauncher = registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty()) importDriveSongs(uris)
     }
@@ -233,10 +241,19 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startVoiceSearch() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            microphonePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            return
+        }
+        startVoiceRecognition()
+    }
+
+    private fun startVoiceRecognition() {
         if (speechRecognizer == null) initSpeechRecognizer()
         val recognizer = speechRecognizer
         if (recognizer == null) {
             errorMessage = "Thiết bị không hỗ trợ tìm kiếm bằng giọng nói."
+            isVoiceSearching = false
             return
         }
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
@@ -248,8 +265,16 @@ class MainActivity : ComponentActivity() {
         }
         errorMessage = null
         isVoiceSearching = true
-        recognizer.cancel()
-        recognizer.startListening(intent)
+        try {
+            recognizer.cancel()
+            recognizer.startListening(intent)
+        } catch (_: SecurityException) {
+            isVoiceSearching = false
+            errorMessage = "Quyền microphone chưa được cấp. Hãy cho phép microphone rồi thử lại."
+        } catch (_: Exception) {
+            isVoiceSearching = false
+            errorMessage = "Không thể khởi động nhận diện giọng nói. Hãy kiểm tra dịch vụ nhận dạng giọng nói trên điện thoại."
+        }
     }
 
     private fun connectController() {
