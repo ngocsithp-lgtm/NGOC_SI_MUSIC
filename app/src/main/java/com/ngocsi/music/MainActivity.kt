@@ -801,30 +801,42 @@ class MainActivity : ComponentActivity() {
     private fun previous() { controller?.seekToPreviousMediaItem(); controller?.play() }
     private fun removeFromQueue(index: Int) {
         if (index !in songs.indices) return
-        val removedCurrent = index == currentIndex
+        val c = controller ?: return
+        if (index >= c.mediaItemCount) return
+
+        val removedCurrent = index == c.currentMediaItemIndex
         songs.removeAt(index)
-        currentIndex = when {
-            songs.isEmpty() -> -1
-            removedCurrent -> min(index, songs.lastIndex)
-            index < currentIndex -> currentIndex - 1
-            else -> currentIndex
+        c.removeMediaItem(index)
+
+        if (songs.isEmpty()) {
+            currentIndex = -1
+            isPlaying = false
+            position = 0L
+        } else if (!removedCurrent) {
+            currentIndex = when {
+                index < currentIndex -> currentIndex - 1
+                else -> currentIndex
+            }
+        } else {
+            currentIndex = c.currentMediaItemIndex.coerceIn(-1, songs.lastIndex)
         }
-        syncControllerQueue()
         savePlaybackState()
     }
 
     private fun moveQueueItem(from: Int, to: Int) {
         if (from !in songs.indices || to !in songs.indices || from == to) return
-        val item = songs[from]
-        songs.removeAt(from)
-        songs.add(to, item)
+        val c = controller ?: return
+        if (from >= c.mediaItemCount || to >= c.mediaItemCount) return
+
+        songs.add(to, songs.removeAt(from))
+        c.moveMediaItem(from, to)
+
         currentIndex = when {
             currentIndex == from -> to
             from < currentIndex && to >= currentIndex -> currentIndex - 1
             from > currentIndex && to <= currentIndex -> currentIndex + 1
             else -> currentIndex
         }
-        syncControllerQueue()
         savePlaybackState()
     }
 
