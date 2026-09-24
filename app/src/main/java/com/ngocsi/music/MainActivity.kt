@@ -56,6 +56,7 @@ import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.MoreExecutors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import kotlin.math.max
 
@@ -1205,6 +1206,36 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
+    private fun OnlineArtwork(url: String, modifier: Modifier = Modifier) {
+        var bitmap by remember(url) { mutableStateOf<android.graphics.Bitmap?>(null) }
+        LaunchedEffect(url) {
+            bitmap = if (url.isBlank()) null else withContext(Dispatchers.IO) {
+                runCatching {
+                    java.net.URL(url).openStream().use { BitmapFactory.decodeStream(it) }
+                }.getOrNull()
+            }
+        }
+        Box(
+            modifier
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color(0xFF25252F)),
+            contentAlignment = Alignment.Center
+        ) {
+            val image = bitmap
+            if (image != null) {
+                Image(
+                    bitmap = image.asImageBitmap(),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Text("♪", color = Color(0xFFB18CFF), fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+
+    @Composable
     private fun OnlineSourcesCard() {
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color(0xFF14141B)).padding(14.dp)) {
             Text("NGỌC SĨ ONLINE MUSIC", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
@@ -1267,6 +1298,7 @@ class MainActivity : ComponentActivity() {
                     Text("KẾT QUẢ ONLINE • ${onlineResults.size} BÀI", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     Spacer(Modifier.height(8.dp))
                     onlineResults.forEach { item ->
+                        val artworkUrl = if (item.source == "Audius") audiusTracks.getOrNull(item.index)?.imageUrl.orEmpty() else jamendoTracks.getOrNull(item.index)?.imageUrl.orEmpty()
                         Row(
                             Modifier.fillMaxWidth()
                                 .clip(RoundedCornerShape(14.dp))
@@ -1278,6 +1310,8 @@ class MainActivity : ComponentActivity() {
                                 .padding(10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            OnlineArtwork(artworkUrl, Modifier.size(54.dp))
+                            Spacer(Modifier.width(10.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(item.title, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 Text("${item.artist} • ${item.source} • ${formatTime(item.duration)}", color = Color(0xFF8F8F9A), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
