@@ -153,6 +153,35 @@ class MainActivity : ComponentActivity() {
             errorMessage = "Cần cấp quyền microphone để tìm kiếm bằng giọng nói."
         }
     }
+
+    private val speechActivityLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        isVoiceSearching = false
+        if (result.resultCode != RESULT_OK) {
+            errorMessage = "Chưa nhận được giọng nói. Hãy bấm microphone và nói lại tên bài hát."
+            return@registerForActivityResult
+        }
+
+        val query = result.data
+            ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+            ?.firstOrNull()
+            .orEmpty()
+            .trim()
+
+        if (query.isBlank()) {
+            errorMessage = "Không nhận được nội dung giọng nói. Hãy thử lại."
+            return@registerForActivityResult
+        }
+
+        jamendoQuery = query
+        onlineSearchActive = true
+        jamendoTracks.clear()
+        audiusTracks.clear()
+        errorMessage = null
+        searchJamendo()
+        searchAudius(query)
+    }
     private val drivePickerLauncher = registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty()) importDriveSongs(uris)
     }
@@ -207,145 +236,17 @@ class MainActivity : ComponentActivity() {
     }
 
     private var usingOnDeviceRecognizer = false
-    private var voiceStartInProgress = false
-    private val voiceHandler = android.os.Handler(android.os.Looper.getMainLooper())
-    private var voiceTimeoutRunnable: Runnable? = null
-
-    private fun createSpeechRecognizerSafely(): SpeechRecognizer? {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) return null
-        if (!SpeechRecognizer.isRecognitionAvailable(this)) return null
-
-        return try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                SpeechRecognizer.isOnDeviceRecognitionAvailable(this)) {
-                usingOnDeviceRecognizer = true
-                SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
-            } else {
-                usingOnDeviceRecognizer = false
-                SpeechRecognizer.createSpeechRecognizer(this)
-            }
-        } catch (_: UnsupportedOperationException) {
-            usingOnDeviceRecognizer = false
-            try { SpeechRecognizer.createSpeechRecognizer(this) } catch (_: Exception) { null }
-        } catch (_: Exception) {
-            null
-        }
-    }
 
     private fun cleanupSpeechRecognizer() {
-        voiceTimeoutRunnable?.let { voiceHandler.removeCallbacks(it) }
-        voiceTimeoutRunnable = null
         val recognizer = speechRecognizer
         speechRecognizer = null
         try { recognizer?.cancel() } catch (_: Exception) {}
         try { recognizer?.destroy() } catch (_: Exception) {}
-        voiceStartInProgress = false
-    }
-
-    private fun initSpeechRecognizer(): Boolean {
-        cleanupSpeechRecognizer()
-
-        val recognizer = createSpeechRecognizerSafely() ?: return false
-
-        recognizer.setRecognitionListener(object : RecognitionListener {
-            override fun onReadyForSpeech(params: Bundle?) {
-                isVoiceSearching = true
-            }
-
-            override fun onBeginningOfSpeech() {
-                isVoiceSearching = true
-            }
-
-            override fun onRmsChanged(rmsdB: Float) {}
-            override fun onBufferReceived(buffer: ByteArray?) {}
-
-            override fun onEndOfSpeech() {
-                isVoiceSearching = false
-            }
-
-            override fun onError(error: Int) {
-                isVoiceSearching = false
-                voiceTimeoutRunnable?.let { voiceHandler.removeCallbacks(it) }
-                voiceTimeoutRunnable = null
-
-                // Never restart startListening() from inside onError().
-                // Android requires waiting for onError/onResults before a new start,
-                // and immediately replacing recognizers can otherwise produce BUSY/races.
-                val message = when (error) {
-                    SpeechRecognizer.ERROR_AUDIO ->
-                        "Không truy cập được microphone. Kiểm tra quyền microphone."
-                    SpeechRecognizer.ERROR_CLIENT ->
-                        "Dịch vụ nhận diện giọng nói gặp lỗi. Hãy bấm tìm lại."
-                    SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS ->
-                        "Chưa được cấp quyền microphone."
-                    SpeechRecognizer.ERROR_NETWORK ->
-                        "Không kết nối được dịch vụ nhận diện giọng nói."
-                    SpeechRecognizer.ERROR_NETWORK_TIMEOUT ->
-                        "Hết thời gian kết nối nhận diện giọng nói."
-                    SpeechRecognizer.ERROR_NO_MATCH ->
-                        "Không nghe rõ giọng nói. Hãy bấm lại và nói tên bài hát."
-                    SpeechRecognizer.ERROR_RECOGNIZER_BUSY ->
-                        "Bộ nhận diện đang bận. Hãy chờ một chút rồi thử lại."
-                    SpeechRecognizer.ERROR_SERVER ->
-                        "Dịch vụ nhận diện giọng nói đang lỗi. Hãy thử lại."
-                    SpeechRecognizer.ERROR_SPEECH_TIMEOUT ->
-                        "Không nghe thấy giọng nói. Hãy bấm lại và nói tên bài hát."
-                    SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED ->
-                        "Dịch vụ nhận diện không hỗ trợ tiếng Việt trên thiết bị này."
-                    SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE ->
-                        "Gói nhận diện tiếng Việt chưa sẵn sàng trên thiết bị."
-                    else ->
-                        "Lỗi nhận diện giọng nói: $error"
-                }
-
-                val active = speechRecognizer === recognizer
-                if (active) {
-                    speechRecognizer = null
-                    try { recognizer.destroy() } catch (_: Exception) {}
-                } else {
-                    try { recognizer.destroy() } catch (_: Exception) {}
-                }
-                voiceStartInProgress = false
-                errorMessage = message
-            }
-
-            override fun onResults(results: Bundle?) {
-                isVoiceSearching = false
-                voiceTimeoutRunnable?.let { voiceHandler.removeCallbacks(it) }
-                voiceTimeoutRunnable = null
-
-                val query = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                    ?.firstOrNull().orEmpty().trim()
-
-                val active = speechRecognizer === recognizer
-                if (active) speechRecognizer = null
-                try { recognizer.destroy() } catch (_: Exception) {}
-                voiceStartInProgress = false
-
-                if (query.isBlank()) {
-                    errorMessage = "Không nhận được nội dung tìm kiếm. Hãy bấm lại và nói tên bài hát."
-                    return
-                }
-
-                jamendoQuery = query
-                onlineSearchActive = true
-                jamendoTracks.clear()
-                audiusTracks.clear()
-                errorMessage = null
-                searchJamendo()
-                searchAudius(query)
-            }
-
-            override fun onPartialResults(partialResults: Bundle?) {}
-            override fun onEvent(eventType: Int, params: Bundle?) {}
-        })
-
-        speechRecognizer = recognizer
-        return true
+        isVoiceSearching = false
     }
 
     private fun startVoiceSearch() {
-        if (isVoiceSearching || voiceStartInProgress) return
+        if (isVoiceSearching) return
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             microphonePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
@@ -358,79 +259,40 @@ class MainActivity : ComponentActivity() {
     private fun startVoiceRecognition() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             isVoiceSearching = false
-            voiceStartInProgress = false
             microphonePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
             return
         }
 
         runOnUiThread {
-            if (isVoiceSearching || voiceStartInProgress) return@runOnUiThread
-            voiceStartInProgress = true
-
-            if (!SpeechRecognizer.isRecognitionAvailable(this)) {
-                voiceStartInProgress = false
-                isVoiceSearching = false
-                errorMessage = "Điện thoại chưa có dịch vụ nhận diện giọng nói. Hãy cài hoặc bật Google/Samsung Speech Recognition."
-                return@runOnUiThread
-            }
-
-            if (!initSpeechRecognizer()) {
-                voiceStartInProgress = false
-                isVoiceSearching = false
-                errorMessage = "Không thể khởi tạo bộ nhận diện giọng nói trên điện thoại."
-                return@runOnUiThread
-            }
-
-            val recognizer = speechRecognizer
-            if (recognizer == null) {
-                voiceStartInProgress = false
-                isVoiceSearching = false
-                errorMessage = "Không thể khởi tạo bộ nhận diện giọng nói."
-                return@runOnUiThread
-            }
+            if (isVoiceSearching) return@runOnUiThread
 
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(
+                    RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+                )
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, "vi-VN")
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "vi-VN")
-                putExtra(RecognizerIntent.EXTRA_ONLY_RETURN_LANGUAGE_PREFERENCE, false)
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
                 putExtra(RecognizerIntent.EXTRA_PROMPT, "Nói tên bài hát hoặc nghệ sĩ")
             }
 
-            errorMessage = null
-            isVoiceSearching = true
+            val packageManager = packageManager
+            val activities = packageManager.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
+            if (activities.isEmpty()) {
+                isVoiceSearching = false
+                errorMessage = "Điện thoại chưa có ứng dụng nhận diện giọng nói. Hãy bật Google hoặc Samsung Voice Input."
+                return@runOnUiThread
+            }
 
             try {
-                recognizer.startListening(intent)
-
-                voiceTimeoutRunnable?.let { voiceHandler.removeCallbacks(it) }
-                val timeoutRecognizer = recognizer
-                val timeout = Runnable {
-                    if (speechRecognizer === timeoutRecognizer && isVoiceSearching) {
-                        isVoiceSearching = false
-                        speechRecognizer = null
-                        try { timeoutRecognizer.cancel() } catch (_: Exception) {}
-                        try { timeoutRecognizer.destroy() } catch (_: Exception) {}
-                        voiceStartInProgress = false
-                        errorMessage = "Tìm kiếm bằng giọng nói quá lâu. Hãy bấm lại và thử nói tên bài hát."
-                    }
-                }
-                voiceTimeoutRunnable = timeout
-                voiceHandler.postDelayed(timeout, 12000L)
-            } catch (_: SecurityException) {
-                isVoiceSearching = false
-                voiceStartInProgress = false
-                try { recognizer.destroy() } catch (_: Exception) {}
-                speechRecognizer = null
-                errorMessage = "Quyền microphone chưa được cấp. Hãy cho phép microphone rồi thử lại."
+                errorMessage = null
+                isVoiceSearching = true
+                speechActivityLauncher.launch(intent)
             } catch (_: Exception) {
                 isVoiceSearching = false
-                voiceStartInProgress = false
-                try { recognizer.destroy() } catch (_: Exception) {}
-                speechRecognizer = null
-                errorMessage = "Không thể bắt đầu nghe. Hãy kiểm tra dịch vụ nhận diện giọng nói trên điện thoại."
+                errorMessage = "Không thể mở nhận diện giọng nói. Hãy kiểm tra Google/Samsung Voice Input trên điện thoại."
             }
         }
     }
