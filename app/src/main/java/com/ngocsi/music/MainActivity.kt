@@ -11,6 +11,9 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.graphics.BitmapFactory
+import android.webkit.WebChromeClient
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.content.SharedPreferences
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -37,6 +40,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -103,6 +108,8 @@ class MainActivity : ComponentActivity() {
     private var showQueue by mutableStateOf(false)
     private var selectedSection by mutableStateOf("Trang chủ")
     private var showNowPlaying by mutableStateOf(false)
+    private var showYoutube by mutableStateOf(false)
+    private var youtubeQuery by mutableStateOf("")
     private var showSleepTimer by mutableStateOf(false)
     private var sleepMinutes by mutableIntStateOf(0)
     private var lastSongUri by mutableStateOf<String?>(null)
@@ -1148,6 +1155,79 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
+    private fun YouTubeDialog() {
+        if (!showYoutube) return
+        val query = youtubeQuery.trim()
+        Dialog(
+            onDismissRequest = { showYoutube = false },
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = false
+            )
+        ) {
+            Surface(
+                color = Color.Black,
+                modifier = Modifier.fillMaxSize()
+            ) {
+                Column(Modifier.fillMaxSize()) {
+                    Row(
+                        Modifier.fillMaxWidth().background(Color(0xFF15161D)).padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "YOUTUBE MUSIC / VIDEO",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = { showYoutube = false }) { Text("Đóng") }
+                    }
+                    AndroidView(
+                        modifier = Modifier.fillMaxSize(),
+                        factory = { context ->
+                            WebView(context).apply {
+                                webViewClient = WebViewClient()
+                                webChromeClient = WebChromeClient()
+                                settings.javaScriptEnabled = true
+                                settings.domStorageEnabled = true
+                                settings.mediaPlaybackRequiresUserGesture = true
+                                settings.useWideViewPort = true
+                                settings.loadWithOverviewMode = true
+                                settings.loadsImagesAutomatically = true
+                                settings.allowContentAccess = true
+                                settings.javaScriptCanOpenWindowsAutomatically = true
+                                settings.setSupportMultipleWindows(true)
+                                settings.userAgentString =
+                                    "Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/140 Mobile Safari/537.36"
+                                CookieManager.getInstance().setAcceptCookie(true)
+                                CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                                val target = if (query.isBlank()) {
+                                    "https://www.youtube.com/"
+                                } else {
+                                    "https://www.youtube.com/results?search_query=" +
+                                        java.net.URLEncoder.encode(query, "UTF-8")
+                                }
+                                loadUrl(target)
+                            }
+                        },
+                        update = { webView ->
+                            val target = if (query.isBlank()) {
+                                "https://www.youtube.com/"
+                            } else {
+                                "https://www.youtube.com/results?search_query=" +
+                                    java.net.URLEncoder.encode(query, "UTF-8")
+                            }
+                            if (webView.url != target && !query.isBlank()) {
+                                webView.loadUrl(target)
+                            }
+                        }
+                    )
+                }
+            }
+        }
+    }
+
+    @Composable
     private fun OnlineSourcesCard() {
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color(0xFF14141B)).padding(14.dp)) {
             Text("NGỌC SĨ ONLINE MUSIC", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
@@ -1221,6 +1301,32 @@ class MainActivity : ComponentActivity() {
                     Spacer(Modifier.height(6.dp))
                 }
             }
+            Spacer(Modifier.height(10.dp))
+            Text("YOUTUBE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Spacer(Modifier.height(8.dp))
+            Text("Tìm và xem/nghe nội dung YouTube bằng trình phát chính thức. Ứng dụng không tải hoặc tách luồng âm thanh khỏi YouTube.", color = Color(0xFF8F8F9A), fontSize = 12.sp)
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = youtubeQuery,
+                    onValueChange = { youtubeQuery = it },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    placeholder = { Text("Tìm bài hát / nghệ sĩ trên YouTube") },
+                    shape = RoundedCornerShape(14.dp)
+                )
+                Button(
+                    onClick = { showYoutube = true },
+                    shape = RoundedCornerShape(14.dp)
+                ) { Text("MỞ") }
+            }
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = { youtubeQuery = ""; showYoutube = true },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) { Text("MỞ YOUTUBE") }
+
             Spacer(Modifier.height(10.dp))
             Text("NHẠC ONLINE KHÁC", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
             Spacer(Modifier.height(8.dp))
