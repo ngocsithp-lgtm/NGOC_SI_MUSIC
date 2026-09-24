@@ -1522,6 +1522,8 @@ class MainActivity : ComponentActivity() {
             ?: "https://i.ytimg.com/vi/$videoId/hqdefault.jpg"
 
         var startPlayer by remember(videoId) { mutableStateOf(false) }
+        var playerRetry by remember(videoId) { mutableIntStateOf(0) }
+        var playerError by remember(videoId) { mutableStateOf(false) }
 
         Dialog(
             onDismissRequest = {
@@ -1566,8 +1568,9 @@ class MainActivity : ComponentActivity() {
 
                             if (!startPlayer) {
                                 // Hiển thị thumbnail trước khi phát để luôn có hình ảnh.
-                                AndroidView(
-                                    modifier = Modifier.fillMaxWidth()
+                                key(videoId, playerRetry) {
+                                    AndroidView(
+                                        modifier = Modifier.fillMaxWidth()
                                         .aspectRatio(16f / 9f)
                                         .clip(RoundedCornerShape(16.dp)),
                                     factory = { context ->
@@ -1649,8 +1652,23 @@ class MainActivity : ComponentActivity() {
                                                 override fun shouldOverrideUrlLoading(
                                                     view: WebView,
                                                     url: String
+                                                ): Boolean = false
+
+                                                override fun onReceivedError(
+                                                    view: WebView,
+                                                    errorCode: Int,
+                                                    description: String,
+                                                    failingUrl: String
+                                                ) {
+                                                    playerError = true
+                                                }
+
+                                                override fun onRenderProcessGone(
+                                                    view: WebView,
+                                                    detail: android.webkit.RenderProcessGoneDetail
                                                 ): Boolean {
-                                                    return false
+                                                    playerError = true
+                                                    return true
                                                 }
                                             }
                                             webChromeClient = WebChromeClient()
@@ -1683,7 +1701,18 @@ class MainActivity : ComponentActivity() {
                                             loadUrl(embedUrl, headers)
                                         }
                                     }
-                                )
+                                }
+
+                                if (playerError) {
+                                    Spacer(Modifier.height(10.dp))
+                                    Text("YouTube không tải được trình phát trong WebView.", color = Color(0xFFFFB4AB), fontSize = 13.sp)
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        OutlinedButton(onClick = { playerError = false; playerRetry++ }, modifier = Modifier.weight(1f)) { Text("Thử lại") }
+                                        Button(onClick = {
+                                            try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/watch?v=$videoId"))) } catch (_: Exception) { }
+                                        }, modifier = Modifier.weight(1f)) { Text("Mở YouTube") }
+                                    }
+                                }
 
                                 Spacer(Modifier.height(10.dp))
                                 TextButton(onClick = { startPlayer = false }) {
