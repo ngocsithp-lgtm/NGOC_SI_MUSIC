@@ -1351,6 +1351,17 @@ class MainActivity : ComponentActivity() {
                                     Text(song.artist, color = Color(0xFF888894), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                                 Text(formatTime(song.duration), color = Color(0xFF777783), fontSize = 11.sp)
+                                TextButton(
+                                    onClick = { if (index > 0) moveQueueItem(index, index - 1) },
+                                    enabled = index > 0
+                                ) { Text("↑") }
+                                TextButton(
+                                    onClick = { if (index < songs.lastIndex) moveQueueItem(index, index + 1) },
+                                    enabled = index < songs.lastIndex
+                                ) { Text("↓") }
+                                TextButton(
+                                    onClick = { removeFromQueue(index) }
+                                ) { Text("×") }
                             }
                         }
                     }
