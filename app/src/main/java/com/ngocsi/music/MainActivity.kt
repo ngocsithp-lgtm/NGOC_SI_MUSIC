@@ -1577,7 +1577,7 @@ class MainActivity : ComponentActivity() {
                                             .play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:62px;height:62px;border-radius:50%;background:#e91e63;color:white;display:flex;align-items:center;justify-content:center;font-size:30px}
                                             </style></head><body>
                                             <div class="thumb">
-                                            <img src="${thumb.replace("&","&amp;").replace(""","&quot;")}" onerror="this.src='https://i.ytimg.com/vi/$videoId/hqdefault.jpg'">
+                                            <img src="${thumb.replace("&","&amp;").replace("\"", "&quot;")}" onerror="this.src='https://i.ytimg.com/vi/$videoId/hqdefault.jpg'">
                                             <div class="shade"></div><div class="play">▶</div>
                                             </div></body></html>
                                         """.trimIndent()
