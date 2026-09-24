@@ -1608,6 +1608,7 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }
                                 )
+                                 }
 
                                 Spacer(Modifier.height(12.dp))
                                 Button(
