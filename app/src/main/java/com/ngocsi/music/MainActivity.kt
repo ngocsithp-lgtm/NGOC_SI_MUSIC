@@ -1634,7 +1634,12 @@ class MainActivity : ComponentActivity() {
             }
 
             if (onlineSearchActive && (jamendoLoading || audiusLoading)) {
-                Text("ĐANG TÌM KIẾM ĐA NGUỒN…", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text(
+                    "ĐANG TÌM KIẾM ĐA NGUỒN…",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp
+                )
                 Spacer(Modifier.height(8.dp))
             }
 
