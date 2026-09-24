@@ -53,6 +53,12 @@ class MusicService : MediaSessionService() {
         )
 
         player.setHandleAudioBecomingNoisy(true)
+
+        // Đồng bộ thao tác tua 10 giây của app với Player/MediaSession,
+        // để các bề mặt điều khiển bên ngoài có cùng bước tua.
+        player.setSeekBackIncrementMs(10_000L)
+        player.setSeekForwardIncrementMs(10_000L)
+
         player.addListener(playerListener)
         broadcastWidget()
 
