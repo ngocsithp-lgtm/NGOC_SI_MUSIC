@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -73,6 +74,7 @@ class MainActivity : ComponentActivity() {
     private var showQueue by mutableStateOf(false)
     private var selectedSection by mutableStateOf("Trang chủ")
     private var showNowPlaying by mutableStateOf(false)
+    private var showYoutubeFullscreen by mutableStateOf(false)
     private var showSleepTimer by mutableStateOf(false)
     private var sleepMinutes by mutableIntStateOf(0)
     private var lastSongUri by mutableStateOf<String?>(null)
@@ -896,7 +898,7 @@ class MainActivity : ComponentActivity() {
                 Button(onClick = ::searchYouTube, shape = RoundedCornerShape(14.dp)) { Text("TIM") }
             }
             Spacer(Modifier.height(10.dp))
-            YouTubePad(url = youtubeWebUrl)
+            Button(onClick = { showYoutubeFullscreen = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text("MO YOUTUBE TOAN MAN HINH") }
             Spacer(Modifier.height(12.dp))
             if (youtubeHistory.isNotEmpty()) {
                 Text("TIM KIEM GAN DAY", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
@@ -968,31 +970,51 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun YouTubePad(url: String) {
-        AndroidView(
-            modifier = Modifier.fillMaxWidth().heightIn(min = 420.dp, max = 720.dp).clip(RoundedCornerShape(18.dp)),
-            factory = { context ->
-                WebView(context).apply {
-                    settings.javaScriptEnabled = true
-                    settings.domStorageEnabled = true
-                    settings.mediaPlaybackRequiresUserGesture = false
-                settings.useWideViewPort = true
-                settings.loadWithOverviewMode = true
-                    settings.loadsImagesAutomatically = true
-                    settings.allowContentAccess = true
-                    settings.allowFileAccess = false
-                    webViewClient = object : WebViewClient() {
-                        override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean = false
-                        override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
-                            errorMessage = "Khong tai duoc YouTube. Hay kiem tra ket noi mang."
-                        }
+        if (!showYoutubeFullscreen) return
+        Dialog(
+            onDismissRequest = { showYoutubeFullscreen = false },
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = false
+            )
+        ) {
+            Surface(modifier = Modifier.fillMaxSize(), color = Color.Black) {
+                Column(Modifier.fillMaxSize()) {
+                    Row(
+                        Modifier.fillMaxWidth().background(Color(0xFF111218)).padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("YOUTUBE", color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        TextButton(onClick = { showYoutubeFullscreen = false }) { Text("ĐÓNG") }
                     }
-                    loadUrl(url)
+                    AndroidView(
+                        modifier = Modifier.fillMaxSize(),
+                        factory = { context ->
+                            WebView(context).apply {
+                                settings.javaScriptEnabled = true
+                                settings.domStorageEnabled = true
+                                settings.mediaPlaybackRequiresUserGesture = false
+                                settings.useWideViewPort = true
+                                settings.loadWithOverviewMode = true
+                                settings.loadsImagesAutomatically = true
+                                settings.allowContentAccess = true
+                                settings.allowFileAccess = false
+                                webViewClient = object : WebViewClient() {
+                                    override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean = false
+                                    override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
+                                        errorMessage = "Không tải được YouTube. Hãy kiểm tra kết nối mạng."
+                                    }
+                                }
+                                loadUrl(url)
+                            }
+                        },
+                        update = { webView ->
+                            if (webView.url != url) webView.loadUrl(url)
+                        }
+                    )
                 }
-            },
-            update = { webView ->
-                if (webView.url != url) webView.loadUrl(url)
             }
-        )
+        }
     }
 
     @Composable
