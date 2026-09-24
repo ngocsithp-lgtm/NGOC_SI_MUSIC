@@ -1348,21 +1348,40 @@ class MainActivity : ComponentActivity() {
             Spacer(Modifier.height(10.dp))
             if (onlineHubTab != "YouTube" && onlineHubTab != "Yêu thích") {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(value = jamendoQuery, onValueChange = { jamendoQuery = it }, modifier = Modifier.weight(1f), singleLine = true, placeholder = { Text("Tên bài hát / nghệ sĩ") }, shape = RoundedCornerShape(14.dp))
+                OutlinedTextField(
+                    value = jamendoQuery,
+                    onValueChange = { jamendoQuery = it },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    placeholder = { Text("Tên bài hát / nghệ sĩ") },
+                    shape = RoundedCornerShape(14.dp)
+                )
                 Button(onClick = {
-                val q = jamendoQuery.trim()
-                if (q.isBlank()) {
-                    errorMessage = "Nhập tên bài hát hoặc nghệ sĩ để tìm."
-                } else {
-                    errorMessage = null
-                    onlineSearchActive = true
+                    val q = jamendoQuery.trim()
+                    if (q.isBlank()) {
+                        errorMessage = "Nhập tên bài hát hoặc nghệ sĩ để tìm."
+                    } else {
+                        errorMessage = null
+                        onlineSearchActive = true
+                        jamendoTracks.clear()
+                        audiusTracks.clear()
+                        searchJamendo()
+                        searchAudius(q)
+                    }
+                }, shape = RoundedCornerShape(14.dp)) { Text("TÌM") }
+            }
+            Spacer(Modifier.height(6.dp))
+            OutlinedButton(
+                onClick = {
+                    jamendoQuery = ""
+                    onlineSearchActive = false
                     jamendoTracks.clear()
                     audiusTracks.clear()
-                    searchJamendo()
-                    searchAudius(q)
-                }
-            }, shape = RoundedCornerShape(14.dp)) { Text("TÌM") }
-            }
+                    errorMessage = null
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) { Text("XÓA TÌM KIẾM") }
             Spacer(Modifier.height(10.dp))
             OutlinedButton(
                 onClick = ::refreshOnlineSearch,
@@ -1380,11 +1399,18 @@ class MainActivity : ComponentActivity() {
                 Spacer(Modifier.height(8.dp))
             }
             val onlineResults = buildList {
+                val seen = mutableSetOf<String>()
                 if (onlineHubTab == "Tất cả" || onlineHubTab == "Audius") {
-                    audiusTracks.forEachIndexed { index, track -> add(OnlineSearchItem("Audius", index, track.title, track.artist, track.duration)) }
+                    audiusTracks.forEachIndexed { index, track ->
+                        val key = track.title.trim().lowercase() + "|" + track.artist.trim().lowercase()
+                        if (seen.add(key)) add(OnlineSearchItem("Audius", index, track.title, track.artist, track.duration))
+                    }
                 }
                 if (onlineHubTab == "Tất cả" || onlineHubTab == "Jamendo") {
-                    jamendoTracks.forEachIndexed { index, track -> add(OnlineSearchItem("Jamendo", index, track.title, track.artist, track.duration)) }
+                    jamendoTracks.forEachIndexed { index, track ->
+                        val key = track.title.trim().lowercase() + "|" + track.artist.trim().lowercase()
+                        if (seen.add(key)) add(OnlineSearchItem("Jamendo", index, track.title, track.artist, track.duration))
+                    }
                 }
             }
 
@@ -1397,7 +1423,18 @@ class MainActivity : ComponentActivity() {
                 if (onlineResults.isEmpty()) {
                     Text("Không tìm thấy kết quả trên Jamendo hoặc Audius.", color = Color(0xFF8F8F9A), fontSize = 13.sp)
                 } else {
-                    Text("KẾT QUẢ ONLINE • ${onlineResults.size} BÀI", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text(
+                        "KẾT QUẢ ONLINE • ${onlineResults.size} BÀI",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        "Audius ${audiusTracks.size} • Jamendo ${jamendoTracks.size} • đã lọc trùng",
+                        color = Color(0xFF8F8F9A),
+                        fontSize = 11.sp
+                    )
                     Spacer(Modifier.height(8.dp))
                     onlineResults.forEach { item ->
                         val artworkUrl = if (item.source == "Audius") audiusTracks.getOrNull(item.index)?.imageUrl.orEmpty() else jamendoTracks.getOrNull(item.index)?.imageUrl.orEmpty()
