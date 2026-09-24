@@ -1650,11 +1650,17 @@ class MainActivity : ComponentActivity() {
 
                                             // YouTube có thể trả lỗi cấu hình nếu embed không có origin.
                                             // Khai báo origin và dùng youtube-nocookie để tăng tương thích WebView.
-                                            loadUrl(
-                                                "https://www.youtube-nocookie.com/embed/$safeId" +
-                                                    "?playsinline=1&rel=0&controls=1&modestbranding=1" +
-                                                    "&origin=https%3A%2F%2Fwww.youtube.com"
+                                            val embedUrl =
+                                                "https://www.youtube.com/embed/$safeId" +
+                                                    "?playsinline=1&rel=0&controls=1&enablejsapi=1" +
+                                                    "&origin=https%3A%2F%2Fcom.ngocsi.music"
+
+                                            // YouTube Error 153 = thiếu HTTP Referer/API client identity.
+                                            // Android WebView cần gửi Referer ngay trên request đầu tiên.
+                                            val headers = mapOf(
+                                                "Referer" to "https://com.ngocsi.music/"
                                             )
+                                            loadUrl(embedUrl, headers)
                                         }
                                     }
                                 )
