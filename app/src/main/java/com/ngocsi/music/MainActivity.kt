@@ -51,6 +51,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -1524,6 +1525,7 @@ class MainActivity : ComponentActivity() {
         var startPlayer by remember(videoId) { mutableStateOf(false) }
         var playerRetry by remember(videoId) { mutableIntStateOf(0) }
         var playerError by remember(videoId) { mutableStateOf(false) }
+        val appContext = LocalContext.current
 
         Dialog(
             onDismissRequest = {
@@ -1709,7 +1711,7 @@ class MainActivity : ComponentActivity() {
                                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         OutlinedButton(onClick = { playerError = false; playerRetry++ }, modifier = Modifier.weight(1f)) { Text("Thử lại") }
                                         Button(onClick = {
-                                            try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/watch?v=$videoId"))) } catch (_: Exception) { }
+                                            try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/watch?v=$videoId"))).also { appContext.startActivity(it) } } catch (_: Exception) { }
                                         }, modifier = Modifier.weight(1f)) { Text("Mở YouTube") }
                                     }
                                 }
