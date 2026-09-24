@@ -88,6 +88,15 @@ data class OnlineSearchItem(
     val duration: Long
 )
 
+data class OnlineFavoriteMeta(
+    val source: String,
+    val title: String,
+    val artist: String,
+    val duration: Long,
+    val streamUrl: String,
+    val imageUrl: String
+)
+
 class MainActivity : ComponentActivity() {
     private var controller: MediaController? = null
     private val songs = mutableStateListOf<Song>()
@@ -1167,15 +1176,86 @@ class MainActivity : ComponentActivity() {
     private fun onlineFavoriteKey(item: OnlineSearchItem): String =
         item.source + ":" + item.title + ":" + item.artist
 
+    private fun favoriteMetaFor(item: OnlineSearchItem): OnlineFavoriteMeta? {
+        return if (item.source == "Audius") {
+            audiusTracks.getOrNull(item.index)?.let {
+                OnlineFavoriteMeta("Audius", it.title, it.artist, it.duration, it.streamUrl, it.imageUrl)
+            }
+        } else {
+            jamendoTracks.getOrNull(item.index)?.let {
+                OnlineFavoriteMeta("Jamendo", it.title, it.artist, it.duration, it.audioUrl, it.imageUrl)
+            }
+        }
+    }
+
+    private fun getOnlineFavoriteMeta(key: String): OnlineFavoriteMeta? {
+        val raw = prefs.getString("online_favorite_meta", null) ?: return null
+        return runCatching {
+            val obj = org.json.JSONObject(raw).optJSONObject(key) ?: return@runCatching null
+            OnlineFavoriteMeta(
+                obj.optString("source"),
+                obj.optString("title"),
+                obj.optString("artist"),
+                obj.optLong("duration", 0L),
+                obj.optString("streamUrl"),
+                obj.optString("imageUrl")
+            )
+        }.getOrNull()
+    }
+
+    private fun saveOnlineFavoriteMeta(key: String, meta: OnlineFavoriteMeta?) {
+        val root = runCatching { org.json.JSONObject(prefs.getString("online_favorite_meta", null).orEmpty()) }
+            .getOrElse { org.json.JSONObject() }
+        if (meta == null) {
+            root.remove(key)
+        } else {
+            root.put(key, org.json.JSONObject().apply {
+                put("source", meta.source)
+                put("title", meta.title)
+                put("artist", meta.artist)
+                put("duration", meta.duration)
+                put("streamUrl", meta.streamUrl)
+                put("imageUrl", meta.imageUrl)
+            })
+        }
+        prefs.edit().putString("online_favorite_meta", root.toString()).apply()
+    }
+
     private fun toggleOnlineFavorite(item: OnlineSearchItem) {
         val key = onlineFavoriteKey(item)
-        if (onlineFavoriteSet.contains(key)) onlineFavoriteSet.remove(key) else onlineFavoriteSet.add(key)
+        if (onlineFavoriteSet.contains(key)) {
+            onlineFavoriteSet.remove(key)
+            saveOnlineFavoriteMeta(key, null)
+        } else {
+            onlineFavoriteSet.add(key)
+            saveOnlineFavoriteMeta(key, favoriteMetaFor(item))
+        }
         onlineFavorites.clear()
         onlineFavorites.addAll(onlineFavoriteSet)
-        getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit().putStringSet("online_favorites", onlineFavoriteSet).apply()
+        prefs.edit().putStringSet("online_favorites", onlineFavoriteSet).apply()
     }
 
     private fun playOnlineFavoriteKey(key: String) {
+        val meta = getOnlineFavoriteMeta(key)
+        if (meta != null && meta.streamUrl.isNotBlank()) {
+            val song = Song(
+                id = -kotlin.math.abs(("favorite:" + key).hashCode().toLong()),
+                title = meta.title,
+                artist = meta.artist,
+                duration = meta.duration,
+                uri = Uri.parse(meta.streamUrl),
+                source = meta.source
+            )
+            val existingIndex = songs.indexOfFirst { it.uri.toString() == meta.streamUrl }
+            val index = if (existingIndex >= 0) existingIndex else {
+                songs.add(song)
+                songs.lastIndex
+            }
+            syncControllerQueue()
+            play(index)
+            return
+        }
+
         val parts = key.split(":", limit = 3)
         if (parts.size != 3) return
         val source = parts[0]
@@ -1194,15 +1274,30 @@ class MainActivity : ComponentActivity() {
 
     private fun removeOnlineFavoriteKey(key: String) {
         onlineFavoriteSet.remove(key)
+        saveOnlineFavoriteMeta(key, null)
         onlineFavorites.clear()
         onlineFavorites.addAll(onlineFavoriteSet)
-        getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit().putStringSet("online_favorites", onlineFavoriteSet).apply()
+        prefs.edit().putStringSet("online_favorites", onlineFavoriteSet).apply()
     }
 
     private fun clearOnlineFavorites() {
         onlineFavoriteSet.clear()
         onlineFavorites.clear()
-        getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit().remove("online_favorites").apply()
+        prefs.edit().remove("online_favorites").remove("online_favorite_meta").apply()
+    }
+
+    private fun refreshOnlineSearch() {
+        val q = jamendoQuery.trim()
+        if (q.isBlank()) {
+            errorMessage = "Nhập tên bài hát hoặc nghệ sĩ trước khi làm mới."
+            return
+        }
+        onlineSearchActive = true
+        errorMessage = null
+        jamendoTracks.clear()
+        audiusTracks.clear()
+        searchJamendo()
+        searchAudius(q)
     }
 
     @Composable
@@ -1269,6 +1364,13 @@ class MainActivity : ComponentActivity() {
             }, shape = RoundedCornerShape(14.dp)) { Text("TÌM") }
             }
             Spacer(Modifier.height(10.dp))
+            OutlinedButton(
+                onClick = ::refreshOnlineSearch,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                enabled = !jamendoLoading && !audiusLoading
+            ) { Text("↻ LÀM MỚI KẾT QUẢ") }
+            Spacer(Modifier.height(10.dp))
             if (jamendoLoading) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
@@ -1334,6 +1436,7 @@ class MainActivity : ComponentActivity() {
                     onlineFavorites.forEach { key ->
                         val parts = key.split(":", limit = 3)
                         if (parts.size == 3) {
+                            val meta = getOnlineFavoriteMeta(key)
                             Row(
                                 Modifier.fillMaxWidth()
                                     .clip(RoundedCornerShape(14.dp))
@@ -1342,9 +1445,13 @@ class MainActivity : ComponentActivity() {
                                     .padding(10.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                OnlineArtwork(meta?.imageUrl.orEmpty(), Modifier.size(54.dp))
+                                Spacer(Modifier.width(10.dp))
                                 Column(Modifier.weight(1f)) {
-                                    Text(parts[1], color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    Text("${parts[2]} • ${parts[0]}", color = Color(0xFF8F8F9A), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(meta?.title ?: parts[1], color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    val durationText = if ((meta?.duration ?: 0L) > 0L) " • " + formatTime(meta!!.duration) else ""
+                                    Text((meta?.artist ?: parts[2]) + " • " + (meta?.source ?: parts[0]) + durationText,
+                                        color = Color(0xFF8F8F9A), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                     FilledTonalButton(onClick = { playOnlineFavoriteKey(key) }, shape = CircleShape) { Text("▶") }
