@@ -820,26 +820,35 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                         "Online" -> {
-                            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                            Column(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f)
+                                    .verticalScroll(rememberScrollState())
+                                    .padding(horizontal = 16.dp)
+                            ) {
                                 OnlineSourcesCard()
                                 Spacer(Modifier.height(12.dp))
                                 Text("Nguồn đã nhập: ${songs.count { it.source == "Google Drive" }} bài", color = Color(0xFF9B9BA8), fontSize = 13.sp)
+                                Spacer(Modifier.height(8.dp))
                             }
                         }
                         "Cài đặt" -> SettingsPanel()
                     }
                     Spacer(Modifier.height(8.dp))
-                    LazyColumn(
-                        Modifier.weight(1f),
-                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        if (selectedSection == "Trang chủ" || selectedSection == "Thư viện") {
+                    if (selectedSection == "Trang chủ" || selectedSection == "Thư viện") {
+                        LazyColumn(
+                            Modifier.weight(1f),
+                            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
                             itemsIndexed(filteredSongs.take(if (selectedSection == "Trang chủ") 12 else filteredSongs.size), key = { _, song -> song.id }) { _, song ->
                                 val realIndex = songs.indexOfFirst { it.id == song.id }
                                 SongRow(song, realIndex, realIndex == currentIndex)
                             }
                         }
+                    } else if (selectedSection == "Cài đặt") {
+                        Spacer(Modifier.weight(1f))
                     }
                     currentSong?.let { MiniPlayer(it) }
                     BottomNav()
