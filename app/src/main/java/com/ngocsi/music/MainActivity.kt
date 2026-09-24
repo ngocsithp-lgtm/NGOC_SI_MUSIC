@@ -12,6 +12,7 @@ import android.os.Bundle
 import android.provider.MediaStore
 import android.graphics.BitmapFactory
 import android.webkit.WebChromeClient
+import android.webkit.CookieManager
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.content.SharedPreferences
@@ -923,6 +924,7 @@ class MainActivity : ComponentActivity() {
         }
         currentSong?.let { if (showNowPlaying) NowPlayingDialog(it) }
         if (showQueue) QueueDialog()
+        if (showYoutube) YouTubeDialog()
     }
 
     @Composable
