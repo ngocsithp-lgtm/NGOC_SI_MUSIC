@@ -1635,9 +1635,29 @@ class MainActivity : ComponentActivity() {
                                             settings.allowFileAccess = true
                                             settings.javaScriptCanOpenWindowsAutomatically = true
                                             settings.setSupportMultipleWindows(false)
+                                            settings.cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
+                                            settings.databaseEnabled = true
+                                            settings.setSupportZoom(false)
 
                                             CookieManager.getInstance().setAcceptCookie(true)
                                             CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                                            CookieManager.getInstance().flush()
+
+                                            // Giữ WebView ổn định khi mạng chuyển Wi‑Fi/4G và khi
+                                            // YouTube tải lại các tài nguyên media/cookie.
+                                            webViewClient = object : WebViewClient() {
+                                                override fun shouldOverrideUrlLoading(
+                                                    view: WebView,
+                                                    url: String
+                                                ): Boolean {
+                                                    return false
+                                                }
+                                            }
+                                            webChromeClient = WebChromeClient()
+                                            setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
+                                            isFocusable = true
+                                            isFocusableInTouchMode = true
+                                            requestFocus()
 
                                             val safeId = videoId
                                                 .replace("&", "")
