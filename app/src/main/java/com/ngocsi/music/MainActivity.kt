@@ -44,6 +44,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.Image
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.viewinterop.AndroidView
@@ -1564,7 +1567,21 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.weight(1f),
                     singleLine = true,
                     placeholder = { Text("Tên bài hát / nghệ sĩ") },
-                    shape = RoundedCornerShape(14.dp)
+                    shape = RoundedCornerShape(14.dp),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = {
+                        val q = jamendoQuery.trim()
+                        if (q.isBlank()) {
+                            errorMessage = "Nhập tên bài hát hoặc nghệ sĩ để tìm."
+                        } else {
+                            errorMessage = null
+                            onlineSearchActive = true
+                            jamendoTracks.clear()
+                            audiusTracks.clear()
+                            searchJamendo()
+                            searchAudius(q)
+                        }
+                    })
                 )
                 Button(onClick = {
                     val q = jamendoQuery.trim()
