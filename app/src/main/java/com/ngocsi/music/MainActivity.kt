@@ -1711,7 +1711,14 @@ class MainActivity : ComponentActivity() {
                                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         OutlinedButton(onClick = { playerError = false; playerRetry++ }, modifier = Modifier.weight(1f)) { Text("Thử lại") }
                                         Button(onClick = {
-                                            try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/watch?v=$videoId"))).also { appContext.startActivity(it) } } catch (_: Exception) { }
+                                            try {
+                                                appContext.startActivity(
+                                                    Intent(
+                                                        Intent.ACTION_VIEW,
+                                                        Uri.parse("https://www.youtube.com/watch?v=$videoId")
+                                                    )
+                                                )
+                                            } catch (_: Exception) { }
                                         }, modifier = Modifier.weight(1f)) { Text("Mở YouTube") }
                                     }
                                 }
