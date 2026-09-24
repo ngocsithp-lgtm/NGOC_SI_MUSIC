@@ -548,13 +548,16 @@ class MainActivity : ComponentActivity() {
                 }
 
                 runOnUiThread {
-                    jamendoTracks.clear()
-                    jamendoTracks.addAll(found)
-                    jamendoLoading = false
-                    errorMessage = if (found.isEmpty()) {
-                        "Không tìm thấy bài phù hợp trên Jamendo. Thử tên bài hát hoặc nghệ sĩ bằng tiếng Anh."
-                    } else {
-                        null
+                    // Ignore stale responses when the user has already started a newer search.
+                    if (jamendoQuery.trim() == q) {
+                        jamendoTracks.clear()
+                        jamendoTracks.addAll(found)
+                        jamendoLoading = false
+                        errorMessage = if (found.isEmpty()) {
+                            "Không tìm thấy bài phù hợp trên Jamendo. Thử tên bài hát hoặc nghệ sĩ bằng tiếng Anh."
+                        } else {
+                            null
+                        }
                     }
                 }
             } catch (e: Exception) {
@@ -627,14 +630,20 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 runOnUiThread {
-                    audiusTracks.clear()
-                    audiusTracks.addAll(found)
-                    audiusLoading = false
+                    // Ignore stale responses when the user has already started a newer search.
+                    if (jamendoQuery.trim() == q) {
+                        audiusTracks.clear()
+                        audiusTracks.addAll(found)
+                        audiusLoading = false
+                    }
                 }
             } catch (_: Exception) {
                 runOnUiThread {
-                    audiusTracks.clear()
-                    audiusLoading = false
+                    // Do not let an older failed request disturb a newer search.
+                    if (jamendoQuery.trim() == q) {
+                        audiusTracks.clear()
+                        audiusLoading = false
+                    }
                 }
             } finally {
                 connection?.disconnect()
