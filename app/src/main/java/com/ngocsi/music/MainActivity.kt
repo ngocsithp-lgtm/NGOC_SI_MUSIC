@@ -114,6 +114,7 @@ class MainActivity : ComponentActivity() {
     private var audiusLoading by mutableStateOf(false)
     private var onlineSearchActive by mutableStateOf(false)
     private var onlineHubTab by mutableStateOf("Tất cả")
+    private var onlineSort by mutableStateOf("Tên A-Z")
     private val youtubeHistory = mutableStateListOf<String>()
     private var onlineUrl by mutableStateOf("")
     private var selectedLibrary by mutableStateOf("Tất cả")
@@ -1295,6 +1296,11 @@ class MainActivity : ComponentActivity() {
         prefs.edit().remove("online_favorites").remove("online_favorite_meta").apply()
     }
 
+    private fun isOnlineTrackPlaying(streamUrl: String): Boolean {
+        val current = controller?.currentMediaItem?.localConfiguration?.uri?.toString().orEmpty()
+        return isPlaying && current == streamUrl
+    }
+
     private fun refreshOnlineSearch() {
         val q = jamendoQuery.trim()
         if (q.isBlank()) {
@@ -1445,7 +1451,25 @@ class MainActivity : ComponentActivity() {
                         fontSize = 11.sp
                     )
                     Spacer(Modifier.height(8.dp))
-                    onlineResults.forEach { item ->
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf("Tên A-Z", "Nghệ sĩ", "Thời lượng").forEach { sort ->
+                            FilterChip(
+                                selected = onlineSort == sort,
+                                onClick = { onlineSort = sort },
+                                label = { Text(sort) }
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    val sortedOnlineResults = when (onlineSort) {
+                        "Nghệ sĩ" -> onlineResults.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.artist })
+                        "Thời lượng" -> onlineResults.sortedBy { it.duration }
+                        else -> onlineResults.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
+                    }
+                    sortedOnlineResults.forEach { item ->
                         val artworkUrl = if (item.source == "Audius") audiusTracks.getOrNull(item.index)?.imageUrl.orEmpty() else jamendoTracks.getOrNull(item.index)?.imageUrl.orEmpty()
                         Row(
                             Modifier.fillMaxWidth()
@@ -1465,7 +1489,17 @@ class MainActivity : ComponentActivity() {
                                 Text("${item.artist} • ${item.source} • ${formatTime(item.duration)}", color = Color(0xFF8F8F9A), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                FilledTonalButton(onClick = { if (item.source == "Audius") playAudiusTrack(audiusTracks[item.index]) else playJamendoTrack(jamendoTracks[item.index]) }, shape = CircleShape) { Text("▶") }
+                                FilledTonalButton(
+                                    onClick = { if (item.source == "Audius") playAudiusTrack(audiusTracks[item.index]) else playJamendoTrack(jamendoTracks[item.index]) },
+                                    shape = CircleShape
+                                ) {
+                                    val streamUrl = if (item.source == "Audius") {
+                                        audiusTracks.getOrNull(item.index)?.streamUrl.orEmpty()
+                                    } else {
+                                        jamendoTracks.getOrNull(item.index)?.audioUrl.orEmpty()
+                                    }
+                                    Text(if (isOnlineTrackPlaying(streamUrl)) "⏸" else "▶")
+                                }
                                 FilledTonalButton(onClick = { toggleOnlineFavorite(item) }, shape = CircleShape) { Text(if (onlineFavoriteSet.contains(item.source + ":" + item.title + ":" + item.artist)) "♥" else "♡") }
                             }
                         }
