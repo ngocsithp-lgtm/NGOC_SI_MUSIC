@@ -1644,9 +1644,16 @@ class MainActivity : ComponentActivity() {
                                                 .replace("\"", "")
                                                 .replace("'", "")
 
+                                            settings.userAgentString =
+                                                "Mozilla/5.0 (Linux; Android 16; Mobile) AppleWebKit/537.36 " +
+                                                "(KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36"
+
+                                            // YouTube có thể trả lỗi cấu hình nếu embed không có origin.
+                                            // Khai báo origin và dùng youtube-nocookie để tăng tương thích WebView.
                                             loadUrl(
-                                                "https://www.youtube.com/embed/$safeId" +
-                                                    "?playsinline=1&rel=0&controls=1&modestbranding=1"
+                                                "https://www.youtube-nocookie.com/embed/$safeId" +
+                                                    "?playsinline=1&rel=0&controls=1&modestbranding=1" +
+                                                    "&origin=https%3A%2F%2Fwww.youtube.com"
                                             )
                                         }
                                     }
