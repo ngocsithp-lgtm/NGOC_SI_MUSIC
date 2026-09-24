@@ -19,7 +19,7 @@ android {
         targetSdk = 35
         versionCode = 3
         versionName = "3.1"
-        buildConfigField("String", "YOUTUBE_API_KEY", ""$escapedYoutubeApiKey"")
+        buildConfigField("String", "YOUTUBE_API_KEY", "\"$escapedYoutubeApiKey\"")
     }
 
     compileOptions {
