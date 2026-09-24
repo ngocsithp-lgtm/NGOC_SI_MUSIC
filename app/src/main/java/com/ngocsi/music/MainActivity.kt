@@ -16,6 +16,9 @@ import android.webkit.CookieManager
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.content.SharedPreferences
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -124,6 +127,8 @@ class MainActivity : ComponentActivity() {
     private var showNowPlaying by mutableStateOf(false)
     private var showYoutube by mutableStateOf(false)
     private var youtubeQuery by mutableStateOf("")
+    private var isVoiceSearching by mutableStateOf(false)
+    private var speechRecognizer: SpeechRecognizer? = null
     private var showSleepTimer by mutableStateOf(false)
     private var sleepMinutes by mutableIntStateOf(0)
     private var lastSongUri by mutableStateOf<String?>(null)
@@ -188,6 +193,69 @@ class MainActivity : ComponentActivity() {
         requestMusicPermissionIfNeeded()
         requestNotificationPermissionIfNeeded()
         connectController()
+    }
+
+    private fun initSpeechRecognizer() {
+        if (!SpeechRecognizer.isRecognitionAvailable(this)) return
+        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this).apply {
+            setRecognitionListener(object : RecognitionListener {
+                override fun onReadyForSpeech(params: Bundle?) { isVoiceSearching = true }
+                override fun onBeginningOfSpeech() { isVoiceSearching = true }
+                override fun onRmsChanged(rmsdB: Float) {}
+                override fun onBufferReceived(buffer: ByteArray?) {}
+                override fun onEndOfSpeech() { isVoiceSearching = false }
+                override fun onError(error: Int) {
+                    isVoiceSearching = false
+                    errorMessage = when (error) {
+                        SpeechRecognizer.ERROR_NO_MATCH -> "Không nhận diện được giọng nói. Hãy thử lại."
+                        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Chưa được cấp quyền microphone."
+                        else -> "Không thể nhận diện giọng nói. Hãy thử lại."
+                    }
+                }
+                override fun onResults(results: Bundle?) {
+                    isVoiceSearching = false
+                    val query = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                        ?.firstOrNull().orEmpty().trim()
+                    if (query.isNotBlank()) {
+                        jamendoQuery = query
+                        onlineSearchActive = true
+                        jamendoTracks.clear()
+                        audiusTracks.clear()
+                        errorMessage = null
+                        searchJamendo()
+                        searchAudius(query)
+                    }
+                }
+                override fun onPartialResults(partialResults: Bundle?) {}
+                override fun onEvent(eventType: Int, params: Bundle?) {}
+            })
+        }
+    }
+
+    private fun startVoiceSearch() {
+        if (speechRecognizer == null) initSpeechRecognizer()
+        val recognizer = speechRecognizer
+        if (recognizer == null) {
+            errorMessage = "Thiết bị không hỗ trợ tìm kiếm bằng giọng nói."
+            return
+        }
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "vi-VN")
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "vi-VN")
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "Nói tên bài hát hoặc nghệ sĩ")
+        }
+        errorMessage = null
+        isVoiceSearching = true
+        recognizer.cancel()
+        recognizer.startListening(intent)
+    }
+
+    override fun onDestroy() {
+        speechRecognizer?.destroy()
+        speechRecognizer = null
+        super.onDestroy()
     }
 
     private fun connectController() {
@@ -1384,6 +1452,15 @@ class MainActivity : ComponentActivity() {
                         searchAudius(q)
                     }
                 }, shape = RoundedCornerShape(14.dp)) { Text("TÌM") }
+            }
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = ::startVoiceSearch,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                enabled = !isVoiceSearching
+            ) {
+                Text(if (isVoiceSearching) "🎙️ ĐANG NGHE…" else "🎙️ TÌM KIẾM BẰNG GIỌNG NÓI")
             }
             Spacer(Modifier.height(6.dp))
             OutlinedButton(
