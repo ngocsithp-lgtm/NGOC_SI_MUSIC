@@ -8,17 +8,27 @@ android {
     namespace = "com.ngocsi.music"
     compileSdk = 35
 
+    val youtubeApiKey = System.getenv("YOUTUBE_API_KEY").orEmpty()
+    val escapedYoutubeApiKey = youtubeApiKey
+        .replace("\\", "\\\\")
+        .replace(""", "\\"")
+
     defaultConfig {
         applicationId = "com.ngocsi.music"
         minSdk = 26
         targetSdk = 35
         versionCode = 3
         versionName = "3.1"
+        buildConfigField("String", "YOUTUBE_API_KEY", ""$escapedYoutubeApiKey"")
     }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     kotlinOptions {
