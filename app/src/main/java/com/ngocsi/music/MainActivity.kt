@@ -78,6 +78,14 @@ data class AudiusTrack(
     val imageUrl: String
 )
 
+data class OnlineSearchItem(
+    val source: String,
+    val index: Int,
+    val title: String,
+    val artist: String,
+    val duration: Long
+)
+
 class MainActivity : ComponentActivity() {
     private var controller: MediaController? = null
     private val songs = mutableStateListOf<Song>()
@@ -91,6 +99,7 @@ class MainActivity : ComponentActivity() {
     private var jamendoLoading by mutableStateOf(false)
     private val audiusTracks = mutableStateListOf<AudiusTrack>()
     private var audiusLoading by mutableStateOf(false)
+    private var onlineSearchActive by mutableStateOf(false)
     private val youtubeHistory = mutableStateListOf<String>()
     private var onlineUrl by mutableStateOf("")
     private var selectedLibrary by mutableStateOf("Tất cả")
@@ -1152,6 +1161,10 @@ class MainActivity : ComponentActivity() {
                 if (q.isBlank()) {
                     errorMessage = "Nhập tên bài hát hoặc nghệ sĩ để tìm."
                 } else {
+                    errorMessage = null
+                    onlineSearchActive = true
+                    jamendoTracks.clear()
+                    audiusTracks.clear()
                     searchJamendo()
                     searchAudius(q)
                 }
@@ -1166,32 +1179,52 @@ class MainActivity : ComponentActivity() {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
             }
-            if (audiusTracks.isNotEmpty()) {
-                Text("KẾT QUẢ AUDIUS • PHÁT FULL", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                Spacer(Modifier.height(8.dp))
-                audiusTracks.forEach { track ->
-                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFF1B1B23)).clickable { playAudiusTrack(track) }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(track.title, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(track.artist + " • " + formatTime(track.duration), color = Color(0xFF8F8F9A), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                        FilledTonalButton(onClick = { playAudiusTrack(track) }, shape = CircleShape) { Text("▶") }
-                    }
-                    Spacer(Modifier.height(6.dp))
+            val onlineResults = buildList {
+                audiusTracks.forEachIndexed { index, track ->
+                    add(OnlineSearchItem("Audius", index, track.title, track.artist, track.duration))
+                }
+                jamendoTracks.forEachIndexed { index, track ->
+                    add(OnlineSearchItem("Jamendo", index, track.title, track.artist, track.duration))
                 }
             }
-            if (jamendoTracks.isNotEmpty()) {
-                Text("KẾT QUẢ JAMENDO", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+
+            if (onlineSearchActive && (jamendoLoading || audiusLoading)) {
+                Text("ĐANG TÌM KIẾM ĐA NGUỒN…", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Spacer(Modifier.height(8.dp))
-                jamendoTracks.forEach { track ->
-                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFF1B1B23)).clickable { playJamendoTrack(track) }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(track.title, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(track.artist + " • " + formatTime(track.duration), color = Color(0xFF8F8F9A), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+
+            if (onlineSearchActive && !jamendoLoading && !audiusLoading) {
+                if (onlineResults.isEmpty()) {
+                    Text("Không tìm thấy kết quả trên Jamendo hoặc Audius.", color = Color(0xFF8F8F9A), fontSize = 13.sp)
+                } else {
+                    Text("KẾT QUẢ ONLINE • ${onlineResults.size} BÀI", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Spacer(Modifier.height(8.dp))
+                    onlineResults.forEach { item ->
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color(0xFF1B1B23))
+                                .clickable {
+                                    if (item.source == "Audius") playAudiusTrack(audiusTracks[item.index])
+                                    else playJamendoTrack(jamendoTracks[item.index])
+                                }
+                                .padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(item.title, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text("${item.artist} • ${item.source} • ${formatTime(item.duration)}", color = Color(0xFF8F8F9A), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            FilledTonalButton(
+                                onClick = {
+                                    if (item.source == "Audius") playAudiusTrack(audiusTracks[item.index])
+                                    else playJamendoTrack(jamendoTracks[item.index])
+                                },
+                                shape = CircleShape
+                            ) { Text("▶") }
                         }
-                        FilledTonalButton(onClick = { playJamendoTrack(track) }, shape = CircleShape) { Text("▶") }
+                        Spacer(Modifier.height(6.dp))
                     }
-                    Spacer(Modifier.height(6.dp))
                 }
             }
             Spacer(Modifier.height(10.dp))
