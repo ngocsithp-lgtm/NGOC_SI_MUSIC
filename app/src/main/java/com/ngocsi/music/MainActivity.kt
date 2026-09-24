@@ -1293,6 +1293,7 @@ class MainActivity : ComponentActivity() {
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp)
             ) { Text("MỞ YOUTUBE") }
+            }
 
             Spacer(Modifier.height(10.dp))
             Text("NHẠC ONLINE KHÁC", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
