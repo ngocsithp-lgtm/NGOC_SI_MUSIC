@@ -26,6 +26,8 @@ jobs:
           gradle-version: '8.9'
 
       - name: Build APK
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
         run: gradle :app:assembleDebug --no-daemon
 
       - name: Verify APK
