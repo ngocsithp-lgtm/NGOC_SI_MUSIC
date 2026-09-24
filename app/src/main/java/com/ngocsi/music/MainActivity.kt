@@ -65,7 +65,7 @@ class MainActivity : ComponentActivity() {
     private var errorMessage by mutableStateOf<String?>(null)
     private var searchQuery by mutableStateOf("")
     private var youtubeQuery by mutableStateOf("")
-    private var youtubeWebUrl by mutableStateOf("https://m.youtube.com/")
+    private var youtubeWebUrl by mutableStateOf("https://www.youtube.com/")
     private val youtubeHistory = mutableStateListOf<String>()
     private var onlineUrl by mutableStateOf("")
     private var selectedLibrary by mutableStateOf("Tất cả")
@@ -437,7 +437,7 @@ class MainActivity : ComponentActivity() {
         youtubeHistory.add(0, q)
         while (youtubeHistory.size > 8) youtubeHistory.removeAt(youtubeHistory.lastIndex)
         prefs.edit().putStringSet("youtube_history", youtubeHistory.toSet()).apply()
-        youtubeWebUrl = "https://m.youtube.com/results?search_query=" + Uri.encode(q)
+        youtubeWebUrl = "https://www.youtube.com/results?search_query=" + Uri.encode(q)
         selectedSection = "Online"
         errorMessage = null
     }
@@ -918,7 +918,7 @@ class MainActivity : ComponentActivity() {
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
-                    onClick = { youtubeWebUrl = "https://m.youtube.com/" },
+                    onClick = { youtubeWebUrl = "https://www.youtube.com/" },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(14.dp)
                 ) { Text("TRANG CHU") }
@@ -928,7 +928,7 @@ class MainActivity : ComponentActivity() {
                     shape = RoundedCornerShape(14.dp)
                 ) { Text("TIM LAI") }
                 OutlinedButton(
-                    onClick = { youtubeWebUrl = "https://m.youtube.com/feed/subscriptions" },
+                    onClick = { youtubeWebUrl = "https://www.youtube.com/feed/subscriptions" },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(14.dp)
                 ) { Text("KENH") }
@@ -969,12 +969,14 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun YouTubePad(url: String) {
         AndroidView(
-            modifier = Modifier.fillMaxWidth().height(500.dp).clip(RoundedCornerShape(18.dp)),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 420.dp, max = 720.dp).clip(RoundedCornerShape(18.dp)),
             factory = { context ->
                 WebView(context).apply {
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = true
-                    settings.mediaPlaybackRequiresUserGesture = true
+                    settings.mediaPlaybackRequiresUserGesture = false
+                settings.useWideViewPort = true
+                settings.loadWithOverviewMode = true
                     settings.loadsImagesAutomatically = true
                     settings.allowContentAccess = true
                     settings.allowFileAccess = false
