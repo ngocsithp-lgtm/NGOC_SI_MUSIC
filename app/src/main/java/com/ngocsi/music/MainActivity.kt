@@ -1153,12 +1153,45 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun onlineFavoriteKey(item: OnlineSearchItem): String =
+        item.source + ":" + item.title + ":" + item.artist
+
     private fun toggleOnlineFavorite(item: OnlineSearchItem) {
-        val key = item.source + ":" + item.title + ":" + item.artist
+        val key = onlineFavoriteKey(item)
         if (onlineFavoriteSet.contains(key)) onlineFavoriteSet.remove(key) else onlineFavoriteSet.add(key)
         onlineFavorites.clear()
         onlineFavorites.addAll(onlineFavoriteSet)
         getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit().putStringSet("online_favorites", onlineFavoriteSet).apply()
+    }
+
+    private fun playOnlineFavoriteKey(key: String) {
+        val parts = key.split(":", limit = 3)
+        if (parts.size != 3) return
+        val source = parts[0]
+        val title = parts[1]
+        val artist = parts[2]
+        if (source == "Audius") {
+            val track = audiusTracks.firstOrNull { it.title == title && it.artist == artist }
+            if (track != null) playAudiusTrack(track)
+            else errorMessage = "Hãy tìm lại bài Audius này để phát."
+        } else if (source == "Jamendo") {
+            val track = jamendoTracks.firstOrNull { it.title == title && it.artist == artist }
+            if (track != null) playJamendoTrack(track)
+            else errorMessage = "Hãy tìm lại bài Jamendo này để phát."
+        }
+    }
+
+    private fun removeOnlineFavoriteKey(key: String) {
+        onlineFavoriteSet.remove(key)
+        onlineFavorites.clear()
+        onlineFavorites.addAll(onlineFavoriteSet)
+        getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit().putStringSet("online_favorites", onlineFavoriteSet).apply()
+    }
+
+    private fun clearOnlineFavorites() {
+        onlineFavoriteSet.clear()
+        onlineFavorites.clear()
+        getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit().remove("online_favorites").apply()
     }
 
     @Composable
@@ -1253,17 +1286,36 @@ class MainActivity : ComponentActivity() {
                 Text("DANH SÁCH YÊU THÍCH ONLINE • ${onlineFavorites.size}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Spacer(Modifier.height(8.dp))
                 if (onlineFavorites.isEmpty()) Text("Chưa có bài online yêu thích.", color = Color(0xFF8F8F9A), fontSize = 13.sp)
-                else onlineFavorites.forEach { key ->
-                    val parts = key.split(":", limit = 3)
-                    if (parts.size == 3) {
-                        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFF1B1B23)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                Text(parts[1], color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text("${parts[2]} • ${parts[0]}", color = Color(0xFF8F8F9A), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                else {
+                    onlineFavorites.forEach { key ->
+                        val parts = key.split(":", limit = 3)
+                        if (parts.size == 3) {
+                            Row(
+                                Modifier.fillMaxWidth()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(Color(0xFF1B1B23))
+                                    .clickable { playOnlineFavoriteKey(key) }
+                                    .padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(parts[1], color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text("${parts[2]} • ${parts[0]}", color = Color(0xFF8F8F9A), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    FilledTonalButton(onClick = { playOnlineFavoriteKey(key) }, shape = CircleShape) { Text("▶") }
+                                    FilledTonalButton(onClick = { removeOnlineFavoriteKey(key) }, shape = CircleShape) { Text("♥") }
+                                }
                             }
-                            Text("♥", color = Color(0xFFFF6B81), fontSize = 20.sp)
+                            Spacer(Modifier.height(6.dp))
                         }
-                        Spacer(Modifier.height(6.dp))
+                    }
+                    if (onlineFavorites.isNotEmpty()) {
+                        OutlinedButton(
+                            onClick = ::clearOnlineFavorites,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp)
+                        ) { Text("XÓA TẤT CẢ YÊU THÍCH") }
                     }
                 }
             }
