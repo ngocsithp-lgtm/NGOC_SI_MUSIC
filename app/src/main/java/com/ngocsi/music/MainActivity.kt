@@ -798,6 +798,35 @@ class MainActivity : ComponentActivity() {
 
     private fun next() { controller?.seekToNextMediaItem(); controller?.play() }
     private fun previous() { controller?.seekToPreviousMediaItem(); controller?.play() }
+    private fun removeFromQueue(index: Int) {
+        if (index !in songs.indices) return
+        val removedCurrent = index == currentIndex
+        songs.removeAt(index)
+        currentIndex = when {
+            songs.isEmpty() -> -1
+            removedCurrent -> min(index, songs.lastIndex)
+            index < currentIndex -> currentIndex - 1
+            else -> currentIndex
+        }
+        syncControllerQueue()
+        savePlaybackState()
+    }
+
+    private fun moveQueueItem(from: Int, to: Int) {
+        if (from !in songs.indices || to !in songs.indices || from == to) return
+        val item = songs[from]
+        songs.removeAt(from)
+        songs.add(to, item)
+        currentIndex = when {
+            currentIndex == from -> to
+            from < currentIndex && to >= currentIndex -> currentIndex - 1
+            from > currentIndex && to <= currentIndex -> currentIndex + 1
+            else -> currentIndex
+        }
+        syncControllerQueue()
+        savePlaybackState()
+    }
+
     private fun stop() { controller?.pause(); controller?.seekTo(0L); position = 0L }
 
     private fun seekTo(value: Long) {
