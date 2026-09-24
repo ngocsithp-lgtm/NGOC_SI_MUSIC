@@ -485,7 +485,7 @@ class MainActivity : ComponentActivity() {
                 val query = buildString {
                     append("client_id=709fa152")
                     append("&format=json")
-                    append("&limit=30")
+                    append("&limit=50")
                     append("&audioformat=mp31")
                     append("&type=single%20albumtrack")
                     append("&search=")
@@ -583,7 +583,7 @@ class MainActivity : ComponentActivity() {
             var connection: java.net.HttpURLConnection? = null
             try {
                 val encoded = java.net.URLEncoder.encode(q, "UTF-8")
-                val endpoint = "https://api.audius.co/v1/tracks/search?query=$encoded&limit=25"
+                val endpoint = "https://api.audius.co/v1/tracks/search?query=$encoded&limit=50"
                 connection = (java.net.URL(endpoint).openConnection() as java.net.HttpURLConnection).apply {
                     requestMethod = "GET"
                     connectTimeout = 15000
@@ -1256,30 +1256,35 @@ class MainActivity : ComponentActivity() {
                 } else {
                     Text("KẾT QUẢ ONLINE • ${onlineResults.size} BÀI", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     Spacer(Modifier.height(8.dp))
-                    onlineResults.forEach { item ->
-                        Row(
-                            Modifier.fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(Color(0xFF1B1B23))
-                                .clickable {
-                                    if (item.source == "Audius") playAudiusTrack(audiusTracks[item.index])
-                                    else playJamendoTrack(jamendoTracks[item.index])
+                    Text("DANH SÁCH CUỘN • ${onlineResults.size} KẾT QUẢ", color = Color(0xFF8F8F9A), fontSize = 11.sp)
+                    Spacer(Modifier.height(6.dp))
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth().height(520.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        itemsIndexed(onlineResults) { _, item ->
+                            Row(
+                                Modifier.fillMaxWidth()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(Color(0xFF1B1B23))
+                                    .clickable {
+                                        if (item.source == "Audius") playAudiusTrack(audiusTracks[item.index])
+                                        else playJamendoTrack(jamendoTracks[item.index])
+                                    }
+                                    .padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(item.title, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text("${item.artist} • ${item.source} • ${formatTime(item.duration)}", color = Color(0xFF8F8F9A), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
-                                .padding(10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(Modifier.weight(1f)) {
-                                Text(item.title, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text("${item.artist} • ${item.source} • ${formatTime(item.duration)}", color = Color(0xFF8F8F9A), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            }
-                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                FilledTonalButton(onClick = { if (item.source == "Audius") playAudiusTrack(audiusTracks[item.index]) else playJamendoTrack(jamendoTracks[item.index]) }, shape = CircleShape) { Text("▶") }
-                                FilledTonalButton(onClick = { toggleOnlineFavorite(item) }, shape = CircleShape) { Text(if (onlineFavoriteSet.contains(item.source + ":" + item.title + ":" + item.artist)) "♥" else "♡") }
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    FilledTonalButton(onClick = { if (item.source == "Audius") playAudiusTrack(audiusTracks[item.index]) else playJamendoTrack(jamendoTracks[item.index]) }, shape = CircleShape) { Text("▶") }
+                                    FilledTonalButton(onClick = { toggleOnlineFavorite(item) }, shape = CircleShape) { Text(if (onlineFavoriteSet.contains(item.source + ":" + item.title + ":" + item.artist)) "♥" else "♡") }
+                                }
                             }
                         }
-                        Spacer(Modifier.height(6.dp))
                     }
-                }
             }
             }
             if (onlineHubTab == "Yêu thích") {
@@ -1398,34 +1403,3 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-
-    @Composable
-    private fun SmallControl(label: String, action: () -> Unit, active: Boolean = false) {
-        FilledTonalButton(onClick = action, modifier = Modifier.size(48.dp), shape = CircleShape, contentPadding = PaddingValues(0.dp),
-            colors = ButtonDefaults.filledTonalButtonColors(containerColor = if (active) Color(0xFF4A396F) else Color(0xFF25252D))) {
-            Text(label, fontSize = 17.sp)
-        }
-    }
-
-    @Composable
-    private fun SongRow(song: Song, index: Int, selected: Boolean) {
-        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(if (selected) Color(0xFF252033) else Color(0xFF141419))
-            .clickable { play(index) }.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(String.format("%02d", index + 1), color = if (selected) Color(0xFFC8B7FF) else Color(0xFF777783),
-                fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(34.dp))
-            Column(Modifier.weight(1f)) {
-                Text(song.title, color = Color.White, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("${song.artist} • ${song.source}", color = Color(0xFF8F8F9A), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-            IconButton(onClick = { toggleFavorite(song) }) {
-                Text(if (favorites[song.id] == true) "♥" else "♡", color = if (favorites[song.id] == true) Color(0xFFFF6B81) else Color(0xFF777783), fontSize = 22.sp)
-            }
-            Text(formatTime(song.duration), color = Color(0xFF858591), fontSize = 12.sp)
-        }
-    }
-
-    private fun formatTime(milliseconds: Long): String {
-        val totalSeconds = max(0L, milliseconds) / 1000
-        return String.format("%02d:%02d", totalSeconds / 60, totalSeconds % 60)
-    }
-}
