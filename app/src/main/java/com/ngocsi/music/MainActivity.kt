@@ -1568,20 +1568,35 @@ class MainActivity : ComponentActivity() {
                     singleLine = true,
                     placeholder = { Text("Tên bài hát / nghệ sĩ") },
                     shape = RoundedCornerShape(14.dp),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = {
-                        val q = jamendoQuery.trim()
-                        if (q.isBlank()) {
-                            errorMessage = "Nhập tên bài hát hoặc nghệ sĩ để tìm."
-                        } else {
-                            errorMessage = null
-                            onlineSearchActive = true
-                            jamendoTracks.clear()
-                            audiusTracks.clear()
-                            searchJamendo()
-                            searchAudius(q)
+                    keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(
+                        onSearch = {
+                            val q = jamendoQuery.trim()
+                            if (q.isBlank()) {
+                                errorMessage = "Nhập tên bài hát hoặc nghệ sĩ để tìm."
+                            } else {
+                                errorMessage = null
+                                onlineSearchActive = true
+                                jamendoTracks.clear()
+                                audiusTracks.clear()
+                                searchJamendo()
+                                searchAudius(q)
+                            }
+                        },
+                        onDone = {
+                            val q = jamendoQuery.trim()
+                            if (q.isBlank()) {
+                                errorMessage = "Nhập tên bài hát hoặc nghệ sĩ để tìm."
+                            } else {
+                                errorMessage = null
+                                onlineSearchActive = true
+                                jamendoTracks.clear()
+                                audiusTracks.clear()
+                                searchJamendo()
+                                searchAudius(q)
+                            }
                         }
-                    })
+                    )
                 )
                 Button(onClick = {
                     val q = jamendoQuery.trim()
