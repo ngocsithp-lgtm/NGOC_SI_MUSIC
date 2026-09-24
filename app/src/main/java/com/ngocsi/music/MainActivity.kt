@@ -1521,6 +1521,8 @@ class MainActivity : ComponentActivity() {
         val thumb = selectedTrack?.thumbnailUrl?.takeIf { it.isNotBlank() }
             ?: "https://i.ytimg.com/vi/$videoId/hqdefault.jpg"
 
+        var startPlayer by remember(videoId) { mutableStateOf(false) }
+
         Dialog(
             onDismissRequest = {
                 showYoutube = false
@@ -1555,73 +1557,106 @@ class MainActivity : ComponentActivity() {
                             Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
                                 .padding(12.dp)
                         ) {
-                            // Trình phát YouTube duy nhất: iframe chính thức trong WebView.
-                            // Không autoplay để thao tác bấm Play của người dùng là user gesture hợp lệ.
-                            AndroidView(
-                                modifier = Modifier.fillMaxWidth()
-                                    .heightIn(max = 230.dp)
-                                    .aspectRatio(16f / 9f)
-                                    .clip(RoundedCornerShape(16.dp)),
-                                factory = { context ->
-                                    WebView(context).apply {
-                                        webViewClient = WebViewClient()
-                                        webChromeClient = WebChromeClient()
-                                        setBackgroundColor(android.graphics.Color.BLACK)
+                            Text(title, color = Color.White, fontWeight = FontWeight.Bold,
+                                fontSize = 17.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Spacer(Modifier.height(4.dp))
+                            Text(channel, color = Color(0xFF9B9BA6), fontSize = 13.sp)
 
-                                        settings.javaScriptEnabled = true
-                                        settings.domStorageEnabled = true
-                                        settings.loadsImagesAutomatically = true
-                                        settings.mediaPlaybackRequiresUserGesture = true
-                                        settings.useWideViewPort = true
-                                        settings.loadWithOverviewMode = true
-                                        settings.allowContentAccess = true
-                                        settings.allowFileAccess = true
-                                        settings.javaScriptCanOpenWindowsAutomatically = true
-                                        settings.setSupportMultipleWindows(false)
+                            Spacer(Modifier.height(12.dp))
 
-                                        CookieManager.getInstance().setAcceptCookie(true)
-                                        CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                            if (!startPlayer) {
+                                // Hiển thị thumbnail trước khi phát để luôn có hình ảnh.
+                                AndroidView(
+                                    modifier = Modifier.fillMaxWidth()
+                                        .aspectRatio(16f / 9f)
+                                        .clip(RoundedCornerShape(16.dp)),
+                                    factory = { context ->
+                                        WebView(context).apply {
+                                            webViewClient = WebViewClient()
+                                            setBackgroundColor(android.graphics.Color.BLACK)
+                                            settings.javaScriptEnabled = false
+                                            settings.domStorageEnabled = true
+                                            settings.loadsImagesAutomatically = true
+                                            settings.useWideViewPort = true
+                                            settings.loadWithOverviewMode = true
 
-                                        val safeId = videoId
-                                            .replace("&", "")
-                                            .replace("\"", "")
-                                            .replace("'", "")
+                                            val safeThumb = thumb
+                                                .replace("&", "&amp;")
+                                                .replace("\"", "&quot;")
+                                                .replace("<", "")
+                                                .replace(">", "")
 
-                                        val html = """
-                                            <!doctype html>
-                                            <html>
-                                            <head>
+                                            val html = """
+                                                <!doctype html>
+                                                <html><head>
                                                 <meta name="viewport" content="width=device-width,initial-scale=1">
                                                 <style>
-                                                    html,body{margin:0;padding:0;width:100%;height:100%;background:#000;overflow:hidden}
-                                                    iframe{border:0;width:100%;height:100%;display:block}
-                                                </style>
-                                            </head>
-                                            <body>
-                                                <iframe
-                                                    src="https://www.youtube.com/embed/$safeId?playsinline=1&rel=0&controls=1&modestbranding=1&enablejsapi=1"
-                                                    title="YouTube video"
-                                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                                    allowfullscreen>
-                                                </iframe>
-                                            </body>
-                                            </html>
-                                        """.trimIndent()
-
-                                        loadDataWithBaseURL(
-                                            "https://www.youtube.com/",
-                                            html,
-                                            "text/html",
-                                            "UTF-8",
-                                            null
-                                        )
+                                                  html,body{margin:0;width:100%;height:100%;background:#000;overflow:hidden}
+                                                  img{width:100%;height:100%;object-fit:cover;display:block}
+                                                </style></head>
+                                                <body><img src="$safeThumb" /></body></html>
+                                            """.trimIndent()
+                                            loadDataWithBaseURL(
+                                                "https://i.ytimg.com/",
+                                                html, "text/html", "UTF-8", null
+                                            )
+                                        }
                                     }
-                                }
-                            )
+                                )
 
-                            Spacer(Modifier.height(10.dp))
-                            Text("VIDEO YOUTUBE • 16:9", color = Color(0xFF8F8F9A),
-                                fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                Spacer(Modifier.height(12.dp))
+                                Button(
+                                    onClick = { startPlayer = true },
+                                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                                    shape = RoundedCornerShape(14.dp)
+                                ) {
+                                    Text("▶  PHÁT VIDEO", fontWeight = FontWeight.Bold)
+                                }
+                            } else {
+                                // Dùng URL embed trực tiếp thay vì iframe HTML trung gian.
+                                // Cách này tương thích WebView tốt hơn và Play là thao tác của người dùng.
+                                AndroidView(
+                                    modifier = Modifier.fillMaxWidth()
+                                        .aspectRatio(16f / 9f)
+                                        .clip(RoundedCornerShape(16.dp)),
+                                    factory = { context ->
+                                        WebView(context).apply {
+                                            webViewClient = WebViewClient()
+                                            webChromeClient = WebChromeClient()
+                                            setBackgroundColor(android.graphics.Color.BLACK)
+
+                                            settings.javaScriptEnabled = true
+                                            settings.domStorageEnabled = true
+                                            settings.loadsImagesAutomatically = true
+                                            settings.mediaPlaybackRequiresUserGesture = true
+                                            settings.useWideViewPort = true
+                                            settings.loadWithOverviewMode = true
+                                            settings.allowContentAccess = true
+                                            settings.allowFileAccess = true
+                                            settings.javaScriptCanOpenWindowsAutomatically = true
+                                            settings.setSupportMultipleWindows(false)
+
+                                            CookieManager.getInstance().setAcceptCookie(true)
+                                            CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+
+                                            val safeId = videoId
+                                                .replace("&", "")
+                                                .replace("\"", "")
+                                                .replace("'", "")
+
+                                            loadUrl(
+                                                "https://www.youtube.com/embed/$safeId" +
+                                                    "?playsinline=1&rel=0&controls=1&modestbranding=1"
+                                            )
+                                        }
+                                    }
+                                )
+
+                                Spacer(Modifier.height(10.dp))
+                                TextButton(onClick = { startPlayer = false }) {
+                                    Text("← Quay lại ảnh xem trước")
+                                }
+                            }
                         }
                     }
                 }
