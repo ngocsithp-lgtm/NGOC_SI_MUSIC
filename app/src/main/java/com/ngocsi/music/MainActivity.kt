@@ -72,6 +72,15 @@ data class DeezerTrack(
     val imageUrl: String
 )
 
+data class AudiusTrack(
+    val id: String,
+    val title: String,
+    val artist: String,
+    val duration: Long,
+    val streamUrl: String,
+    val imageUrl: String
+)
+
 class MainActivity : ComponentActivity() {
     private var controller: MediaController? = null
     private val songs = mutableStateListOf<Song>()
@@ -85,6 +94,8 @@ class MainActivity : ComponentActivity() {
     private var jamendoLoading by mutableStateOf(false)
     private val deezerTracks = mutableStateListOf<DeezerTrack>()
     private var deezerLoading by mutableStateOf(false)
+    private val audiusTracks = mutableStateListOf<AudiusTrack>()
+    private var audiusLoading by mutableStateOf(false)
     private val youtubeHistory = mutableStateListOf<String>()
     private var onlineUrl by mutableStateOf("")
     private var selectedLibrary by mutableStateOf("Tất cả")
@@ -531,6 +542,79 @@ class MainActivity : ComponentActivity() {
                     jamendoTracks.clear()
                     jamendoLoading = false
                     errorMessage = "Lỗi tìm nhạc online: ${e.message ?: "Không kết nối được Jamendo"}"
+                }
+            } finally {
+                connection?.disconnect()
+            }
+        }
+    }
+
+    private fun playAudiusTrack(track: AudiusTrack) {
+        val uri = Uri.parse(track.streamUrl)
+        val song = Song(
+            id = -kotlin.math.abs(("audius:" + track.id).hashCode().toLong()),
+            title = track.title,
+            artist = track.artist,
+            duration = track.duration,
+            uri = uri,
+            source = "Audius"
+        )
+        val existingIndex = songs.indexOfFirst { it.uri.toString() == track.streamUrl }
+        val index = if (existingIndex >= 0) existingIndex else {
+            songs.add(song)
+            songs.lastIndex
+        }
+        syncControllerQueue()
+        play(index)
+    }
+
+    private fun searchAudius(q: String) {
+        audiusLoading = true
+        lifecycleScope.launch(Dispatchers.IO) {
+            var connection: java.net.HttpURLConnection? = null
+            try {
+                val encoded = java.net.URLEncoder.encode(q, "UTF-8")
+                val endpoint = "https://api.audius.co/v1/tracks/search?query=$encoded&limit=25"
+                connection = (java.net.URL(endpoint).openConnection() as java.net.HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 15000
+                    readTimeout = 20000
+                    useCaches = false
+                    setRequestProperty("Accept", "application/json")
+                    setRequestProperty("User-Agent", "NGOC-SI-MUSIC/3.1")
+                }
+                val code = connection.responseCode
+                val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+                val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                if (code !in 200..299) throw java.io.IOException("Audius HTTP $code")
+                val json = org.json.JSONObject(body)
+                val data = json.optJSONArray("data")
+                val found = mutableListOf<AudiusTrack>()
+                if (data != null) {
+                    for (i in 0 until data.length()) {
+                        val item = data.optJSONObject(i) ?: continue
+                        val id = item.optString("id").trim()
+                        if (id.isBlank()) continue
+                        val title = item.optString("title").ifBlank { "Không có tên" }
+                        val user = item.optJSONObject("user")
+                        val artist = user?.optString("name").orEmpty().ifBlank { "Nghệ sĩ Audius" }
+                        val duration = item.optDouble("duration", 0.0).toLong().coerceAtLeast(0L) * 1000L
+                        val stream = "https://api.audius.co/v1/tracks/$id/stream"
+                        val image = item.optString("artwork").let { artwork ->
+                            if (artwork.startsWith("http")) artwork else ""
+                        }
+                        found += AudiusTrack(id, title, artist, duration, stream, image)
+                    }
+                }
+                runOnUiThread {
+                    audiusTracks.clear()
+                    audiusTracks.addAll(found)
+                    audiusLoading = false
+                }
+            } catch (_: Exception) {
+                runOnUiThread {
+                    audiusTracks.clear()
+                    audiusLoading = false
                 }
             } finally {
                 connection?.disconnect()
@@ -1078,6 +1162,7 @@ class MainActivity : ComponentActivity() {
                 } else {
                     searchJamendo()
                     searchDeezer(q)
+                    searchAudius(q)
                 }
             }, shape = RoundedCornerShape(14.dp)) { Text("TÌM") }
             }
@@ -1085,6 +1170,24 @@ class MainActivity : ComponentActivity() {
             if (jamendoLoading) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
+            }
+            if (audiusLoading) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(8.dp))
+            }
+            if (audiusTracks.isNotEmpty()) {
+                Text("KẾT QUẢ AUDIUS • PHÁT FULL", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Spacer(Modifier.height(8.dp))
+                audiusTracks.forEach { track ->
+                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFF1B1B23)).clickable { playAudiusTrack(track) }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(track.title, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(track.artist + " • " + formatTime(track.duration), color = Color(0xFF8F8F9A), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        FilledTonalButton(onClick = { playAudiusTrack(track) }, shape = CircleShape) { Text("▶") }
+                    }
+                    Spacer(Modifier.height(6.dp))
+                }
             }
             if (deezerLoading) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
