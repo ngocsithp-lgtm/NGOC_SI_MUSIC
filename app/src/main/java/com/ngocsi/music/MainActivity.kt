@@ -252,12 +252,6 @@ class MainActivity : ComponentActivity() {
         recognizer.startListening(intent)
     }
 
-    override fun onDestroy() {
-        speechRecognizer?.destroy()
-        speechRecognizer = null
-        super.onDestroy()
-    }
-
     private fun connectController() {
         val token = SessionToken(this, ComponentName(this, MusicService::class.java))
         val future = MediaController.Builder(this, token).buildAsync()
@@ -829,6 +823,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        speechRecognizer?.destroy()
+        speechRecognizer = null
         savePlaybackState()
         controller?.removeListener(playerListener)
         controller?.release()
