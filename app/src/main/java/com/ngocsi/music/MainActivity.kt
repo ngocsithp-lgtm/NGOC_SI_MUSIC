@@ -1678,7 +1678,7 @@ class MainActivity : ComponentActivity() {
 
                                             val safeId = videoId
                                                 .replace("&", "")
-                                                .replace(""", "")
+                                                .replace("\"", "")
                                                 .replace("'", "")
 
                                             val embedUrl =
