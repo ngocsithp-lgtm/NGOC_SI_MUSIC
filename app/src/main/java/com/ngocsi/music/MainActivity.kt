@@ -924,8 +924,21 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun next() { controller?.seekToNextMediaItem(); controller?.play() }
-    private fun previous() { controller?.seekToPreviousMediaItem(); controller?.play() }
+    private fun next() {
+        val c = controller ?: return
+        if (songs.isEmpty()) return
+        if (!isControllerQueueInSync(c)) syncControllerQueue()
+        c.seekToNextMediaItem()
+        c.play()
+    }
+
+    private fun previous() {
+        val c = controller ?: return
+        if (songs.isEmpty()) return
+        if (!isControllerQueueInSync(c)) syncControllerQueue()
+        c.seekToPreviousMediaItem()
+        c.play()
+    }
     private fun removeFromQueue(index: Int) {
         if (index !in songs.indices) return
         val c = controller ?: return
