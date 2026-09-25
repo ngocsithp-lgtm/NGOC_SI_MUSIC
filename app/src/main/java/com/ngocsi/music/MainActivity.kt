@@ -135,6 +135,7 @@ class MainActivity : ComponentActivity() {
     private val youtubeTracks = mutableStateListOf<YouTubeTrack>()
     private val youtubeFavoriteSet = mutableStateMapOf<String, Boolean>()
     private var youtubeLoading by mutableStateOf(false)
+    private var youtubeNextPageToken by mutableStateOf<String?>(null)
     private var youtubeSelectedVideoId by mutableStateOf<String?>(null)
     private var onlineUrl by mutableStateOf("")
     private var selectedLibrary by mutableStateOf("Tất cả")
@@ -1563,7 +1564,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun searchYouTube() {
+    private fun searchYouTube(loadMore: Boolean = false) {
         val q = youtubeQuery.trim()
         if (q.isBlank()) {
             errorMessage = "Nhập tên bài hát hoặc nghệ sĩ để tìm trên YouTube."
@@ -1575,6 +1576,8 @@ class MainActivity : ComponentActivity() {
             errorMessage = "YouTube chưa được cấu hình API key. Hãy thêm GitHub Secret YOUTUBE_API_KEY."
             return
         }
+
+        if (loadMore && youtubeNextPageToken.isNullOrBlank()) return
 
         youtubeLoading = true
         errorMessage = null
@@ -1590,6 +1593,10 @@ class MainActivity : ComponentActivity() {
                     append("&regionCode=VN")
                     append("&relevanceLanguage=vi")
                     append("&safeSearch=moderate")
+                    if (loadMore) {
+                        append("&pageToken=")
+                        append(java.net.URLEncoder.encode(youtubeNextPageToken.orEmpty(), "UTF-8"))
+                    }
                     append("&q=")
                     append(java.net.URLEncoder.encode(q, "UTF-8"))
                     append("&key=")
@@ -1602,8 +1609,9 @@ class MainActivity : ComponentActivity() {
                     readTimeout = 20000
                     useCaches = false
                     setRequestProperty("Accept", "application/json")
-                    setRequestProperty("User-Agent", "NGOC-SI-MUSIC/3.1")
+                    setRequestProperty("User-Agent", "NGOC-SI-MUSIC/4.0")
                 }
+
                 val code = connection.responseCode
                 val stream = if (code in 200..299) connection.inputStream else connection.errorStream
                 val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
@@ -1636,13 +1644,20 @@ class MainActivity : ComponentActivity() {
                         found += YouTubeTrack(id, title, channel, thumb)
                     }
                 }
+                val nextPageToken = json.optString("nextPageToken").ifBlank { null }
 
                 withContext(Dispatchers.Main) {
                     if (youtubeQuery.trim() == q) {
-                        youtubeTracks.clear()
-                        youtubeTracks.addAll(found)
+                        if (loadMore) {
+                            val existingIds = youtubeTracks.mapTo(mutableSetOf()) { it.videoId }
+                            youtubeTracks.addAll(found.filter { existingIds.add(it.videoId) })
+                        } else {
+                            youtubeTracks.clear()
+                            youtubeTracks.addAll(found)
+                        }
+                        youtubeNextPageToken = nextPageToken
                         youtubeLoading = false
-                        if (found.isEmpty()) {
+                        if (youtubeTracks.isEmpty()) {
                             errorMessage = "Không tìm thấy nội dung YouTube phù hợp."
                         }
                     }
@@ -2402,6 +2417,7 @@ class MainActivity : ComponentActivity() {
                     onClick = {
                         youtubeQuery = ""
                         youtubeTracks.clear()
+                        youtubeNextPageToken = null
                         errorMessage = null
                     },
                     modifier = Modifier.weight(1f),
@@ -2483,6 +2499,18 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     Spacer(Modifier.height(6.dp))
+                }
+
+                if (youtubeNextPageToken != null) {
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = { searchYouTube(loadMore = true) },
+                        enabled = !youtubeLoading,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text(if (youtubeLoading) "ĐANG TẢI..." else "XEM THÊM 50 VIDEO")
+                    }
                 }
             } else if (!youtubeLoading && youtubeQuery.isNotBlank()) {
                 Spacer(Modifier.height(10.dp))
