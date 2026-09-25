@@ -1500,8 +1500,6 @@ class MainActivity : ComponentActivity() {
         youtubeHistory.clear()
         youtubeHistory.addAll(history.take(8))
 
-        // Mở trình phát YouTube trong Activity riêng để WebView có lifecycle ổn định
-        // và có thể xử lý fullscreen đúng cách. Không tách hoặc tải luồng âm thanh.
         try {
             startActivity(
                 Intent(this, YouTubePlayerActivity::class.java).apply {
