@@ -2120,6 +2120,14 @@ class MainActivity : ComponentActivity() {
                         }
                         Spacer(Modifier.height(6.dp))
                     }
+                    if (sortedOnlineResults.size > onlineVisibleCount) {
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedButton(
+                            onClick = { onlineVisibleCount += 30 },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp)
+                        ) { Text("XEM THÊM • CÒN " + (sortedOnlineResults.size - onlineVisibleCount) + " BÀI") }
+                    }
                 }
             }
             }
@@ -2162,14 +2170,6 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(14.dp)
                         ) { Text("XÓA TẤT CẢ YÊU THÍCH") }
-                    }
-                    if (sortedOnlineResults.size > onlineVisibleCount) {
-                        Spacer(Modifier.height(8.dp))
-                        OutlinedButton(
-                            onClick = { onlineVisibleCount += 30 },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(14.dp)
-                        ) { Text("XEM THÊM • CÒN " + (sortedOnlineResults.size - onlineVisibleCount) + " BÀI") }
                     }
                 }
             }
