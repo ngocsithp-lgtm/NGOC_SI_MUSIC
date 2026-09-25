@@ -276,7 +276,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 }
 
                 val retry = Button(this@YouTubePlayerActivity).apply {
-                    text = "THỬ LẠI"
+                    this.text = "THỬ LẠI"
                     setOnClickListener {
                         visibility = View.GONE
                         createPlayer()
@@ -284,7 +284,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 }
 
                 val open = Button(this@YouTubePlayerActivity).apply {
-                    text = "MỞ YOUTUBE"
+                    this.text = "MỞ YOUTUBE"
                     setOnClickListener {
                         runCatching {
                             startActivity(
