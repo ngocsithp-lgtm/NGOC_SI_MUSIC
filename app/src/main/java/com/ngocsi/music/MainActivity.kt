@@ -936,8 +936,17 @@ class MainActivity : ComponentActivity() {
         val c = controller ?: return
         if (songs.isEmpty()) return
         if (!isControllerQueueInSync(c)) syncControllerQueue()
-        c.seekToPreviousMediaItem()
+
+        // Standard music-player behavior: pressing Previous near the start
+        // goes to the previous track; otherwise restart the current track.
+        if (c.currentPosition > 3_000L) {
+            c.seekTo(0L)
+        } else {
+            c.seekToPreviousMediaItem()
+        }
         c.play()
+        position = c.currentPosition.coerceAtLeast(0L)
+        savePlaybackState()
     }
     private fun removeFromQueue(index: Int) {
         if (index !in songs.indices) return
