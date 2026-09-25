@@ -37,6 +37,20 @@ class MusicService : MediaSessionService() {
         override fun onPlaybackStateChanged(playbackState: Int) {
             broadcastWidget()
         }
+
+        override fun onMediaMetadataChanged(mediaMetadata: androidx.media3.common.MediaMetadata) {
+            // Refresh immediately when title/artist/artwork metadata changes.
+            broadcastWidget()
+        }
+
+        override fun onPositionDiscontinuity(
+            oldPosition: Player.PositionInfo,
+            newPosition: Player.PositionInfo,
+            reason: Int
+        ) {
+            // Keep the widget in sync after seek, previous/next, and track changes.
+            broadcastWidget()
+        }
     }
 
     override fun onCreate() {
