@@ -318,8 +318,13 @@ class MainActivity : ComponentActivity() {
             try {
                 controller = future.get()
                 controller?.addListener(playerListener)
-                shuffleEnabled = controller?.shuffleModeEnabled == true
-                repeatMode = controller?.repeatMode ?: Player.REPEAT_MODE_OFF
+
+                // Restore the user's playback preferences onto the Media3 session.
+                // The service survives Activity recreation, so UI state and player state
+                // must be synchronized instead of trusting the controller defaults.
+                controller?.shuffleModeEnabled = shuffleEnabled
+                controller?.repeatMode = repeatMode
+
                 isPlaying = controller?.isPlaying == true
                 currentIndex = controller?.currentMediaItemIndex ?: -1
             } catch (e: Exception) {
@@ -931,6 +936,13 @@ class MainActivity : ComponentActivity() {
     private fun toggleFavorite(song: Song) {
         favorites[song.id] = !(favorites[song.id] ?: false)
         savePlayerPreferences()
+    }
+
+    override fun onStop() {
+        // Persist the latest position even when the Activity leaves the foreground.
+        // MusicService/MediaSession remains alive for background playback.
+        if (::prefs.isInitialized) savePlaybackState()
+        super.onStop()
     }
 
     override fun onDestroy() {
