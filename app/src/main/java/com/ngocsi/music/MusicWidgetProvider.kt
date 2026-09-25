@@ -52,7 +52,13 @@ class MusicWidgetProvider : AppWidgetProvider() {
                 when (action) {
                     ACTION_PLAY_PAUSE -> if (controller.isPlaying) controller.pause() else controller.play()
                     ACTION_PREVIOUS -> {
-                        controller.seekToPreviousMediaItem()
+                        // Match the main player: restart the current track when
+                        // already a few seconds in; otherwise go to the previous item.
+                        if (controller.currentPosition > 3_000L) {
+                            controller.seekTo(0L)
+                        } else {
+                            controller.seekToPreviousMediaItem()
+                        }
                         controller.play()
                     }
                     ACTION_NEXT -> {
