@@ -130,7 +130,6 @@ class MainActivity : ComponentActivity() {
     private var onlineSearchActive by mutableStateOf(false)
     private var onlineHubTab by mutableStateOf("Tất cả")
     private var onlineSort by mutableStateOf("Tên A-Z")
-    private var onlineVisibleCount by mutableIntStateOf(30)
     private val youtubeHistory = mutableStateListOf<String>()
     private val youtubeTracks = mutableStateListOf<YouTubeTrack>()
     private val youtubeFavoriteSet = mutableStateMapOf<String, Boolean>()
@@ -618,7 +617,7 @@ class MainActivity : ComponentActivity() {
                 val query = buildString {
                     append("client_id=709fa152")
                     append("&format=json")
-                    append("&limit=50")
+                    append("&limit=30")
                     append("&audioformat=mp31")
                     append("&type=single%20albumtrack")
                     append("&search=")
@@ -719,7 +718,7 @@ class MainActivity : ComponentActivity() {
             var connection: java.net.HttpURLConnection? = null
             try {
                 val encoded = java.net.URLEncoder.encode(q, "UTF-8")
-                val endpoint = "https://api.audius.co/v1/tracks/search?query=$encoded&limit=50"
+                val endpoint = "https://api.audius.co/v1/tracks/search?query=$encoded&limit=25"
                 connection = (java.net.URL(endpoint).openConnection() as java.net.HttpURLConnection).apply {
                     requestMethod = "GET"
                     connectTimeout = 15000
@@ -985,10 +984,22 @@ class MainActivity : ComponentActivity() {
         MaterialTheme(colorScheme = darkColorScheme(background = Color(0xFF08090D), surface = Color(0xFF11131A), primary = Color(0xFFB18CFF), secondary = Color(0xFF7DD3FC))) {
             Surface(Modifier.fillMaxSize(), color = Color(0xFF0B0B0F)) {
                 Column(Modifier.fillMaxSize()) {
-                    if (selectedSection != "Trang chủ") Header()
+                    Header()
                     when (selectedSection) {
                         "Trang chủ" -> {
-                            HomeModern(filteredSongs, Modifier.weight(1f))
+                            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                                SearchBarModern()
+                                Spacer(Modifier.height(10.dp))
+                                LibraryChips()
+                                Spacer(Modifier.height(12.dp))
+                                PlayerCard(currentSong)
+                                Spacer(Modifier.height(12.dp))
+                                QuickActions()
+                                Spacer(Modifier.height(8.dp))
+                                OutlinedButton(onClick = { showQueue = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                                    Text("☷  Hàng đợi phát • " + songs.size + " bài")
+                                }
+                            }
                         }
                         "Thư viện" -> {
                             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
@@ -1020,7 +1031,7 @@ class MainActivity : ComponentActivity() {
                         "Cài đặt" -> SettingsPanel()
                     }
                     Spacer(Modifier.height(8.dp))
-                    if (selectedSection == "Thư viện") {
+                    if (selectedSection == "Trang chủ" || selectedSection == "Thư viện") {
                         LazyColumn(
                             Modifier.weight(1f),
                             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 8.dp),
@@ -1042,195 +1053,6 @@ class MainActivity : ComponentActivity() {
         currentSong?.let { if (showNowPlaying) NowPlayingDialog(it) }
         if (showQueue) QueueDialog()
         if (showYoutube) YouTubeDialog()
-    }
-
-    @Composable
-    private fun HomeModern(filteredSongs: List<Song>, modifier: Modifier = Modifier) {
-        val greeting = when (java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)) {
-            in 5..11 -> "Chào buổi sáng"
-            in 12..17 -> "Chào buổi chiều"
-            else -> "Chào buổi tối"
-        }
-        LazyColumn(
-            modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            item {
-                Row(Modifier.fillMaxWidth().padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(42.dp).clip(CircleShape).background(Color(0xFF123C39)), contentAlignment = Alignment.Center) {
-                        Text("♫", color = Color(0xFF4BE0B3), fontSize = 23.sp)
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(greeting, color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.ExtraBold)
-                        Text("Âm nhạc của bạn, gọn và dễ tìm", color = Color(0xFF9898A5), fontSize = 13.sp)
-                    }
-                    IconButton(onClick = { showQueue = true }, modifier = Modifier.size(48.dp).clip(CircleShape).background(Color(0xFF123C4A))) {
-                        Text("☷", color = Color(0xFF4BE0B3), fontSize = 22.sp)
-                    }
-                    Spacer(Modifier.width(6.dp))
-                    IconButton(onClick = { selectedSection = "Cài đặt" }, modifier = Modifier.size(48.dp).clip(CircleShape).background(Color(0xFF181B29))) {
-                        Text("♟", color = Color(0xFFB8B5C6), fontSize = 20.sp)
-                    }
-                }
-            }
-            item {
-                OutlinedTextField(
-                    value = searchQuery, onValueChange = { searchQuery = it }, modifier = Modifier.fillMaxWidth(), singleLine = true,
-                    placeholder = { Text("Tìm bài hát, ca sĩ, album...", color = Color(0xFF858797)) },
-                    leadingIcon = { Text("⌕", color = Color(0xFFB7B4C6), fontSize = 27.sp) },
-                    trailingIcon = { Text("›", color = Color(0xFFB7B4C6), fontSize = 30.sp) },
-                    shape = RoundedCornerShape(22.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        unfocusedContainerColor = Color(0xFF171A27), focusedContainerColor = Color(0xFF1B1E2B),
-                        unfocusedBorderColor = Color(0xFF292D3D), focusedBorderColor = Color(0xFF3CCFA6), cursorColor = Color(0xFF4BE0B3)
-                    )
-                )
-            }
-            item {
-                Surface(
-                    shape = RoundedCornerShape(26.dp), color = Color(0xFF171A27),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF23675D)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(Modifier.padding(18.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.size(46.dp).clip(CircleShape).background(Color(0xFF123C39)), contentAlignment = Alignment.Center) {
-                                Text("⌁", color = Color(0xFF4BE0B3), fontSize = 28.sp)
-                            }
-                            Spacer(Modifier.width(12.dp))
-                            Column(Modifier.weight(1f)) {
-                                Text("Trợ lý lái xe", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                                Text("Cảnh báo tốc độ • camera • biển báo • khu dân cư", color = Color(0xFFA0A0AD), fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            }
-                        }
-                        Spacer(Modifier.height(14.dp))
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Button(
-                                onClick = {
-                                    try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=Google+Maps"))) }
-                                    catch (_: Exception) { errorMessage = "Không mở được bản đồ." }
-                                },
-                                modifier = Modifier.weight(1f).height(78.dp), shape = RoundedCornerShape(40.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4BE0B3), contentColor = Color(0xFF07120F))
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("◆", fontSize = 20.sp); Text("Google Maps", fontWeight = FontWeight.Bold); Text("Bong bóng LÂM", fontSize = 10.sp)
-                                }
-                            }
-                            OutlinedButton(
-                                onClick = { selectedSection = "Online" },
-                                modifier = Modifier.weight(1f).height(78.dp), shape = RoundedCornerShape(40.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF3B3D4A))
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("▣", color = Color(0xFF4BE0B3), fontSize = 20.sp)
-                                    Text("NGỌC SĨ MAP", color = Color(0xFF4BE0B3), fontWeight = FontWeight.Bold)
-                                    Text("Bản đồ & biển báo", color = Color(0xFF4BE0B3), fontSize = 10.sp)
-                                }
-                            }
-                        }
-                        Spacer(Modifier.height(12.dp))
-                        TextButton(onClick = { errorMessage = "Chế độ cảnh báo đang được tích hợp vào phiên bản tiếp theo." }, modifier = Modifier.fillMaxWidth()) {
-                            Text("⌁  CHỈ BẬT CẢNH BÁO", color = Color(0xFF4BE0B3), fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
-            item {
-                Surface(
-                    shape = RoundedCornerShape(24.dp), color = Color(0xFF151827),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF23675D)),
-                    modifier = Modifier.fillMaxWidth().clickable { selectedSection = "Online" }
-                ) {
-                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(58.dp).clip(RoundedCornerShape(18.dp)).background(Color(0xFF24434A)), contentAlignment = Alignment.Center) {
-                            Text("▶", color = Color.White, fontSize = 25.sp)
-                        }
-                        Spacer(Modifier.width(14.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text("NGỌC SĨ LIVE", color = Color(0xFF4BE0B3), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            Text("YouTube • Radio • TV • Nhạc máy", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                            Text("Một nơi cho toàn bộ trải nghiệm âm nhạc", color = Color(0xFF999AA8), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                        Text("›", color = Color(0xFFB8B5C6), fontSize = 30.sp)
-                    }
-                }
-            }
-            item {
-                Column {
-                    Text("Gợi ý nhanh", color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.ExtraBold)
-                    Text("Bài quen thuộc, mở là nghe ngay", color = Color(0xFF9798A5), fontSize = 13.sp)
-                }
-            }
-            itemsIndexed(filteredSongs.take(6), key = { _, song -> "home-" + song.id }) { _, song ->
-                val realIndex = songs.indexOfFirst { it.id == song.id }
-                Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color(0xFF11131C))
-                        .clickable { if (realIndex >= 0) play(realIndex) }.padding(horizontal = 14.dp, vertical = 11.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    AlbumArt(song, Modifier.size(58.dp))
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(song.title, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(song.source + if (song.artist.isNotBlank()) " • " + song.artist else "", color = Color(0xFF9293A0), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                    Text(if (currentIndex == realIndex && isPlaying) "Ⅱ" else "▶", color = Color(0xFFB9B5C4), fontSize = 18.sp)
-                }
-            }
-            item {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Thư viện của tôi", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
-                        Text(songs.size.toString() + " nội dung • sẵn sàng phát", color = Color(0xFF9798A5), fontSize = 13.sp)
-                    }
-                    TextButton(onClick = { selectedSection = "Thư viện" }) { Text("Xem tất cả", color = Color(0xFF4BE0B3), fontWeight = FontWeight.Bold) }
-                }
-            }
-            item {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    HomeTile("♫", "Mở thư viện", "Bài hát, yêu thích, danh sách...", Color(0xFFD64BFF), Modifier.weight(1f)) { selectedSection = "Thư viện" }
-                    HomeTile("↻", "Nhạc online", "Tìm nhạc và video mới", Color(0xFF2D8CFF), Modifier.weight(1f)) { selectedSection = "Online" }
-                }
-            }
-            item {
-                Column {
-                    Text("Giải trí khác", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
-                    Text("Nghe đài và xem nội dung trực tuyến", color = Color(0xFF9798A5), fontSize = 13.sp)
-                }
-            }
-            item {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    HomeTile("▣", "Radio", "Nghe đài trực tuyến", Color(0xFF37C7FF), Modifier.weight(1f)) { selectedSection = "Online" }
-                    HomeTile("▶", "TV", "Kênh trực tiếp", Color(0xFF2D8CFF), Modifier.weight(1f)) { selectedSection = "Online" }
-                }
-            }
-            item {
-                OutlinedButton(onClick = { showQueue = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
-                    Text("☷  Hàng đợi phát • " + songs.size + " bài")
-                }
-            }
-        }
-    }
-
-    @Composable
-    private fun HomeTile(icon: String, title: String, subtitle: String, iconColor: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
-        Surface(
-            modifier = modifier.height(128.dp).clickable(onClick = onClick),
-            shape = RoundedCornerShape(24.dp), color = Color(0xFF10131C),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF262A38))
-        ) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.Center) {
-                Box(Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(iconColor.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
-                    Text(icon, color = iconColor, fontSize = 25.sp)
-                }
-                Spacer(Modifier.height(8.dp))
-                Text(title, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                Text(subtitle, color = Color(0xFF9293A0), fontSize = 11.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            }
-        }
     }
 
     @Composable
@@ -1335,37 +1157,13 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun BottomNav() {
-        NavigationBar(containerColor = Color(0xFF080A10), tonalElevation = 0.dp) {
-            val items = listOf(
-                Triple("Trang chủ", "⌂", "Trang chủ"),
-                Triple("Online", "▶", "Khám phá"),
-                Triple("Thư viện", "♫", "Thư viện"),
-                Triple("Cài đặt", "●", "Cá nhân")
-            )
-            items.forEach { (section, icon, label) ->
+        NavigationBar(containerColor = Color(0xFF0F1016)) {
+            listOf("Trang chủ" to "⌂", "Thư viện" to "♫", "Online" to "☁", "Cài đặt" to "⚙").forEach { (name, icon) ->
                 NavigationBarItem(
-                    selected = selectedSection == section,
-                    onClick = { selectedSection = section },
-                    icon = {
-                        Box(
-                            Modifier.size(if (selectedSection == section) 54.dp else 44.dp)
-                                .clip(CircleShape)
-                                .background(if (selectedSection == section) Color(0xFF164B45) else Color.Transparent)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(icon, color = if (selectedSection == section) Color.White else Color(0xFFAAA8B8), fontSize = 22.sp)
-                        }
-                    },
-                    label = {
-                        Text(label, fontSize = 11.sp,
-                            fontWeight = if (selectedSection == section) FontWeight.Bold else FontWeight.Normal,
-                            color = if (selectedSection == section) Color.White else Color(0xFFAAA8B8))
-                    },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = Color.White, selectedTextColor = Color.White,
-                        indicatorColor = Color.Transparent,
-                        unselectedIconColor = Color(0xFFAAA8B8), unselectedTextColor = Color(0xFFAAA8B8)
-                    )
+                    selected = selectedSection == name,
+                    onClick = { selectedSection = name },
+                    icon = { Text(icon, fontSize = 20.sp) },
+                    label = { Text(name, fontSize = 10.sp) }
                 )
             }
         }
@@ -1620,7 +1418,7 @@ class MainActivity : ComponentActivity() {
                     append("part=snippet")
                     append("&type=video")
                     append("&videoEmbeddable=true")
-                    append("&maxResults=50")
+                    append("&maxResults=20")
                     append("&order=relevance")
                     append("&regionCode=VN")
                     append("&relevanceLanguage=vi")
@@ -1695,28 +1493,14 @@ class MainActivity : ComponentActivity() {
 
     private fun playYouTube(track: YouTubeTrack) {
         youtubeSelectedVideoId = track.videoId
+        showYoutube = true
         youtubeQuery = youtubeQuery.ifBlank { track.title }
-
         val history = (prefs.getStringSet("youtube_history", emptySet()) ?: emptySet()).toMutableList()
         history.remove(track.title)
         history.add(0, track.title)
         prefs.edit().putStringSet("youtube_history", history.take(8).toSet()).apply()
         youtubeHistory.clear()
         youtubeHistory.addAll(history.take(8))
-
-        // YouTube được phát trong Activity riêng để tránh xung đột render
-        // giữa WebView/video surface và Compose/ScrollView của màn hình chính.
-        try {
-            startActivity(
-                Intent(this, YouTubePlayerActivity::class.java).apply {
-                    putExtra(YouTubePlayerActivity.EXTRA_VIDEO_ID, track.videoId)
-                    putExtra(YouTubePlayerActivity.EXTRA_TITLE, track.title)
-                    putExtra(YouTubePlayerActivity.EXTRA_CHANNEL, track.channelTitle)
-                }
-            )
-        } catch (_: Exception) {
-            showYoutube = true
-        }
     }
 
     private fun toggleYouTubeFavorite(track: YouTubeTrack) {
@@ -1727,10 +1511,6 @@ class MainActivity : ComponentActivity() {
         }
         prefs.edit().putStringSet("youtube_favorites", youtubeFavoriteSet.keys).apply()
     }
-
-    private var youtubeFullscreenWebView: WebView? = null
-    private var youtubeFullscreenContainer: android.widget.FrameLayout? = null
-    private var youtubeFullscreenCallback: WebChromeClient.CustomViewCallback? = null
 
     @Composable
     private fun YouTubeDialog() {
@@ -1746,8 +1526,6 @@ class MainActivity : ComponentActivity() {
         var playerRetry by remember(videoId) { mutableIntStateOf(0) }
         var playerError by remember(videoId) { mutableStateOf(false) }
         val appContext = LocalContext.current
-        val activity = appContext as? android.app.Activity
-        var isYoutubeFullscreen by remember(videoId) { mutableStateOf(false) }
 
         Dialog(
             onDismissRequest = {
@@ -1830,7 +1608,6 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }
                                 )
-                                 }
 
                                 Spacer(Modifier.height(12.dp))
                                 Button(
@@ -1845,17 +1622,39 @@ class MainActivity : ComponentActivity() {
                                 // Cách này tương thích WebView tốt hơn và Play là thao tác của người dùng.
                                 AndroidView(
                                     modifier = Modifier.fillMaxWidth()
-                                        .aspectRatio(16f / 9f),
+                                        .aspectRatio(16f / 9f)
+                                        .clip(RoundedCornerShape(16.dp)),
                                     factory = { context ->
                                         WebView(context).apply {
-                                            webViewClient = object : WebViewClient() {
-                                                override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean = false
+                                            webViewClient = WebViewClient()
+                                            webChromeClient = WebChromeClient()
+                                            setBackgroundColor(android.graphics.Color.BLACK)
 
-                                                override fun onPageFinished(view: WebView, url: String) {
-                                                    super.onPageFinished(view, url)
-                                                    view.requestLayout()
-                                                    view.invalidate()
-                                                }
+                                            settings.javaScriptEnabled = true
+                                            settings.domStorageEnabled = true
+                                            settings.loadsImagesAutomatically = true
+                                            settings.mediaPlaybackRequiresUserGesture = true
+                                            settings.useWideViewPort = true
+                                            settings.loadWithOverviewMode = true
+                                            settings.allowContentAccess = true
+                                            settings.allowFileAccess = true
+                                            settings.javaScriptCanOpenWindowsAutomatically = true
+                                            settings.setSupportMultipleWindows(false)
+                                            settings.cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
+                                            settings.databaseEnabled = true
+                                            settings.setSupportZoom(false)
+
+                                            CookieManager.getInstance().setAcceptCookie(true)
+                                            CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                                            CookieManager.getInstance().flush()
+
+                                            // Giữ WebView ổn định khi mạng chuyển Wi‑Fi/4G và khi
+                                            // YouTube tải lại các tài nguyên media/cookie.
+                                            webViewClient = object : WebViewClient() {
+                                                override fun shouldOverrideUrlLoading(
+                                                    view: WebView,
+                                                    url: String
+                                                ): Boolean = false
 
                                                 override fun onReceivedError(
                                                     view: WebView,
@@ -1874,122 +1673,37 @@ class MainActivity : ComponentActivity() {
                                                     return true
                                                 }
                                             }
-                                            webChromeClient = object : WebChromeClient() {
-                                                override fun onShowFileChooser(view: WebView?, filePathCallback: android.webkit.ValueCallback<Array<Uri>>?, fileChooserParams: FileChooserParams?): Boolean = false
-
-                                                override fun onShowCustomView(view: android.view.View?, callback: CustomViewCallback?) {
-                                                    val host = activity ?: return
-                                                    val customView = view ?: return
-
-                                                    // YouTube gửi SurfaceView/CustomView vào callback này khi người dùng
-                                                    // bấm nút toàn màn hình. Phải thực sự đưa view vào decor của Activity;
-                                                    // chỉ đổi orientation là chưa đủ và khiến nút fullscreen "không làm gì".
-                                                    youtubeFullscreenWebView = this@apply
-                                                    isYoutubeFullscreen = true
-
-                                                    val decor = host.window.decorView as android.view.ViewGroup
-                                                    val container = android.widget.FrameLayout(host).apply {
-                                                        setBackgroundColor(android.graphics.Color.BLACK)
-                                                        layoutParams = android.view.ViewGroup.LayoutParams(
-                                                            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-                                                            android.view.ViewGroup.LayoutParams.MATCH_PARENT
-                                                        )
-                                                        addView(
-                                                            customView,
-                                                            android.widget.FrameLayout.LayoutParams(
-                                                                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-                                                                android.view.ViewGroup.LayoutParams.MATCH_PARENT
-                                                            )
-                                                        )
-                                                    }
-
-                                                    (customView.parent as? android.view.ViewGroup)?.removeView(customView)
-                                                    decor.addView(container)
-                                                    youtubeFullscreenContainer = container
-                                                    youtubeFullscreenCallback = callback
-
-                                                    host.requestedOrientation =
-                                                        android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-                                                    host.window.decorView.systemUiVisibility = (
-                                                        android.view.View.SYSTEM_UI_FLAG_FULLSCREEN or
-                                                        android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-                                                        android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
-                                                        android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
-                                                        android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
-                                                        android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                                                    )
-                                                }
-
-                                                override fun onHideCustomView() {
-                                                    val host = activity
-                                                    youtubeFullscreenContainer?.let { container ->
-                                                        (container.parent as? android.view.ViewGroup)?.removeView(container)
-                                                    }
-                                                    youtubeFullscreenContainer = null
-                                                    youtubeFullscreenCallback = null
-                                                    youtubeFullscreenWebView = null
-                                                    isYoutubeFullscreen = false
-
-                                                    host?.requestedOrientation =
-                                                        android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-                                                    host?.window?.decorView?.systemUiVisibility =
-                                                        android.view.View.SYSTEM_UI_FLAG_VISIBLE
-                                                }
-                                            }
-                                            setBackgroundColor(android.graphics.Color.BLACK)
-
-                                            settings.javaScriptEnabled = true
-                                            settings.domStorageEnabled = true
-                                            settings.loadsImagesAutomatically = true
-                                            // Cho phép YouTube bắt đầu phát sau thao tác "PHÁT VIDEO".
-                                            // WebView không còn chặn media gesture ở bước khởi tạo player.
-                                            settings.mediaPlaybackRequiresUserGesture = false
-                                            settings.useWideViewPort = true
-                                            settings.loadWithOverviewMode = true
-                                            settings.allowContentAccess = true
-                                            settings.allowFileAccess = false
-                                            settings.javaScriptCanOpenWindowsAutomatically = false
-                                            settings.setSupportMultipleWindows(false)
-                                            settings.cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
-                                            settings.setSupportZoom(false)
-
-                                            CookieManager.getInstance().setAcceptCookie(true)
-                                            CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-                                            CookieManager.getInstance().flush()
-
-                                            settings.userAgentString =
-                                                "Mozilla/5.0 (Linux; Android 16; Mobile) AppleWebKit/537.36 " +
-                                                "(KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36"
+                                            webChromeClient = WebChromeClient()
+                                            setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
+                                            isFocusable = true
+                                            isFocusableInTouchMode = true
+                                            requestFocus()
 
                                             val safeId = videoId
                                                 .replace("&", "")
                                                 .replace("\"", "")
                                                 .replace("'", "")
 
+                                            settings.userAgentString =
+                                                "Mozilla/5.0 (Linux; Android 16; Mobile) AppleWebKit/537.36 " +
+                                                "(KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36"
+
+                                            // YouTube có thể trả lỗi cấu hình nếu embed không có origin.
+                                            // Khai báo origin và dùng youtube-nocookie để tăng tương thích WebView.
                                             val embedUrl =
                                                 "https://www.youtube.com/embed/$safeId" +
-                                                    "?playsinline=1&autoplay=1&rel=0&controls=1&enablejsapi=1" +
+                                                    "?playsinline=1&rel=0&controls=1&enablejsapi=1" +
                                                     "&origin=https%3A%2F%2Fcom.ngocsi.music"
 
-                                            // Gửi Referer trực tiếp cùng request embed.
-                                            // Giữ cách loadUrl vì bản ổn định trước đó đã phát được audio.
+                                            // YouTube Error 153 = thiếu HTTP Referer/API client identity.
+                                            // Android WebView cần gửi Referer ngay trên request đầu tiên.
                                             val headers = mapOf(
                                                 "Referer" to "https://com.ngocsi.music/"
                                             )
-
-                                            // Không ép hardware layer và không clip WebView:
-                                            // giảm nguy cơ video surface bị đen/trắng trong Compose.
-                                            setLayerType(android.view.View.LAYER_TYPE_NONE, null)
-                                            youtubeFullscreenWebView = this
-                                            isFocusable = true
-                                            isFocusableInTouchMode = true
-                                            requestFocus()
-
                                             loadUrl(embedUrl, headers)
                                         }
                                     }
                                 )
-
 
                                 if (playerError) {
                                     Spacer(Modifier.height(10.dp))
@@ -2149,7 +1863,6 @@ class MainActivity : ComponentActivity() {
         errorMessage = null
         jamendoTracks.clear()
         audiusTracks.clear()
-        onlineVisibleCount = 30
         searchJamendo()
         searchAudius(q)
     }
@@ -2220,7 +1933,6 @@ class MainActivity : ComponentActivity() {
                                 onlineSearchActive = true
                                 jamendoTracks.clear()
                                 audiusTracks.clear()
-                                onlineVisibleCount = 30
                                 searchJamendo()
                                 searchAudius(q)
                             }
@@ -2352,8 +2064,7 @@ class MainActivity : ComponentActivity() {
                         "Thời lượng" -> onlineResults.sortedBy { it.duration }
                         else -> onlineResults.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
                     }
-                    val visibleOnlineResults = sortedOnlineResults.take(onlineVisibleCount)
-                    visibleOnlineResults.forEach { item ->
+                    sortedOnlineResults.forEach { item ->
                         val artworkUrl = if (item.source == "Audius") audiusTracks.getOrNull(item.index)?.imageUrl.orEmpty() else jamendoTracks.getOrNull(item.index)?.imageUrl.orEmpty()
                         Row(
                             Modifier.fillMaxWidth()
@@ -2388,14 +2099,6 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                         Spacer(Modifier.height(6.dp))
-                    }
-                    if (sortedOnlineResults.size > onlineVisibleCount) {
-                        Spacer(Modifier.height(8.dp))
-                        OutlinedButton(
-                            onClick = { onlineVisibleCount += 30 },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(14.dp)
-                        ) { Text("XEM THÊM • CÒN " + (sortedOnlineResults.size - onlineVisibleCount) + " BÀI") }
                     }
                 }
             }
