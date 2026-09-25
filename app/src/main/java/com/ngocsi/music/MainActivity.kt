@@ -1142,7 +1142,13 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                             OutlinedButton(
-                                onClick = { selectedSection = "Online"; onlineHubTab = "YouTube" },
+                                onClick = {
+                                    try {
+                                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=Google+Maps")))
+                                    } catch (_: Exception) {
+                                        errorMessage = "Không mở được ứng dụng bản đồ."
+                                    }
+                                },
                                 modifier = Modifier.weight(1f).height(78.dp), shape = RoundedCornerShape(40.dp),
                                 border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF3B3D4A))
                             ) {
@@ -1154,7 +1160,13 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                         Spacer(Modifier.height(12.dp))
-                        TextButton(onClick = { errorMessage = "Chế độ cảnh báo đang được tích hợp vào phiên bản tiếp theo." }, modifier = Modifier.fillMaxWidth()) {
+                        TextButton(onClick = {
+                            try {
+                                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=Google+Maps")))
+                            } catch (_: Exception) {
+                                errorMessage = "Không mở được ứng dụng bản đồ."
+                            }
+                        }, modifier = Modifier.fillMaxWidth()) {
                             Text("⌁  MỞ GOOGLE MAPS", color = Color(0xFF4BE0B3), fontWeight = FontWeight.Bold)
                         }
                     }
