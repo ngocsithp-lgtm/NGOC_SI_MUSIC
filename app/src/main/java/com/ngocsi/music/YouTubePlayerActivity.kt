@@ -255,7 +255,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 }
 
                 override fun onHideCustomView() {
-                    exitFullscreen()
+                    exitFullscreen(notifyCallback = false)
                 }
             }
 
@@ -362,6 +362,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun enterFullscreen() {
+        requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).apply {
             hide(WindowInsetsCompat.Type.systemBars())
@@ -370,11 +371,14 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
     }
 
-    private fun exitFullscreen() {
+    private fun exitFullscreen(notifyCallback: Boolean = true) {
         customView?.let { root.removeView(it) }
         customView = null
-        customViewCallback?.onCustomViewHidden()
+        if (notifyCallback) {
+            customViewCallback?.onCustomViewHidden()
+        }
         customViewCallback = null
+        requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         playerContainer.visibility = View.VISIBLE
         WindowCompat.setDecorFitsSystemWindows(window, true)
         WindowInsetsControllerCompat(window, window.decorView)
@@ -400,7 +404,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        if (customView != null) exitFullscreen()
+        if (customView != null) exitFullscreen(notifyCallback = false)
         removePlayer()
         super.onDestroy()
     }
