@@ -1729,6 +1729,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private var youtubeFullscreenWebView: WebView? = null
+    private var youtubeFullscreenContainer: android.widget.FrameLayout? = null
+    private var youtubeFullscreenCallback: WebChromeClient.CustomViewCallback? = null
 
     @Composable
     private fun YouTubeDialog() {
@@ -1876,10 +1878,39 @@ class MainActivity : ComponentActivity() {
                                                 override fun onShowFileChooser(view: WebView?, filePathCallback: android.webkit.ValueCallback<Array<Uri>>?, fileChooserParams: FileChooserParams?): Boolean = false
 
                                                 override fun onShowCustomView(view: android.view.View?, callback: CustomViewCallback?) {
+                                                    val host = activity ?: return
+                                                    val customView = view ?: return
+
+                                                    // YouTube gửi SurfaceView/CustomView vào callback này khi người dùng
+                                                    // bấm nút toàn màn hình. Phải thực sự đưa view vào decor của Activity;
+                                                    // chỉ đổi orientation là chưa đủ và khiến nút fullscreen "không làm gì".
                                                     youtubeFullscreenWebView = this@apply
                                                     isYoutubeFullscreen = true
-                                                    activity?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-                                                    activity?.window?.decorView?.systemUiVisibility = (
+
+                                                    val decor = host.window.decorView as android.view.ViewGroup
+                                                    val container = android.widget.FrameLayout(host).apply {
+                                                        setBackgroundColor(android.graphics.Color.BLACK)
+                                                        layoutParams = android.view.ViewGroup.LayoutParams(
+                                                            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                                                            android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                                                        )
+                                                        addView(
+                                                            customView,
+                                                            android.widget.FrameLayout.LayoutParams(
+                                                                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                                                                android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                                                            )
+                                                        )
+                                                    }
+
+                                                    (customView.parent as? android.view.ViewGroup)?.removeView(customView)
+                                                    decor.addView(container)
+                                                    youtubeFullscreenContainer = container
+                                                    youtubeFullscreenCallback = callback
+
+                                                    host.requestedOrientation =
+                                                        android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                                                    host.window.decorView.systemUiVisibility = (
                                                         android.view.View.SYSTEM_UI_FLAG_FULLSCREEN or
                                                         android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
                                                         android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
@@ -1890,10 +1921,19 @@ class MainActivity : ComponentActivity() {
                                                 }
 
                                                 override fun onHideCustomView() {
+                                                    val host = activity
+                                                    youtubeFullscreenContainer?.let { container ->
+                                                        (container.parent as? android.view.ViewGroup)?.removeView(container)
+                                                    }
+                                                    youtubeFullscreenContainer = null
+                                                    youtubeFullscreenCallback = null
                                                     youtubeFullscreenWebView = null
                                                     isYoutubeFullscreen = false
-                                                    activity?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-                                                    activity?.window?.decorView?.systemUiVisibility = android.view.View.SYSTEM_UI_FLAG_VISIBLE
+
+                                                    host?.requestedOrientation =
+                                                        android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                                                    host?.window?.decorView?.systemUiVisibility =
+                                                        android.view.View.SYSTEM_UI_FLAG_VISIBLE
                                                 }
                                             }
                                             setBackgroundColor(android.graphics.Color.BLACK)
