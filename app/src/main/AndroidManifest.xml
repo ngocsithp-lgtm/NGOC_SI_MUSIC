@@ -24,6 +24,7 @@
     </queries>
 
     <application
+        android:hardwareAccelerated="true"
         android:theme="@style/Theme.NgocSiMusic"
         android:label="NGỌC SĨ MUSIC"
         android:allowBackup="true"
