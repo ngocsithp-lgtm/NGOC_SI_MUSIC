@@ -988,7 +988,7 @@ class MainActivity : ComponentActivity() {
                     Header()
                     when (selectedSection) {
                         "Trang chủ" -> {
-                            HomeModern(filteredSongs)
+                            HomeModern(filteredSongs, Modifier.weight(1f))
                         }
                         "Thư viện" -> {
                             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
@@ -1045,14 +1045,14 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun HomeModern(filteredSongs: List<Song>) {
+    private fun HomeModern(filteredSongs: List<Song>, modifier: Modifier = Modifier) {
         val greeting = when (java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)) {
             in 5..11 -> "Chào buổi sáng"
             in 12..17 -> "Chào buổi chiều"
             else -> "Chào buổi tối"
         }
         LazyColumn(
-            Modifier.fillMaxWidth().weight(1f),
+            modifier.fillMaxWidth(),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 14.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -1191,8 +1191,8 @@ class MainActivity : ComponentActivity() {
             }
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    HomeTile("♫", "Mở thư viện", "Bài hát, yêu thích, danh sách...", Color(0xFFD64BFF)) { selectedSection = "Thư viện" }
-                    HomeTile("↻", "Nhạc online", "Tìm nhạc và video mới", Color(0xFF2D8CFF)) { selectedSection = "Online" }
+                    HomeTile("♫", "Mở thư viện", "Bài hát, yêu thích, danh sách...", Color(0xFFD64BFF), Modifier.weight(1f)) { selectedSection = "Thư viện" }
+                    HomeTile("↻", "Nhạc online", "Tìm nhạc và video mới", Color(0xFF2D8CFF), Modifier.weight(1f)) { selectedSection = "Online" }
                 }
             }
             item {
@@ -1203,8 +1203,8 @@ class MainActivity : ComponentActivity() {
             }
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    HomeTile("▣", "Radio", "Nghe đài trực tuyến", Color(0xFF37C7FF)) { selectedSection = "Online" }
-                    HomeTile("▶", "TV", "Kênh trực tiếp", Color(0xFF2D8CFF)) { selectedSection = "Online" }
+                    HomeTile("▣", "Radio", "Nghe đài trực tuyến", Color(0xFF37C7FF), Modifier.weight(1f)) { selectedSection = "Online" }
+                    HomeTile("▶", "TV", "Kênh trực tiếp", Color(0xFF2D8CFF), Modifier.weight(1f)) { selectedSection = "Online" }
                 }
             }
             item {
@@ -1216,9 +1216,9 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun HomeTile(icon: String, title: String, subtitle: String, iconColor: Color, onClick: () -> Unit) {
+    private fun HomeTile(icon: String, title: String, subtitle: String, iconColor: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
         Surface(
-            modifier = Modifier.weight(1f).height(128.dp).clickable(onClick = onClick),
+            modifier = modifier.height(128.dp).clickable(onClick = onClick),
             shape = RoundedCornerShape(24.dp), color = Color(0xFF10131C),
             border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF262A38))
         ) {
