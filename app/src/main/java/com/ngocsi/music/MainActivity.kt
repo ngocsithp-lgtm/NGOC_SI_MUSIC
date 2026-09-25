@@ -425,9 +425,9 @@ class MainActivity : ComponentActivity() {
         songs.addAll(result)
         errorMessage = if (songs.isEmpty()) "Chưa tìm thấy file nhạc trong thiết bị." else null
         controller?.let { c ->
-            // If MusicService already owns a queue, preserve its active item and
-            // exact position. This prevents Activity recreation from jumping back
-            // to the last SharedPreferences item while background playback continues.
+            // If MusicService already owns a matching queue, preserve its active item
+            // and exact position. If the library changed with the same item count,
+            // rebuild the queue so a library index can never point at the wrong URI.
             if (c.mediaItemCount == 0 && songs.isNotEmpty()) {
                 c.setMediaItems(songs.map { mediaItemFor(it) })
                 c.prepare()
@@ -441,9 +441,13 @@ class MainActivity : ComponentActivity() {
                     if (savedPosition > 0L) c.seekTo(savedPosition)
                 }
             } else if (c.mediaItemCount > 0) {
+                if (!isControllerQueueInSync(c)) {
+                    syncControllerQueue()
+                }
+
                 val activeUri = c.currentMediaItem?.localConfiguration?.uri?.toString()
                 val activeIndex = activeUri?.let { uri ->
-                    songs.indexOfFirst { it.uri.toString() == uri }
+                    songs.indexOfFirst { it.uri.toString() == activeUri }
                 } ?: -1
                 if (activeIndex >= 0) {
                     currentIndex = activeIndex
@@ -455,18 +459,20 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun isControllerQueueInSync(c: MediaController): Boolean {
+        if (c.mediaItemCount != songs.size) return false
+        return songs.indices.all { index ->
+            c.getMediaItemAt(index).localConfiguration?.uri == songs[index].uri
+        }
+    }
+
     private fun play(index: Int) {
         if (index !in songs.indices) return
         val c = controller ?: run { errorMessage = "Trình phát đang khởi động, thử lại sau."; return }
 
-        if (c.mediaItemCount != songs.size) {
+        if (!isControllerQueueInSync(c)) {
             // Rebuilding the queue must not silently reset Shuffle/Repeat.
-            val keepShuffle = c.shuffleModeEnabled
-            val keepRepeat = c.repeatMode
-            c.setMediaItems(songs.map { mediaItemFor(it) })
-            c.shuffleModeEnabled = keepShuffle
-            c.repeatMode = keepRepeat
-            c.prepare()
+            syncControllerQueue()
         }
 
         currentIndex = index
@@ -893,12 +899,13 @@ class MainActivity : ComponentActivity() {
 
     private fun togglePlayPause() {
         val c = controller ?: return
+        if (songs.isNotEmpty() && !isControllerQueueInSync(c)) {
+            syncControllerQueue()
+        }
         if (c.mediaItemCount == 0 && songs.isNotEmpty()) {
-            val keepShuffle = c.shuffleModeEnabled
-            val keepRepeat = c.repeatMode
             c.setMediaItems(songs.map { mediaItemFor(it) })
-            c.shuffleModeEnabled = keepShuffle
-            c.repeatMode = keepRepeat
+            c.shuffleModeEnabled = shuffleEnabled
+            c.repeatMode = repeatMode
             c.prepare()
             c.play()
             shuffleEnabled = c.shuffleModeEnabled
