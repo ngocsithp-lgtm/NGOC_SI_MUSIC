@@ -130,6 +130,7 @@ class MainActivity : ComponentActivity() {
     private var onlineSearchActive by mutableStateOf(false)
     private var onlineHubTab by mutableStateOf("Tất cả")
     private var onlineSort by mutableStateOf("Tên A-Z")
+    private var onlineVisibleCount by mutableIntStateOf(30)
     private val youtubeHistory = mutableStateListOf<String>()
     private val youtubeTracks = mutableStateListOf<YouTubeTrack>()
     private val youtubeFavoriteSet = mutableStateMapOf<String, Boolean>()
@@ -617,7 +618,7 @@ class MainActivity : ComponentActivity() {
                 val query = buildString {
                     append("client_id=709fa152")
                     append("&format=json")
-                    append("&limit=30")
+                    append("&limit=50")
                     append("&audioformat=mp31")
                     append("&type=single%20albumtrack")
                     append("&search=")
@@ -718,7 +719,7 @@ class MainActivity : ComponentActivity() {
             var connection: java.net.HttpURLConnection? = null
             try {
                 val encoded = java.net.URLEncoder.encode(q, "UTF-8")
-                val endpoint = "https://api.audius.co/v1/tracks/search?query=$encoded&limit=25"
+                val endpoint = "https://api.audius.co/v1/tracks/search?query=$encoded&limit=50"
                 connection = (java.net.URL(endpoint).openConnection() as java.net.HttpURLConnection).apply {
                     requestMethod = "GET"
                     connectTimeout = 15000
@@ -1418,7 +1419,7 @@ class MainActivity : ComponentActivity() {
                     append("part=snippet")
                     append("&type=video")
                     append("&videoEmbeddable=true")
-                    append("&maxResults=20")
+                    append("&maxResults=50")
                     append("&order=relevance")
                     append("&regionCode=VN")
                     append("&relevanceLanguage=vi")
@@ -1879,6 +1880,7 @@ class MainActivity : ComponentActivity() {
         errorMessage = null
         jamendoTracks.clear()
         audiusTracks.clear()
+        onlineVisibleCount = 30
         searchJamendo()
         searchAudius(q)
     }
@@ -1949,6 +1951,7 @@ class MainActivity : ComponentActivity() {
                                 onlineSearchActive = true
                                 jamendoTracks.clear()
                                 audiusTracks.clear()
+                                onlineVisibleCount = 30
                                 searchJamendo()
                                 searchAudius(q)
                             }
@@ -2080,7 +2083,8 @@ class MainActivity : ComponentActivity() {
                         "Thời lượng" -> onlineResults.sortedBy { it.duration }
                         else -> onlineResults.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
                     }
-                    sortedOnlineResults.forEach { item ->
+                    val visibleOnlineResults = sortedOnlineResults.take(onlineVisibleCount)
+                    visibleOnlineResults.forEach { item ->
                         val artworkUrl = if (item.source == "Audius") audiusTracks.getOrNull(item.index)?.imageUrl.orEmpty() else jamendoTracks.getOrNull(item.index)?.imageUrl.orEmpty()
                         Row(
                             Modifier.fillMaxWidth()
@@ -2158,6 +2162,14 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(14.dp)
                         ) { Text("XÓA TẤT CẢ YÊU THÍCH") }
+                    }
+                    if (sortedOnlineResults.size > onlineVisibleCount) {
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedButton(
+                            onClick = { onlineVisibleCount += 30 },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp)
+                        ) { Text("XEM THÊM • CÒN " + (sortedOnlineResults.size - onlineVisibleCount) + " BÀI") }
                     }
                 }
             }
