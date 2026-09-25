@@ -63,6 +63,7 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.MoreExecutors
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
@@ -149,6 +150,7 @@ class MainActivity : ComponentActivity() {
     private var speechRecognizer: SpeechRecognizer? = null
     private var showSleepTimer by mutableStateOf(false)
     private var sleepMinutes by mutableIntStateOf(0)
+    private var sleepTimerJob: Job? = null
     private var lastSongUri by mutableStateOf<String?>(null)
     private var savedPosition by mutableLongStateOf(0L)
     private var shuffleEnabled by mutableStateOf(false)
@@ -904,6 +906,27 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun startSleepTimer(minutes: Int) {
+        if (minutes <= 0) {
+            sleepTimerJob?.cancel()
+            sleepTimerJob = null
+            sleepMinutes = 0
+            return
+        }
+        sleepTimerJob?.cancel()
+        sleepMinutes = minutes
+        sleepTimerJob = lifecycleScope.launch {
+            delay(minutes * 60_000L)
+            controller?.pause()
+            controller?.seekTo(0L)
+            position = 0L
+            savedPosition = 0L
+            sleepMinutes = 0
+            sleepTimerJob = null
+            savePlaybackState()
+            errorMessage = "Hẹn giờ đã tắt nhạc."
+        }
+    }
     private fun togglePlayPause() {
         val c = controller ?: return
         if (songs.isNotEmpty() && !isControllerQueueInSync(c)) {
@@ -1388,11 +1411,11 @@ class MainActivity : ComponentActivity() {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf(15, 30, 45, 60, 90).forEach { min ->
                             OutlinedButton(onClick = {
-                                sleepMinutes = min
+                                startSleepTimer(min)
                                 showSleepTimer = false
                             }, modifier = Modifier.fillMaxWidth()) { Text("${min} phút") }
                         }
-                        TextButton(onClick = { sleepMinutes = 0; showSleepTimer = false }) { Text("Tắt hẹn giờ") }
+                        TextButton(onClick = { startSleepTimer(0); showSleepTimer = false }) { Text("Tắt hẹn giờ") }
                     }
                 },
                 confirmButton = {}
