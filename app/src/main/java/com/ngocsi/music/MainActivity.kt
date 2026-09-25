@@ -1527,6 +1527,8 @@ class MainActivity : ComponentActivity() {
         prefs.edit().putStringSet("youtube_favorites", youtubeFavoriteSet.keys).apply()
     }
 
+    private var youtubeFullscreenWebView: WebView? = null
+
     @Composable
     private fun YouTubeDialog() {
         if (!showYoutube) return
@@ -1541,6 +1543,8 @@ class MainActivity : ComponentActivity() {
         var playerRetry by remember(videoId) { mutableIntStateOf(0) }
         var playerError by remember(videoId) { mutableStateOf(false) }
         val appContext = LocalContext.current
+        val activity = appContext as? android.app.Activity
+        var isYoutubeFullscreen by remember(videoId) { mutableStateOf(false) }
 
         Dialog(
             onDismissRequest = {
@@ -1667,7 +1671,30 @@ class MainActivity : ComponentActivity() {
                                                     return true
                                                 }
                                             }
-                                            webChromeClient = WebChromeClient()
+                                            webChromeClient = object : WebChromeClient() {
+                                                override fun onShowFileChooser(view: WebView?, filePathCallback: android.webkit.ValueCallback<Array<Uri>>?, fileChooserParams: FileChooserParams?): Boolean = false
+
+                                                override fun onShowCustomView(view: android.view.View?, callback: CustomViewCallback?) {
+                                                    youtubeFullscreenWebView = this@apply
+                                                    isYoutubeFullscreen = true
+                                                    activity?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                                                    activity?.window?.decorView?.systemUiVisibility = (
+                                                        android.view.View.SYSTEM_UI_FLAG_FULLSCREEN or
+                                                        android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                                                        android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+                                                        android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                                                        android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+                                                        android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                                                    )
+                                                }
+
+                                                override fun onHideCustomView() {
+                                                    youtubeFullscreenWebView = null
+                                                    isYoutubeFullscreen = false
+                                                    activity?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                                                    activity?.window?.decorView?.systemUiVisibility = android.view.View.SYSTEM_UI_FLAG_VISIBLE
+                                                }
+                                            }
                                             setBackgroundColor(android.graphics.Color.BLACK)
 
                                             settings.javaScriptEnabled = true
@@ -1712,6 +1739,7 @@ class MainActivity : ComponentActivity() {
                                             // Không ép hardware layer và không clip WebView:
                                             // giảm nguy cơ video surface bị đen/trắng trong Compose.
                                             setLayerType(android.view.View.LAYER_TYPE_NONE, null)
+                                            youtubeFullscreenWebView = this
                                             isFocusable = true
                                             isFocusableInTouchMode = true
                                             requestFocus()
