@@ -963,7 +963,15 @@ class MainActivity : ComponentActivity() {
         savePlaybackState()
     }
 
-    private fun stop() { controller?.pause(); controller?.seekTo(0L); position = 0L }
+    private fun stop() {
+        controller?.pause()
+        controller?.seekTo(0L)
+        position = 0L
+        savedPosition = 0L
+        // Persist the explicit Stop action so reopening the app does not
+        // unexpectedly resume from the old saved position.
+        savePlaybackState()
+    }
 
     private fun seekTo(value: Long) {
         controller?.let {
