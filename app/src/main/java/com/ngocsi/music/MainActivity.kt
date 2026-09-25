@@ -428,17 +428,32 @@ class MainActivity : ComponentActivity() {
         songs.addAll(result)
         errorMessage = if (songs.isEmpty()) "Chưa tìm thấy file nhạc trong thiết bị." else null
         controller?.let { c ->
+            // If MusicService already owns a queue, preserve its active item and
+            // exact position. This prevents Activity recreation from jumping back
+            // to the last SharedPreferences item while background playback continues.
             if (c.mediaItemCount == 0 && songs.isNotEmpty()) {
                 c.setMediaItems(songs.map { mediaItemFor(it) })
                 c.prepare()
-            }
-            val restoreIndex = lastSongUri?.let { uri ->
-                songs.indexOfFirst { it.uri.toString() == uri }
-            } ?: -1
-            if (restoreIndex >= 0) {
-                currentIndex = restoreIndex
-                c.seekToDefaultPosition(restoreIndex)
-                if (savedPosition > 0L) c.seekTo(savedPosition)
+
+                val restoreIndex = lastSongUri?.let { uri ->
+                    songs.indexOfFirst { it.uri.toString() == uri }
+                } ?: -1
+                if (restoreIndex >= 0) {
+                    currentIndex = restoreIndex
+                    c.seekToDefaultPosition(restoreIndex)
+                    if (savedPosition > 0L) c.seekTo(savedPosition)
+                }
+            } else if (c.mediaItemCount > 0) {
+                val activeUri = c.currentMediaItem?.localConfiguration?.uri?.toString()
+                val activeIndex = activeUri?.let { uri ->
+                    songs.indexOfFirst { it.uri.toString() == uri }
+                } ?: -1
+                if (activeIndex >= 0) {
+                    currentIndex = activeIndex
+                    lastSongUri = activeUri
+                }
+                position = c.currentPosition.coerceAtLeast(0L)
+                isPlaying = c.isPlaying
             }
         }
     }
