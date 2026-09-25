@@ -855,13 +855,16 @@ class MainActivity : ComponentActivity() {
         controller?.let { c ->
             if (songs.isNotEmpty()) {
                 // Rebuild the queue only after capturing the exact active item,
-                // position and playing state. Library edits must not interrupt
-                // background playback or restart the song from the beginning.
+                // position, playing state, shuffle mode and repeat mode.
                 val selectedUri = c.currentMediaItem?.localConfiguration?.uri
                 val savedPositionMs = c.currentPosition.coerceAtLeast(0L)
                 val wasPlaying = c.isPlaying
+                val keepShuffle = c.shuffleModeEnabled
+                val keepRepeat = c.repeatMode
 
                 c.setMediaItems(songs.map { mediaItemFor(it) })
+                c.shuffleModeEnabled = keepShuffle
+                c.repeatMode = keepRepeat
                 c.prepare()
 
                 val index = selectedUri?.let { uri ->
@@ -873,6 +876,11 @@ class MainActivity : ComponentActivity() {
                     if (savedPositionMs > 0L) c.seekTo(savedPositionMs)
                     if (wasPlaying) c.play()
                 }
+
+                shuffleEnabled = c.shuffleModeEnabled
+                repeatMode = c.repeatMode
+                position = c.currentPosition.coerceAtLeast(0L)
+                isPlaying = c.isPlaying
             }
         }
     }
