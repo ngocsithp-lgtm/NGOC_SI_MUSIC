@@ -55,8 +55,9 @@ class MusicService : MediaSessionService() {
             true
         )
 
+        // Keep playback alive when the UI Activity is closed, while still
+        // allowing Android to pause safely when audio output becomes noisy.
         player.setHandleAudioBecomingNoisy(true)
-
 
         player.addListener(playerListener)
         broadcastWidget()
