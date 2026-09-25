@@ -1658,7 +1658,9 @@ class MainActivity : ComponentActivity() {
                                             settings.javaScriptEnabled = true
                                             settings.domStorageEnabled = true
                                             settings.loadsImagesAutomatically = true
-                                            settings.mediaPlaybackRequiresUserGesture = true
+                                            // Cho phép YouTube bắt đầu phát sau thao tác "PHÁT VIDEO".
+                                            // WebView không còn chặn media gesture ở bước khởi tạo player.
+                                            settings.mediaPlaybackRequiresUserGesture = false
                                             settings.useWideViewPort = true
                                             settings.loadWithOverviewMode = true
                                             settings.allowContentAccess = true
@@ -1683,42 +1685,23 @@ class MainActivity : ComponentActivity() {
 
                                             val embedUrl =
                                                 "https://www.youtube.com/embed/$safeId" +
-                                                    "?playsinline=1&rel=0&controls=1&enablejsapi=1" +
+                                                    "?playsinline=1&autoplay=1&rel=0&controls=1&enablejsapi=1" +
                                                     "&origin=https%3A%2F%2Fcom.ngocsi.music"
 
-                                            val html = """
-                                                <!doctype html>
-                                                <html>
-                                                <head>
-                                                  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-                                                  <meta name="referrer" content="strict-origin-when-cross-origin">
-                                                  <style>
-                                                    html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000}
-                                                    iframe{position:absolute;left:0;top:0;width:100%;height:100%;border:0;display:block;background:#000}
-                                                  </style>
-                                                </head>
-                                                <body>
-                                                  <iframe id="ytplayer" title="YouTube"
-                                                    src="$embedUrl"
-                                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                                    allowfullscreen></iframe>
-                                                </body>
-                                                </html>
-                                            """.trimIndent()
+                                            // Gửi Referer trực tiếp cùng request embed.
+                                            // Giữ cách loadUrl vì bản ổn định trước đó đã phát được audio.
+                                            val headers = mapOf(
+                                                "Referer" to "https://com.ngocsi.music/"
+                                            )
 
-                                            // Để WebView tự chọn lớp render; không ép hardware layer và không clip View.
+                                            // Không ép hardware layer và không clip WebView:
+                                            // giảm nguy cơ video surface bị đen/trắng trong Compose.
                                             setLayerType(android.view.View.LAYER_TYPE_NONE, null)
                                             isFocusable = true
                                             isFocusableInTouchMode = true
                                             requestFocus()
 
-                                            loadDataWithBaseURL(
-                                                "https://com.ngocsi.music/",
-                                                html,
-                                                "text/html",
-                                                "UTF-8",
-                                                "https://com.ngocsi.music/"
-                                            )
+                                            loadUrl(embedUrl, headers)
                                         }
                                     }
                                 )
