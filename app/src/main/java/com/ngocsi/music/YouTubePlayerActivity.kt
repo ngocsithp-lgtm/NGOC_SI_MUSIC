@@ -19,6 +19,9 @@ import android.widget.TextView
 import android.content.Intent
 import android.net.Uri
 import android.view.Gravity
+import androidx.webkit.WebSettingsCompat
+import androidx.webkit.WebViewFeature
+import androidx.webkit.WebViewMediaIntegrityApiStatusConfig
 import androidx.activity.ComponentActivity
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -165,6 +168,30 @@ class YouTubePlayerActivity : ComponentActivity() {
             CookieManager.getInstance().setAcceptCookie(true)
             CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
             CookieManager.getInstance().flush()
+
+            // YouTube embeds in Android WebView can use the WebView Media
+            // Integrity API to provide an attested application identity.
+            // Enable it explicitly when the installed WebView supports it.
+            if (WebViewFeature.isFeatureSupported(WebViewFeature.WEBVIEW_MEDIA_INTEGRITY_API_STATUS)) {
+                runCatching {
+                    val integrityConfig = WebViewMediaIntegrityApiStatusConfig.Builder(
+                        WebViewMediaIntegrityApiStatusConfig.WEBVIEW_MEDIA_INTEGRITY_API_ENABLED
+                    )
+                        .addOverrideRule(
+                            "https://www.youtube.com",
+                            WebViewMediaIntegrityApiStatusConfig.WEBVIEW_MEDIA_INTEGRITY_API_ENABLED
+                        )
+                        .addOverrideRule(
+                            "https://*.youtube.com",
+                            WebViewMediaIntegrityApiStatusConfig.WEBVIEW_MEDIA_INTEGRITY_API_ENABLED
+                        )
+                        .build()
+                    WebSettingsCompat.setWebViewMediaIntegrityApiStatus(
+                        settings,
+                        integrityConfig
+                    )
+                }
+            }
 
             webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(
