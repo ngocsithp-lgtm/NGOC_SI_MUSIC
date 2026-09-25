@@ -897,10 +897,20 @@ class MainActivity : ComponentActivity() {
     private fun togglePlayPause() {
         val c = controller ?: return
         if (c.mediaItemCount == 0 && songs.isNotEmpty()) {
+            val keepShuffle = c.shuffleModeEnabled
+            val keepRepeat = c.repeatMode
             c.setMediaItems(songs.map { mediaItemFor(it) })
+            c.shuffleModeEnabled = keepShuffle
+            c.repeatMode = keepRepeat
             c.prepare()
             c.play()
-        } else if (c.isPlaying) c.pause() else c.play()
+            shuffleEnabled = c.shuffleModeEnabled
+            repeatMode = c.repeatMode
+        } else if (c.isPlaying) {
+            c.pause()
+        } else {
+            c.play()
+        }
     }
 
     private fun next() { controller?.seekToNextMediaItem(); controller?.play() }
