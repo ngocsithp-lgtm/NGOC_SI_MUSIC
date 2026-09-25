@@ -878,6 +878,17 @@ class MainActivity : ComponentActivity() {
 
     private fun syncControllerQueue() {
         controller?.let { c ->
+            if (songs.isEmpty()) {
+                // Never leave stale Media3 items after the app library is cleared.
+                c.pause()
+                c.clearMediaItems()
+                currentIndex = -1
+                position = 0L
+                savedPosition = 0L
+                lastSongUri = null
+                savePlaybackState()
+                return@let
+            }
             if (songs.isNotEmpty()) {
                 // Rebuild the queue only after capturing the exact active item,
                 // position, playing state, shuffle mode and repeat mode.
