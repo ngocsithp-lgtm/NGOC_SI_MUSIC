@@ -1493,14 +1493,28 @@ class MainActivity : ComponentActivity() {
 
     private fun playYouTube(track: YouTubeTrack) {
         youtubeSelectedVideoId = track.videoId
-        showYoutube = true
         youtubeQuery = youtubeQuery.ifBlank { track.title }
+
         val history = (prefs.getStringSet("youtube_history", emptySet()) ?: emptySet()).toMutableList()
         history.remove(track.title)
         history.add(0, track.title)
         prefs.edit().putStringSet("youtube_history", history.take(8).toSet()).apply()
         youtubeHistory.clear()
         youtubeHistory.addAll(history.take(8))
+
+        // YouTube được phát trong Activity riêng để tránh xung đột render
+        // giữa WebView/video surface và Compose/ScrollView của màn hình chính.
+        try {
+            startActivity(
+                Intent(this, YouTubePlayerActivity::class.java).apply {
+                    putExtra(YouTubePlayerActivity.EXTRA_VIDEO_ID, track.videoId)
+                    putExtra(YouTubePlayerActivity.EXTRA_TITLE, track.title)
+                    putExtra(YouTubePlayerActivity.EXTRA_CHANNEL, track.channelTitle)
+                }
+            )
+        } catch (_: Exception) {
+            showYoutube = true
+        }
     }
 
     private fun toggleYouTubeFavorite(track: YouTubeTrack) {
