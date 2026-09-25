@@ -1493,14 +1493,26 @@ class MainActivity : ComponentActivity() {
 
     private fun playYouTube(track: YouTubeTrack) {
         youtubeSelectedVideoId = track.videoId
-        showYoutube = true
-        youtubeQuery = youtubeQuery.ifBlank { track.title }
         val history = (prefs.getStringSet("youtube_history", emptySet()) ?: emptySet()).toMutableList()
         history.remove(track.title)
         history.add(0, track.title)
         prefs.edit().putStringSet("youtube_history", history.take(8).toSet()).apply()
         youtubeHistory.clear()
         youtubeHistory.addAll(history.take(8))
+
+        // Mở trình phát YouTube trong Activity riêng để WebView có lifecycle ổn định
+        // và có thể xử lý fullscreen đúng cách. Không tách hoặc tải luồng âm thanh.
+        try {
+            startActivity(
+                Intent(this, YouTubePlayerActivity::class.java).apply {
+                    putExtra(YouTubePlayerActivity.EXTRA_VIDEO_ID, track.videoId)
+                    putExtra(YouTubePlayerActivity.EXTRA_TITLE, track.title)
+                    putExtra(YouTubePlayerActivity.EXTRA_CHANNEL, track.channelTitle)
+                }
+            )
+        } catch (_: Exception) {
+            errorMessage = "Không thể mở trình phát YouTube."
+        }
     }
 
     private fun toggleYouTubeFavorite(track: YouTubeTrack) {
