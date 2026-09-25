@@ -237,18 +237,13 @@ class YouTubePlayerActivity : ComponentActivity() {
             isFocusableInTouchMode = true
 
             val safeId = sanitizeVideoId(videoId)
+            // Keep the embed URL minimal. A fabricated application origin/referer
+            // can trigger YouTube player configuration errors (including Error 153).
             val embedUrl =
                 "https://www.youtube.com/embed/$safeId" +
-                "?playsinline=1&autoplay=0&rel=0&controls=1&fs=1" +
-                "&enablejsapi=1&origin=https%3A%2F%2Fcom.ngocsi.music"
+                "?playsinline=1&autoplay=0&rel=0&controls=1&fs=1"
 
-            loadUrl(
-                embedUrl,
-                mapOf(
-                    "Referer" to "https://com.ngocsi.music/",
-                    "Accept-Language" to "vi-VN,vi;q=0.9,en;q=0.8"
-                )
-            )
+            loadUrl(embedUrl)
         }
 
         webView = player
