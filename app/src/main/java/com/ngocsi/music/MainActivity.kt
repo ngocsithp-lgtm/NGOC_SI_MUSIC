@@ -325,8 +325,33 @@ class MainActivity : ComponentActivity() {
                 controller?.shuffleModeEnabled = shuffleEnabled
                 controller?.repeatMode = repeatMode
 
-                isPlaying = controller?.isPlaying == true
-                currentIndex = controller?.currentMediaItemIndex ?: -1
+                val c = controller
+                if (c != null) {
+                    // Reconnect the UI to an existing MediaSession queue first.
+                    // Do not overwrite a queue that MusicService restored for background playback.
+                    if (c.mediaItemCount == 0 && songs.isNotEmpty()) {
+                        c.setMediaItems(songs.map { mediaItemFor(it) })
+                        c.prepare()
+
+                        val restoreIndex = lastSongUri?.let { uri ->
+                            songs.indexOfFirst { it.uri.toString() == uri }
+                        } ?: -1
+                        if (restoreIndex >= 0) {
+                            c.seekToDefaultPosition(restoreIndex)
+                            if (savedPosition > 0L) c.seekTo(savedPosition)
+                        }
+                    }
+
+                    val currentUri = c.currentMediaItem?.localConfiguration?.uri?.toString()
+                    currentIndex = when {
+                        currentUri != null -> songs.indexOfFirst { it.uri.toString() == currentUri }
+                        c.currentMediaItemIndex >= 0 && c.currentMediaItemIndex < songs.size ->
+                            c.currentMediaItemIndex
+                        else -> -1
+                    }
+                    position = c.currentPosition.coerceAtLeast(0L)
+                    isPlaying = c.isPlaying
+                }
             } catch (e: Exception) {
                 errorMessage = "Không kết nối được trình phát."
             }
