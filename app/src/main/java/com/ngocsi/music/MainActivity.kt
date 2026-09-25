@@ -988,19 +988,7 @@ class MainActivity : ComponentActivity() {
                     Header()
                     when (selectedSection) {
                         "Trang chủ" -> {
-                            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                                SearchBarModern()
-                                Spacer(Modifier.height(10.dp))
-                                LibraryChips()
-                                Spacer(Modifier.height(12.dp))
-                                PlayerCard(currentSong)
-                                Spacer(Modifier.height(12.dp))
-                                QuickActions()
-                                Spacer(Modifier.height(8.dp))
-                                OutlinedButton(onClick = { showQueue = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
-                                    Text("☷  Hàng đợi phát • " + songs.size + " bài")
-                                }
-                            }
+                            HomeModern(filteredSongs)
                         }
                         "Thư viện" -> {
                             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
@@ -1054,6 +1042,195 @@ class MainActivity : ComponentActivity() {
         currentSong?.let { if (showNowPlaying) NowPlayingDialog(it) }
         if (showQueue) QueueDialog()
         if (showYoutube) YouTubeDialog()
+    }
+
+    @Composable
+    private fun HomeModern(filteredSongs: List<Song>) {
+        val greeting = when (java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)) {
+            in 5..11 -> "Chào buổi sáng"
+            in 12..17 -> "Chào buổi chiều"
+            else -> "Chào buổi tối"
+        }
+        LazyColumn(
+            Modifier.fillMaxWidth().weight(1f),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item {
+                Row(Modifier.fillMaxWidth().padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(42.dp).clip(CircleShape).background(Color(0xFF123C39)), contentAlignment = Alignment.Center) {
+                        Text("♫", color = Color(0xFF4BE0B3), fontSize = 23.sp)
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(greeting, color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.ExtraBold)
+                        Text("Âm nhạc của bạn, gọn và dễ tìm", color = Color(0xFF9898A5), fontSize = 13.sp)
+                    }
+                    IconButton(onClick = { showQueue = true }, modifier = Modifier.size(48.dp).clip(CircleShape).background(Color(0xFF123C4A))) {
+                        Text("☷", color = Color(0xFF4BE0B3), fontSize = 22.sp)
+                    }
+                    Spacer(Modifier.width(6.dp))
+                    IconButton(onClick = { selectedSection = "Cài đặt" }, modifier = Modifier.size(48.dp).clip(CircleShape).background(Color(0xFF181B29))) {
+                        Text("♟", color = Color(0xFFB8B5C6), fontSize = 20.sp)
+                    }
+                }
+            }
+            item {
+                OutlinedTextField(
+                    value = searchQuery, onValueChange = { searchQuery = it }, modifier = Modifier.fillMaxWidth(), singleLine = true,
+                    placeholder = { Text("Tìm bài hát, ca sĩ, album...", color = Color(0xFF858797)) },
+                    leadingIcon = { Text("⌕", color = Color(0xFFB7B4C6), fontSize = 27.sp) },
+                    trailingIcon = { Text("›", color = Color(0xFFB7B4C6), fontSize = 30.sp) },
+                    shape = RoundedCornerShape(22.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        unfocusedContainerColor = Color(0xFF171A27), focusedContainerColor = Color(0xFF1B1E2B),
+                        unfocusedBorderColor = Color(0xFF292D3D), focusedBorderColor = Color(0xFF3CCFA6), cursorColor = Color(0xFF4BE0B3)
+                    )
+                )
+            }
+            item {
+                Surface(
+                    shape = RoundedCornerShape(26.dp), color = Color(0xFF171A27),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF23675D)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(Modifier.padding(18.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(46.dp).clip(CircleShape).background(Color(0xFF123C39)), contentAlignment = Alignment.Center) {
+                                Text("⌁", color = Color(0xFF4BE0B3), fontSize = 28.sp)
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text("Trợ lý lái xe", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                                Text("Cảnh báo tốc độ • camera • biển báo • khu dân cư", color = Color(0xFFA0A0AD), fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                        Spacer(Modifier.height(14.dp))
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Button(
+                                onClick = {
+                                    try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=Google+Maps"))) }
+                                    catch (_: Exception) { errorMessage = "Không mở được bản đồ." }
+                                },
+                                modifier = Modifier.weight(1f).height(78.dp), shape = RoundedCornerShape(40.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4BE0B3), contentColor = Color(0xFF07120F))
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text("◆", fontSize = 20.sp); Text("Google Maps", fontWeight = FontWeight.Bold); Text("Bong bóng LÂM", fontSize = 10.sp)
+                                }
+                            }
+                            OutlinedButton(
+                                onClick = { selectedSection = "Online" },
+                                modifier = Modifier.weight(1f).height(78.dp), shape = RoundedCornerShape(40.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF3B3D4A))
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text("▣", color = Color(0xFF4BE0B3), fontSize = 20.sp)
+                                    Text("NGỌC SĨ MAP", color = Color(0xFF4BE0B3), fontWeight = FontWeight.Bold)
+                                    Text("Bản đồ & biển báo", color = Color(0xFF4BE0B3), fontSize = 10.sp)
+                                }
+                            }
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        TextButton(onClick = { errorMessage = "Chế độ cảnh báo đang được tích hợp vào phiên bản tiếp theo." }, modifier = Modifier.fillMaxWidth()) {
+                            Text("⌁  CHỈ BẬT CẢNH BÁO", color = Color(0xFF4BE0B3), fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+            item {
+                Surface(
+                    shape = RoundedCornerShape(24.dp), color = Color(0xFF151827),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF23675D)),
+                    modifier = Modifier.fillMaxWidth().clickable { selectedSection = "Online" }
+                ) {
+                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(58.dp).clip(RoundedCornerShape(18.dp)).background(Color(0xFF24434A)), contentAlignment = Alignment.Center) {
+                            Text("▶", color = Color.White, fontSize = 25.sp)
+                        }
+                        Spacer(Modifier.width(14.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("NGỌC SĨ LIVE", color = Color(0xFF4BE0B3), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text("YouTube • Radio • TV • Nhạc máy", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            Text("Một nơi cho toàn bộ trải nghiệm âm nhạc", color = Color(0xFF999AA8), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        Text("›", color = Color(0xFFB8B5C6), fontSize = 30.sp)
+                    }
+                }
+            }
+            item {
+                Column {
+                    Text("Gợi ý nhanh", color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.ExtraBold)
+                    Text("Bài quen thuộc, mở là nghe ngay", color = Color(0xFF9798A5), fontSize = 13.sp)
+                }
+            }
+            itemsIndexed(filteredSongs.take(6), key = { _, song -> "home-" + song.id }) { _, song ->
+                val realIndex = songs.indexOfFirst { it.id == song.id }
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color(0xFF11131C))
+                        .clickable { if (realIndex >= 0) play(realIndex) }.padding(horizontal = 14.dp, vertical = 11.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    AlbumArt(song, Modifier.size(58.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(song.title, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(song.source + if (song.artist.isNotBlank()) " • " + song.artist else "", color = Color(0xFF9293A0), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    Text(if (currentIndex == realIndex && isPlaying) "Ⅱ" else "▶", color = Color(0xFFB9B5C4), fontSize = 18.sp)
+                }
+            }
+            item {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Thư viện của tôi", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
+                        Text(songs.size.toString() + " nội dung • sẵn sàng phát", color = Color(0xFF9798A5), fontSize = 13.sp)
+                    }
+                    TextButton(onClick = { selectedSection = "Thư viện" }) { Text("Xem tất cả", color = Color(0xFF4BE0B3), fontWeight = FontWeight.Bold) }
+                }
+            }
+            item {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    HomeTile("♫", "Mở thư viện", "Bài hát, yêu thích, danh sách...", Color(0xFFD64BFF)) { selectedSection = "Thư viện" }
+                    HomeTile("↻", "Nhạc online", "Tìm nhạc và video mới", Color(0xFF2D8CFF)) { selectedSection = "Online" }
+                }
+            }
+            item {
+                Column {
+                    Text("Giải trí khác", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
+                    Text("Nghe đài và xem nội dung trực tuyến", color = Color(0xFF9798A5), fontSize = 13.sp)
+                }
+            }
+            item {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    HomeTile("▣", "Radio", "Nghe đài trực tuyến", Color(0xFF37C7FF)) { selectedSection = "Online" }
+                    HomeTile("▶", "TV", "Kênh trực tiếp", Color(0xFF2D8CFF)) { selectedSection = "Online" }
+                }
+            }
+            item {
+                OutlinedButton(onClick = { showQueue = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
+                    Text("☷  Hàng đợi phát • " + songs.size + " bài")
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun HomeTile(icon: String, title: String, subtitle: String, iconColor: Color, onClick: () -> Unit) {
+        Surface(
+            modifier = Modifier.weight(1f).height(128.dp).clickable(onClick = onClick),
+            shape = RoundedCornerShape(24.dp), color = Color(0xFF10131C),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF262A38))
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.Center) {
+                Box(Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(iconColor.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
+                    Text(icon, color = iconColor, fontSize = 25.sp)
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(title, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                Text(subtitle, color = Color(0xFF9293A0), fontSize = 11.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+        }
     }
 
     @Composable
@@ -1158,13 +1335,37 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun BottomNav() {
-        NavigationBar(containerColor = Color(0xFF0F1016)) {
-            listOf("Trang chủ" to "⌂", "Thư viện" to "♫", "Online" to "☁", "Cài đặt" to "⚙").forEach { (name, icon) ->
+        NavigationBar(containerColor = Color(0xFF080A10), tonalElevation = 0.dp) {
+            val items = listOf(
+                Triple("Trang chủ", "⌂", "Trang chủ"),
+                Triple("Online", "▶", "Khám phá"),
+                Triple("Thư viện", "♫", "Thư viện"),
+                Triple("Cài đặt", "●", "Cá nhân")
+            )
+            items.forEach { (section, icon, label) ->
                 NavigationBarItem(
-                    selected = selectedSection == name,
-                    onClick = { selectedSection = name },
-                    icon = { Text(icon, fontSize = 20.sp) },
-                    label = { Text(name, fontSize = 10.sp) }
+                    selected = selectedSection == section,
+                    onClick = { selectedSection = section },
+                    icon = {
+                        Box(
+                            Modifier.size(if (selectedSection == section) 54.dp else 44.dp)
+                                .clip(CircleShape)
+                                .background(if (selectedSection == section) Color(0xFF164B45) else Color.Transparent)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(icon, color = if (selectedSection == section) Color.White else Color(0xFFAAA8B8), fontSize = 22.sp)
+                        }
+                    },
+                    label = {
+                        Text(label, fontSize = 11.sp,
+                            fontWeight = if (selectedSection == section) FontWeight.Bold else FontWeight.Normal,
+                            color = if (selectedSection == section) Color.White else Color(0xFFAAA8B8))
+                    },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = Color.White, selectedTextColor = Color.White,
+                        indicatorColor = Color.Transparent,
+                        unselectedIconColor = Color(0xFFAAA8B8), unselectedTextColor = Color(0xFFAAA8B8)
+                    )
                 )
             }
         }
