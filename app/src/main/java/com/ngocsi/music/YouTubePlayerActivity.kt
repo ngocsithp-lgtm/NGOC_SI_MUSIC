@@ -158,9 +158,8 @@ class YouTubePlayerActivity : ComponentActivity() {
                 setSupportZoom(false)
                 builtInZoomControls = false
                 displayZoomControls = false
-                userAgentString =
-                    "Mozilla/5.0 (Linux; Android 16; Mobile) AppleWebKit/537.36 " +
-                    "(KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36"
+                // Keep the WebView user-agent close to the Android system default.
+                // A fabricated browser version can cause YouTube embed checks to fail.
             }
 
             CookieManager.getInstance().setAcceptCookie(true)
@@ -243,7 +242,13 @@ class YouTubePlayerActivity : ComponentActivity() {
                 "https://www.youtube.com/embed/$safeId" +
                 "?playsinline=1&autoplay=0&rel=0&controls=1&fs=1"
 
-            loadUrl(embedUrl)
+            // YouTube Error 153 can be caused by an embedded-player request
+            // without a valid HTTP Referer. Pass YouTube's own origin on the
+            // initial navigation instead of inventing an application origin.
+            val requestHeaders = mapOf(
+                "Referer" to "https://www.youtube.com/"
+            )
+            loadUrl(embedUrl, requestHeaders)
         }
 
         webView = player
