@@ -210,14 +210,21 @@ class MainActivity : ComponentActivity() {
             savePlaybackState()
         }
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-            val index = controller?.currentMediaItemIndex ?: -1
-            if (index >= 0) {
-                currentIndex = index
-                songs.getOrNull(index)?.let {
-                    lastSongUri = it.uri.toString()
-                    savedPosition = 0L
-                    savePlaybackState()
-                }
+            // Media3's queue index can differ from the library index when shuffle
+            // is enabled. Resolve the active item by URI instead of assuming the
+            // two indexes are identical.
+            val activeUri = mediaItem?.localConfiguration?.uri?.toString()
+                ?: controller?.currentMediaItem?.localConfiguration?.uri?.toString()
+            val libraryIndex = activeUri?.let { uri ->
+                songs.indexOfFirst { it.uri.toString() == uri }
+            } ?: -1
+
+            if (libraryIndex >= 0) {
+                currentIndex = libraryIndex
+                lastSongUri = activeUri
+                savedPosition = 0L
+                position = 0L
+                savePlaybackState()
             }
         }
         override fun onPlaybackStateChanged(playbackState: Int) {
@@ -823,10 +830,14 @@ class MainActivity : ComponentActivity() {
         controller?.let { c ->
             if (songs.isNotEmpty()) {
                 val selectedUri = c.currentMediaItem?.localConfiguration?.uri
+                val savedPositionMs = c.currentPosition.coerceAtLeast(0L)
                 c.setMediaItems(songs.map { mediaItemFor(it) })
                 c.prepare()
                 val index = selectedUri?.let { uri -> songs.indexOfFirst { it.uri == uri } } ?: -1
-                if (index >= 0) c.seekToDefaultPosition(index)
+                if (index >= 0) {
+                    c.seekToDefaultPosition(index)
+                    if (savedPositionMs > 0L) c.seekTo(savedPositionMs)
+                }
             }
         }
     }
