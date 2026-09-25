@@ -461,13 +461,22 @@ class MainActivity : ComponentActivity() {
     private fun play(index: Int) {
         if (index !in songs.indices) return
         val c = controller ?: run { errorMessage = "Trình phát đang khởi động, thử lại sau."; return }
+
         if (c.mediaItemCount != songs.size) {
+            // Rebuilding the queue must not silently reset Shuffle/Repeat.
+            val keepShuffle = c.shuffleModeEnabled
+            val keepRepeat = c.repeatMode
             c.setMediaItems(songs.map { mediaItemFor(it) })
+            c.shuffleModeEnabled = keepShuffle
+            c.repeatMode = keepRepeat
             c.prepare()
         }
+
         currentIndex = index
         c.seekToDefaultPosition(index)
         c.play()
+        shuffleEnabled = c.shuffleModeEnabled
+        repeatMode = c.repeatMode
         errorMessage = null
     }
 
