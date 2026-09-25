@@ -854,14 +854,24 @@ class MainActivity : ComponentActivity() {
     private fun syncControllerQueue() {
         controller?.let { c ->
             if (songs.isNotEmpty()) {
+                // Rebuild the queue only after capturing the exact active item,
+                // position and playing state. Library edits must not interrupt
+                // background playback or restart the song from the beginning.
                 val selectedUri = c.currentMediaItem?.localConfiguration?.uri
                 val savedPositionMs = c.currentPosition.coerceAtLeast(0L)
+                val wasPlaying = c.isPlaying
+
                 c.setMediaItems(songs.map { mediaItemFor(it) })
                 c.prepare()
-                val index = selectedUri?.let { uri -> songs.indexOfFirst { it.uri == uri } } ?: -1
+
+                val index = selectedUri?.let { uri ->
+                    songs.indexOfFirst { it.uri == uri }
+                } ?: -1
+
                 if (index >= 0) {
                     c.seekToDefaultPosition(index)
                     if (savedPositionMs > 0L) c.seekTo(savedPositionMs)
+                    if (wasPlaying) c.play()
                 }
             }
         }
