@@ -31,11 +31,12 @@
         android:usesCleartextTraffic="true"
         android:supportsRtl="true">
 
-        <!-- Màn hình chính -->
+        <!-- Trình phát YouTube: giữ WebView khi xoay màn hình để tránh tải lại video -->
         <activity
             android:name=".YouTubePlayerActivity"
             android:exported="false"
-            android:screenOrientation="unspecified" />
+            android:screenOrientation="unspecified"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
 
         <activity
             android:name=".MainActivity"
@@ -64,12 +65,10 @@
             android:name=".MusicService"
             android:exported="true"
             android:foregroundServiceType="mediaPlayback">
-
             <intent-filter>
                 <action android:name="androidx.media3.session.MediaSessionService" />
                 <action android:name="android.media.browse.MediaBrowserService" />
             </intent-filter>
-
         </service>
 
     </application>
