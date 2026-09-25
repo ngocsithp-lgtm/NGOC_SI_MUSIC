@@ -1348,9 +1348,10 @@ class MainActivity : ComponentActivity() {
                     onClick = { selectedSection = section },
                     icon = {
                         Box(
-                            Modifier.size(if (selectedSection == section) 54.dp else 44.dp)
+                            modifier = Modifier
+                                .size(if (selectedSection == section) 54.dp else 44.dp)
                                 .clip(CircleShape)
-                                .background(if (selectedSection == section) Color(0xFF164B45) else Color.Transparent)),
+                                .background(if (selectedSection == section) Color(0xFF164B45) else Color.Transparent),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(icon, color = if (selectedSection == section) Color.White else Color(0xFFAAA8B8), fontSize = 22.sp)
