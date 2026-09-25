@@ -240,8 +240,14 @@ class MainActivity : ComponentActivity() {
 
         override fun onPlaybackStateChanged(playbackState: Int) {
             if (playbackState == Player.STATE_ENDED && repeatMode == Player.REPEAT_MODE_OFF) {
+                // A naturally finished last item must persist 00:00 as well.
+                // Otherwise on reopening the app, the old end-position from
+                // SharedPreferences could be restored unexpectedly.
+                controller?.seekTo(0L)
                 isPlaying = false
                 position = 0L
+                savedPosition = 0L
+                savePlaybackState()
             }
         }
         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
