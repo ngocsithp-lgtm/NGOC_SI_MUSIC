@@ -866,23 +866,27 @@ class MainActivity : ComponentActivity() {
     private fun removeFromQueue(index: Int) {
         if (index !in songs.indices) return
         val c = controller ?: return
-        if (index >= c.mediaItemCount) return
 
-        val removedCurrent = index == c.currentMediaItemIndex
+        // The library list is stable order, while Media3 may expose a different
+        // queue order when shuffle is enabled. Resolve the target by URI first.
+        val targetUri = songs[index].uri.toString()
+        val controllerIndex = (0 until c.mediaItemCount).firstOrNull { queueIndex ->
+            c.getMediaItemAt(queueIndex).localConfiguration?.uri?.toString() == targetUri
+        } ?: return
+
+        val removedCurrent = c.currentMediaItem?.localConfiguration?.uri?.toString() == targetUri
         songs.removeAt(index)
-        c.removeMediaItem(index)
+        c.removeMediaItem(controllerIndex)
+
+        val currentUri = c.currentMediaItem?.localConfiguration?.uri?.toString()
+        currentIndex = currentUri?.let { uri -> songs.indexOfFirst { it.uri.toString() == uri } } ?: -1
 
         if (songs.isEmpty()) {
             currentIndex = -1
             isPlaying = false
             position = 0L
-        } else if (!removedCurrent) {
-            currentIndex = when {
-                index < currentIndex -> currentIndex - 1
-                else -> currentIndex
-            }
-        } else {
-            currentIndex = c.currentMediaItemIndex.coerceIn(-1, songs.lastIndex)
+        } else if (removedCurrent) {
+            position = c.currentPosition.coerceAtLeast(0L)
         }
         savePlaybackState()
     }
@@ -890,17 +894,23 @@ class MainActivity : ComponentActivity() {
     private fun moveQueueItem(from: Int, to: Int) {
         if (from !in songs.indices || to !in songs.indices || from == to) return
         val c = controller ?: return
-        if (from >= c.mediaItemCount || to >= c.mediaItemCount) return
+
+        // Map the stable library positions to Media3 queue positions so shuffle
+        // cannot cause the wrong item to be moved.
+        val fromUri = songs[from].uri.toString()
+        val toUri = songs[to].uri.toString()
+        val controllerFrom = (0 until c.mediaItemCount).firstOrNull { queueIndex ->
+            c.getMediaItemAt(queueIndex).localConfiguration?.uri?.toString() == fromUri
+        } ?: return
+        val controllerTo = (0 until c.mediaItemCount).firstOrNull { queueIndex ->
+            c.getMediaItemAt(queueIndex).localConfiguration?.uri?.toString() == toUri
+        } ?: return
 
         songs.add(to, songs.removeAt(from))
-        c.moveMediaItem(from, to)
+        c.moveMediaItem(controllerFrom, controllerTo)
 
-        currentIndex = when {
-            currentIndex == from -> to
-            from < currentIndex && to >= currentIndex -> currentIndex - 1
-            from > currentIndex && to <= currentIndex -> currentIndex + 1
-            else -> currentIndex
-        }
+        val currentUri = c.currentMediaItem?.localConfiguration?.uri?.toString()
+        currentIndex = currentUri?.let { uri -> songs.indexOfFirst { it.uri.toString() == uri } } ?: -1
         savePlaybackState()
     }
 
