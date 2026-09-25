@@ -13,6 +13,7 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Button
+import android.widget.ProgressBar
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -44,6 +45,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var title: String = "YouTube"
     private var channel: String = "YouTube"
     private var errorView: LinearLayout? = null
+    private var loadingBar: ProgressBar? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -137,6 +139,21 @@ class YouTubePlayerActivity : ComponentActivity() {
             FrameLayout.LayoutParams.MATCH_PARENT
         ))
 
+        loadingBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = 100
+            progress = 0
+            isIndeterminate = false
+            visibility = View.GONE
+        }
+        root.addView(
+            loadingBar,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                dp(3),
+                Gravity.TOP
+            )
+        )
+
         setContentView(root)
     }
 
@@ -202,6 +219,8 @@ class YouTubePlayerActivity : ComponentActivity() {
                 override fun onPageFinished(view: WebView, url: String) {
                     super.onPageFinished(view, url)
                     errorView?.visibility = View.GONE
+                    loadingBar?.progress = 100
+                    loadingBar?.visibility = View.GONE
                     view.requestLayout()
                     view.invalidate()
                 }
@@ -232,6 +251,12 @@ class YouTubePlayerActivity : ComponentActivity() {
             }
 
             webChromeClient = object : WebChromeClient() {
+                override fun onProgressChanged(view: WebView, newProgress: Int) {
+                    super.onProgressChanged(view, newProgress)
+                    loadingBar?.progress = newProgress
+                    loadingBar?.visibility = if (newProgress in 1..99) View.VISIBLE else View.GONE
+                }
+
                 override fun onShowCustomView(
                     view: View,
                     callback: CustomViewCallback
@@ -396,16 +421,15 @@ class YouTubePlayerActivity : ComponentActivity() {
             exitFullscreen()
             return
         }
-        if (webView?.canGoBack() == true) {
-            webView?.goBack()
-        } else {
-            finish()
-        }
+        // The player is an embedded YouTube document. Its internal history should
+        // not trap the user on Back; Back always returns to NGỌC SĨ MUSIC.
+        finish()
     }
 
     override fun onDestroy() {
         if (customView != null) exitFullscreen(notifyCallback = false)
         removePlayer()
+        loadingBar = null
         super.onDestroy()
     }
 }
