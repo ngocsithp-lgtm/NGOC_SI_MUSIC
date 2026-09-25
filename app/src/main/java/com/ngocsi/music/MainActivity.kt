@@ -935,10 +935,22 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun savePlaybackState() {
-        val uri = songs.getOrNull(currentIndex)?.uri?.toString() ?: lastSongUri
+        // Read directly from Media3 when available so onStop/onDestroy does not
+        // persist a stale Compose position or an index from a shuffled queue.
+        val c = controller
+        val controllerUri = c?.currentMediaItem?.localConfiguration?.uri?.toString()
+        val uri = controllerUri
+            ?: songs.getOrNull(currentIndex)?.uri?.toString()
+            ?: lastSongUri
+        val currentPosition = c?.currentPosition?.coerceAtLeast(0L) ?: position.coerceAtLeast(0L)
+
+        lastSongUri = uri
+        savedPosition = currentPosition
+        position = currentPosition
+
         prefs.edit()
             .putString("last_song_uri", uri)
-            .putLong("last_position", position.coerceAtLeast(0L))
+            .putLong("last_position", currentPosition)
             .apply()
     }
 
