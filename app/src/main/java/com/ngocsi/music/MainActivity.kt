@@ -985,7 +985,7 @@ class MainActivity : ComponentActivity() {
         MaterialTheme(colorScheme = darkColorScheme(background = Color(0xFF08090D), surface = Color(0xFF11131A), primary = Color(0xFFB18CFF), secondary = Color(0xFF7DD3FC))) {
             Surface(Modifier.fillMaxSize(), color = Color(0xFF0B0B0F)) {
                 Column(Modifier.fillMaxSize()) {
-                    Header()
+                    if (selectedSection != "Trang chủ") Header()
                     when (selectedSection) {
                         "Trang chủ" -> {
                             HomeModern(filteredSongs, Modifier.weight(1f))
@@ -1020,7 +1020,7 @@ class MainActivity : ComponentActivity() {
                         "Cài đặt" -> SettingsPanel()
                     }
                     Spacer(Modifier.height(8.dp))
-                    if (selectedSection == "Trang chủ" || selectedSection == "Thư viện") {
+                    if (selectedSection == "Thư viện") {
                         LazyColumn(
                             Modifier.weight(1f),
                             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 8.dp),
