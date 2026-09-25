@@ -33,6 +33,11 @@
 
         <!-- Màn hình chính -->
         <activity
+            android:name=".YouTubePlayerActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified" />
+
+        <activity
             android:name=".MainActivity"
             android:exported="true">
 
