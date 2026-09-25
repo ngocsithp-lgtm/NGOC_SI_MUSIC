@@ -269,11 +269,11 @@ class YouTubePlayerActivity : ComponentActivity() {
                 "https://www.youtube.com/embed/$safeId" +
                 "?playsinline=1&autoplay=0&rel=0&controls=1&fs=1"
 
-            // YouTube Error 153 can be caused by an embedded-player request
-            // without a valid HTTP Referer. Pass YouTube's own origin on the
-            // initial navigation instead of inventing an application origin.
+            // YouTube requires an app-identifying HTTP Referer for Android
+            // WebView embeds. Use the application's reverse-DNS ID as the
+            // documented app identity instead of youtube.com itself.
             val requestHeaders = mapOf(
-                "Referer" to "https://www.youtube.com/"
+                "Referer" to "https://com.ngocsi.music"
             )
             loadUrl(embedUrl, requestHeaders)
         }
