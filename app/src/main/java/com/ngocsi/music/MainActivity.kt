@@ -1141,8 +1141,11 @@ class MainActivity : ComponentActivity() {
         LaunchedEffect(isPlaying, currentIndex) {
             while (isPlaying) {
                 controller?.let {
+                    // Update the progress bar frequently for a smooth UI, but do
+                    // not write SharedPreferences every 500 ms. Exact playback
+                    // position is persisted on lifecycle changes, seeks, pauses,
+                    // transitions and explicit Stop.
                     position = max(0L, it.currentPosition)
-                    if (currentIndex >= 0) savePlaybackState()
                 }
                 delay(500)
             }
