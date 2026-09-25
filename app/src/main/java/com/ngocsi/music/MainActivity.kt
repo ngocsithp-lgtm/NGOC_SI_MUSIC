@@ -69,7 +69,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import kotlin.math.max
 
-data class Song(val id: Long, val title: String, val artist: String, val duration: Long, val uri: Uri, val source: String = "Thiết bị", val albumId: Long = -1L)
+data class Song(val id: Long, val title: String, val artist: String, val duration: Long, val uri: Uri, val source: String = "Thiết bị", val albumId: Long = -1L, val artworkUri: Uri? = null)
 
 data class JamendoTrack(
     val id: Long,
@@ -500,7 +500,9 @@ class MainActivity : ComponentActivity() {
                     .setTitle(song.title)
                     .setArtist(song.artist)
                     .apply {
-                        if (song.albumId >= 0) {
+                        if (song.artworkUri != null) {
+                            setArtworkUri(song.artworkUri)
+                        } else if (song.albumId >= 0) {
                             setArtworkUri(
                                 ContentUris.withAppendedId(
                                     MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI,
@@ -785,7 +787,8 @@ class MainActivity : ComponentActivity() {
             artist = track.artist,
             duration = track.duration,
             uri = uri,
-            source = "Audius"
+            source = "Audius",
+            artworkUri = track.imageUrl.takeIf { it.isNotBlank() }?.let(Uri::parse)
         )
         val existingIndex = songs.indexOfFirst { it.uri.toString() == track.streamUrl }
         val index = if (existingIndex >= 0) existingIndex else {
@@ -864,7 +867,8 @@ class MainActivity : ComponentActivity() {
             artist = track.artist,
             duration = track.duration,
             uri = Uri.parse(raw),
-            source = "Jamendo"
+            source = "Jamendo",
+            artworkUri = track.imageUrl.takeIf { it.isNotBlank() }?.let(Uri::parse)
         )
         val existingIndex = songs.indexOfFirst { it.uri.toString() == raw }
         val index = if (existingIndex >= 0) existingIndex else { songs.add(song); songs.lastIndex }
