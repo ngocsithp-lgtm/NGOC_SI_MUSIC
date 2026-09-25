@@ -1080,7 +1080,23 @@ class MainActivity : ComponentActivity() {
                     value = searchQuery, onValueChange = { searchQuery = it }, modifier = Modifier.fillMaxWidth(), singleLine = true,
                     placeholder = { Text("Tìm bài hát, ca sĩ, album...", color = Color(0xFF858797)) },
                     leadingIcon = { Text("⌕", color = Color(0xFFB7B4C6), fontSize = 27.sp) },
-                    trailingIcon = { Text("›", color = Color(0xFFB7B4C6), fontSize = 30.sp) },
+                    trailingIcon = {
+                        IconButton(onClick = {
+                            if (searchQuery.isBlank()) {
+                                selectedSection = "Thư viện"
+                            } else {
+                                jamendoQuery = searchQuery
+                                onlineSearchActive = true
+                                jamendoTracks.clear()
+                                audiusTracks.clear()
+                                selectedSection = "Online"
+                                searchJamendo()
+                                searchAudius(searchQuery)
+                            }
+                        }) {
+                            Text("›", color = Color(0xFFB7B4C6), fontSize = 30.sp)
+                        }
+                    },
                     shape = RoundedCornerShape(22.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         unfocusedContainerColor = Color(0xFF171A27), focusedContainerColor = Color(0xFF1B1E2B),
@@ -1092,7 +1108,13 @@ class MainActivity : ComponentActivity() {
                 Surface(
                     shape = RoundedCornerShape(26.dp), color = Color(0xFF171A27),
                     border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF23675D)),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().clickable {
+                        try {
+                            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=Google+Maps")))
+                        } catch (_: Exception) {
+                            errorMessage = "Không mở được ứng dụng bản đồ."
+                        }
+                    }
                 ) {
                     Column(Modifier.padding(18.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1116,11 +1138,17 @@ class MainActivity : ComponentActivity() {
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4BE0B3), contentColor = Color(0xFF07120F))
                             ) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("◆", fontSize = 20.sp); Text("Google Maps", fontWeight = FontWeight.Bold); Text("Bong bóng LÂM", fontSize = 10.sp)
+                                    Text("◆", fontSize = 20.sp); Text("Google Maps", fontWeight = FontWeight.Bold); Text("Mở ứng dụng bản đồ", fontSize = 10.sp)
                                 }
                             }
                             OutlinedButton(
-                                onClick = { selectedSection = "Online" },
+                                onClick = {
+                                    try {
+                                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=Google+Maps")))
+                                    } catch (_: Exception) {
+                                        errorMessage = "Không mở được ứng dụng bản đồ."
+                                    }
+                                },
                                 modifier = Modifier.weight(1f).height(78.dp), shape = RoundedCornerShape(40.dp),
                                 border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF3B3D4A))
                             ) {
@@ -1132,8 +1160,14 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                         Spacer(Modifier.height(12.dp))
-                        TextButton(onClick = { errorMessage = "Chế độ cảnh báo đang được tích hợp vào phiên bản tiếp theo." }, modifier = Modifier.fillMaxWidth()) {
-                            Text("⌁  CHỈ BẬT CẢNH BÁO", color = Color(0xFF4BE0B3), fontWeight = FontWeight.Bold)
+                        TextButton(onClick = {
+                            try {
+                                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=Google+Maps")))
+                            } catch (_: Exception) {
+                                errorMessage = "Không mở được ứng dụng bản đồ."
+                            }
+                        }, modifier = Modifier.fillMaxWidth()) {
+                            Text("⌁  MỞ GOOGLE MAPS", color = Color(0xFF4BE0B3), fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -1348,9 +1382,10 @@ class MainActivity : ComponentActivity() {
                     onClick = { selectedSection = section },
                     icon = {
                         Box(
-                            Modifier.size(if (selectedSection == section) 54.dp else 44.dp)
+                            modifier = Modifier
+                                .size(if (selectedSection == section) 54.dp else 44.dp)
                                 .clip(CircleShape)
-                                .background(if (selectedSection == section) Color(0xFF164B45) else Color.Transparent)),
+                                .background(if (selectedSection == section) Color(0xFF164B45) else Color.Transparent),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(icon, color = if (selectedSection == section) Color.White else Color(0xFFAAA8B8), fontSize = 22.sp)
