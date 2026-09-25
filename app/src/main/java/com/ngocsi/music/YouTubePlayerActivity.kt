@@ -219,7 +219,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 }
 
                 val retry = Button(this@YouTubePlayerActivity).apply {
-                    text = "THỬ LẠI"
+                    this.text = "THỬ LẠI"
                     setOnClickListener {
                         visibility = View.GONE
                         createPlayer()
