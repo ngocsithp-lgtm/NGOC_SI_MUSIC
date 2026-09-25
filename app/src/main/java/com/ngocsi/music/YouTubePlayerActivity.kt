@@ -269,14 +269,14 @@ class YouTubePlayerActivity : ComponentActivity() {
                 setPadding(dp(24), dp(24), dp(24), dp(24))
                 setBackgroundColor(AndroidColor.BLACK)
 
-                val text = TextView(this@YouTubePlayerActivity).apply {
+                val messageView = TextView(this@YouTubePlayerActivity).apply {
                     setTextColor(AndroidColor.WHITE)
                     textSize = 14f
                     gravity = Gravity.CENTER
                 }
 
                 val retry = Button(this@YouTubePlayerActivity).apply {
-                    this.text = "THỬ LẠI"
+                    text = "THỬ LẠI"
                     setOnClickListener {
                         visibility = View.GONE
                         createPlayer()
@@ -284,7 +284,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 }
 
                 val open = Button(this@YouTubePlayerActivity).apply {
-                    this.text = "MỞ YOUTUBE"
+                    text = "MỞ YOUTUBE"
                     setOnClickListener {
                         runCatching {
                             startActivity(
@@ -297,13 +297,13 @@ class YouTubePlayerActivity : ComponentActivity() {
                     }
                 }
 
-                addView(text, LinearLayout.LayoutParams(
+                addView(messageView, LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
                 ))
                 addView(retry)
                 addView(open)
-                tag = text
+                tag = messageView
             }
 
             root.addView(
