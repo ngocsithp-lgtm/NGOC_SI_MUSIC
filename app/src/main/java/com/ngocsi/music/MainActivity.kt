@@ -1515,14 +1515,17 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun YouTubeDialog() {
         if (!showYoutube) return
-
         val videoId = youtubeSelectedVideoId
         val selectedTrack = youtubeTracks.firstOrNull { it.videoId == videoId }
         val title = selectedTrack?.title ?: "YouTube Video"
         val channel = selectedTrack?.channelTitle ?: "YouTube"
+        val thumb = selectedTrack?.thumbnailUrl?.takeIf { it.isNotBlank() }
+            ?: "https://i.ytimg.com/vi/$videoId/hqdefault.jpg"
 
+        var startPlayer by remember(videoId) { mutableStateOf(false) }
         var playerRetry by remember(videoId) { mutableIntStateOf(0) }
         var playerError by remember(videoId) { mutableStateOf(false) }
+        val appContext = LocalContext.current
 
         Dialog(
             onDismissRequest = {
@@ -1537,19 +1540,12 @@ class MainActivity : ComponentActivity() {
             Surface(color = Color(0xFF09090D), modifier = Modifier.fillMaxSize()) {
                 Column(Modifier.fillMaxSize()) {
                     Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .background(Color(0xFF15161D))
+                        Modifier.fillMaxWidth().background(Color(0xFF15161D))
                             .padding(horizontal = 10.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            "YOUTUBE",
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
-                            modifier = Modifier.weight(1f)
-                        )
+                        Text("YOUTUBE", color = Color.White, fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp, modifier = Modifier.weight(1f))
                         TextButton(onClick = {
                             showYoutube = false
                             youtubeSelectedVideoId = null
@@ -1561,167 +1557,179 @@ class MainActivity : ComponentActivity() {
                             Text("Chưa chọn video YouTube.", color = Color.White)
                         }
                     } else {
-                        // Player cố định, không đặt WebView bên trong vùng cuộn.
-                        key(videoId, playerRetry) {
-                            AndroidView(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .aspectRatio(16f / 9f),
-                                factory = { context ->
-                                    WebView(context).apply {
-                                        setBackgroundColor(android.graphics.Color.BLACK)
-
-                                        webViewClient = object : WebViewClient() {
-                                            override fun shouldOverrideUrlLoading(
-                                                view: WebView,
-                                                url: String
-                                            ): Boolean = false
-
-                                            override fun onPageFinished(
-                                                view: WebView,
-                                                url: String
-                                            ) {
-                                                super.onPageFinished(view, url)
-                                                view.post {
-                                                    view.requestLayout()
-                                                    view.invalidate()
-                                                }
-                                            }
-
-                                            override fun onReceivedError(
-                                                view: WebView,
-                                                errorCode: Int,
-                                                description: String,
-                                                failingUrl: String
-                                            ) {
-                                                playerError = true
-                                            }
-
-                                            override fun onRenderProcessGone(
-                                                view: WebView,
-                                                detail: android.webkit.RenderProcessGoneDetail
-                                            ): Boolean {
-                                                playerError = true
-                                                return true
-                                            }
-                                        }
-
-                                        webChromeClient = WebChromeClient()
-
-                                        settings.javaScriptEnabled = true
-                                        settings.domStorageEnabled = true
-                                        settings.loadsImagesAutomatically = true
-                                        settings.mediaPlaybackRequiresUserGesture = false
-                                        settings.useWideViewPort = true
-                                        settings.loadWithOverviewMode = true
-                                        settings.allowContentAccess = true
-                                        settings.allowFileAccess = false
-                                        settings.javaScriptCanOpenWindowsAutomatically = false
-                                        settings.setSupportMultipleWindows(false)
-                                        settings.cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
-                                        settings.setSupportZoom(false)
-
-                                        CookieManager.getInstance().setAcceptCookie(true)
-                                        CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-                                        CookieManager.getInstance().flush()
-
-                                        settings.userAgentString =
-                                            "Mozilla/5.0 (Linux; Android 16; Mobile) AppleWebKit/537.36 " +
-                                            "(KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36"
-
-                                        val safeId = videoId
-                                            .replace("&", "")
-                                            .replace(""", "")
-                                            .replace("'", "")
-                                            .replace("<", "")
-                                            .replace(">", "")
-
-                                        val embedUrl =
-                                            "https://www.youtube.com/embed/$safeId" +
-                                            "?playsinline=1&autoplay=1&rel=0&controls=1&enablejsapi=1" +
-                                            "&origin=https%3A%2F%2Fcom.ngocsi.music"
-
-                                        val headers = mutableMapOf(
-                                            "Referer" to "https://com.ngocsi.music/"
-                                        )
-
-                                        // Dùng pipeline mặc định của WebView để tránh lỗi bề mặt video đen/trắng.
-                                        setLayerType(android.view.View.LAYER_TYPE_NONE, null)
-                                        isFocusable = true
-                                        isFocusableInTouchMode = true
-                                        requestFocus()
-
-                                        loadUrl(embedUrl, headers)
-                                    }
-                                },
-                                update = { webView ->
-                                    webView.keepScreenOn = true
-                                },
-                                onRelease = { webView ->
-                                    webView.keepScreenOn = false
-                                    webView.stopLoading()
-                                    webView.loadUrl("about:blank")
-                                    (webView.parent as? android.view.ViewGroup)?.removeView(webView)
-                                    webView.destroy()
-                                }
-                            )
-                        }
-
                         Column(
-                            Modifier
-                                .fillMaxWidth()
-                                .weight(1f)
-                                .verticalScroll(rememberScrollState())
+                            Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
                                 .padding(12.dp)
                         ) {
-                            Spacer(Modifier.height(10.dp))
-                            Text(
-                                title,
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 17.sp,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                            Text(title, color = Color.White, fontWeight = FontWeight.Bold,
+                                fontSize = 17.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                             Spacer(Modifier.height(4.dp))
                             Text(channel, color = Color(0xFF9B9BA6), fontSize = 13.sp)
 
-                            if (playerError) {
-                                Spacer(Modifier.height(12.dp))
-                                Text(
-                                    "YouTube gặp lỗi khi tải trình phát.",
-                                    color = Color(0xFFFFB4AB),
-                                    fontSize = 13.sp
+                            Spacer(Modifier.height(12.dp))
+
+                            if (!startPlayer) {
+                                // Hiển thị thumbnail trước khi phát để luôn có hình ảnh.
+                                key(videoId, playerRetry) {
+                                    AndroidView(
+                                        modifier = Modifier.fillMaxWidth()
+                                        .aspectRatio(16f / 9f)
+                                        .clip(RoundedCornerShape(16.dp)),
+                                    factory = { context ->
+                                        WebView(context).apply {
+                                            webViewClient = WebViewClient()
+                                            setBackgroundColor(android.graphics.Color.BLACK)
+                                            settings.javaScriptEnabled = false
+                                            settings.domStorageEnabled = true
+                                            settings.loadsImagesAutomatically = true
+                                            settings.useWideViewPort = true
+                                            settings.loadWithOverviewMode = true
+
+                                            val safeThumb = thumb
+                                                .replace("&", "&amp;")
+                                                .replace("\"", "&quot;")
+                                                .replace("<", "")
+                                                .replace(">", "")
+
+                                            val html = """
+                                                <!doctype html>
+                                                <html><head>
+                                                <meta name="viewport" content="width=device-width,initial-scale=1">
+                                                <style>
+                                                  html,body{margin:0;width:100%;height:100%;background:#000;overflow:hidden}
+                                                  img{width:100%;height:100%;object-fit:cover;display:block}
+                                                </style></head>
+                                                <body><img src="$safeThumb" /></body></html>
+                                            """.trimIndent()
+                                            loadDataWithBaseURL(
+                                                "https://i.ytimg.com/",
+                                                html, "text/html", "UTF-8", null
+                                            )
+                                        }
+                                    }
                                 )
-                                Spacer(Modifier.height(8.dp))
-                                OutlinedButton(
-                                    onClick = {
-                                        playerError = false
-                                        playerRetry++
-                                    },
-                                    modifier = Modifier.fillMaxWidth(),
+                                 }
+
+                                Spacer(Modifier.height(12.dp))
+                                Button(
+                                    onClick = { startPlayer = true },
+                                    modifier = Modifier.fillMaxWidth().height(50.dp),
                                     shape = RoundedCornerShape(14.dp)
                                 ) {
-                                    Text("THỬ LẠI TRÌNH PHÁT")
+                                    Text("▶  PHÁT VIDEO", fontWeight = FontWeight.Bold)
+                                }
+                            } else {
+                                // Dùng URL embed trực tiếp thay vì iframe HTML trung gian.
+                                // Cách này tương thích WebView tốt hơn và Play là thao tác của người dùng.
+                                AndroidView(
+                                    modifier = Modifier.fillMaxWidth()
+                                        .aspectRatio(16f / 9f),
+                                    factory = { context ->
+                                        WebView(context).apply {
+                                            webViewClient = object : WebViewClient() {
+                                                override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean = false
+
+                                                override fun onPageFinished(view: WebView, url: String) {
+                                                    super.onPageFinished(view, url)
+                                                    view.requestLayout()
+                                                    view.invalidate()
+                                                }
+
+                                                override fun onReceivedError(
+                                                    view: WebView,
+                                                    errorCode: Int,
+                                                    description: String,
+                                                    failingUrl: String
+                                                ) {
+                                                    playerError = true
+                                                }
+
+                                                override fun onRenderProcessGone(
+                                                    view: WebView,
+                                                    detail: android.webkit.RenderProcessGoneDetail
+                                                ): Boolean {
+                                                    playerError = true
+                                                    return true
+                                                }
+                                            }
+                                            webChromeClient = WebChromeClient()
+                                            setBackgroundColor(android.graphics.Color.BLACK)
+
+                                            settings.javaScriptEnabled = true
+                                            settings.domStorageEnabled = true
+                                            settings.loadsImagesAutomatically = true
+                                            // Cho phép YouTube bắt đầu phát sau thao tác "PHÁT VIDEO".
+                                            // WebView không còn chặn media gesture ở bước khởi tạo player.
+                                            settings.mediaPlaybackRequiresUserGesture = false
+                                            settings.useWideViewPort = true
+                                            settings.loadWithOverviewMode = true
+                                            settings.allowContentAccess = true
+                                            settings.allowFileAccess = false
+                                            settings.javaScriptCanOpenWindowsAutomatically = false
+                                            settings.setSupportMultipleWindows(false)
+                                            settings.cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
+                                            settings.setSupportZoom(false)
+
+                                            CookieManager.getInstance().setAcceptCookie(true)
+                                            CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                                            CookieManager.getInstance().flush()
+
+                                            settings.userAgentString =
+                                                "Mozilla/5.0 (Linux; Android 16; Mobile) AppleWebKit/537.36 " +
+                                                "(KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36"
+
+                                            val safeId = videoId
+                                                .replace("&", "")
+                                                .replace("\"", "")
+                                                .replace("'", "")
+
+                                            val embedUrl =
+                                                "https://www.youtube.com/embed/$safeId" +
+                                                    "?playsinline=1&autoplay=1&rel=0&controls=1&enablejsapi=1" +
+                                                    "&origin=https%3A%2F%2Fcom.ngocsi.music"
+
+                                            // Gửi Referer trực tiếp cùng request embed.
+                                            // Giữ cách loadUrl vì bản ổn định trước đó đã phát được audio.
+                                            val headers = mapOf(
+                                                "Referer" to "https://com.ngocsi.music/"
+                                            )
+
+                                            // Không ép hardware layer và không clip WebView:
+                                            // giảm nguy cơ video surface bị đen/trắng trong Compose.
+                                            setLayerType(android.view.View.LAYER_TYPE_NONE, null)
+                                            isFocusable = true
+                                            isFocusableInTouchMode = true
+                                            requestFocus()
+
+                                            loadUrl(embedUrl, headers)
+                                        }
+                                    }
+                                )
+
+
+                                if (playerError) {
+                                    Spacer(Modifier.height(10.dp))
+                                    Text("YouTube không tải được trình phát trong WebView.", color = Color(0xFFFFB4AB), fontSize = 13.sp)
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        OutlinedButton(onClick = { playerError = false; playerRetry++ }, modifier = Modifier.weight(1f)) { Text("Thử lại") }
+                                        Button(onClick = {
+                                            try {
+                                                appContext.startActivity(
+                                                    Intent(
+                                                        Intent.ACTION_VIEW,
+                                                        Uri.parse("https://www.youtube.com/watch?v=$videoId")
+                                                    )
+                                                )
+                                            } catch (_: Exception) { }
+                                        }, modifier = Modifier.weight(1f)) { Text("Mở YouTube") }
+                                    }
+                                }
+
+                                Spacer(Modifier.height(10.dp))
+                                TextButton(onClick = { startPlayer = false }) {
+                                    Text("← Quay lại ảnh xem trước")
                                 }
                             }
-
-                            Spacer(Modifier.height(10.dp))
-                            TextButton(
-                                onClick = {
-                                    playerError = false
-                                    playerRetry++
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("↻ TẢI LẠI YOUTUBE")
-                            }
-
-                            Text(
-                                "Phát bằng trình phát YouTube nhúng chính thức. Không tải hoặc tách luồng âm thanh.",
-                                color = Color(0xFF777783),
-                                fontSize = 11.sp
-                            )
                         }
                     }
                 }
