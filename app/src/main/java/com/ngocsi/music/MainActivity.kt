@@ -336,17 +336,14 @@ class MainActivity : ComponentActivity() {
                 controller = future.get()
                 controller?.addListener(playerListener)
 
-                // Restore the user's playback preferences onto the Media3 session.
-                // The service survives Activity recreation, so UI state and player state
-                // must be synchronized instead of trusting the controller defaults.
-                controller?.shuffleModeEnabled = shuffleEnabled
-                controller?.repeatMode = repeatMode
-
                 val c = controller
                 if (c != null) {
-                    // Reconnect the UI to an existing MediaSession queue first.
-                    // Do not overwrite a queue that MusicService restored for background playback.
+                    // If the service already owns a queue, its Shuffle/Repeat state
+                    // is authoritative because playback may have continued in the background.
+                    // Apply saved preferences only when initializing a brand-new queue.
                     if (c.mediaItemCount == 0 && songs.isNotEmpty()) {
+                        c.shuffleModeEnabled = shuffleEnabled
+                        c.repeatMode = repeatMode
                         c.setMediaItems(songs.map { mediaItemFor(it) })
                         c.prepare()
 
