@@ -1627,9 +1627,11 @@ class MainActivity : ComponentActivity() {
                                         .clip(RoundedCornerShape(16.dp)),
                                     factory = { context ->
                                         WebView(context).apply {
-                                            webViewClient = WebViewClient()
-                                            webChromeClient = WebChromeClient()
                                             setBackgroundColor(android.graphics.Color.BLACK)
+                                            setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
+                                            isFocusable = true
+                                            isFocusableInTouchMode = true
+                                            requestFocus()
 
                                             settings.javaScriptEnabled = true
                                             settings.domStorageEnabled = true
@@ -1638,19 +1640,21 @@ class MainActivity : ComponentActivity() {
                                             settings.useWideViewPort = true
                                             settings.loadWithOverviewMode = true
                                             settings.allowContentAccess = true
-                                            settings.allowFileAccess = true
-                                            settings.javaScriptCanOpenWindowsAutomatically = true
+                                            settings.allowFileAccess = false
+                                            settings.javaScriptCanOpenWindowsAutomatically = false
                                             settings.setSupportMultipleWindows(false)
                                             settings.cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
                                             settings.databaseEnabled = true
                                             settings.setSupportZoom(false)
+                                            settings.userAgentString =
+                                                "Mozilla/5.0 (Linux; Android 16; Mobile) AppleWebKit/537.36 " +
+                                                "(KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36"
 
                                             CookieManager.getInstance().setAcceptCookie(true)
                                             CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                                             CookieManager.getInstance().flush()
 
-                                            // Giữ WebView ổn định khi mạng chuyển Wi‑Fi/4G và khi
-                                            // YouTube tải lại các tài nguyên media/cookie.
+                                            webChromeClient = WebChromeClient()
                                             webViewClient = object : WebViewClient() {
                                                 override fun shouldOverrideUrlLoading(
                                                     view: WebView,
@@ -1674,34 +1678,72 @@ class MainActivity : ComponentActivity() {
                                                     return true
                                                 }
                                             }
-                                            webChromeClient = WebChromeClient()
-                                            setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
-                                            isFocusable = true
-                                            isFocusableInTouchMode = true
-                                            requestFocus()
 
                                             val safeId = videoId
                                                 .replace("&", "")
-                                                .replace("\"", "")
+                                                .replace(""", "")
                                                 .replace("'", "")
 
-                                            settings.userAgentString =
-                                                "Mozilla/5.0 (Linux; Android 16; Mobile) AppleWebKit/537.36 " +
-                                                "(KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36"
+                                            /*
+                                             * Dùng iframe YouTube bên trong một trang HTTPS có baseUrl
+                                             * thật để WebView gửi Referer ổn định. Đồng thời iframe có
+                                             * kích thước cố định 100% x 100%, tránh trường hợp audio
+                                             * chạy nhưng lớp hình ảnh bị 0px/đen.
+                                             */
+                                            val html = """
+                                                <!doctype html>
+                                                <html>
+                                                <head>
+                                                  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+                                                  <meta name="referrer" content="strict-origin-when-cross-origin">
+                                                  <style>
+                                                    html,body{
+                                                      margin:0;
+                                                      padding:0;
+                                                      width:100%;
+                                                      height:100%;
+                                                      overflow:hidden;
+                                                      background:#000;
+                                                    }
+                                                    .player{
+                                                      position:fixed;
+                                                      inset:0;
+                                                      width:100%;
+                                                      height:100%;
+                                                      background:#000;
+                                                    }
+                                                    iframe{
+                                                      position:absolute;
+                                                      inset:0;
+                                                      width:100%;
+                                                      height:100%;
+                                                      border:0;
+                                                      display:block;
+                                                      background:#000;
+                                                    }
+                                                  </style>
+                                                </head>
+                                                <body>
+                                                  <div class="player">
+                                                    <iframe
+                                                      id="ytplayer"
+                                                      title="YouTube"
+                                                      src="https://www.youtube.com/embed/$safeId?playsinline=1&rel=0&controls=1&enablejsapi=1&origin=https%3A%2F%2Fcom.ngocsi.music"
+                                                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                                      allowfullscreen>
+                                                    </iframe>
+                                                  </div>
+                                                </body>
+                                                </html>
+                                            """.trimIndent()
 
-                                            // YouTube có thể trả lỗi cấu hình nếu embed không có origin.
-                                            // Khai báo origin và dùng youtube-nocookie để tăng tương thích WebView.
-                                            val embedUrl =
-                                                "https://www.youtube.com/embed/$safeId" +
-                                                    "?playsinline=1&rel=0&controls=1&enablejsapi=1" +
-                                                    "&origin=https%3A%2F%2Fcom.ngocsi.music"
-
-                                            // YouTube Error 153 = thiếu HTTP Referer/API client identity.
-                                            // Android WebView cần gửi Referer ngay trên request đầu tiên.
-                                            val headers = mapOf(
-                                                "Referer" to "https://com.ngocsi.music/"
+                                            loadDataWithBaseURL(
+                                                "https://com.ngocsi.music/",
+                                                html,
+                                                "text/html",
+                                                "UTF-8",
+                                                "https://com.ngocsi.music/"
                                             )
-                                            loadUrl(embedUrl, headers)
                                         }
                                     }
                                 )
