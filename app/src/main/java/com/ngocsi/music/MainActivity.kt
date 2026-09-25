@@ -227,6 +227,16 @@ class MainActivity : ComponentActivity() {
                 savePlaybackState()
             }
         }
+        override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
+            shuffleEnabled = shuffleModeEnabled
+            savePlayerPreferences()
+        }
+
+        override fun onRepeatModeChanged(repeatMode: Int) {
+            this@MainActivity.repeatMode = repeatMode
+            savePlayerPreferences()
+        }
+
         override fun onPlaybackStateChanged(playbackState: Int) {
             if (playbackState == Player.STATE_ENDED && repeatMode == Player.REPEAT_MODE_OFF) {
                 isPlaying = false
