@@ -1063,6 +1063,28 @@ class MainActivity : ComponentActivity() {
         savePlayerPreferences()
     }
 
+    override fun onResume() {
+        super.onResume()
+
+        // Re-synchronize the Activity with Media3 after returning from the
+        // background or a notification control. The service remains authoritative
+        // so reopening the screen never resets the active queue or playback state.
+        controller?.let { c ->
+            val activeUri = c.currentMediaItem?.localConfiguration?.uri?.toString()
+            if (activeUri != null) {
+                val libraryIndex = songs.indexOfFirst { it.uri.toString() == activeUri }
+                if (libraryIndex >= 0) {
+                    currentIndex = libraryIndex
+                    lastSongUri = activeUri
+                }
+            }
+            position = c.currentPosition.coerceAtLeast(0L)
+            isPlaying = c.isPlaying
+            shuffleEnabled = c.shuffleModeEnabled
+            repeatMode = c.repeatMode
+        }
+    }
+
     override fun onStop() {
         // Persist the latest position even when the Activity leaves the foreground.
         // MusicService/MediaSession remains alive for background playback.
