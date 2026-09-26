@@ -145,6 +145,7 @@ class MainActivity : ComponentActivity() {
     private var libraryView by mutableStateOf("Bài hát")
     private var showQueue by mutableStateOf(false) // #145 queue upgrade
     private var showVietnamRadioHub by mutableStateOf(false)
+    private var radioFilter by mutableStateOf("")
     private var selectedSection by mutableStateOf("Trang chủ")
     private var showNowPlaying by mutableStateOf(false)
     private var showYoutube by mutableStateOf(false)
@@ -1861,6 +1862,10 @@ class MainActivity : ComponentActivity() {
             Triple("Đắk Nông • PTD", "Kênh Đắk Nông được VOH liệt kê", "https://voh.com.vn/radios"),
             Triple("Kon Tum • FM 95.1", "Radio Kon Tum được VOH liệt kê", "https://voh.com.vn/radios")
         )
+        val normalizedFilter = radioFilter.trim().lowercase()
+        val filteredSources = if (normalizedFilter.isBlank()) sources else sources.filter { source ->
+            source.first.lowercase().contains(normalizedFilter) || source.second.lowercase().contains(normalizedFilter)
+        }
         Dialog(onDismissRequest = { showVietnamRadioHub = false }) {
             Surface(
                 shape = RoundedCornerShape(26.dp),
@@ -1875,12 +1880,28 @@ class MainActivity : ComponentActivity() {
                         color = Color(0xFF8F8F9A),
                         fontSize = 12.sp
                     )
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = radioFilter,
+                        onValueChange = { radioFilter = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("Tìm đài") },
+                        placeholder = { Text("Ví dụ: Hà Nội, VOV3, FM 96") },
+                        shape = RoundedCornerShape(14.dp)
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "${filteredSources.size}/${sources.size} nguồn",
+                        color = Color(0xFF777D8D),
+                        fontSize = 11.sp
+                    )
+                    Spacer(Modifier.height(6.dp))
                     LazyColumn(
                         modifier = Modifier.heightIn(max = 520.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(sources) { source ->
+                        items(filteredSources) { source ->
                             Surface(
                                 shape = RoundedCornerShape(16.dp),
                                 color = Color(0xFF181922),
