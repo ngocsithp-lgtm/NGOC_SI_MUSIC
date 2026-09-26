@@ -2468,17 +2468,17 @@ class MainActivity : ComponentActivity() {
                     shape = RoundedCornerShape(12.dp)
                 ) { Text("VOV3 • Âm nhạc") }
                 OutlinedButton(
-                    onClick = { openOnlineSource("https://vov2.vov.vn/") },
+                    onClick = { openOnlineSource("https://vovmedia.vn/") },
                     shape = RoundedCornerShape(12.dp)
-                ) { Text("VOV2 • Văn hóa") }
-                OutlinedButton(
-                    onClick = { openOnlineSource("https://vov5.vov.vn/") },
-                    shape = RoundedCornerShape(12.dp)
-                ) { Text("VOV5 • Đối ngoại") }
+                ) { Text("VOV • Radio Việt Nam") }
                 OutlinedButton(
                     onClick = { openOnlineSource("https://voh.com.vn/radios") },
                     shape = RoundedCornerShape(12.dp)
                 ) { Text("VOH • Radio") }
+                OutlinedButton(
+                    onClick = { openOnlineSource("https://htv.vn/radio.htm") },
+                    shape = RoundedCornerShape(12.dp)
+                ) { Text("HTV • Radio") }
             }
             Spacer(Modifier.height(6.dp))
             Text(
