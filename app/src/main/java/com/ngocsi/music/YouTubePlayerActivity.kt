@@ -60,9 +60,6 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
 
         WindowCompat.setDecorFitsSystemWindows(window, true)
-        window.statusBarColor = AndroidColor.BLACK
-        window.navigationBarColor = AndroidColor.BLACK
-
         buildUi()
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
@@ -203,7 +200,6 @@ class YouTubePlayerActivity : ComponentActivity() {
                 javaScriptCanOpenWindowsAutomatically = true
                 setSupportMultipleWindows(false)
                 cacheMode = WebSettings.LOAD_DEFAULT
-                databaseEnabled = true
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                     safeBrowsingEnabled = true
                 }
