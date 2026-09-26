@@ -1971,17 +1971,18 @@ class MainActivity : ComponentActivity() {
         // HLS endpoint ưu tiên hiện tại; giữ endpoint cũ làm dự phòng.
         val verifiedStreams = mapOf(
             "VOV1 • Thời sự" to listOf(
-                "https://audio-lss.vov.vn/han/live/vov1/audio/manifest.m3u8",
-                "https://str.vov.gov.vn/vovlive/vov1vov5Vietnamese.sdp_aac/playlist.m3u8"
+                "https://str.vov.gov.vn/vovlive/vov1vov5Vietnamese.sdp_aac/playlist.m3u8",
+                "https://media-audio.vov.vn/vov1vov5Vietnamese.sdp_aac/playlist.m3u8",
+                "https://audio-lss.vov.vn/live/vov1.m3u8"
             ),
             "VOV2 • Văn hóa" to listOf(
-                "https://audio-lss.vov.vn/han/live/vov2/audio/manifest.m3u8",
                 "https://media-audio.vov.vn/vov2.sdp_aac/playlist.m3u8",
+                "https://audio-lss.vov.vn/han/live/vov2/audio/manifest.m3u8",
                 "https://str.vov.gov.vn/vovlive/vov2.sdp_aac/playlist.m3u8"
             ),
             "VOV3 • Âm nhạc" to listOf(
-                "https://audio-lss.vov.vn/han/live/vov3/audio/manifest.m3u8",
                 "https://media-audio.vov.vn/vov3.sdp_aac/playlist.m3u8",
+                "https://audio-lss.vov.vn/han/live/vov3/audio/manifest.m3u8",
                 "https://str.vov.gov.vn/vovlive/vov3.sdp_aac/playlist.m3u8"
             )
         )
