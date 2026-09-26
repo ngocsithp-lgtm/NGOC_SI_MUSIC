@@ -177,17 +177,12 @@ class YouTubePlayerActivity : ComponentActivity() {
                 setSupportZoom(false)
                 builtInZoomControls = false
                 displayZoomControls = false
-                // Keep the WebView user-agent close to the Android system default.
-                // A fabricated browser version can cause YouTube embed checks to fail.
             }
 
             CookieManager.getInstance().setAcceptCookie(true)
             CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
             CookieManager.getInstance().flush()
 
-            // YouTube embeds in Android WebView can use the WebView Media
-            // Integrity API to provide an attested application identity.
-            // Enable it explicitly when the installed WebView supports it.
             if (WebViewFeature.isFeatureSupported(WebViewFeature.WEBVIEW_MEDIA_INTEGRITY_API_STATUS)) {
                 runCatching {
                     val integrityConfig = WebViewMediaIntegrityApiStatusConfig.Builder(
@@ -298,51 +293,17 @@ class YouTubePlayerActivity : ComponentActivity() {
             isFocusableInTouchMode = true
 
             val safeId = sanitizeVideoId(videoId)
+            val embedUrl =
+                "https://www.youtube.com/embed/$safeId?playsinline=1&autoplay=0&rel=0&controls=1&fs=1"
 
-            // Load the embed inside a local HTML document with the app ID as baseUrl.
-            // YouTube's current Android WebView guidance recommends this approach because
-            // the baseUrl supplies the HTTP Referer reliably to the embedded player.
-            // Keep the IFrame API disabled here because NGỌC SĨ MUSIC does not need JS
-            // player control; this avoids an unnecessary origin/API identity mismatch.
-            val html = """
-                <!doctype html>
-                <html>
-                <head>
-                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                    <style>
-                        html, body {
-                            margin: 0;
-                            padding: 0;
-                            width: 100%;
-                            height: 100%;
-                            background: #000;
-                            overflow: hidden;
-                        }
-                        iframe {
-                            display: block;
-                            width: 100%;
-                            height: 100%;
-                            border: 0;
-                        }
-                    </style>
-                </head>
-                <body>
-                    <iframe
-                        src="https://www.youtube.com/embed/$safeId?playsinline=1&autoplay=0&rel=0&controls=1&fs=1"
-                        title="YouTube"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                        allowfullscreen>
-                    </iframe>
-                </body>
-                </html>
-            """.trimIndent()
+            // YouTube requires an HTTP Referer for embedded playback. Android WebView
+            // normally sends an empty Referer, which causes error 153. Use the app
+            // package-based HTTPS referrer recommended by YouTube's Android guidance.
+            val appReferer = "https://com.ngocsi.music"
 
-            loadDataWithBaseURL(
-                "https://com.ngocsi.music/",
-                html,
-                "text/html",
-                "UTF-8",
-                null
+            loadUrl(
+                embedUrl,
+                mapOf("Referer" to appReferer)
             )
         }
 
@@ -464,8 +425,6 @@ class YouTubePlayerActivity : ComponentActivity() {
             exitFullscreen()
             return
         }
-        // The player is an embedded YouTube document. Its internal history should
-        // not trap the user on Back; Back always returns to NGỌC SĨ MUSIC.
         finish()
     }
 
