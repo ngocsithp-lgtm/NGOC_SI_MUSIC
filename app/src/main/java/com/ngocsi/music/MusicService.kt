@@ -203,12 +203,16 @@ class MusicService : MediaSessionService() {
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
+        // Persist the latest item and position before the task is removed.
+        savePlaybackState()
         if (!player.isPlaying) {
             stopSelf()
         }
     }
 
     override fun onDestroy() {
+        // Persist once more before releasing Media3 resources.
+        savePlaybackState()
         widgetHandler.removeCallbacks(widgetTicker)
         player.removeListener(playerListener)
         mediaSession.release()
