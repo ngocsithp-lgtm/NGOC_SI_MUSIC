@@ -292,13 +292,14 @@ class YouTubePlayerActivity : ComponentActivity() {
             // can trigger YouTube player configuration errors (including Error 153).
             val embedUrl =
                 "https://www.youtube.com/embed/$safeId" +
-                "?playsinline=1&autoplay=0&rel=0&controls=1&fs=1"
+                "?playsinline=1&autoplay=0&rel=0&controls=1&fs=1&enablejsapi=1&origin=https%3A%2F%2Fcom.ngocsi.music"
 
-            // YouTube requires an app-identifying HTTP Referer for Android
-            // WebView embeds. Use the application's reverse-DNS ID as the
-            // documented app identity instead of youtube.com itself.
+            // YouTube requires an app-identifying HTTP Referer for Android WebView embeds.
+            // Use the application reverse-DNS ID, with a trailing slash, as the app identity.
+            // The origin parameter is also supplied because the IFrame API recommends it when
+            // enablejsapi is enabled.
             val requestHeaders = mapOf(
-                "Referer" to "https://com.ngocsi.music"
+                "Referer" to "https://com.ngocsi.music/"
             )
             loadUrl(embedUrl, requestHeaders)
         }
