@@ -756,6 +756,14 @@ class MainActivity : ComponentActivity() {
         errorMessage = "Đã xóa các luồng online đã lưu."
     }
 
+    private fun openOnlineSource(url: String) {
+        runCatching {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        }.onFailure {
+            errorMessage = "Không mở được nguồn online."
+        }
+    }
+
     private fun searchJamendo() {
         val q = jamendoQuery.trim()
         if (q.isBlank()) {
@@ -2450,7 +2458,26 @@ class MainActivity : ComponentActivity() {
                 Spacer(Modifier.height(4.dp))
                 Text("YÊU THÍCH ONLINE • " + onlineFavorites.size, color = Color(0xFF8F8F9A), fontSize = 12.sp)
             }
-            Text("Trung tâm nhạc online • Audius + Jamendo + YouTube", color = Color(0xFF8F8F9A), fontSize = 12.sp)
+            Text("Trung tâm nhạc online • Audius + Jamendo + YouTube + Radio Việt Nam", color = Color(0xFF8F8F9A), fontSize = 12.sp)
+            Spacer(Modifier.height(8.dp))
+            Text("🎧 NGUỒN NHẠC VIỆT NAM", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            Spacer(Modifier.height(6.dp))
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = { openOnlineSource("https://vov3.vov.vn/") },
+                    shape = RoundedCornerShape(12.dp)
+                ) { Text("VOV3 • Âm nhạc") }
+                OutlinedButton(
+                    onClick = { openOnlineSource("https://voh.com.vn/radios") },
+                    shape = RoundedCornerShape(12.dp)
+                ) { Text("VOH • Radio") }
+            }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "VOV3 và VOH là nguồn radio chính thức; nội dung phát trực tuyến phụ thuộc lịch phát sóng của từng đài.",
+                color = Color(0xFF777D8D),
+                fontSize = 11.sp
+            )
             Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 listOf("Tất cả", "Audius", "Jamendo", "Yêu thích", "YouTube").forEach { tab ->
