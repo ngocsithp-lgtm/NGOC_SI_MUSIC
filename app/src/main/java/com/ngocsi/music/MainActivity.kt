@@ -3402,7 +3402,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             .padding(10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        OnlineArtwork(track.thumbnailUrl, Modifier.size(72.dp))
+                        OnlineArtwork(track.thumbnailUrl, Modifier.size(92.dp))
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
                             Text(
@@ -3420,18 +3420,18 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             FilledTonalButton(
                                 onClick = { playYouTube(track) },
                                 shape = CircleShape,
                                 contentPadding = PaddingValues(0.dp),
-                                modifier = Modifier.size(44.dp)
-                            ) { Text("▶") }
+                                modifier = Modifier.height(40.dp)
+                            ) { Text("▶ PHÁT") }
                             FilledTonalButton(
                                 onClick = { toggleYouTubeFavorite(track) },
                                 shape = CircleShape,
                                 contentPadding = PaddingValues(0.dp),
-                                modifier = Modifier.size(44.dp)
+                                modifier = Modifier.height(40.dp)
                             ) {
                                 Text(if (youtubeFavoriteSet.contains(track.videoId)) "♥" else "♡")
                             }
