@@ -3414,11 +3414,14 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             .replace("&amp;", "&")
                             .ifBlank { "Video YouTube" }
                         val channel = snippet.optString("channelTitle").ifBlank { "YouTube" }
+                        // Prefer YouTube's stable thumbnail host to avoid intermittent API-image
+                        // rendering failures in WebView/Compose lists.
                         val thumbs = snippet.optJSONObject("thumbnails")
-                        val thumb = thumbs?.optJSONObject("medium")?.optString("url").orEmpty()
+                        val apiThumb = thumbs?.optJSONObject("medium")?.optString("url").orEmpty()
                             .ifBlank { thumbs?.optJSONObject("high")?.optString("url").orEmpty() }
                             .ifBlank { thumbs?.optJSONObject("default")?.optString("url").orEmpty() }
-                            .ifBlank { "https://i.ytimg.com/vi/" + id + "/hqdefault.jpg" }
+                        val thumb = "https://i.ytimg.com/vi/" + id + "/hqdefault.jpg"
+                            .ifBlank { apiThumb }
                         found += YouTubeTrack(id, title, channel, thumb)
                     }
                 }
