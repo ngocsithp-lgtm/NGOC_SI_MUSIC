@@ -1052,9 +1052,41 @@ class MainActivity : ComponentActivity() {
     private fun removeFromQueue(index: Int) {
         if (index !in queueSongs.indices) return
 
-        // Remove from the canonical logical queue first, then rebuild Media3.
-        // This avoids relying on a physical controller index while Shuffle is active.
+        val removed = queueSongs[index]
+        val controller = controller
+        val currentUri = controller?.currentMediaItem?.localConfiguration?.uri
+        val removingCurrent = currentUri == removed.uri
+        val wasPlaying = controller?.isPlaying == true
+        val fallback = when {
+            index + 1 < queueSongs.size -> queueSongs[index + 1]
+            index - 1 >= 0 -> queueSongs[index - 1]
+            else -> null
+        }
+
+        // If the active item is removed, explicitly choose a valid replacement
+        // before rebuilding Media3. This prevents the controller from retaining
+        // a URI that no longer exists in the logical queue.
         queueSongs.removeAt(index)
+        if (removingCurrent && queueSongs.isNotEmpty() && fallback != null) {
+            val fallbackIndex = queueSongs.indexOfFirst { it.uri == fallback.uri }
+            val c = controller
+            if (c != null && fallbackIndex >= 0) {
+                c.setMediaItems(queueSongs.map { mediaItemFor(it) }, fallbackIndex, 0L)
+                c.shuffleModeEnabled = shuffleEnabled
+                c.repeatMode = repeatMode
+                c.setPlaybackSpeed(selectedPlaybackSpeed)
+                c.prepare()
+                if (wasPlaying) c.play()
+                currentIndex = songs.indexOfFirst { it.uri == fallback.uri }
+                lastSongUri = fallback.uri.toString()
+                position = 0L
+                savedPosition = 0L
+                saveQueueOrder()
+                savePlaybackState()
+                return
+            }
+        }
+
         syncControllerQueue()
         savePlaybackState()
     }
