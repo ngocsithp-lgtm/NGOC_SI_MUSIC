@@ -46,6 +46,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var channel: String = "YouTube"
     private var errorView: LinearLayout? = null
     private var loadingBar: ProgressBar? = null
+    private var pageLoadFailed = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -218,6 +219,7 @@ class YouTubePlayerActivity : ComponentActivity() {
 
                 override fun onPageFinished(view: WebView, url: String) {
                     super.onPageFinished(view, url)
+                    pageLoadFailed = false
                     errorView?.visibility = View.GONE
                     loadingBar?.progress = 100
                     loadingBar?.visibility = View.GONE
@@ -231,7 +233,20 @@ class YouTubePlayerActivity : ComponentActivity() {
                     error: WebResourceError
                 ) {
                     if (request.isForMainFrame) {
+                        pageLoadFailed = true
                         showError("Không tải được trình phát YouTube.")
+                    }
+                }
+
+                override fun onReceivedHttpError(
+                    view: WebView,
+                    request: WebResourceRequest,
+                    errorResponse: android.webkit.WebResourceResponse
+                ) {
+                    super.onReceivedHttpError(view, request, errorResponse)
+                    if (request.isForMainFrame && errorResponse.statusCode >= 400) {
+                        pageLoadFailed = true
+                        showError("YouTube từ chối tải trình phát (HTTP " + errorResponse.statusCode + ").")
                     }
                 }
 
@@ -239,6 +254,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                     view: WebView,
                     detail: RenderProcessGoneDetail
                 ): Boolean {
+                    pageLoadFailed = true
                     showError(
                         if (detail.didCrash()) {
                             "Trình render WebView gặp lỗi. Hãy thử lại."
