@@ -943,7 +943,7 @@ class MainActivity : ComponentActivity() {
 
                 shuffleEnabled = c.shuffleModeEnabled
                 repeatMode = c.repeatMode
-                c.setPlaybackSpeed(playbackSpeed)
+                c.setPlaybackSpeed(selectedPlaybackSpeed)
                 position = c.currentPosition.coerceAtLeast(0L)
                 isPlaying = c.isPlaying
             }
@@ -1099,7 +1099,7 @@ class MainActivity : ComponentActivity() {
 
     private fun setPlaybackSpeed(speed: Float) {
         selectedPlaybackSpeed = speed.coerceIn(0.5f, 2.0f)
-        controller?.setPlaybackSpeed(playbackSpeed)
+        controller?.setPlaybackSpeed(selectedPlaybackSpeed)
         savePlayerPreferences()
     }
 
