@@ -1059,6 +1059,17 @@ class MainActivity : ComponentActivity() {
         savePlaybackState()
     }
 
+    private fun clearQueue() {
+        if (queueSongs.isEmpty()) return
+
+        // Clear the canonical queue and Media3 together. This also removes
+        // persisted queue metadata so a later app/service restart cannot
+        // resurrect tracks that the user explicitly removed.
+        queueSongs.clear()
+        syncControllerQueue()
+        errorMessage = "Đã xóa toàn bộ hàng đợi."
+    }
+
     private fun moveQueueItem(from: Int, to: Int) {
         if (from !in queueSongs.indices || to !in queueSongs.indices || from == to) return
 
@@ -1726,6 +1737,13 @@ class MainActivity : ComponentActivity() {
                         Column(Modifier.weight(1f)) {
                             Text("HÀNG ĐỢI PHÁT", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
                             Text(queueSongs.size.toString() + " bài • " + if (shuffleEnabled) "Ngẫu nhiên" else "Theo thứ tự hàng đợi", color = Color(0xFF888894), fontSize = 12.sp)
+                        }
+                        if (queueSongs.isNotEmpty()) {
+                            TextButton(
+                                onClick = { clearQueue() }
+                            ) {
+                                Text("Xóa hết", color = Color(0xFFFF8A9A))
+                            }
                         }
                         TextButton(onClick = { showQueue = false }) { Text("Đóng") }
                     }
