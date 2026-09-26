@@ -105,8 +105,13 @@ class MusicWidgetProvider : AppWidgetProvider() {
     ) {
         val item = controller.currentMediaItem
         val metadata = item?.mediaMetadata
-        val title = metadata?.title?.toString()?.ifBlank { null } ?: "Chưa chọn bài hát"
-        val artist = metadata?.artist?.toString()?.ifBlank { null } ?: "NGỌC SĨ MUSIC"
+        val saved = if (item == null) loadSavedMetadata(context) else null
+        val title = metadata?.title?.toString()?.ifBlank { null }
+            ?: saved?.first?.ifBlank { null }
+            ?: "Chưa chọn bài hát"
+        val artist = metadata?.artist?.toString()?.ifBlank { null }
+            ?: saved?.second?.ifBlank { null }
+            ?: "NGỌC SĨ MUSIC"
         val playIcon = if (controller.isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play
         val duration = controller.duration.coerceAtLeast(0L)
         val position = controller.currentPosition.coerceIn(0L, duration.coerceAtLeast(1L))
@@ -125,7 +130,7 @@ class MusicWidgetProvider : AppWidgetProvider() {
             views.setOnClickPendingIntent(R.id.widget_next, broadcastPending(context, ACTION_NEXT, id))
             views.setOnClickPendingIntent(R.id.widget_root, broadcastPending(context, ACTION_OPEN, id))
 
-            val artworkUri = metadata?.artworkUri
+            val artworkUri = metadata?.artworkUri ?: saved?.third
             if (artworkUri != null) {
                 views.setImageViewUri(R.id.widget_art, artworkUri)
             } else {
@@ -133,6 +138,24 @@ class MusicWidgetProvider : AppWidgetProvider() {
             }
             manager.updateAppWidget(id, views)
         }
+    }
+
+    private fun loadSavedMetadata(context: Context): Triple<String?, String?, android.net.Uri?>? {
+        val prefs = context.getSharedPreferences("ngoc_si_music", Context.MODE_PRIVATE)
+        val lastUri = prefs.getString("last_song_uri", null) ?: return null
+        val raw = prefs.getString("queue_metadata", null) ?: return null
+        return runCatching {
+            val array = org.json.JSONArray(raw)
+            for (index in 0 until array.length()) {
+                val item = array.optJSONObject(index) ?: continue
+                if (item.optString("uri") != lastUri) continue
+                val title = item.optString("title").ifBlank { null }
+                val artist = item.optString("artist").ifBlank { null }
+                val artwork = item.optString("artworkUri").ifBlank { null }?.let(android.net.Uri::parse)
+                return@runCatching Triple(title, artist, artwork)
+            }
+            null
+        }.getOrNull()
     }
 
     private fun updateFallback(context: Context, manager: AppWidgetManager, id: Int) {
