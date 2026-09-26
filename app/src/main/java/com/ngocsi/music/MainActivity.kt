@@ -1985,24 +1985,48 @@ class MainActivity : ComponentActivity() {
                                             fontSize = 13.sp
                                         )
                                         Spacer(Modifier.height(14.dp))
-                                        Button(
-                                            onClick = { showVietnamRadioHub = true },
-                                            modifier = Modifier.fillMaxWidth(),
-                                            shape = RoundedCornerShape(16.dp)
+                                        Row(
+                                            Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                                         ) {
-                                            Text("MỞ DANH SÁCH ĐÀI")
+                                            Button(
+                                                onClick = { showVietnamRadioHub = true },
+                                                modifier = Modifier.weight(1f),
+                                                shape = RoundedCornerShape(14.dp)
+                                            ) {
+                                                Text("TẤT CẢ ĐÀI")
+                                            }
+                                            OutlinedButton(
+                                                onClick = { selectedSection = "Online"; onlineHubTab = "YouTube" },
+                                                modifier = Modifier.weight(1f),
+                                                shape = RoundedCornerShape(14.dp)
+                                            ) {
+                                                Text("YOUTUBE")
+                                            }
                                         }
                                         if (activeRadioTitle != null) {
                                             Spacer(Modifier.height(8.dp))
                                             OutlinedButton(
                                                 onClick = { controller?.pause() },
                                                 modifier = Modifier.fillMaxWidth(),
-                                                shape = RoundedCornerShape(16.dp)
+                                                shape = RoundedCornerShape(14.dp)
                                             ) {
                                                 Text("TẠM DỪNG RADIO")
                                             }
                                         }
                                     }
+                                }
+
+                                Text(
+                                    "ĐÀI NỔI BẬT",
+                                    color = Color.White,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    letterSpacing = 1.sp
+                                )
+
+                                RadioCatalog.stations.take(8).forEach { station ->
+                                    RadioStationCard(station)
                                 }
 
                                 errorMessage?.takeIf { activeRadioTitle != null }?.let {
@@ -2678,6 +2702,81 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.weight(1f)
                         ) { Text("Đóng") }
                     }
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun RadioStationCard(station: RadioStation) {
+        val playing = activeRadioTitle == station.title && isPlaying
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(18.dp),
+            color = if (playing) Color(0xFF241B38) else Color(0xFF15161E),
+            border = androidx.compose.foundation.BorderStroke(
+                1.dp,
+                if (playing) Color(0xFF6E53A8) else Color(0xFF252936)
+            )
+        ) {
+            Row(
+                Modifier.fillMaxWidth().padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(
+                            Brush.linearGradient(
+                                listOf(Color(0xFF7653B8), Color(0xFF2C243E))
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("📻", fontSize = 22.sp)
+                }
+
+                Spacer(Modifier.width(10.dp))
+
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        station.title,
+                        color = Color.White,
+                        fontWeight = if (playing) FontWeight.ExtraBold else FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        station.description,
+                        color = Color(0xFF8F909E),
+                        fontSize = 11.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (playing) {
+                        Text(
+                            "● ĐANG PHÁT",
+                            color = Color(0xFFBFA9FF),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 1.sp
+                        )
+                    }
+                }
+
+                Spacer(Modifier.width(8.dp))
+
+                FilledTonalButton(
+                    onClick = {
+                        if (playing) controller?.pause()
+                        else playVerifiedRadio(station.title, station.streamUrls)
+                    },
+                    shape = CircleShape,
+                    contentPadding = PaddingValues(0.dp),
+                    modifier = Modifier.size(46.dp)
+                ) {
+                    Text(if (playing) "⏸" else "▶", fontSize = 18.sp)
                 }
             }
         }
