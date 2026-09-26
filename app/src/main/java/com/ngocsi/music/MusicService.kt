@@ -56,10 +56,9 @@ class MusicService : MediaSessionService() {
             // metadata when playback is not being started immediately.
             // Returning the full queue here is unnecessary and can increase
             // startup work, so keep the non-playback path lightweight.
+            val activeIndex = uri?.let { orderedUris.indexOf(it) }?.takeIf { it >= 0 } ?: 0
             val resumptionUris = if (isForPlayback) orderedUris
-            else listOf(orderedUris.getOrElse(
-                uri?.let { orderedUris.indexOf(it) }?.takeIf { it >= 0 } ?: 0
-            ) { orderedUris.first() })
+            else listOf(orderedUris[activeIndex.coerceIn(0, orderedUris.lastIndex)])
 
             val metadataByUri = mutableMapOf<String, org.json.JSONObject>()
             prefs.getString("queue_metadata", null)?.let { raw ->
@@ -91,7 +90,7 @@ class MusicService : MediaSessionService() {
             }
 
             val resumeIndex = if (isForPlayback) {
-                uri?.let { orderedUris.indexOf(it) }?.takeIf { it >= 0 } ?: 0
+                activeIndex.coerceIn(0, (items.size - 1).coerceAtLeast(0))
             } else 0
             if (isForPlayback) {
                 player.setShuffleModeEnabled(prefs.getBoolean("shuffle", false))
