@@ -291,6 +291,19 @@ class YouTubePlayerActivity : ComponentActivity() {
                     loadingBar?.visibility = if (newProgress in 1..99) View.VISIBLE else View.GONE
                 }
 
+                override fun onConsoleMessage(consoleMessage: android.webkit.ConsoleMessage): Boolean {
+                    val message = consoleMessage.message().orEmpty()
+                    val lower = message.lowercase()
+                    if (lower.contains("error 153") ||
+                        lower.contains("code: 153") ||
+                        lower.contains("missing referer") ||
+                        lower.contains("missing referrer")
+                    ) {
+                        showError("YouTube không xác thực được trình phát (Error 153). Hãy thử lại hoặc mở YouTube.")
+                    }
+                    return super.onConsoleMessage(consoleMessage)
+                }
+
                 override fun onShowCustomView(
                     view: View,
                     callback: CustomViewCallback
@@ -326,7 +339,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             // the HTTP Referer that YouTube requires for embedded playback.
             // The app does not need the IFrame JavaScript API, so omit enablejsapi/origin
             // parameters to reduce configuration surface and avoid unnecessary API state.
-            val appBaseUrl = "https://github.com/ngocsithp-lgtm/NGOC_SI_MUSIC/"
+            val appBaseUrl = "https://www.youtube.com/"
             val embedUrl = "https://www.youtube.com/embed/" + safeId +
                 "?playsinline=1&autoplay=0&rel=0&controls=1&fs=1" +
                 "&hl=vi&cc_lang_pref=vi"
@@ -345,6 +358,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 <body>
                   <div id="player">
                     <iframe src="${embedUrl}" title="YouTube"
+                      referrerpolicy="origin"
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                       allowfullscreen></iframe>
                   </div>
