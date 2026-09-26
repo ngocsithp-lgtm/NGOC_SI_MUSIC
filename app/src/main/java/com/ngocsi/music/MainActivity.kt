@@ -223,12 +223,16 @@ class MainActivity : ComponentActivity() {
         }
 
         jamendoQuery = query
+        youtubeQuery = query
         onlineSearchActive = true
         jamendoTracks.clear()
         audiusTracks.clear()
+        youtubeTracks.clear()
+        youtubeNextPageToken = null
         errorMessage = null
         searchJamendo()
         searchAudius(query)
+        searchYouTube()
     }
     private val drivePickerLauncher = registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty()) importDriveSongs(uris)
@@ -1694,6 +1698,7 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
     }
 
+
     @Composable
     private fun NgocSiMusicApp() {
         val currentSong = songs.getOrNull(currentIndex)
@@ -1716,92 +1721,192 @@ class MainActivity : ComponentActivity() {
                 else -> bySource.sortedBy { it.title.lowercase() }
             }
         }
+
         LaunchedEffect(isPlaying, currentIndex) {
             while (isPlaying) {
-                controller?.let {
-                    // Update the progress bar frequently for a smooth UI, but do
-                    // not write SharedPreferences every 500 ms. Exact playback
-                    // position is persisted on lifecycle changes, seeks, pauses,
-                    // transitions and explicit Stop.
-                    position = max(0L, it.currentPosition)
-                }
+                controller?.let { position = max(0L, it.currentPosition) }
                 delay(500)
             }
         }
-        // Sleep timer is owned by startSleepTimer()/sleepTimerJob so there is
-        // only one timer and it can also reset playback position and persist state.
-        MaterialTheme(colorScheme = darkColorScheme(background = Color(0xFF08090D), surface = Color(0xFF11131A), primary = Color(0xFFB18CFF), secondary = Color(0xFF7DD3FC))) {
+
+        MaterialTheme(
+            colorScheme = darkColorScheme(
+                background = Color(0xFF08090D),
+                surface = Color(0xFF11131A),
+                primary = Color(0xFFB18CFF),
+                secondary = Color(0xFF7DD3FC)
+            )
+        ) {
             Surface(
                 Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
-                color = Color(0xFF0B0B0F)
+                color = Color(0xFF08090D)
             ) {
                 Column(Modifier.fillMaxSize()) {
                     Header()
+                    SearchBarModern()
+                    Spacer(Modifier.height(8.dp))
+
                     when (selectedSection) {
                         "Trang chủ" -> {
-                            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                                SearchBarModern()
-                                Spacer(Modifier.height(10.dp))
-                                LibraryChips()
-                                Spacer(Modifier.height(12.dp))
-                                PlayerCard(currentSong)
-                                Spacer(Modifier.height(12.dp))
-                                QuickActions()
-                                Spacer(Modifier.height(8.dp))
-                                OutlinedButton(onClick = { showQueue = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
-                                    Text("☷  Hàng đợi phát • " + queueSongs.size + " bài")
+                            LazyColumn(
+                                Modifier.weight(1f),
+                                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 12.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                item { LibraryChips() }
+                                item { PlayerCard(currentSong) }
+                                item {
+                                    Text(
+                                        "TRUY CẬP NHANH",
+                                        color = Color(0xFF8F8F9D),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        letterSpacing = 1.2.sp
+                                    )
+                                }
+                                item { QuickActions() }
+                                item {
+                                    Row(
+                                        Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text("GẦN ĐÂY", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
+                                        TextButton(onClick = { selectedSection = "Thư viện" }) { Text("XEM TẤT CẢ") }
+                                    }
+                                }
+                                itemsIndexed(
+                                    filteredSongs.take(8),
+                                    key = { _, song -> "home:" + song.uri.toString() }
+                                ) { _, song ->
+                                    val realIndex = songs.indexOfFirst { it.uri == song.uri }
+                                    SongRow(song, realIndex, realIndex == currentIndex)
                                 }
                             }
                         }
+
                         "Thư viện" -> {
-                            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                                SearchBarModern()
-                                Spacer(Modifier.height(10.dp))
+                            Column(Modifier.weight(1f).fillMaxWidth()) {
                                 LibraryViewTabs()
-                                Spacer(Modifier.height(10.dp))
-                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                    Text("THƯ VIỆN • ${filteredSongs.size} bài", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, modifier = Modifier.weight(1f))
+                                Spacer(Modifier.height(8.dp))
+                                Row(
+                                    Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        "THƯ VIỆN • ${filteredSongs.size} bài",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 17.sp,
+                                        modifier = Modifier.weight(1f)
+                                    )
                                     TextButton(onClick = ::loadSongs) { Text("LÀM MỚI") }
                                 }
-                                errorMessage?.let { Text(it, color = Color(0xFFFFB4AB), fontSize = 13.sp, modifier = Modifier.padding(bottom = 8.dp)) }
+                                errorMessage?.let {
+                                    Text(
+                                        it,
+                                        color = Color(0xFFFFB4AB),
+                                        fontSize = 13.sp,
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                                    )
+                                }
+                                LazyColumn(
+                                    Modifier.weight(1f),
+                                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    itemsIndexed(
+                                        filteredSongs,
+                                        key = { _, song -> "library:" + song.uri.toString() }
+                                    ) { _, song ->
+                                        val realIndex = songs.indexOfFirst { it.uri == song.uri }
+                                        SongRow(song, realIndex, realIndex == currentIndex)
+                                    }
+                                }
                             }
                         }
+
                         "Online" -> {
                             Column(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .weight(1f)
+                                Modifier.weight(1f).fillMaxWidth()
                                     .verticalScroll(rememberScrollState())
                                     .padding(horizontal = 16.dp)
                             ) {
                                 OnlineSourcesCard()
                                 Spacer(Modifier.height(12.dp))
-                                Text("Nguồn đã nhập: ${songs.count { it.source == "Google Drive" }} bài", color = Color(0xFF9B9BA8), fontSize = 13.sp)
-                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    "Nguồn đã nhập: ${songs.count { it.source == "Google Drive" }} bài",
+                                    color = Color(0xFF9B9BA8),
+                                    fontSize = 13.sp
+                                )
+                                Spacer(Modifier.height(24.dp))
                             }
                         }
-                        "Cài đặt" -> SettingsPanel()
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    if (selectedSection == "Trang chủ" || selectedSection == "Thư viện") {
-                        LazyColumn(
-                            Modifier.weight(1f),
-                            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            itemsIndexed(filteredSongs.take(if (selectedSection == "Trang chủ") 12 else filteredSongs.size), key = { _, song -> song.uri.toString() }) { _, song ->
-                                val realIndex = songs.indexOfFirst { it.uri == song.uri }
-                                SongRow(song, realIndex, realIndex == currentIndex)
+
+                        "Radio" -> {
+                            Column(
+                                Modifier.weight(1f).fillMaxWidth()
+                                    .verticalScroll(rememberScrollState())
+                                    .padding(horizontal = 16.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(24.dp),
+                                    color = Color(0xFF11131A),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF252936))
+                                ) {
+                                    Column(Modifier.padding(18.dp)) {
+                                        Text("RADIO VIỆT NAM", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                                        Spacer(Modifier.height(6.dp))
+                                        Text(
+                                            if (activeRadioTitle != null) "Đang phát: $activeRadioTitle" else "Chọn đài để bắt đầu phát",
+                                            color = Color(0xFF9C9DA9),
+                                            fontSize = 13.sp
+                                        )
+                                        Spacer(Modifier.height(14.dp))
+                                        Button(
+                                            onClick = { showVietnamRadioHub = true },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            shape = RoundedCornerShape(16.dp)
+                                        ) {
+                                            Text("MỞ DANH SÁCH ĐÀI")
+                                        }
+                                        if (activeRadioTitle != null) {
+                                            Spacer(Modifier.height(8.dp))
+                                            OutlinedButton(
+                                                onClick = { controller?.pause() },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                shape = RoundedCornerShape(16.dp)
+                                            ) {
+                                                Text("TẠM DỪNG RADIO")
+                                            }
+                                        }
+                                    }
+                                }
+
+                                errorMessage?.takeIf { activeRadioTitle != null }?.let {
+                                    Text(it, color = Color(0xFFFFB4AB), fontSize = 13.sp)
+                                }
                             }
                         }
-                    } else if (selectedSection == "Cài đặt") {
-                        Spacer(Modifier.weight(1f))
+
+                        "Cài đặt" -> {
+                            Column(
+                                Modifier.weight(1f).fillMaxWidth()
+                                    .verticalScroll(rememberScrollState())
+                            ) {
+                                SettingsPanel()
+                            }
+                        }
                     }
+
                     currentSong?.let { MiniPlayer(it) }
                     BottomNav()
                 }
             }
         }
+
         currentSong?.let { if (showNowPlaying) NowPlayingDialog(it) }
         if (showQueue) QueueDialog()
         if (showPlaylists) PlaylistManagerDialog()
@@ -1818,24 +1923,73 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun Header() {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Column(Modifier.weight(1f)) {
-                Text("NGỌC SĨ", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold)
-                Text("MUSIC", color = Color(0xFFB18CFF), fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 5.sp)
+                Text("NGỌC SĨ", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
+                Text(
+                    "MUSIC PRO",
+                    color = Color(0xFFB18CFF),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 3.sp
+                )
             }
-            Box(Modifier.size(46.dp).clip(CircleShape).background(Color(0xFF1D172B)), contentAlignment = Alignment.Center) {
-                Text("♫", color = Color(0xFFCDBAFF), fontSize = 24.sp)
+            IconButton(onClick = { showPlaylists = true }) {
+                Text("♫", color = Color(0xFFCDBAFF), fontSize = 23.sp)
+            }
+            IconButton(onClick = { selectedSection = "Cài đặt" }) {
+                Text("⚙", color = Color(0xFFA7A9B7), fontSize = 21.sp)
             }
         }
     }
 
     @Composable
     private fun SearchBarModern() {
+        val runSearch = {
+            val q = searchQuery.trim()
+            if (q.isBlank()) {
+                selectedSection = "Thư viện"
+            } else {
+                youtubeQuery = q
+                jamendoQuery = q
+                onlineSearchActive = true
+                jamendoTracks.clear()
+                audiusTracks.clear()
+                youtubeTracks.clear()
+                youtubeNextPageToken = null
+                selectedSection = "Online"
+                searchJamendo()
+                searchAudius(q)
+                searchYouTube()
+            }
+        }
+
         OutlinedTextField(
-            value = searchQuery, onValueChange = { searchQuery = it },
-            modifier = Modifier.fillMaxWidth(), singleLine = true,
-            placeholder = { Text("Tìm bài hát, nghệ sĩ...", color = Color(0xFF777D8D)) },
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            singleLine = true,
+            placeholder = { Text("Tìm bài hát, nghệ sĩ, album...", color = Color(0xFF777D8D)) },
             leadingIcon = { Text("⌕", color = Color(0xFFB18CFF), fontSize = 25.sp) },
+            trailingIcon = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(enabled = !isVoiceSearching, onClick = ::startVoiceSearch) {
+                        Text(
+                            if (isVoiceSearching) "…" else "🎙",
+                            color = if (isVoiceSearching) Color(0xFF7DD3FC) else Color(0xFFB18CFF),
+                            fontSize = 18.sp
+                        )
+                    }
+                    IconButton(onClick = runSearch) {
+                        Text("›", color = Color(0xFFB7B4C6), fontSize = 27.sp)
+                    }
+                }
+            },
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = { runSearch() }),
             shape = RoundedCornerShape(18.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 unfocusedContainerColor = Color(0xFF11131A),
@@ -1849,19 +2003,34 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun LibraryChips() {
         val tabs = listOf("Tất cả", "Yêu thích", "Thiết bị", "Google Drive", "Online")
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             tabs.forEach { tab ->
-                FilterChip(selected = selectedLibrary == tab, onClick = { selectedLibrary = tab }, label = { Text(tab) }, shape = RoundedCornerShape(14.dp))
+                FilterChip(
+                    selected = selectedLibrary == tab,
+                    onClick = { selectedLibrary = tab },
+                    label = { Text(tab) },
+                    shape = RoundedCornerShape(14.dp)
+                )
             }
         }
     }
 
     @Composable
     private fun LibraryViewTabs() {
-        val tabs = listOf("Bài hát", "Nghệ sĩ", "Album", "Thư mục")
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            tabs.forEach { tab ->
-                FilterChip(selected = libraryView == tab, onClick = { libraryView = tab }, label = { Text(tab) }, shape = RoundedCornerShape(14.dp))
+        Row(
+            Modifier.padding(horizontal = 16.dp).fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            listOf("Bài hát", "Nghệ sĩ", "Album", "Thư mục").forEach { tab ->
+                FilterChip(
+                    selected = libraryView == tab,
+                    onClick = { libraryView = tab },
+                    label = { Text(tab) },
+                    shape = RoundedCornerShape(14.dp)
+                )
             }
         }
     }
@@ -1869,85 +2038,48 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun QuickActions() {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            FilledTonalButton(onClick = { selectedSection = "Thư viện" }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(16.dp)) {
-                Text("🎵 Thư viện")
-            }
-            FilledTonalButton(onClick = { selectedSection = "Online" }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(16.dp)) {
-                Text("☁ Online")
-            }
-        }
-    }
-
-    private fun albumArtBitmap(song: Song): androidx.compose.ui.graphics.ImageBitmap? {
-        if (song.albumId < 0) return null
-        return try {
-            val artUri = ContentUris.withAppendedId(MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI, song.albumId)
-            contentResolver.openInputStream(artUri)?.use { BitmapFactory.decodeStream(it)?.asImageBitmap() }
-        } catch (_: Exception) { null }
-    }
-
-    @Composable
-    private fun AlbumArt(song: Song, modifier: Modifier = Modifier) {
-        var onlineBitmap by remember(song.artworkUri?.toString()) { mutableStateOf<android.graphics.Bitmap?>(null) }
-
-        LaunchedEffect(song.artworkUri?.toString()) {
-            val artworkUrl = song.artworkUri?.toString().orEmpty()
-            onlineBitmap = if (artworkUrl.startsWith("http://") || artworkUrl.startsWith("https://")) {
-                withContext(Dispatchers.IO) {
-                    runCatching {
-                        java.net.URL(artworkUrl).openStream().use { BitmapFactory.decodeStream(it) }
-                    }.getOrNull()
-                }
-            } else {
-                null
-            }
-        }
-
-        val localBitmap = remember(song.uri.toString(), song.albumId, song.artworkUri?.toString()) {
-            if (song.artworkUri == null) albumArtBitmap(song) else null
-        }
-        val bitmap = onlineBitmap?.asImageBitmap() ?: localBitmap
-
-        if (bitmap != null) {
-            Image(
-                bitmap = bitmap,
-                contentDescription = "Ảnh bìa " + song.title,
-                modifier = modifier.clip(RoundedCornerShape(22.dp)),
-                contentScale = ContentScale.Crop
-            )
-        } else {
-            Box(
-                modifier.clip(RoundedCornerShape(22.dp))
-                    .background(Brush.linearGradient(listOf(Color(0xFF6D4CC5), Color(0xFF24283A)))),
-                contentAlignment = Alignment.Center
+            FilledTonalButton(
+                onClick = { selectedSection = "Thư viện" },
+                modifier = Modifier.weight(1f).height(68.dp),
+                shape = RoundedCornerShape(18.dp)
             ) {
-                Text("♫", color = Color(0xFFC8B7FF), fontSize = 42.sp)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("♫", fontSize = 20.sp)
+                    Text("Thư viện", fontWeight = FontWeight.Bold)
+                }
+            }
+            FilledTonalButton(
+                onClick = { selectedSection = "Online" },
+                modifier = Modifier.weight(1f).height(68.dp),
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("☁", fontSize = 20.sp)
+                    Text("Online", fontWeight = FontWeight.Bold)
+                }
             }
         }
-    }
-
-    @Composable
-    private fun MiniPlayer(song: Song) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)
-                .clip(RoundedCornerShape(18.dp)).background(Color(0xFF1A1722))
-                .clickable { showNowPlaying = true }.padding(10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            AlbumArt(song, Modifier.size(42.dp))
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
-                Text(song.title, color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(song.artist, color = Color(0xFF9999A5), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Spacer(Modifier.height(8.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            OutlinedButton(
+                onClick = { selectedSection = "Radio"; showVietnamRadioHub = true },
+                modifier = Modifier.weight(1f).height(62.dp),
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("📻", fontSize = 18.sp)
+                    Text("Radio", fontWeight = FontWeight.Bold)
+                }
             }
-            IconButton(onClick = ::previous) {
-                Text("⏮", fontSize = 18.sp, color = Color.White)
-            }
-            IconButton(onClick = ::togglePlayPause) {
-                Text(if (isPlaying) "⏸" else "▶", fontSize = 20.sp, color = Color.White)
-            }
-            IconButton(onClick = ::next) {
-                Text("⏭", fontSize = 18.sp, color = Color.White)
+            OutlinedButton(
+                onClick = { showQueue = true },
+                modifier = Modifier.weight(1f).height(62.dp),
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("☷", fontSize = 18.sp)
+                    Text("Hàng đợi", fontWeight = FontWeight.Bold)
+                }
             }
         }
     }
@@ -1955,12 +2087,32 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun BottomNav() {
         NavigationBar(containerColor = Color(0xFF0F1016)) {
-            listOf("Trang chủ" to "⌂", "Thư viện" to "♫", "Online" to "☁", "Cài đặt" to "⚙").forEach { (name, icon) ->
+            listOf(
+                "Trang chủ" to "⌂",
+                "Thư viện" to "♫",
+                "Online" to "☁",
+                "Radio" to "📻",
+                "Cài đặt" to "⚙"
+            ).forEach { (name, icon) ->
                 NavigationBarItem(
                     selected = selectedSection == name,
                     onClick = { selectedSection = name },
-                    icon = { Text(icon, fontSize = 20.sp) },
-                    label = { Text(name, fontSize = 10.sp) }
+                    icon = {
+                        Box(
+                            Modifier
+                                .size(if (selectedSection == name) 42.dp else 34.dp)
+                                .clip(CircleShape)
+                                .background(if (selectedSection == name) Color(0xFF30234A) else Color.Transparent),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                icon,
+                                color = if (selectedSection == name) Color.White else Color(0xFFAAAAB8),
+                                fontSize = 18.sp
+                            )
+                        }
+                    },
+                    label = { Text(name, fontSize = 9.sp) }
                 )
             }
         }
