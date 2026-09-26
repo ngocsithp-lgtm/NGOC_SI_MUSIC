@@ -279,6 +279,7 @@ class MainActivity : ComponentActivity() {
                 lastSongUri = activeUri
                 savedPosition = 0L
                 position = 0L
+                controller?.duration?.takeIf { it > 0L }?.let { duration = it }
                 savePlaybackState()
             }
         }
@@ -300,6 +301,7 @@ class MainActivity : ComponentActivity() {
                     cancelRadioRecovery()
                 }
             }
+            controller?.duration?.takeIf { it > 0L }?.let { duration = it }
             if (playbackState == Player.STATE_ENDED && repeatMode == Player.REPEAT_MODE_OFF) {
                 // A naturally finished last item must persist 00:00 as well.
                 // Otherwise on reopening the app, the old end-position from
@@ -2650,6 +2652,7 @@ class MainActivity : ComponentActivity() {
                         }
                         SmallControl("⏭", ::next)
                         SmallControl("10⏩", { seekBy(10_000L) })
+                        SmallControl("■", ::stop)
                         SmallControl(
                             when (repeatMode) {
                                 Player.REPEAT_MODE_ONE -> "🔂"
@@ -4117,13 +4120,52 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 Text(formatTime(shownDuration), color = Color(0xFF9999A5), fontSize = 12.sp)
             }
             Spacer(Modifier.height(8.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 SmallControl(if (shuffleEnabled) "🔀" else "⇄", ::toggleShuffle, shuffleEnabled)
                 SmallControl("⏮", ::previous)
-                Button(onClick = ::togglePlayPause, enabled = song != null || songs.isNotEmpty(), modifier = Modifier.size(54.dp), shape = CircleShape,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7657D8))) { Text(if (isPlaying) "⏸" else "▶", fontSize = 22.sp) }
+                Button(
+                    onClick = ::togglePlayPause,
+                    enabled = song != null || songs.isNotEmpty(),
+                    modifier = Modifier.size(58.dp),
+                    shape = CircleShape,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7657D8))
+                ) {
+                    Text(if (isPlaying) "⏸" else "▶", fontSize = 23.sp)
+                }
                 SmallControl("⏭", ::next)
-                SmallControl(when (repeatMode) { Player.REPEAT_MODE_ONE -> "🔂"; Player.REPEAT_MODE_ALL -> "🔁"; else -> "↻" }, ::cycleRepeat, repeatMode != Player.REPEAT_MODE_OFF)
+                SmallControl(
+                    when (repeatMode) {
+                        Player.REPEAT_MODE_ONE -> "🔂"
+                        Player.REPEAT_MODE_ALL -> "🔁"
+                        else -> "↻"
+                    },
+                    ::cycleRepeat,
+                    repeatMode != Player.REPEAT_MODE_OFF
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = { showQueue = true },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("☷ HÀNG ĐỢI")
+                }
+                OutlinedButton(
+                    onClick = ::stop,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("■ DỪNG")
+                }
             }
         }
     }
