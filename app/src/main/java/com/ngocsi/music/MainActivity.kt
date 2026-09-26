@@ -1775,7 +1775,7 @@ class MainActivity : ComponentActivity() {
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Text("GẦN ĐÂY", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
+                                        Text("THƯ VIỆN", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
                                         TextButton(onClick = { selectedSection = "Thư viện" }) { Text("XEM TẤT CẢ") }
                                     }
                                 }
