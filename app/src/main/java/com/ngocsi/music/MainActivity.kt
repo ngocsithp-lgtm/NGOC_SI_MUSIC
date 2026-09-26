@@ -148,6 +148,9 @@ class MainActivity : ComponentActivity() {
     private var radioWebUrl by mutableStateOf<String?>(null)
     private var radioWebTitle by mutableStateOf("RADIO VIỆT NAM")
     private var radioFilter by mutableStateOf("")
+    private var activeRadioTitle: String? = null
+    private var activeRadioStreams: List<String> = emptyList()
+    private var activeRadioStreamIndex = 0
     private var selectedSection by mutableStateOf("Trang chủ")
     private var showNowPlaying by mutableStateOf(false)
     private var showYoutube by mutableStateOf(false)
@@ -262,14 +265,31 @@ class MainActivity : ComponentActivity() {
         }
         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
             isPlaying = false
+
+            val radioTitle = activeRadioTitle
+            if (radioTitle != null && activeRadioStreamIndex + 1 < activeRadioStreams.size) {
+                activeRadioStreamIndex++
+                onlineUrl = activeRadioStreams[activeRadioStreamIndex]
+                errorMessage = "Luồng $radioTitle lỗi, đang thử nguồn dự phòng…"
+                lifecycleScope.launch {
+                    delay(350L)
+                    playOnlineUrl(displayTitle = radioTitle, displayArtist = "VOV")
+                }
+                return
+            }
+
             errorMessage = when (error.errorCode) {
                 androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ->
-                    "Mất kết nối mạng khi phát nhạc online."
+                    "Mất kết nối mạng khi phát ${radioTitle ?: "nhạc online"}."
                 androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED,
                 androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED ->
-                    "Luồng âm thanh không được hỗ trợ hoặc URL không phải luồng nhạc trực tiếp."
-                else -> "Không thể phát bài hát. Hãy kiểm tra URL và định dạng âm thanh."
+                    "Luồng ${radioTitle ?: "âm thanh"} không được hỗ trợ hoặc máy chủ đang thay đổi nguồn phát."
+                else -> "Không thể phát ${radioTitle ?: "bài hát"}. Hãy kiểm tra kết nối mạng."
             }
+
+            activeRadioTitle = null
+            activeRadioStreams = emptyList()
+            activeRadioStreamIndex = 0
         }
     }
 
@@ -528,6 +548,12 @@ class MainActivity : ComponentActivity() {
         if (index !in songs.indices) return
         val c = controller ?: run { errorMessage = "Trình phát đang khởi động, thử lại sau."; return }
 
+        if (songs[index].source != "Radio Việt Nam") {
+            activeRadioTitle = null
+            activeRadioStreams = emptyList()
+            activeRadioStreamIndex = 0
+        }
+
         if (!isControllerQueueInSync(c)) {
             // Rebuilding the queue must not silently reset Shuffle/Repeat.
             syncControllerQueue()
@@ -699,8 +725,17 @@ class MainActivity : ComponentActivity() {
             name.endsWith(".wma")
     }
 
-    private fun playVerifiedRadio(title: String, streamUrl: String) {
-        onlineUrl = streamUrl
+    private fun playVerifiedRadio(title: String, streamUrls: List<String>) {
+        val candidates = streamUrls.map { it.trim() }.filter { it.isNotBlank() }.distinct()
+        if (candidates.isEmpty()) {
+            errorMessage = "Chưa có luồng phát cho $title."
+            return
+        }
+
+        activeRadioTitle = title
+        activeRadioStreams = candidates
+        activeRadioStreamIndex = 0
+        onlineUrl = candidates.first()
         errorMessage = "Đang kết nối $title…"
         playOnlineUrl(displayTitle = title, displayArtist = "VOV")
     }
@@ -1918,7 +1953,7 @@ class MainActivity : ComponentActivity() {
                     Text("RADIO VIỆT NAM", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "VOV1 • VOV2 • VOV3 phát trực tiếp bằng Media3/HLS; các nguồn khác mở trang chính thức",
+                        "VOV1 • VOV2 • VOV3 phát trực tiếp bằng Media3/HLS; có tự động chuyển luồng dự phòng",
                         color = Color(0xFF8F8F9A),
                         fontSize = 12.sp
                     )
@@ -1964,12 +1999,12 @@ class MainActivity : ComponentActivity() {
                                         )
                                     }
                                     Spacer(Modifier.width(8.dp))
-                                    if (streamUrl != null) {
+                                    if (!streamUrls.isNullOrEmpty()) {
                                         Button(
                                             onClick = {
                                                 showVietnamRadioHub = false
                                                 radioFilter = ""
-                                                playVerifiedRadio(source.first, streamUrl)
+                                                playVerifiedRadio(source.first, streamUrls)
                                             },
                                             shape = RoundedCornerShape(12.dp)
                                         ) { Text("PHÁT APP") }
