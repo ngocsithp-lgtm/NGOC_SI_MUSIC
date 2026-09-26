@@ -1,44 +1,65 @@
-# NGỌC SĨ MUSIC
+# NGỌC SĨ MUSIC PRO
 
 Android music player built with Kotlin, Jetpack Compose and AndroidX Media3.
 
-## Bản hiện tại
+## Bản PRO
 
-- Version: **4.7**
+- Version: **5.0 PRO**
+- Version code: **20**
 - Target SDK: **Android 16 / API 36**
-- Media3: **1.9.4**
 - Min SDK: **26**
+- Media3: **1.9.4**
 
-## Tính năng chính
+## Player PRO
 
 - Nhạc trong thiết bị qua MediaStore
 - Phát nền bằng Media3/MediaSession
+- Lock-screen / media notification
 - Queue, Previous/Next, Shuffle, Repeat, tốc độ phát
-- Lưu trạng thái bài đang phát
+- Khôi phục bài hát, vị trí và queue
 - Yêu thích
 - Playlist lưu trên thiết bị
-- Google Drive: chọn file hoặc thư mục
-- Nhạc online: Audius và Jamendo, tự hủy request tìm kiếm cũ khi tìm kiếm mới
-- YouTube Search + thumbnail + player nhúng chính thức
-- Radio: VOV/VOV Giao Thông/VOH với nhiều luồng dự phòng và tự chuyển nguồn chính thức khi stream trực tiếp lỗi
-- Widget điều khiển phát nhạc
+- Hẹn giờ tắt nhạc, tự khôi phục sau khi mở lại
+
+## Online PRO
+
+- Audius + Jamendo
+- Hủy request tìm kiếm cũ khi tìm kiếm mới
+- YouTube Search + thumbnail + embedded player chính thức
+- Lịch sử và yêu thích YouTube
 - Tìm kiếm bằng giọng nói
-- Hẹn giờ tắt nhạc (tự khôi phục sau khi mở lại ứng dụng)
+- Google Drive: file hoặc thư mục
 
-## Build APK
+## Radio PRO
 
-GitHub Actions tự động build khi push vào main hoặc chạy thủ công.
+- VOV1, VOV2, VOV3, VOV4, VOV5, VOV6
+- VOV Giao Thông Hà Nội, TP.HCM, Mekong, Duyên Hải
+- VOH FM 95.6, AM 610, FM 99.9
+- Nhiều luồng HTTPS dự phòng
+- Tự chuyển luồng khi buffering/lỗi
+- Nguồn chính thức trong ứng dụng khi không còn stream trực tiếp khả dụng
 
-Artifact hiện tại:
+Các URL livestream có thể thay đổi theo hạ tầng của đài; app giữ nhiều candidate và nguồn chính thức để giảm lỗi chết stream.
 
-NGOC_SI_MUSIC_4.7_DEBUG_APK
+## Widget
 
-APK debug được kiểm tra tồn tại và tạo kèm SHA-256.
+- Play/Pause
+- Previous/Next
+- Mở app
+- Cập nhật trạng thái phát và metadata
 
-## Ghi chú YouTube
+## Build & kiểm tra
 
-YouTube được phát bằng embedded player; ứng dụng không tải xuống hoặc tách luồng âm thanh YouTube. WebView cung cấp HTTP Referer theo yêu cầu của YouTube.
+GitHub Actions tự động chạy:
 
-## Ghi chú Radio
+1. Lint Debug
+2. Build Debug APK
+3. Verify APK
+4. SHA-256
+5. Upload artifact
 
-URL livestream có thể thay đổi theo hạ tầng của từng đài. Ứng dụng ưu tiên các manifest HLS hiện hành, tự chuyển nguồn dự phòng khi Media3 gặp lỗi hoặc buffering kéo dài, và chuyển sang nguồn chính thức trong ứng dụng khi không còn luồng trực tiếp khả dụng.
+Artifact: **NGOC_SI_MUSIC_5.0_PRO_DEBUG_APK**
+
+## YouTube
+
+YouTube được phát bằng embedded player chính thức; app không tải xuống hoặc tách luồng âm thanh YouTube.
