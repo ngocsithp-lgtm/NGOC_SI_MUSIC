@@ -112,6 +112,13 @@ data class YouTubeFavoriteMeta(
     val thumbnailUrl: String
 )
 
+data class YouTubeWatchLaterMeta(
+    val videoId: String,
+    val title: String,
+    val channelTitle: String,
+    val thumbnailUrl: String
+)
+
 data class OnlineFavoriteMeta(
     val source: String,
     val title: String,
@@ -148,6 +155,7 @@ class MainActivity : ComponentActivity() {
     private val youtubeTracks = mutableStateListOf<YouTubeTrack>()
     private val youtubeFavoriteSet = mutableStateMapOf<String, Boolean>()
     private val youtubeFavoriteTracks = mutableStateListOf<YouTubeFavoriteMeta>()
+    private val youtubeWatchLater = mutableStateListOf<YouTubeWatchLaterMeta>()
     private var youtubeLoading by mutableStateOf(false)
     private var youtubeNextPageToken by mutableStateOf<String?>(null)
     private var youtubeSelectedVideoId by mutableStateOf<String?>(null)
@@ -1545,6 +1553,7 @@ class MainActivity : ComponentActivity() {
         selectedPlaybackSpeed = prefs.getFloat("playback_speed", 1.0f).coerceIn(0.5f, 2.0f)
         sleepTimerEndAt = prefs.getLong("sleep_timer_end_at", 0L).coerceAtLeast(0L)
         loadYouTubeLibraryState()
+        loadYouTubeWatchLater()
         onlineFavoriteSet.addAll(prefs.getStringSet("online_favorites", emptySet()) ?: emptySet())
         onlineFavorites.addAll(onlineFavoriteSet)
         lastSongUri = prefs.getString("last_song_uri", null)
@@ -2830,6 +2839,71 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         }
     }
 
+    private fun addYouTubeWatchLater(track: YouTubeTrack) {
+        if (youtubeWatchLater.any { it.videoId == track.videoId }) {
+            errorMessage = "Video đã có trong Xem sau."
+            return
+        }
+        youtubeWatchLater.add(
+            YouTubeWatchLaterMeta(
+                track.videoId,
+                track.title,
+                track.channelTitle,
+                track.thumbnailUrl.ifBlank {
+                    "https://i.ytimg.com/vi/" + track.videoId + "/hqdefault.jpg"
+                }
+            )
+        )
+        saveYouTubeWatchLater()
+        errorMessage = "Đã thêm vào Xem sau: " + track.title
+    }
+
+    private fun removeYouTubeWatchLater(videoId: String) {
+        youtubeWatchLater.removeAll { it.videoId == videoId }
+        saveYouTubeWatchLater()
+    }
+
+    private fun loadYouTubeWatchLater() {
+        youtubeWatchLater.clear()
+        val raw = prefs.getString("youtube_watch_later", null) ?: return
+        runCatching {
+            val root = org.json.JSONArray(raw)
+            for (i in 0 until root.length()) {
+                val obj = root.optJSONObject(i) ?: continue
+                val id = obj.optString("videoId").trim()
+                if (id.isBlank()) continue
+                youtubeWatchLater.add(
+                    YouTubeWatchLaterMeta(
+                        id,
+                        obj.optString("title").ifBlank { "Video YouTube" },
+                        obj.optString("channelTitle").ifBlank { "YouTube" },
+                        obj.optString("thumbnailUrl").ifBlank {
+                            "https://i.ytimg.com/vi/" + id + "/hqdefault.jpg"
+                        }
+                    )
+                )
+            }
+        }
+    }
+
+    private fun saveYouTubeWatchLater() {
+        val root = org.json.JSONArray()
+        youtubeWatchLater.forEach { item ->
+            root.put(
+                org.json.JSONObject().apply {
+                    put("videoId", item.videoId)
+                    put("title", item.title)
+                    put("channelTitle", item.channelTitle)
+                    put("thumbnailUrl", item.thumbnailUrl)
+                }
+            )
+        }
+        prefs.edit().putString("youtube_watch_later", root.toString()).apply()
+    }
+
+    private fun youtubeWatchLaterAsTrack(item: YouTubeWatchLaterMeta): YouTubeTrack =
+        YouTubeTrack(item.videoId, item.title, item.channelTitle, item.thumbnailUrl)
+
     private fun toggleYouTubeFavorite(track: YouTubeTrack) {
         if (youtubeFavoriteSet.contains(track.videoId)) {
             youtubeFavoriteSet.remove(track.videoId)
@@ -3474,6 +3548,32 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 ) { Text("XÓA") }
             }
 
+            if (youtubeWatchLater.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                Text("YOUTUBE • XEM SAU (" + youtubeWatchLater.size + ")", color = Color(0xFFB18CFF), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                Spacer(Modifier.height(4.dp))
+                youtubeWatchLater.take(8).forEach { item ->
+                    Row(
+                        Modifier.fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Color(0xFF1B1B23))
+                            .padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OnlineArtwork(item.thumbnailUrl, Modifier.size(58.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f).clickable { playYouTube(youtubeWatchLaterAsTrack(item)) }) {
+                            Text(item.title, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text(item.channelTitle, color = Color(0xFF8F8F9A), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        IconButton(onClick = { removeYouTubeWatchLater(item.videoId) }) {
+                            Text("×", color = Color(0xFFFFB4AB), fontSize = 22.sp)
+                        }
+                    }
+                    Spacer(Modifier.height(5.dp))
+                }
+            }
+
             if (youtubeFavoriteTracks.isNotEmpty()) {
                 Spacer(Modifier.height(8.dp))
                 Text("YOUTUBE • YÊU THÍCH", color = Color(0xFFB18CFF), fontWeight = FontWeight.Bold, fontSize = 11.sp)
@@ -3579,6 +3679,14 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 modifier = Modifier.height(40.dp)
                             ) {
                                 Text(if (youtubeFavoriteSet.contains(track.videoId)) "♥" else "♡")
+                            }
+                            FilledTonalButton(
+                                onClick = { addYouTubeWatchLater(track) },
+                                shape = CircleShape,
+                                contentPadding = PaddingValues(horizontal = 10.dp),
+                                modifier = Modifier.height(40.dp)
+                            ) {
+                                Text("XEM SAU")
                             }
                         }
                     }
