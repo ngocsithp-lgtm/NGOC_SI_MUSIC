@@ -3521,7 +3521,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             label = { Text(item, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                         )
                     }
-                }                Spacer(Modifier.height(2.dp))
+                }
+                Spacer(Modifier.height(2.dp))
                 TextButton(
                     onClick = ::clearYouTubeHistory,
                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
