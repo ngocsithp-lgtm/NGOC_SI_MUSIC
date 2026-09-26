@@ -434,9 +434,17 @@ class MainActivity : ComponentActivity() {
         val savedDriveUris = prefs.getStringSet("drive_uris", emptySet()) ?: emptySet()
         val savedOnlineUris = prefs.getStringSet("online_uris", emptySet()) ?: emptySet()
         val existing = result.map { it.uri.toString() }.toMutableSet()
+        val staleDriveUris = mutableSetOf<String>()
         savedDriveUris.forEach { raw ->
             val uri = Uri.parse(raw)
-            if (existing.add(raw)) result += songFromUri(uri)
+            if (existing.add(raw)) {
+                val song = songFromUri(uri)
+                if (song != null) result += song else staleDriveUris += raw
+            }
+        }
+        if (staleDriveUris.isNotEmpty()) {
+            val cleanedDriveUris = savedDriveUris.toMutableSet().apply { removeAll(staleDriveUris) }
+            prefs.edit().putStringSet("drive_uris", cleanedDriveUris).apply()
         }
         savedOnlineUris.forEach { raw ->
             val uri = Uri.parse(raw)
@@ -562,9 +570,13 @@ class MainActivity : ComponentActivity() {
             val raw = uri.toString()
             if (saved.add(raw) && songs.none { it.uri == uri }) {
                 val importedSong = songFromUri(uri)
-                songs.add(importedSong)
-                queueSongs.add(importedSong)
-                added++
+                if (importedSong != null) {
+                    songs.add(importedSong)
+                    queueSongs.add(importedSong)
+                    added++
+                } else {
+                    saved.remove(raw)
+                }
             }
         }
         prefs.edit().putStringSet("drive_uris", saved).apply()
@@ -572,11 +584,11 @@ class MainActivity : ComponentActivity() {
         syncControllerQueue()
     }
 
-    private fun songFromUri(uri: Uri): Song {
+    private fun songFromUri(uri: Uri): Song? {
         var title = "Nhạc online"
-        // A persisted Drive URI can outlive its provider grant. Metadata lookup
-        // must therefore be best-effort so one stale item cannot break startup.
-        runCatching {
+        // A persisted Drive URI can outlive its provider grant. Treat a failed
+        // metadata query as stale so the broken entry is removed from the library.
+        val metadataReadable = runCatching {
             contentResolver.query(
                 uri,
                 arrayOf(OpenableColumns.DISPLAY_NAME),
@@ -590,7 +602,10 @@ class MainActivity : ComponentActivity() {
                         .ifBlank { "Nhạc online" }
                 }
             }
-        }
+            true
+        }.getOrDefault(false)
+        if (!metadataReadable) return null
+
         return Song(
             id = -kotlin.math.abs(uri.toString().hashCode().toLong()),
             title = title,
