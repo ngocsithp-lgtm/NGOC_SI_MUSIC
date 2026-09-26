@@ -8,6 +8,7 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
@@ -39,20 +40,43 @@ class MusicService : MediaSessionService() {
         ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
             val uri = prefs.getString("last_song_uri", null)
             val position = prefs.getLong("last_position", 0L).coerceAtLeast(0L)
-            if (uri.isNullOrBlank()) {
+            val queueUris = prefs.getString("queue_order", null)
+                ?.split("\n")
+                ?.map(String::trim)
+                ?.filter(String::isNotEmpty)
+                .orEmpty()
+            val orderedUris = if (queueUris.isNotEmpty()) queueUris else listOfNotNull(uri)
+            if (orderedUris.isEmpty()) {
                 return Futures.immediateFuture(
                     MediaSession.MediaItemsWithStartPosition(emptyList(), 0, 0L)
                 )
             }
-            val item = MediaItem.Builder()
-                .setMediaId(uri)
-                .setUri(uri)
-                .build()
+
+            val items = orderedUris.map { itemUri ->
+                MediaItem.Builder()
+                    .setMediaId(itemUri)
+                    .setUri(itemUri)
+                    .setMediaMetadata(
+                        MediaMetadata.Builder()
+                            .setTitle(itemUri.substringAfterLast('/').ifBlank { "NGỌC SĨ MUSIC" })
+                            .build()
+                    )
+                    .build()
+            }
+
+            val resumeIndex = uri?.let { orderedUris.indexOf(it) }?.takeIf { it >= 0 } ?: 0
+            if (isForPlayback) {
+                player.setShuffleModeEnabled(prefs.getBoolean("shuffle", false))
+                player.repeatMode = prefs.getInt("repeat", Player.REPEAT_MODE_OFF)
+                player.setPlaybackSpeed(
+                    prefs.getFloat("playback_speed", 1.0f).coerceIn(0.5f, 2.0f)
+                )
+            }
+
             val startPosition = if (isForPlayback) position else androidx.media3.common.C.TIME_UNSET
             return Futures.immediateFuture(
-                MediaSession.MediaItemsWithStartPosition(listOf(item), 0, startPosition)
-            )
-        }
+                MediaSession.MediaItemsWithStartPosition(items, resumeIndex, startPosition)
+            )        }
     }
 
     private val playerListener = object : Player.Listener {
