@@ -463,12 +463,12 @@ class MainActivity : ComponentActivity() {
                 c.setMediaItems(queueSongs.map { mediaItemFor(it) })
                 c.prepare()
 
-                val restoreIndex = lastSongUri?.let { uri ->
-                    songs.indexOfFirst { it.uri.toString() == uri }
+                val restoreQueueIndex = lastSongUri?.let { uri ->
+                    queueSongs.indexOfFirst { it.uri.toString() == uri }
                 } ?: -1
-                if (restoreIndex >= 0) {
-                    currentIndex = restoreIndex
-                    c.seekToDefaultPosition(restoreIndex)
+                if (restoreQueueIndex >= 0) {
+                    currentIndex = songs.indexOfFirst { it.uri.toString() == lastSongUri }
+                    c.seekToDefaultPosition(restoreQueueIndex)
                     if (savedPosition > 0L) c.seekTo(savedPosition)
                 }
             } else if (c.mediaItemCount > 0) {
@@ -989,13 +989,10 @@ class MainActivity : ComponentActivity() {
             syncControllerQueue()
         }
         if (c.mediaItemCount == 0 && queueSongs.isNotEmpty()) {
-            c.setMediaItems(queueSongs.map { mediaItemFor(it) })
-            c.shuffleModeEnabled = shuffleEnabled
-            c.repeatMode = repeatMode
-            c.prepare()
+            // Use the canonical sync path so an empty controller restores the
+            // saved item/position and keeps Shuffle/Repeat behavior consistent.
+            syncControllerQueue()
             c.play()
-            shuffleEnabled = c.shuffleModeEnabled
-            repeatMode = c.repeatMode
         } else if (c.isPlaying) {
             c.pause()
         } else {
