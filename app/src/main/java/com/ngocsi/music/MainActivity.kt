@@ -1290,8 +1290,9 @@ class MainActivity : ComponentActivity() {
         // before rebuilding Media3. This prevents the controller from retaining
         // a URI that no longer exists in the logical queue.
         queueSongs.removeAt(index)
-        if (removingCurrent && queueSongs.isNotEmpty() && fallback != null) {
-            val fallbackIndex = queueSongs.indexOfFirst { it.uri == fallback.uri }
+        if (removingCurrent && queueSongs.isNotEmpty()) {
+            val fallbackSong = fallback ?: queueSongs.first()
+            val fallbackIndex = queueSongs.indexOfFirst { it.uri == fallbackSong.uri }
             val c = controller
             if (c != null && fallbackIndex >= 0) {
                 c.setMediaItems(queueSongs.map { mediaItemFor(it) }, fallbackIndex, 0L)
@@ -1300,8 +1301,8 @@ class MainActivity : ComponentActivity() {
                 c.setPlaybackSpeed(selectedPlaybackSpeed)
                 c.prepare()
                 if (wasPlaying) c.play()
-                currentIndex = songs.indexOfFirst { it.uri == fallback.uri }
-                lastSongUri = fallback.uri.toString()
+                currentIndex = songs.indexOfFirst { it.uri == fallbackSong.uri }
+                lastSongUri = fallbackSong.uri.toString()
                 position = 0L
                 savedPosition = 0L
                 saveQueueOrder()
