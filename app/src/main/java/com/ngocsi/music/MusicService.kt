@@ -52,6 +52,15 @@ class MusicService : MediaSessionService() {
                 )
             }
 
+            // During boot/resumption, the system only needs the current item
+            // metadata when playback is not being started immediately.
+            // Returning the full queue here is unnecessary and can increase
+            // startup work, so keep the non-playback path lightweight.
+            val resumptionUris = if (isForPlayback) orderedUris
+            else listOf(orderedUris.getOrElse(
+                uri?.let { orderedUris.indexOf(it) }?.takeIf { it >= 0 } ?: 0
+            ) { orderedUris.first() })
+
             val metadataByUri = mutableMapOf<String, org.json.JSONObject>()
             prefs.getString("queue_metadata", null)?.let { raw ->
                 runCatching {
@@ -64,7 +73,7 @@ class MusicService : MediaSessionService() {
                 }
             }
 
-            val items = orderedUris.map { itemUri ->
+            val items = resumptionUris.map { itemUri ->
                 val saved = metadataByUri[itemUri]
                 val title = saved?.optString("title").orEmpty()
                     .ifBlank { itemUri.substringAfterLast('/').ifBlank { "NGỌC SĨ MUSIC" } }
@@ -81,7 +90,9 @@ class MusicService : MediaSessionService() {
                     .build()
             }
 
-            val resumeIndex = uri?.let { orderedUris.indexOf(it) }?.takeIf { it >= 0 } ?: 0
+            val resumeIndex = if (isForPlayback) {
+                uri?.let { orderedUris.indexOf(it) }?.takeIf { it >= 0 } ?: 0
+            } else 0
             if (isForPlayback) {
                 player.setShuffleModeEnabled(prefs.getBoolean("shuffle", false))
                 player.repeatMode = prefs.getInt("repeat", Player.REPEAT_MODE_OFF)
