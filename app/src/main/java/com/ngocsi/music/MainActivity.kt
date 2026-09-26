@@ -1408,6 +1408,32 @@ class MainActivity : ComponentActivity() {
         position = c.currentPosition.coerceAtLeast(0L)
         savePlaybackState()
     }
+    private fun playNext(song: Song) {
+        val c = controller ?: run {
+            errorMessage = "Trình phát đang khởi động, thử lại sau."
+            return
+        }
+
+        // Keep the visible queue order canonical and place the selected song
+        // immediately after the current item. Do not duplicate an existing item.
+        val existingIndex = queueSongs.indexOfFirst { it.uri == song.uri }
+        if (existingIndex >= 0) {
+            queueSongs.removeAt(existingIndex)
+        }
+
+        val activeUri = c.currentMediaItem?.localConfiguration?.uri
+        val insertIndex = activeUri
+            ?.let { uri -> queueSongs.indexOfFirst { it.uri == uri } }
+            ?.takeIf { it >= 0 }
+            ?.plus(1)
+            ?.coerceAtMost(queueSongs.size)
+            ?: queueSongs.size
+
+        queueSongs.add(insertIndex, song)
+        syncControllerQueue()
+        errorMessage = "Đã đặt phát tiếp theo: " + song.title
+    }
+
     private fun addToQueue(song: Song) {
         if (queueSongs.any { it.uri == song.uri }) {
             errorMessage = "Bài hát đã có trong hàng đợi."
@@ -4141,6 +4167,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     if (libraryView == "Thư mục" && song.folder.isNotBlank()) "${song.folder} • ${song.artist}" else "${song.artist} • ${song.source}",
                     color = Color(0xFF8F8F9A), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
+            }
+            IconButton(
+                onClick = { playNext(song) },
+            ) {
+                Text("⏭", color = Color(0xFFB5A1FF), fontSize = 18.sp)
             }
             IconButton(onClick = { addToQueue(song) }) {
                 Text("＋", color = Color(0xFFC8B7FF), fontSize = 22.sp)
