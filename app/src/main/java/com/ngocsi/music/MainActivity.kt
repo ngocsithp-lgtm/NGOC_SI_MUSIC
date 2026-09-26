@@ -121,6 +121,8 @@ class MainActivity : ComponentActivity() {
     private var currentIndex by mutableIntStateOf(-1)
     private var isPlaying by mutableStateOf(false)
     private var position by mutableLongStateOf(0L)
+    // Active playback duration reported by Media3; used by the main progress ticker.
+    private var duration by mutableLongStateOf(0L)
     private var errorMessage by mutableStateOf<String?>(null)
     private var searchQuery by mutableStateOf("")
     private var jamendoQuery by mutableStateOf("")
@@ -2256,7 +2258,7 @@ class MainActivity : ComponentActivity() {
                     }
 
                     Spacer(Modifier.height(14.dp))
-                    AlbumArt(song, Modifier.size(250.dp))
+                    SongArtwork(song, Modifier.size(250.dp))
                     Spacer(Modifier.height(18.dp))
 
                     Text(
@@ -3414,6 +3416,46 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 )
             } else {
                 Text("♫", color = Color(0xFFC8B7FF), fontSize = 42.sp)
+            }
+        }
+    }
+
+    @Composable
+    private fun MiniPlayer(song: Song) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 6.dp)
+                .clip(RoundedCornerShape(18.dp))
+                .background(Color(0xFF161820))
+                .clickable { showNowPlaying = true }
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            SongArtwork(song, Modifier.size(50.dp))
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    song.title,
+                    color = Color.White,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    song.artist,
+                    color = Color(0xFF8F8F9A),
+                    fontSize = 11.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            IconButton(onClick = ::togglePlayPause) {
+                Text(
+                    if (isPlaying) "⏸" else "▶",
+                    color = Color.White,
+                    fontSize = 20.sp
+                )
             }
         }
     }
