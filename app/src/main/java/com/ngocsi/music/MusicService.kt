@@ -125,6 +125,13 @@ class MusicService : MediaSessionService() {
             broadcastWidget()
         }
 
+        override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+            // Keep the last playable queue/position snapshot intact when a decoder
+            // or source error occurs, and refresh any lock-screen/widget UI.
+            savePlaybackState()
+            broadcastWidget()
+        }
+
         override fun onMediaMetadataChanged(mediaMetadata: androidx.media3.common.MediaMetadata) {
             // Persist metadata changes as well so lock-screen/notification state
             // remains consistent after the Activity is gone or the service resumes.
