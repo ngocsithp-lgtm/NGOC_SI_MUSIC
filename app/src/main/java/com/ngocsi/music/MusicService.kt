@@ -132,6 +132,13 @@ class MusicService : MediaSessionService() {
             broadcastWidget()
         }
 
+        override fun onPlaybackParametersChanged(playbackParameters: androidx.media3.common.PlaybackParameters) {
+            // Persist speed changes immediately, including when playback is paused
+            // or changed from a lock-screen/headset/car controller.
+            savePlaybackState()
+            broadcastWidget()
+        }
+
         override fun onPositionDiscontinuity(
             oldPosition: Player.PositionInfo,
             newPosition: Player.PositionInfo,
