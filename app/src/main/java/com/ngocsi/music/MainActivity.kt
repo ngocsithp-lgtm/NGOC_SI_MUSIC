@@ -161,6 +161,10 @@ class MainActivity : ComponentActivity() {
     private var showSleepTimer by mutableStateOf(false)
     private var sleepMinutes by mutableIntStateOf(0)
     private var sleepTimerJob: Job? = null
+    private var sleepTimerEndAt by mutableLongStateOf(0L)
+    private var jamendoSearchJob: Job? = null
+    private var audiusSearchJob: Job? = null
+    private var youtubeSearchJob: Job? = null
     private var lastSongUri by mutableStateOf<String?>(null)
     private var savedPosition by mutableLongStateOf(0L)
     private var shuffleEnabled by mutableStateOf(false)
@@ -329,6 +333,7 @@ class MainActivity : ComponentActivity() {
         playlistStore = PlaylistStore(this)
         playlists.addAll(playlistStore.load())
         loadSavedState()
+        restoreSleepTimer()
         setContent { NgocSiMusicApp() }
         requestMusicPermissionIfNeeded()
         requestNotificationPermissionIfNeeded()
@@ -976,10 +981,11 @@ class MainActivity : ComponentActivity() {
             return
         }
 
+        jamendoSearchJob?.cancel()
         jamendoLoading = true
         errorMessage = null
 
-        lifecycleScope.launch(Dispatchers.IO) {
+        jamendoSearchJob = lifecycleScope.launch(Dispatchers.IO) {
             var connection: java.net.HttpURLConnection? = null
             try {
                 // Jamendo's documented free-text "search" parameter searches
@@ -1086,8 +1092,9 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun searchAudius(q: String) {
+        audiusSearchJob?.cancel()
         audiusLoading = true
-        lifecycleScope.launch(Dispatchers.IO) {
+        audiusSearchJob = lifecycleScope.launch(Dispatchers.IO) {
             var connection: java.net.HttpURLConnection? = null
             try {
                 val encoded = java.net.URLEncoder.encode(q, "UTF-8")
@@ -1224,23 +1231,59 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun startSleepTimer(minutes: Int) {
-        if (minutes <= 0) {
-            sleepTimerJob?.cancel()
-            sleepTimerJob = null
+    private fun restoreSleepTimer() {
+        val endAt = prefs.getLong("sleep_timer_end_at", 0L).coerceAtLeast(0L)
+        sleepTimerJob?.cancel()
+        if (endAt <= System.currentTimeMillis()) {
+            sleepTimerEndAt = 0L
             sleepMinutes = 0
+            prefs.edit().remove("sleep_timer_end_at").apply()
             return
         }
-        sleepTimerJob?.cancel()
-        sleepMinutes = minutes
+
+        sleepTimerEndAt = endAt
+        val remainingMs = endAt - System.currentTimeMillis()
+        sleepMinutes = kotlin.math.ceil(remainingMs / 60_000.0).toInt().coerceAtLeast(1)
         sleepTimerJob = lifecycleScope.launch {
-            delay(minutes * 60_000L)
+            delay(remainingMs)
             controller?.pause()
             controller?.seekTo(0L)
             position = 0L
             savedPosition = 0L
             sleepMinutes = 0
+            sleepTimerEndAt = 0L
             sleepTimerJob = null
+            prefs.edit().remove("sleep_timer_end_at").apply()
+            savePlaybackState()
+            errorMessage = "Hẹn giờ đã tắt nhạc."
+        }
+    }
+
+    private fun startSleepTimer(minutes: Int) {
+        sleepTimerJob?.cancel()
+        if (minutes <= 0) {
+            sleepTimerJob = null
+            sleepTimerEndAt = 0L
+            sleepMinutes = 0
+            prefs.edit().remove("sleep_timer_end_at").apply()
+            return
+        }
+
+        val endAt = System.currentTimeMillis() + minutes * 60_000L
+        sleepTimerEndAt = endAt
+        sleepMinutes = minutes
+        prefs.edit().putLong("sleep_timer_end_at", endAt).apply()
+
+        sleepTimerJob = lifecycleScope.launch {
+            delay((endAt - System.currentTimeMillis()).coerceAtLeast(0L))
+            controller?.pause()
+            controller?.seekTo(0L)
+            position = 0L
+            savedPosition = 0L
+            sleepMinutes = 0
+            sleepTimerEndAt = 0L
+            sleepTimerJob = null
+            prefs.edit().remove("sleep_timer_end_at").apply()
             savePlaybackState()
             errorMessage = "Hẹn giờ đã tắt nhạc."
         }
@@ -1446,6 +1489,7 @@ class MainActivity : ComponentActivity() {
         shuffleEnabled = prefs.getBoolean("shuffle", false)
         repeatMode = prefs.getInt("repeat", Player.REPEAT_MODE_OFF)
         selectedPlaybackSpeed = prefs.getFloat("playback_speed", 1.0f).coerceIn(0.5f, 2.0f)
+        sleepTimerEndAt = prefs.getLong("sleep_timer_end_at", 0L).coerceAtLeast(0L)
         youtubeHistory.clear()
         youtubeHistory.addAll((prefs.getStringSet("youtube_history", emptySet()) ?: emptySet()).toList().take(8))
         (prefs.getStringSet("youtube_favorites", emptySet()) ?: emptySet()).forEach { youtubeFavoriteSet[it] = true }
@@ -1637,6 +1681,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         cancelRadioRecovery()
+        sleepTimerJob?.cancel()
+        jamendoSearchJob?.cancel()
+        audiusSearchJob?.cancel()
+        youtubeSearchJob?.cancel()
         speechRecognizer?.destroy()
         speechRecognizer = null
         savePlaybackState()
@@ -2380,9 +2428,10 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
         if (loadMore && youtubeNextPageToken.isNullOrBlank()) return
 
+        youtubeSearchJob?.cancel()
         youtubeLoading = true
         errorMessage = null
-        lifecycleScope.launch(Dispatchers.IO) {
+        youtubeSearchJob = lifecycleScope.launch(Dispatchers.IO) {
             var connection: java.net.HttpURLConnection? = null
             try {
                 val params = buildString {

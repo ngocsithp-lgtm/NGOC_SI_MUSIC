@@ -4,7 +4,7 @@ Android music player built with Kotlin, Jetpack Compose and AndroidX Media3.
 
 ## Bản hiện tại
 
-- Version: **4.6**
+- Version: **4.7**
 - Target SDK: **Android 16 / API 36**
 - Media3: **1.9.4**
 - Min SDK: **26**
@@ -18,12 +18,12 @@ Android music player built with Kotlin, Jetpack Compose and AndroidX Media3.
 - Yêu thích
 - Playlist lưu trên thiết bị
 - Google Drive: chọn file hoặc thư mục
-- Nhạc online: Audius và Jamendo
+- Nhạc online: Audius và Jamendo, tự hủy request tìm kiếm cũ khi tìm kiếm mới
 - YouTube Search + thumbnail + player nhúng chính thức
 - Radio: VOV/VOV Giao Thông/VOH với nhiều luồng dự phòng và tự chuyển nguồn chính thức khi stream trực tiếp lỗi
 - Widget điều khiển phát nhạc
 - Tìm kiếm bằng giọng nói
-- Hẹn giờ tắt nhạc
+- Hẹn giờ tắt nhạc (tự khôi phục sau khi mở lại ứng dụng)
 
 ## Build APK
 
@@ -31,7 +31,7 @@ GitHub Actions tự động build khi push vào main hoặc chạy thủ công.
 
 Artifact hiện tại:
 
-NGOC_SI_MUSIC_4.6_DEBUG_APK
+NGOC_SI_MUSIC_4.7_DEBUG_APK
 
 APK debug được kiểm tra tồn tại và tạo kèm SHA-256.
 
