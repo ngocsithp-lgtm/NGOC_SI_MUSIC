@@ -694,6 +694,12 @@ class MainActivity : ComponentActivity() {
             name.endsWith(".wma")
     }
 
+    private fun playVerifiedRadio(title: String, streamUrl: String) {
+        onlineUrl = streamUrl
+        errorMessage = "Đang kết nối $title…"
+        playOnlineUrl()
+    }
+
     private fun playOnlineUrl() {
         val raw = onlineUrl.trim()
         if (raw.isBlank()) {
@@ -2633,6 +2639,15 @@ class MainActivity : ComponentActivity() {
             }
             Spacer(Modifier.height(6.dp))
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = {
+                        playVerifiedRadio(
+                            "VOV1 • Radio",
+                            "https://str.vov.gov.vn/vovlive/vov1vov5Vietnamese.sdp_aac/playlist.m3u8"
+                        )
+                    },
+                    shape = RoundedCornerShape(12.dp)
+                ) { Text("▶ VOV1 • PHÁT TRONG APP") }
                 OutlinedButton(
                     onClick = { openOnlineSource("https://vov3.vov.vn/") },
                     shape = RoundedCornerShape(12.dp)
@@ -2660,7 +2675,7 @@ class MainActivity : ComponentActivity() {
             }
             Spacer(Modifier.height(6.dp))
             Text(
-                "VOV3 và VOH là nguồn radio chính thức; nội dung phát trực tuyến phụ thuộc lịch phát sóng của từng đài.",
+                "VOV1 có luồng HLS chính thức được đưa vào Media3; các đài khác vẫn mở nguồn chính thức cho đến khi có luồng trực tiếp được xác minh.",
                 color = Color(0xFF777D8D),
                 fontSize = 11.sp
             )
