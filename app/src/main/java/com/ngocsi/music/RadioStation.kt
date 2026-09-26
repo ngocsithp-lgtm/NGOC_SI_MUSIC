@@ -46,54 +46,6 @@ object RadioCatalog {
                 "https://str.vov.gov.vn/vovlive/vov3.sdp_aac/playlist.m3u8"
             )
         ),
-        RadioStation(
-            title = "VOV5 • Đối ngoại",
-            description = "Phát thanh đối ngoại của VOV",
-            sourceUrl = "https://vovworld.vn/",
-            streamUrls = listOf(
-                "https://media-audio.vov.vn/vov5.sdp_aac/playlist.m3u8"
-            )
-        ),
-        RadioStation(
-            title = "VOV Giao thông • Hà Nội",
-            description = "Giao thông và thông tin đô thị Hà Nội",
-            sourceUrl = "https://vovgiaothong.vn/",
-            streamUrls = listOf(
-                "https://play.vovgiaothong.vn/live/gthn/playlist.m3u8"
-            )
-        ),
-        RadioStation(
-            title = "VOV Giao thông • TP.HCM",
-            description = "Giao thông và thông tin đô thị TP.HCM",
-            sourceUrl = "https://vovgiaothong.vn/",
-            streamUrls = listOf(
-                "https://play.vovgiaothong.vn/live/gthcm/playlist.m3u8"
-            )
-        ),
-        RadioStation(
-            title = "VOH • FM 95.6",
-            description = "Kênh phát thanh FM 95.6 MHz",
-            sourceUrl = "https://voh.com.vn/radios",
-            streamUrls = listOf(
-                "https://strm.voh.com.vn/radio/channel1/playlist.m3u8"
-            )
-        ),
-        RadioStation(
-            title = "VOH • FM 99.9",
-            description = "Kênh phát thanh FM 99.9 MHz",
-            sourceUrl = "https://voh.com.vn/radios",
-            streamUrls = listOf(
-                "https://strm.voh.com.vn/radio/channel3/playlist.m3u8"
-            )
-        ),
-        RadioStation(
-            title = "VOH • AM 610",
-            description = "Kênh phát thanh AM 610 kHz",
-            sourceUrl = "https://voh.com.vn/radios",
-            streamUrls = listOf(
-                "https://strm.voh.com.vn/radio/channel2/playlist.m3u8"
-            )
-        )
     )
 
     private val byTitle = stations.associateBy { it.title }
