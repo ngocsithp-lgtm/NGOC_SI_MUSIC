@@ -303,6 +303,11 @@ class MainActivity : ComponentActivity() {
                 return
             }
 
+            if (radioTitle != null && openRadioOfficialSource(radioTitle)) {
+                errorMessage = "${radioTitle} không phát được bằng luồng trực tiếp; đã chuyển sang nguồn chính thức trong ứng dụng."
+                return
+            }
+
             errorMessage = when (error.errorCode) {
                 androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ->
                     "Mất kết nối mạng khi phát ${radioTitle ?: "nhạc online"}."
@@ -839,20 +844,14 @@ class MainActivity : ComponentActivity() {
             source = "Radio Việt Nam"
         )
 
-        val libraryIndex = songs.indexOfFirst { it.uri == uri }
-        val actualSong = if (libraryIndex >= 0) {
-            songs[libraryIndex]
-        } else {
-            songs.add(song)
-            queueSongs.add(song)
-            song
-        }
+        // Replace any older radio item so a failed candidate is not left
+        // behind in Previous/Next or in the persisted queue.
+        songs.removeAll { it.source == "Radio Việt Nam" }
+        queueSongs.removeAll { it.source == "Radio Việt Nam" }
+        songs.add(song)
+        queueSongs.add(song)
 
-        if (queueSongs.none { it.uri == uri }) {
-            queueSongs.add(actualSong)
-        }
-
-        val queueIndex = queueSongs.indexOfFirst { it.uri == uri }
+        val queueIndex = queueSongs.lastIndex
         if (queueIndex < 0) return
 
         val keepShuffle = c.shuffleModeEnabled
@@ -897,18 +896,24 @@ class MainActivity : ComponentActivity() {
                 ?.ifBlank { null }
             ?: uri.host.orEmpty().ifBlank { "Nhạc Online" }
 
+        val isRadio = displayArtist == "VOV"
         val song = Song(
             id = -kotlin.math.abs(raw.hashCode().toLong()),
             title = title,
             artist = displayArtist,
             duration = 0L,
             uri = uri,
-            source = if (displayArtist == "VOV") "Radio Việt Nam" else "Online"
+            source = if (isRadio) "Radio Việt Nam" else "Online"
         )
 
-        // Radio stations belong to the Radio catalog, not the user's generic
-        // online library. Persist ordinary online URLs only.
-        if (displayArtist != "VOV") {
+        if (isRadio) {
+            // A radio station is a transient live source, not a permanent
+            // library/queue entry. Keep at most one active radio item so
+            // previous stations cannot be revisited accidentally.
+            clearActiveRadioState()
+            songs.removeAll { it.source == "Radio Việt Nam" }
+            queueSongs.removeAll { it.source == "Radio Việt Nam" }
+        } else {
             clearActiveRadioState()
             val saved = (prefs.getStringSet("online_uris", emptySet()) ?: emptySet()).toMutableSet()
             saved.add(raw)
@@ -920,6 +925,10 @@ class MainActivity : ComponentActivity() {
             songs.add(song)
             queueSongs.add(song)
             songs.lastIndex
+        }
+
+        if (existingIndex >= 0 && queueSongs.none { it.uri == uri }) {
+            queueSongs.add(songs[index])
         }
 
         syncControllerQueue()

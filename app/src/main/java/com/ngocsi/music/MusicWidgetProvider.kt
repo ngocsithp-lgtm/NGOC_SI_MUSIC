@@ -34,7 +34,10 @@ class MusicWidgetProvider : AppWidgetProvider() {
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         when (intent.action) {
-            ACTION_PLAY_PAUSE, ACTION_PREVIOUS, ACTION_NEXT -> handlePlayerAction(context, intent.action!!)
+            ACTION_PLAY_PAUSE, ACTION_PREVIOUS, ACTION_NEXT -> {
+                val action = intent.action.orEmpty()
+                if (action.isNotBlank()) handlePlayerAction(context, action)
+            }
             ACTION_OPEN -> {
                 val open = Intent(context, MainActivity::class.java).apply {
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
