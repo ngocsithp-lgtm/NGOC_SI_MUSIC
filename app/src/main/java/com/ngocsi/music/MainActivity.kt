@@ -145,6 +145,8 @@ class MainActivity : ComponentActivity() {
     private var libraryView by mutableStateOf("Bài hát")
     private var showQueue by mutableStateOf(false) // #145 queue upgrade
     private var showVietnamRadioHub by mutableStateOf(false)
+    private var radioWebUrl by mutableStateOf<String?>(null)
+    private var radioWebTitle by mutableStateOf("RADIO VIỆT NAM")
     private var radioFilter by mutableStateOf("")
     private var selectedSection by mutableStateOf("Trang chủ")
     private var showNowPlaying by mutableStateOf(false)
@@ -1460,6 +1462,7 @@ class MainActivity : ComponentActivity() {
         currentSong?.let { if (showNowPlaying) NowPlayingDialog(it) }
         if (showQueue) QueueDialog()
         if (showVietnamRadioHub) VietnamRadioHubDialog()
+        radioWebUrl?.let { RadioWebViewDialog(it, radioWebTitle) }
         if (showYoutube) YouTubeDialog()
     }
 
@@ -1918,9 +1921,13 @@ class MainActivity : ComponentActivity() {
                                     }
                                     Spacer(Modifier.width(8.dp))
                                     Button(
-                                        onClick = { openOnlineSource(source.third) },
+                                        onClick = {
+                                            radioWebTitle = source.first
+                                            radioWebUrl = source.third
+                                            showVietnamRadioHub = false
+                                        },
                                         shape = RoundedCornerShape(12.dp)
-                                    ) { Text("Mở") }
+                                    ) { Text("PHÁT TRONG APP") }
                                 }
                             }
                         }
@@ -1933,6 +1940,57 @@ class MainActivity : ComponentActivity() {
                     )
                     Spacer(Modifier.height(4.dp))
                     TextButton(onClick = { showVietnamRadioHub = false }) { Text("Đóng") }
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun RadioWebViewDialog(url: String, title: String) {
+        Dialog(
+            onDismissRequest = { radioWebUrl = null },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(24.dp),
+                color = Color(0xFF101117),
+                modifier = Modifier.fillMaxWidth(0.97f).fillMaxHeight(0.88f)
+            ) {
+                Column(Modifier.fillMaxSize()) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(title, color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text("Phát trực tuyến trong NGỌC SĨ MUSIC • nguồn chính thức", color = Color(0xFF8F8F9A), fontSize = 11.sp)
+                        }
+                        TextButton(onClick = { radioWebUrl = null }) { Text("Đóng") }
+                    }
+                    AndroidView(
+                        modifier = Modifier.fillMaxSize(),
+                        factory = { context ->
+                            WebView(context).apply {
+                                settings.javaScriptEnabled = true
+                                settings.domStorageEnabled = true
+                                settings.loadsImagesAutomatically = true
+                                settings.mediaPlaybackRequiresUserGesture = true
+                                settings.allowFileAccess = false
+                                settings.allowContentAccess = true
+                                CookieManager.getInstance().setAcceptCookie(true)
+                                webViewClient = object : WebViewClient() {
+                                    override fun shouldOverrideUrlLoading(view: WebView, request: android.webkit.WebResourceRequest): Boolean {
+                                        return false
+                                    }
+                                }
+                                webChromeClient = WebChromeClient()
+                                loadUrl(url, mapOf("Referer" to "https://com.ngocsi.music"))
+                            }
+                        },
+                        update = { view ->
+                            if (view.url != url) view.loadUrl(url, mapOf("Referer" to "https://com.ngocsi.music"))
+                        }
+                    )
                 }
             }
         }
