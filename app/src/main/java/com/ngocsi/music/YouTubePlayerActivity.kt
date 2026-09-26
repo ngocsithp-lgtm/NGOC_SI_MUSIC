@@ -127,10 +127,13 @@ class YouTubePlayerActivity : ComponentActivity() {
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
         ))
+        // Keep the embedded player at the standard 16:9 video ratio instead of
+        // stretching it to fill the entire remaining screen. This gives a more
+        // predictable phone layout while fullscreen remains available from YouTube.
+        val playerHeight = (resources.displayMetrics.widthPixels * 9f / 16f).toInt()
         content.addView(playerContainer, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
-            0,
-            1f
+            playerHeight.coerceAtLeast(dp(200))
         ))
 
         root.addView(content, FrameLayout.LayoutParams(
