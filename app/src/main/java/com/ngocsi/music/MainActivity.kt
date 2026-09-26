@@ -1840,7 +1840,18 @@ class MainActivity : ComponentActivity() {
             Triple("VOH • Radio", "Radio và các kênh phát thanh của VOH", "https://voh.com.vn/radios"),
             Triple("HTV • Radio", "Các kênh radio được HTV giới thiệu", "https://htv.vn/radio.htm"),
             Triple("VOV3 • Podcast", "Podcast văn hóa, nghệ thuật và âm nhạc", "https://vov3.vov.vn/podcast"),
-            Triple("VOV3 • Lịch phát", "Xem lịch chương trình VOV3 theo khung giờ", "https://vov3.vov.vn/lich-phat-song")
+            Triple("VOV3 • Lịch phát", "Xem lịch chương trình VOV3 theo khung giờ", "https://vov3.vov.vn/lich-phat-song"),
+            Triple("Hà Nội • FM 96", "Radio liên kết trên VOH", "https://voh.com.vn/radios"),
+            Triple("Đà Nẵng • FM 98.5", "Radio DRT liên kết trên VOH", "https://voh.com.vn/radios"),
+            Triple("Vĩnh Long • FM 90.2", "Radio THVL liên kết trên VOH", "https://voh.com.vn/radios"),
+            Triple("Đồng Tháp • FM 98.4", "Radio THĐT liên kết trên VOH", "https://voh.com.vn/radios"),
+            Triple("Quảng Ninh • FM 97.8", "Radio QNR1 liên kết trên VOH", "https://voh.com.vn/radios"),
+            Triple("Cần Thơ • FM 93.7", "Radio địa phương liên kết trên VOH", "https://voh.com.vn/radios"),
+            Triple("Khánh Hòa • FM 106.5", "Radio địa phương liên kết trên VOH", "https://voh.com.vn/radios"),
+            Triple("Kiên Giang • FM 99.4", "Radio địa phương liên kết trên VOH", "https://voh.com.vn/radios"),
+            Triple("Trà Vinh • FM 92.7", "Radio địa phương liên kết trên VOH", "https://voh.com.vn/radios"),
+            Triple("Nghệ An • FM 99.6", "Radio địa phương liên kết trên VOH", "https://voh.com.vn/radios"),
+            Triple("Sóc Trăng • FM 100.4", "Radio địa phương liên kết trên VOH", "https://voh.com.vn/radios")
         )
         Dialog(onDismissRequest = { showVietnamRadioHub = false }) {
             Surface(
