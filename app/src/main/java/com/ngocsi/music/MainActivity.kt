@@ -353,7 +353,7 @@ class MainActivity : ComponentActivity() {
                     // If the service already owns a queue, its Shuffle/Repeat state
                     // is authoritative because playback may have continued in the background.
                     // Apply saved preferences only when initializing a brand-new queue.
-                    if (c.mediaItemCount == 0 && songs.isNotEmpty()) {
+                    if (c.mediaItemCount == 0 && queueSongs.isNotEmpty()) {
                         c.shuffleModeEnabled = shuffleEnabled
                         c.repeatMode = repeatMode
                         c.setMediaItems(queueSongs.map { mediaItemFor(it) })
@@ -436,6 +436,7 @@ class MainActivity : ComponentActivity() {
         }
         // Keep the library in its own stable order. Queue order is restored
         // separately below so reordering the queue never reorders the library.
+        val hasSavedQueue = prefs.contains("queue_order")
         val savedQueueOrder = prefs.getString("queue_order", "").orEmpty()
             .split("\n")
             .map { it.trim() }
@@ -445,12 +446,15 @@ class MainActivity : ComponentActivity() {
         songs.addAll(result)
         queueSongs.clear()
         val byUri = songs.associateBy { it.uri.toString() }
-        savedQueueOrder.forEach { uri -> byUri[uri]?.let { queueSongs.add(it) } }
-        songs.forEach { song ->
-            if (queueSongs.none { it.uri == song.uri }) queueSongs.add(song)
+        if (hasSavedQueue) {
+            // An explicitly saved empty queue stays empty across app restarts.
+            savedQueueOrder.forEach { uri -> byUri[uri]?.let { queueSongs.add(it) } }
+        } else {
+            // First launch: initialize the queue from the complete library.
+            queueSongs.addAll(songs)
+            saveQueueOrder()
         }
         errorMessage = if (songs.isEmpty()) "Chưa tìm thấy file nhạc trong thiết bị." else null
-        if (songs.isNotEmpty()) saveQueueOrder()
         controller?.let { c ->
             // If MusicService already owns a matching queue, preserve its active item
             // and exact position. If the library changed with the same item count,
