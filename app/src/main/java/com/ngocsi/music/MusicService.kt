@@ -7,16 +7,61 @@ import android.os.Looper
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import com.google.common.util.concurrent.Futures
 
+@OptIn(UnstableApi::class)
 class MusicService : MediaSessionService() {
 
     private lateinit var player: ExoPlayer
     private lateinit var mediaSession: MediaSession
     private val widgetHandler = Handler(Looper.getMainLooper())
     private val prefs by lazy { getSharedPreferences("ngoc_si_music", MODE_PRIVATE) }
+    private val sessionCallback = object : MediaSession.Callback {
+        override fun onPlaybackResumption(
+            mediaSession: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            isForPlayback: Boolean
+        ): com.google.common.util.concurrent.ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+            val queueUris = prefs.getString("queue_order", "").orEmpty()
+                .split("\\n")
+                .map(String::trim)
+                .filter(String::isNotEmpty)
+                .distinct()
+            val lastUri = prefs.getString("last_song_uri", null)
+            val items = queueUris.mapNotNull { value ->
+                runCatching {
+                    val uri = android.net.Uri.parse(value)
+                    MediaItem.Builder()
+                        .setMediaId(value)
+                        .setUri(uri)
+                        .build()
+                }.getOrNull()
+            }
+            if (items.isEmpty()) {
+                return Futures.immediateFuture(
+                    MediaSession.MediaItemsWithStartPosition(emptyList(), C.INDEX_UNSET, C.TIME_UNSET)
+                )
+            }
+            val startIndex = items.indexOfFirst { it.mediaId == lastUri }
+                .takeIf { it >= 0 } ?: 0
+            val startPosition = prefs.getLong("last_position", 0L).coerceAtLeast(0L)
+            val speed = prefs.getFloat("playback_speed", 1.0f).coerceIn(0.5f, 2.0f)
+            player.setPlaybackSpeed(speed)
+            player.repeatMode = prefs.getInt("repeat", Player.REPEAT_MODE_OFF)
+            player.shuffleModeEnabled = prefs.getBoolean("shuffle", false)
+            val resumeItems = if (isForPlayback) items else listOf(items[startIndex])
+            val resumeIndex = if (isForPlayback) startIndex else 0
+            val resumePosition = if (isForPlayback) startPosition else C.TIME_UNSET
+            return Futures.immediateFuture(
+                MediaSession.MediaItemsWithStartPosition(resumeItems, resumeIndex, resumePosition)
+            )
+        }
+    }
+
     private val widgetTicker = object : Runnable {
         override fun run() {
             savePlaybackState()
@@ -92,6 +137,7 @@ class MusicService : MediaSessionService() {
 
         mediaSession = MediaSession.Builder(this, player)
             .setSessionActivity(sessionActivity)
+            .setCallback(sessionCallback)
             .build()
 
         broadcastWidget()
