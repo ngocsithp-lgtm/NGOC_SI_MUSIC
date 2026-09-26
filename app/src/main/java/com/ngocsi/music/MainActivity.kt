@@ -1759,7 +1759,7 @@ class MainActivity : ComponentActivity() {
             when (libraryView) {
                 "Nghệ sĩ" -> bySource.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.artist })
                 "Album" -> bySource.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title.substringBefore(" - ") })
-                "Thư mục" -> bySource.sortedWith(compareBy<Song>(String.CASE_INSENSITIVE_ORDER) { it.folder.ifBlank { it.source } }.thenBy(String.CASE_INSENSITIVE_ORDER) { it.title })
+                "Thư mục" -> bySource.sortedWith(compareBy<Song> { it.folder.ifBlank { it.source }.lowercase() }.thenBy { it.title.lowercase() })
                 else -> bySource.sortedBy { it.title.lowercase() }
             }
         }
