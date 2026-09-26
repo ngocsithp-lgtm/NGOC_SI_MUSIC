@@ -3381,7 +3381,6 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             item {
                                 OutlinedButton(
                                     onClick = {
-                                        playlistTargetSongUri = null
                                         newPlaylistName = ""
                                         showCreatePlaylist = true
                                     },
@@ -3400,7 +3399,10 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
     @Composable
     private fun CreatePlaylistDialog() {
         AlertDialog(
-            onDismissRequest = { showCreatePlaylist = false },
+            onDismissRequest = {
+                playlistTargetSongUri = null
+                showCreatePlaylist = false
+            },
             title = { Text("Tạo playlist") },
             text = {
                 OutlinedTextField(
@@ -3414,7 +3416,12 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 )
             },
             confirmButton = { Button(onClick = ::createPlaylist) { Text("TẠO") } },
-            dismissButton = { TextButton(onClick = { showCreatePlaylist = false }) { Text("HỦY") } }
+            dismissButton = {
+                TextButton(onClick = {
+                    playlistTargetSongUri = null
+                    showCreatePlaylist = false
+                }) { Text("HỦY") }
+            }
         )
     }
 
