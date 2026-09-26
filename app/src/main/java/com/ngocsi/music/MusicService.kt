@@ -16,8 +16,10 @@ class MusicService : MediaSessionService() {
     private lateinit var player: ExoPlayer
     private lateinit var mediaSession: MediaSession
     private val widgetHandler = Handler(Looper.getMainLooper())
+    private val prefs by lazy { getSharedPreferences("ngoc_si_music", MODE_PRIVATE) }
     private val widgetTicker = object : Runnable {
         override fun run() {
+            savePlaybackState()
             broadcastWidget()
             if (player.isPlaying) widgetHandler.postDelayed(this, 2000L)
         }
@@ -25,16 +27,19 @@ class MusicService : MediaSessionService() {
 
     private val playerListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
+            savePlaybackState()
             broadcastWidget()
             widgetHandler.removeCallbacks(widgetTicker)
             if (isPlaying) widgetHandler.postDelayed(widgetTicker, 2000L)
         }
 
         override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
+            savePlaybackState()
             broadcastWidget()
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
+            savePlaybackState()
             broadcastWidget()
         }
 
@@ -92,6 +97,16 @@ class MusicService : MediaSessionService() {
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession {
         return mediaSession
+    }
+
+    private fun savePlaybackState() {
+        val mediaItem = player.currentMediaItem
+        val uri = mediaItem?.localConfiguration?.uri?.toString() ?: return
+        val position = player.currentPosition.coerceAtLeast(0L)
+        prefs.edit()
+            .putString("last_song_uri", uri)
+            .putLong("last_position", position)
+            .apply()
     }
 
     private fun broadcastWidget() {
