@@ -2396,33 +2396,41 @@ class MainActivity : ComponentActivity() {
                     )
 
                     Spacer(Modifier.height(14.dp))
+                    // Media3 may discover the real duration only after prepare.
+                    // Prefer the live controller duration, with the library value
+                    // as a fallback for local files that already have metadata.
+                    val totalDuration = max(duration, song.duration).coerceAtLeast(1L)
                     var isSeeking by remember(song.uri.toString()) { mutableStateOf(false) }
-                    var sliderPosition by remember(song.uri.toString()) {
-                        mutableFloatStateOf(position.coerceIn(0L, max(1L, song.duration)).toFloat())
+                    var sliderPosition by remember(song.uri.toString(), totalDuration) {
+                        mutableFloatStateOf(position.coerceIn(0L, totalDuration).toFloat())
                     }
-                    LaunchedEffect(position, isSeeking, song.uri.toString()) {
+                    LaunchedEffect(position, isSeeking, song.uri.toString(), totalDuration) {
                         if (!isSeeking) {
-                            sliderPosition = position.coerceIn(0L, max(1L, song.duration)).toFloat()
+                            sliderPosition = position.coerceIn(0L, totalDuration).toFloat()
                         }
                     }
                     Slider(
                         value = sliderPosition,
                         onValueChange = {
                             isSeeking = true
-                            sliderPosition = it
+                            sliderPosition = it.coerceIn(0f, totalDuration.toFloat())
                         },
                         onValueChangeFinished = {
                             seekTo(sliderPosition.toLong())
                             isSeeking = false
                         },
-                        valueRange = 0f..max(1L, song.duration).toFloat()
+                        valueRange = 0f..totalDuration.toFloat()
                     )
                     Row(
                         Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(formatTime(position), color = Color(0xFF888894), fontSize = 12.sp)
-                        Text(formatTime(song.duration), color = Color(0xFF888894), fontSize = 12.sp)
+                        Text(
+                            formatTime(totalDuration),
+                            color = Color(0xFF888894),
+                            fontSize = 12.sp
+                        )
                     }
 
                     Spacer(Modifier.height(8.dp))
