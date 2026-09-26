@@ -7,9 +7,13 @@ import android.os.Looper
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.Player
+import androidx.media3.common.MediaItem
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import com.google.common.util.concurrent.ListenableFuture
+import com.google.common.util.concurrent.Futures
 
 class MusicService : MediaSessionService() {
 
@@ -22,6 +26,32 @@ class MusicService : MediaSessionService() {
             savePlaybackState()
             broadcastWidget()
             if (player.isPlaying) widgetHandler.postDelayed(this, 2000L)
+        }
+    }
+
+
+    @OptIn(UnstableApi::class)
+    private val mediaSessionCallback = object : MediaSession.Callback {
+        override fun onPlaybackResumption(
+            mediaSession: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            isForPlayback: Boolean
+        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+            val uri = prefs.getString("last_song_uri", null)
+            val position = prefs.getLong("last_position", 0L).coerceAtLeast(0L)
+            if (uri.isNullOrBlank()) {
+                return Futures.immediateFuture(
+                    MediaSession.MediaItemsWithStartPosition(emptyList(), 0, 0L)
+                )
+            }
+            val item = MediaItem.Builder()
+                .setMediaId(uri)
+                .setUri(uri)
+                .build()
+            val startPosition = if (isForPlayback) position else androidx.media3.common.C.TIME_UNSET
+            return Futures.immediateFuture(
+                MediaSession.MediaItemsWithStartPosition(listOf(item), 0, startPosition)
+            )
         }
     }
 
@@ -92,6 +122,7 @@ class MusicService : MediaSessionService() {
 
         mediaSession = MediaSession.Builder(this, player)
             .setSessionActivity(sessionActivity)
+            .setCallback(mediaSessionCallback)
             .build()
 
         broadcastWidget()
