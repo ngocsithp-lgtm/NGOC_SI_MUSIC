@@ -60,6 +60,7 @@ import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.MoreExecutors
@@ -114,6 +115,7 @@ data class OnlineFavoriteMeta(
     val imageUrl: String
 )
 
+@UnstableApi
 class MainActivity : ComponentActivity() {
     private var controller: MediaController? = null
     private val songs = mutableStateListOf<Song>()
@@ -1307,7 +1309,7 @@ class MainActivity : ComponentActivity() {
         // a URI that no longer exists in the logical queue.
         queueSongs.removeAt(index)
         if (removingCurrent && queueSongs.isNotEmpty()) {
-            val fallbackSong = fallback ?: queueSongs.first()
+            val fallbackSong = fallback ?: queueSongs.last()
             val fallbackIndex = queueSongs.indexOfFirst { it.uri == fallbackSong.uri }
             val c = controller
             if (c != null && fallbackIndex >= 0) {
