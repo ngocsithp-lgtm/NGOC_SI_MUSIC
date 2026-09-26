@@ -2479,6 +2479,14 @@ class MainActivity : ComponentActivity() {
                     onClick = { openOnlineSource("https://htv.vn/radio.htm") },
                     shape = RoundedCornerShape(12.dp)
                 ) { Text("HTV • Radio") }
+                OutlinedButton(
+                    onClick = { openOnlineSource("https://vov3.vov.vn/podcast") },
+                    shape = RoundedCornerShape(12.dp)
+                ) { Text("VOV3 • Podcast") }
+                OutlinedButton(
+                    onClick = { openOnlineSource("https://vov3.vov.vn/lich-phat-song") },
+                    shape = RoundedCornerShape(12.dp)
+                ) { Text("VOV3 • Lịch phát") }
             }
             Spacer(Modifier.height(6.dp))
             Text(
