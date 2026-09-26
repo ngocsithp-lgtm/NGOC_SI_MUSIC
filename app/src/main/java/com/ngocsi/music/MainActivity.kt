@@ -169,6 +169,14 @@ class MainActivity : ComponentActivity() {
     private val favorites = mutableStateMapOf<Long, Boolean>()
     private lateinit var prefs: SharedPreferences
 
+    // Radio recovery watchdog. A live stream can stay in BUFFERING without
+    // emitting a fatal player error, so switch to the next known stream after
+    // a bounded timeout instead of leaving the player apparently stuck.
+    private val radioRecoveryHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val radioRecoveryRunnable = Runnable {
+        recoverBufferedRadio()
+    }
+
     private val permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) loadSongs() else errorMessage = "Cần cấp quyền đọc nhạc để quét thư viện."
     }
@@ -252,6 +260,13 @@ class MainActivity : ComponentActivity() {
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
+            if (activeRadioTitle != null) {
+                if (playbackState == Player.STATE_BUFFERING) {
+                    scheduleRadioRecovery()
+                } else if (playbackState == Player.STATE_READY) {
+                    cancelRadioRecovery()
+                }
+            }
             if (playbackState == Player.STATE_ENDED && repeatMode == Player.REPEAT_MODE_OFF) {
                 // A naturally finished last item must persist 00:00 as well.
                 // Otherwise on reopening the app, the old end-position from
@@ -265,6 +280,7 @@ class MainActivity : ComponentActivity() {
         }
         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
             isPlaying = false
+            cancelRadioRecovery()
 
             val radioTitle = activeRadioTitle
             if (radioTitle != null && activeRadioStreamIndex + 1 < activeRadioStreams.size) {
@@ -550,6 +566,7 @@ class MainActivity : ComponentActivity() {
         val c = controller ?: run { errorMessage = "Trình phát đang khởi động, thử lại sau."; return }
 
         if (songs[index].source != "Radio Việt Nam") {
+            cancelRadioRecovery()
             activeRadioTitle = null
             activeRadioStreams = emptyList()
             activeRadioStreamIndex = 0
@@ -574,11 +591,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun mediaItemFor(song: Song): MediaItem {
+        val rawUri = song.uri.toString().lowercase()
         val path = song.uri.path.orEmpty().lowercase()
         val builder = MediaItem.Builder()
             .setMediaId(song.uri.toString())
             .setUri(song.uri)
-        if (path.endsWith(".m3u8")) {
+        if (song.source == "Radio Việt Nam" || path.endsWith(".m3u8") || rawUri.contains(".m3u8")) {
             builder.setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8)
         }
         return builder
@@ -726,23 +744,41 @@ class MainActivity : ComponentActivity() {
             name.endsWith(".wma")
     }
 
-    private fun verifiedRadioStreams(title: String): List<String> = when (title) {
-        "VOV1 • Thời sự" -> listOf(
-            "https://str.vov.gov.vn/vovlive/vov1vov5Vietnamese.sdp_aac/playlist.m3u8",
-            "https://media-audio.vov.vn/vov1vov5Vietnamese.sdp_aac/playlist.m3u8",
-            "https://audio-lss.vov.vn/live/vov1.m3u8"
-        )
-        "VOV2 • Văn hóa" -> listOf(
-            "https://media-audio.vov.vn/vov2.sdp_aac/playlist.m3u8",
-            "https://audio-lss.vov.vn/han/live/vov2/audio/manifest.m3u8",
-            "https://str.vov.gov.vn/vovlive/vov2.sdp_aac/playlist.m3u8"
-        )
-        "VOV3 • Âm nhạc" -> listOf(
-            "https://media-audio.vov.vn/vov3.sdp_aac/playlist.m3u8",
-            "https://audio-lss.vov.vn/han/live/vov3/audio/manifest.m3u8",
-            "https://str.vov.gov.vn/vovlive/vov3.sdp_aac/playlist.m3u8"
-        )
-        else -> emptyList()
+    private fun verifiedRadioStreams(title: String): List<String> =
+        RadioCatalog.find(title)?.streamUrls.orEmpty()
+
+    private fun scheduleRadioRecovery() {
+        cancelRadioRecovery()
+        if (activeRadioStreams.isNotEmpty()) {
+            radioRecoveryHandler.postDelayed(radioRecoveryRunnable, 12_000L)
+        }
+    }
+
+    private fun cancelRadioRecovery() {
+        radioRecoveryHandler.removeCallbacks(radioRecoveryRunnable)
+    }
+
+    private fun recoverBufferedRadio() {
+        val title = activeRadioTitle ?: return
+        val c = controller ?: return
+        val currentUri = c.currentMediaItem?.localConfiguration?.uri?.toString()
+        val expectedUri = activeRadioStreams.getOrNull(activeRadioStreamIndex)
+        if (c.isPlaying || c.playbackState != Player.STATE_BUFFERING || currentUri != expectedUri) {
+            return
+        }
+
+        val nextIndex = activeRadioStreamIndex + 1
+        if (nextIndex >= activeRadioStreams.size) {
+            errorMessage = "$title đang gặp sự cố kết nối. Không còn luồng dự phòng khả dụng."
+            cancelRadioRecovery()
+            return
+        }
+
+        activeRadioStreamIndex = nextIndex
+        val fallbackUrl = activeRadioStreams[nextIndex]
+        onlineUrl = fallbackUrl
+        errorMessage = "$title đang chậm, tự động chuyển sang luồng dự phòng…"
+        playRadioFallback(title, fallbackUrl)
     }
 
     private fun playVerifiedRadio(title: String, streamUrls: List<String>) {
@@ -752,6 +788,7 @@ class MainActivity : ComponentActivity() {
             return
         }
 
+        cancelRadioRecovery()
         activeRadioTitle = title
         activeRadioStreams = candidates
         activeRadioStreamIndex = 0
@@ -840,9 +877,13 @@ class MainActivity : ComponentActivity() {
             source = if (displayArtist == "VOV") "Radio Việt Nam" else "Online"
         )
 
-        val saved = (prefs.getStringSet("online_uris", emptySet()) ?: emptySet()).toMutableSet()
-        saved.add(raw)
-        prefs.edit().putStringSet("online_uris", saved).apply()
+        // Radio stations belong to the Radio catalog, not the user's generic
+        // online library. Persist ordinary online URLs only.
+        if (displayArtist != "VOV") {
+            val saved = (prefs.getStringSet("online_uris", emptySet()) ?: emptySet()).toMutableSet()
+            saved.add(raw)
+            prefs.edit().putStringSet("online_uris", saved).apply()
+        }
 
         val existingIndex = songs.indexOfFirst { it.uri.toString() == raw }
         val index = if (existingIndex >= 0) existingIndex else {
@@ -1465,6 +1506,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        cancelRadioRecovery()
         speechRecognizer?.destroy()
         speechRecognizer = null
         savePlaybackState()
@@ -1958,53 +2000,16 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun VietnamRadioHubDialog() {
-        val sources = listOf(
-            Triple("VOV1 • Thời sự", "Kênh thời sự của VOV", "https://vov1.vov.gov.vn/"),
-            Triple("VOV2 • Văn hóa", "Văn hóa, giáo dục, khoa học và giải trí", "https://vov2.vov.vn/"),
-            Triple("VOV3 • Âm nhạc", "Âm nhạc Việt, dân ca, cải lương, Cover Hits", "https://vov3.vov.vn/"),
+        val sources = RadioCatalog.stations.map {
+            Triple(it.title, it.description, it.sourceUrl)
+        } + listOf(
             Triple("VOV • Radio Việt Nam", "Cổng các kênh phát thanh trực tuyến của VOV", "https://vovmedia.vn/"),
             Triple("VOH • Radio", "Radio và các kênh phát thanh của VOH", "https://voh.com.vn/radios"),
             Triple("HTV • Radio", "Các kênh radio được HTV giới thiệu", "https://htv.vn/radio.htm"),
             Triple("VOV3 • Podcast", "Podcast văn hóa, nghệ thuật và âm nhạc", "https://vov3.vov.vn/podcast"),
-            Triple("VOV3 • Lịch phát", "Xem lịch chương trình VOV3 theo khung giờ", "https://vov3.vov.vn/lich-phat-song"),
-            Triple("Hà Nội • FM 96", "Radio Hà Nội được VOH liệt kê", "https://voh.com.vn/radios"),
-            Triple("Đà Nẵng • FM 98.5", "Radio Đà Nẵng được VOH liệt kê", "https://voh.com.vn/radios"),
-            Triple("Vĩnh Long • FM 90.2", "Radio Vĩnh Long được VOH liệt kê", "https://voh.com.vn/radios"),
-            Triple("Thừa Thiên Huế • FM 93.0", "Radio Huế được VOH liệt kê", "https://voh.com.vn/radios"),
-            Triple("Đồng Tháp • FM 98.4", "Radio Đồng Tháp được VOH liệt kê", "https://voh.com.vn/radios"),
-            Triple("Quảng Ninh 1 • FM 97.8", "Radio Quảng Ninh 1 được VOH liệt kê", "https://voh.com.vn/radios"),
-            Triple("Hà Nội • FM 90", "Radio Hà Nội được VOH liệt kê", "https://voh.com.vn/radios"),
-            Triple("Long An • FM 96.9", "Radio Long An được VOH liệt kê", "https://voh.com.vn/radios"),
-            Triple("Cần Thơ • FM 93.7", "Radio Cần Thơ được VOH liệt kê", "https://voh.com.vn/radios"),
-            Triple("Khánh Hòa • FM 106.5", "Radio Khánh Hòa được VOH liệt kê", "https://voh.com.vn/radios"),
-            Triple("Kiên Giang • FM 99.4", "Radio Kiên Giang được VOH liệt kê", "https://voh.com.vn/radios"),
-            Triple("Trà Vinh • FM 92.7", "Radio Trà Vinh được VOH liệt kê", "https://voh.com.vn/radios"),
-            Triple("Quảng Ngãi • FM 102.9", "Radio Quảng Ngãi được VOH liệt kê", "https://voh.com.vn/radios"),
-            Triple("Nghệ An • FM 99.6", "Radio Nghệ An được VOH liệt kê", "https://voh.com.vn/radios"),
-            Triple("Bạc Liêu • FM 93.8", "Radio Bạc Liêu được VOH liệt kê", "https://voh.com.vn/radios"),
-            Triple("Sóc Trăng • FM 100.4", "Radio Sóc Trăng được VOH liệt kê", "https://voh.com.vn/radios"),
-            Triple("Quảng Ninh 2 • FM 94.7", "Radio Quảng Ninh 2 được VOH liệt kê", "https://voh.com.vn/radios"),
-            Triple("Đắk Nông • PTD", "Kênh Đắk Nông được VOH liệt kê", "https://voh.com.vn/radios"),
-            Triple("Kon Tum • FM 95.1", "Radio Kon Tum được VOH liệt kê", "https://voh.com.vn/radios")
+            Triple("VOV3 • Lịch phát", "Xem lịch chương trình VOV3 theo khung giờ", "https://vov3.vov.vn/lich-phat-song")
         )
-        // HLS endpoint ưu tiên hiện tại; giữ endpoint cũ làm dự phòng.
-        val verifiedStreams = mapOf(
-            "VOV1 • Thời sự" to listOf(
-                "https://str.vov.gov.vn/vovlive/vov1vov5Vietnamese.sdp_aac/playlist.m3u8",
-                "https://media-audio.vov.vn/vov1vov5Vietnamese.sdp_aac/playlist.m3u8",
-                "https://audio-lss.vov.vn/live/vov1.m3u8"
-            ),
-            "VOV2 • Văn hóa" to listOf(
-                "https://media-audio.vov.vn/vov2.sdp_aac/playlist.m3u8",
-                "https://audio-lss.vov.vn/han/live/vov2/audio/manifest.m3u8",
-                "https://str.vov.gov.vn/vovlive/vov2.sdp_aac/playlist.m3u8"
-            ),
-            "VOV3 • Âm nhạc" to listOf(
-                "https://media-audio.vov.vn/vov3.sdp_aac/playlist.m3u8",
-                "https://audio-lss.vov.vn/han/live/vov3/audio/manifest.m3u8",
-                "https://str.vov.gov.vn/vovlive/vov3.sdp_aac/playlist.m3u8"
-            )
-        )
+val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrls }
         val normalizedFilter = radioFilter.trim().lowercase()
         val filteredSources = if (normalizedFilter.isBlank()) sources else sources.filter { source ->
             source.first.lowercase().contains(normalizedFilter) || source.second.lowercase().contains(normalizedFilter)
