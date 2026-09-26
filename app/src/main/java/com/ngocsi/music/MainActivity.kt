@@ -574,10 +574,21 @@ class MainActivity : ComponentActivity() {
 
     private fun songFromUri(uri: Uri): Song {
         var title = "Nhạc online"
-        contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
-            if (cursor.moveToFirst()) {
-                title = cursor.getString(cursor.getColumnIndexOrThrow(OpenableColumns.DISPLAY_NAME))
-                    .substringBeforeLast(".").ifBlank { "Nhạc online" }
+        // A persisted Drive URI can outlive its provider grant. Metadata lookup
+        // must therefore be best-effort so one stale item cannot break startup.
+        runCatching {
+            contentResolver.query(
+                uri,
+                arrayOf(OpenableColumns.DISPLAY_NAME),
+                null,
+                null,
+                null
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    title = cursor.getString(cursor.getColumnIndexOrThrow(OpenableColumns.DISPLAY_NAME))
+                        .substringBeforeLast(".")
+                        .ifBlank { "Nhạc online" }
+                }
             }
         }
         return Song(
