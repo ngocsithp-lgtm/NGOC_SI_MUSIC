@@ -574,10 +574,7 @@ class MainActivity : ComponentActivity() {
         val c = controller ?: run { errorMessage = "Trình phát đang khởi động, thử lại sau."; return }
 
         if (songs[index].source != "Radio Việt Nam") {
-            cancelRadioRecovery()
-            activeRadioTitle = null
-            activeRadioStreams = emptyList()
-            activeRadioStreamIndex = 0
+            clearActiveRadioState()
         }
 
         if (!isControllerQueueInSync(c)) {
@@ -805,6 +802,12 @@ class MainActivity : ComponentActivity() {
         playOnlineUrl(displayTitle = title, displayArtist = "VOV")
     }
 
+    private fun clearActiveRadioState() {
+        cancelRadioRecovery()
+        activeRadioTitle = null
+        activeRadioStreams = emptyList()
+        activeRadioStreamIndex = 0
+    }
     private fun playRadioFallback(title: String, streamUrl: String) {
         val c = controller ?: return
         val uri = runCatching { Uri.parse(streamUrl) }.getOrNull() ?: return
@@ -888,6 +891,7 @@ class MainActivity : ComponentActivity() {
         // Radio stations belong to the Radio catalog, not the user's generic
         // online library. Persist ordinary online URLs only.
         if (displayArtist != "VOV") {
+            clearActiveRadioState()
             val saved = (prefs.getStringSet("online_uris", emptySet()) ?: emptySet()).toMutableSet()
             saved.add(raw)
             prefs.edit().putStringSet("online_uris", saved).apply()
@@ -1356,6 +1360,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun stop() {
+        clearActiveRadioState()
         controller?.pause()
         controller?.seekTo(0L)
         position = 0L
