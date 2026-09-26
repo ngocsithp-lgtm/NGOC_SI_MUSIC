@@ -360,7 +360,7 @@ class MainActivity : ComponentActivity() {
                         c.prepare()
 
                         val restoreIndex = lastSongUri?.let { uri ->
-                            songs.indexOfFirst { it.uri.toString() == uri }
+                            queueSongs.indexOfFirst { it.uri.toString() == uri }
                         } ?: -1
                         if (restoreIndex >= 0) {
                             c.seekToDefaultPosition(restoreIndex)
@@ -434,28 +434,12 @@ class MainActivity : ComponentActivity() {
             val uri = Uri.parse(raw)
             if (existing.add(raw)) result += onlineSongFromUri(uri)
         }
-        // Restore the user's last Queue order while keeping newly discovered
-        // songs that were not present in the saved queue at the end.
+        // Keep the library in its own stable order. Queue order is restored
+        // separately below so reordering the queue never reorders the library.
         val savedQueueOrder = prefs.getString("queue_order", "").orEmpty()
             .split("\n")
             .map { it.trim() }
             .filter { it.isNotBlank() }
-        if (savedQueueOrder.isNotEmpty()) {
-            val byUri = result.associateBy { it.uri.toString() }
-            val restored = mutableListOf<Song>()
-            val used = mutableSetOf<String>()
-            savedQueueOrder.forEach { uri ->
-                byUri[uri]?.let { song ->
-                    restored += song
-                    used += uri
-                }
-            }
-            result.forEach { song ->
-                if (used.add(song.uri.toString())) restored += song
-            }
-            result.clear()
-            result.addAll(restored)
-        }
 
         songs.clear()
         songs.addAll(result)
@@ -693,7 +677,7 @@ class MainActivity : ComponentActivity() {
         val existingIndex = songs.indexOfFirst { it.uri.toString() == raw }
         val index = if (existingIndex >= 0) existingIndex else {
             songs.add(song)
-        queueSongs.add(song)
+            queueSongs.add(song)
             songs.lastIndex
         }
 
@@ -915,7 +899,14 @@ class MainActivity : ComponentActivity() {
             artworkUri = track.imageUrl.takeIf { it.isNotBlank() }?.let(Uri::parse)
         )
         val existingIndex = songs.indexOfFirst { it.uri.toString() == raw }
-        val index = if (existingIndex >= 0) existingIndex else { songs.add(song); songs.lastIndex }
+        val index = if (existingIndex >= 0) existingIndex else {
+            songs.add(song)
+            queueSongs.add(song)
+            songs.lastIndex
+        }
+        if (existingIndex >= 0 && queueSongs.none { it.uri == song.uri }) {
+            queueSongs.add(songs[index])
+        }
         syncControllerQueue()
         play(index)
     }
@@ -948,12 +939,12 @@ class MainActivity : ComponentActivity() {
                 c.repeatMode = keepRepeat
                 c.prepare()
 
-                val index = selectedUri?.let { uri ->
-                    songs.indexOfFirst { it.uri == uri }
+                val queueIndex = selectedUri?.let { uri ->
+                    queueSongs.indexOfFirst { it.uri == uri }
                 } ?: -1
 
-                if (index >= 0) {
-                    c.seekToDefaultPosition(index)
+                if (queueIndex >= 0) {
+                    c.seekToDefaultPosition(queueIndex)
                     if (savedPositionMs > 0L) c.seekTo(savedPositionMs)
                     if (wasPlaying) c.play()
                 }
@@ -1033,10 +1024,10 @@ class MainActivity : ComponentActivity() {
         savePlaybackState()
     }
     private fun removeFromQueue(index: Int) {
-        if (index !in songs.indices) return
+        if (index !in queueSongs.indices) return
         val c = controller ?: return
 
-        // The library list is stable order, while Media3 may expose a different
+        // The queue list is independent from the library list; Media3 may expose a different
         // queue order when shuffle is enabled. Resolve the target by URI first.
         val targetUri = queueSongs.getOrNull(index)?.uri?.toString() ?: return
         val controllerIndex = (0 until c.mediaItemCount).firstOrNull { queueIndex ->
