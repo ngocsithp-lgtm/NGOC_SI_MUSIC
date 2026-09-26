@@ -53,7 +53,9 @@ class MusicService : MediaSessionService() {
             newPosition: Player.PositionInfo,
             reason: Int
         ) {
-            // Keep the widget in sync after seek, previous/next, and track changes.
+            // Persist immediately after seek/previous/next, including when paused.
+            // This avoids losing a manually selected position before the next ticker.
+            savePlaybackState()
             broadcastWidget()
         }
     }
