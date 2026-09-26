@@ -647,10 +647,19 @@ class MainActivity : ComponentActivity() {
             syncControllerQueue()
         }
 
+        // A direct tap on a library item must remain playable even when the
+        // user previously replaced the queue with a filtered/playlist subset.
+        // Add the target to the logical queue instead of showing a dead-end
+        // "not in queue" state.
+        if (queueSongs.none { it.uri == songs[index].uri }) {
+            queueSongs.add(songs[index])
+            syncControllerQueue()
+        }
+
         currentIndex = index
         val queueIndex = queueSongs.indexOfFirst { it.uri == songs[index].uri }
         if (queueIndex < 0) {
-            errorMessage = "Bài hát chưa có trong hàng đợi."
+            errorMessage = "Không thể thêm bài hát vào hàng đợi."
             return
         }
         c.seekToDefaultPosition(queueIndex)
@@ -666,7 +675,15 @@ class MainActivity : ComponentActivity() {
         val builder = MediaItem.Builder()
             .setMediaId(song.uri.toString())
             .setUri(song.uri)
-        if (song.source == "Radio Việt Nam" || path.endsWith(".m3u8") || rawUri.contains(".m3u8")) {
+        // Force HLS only when the URL actually identifies an HLS manifest.
+        // Some radio providers expose a direct AAC/MP3 stream without a .m3u8
+        // suffix; forcing APPLICATION_M3U8 on those URLs makes Media3 reject
+        // an otherwise playable audio stream.
+        val isHls = path.endsWith(".m3u8") ||
+            rawUri.contains(".m3u8") ||
+            rawUri.contains("/playlist") ||
+            rawUri.contains("/manifest")
+        if (isHls) {
             builder.setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8)
         }
         return builder
