@@ -214,6 +214,9 @@ class MusicService : MediaSessionService() {
         }
 
         if (player.mediaItemCount > 0) {
+            // Persist the queue only when it still contains real media items.
+            // Keeping the snapshot service-side makes screen-off/lock-screen
+            // controls recoverable even when the Activity is no longer alive.
             val queueUris = buildString {
                 for (index in 0 until player.mediaItemCount) {
                     if (index > 0) append('\n')
