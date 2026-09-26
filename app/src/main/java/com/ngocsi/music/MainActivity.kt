@@ -3366,13 +3366,35 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
     @Composable
     private fun OnlineArtwork(url: String, modifier: Modifier = Modifier) {
         var bitmap by remember(url) { mutableStateOf<android.graphics.Bitmap?>(null) }
+
         LaunchedEffect(url) {
-            bitmap = if (url.isBlank()) null else withContext(Dispatchers.IO) {
-                runCatching {
-                    java.net.URL(url).openStream().use { BitmapFactory.decodeStream(it) }
-                }.getOrNull()
+            bitmap = if (url.isBlank()) {
+                null
+            } else {
+                withContext(Dispatchers.IO) {
+                    runCatching {
+                        val connection = (java.net.URL(url).openConnection() as java.net.HttpURLConnection).apply {
+                            connectTimeout = 8000
+                            readTimeout = 10000
+                            useCaches = true
+                            doInput = true
+                            setRequestProperty("Accept", "image/avif,image/webp,image/apng,image/*,*/*;q=0.8")
+                            setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.2")
+                        }
+                        try {
+                            if (connection.responseCode in 200..299) {
+                                connection.inputStream.use { BitmapFactory.decodeStream(it) }
+                            } else {
+                                null
+                            }
+                        } finally {
+                            connection.disconnect()
+                        }
+                    }.getOrNull()
+                }
             }
         }
+
         Box(
             modifier
                 .clip(RoundedCornerShape(10.dp))
