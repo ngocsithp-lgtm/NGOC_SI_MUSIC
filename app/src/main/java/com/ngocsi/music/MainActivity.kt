@@ -1845,6 +1845,8 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun VietnamRadioHubDialog() {
         val sources = listOf(
+            Triple("VOV1 • Thời sự", "Kênh thời sự của VOV", "https://vov1.vov.gov.vn/"),
+            Triple("VOV2 • Văn hóa", "Văn hóa, giáo dục, khoa học và giải trí", "https://vov2.vov.vn/"),
             Triple("VOV3 • Âm nhạc", "Âm nhạc Việt, dân ca, cải lương, Cover Hits", "https://vov3.vov.vn/"),
             Triple("VOV • Radio Việt Nam", "Cổng các kênh phát thanh trực tuyến của VOV", "https://vovmedia.vn/"),
             Triple("VOH • Radio", "Radio và các kênh phát thanh của VOH", "https://voh.com.vn/radios"),
@@ -1871,11 +1873,19 @@ class MainActivity : ComponentActivity() {
             Triple("Đắk Nông • PTD", "Kênh Đắk Nông được VOH liệt kê", "https://voh.com.vn/radios"),
             Triple("Kon Tum • FM 95.1", "Radio Kon Tum được VOH liệt kê", "https://voh.com.vn/radios")
         )
+        val verifiedStreams = mapOf(
+            "VOV1 • Thời sự" to "https://str.vov.gov.vn/vovlive/vov1vov5Vietnamese.sdp_aac/playlist.m3u8",
+            "VOV2 • Văn hóa" to "https://str.vov.gov.vn/vovlive/vov2.sdp_aac/playlist.m3u8",
+            "VOV3 • Âm nhạc" to "https://str.vov.gov.vn/vovlive/vov3.sdp_aac/playlist.m3u8"
+        )
         val normalizedFilter = radioFilter.trim().lowercase()
         val filteredSources = if (normalizedFilter.isBlank()) sources else sources.filter { source ->
             source.first.lowercase().contains(normalizedFilter) || source.second.lowercase().contains(normalizedFilter)
         }
-        Dialog(onDismissRequest = { showVietnamRadioHub = false }) {
+        Dialog(onDismissRequest = {
+            showVietnamRadioHub = false
+            radioFilter = ""
+        }) {
             Surface(
                 shape = RoundedCornerShape(26.dp),
                 color = Color(0xFF101117),
@@ -1885,7 +1895,7 @@ class MainActivity : ComponentActivity() {
                     Text("RADIO VIỆT NAM", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "Nguồn chính thức • chọn kênh để mở",
+                        "VOV1 • VOV2 • VOV3 phát bằng Media3; các nguồn khác mở trang chính thức",
                         color = Color(0xFF8F8F9A),
                         fontSize = 12.sp
                     )
@@ -1901,7 +1911,7 @@ class MainActivity : ComponentActivity() {
                     )
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        "${filteredSources.size}/${sources.size} nguồn",
+                        "\${filteredSources.size}/\${sources.size} nguồn",
                         color = Color(0xFF777D8D),
                         fontSize = 11.sp
                     )
@@ -1911,6 +1921,7 @@ class MainActivity : ComponentActivity() {
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(filteredSources) { source ->
+                            val streamUrl = verifiedStreams[source.first]
                             Surface(
                                 shape = RoundedCornerShape(16.dp),
                                 color = Color(0xFF181922),
@@ -1923,29 +1934,48 @@ class MainActivity : ComponentActivity() {
                                     Column(Modifier.weight(1f)) {
                                         Text(source.first, color = Color.White, fontWeight = FontWeight.SemiBold)
                                         Spacer(Modifier.height(2.dp))
-                                        Text(source.second, color = Color(0xFF8F8F9A), fontSize = 11.sp)
+                                        Text(
+                                            if (streamUrl != null) "\${source.second} • phát nền qua MediaSession" else source.second,
+                                            color = Color(0xFF8F8F9A),
+                                            fontSize = 11.sp
+                                        )
                                     }
                                     Spacer(Modifier.width(8.dp))
-                                    Button(
-                                        onClick = {
-                                            radioWebTitle = source.first
-                                            radioWebUrl = source.third
-                                            showVietnamRadioHub = false
-                                        },
-                                        shape = RoundedCornerShape(12.dp)
-                                    ) { Text("PHÁT TRONG APP") }
+                                    if (streamUrl != null) {
+                                        Button(
+                                            onClick = {
+                                                showVietnamRadioHub = false
+                                                radioFilter = ""
+                                                playVerifiedRadio(source.first, streamUrl)
+                                            },
+                                            shape = RoundedCornerShape(12.dp)
+                                        ) { Text("PHÁT APP") }
+                                    } else {
+                                        OutlinedButton(
+                                            onClick = {
+                                                radioWebTitle = source.first
+                                                radioWebUrl = source.third
+                                                showVietnamRadioHub = false
+                                                radioFilter = ""
+                                            },
+                                            shape = RoundedCornerShape(12.dp)
+                                        ) { Text("MỞ NGUỒN") }
+                                    }
                                 }
                             }
                         }
                     }
                     Spacer(Modifier.height(10.dp))
                     Text(
-                        "Một số đài chỉ cho phép phát trực tuyến theo lịch hoặc nền tảng của họ.",
+                        "Các luồng Media3 chỉ dùng URL HTTPS HLS đã xác minh; các đài chưa có luồng phù hợp vẫn mở nguồn chính thức.",
                         color = Color(0xFF777D8D),
                         fontSize = 11.sp
                     )
                     Spacer(Modifier.height(4.dp))
-                    TextButton(onClick = { showVietnamRadioHub = false }) { Text("Đóng") }
+                    TextButton(onClick = {
+                        showVietnamRadioHub = false
+                        radioFilter = ""
+                    }) { Text("Đóng") }
                 }
             }
         }
