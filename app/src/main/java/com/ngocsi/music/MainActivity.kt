@@ -430,9 +430,33 @@ class MainActivity : ComponentActivity() {
             val uri = Uri.parse(raw)
             if (existing.add(raw)) result += onlineSongFromUri(uri)
         }
+        // Restore the user's last Queue order while keeping newly discovered
+        // songs that were not present in the saved queue at the end.
+        val savedQueueOrder = prefs.getString("queue_order", "").orEmpty()
+            .split("\n")
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+        if (savedQueueOrder.isNotEmpty()) {
+            val byUri = result.associateBy { it.uri.toString() }
+            val restored = mutableListOf<Song>()
+            val used = mutableSetOf<String>()
+            savedQueueOrder.forEach { uri ->
+                byUri[uri]?.let { song ->
+                    restored += song
+                    used += uri
+                }
+            }
+            result.forEach { song ->
+                if (used.add(song.uri.toString())) restored += song
+            }
+            result.clear()
+            result.addAll(restored)
+        }
+
         songs.clear()
         songs.addAll(result)
         errorMessage = if (songs.isEmpty()) "Chưa tìm thấy file nhạc trong thiết bị." else null
+        if (songs.isNotEmpty()) saveQueueOrder()
         controller?.let { c ->
             // If MusicService already owns a matching queue, preserve its active item
             // and exact position. If the library changed with the same item count,
@@ -899,6 +923,7 @@ class MainActivity : ComponentActivity() {
                 val keepRepeat = c.repeatMode
 
                 c.setMediaItems(songs.map { mediaItemFor(it) })
+                saveQueueOrder()
                 c.shuffleModeEnabled = keepShuffle
                 c.repeatMode = keepRepeat
                 c.prepare()
@@ -1000,6 +1025,7 @@ class MainActivity : ComponentActivity() {
         val removedCurrent = c.currentMediaItem?.localConfiguration?.uri?.toString() == targetUri
         songs.removeAt(index)
         c.removeMediaItem(controllerIndex)
+        saveQueueOrder()
 
         val currentUri = c.currentMediaItem?.localConfiguration?.uri?.toString()
         currentIndex = currentUri?.let { uri -> songs.indexOfFirst { it.uri.toString() == uri } } ?: -1
@@ -1031,6 +1057,7 @@ class MainActivity : ComponentActivity() {
 
         songs.add(to, songs.removeAt(from))
         c.moveMediaItem(controllerFrom, controllerTo)
+        saveQueueOrder()
 
         val currentUri = c.currentMediaItem?.localConfiguration?.uri?.toString()
         currentIndex = currentUri?.let { uri -> songs.indexOfFirst { it.uri.toString() == uri } } ?: -1
@@ -1094,6 +1121,13 @@ class MainActivity : ComponentActivity() {
         onlineFavorites.addAll(onlineFavoriteSet)
         lastSongUri = prefs.getString("last_song_uri", null)
         savedPosition = prefs.getLong("last_position", 0L)
+    }
+
+    private fun saveQueueOrder() {
+        if (!::prefs.isInitialized) return
+        prefs.edit()
+            .putString("queue_order", songs.joinToString("\n") { it.uri.toString() })
+            .apply()
     }
 
     private fun savePlaybackState() {
