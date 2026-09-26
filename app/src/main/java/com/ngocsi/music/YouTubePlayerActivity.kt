@@ -335,44 +335,19 @@ class YouTubePlayerActivity : ComponentActivity() {
             isFocusableInTouchMode = true
 
             val safeId = sanitizeVideoId(videoId)
-            // Keep a stable HTTPS enclosing context so Android WebView sends
-            // the HTTP Referer that YouTube requires for embedded playback.
-            // The app does not need the IFrame JavaScript API, so omit enablejsapi/origin
-            // parameters to reduce configuration surface and avoid unnecessary API state.
-            val appBaseUrl = "https://com.ngocsi.music/"
+            // YouTube documents two supported Android WebView approaches for the
+            // required API client identity: loadDataWithBaseURL() for local HTML,
+            // or loadUrl() with an explicit Referer for a direct embed.
+            // Use the direct-embed approach here so the HTTP Referer is attached
+            // explicitly to the initial YouTube request instead of relying on
+            // iframe/meta referrer propagation inside WebView.
+            val appReferrer = "https://com.ngocsi.music/"
             val embedUrl = "https://www.youtube.com/embed/" + safeId +
                 "?playsinline=1&autoplay=0&rel=0&controls=1&fs=1" +
                 "&hl=vi&cc_lang_pref=vi"
 
-            val html = """
-                <!doctype html>
-                <html lang="vi">
-                <head>
-                  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-                  <meta name="referrer" content="origin">
-                  <style>
-                    html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#000; }
-                    #player, iframe { width:100%; height:100%; border:0; background:#000; }
-                  </style>
-                </head>
-                <body>
-                  <div id="player">
-                    <iframe src="${embedUrl}" title="YouTube"
-                      referrerpolicy="origin"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                      allowfullscreen></iframe>
-                  </div>
-                </body>
-                </html>
-            """.trimIndent()
-
-            loadDataWithBaseURL(
-                appBaseUrl,
-                html,
-                "text/html",
-                "UTF-8",
-                appBaseUrl
-            )
+            val headers = mapOf("Referer" to appReferrer)
+            loadUrl(embedUrl, headers)
         }
 
         webView = player
