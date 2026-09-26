@@ -2493,11 +2493,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     }
                                 }
                                 webChromeClient = WebChromeClient()
-                                loadUrl(url, mapOf("Referer" to "https://com.ngocsi.music"))
+                                loadUrl(url, mapOf("Referer" to "https://github.com/ngocsithp-lgtm/NGOC_SI_MUSIC/"))
                             }
                         },
                         update = { view ->
-                            if (view.url != url) view.loadUrl(url, mapOf("Referer" to "https://com.ngocsi.music"))
+                            if (view.url != url) view.loadUrl(url, mapOf("Referer" to "https://github.com/ngocsithp-lgtm/NGOC_SI_MUSIC/"))
                         }
                     )
                 }
