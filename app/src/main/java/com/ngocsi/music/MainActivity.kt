@@ -763,6 +763,18 @@ class MainActivity : ComponentActivity() {
         radioRecoveryHandler.removeCallbacks(radioRecoveryRunnable)
     }
 
+    private fun openRadioOfficialSource(title: String): Boolean {
+        val sourceUrl = RadioCatalog.find(title)?.sourceUrl ?: return false
+        controller?.pause()
+        cancelRadioRecovery()
+        radioWebTitle = title
+        radioWebUrl = sourceUrl
+        activeRadioTitle = null
+        activeRadioStreams = emptyList()
+        activeRadioStreamIndex = 0
+        return true
+    }
+
     private fun recoverBufferedRadio() {
         val title = activeRadioTitle ?: return
         val c = controller ?: return
@@ -774,8 +786,12 @@ class MainActivity : ComponentActivity() {
 
         val nextIndex = activeRadioStreamIndex + 1
         if (nextIndex >= activeRadioStreams.size) {
-            errorMessage = "$title đang gặp sự cố kết nối. Không còn luồng dự phòng khả dụng."
-            cancelRadioRecovery()
+            if (openRadioOfficialSource(title)) {
+                errorMessage = "$title không còn luồng HLS khả dụng; đã chuyển sang nguồn chính thức trong ứng dụng."
+            } else {
+                errorMessage = "$title đang gặp sự cố kết nối. Không còn luồng dự phòng khả dụng."
+                cancelRadioRecovery()
+            }
             return
         }
 
@@ -1630,7 +1646,7 @@ class MainActivity : ComponentActivity() {
                 "Yêu thích" -> byText.filter { favorites[it.id] == true }
                 "Thiết bị" -> byText.filter { it.source == "Thiết bị" }
                 "Google Drive" -> byText.filter { it.source == "Google Drive" }
-                "Online" -> byText.filter { it.source == "Online" }
+                "Online" -> byText.filter { it.source in setOf("Online", "Jamendo", "Audius", "Radio Việt Nam") }
                 else -> byText
             }
             when (libraryView) {
@@ -1673,7 +1689,7 @@ class MainActivity : ComponentActivity() {
                                 QuickActions()
                                 Spacer(Modifier.height(8.dp))
                                 OutlinedButton(onClick = { showQueue = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
-                                    Text("☷  Hàng đợi phát • " + songs.size + " bài")
+                                    Text("☷  Hàng đợi phát • " + queueSongs.size + " bài")
                                 }
                             }
                         }
