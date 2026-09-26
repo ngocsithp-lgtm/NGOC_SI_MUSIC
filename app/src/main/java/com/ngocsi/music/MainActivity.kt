@@ -1719,14 +1719,20 @@ class MainActivity : ComponentActivity() {
                     }
                     Spacer(Modifier.height(8.dp))
                     LazyColumn(modifier = Modifier.heightIn(max = 460.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        itemsIndexed(queueSongs, key = { _, song -> song.id }) { index, song ->
+                        itemsIndexed(queueSongs, key = { _, song -> song.uri.toString() }) { index, song ->
+                            val activeUri = controller?.currentMediaItem?.localConfiguration?.uri
+                            val isCurrent = activeUri == song.uri
                             Row(
                                 Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-                                    .background(if (index == currentIndex) Color(0xFF29213E) else Color(0xFF17181F))
-                                    .clickable { play(queueSongs.getOrNull(index)?.let { song -> songs.indexOfFirst { it.uri == song.uri } } ?: -1); showQueue = false }.padding(10.dp),
+                                    .background(if (isCurrent) Color(0xFF29213E) else Color(0xFF17181F))
+                                    .clickable {
+                                        val libraryIndex = songs.indexOfFirst { it.uri == song.uri }
+                                        if (libraryIndex >= 0) play(libraryIndex)
+                                        showQueue = false
+                                    }.padding(10.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(if (index == currentIndex) "▶" else String.format("%02d", index + 1), color = Color(0xFFC8B7FF), fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(32.dp))
+                                Text(if (isCurrent) "▶" else String.format("%02d", index + 1), color = Color(0xFFC8B7FF), fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(32.dp))
                                 Column(Modifier.weight(1f)) {
                                     Text(song.title, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     Text(song.artist, color = Color(0xFF888894), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -1737,8 +1743,8 @@ class MainActivity : ComponentActivity() {
                                     enabled = index > 0
                                 ) { Text("↑") }
                                 TextButton(
-                                    onClick = { if (index < songs.lastIndex) moveQueueItem(index, index + 1) },
-                                    enabled = index < songs.lastIndex
+                                    onClick = { if (index < queueSongs.lastIndex) moveQueueItem(index, index + 1) },
+                                    enabled = index < queueSongs.lastIndex
                                 ) { Text("↓") }
                                 TextButton(
                                     onClick = { removeFromQueue(index) }
