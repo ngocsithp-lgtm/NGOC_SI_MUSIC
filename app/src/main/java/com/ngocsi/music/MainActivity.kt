@@ -1134,8 +1134,21 @@ class MainActivity : ComponentActivity() {
 
     private fun saveQueueOrder() {
         if (!::prefs.isInitialized) return
+        val metadata = org.json.JSONArray()
+        queueSongs.forEach { song ->
+            metadata.put(
+                org.json.JSONObject().apply {
+                    put("uri", song.uri.toString())
+                    put("title", song.title)
+                    put("artist", song.artist)
+                    put("albumId", song.albumId)
+                    put("artworkUri", song.artworkUri?.toString() ?: "")
+                }
+            )
+        }
         prefs.edit()
             .putString("queue_order", queueSongs.joinToString("\n") { it.uri.toString() })
+            .putString("queue_metadata", metadata.toString())
             .apply()
     }
 
