@@ -4,7 +4,7 @@ Android music player built with Kotlin, Jetpack Compose and AndroidX Media3.
 
 ## Bản hiện tại
 
-- Version: **4.4**
+- Version: **4.5**
 - Target SDK: **Android 16 / API 36**
 - Media3: **1.9.4**
 - Min SDK: **26**
@@ -31,7 +31,7 @@ GitHub Actions tự động build khi push vào main hoặc chạy thủ công.
 
 Artifact hiện tại:
 
-NGOC_SI_MUSIC_4.4_DEBUG_APK
+NGOC_SI_MUSIC_4.5_DEBUG_APK
 
 APK debug được kiểm tra tồn tại và tạo kèm SHA-256.
 
