@@ -1728,7 +1728,12 @@ class MainActivity : ComponentActivity() {
 
         LaunchedEffect(isPlaying, currentIndex) {
             while (isPlaying) {
-                controller?.let { position = max(0L, it.currentPosition) }
+                controller?.let {
+                    val liveDuration = it.duration
+                    if (liveDuration > 0L) duration = liveDuration
+                    position = it.currentPosition.coerceAtLeast(0L)
+                    if (duration > 0L && position >= duration) position = duration
+                }
                 delay(500)
             }
         }
