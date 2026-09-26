@@ -3778,41 +3778,70 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
     @Composable
     private fun MiniPlayer(song: Song) {
-        Row(
+        val totalDuration = max(duration, song.duration).coerceAtLeast(1L)
+        val progress = (position.toFloat() / totalDuration.toFloat()).coerceIn(0f, 1f)
+
+        Column(
             Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp, vertical = 6.dp)
                 .clip(RoundedCornerShape(18.dp))
                 .background(Color(0xFF161820))
                 .clickable { showNowPlaying = true }
-                .padding(horizontal = 10.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = 10.dp, vertical = 8.dp)
         ) {
-            SongArtwork(song, Modifier.size(50.dp))
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    song.title,
-                    color = Color.White,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    song.artist,
-                    color = Color(0xFF8F8F9A),
-                    fontSize = 11.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                SongArtwork(song, Modifier.size(50.dp))
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        song.title,
+                        color = Color.White,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        song.artist,
+                        color = Color(0xFF8F8F9A),
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                IconButton(
+                    onClick = ::previous,
+                    enabled = queueSongs.size > 1
+                ) {
+                    Text("⏮", color = Color(0xFFB8B3C7), fontSize = 18.sp)
+                }
+                IconButton(onClick = ::togglePlayPause) {
+                    Text(
+                        if (isPlaying) "⏸" else "▶",
+                        color = Color.White,
+                        fontSize = 20.sp
+                    )
+                }
+                IconButton(
+                    onClick = ::next,
+                    enabled = queueSongs.size > 1
+                ) {
+                    Text("⏭", color = Color(0xFFB8B3C7), fontSize = 18.sp)
+                }
             }
-            IconButton(onClick = ::togglePlayPause) {
-                Text(
-                    if (isPlaying) "⏸" else "▶",
-                    color = Color.White,
-                    fontSize = 20.sp
-                )
-            }
+            Spacer(Modifier.height(4.dp))
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(3.dp)
+                    .clip(RoundedCornerShape(99.dp)),
+                color = Color(0xFFB18CFF),
+                trackColor = Color(0xFF2B2B35)
+            )
         }
     }
 
