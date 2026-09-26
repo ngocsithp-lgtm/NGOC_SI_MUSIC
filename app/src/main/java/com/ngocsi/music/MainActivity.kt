@@ -155,6 +155,8 @@ class MainActivity : ComponentActivity() {
     private var savedPosition by mutableLongStateOf(0L)
     private var shuffleEnabled by mutableStateOf(false)
     private var repeatMode by mutableIntStateOf(Player.REPEAT_MODE_OFF)
+    private var playbackSpeed by mutableFloatStateOf(1.0f)
+    private var showPlaybackSpeed by mutableStateOf(false)
     private val favorites = mutableStateMapOf<Long, Boolean>()
     private lateinit var prefs: SharedPreferences
 
@@ -372,6 +374,7 @@ class MainActivity : ComponentActivity() {
                             c.currentMediaItemIndex
                         else -> -1
                     }
+                    c.setPlaybackSpeed(playbackSpeed)
                     position = c.currentPosition.coerceAtLeast(0L)
                     isPlaying = c.isPlaying
                 }
@@ -940,6 +943,7 @@ class MainActivity : ComponentActivity() {
 
                 shuffleEnabled = c.shuffleModeEnabled
                 repeatMode = c.repeatMode
+                c.setPlaybackSpeed(playbackSpeed)
                 position = c.currentPosition.coerceAtLeast(0L)
                 isPlaying = c.isPlaying
             }
@@ -1093,6 +1097,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun setPlaybackSpeed(speed: Float) {
+        playbackSpeed = speed.coerceIn(0.5f, 2.0f)
+        controller?.setPlaybackSpeed(playbackSpeed)
+        savePlayerPreferences()
+    }
+
     private fun toggleShuffle() {
         shuffleEnabled = !shuffleEnabled
         controller?.shuffleModeEnabled = shuffleEnabled
@@ -1114,6 +1124,7 @@ class MainActivity : ComponentActivity() {
         savedFavorites.forEach { it.toLongOrNull()?.let { id -> favorites[id] = true } }
         shuffleEnabled = prefs.getBoolean("shuffle", false)
         repeatMode = prefs.getInt("repeat", Player.REPEAT_MODE_OFF)
+        playbackSpeed = prefs.getFloat("playback_speed", 1.0f).coerceIn(0.5f, 2.0f)
         youtubeHistory.clear()
         youtubeHistory.addAll((prefs.getStringSet("youtube_history", emptySet()) ?: emptySet()).toList().take(8))
         (prefs.getStringSet("youtube_favorites", emptySet()) ?: emptySet()).forEach { youtubeFavoriteSet[it] = true }
@@ -1163,6 +1174,7 @@ class MainActivity : ComponentActivity() {
             .putStringSet("favorites", favorites.filterValues { it }.keys.map(Long::toString).toSet())
             .putBoolean("shuffle", shuffleEnabled)
             .putInt("repeat", repeatMode)
+            .putFloat("playback_speed", playbackSpeed)
             .apply()
     }
 
@@ -1469,10 +1481,33 @@ class MainActivity : ComponentActivity() {
             SettingsRow("⏱", "Hẹn giờ tắt nhạc", if (sleepMinutes > 0) "${sleepMinutes} phút" else "Tắt") { showSleepTimer = true }
             SettingsRow("🔀", "Phát ngẫu nhiên", if (shuffleEnabled) "Đang bật" else "Đang tắt") { toggleShuffle() }
             SettingsRow("🔁", "Lặp lại", when (repeatMode) { Player.REPEAT_MODE_ONE -> "Một bài"; Player.REPEAT_MODE_ALL -> "Tất cả"; else -> "Tắt" }) { cycleRepeat() }
+            SettingsRow("⏩", "Tốc độ phát", "${playbackSpeed}x") { showPlaybackSpeed = true }
             SettingsRow("☁", "Google Drive", "${songs.count { it.source == "Google Drive" }} bài đã nhập") { selectedSection = "Online" }
             OutlinedButton(onClick = ::clearDriveLibrary, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
                 Text("XÓA NHẠC GOOGLE DRIVE KHỎI ỨNG DỤNG")
             }
+        }
+        if (showPlaybackSpeed) {
+            AlertDialog(
+                onDismissRequest = { showPlaybackSpeed = false },
+                title = { Text("Tốc độ phát") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f).forEach { speed ->
+                            OutlinedButton(
+                                onClick = {
+                                    setPlaybackSpeed(speed)
+                                    showPlaybackSpeed = false
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(if (speed == playbackSpeed) "✓ ${speed}x" else "${speed}x")
+                            }
+                        }
+                    }
+                },
+                confirmButton = {}
+            )
         }
         if (showSleepTimer) {
             AlertDialog(
