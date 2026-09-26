@@ -922,13 +922,15 @@ class MainActivity : ComponentActivity() {
     private fun syncControllerQueue() {
         controller?.let { c ->
             if (queueSongs.isEmpty()) {
-                // Never leave stale Media3 items after the playback queue is emptied.
+                // Never leave stale Media3 items or persisted queue metadata
+                // after the playback queue is emptied.
                 c.pause()
                 c.clearMediaItems()
                 currentIndex = -1
                 position = 0L
                 savedPosition = 0L
                 lastSongUri = null
+                saveQueueOrder()
                 savePlaybackState()
                 return@let
             }
