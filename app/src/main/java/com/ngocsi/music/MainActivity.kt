@@ -919,7 +919,8 @@ class MainActivity : ComponentActivity() {
             // A radio station is a transient live source, not a permanent
             // library/queue entry. Keep at most one active radio item so
             // previous stations cannot be revisited accidentally.
-            clearActiveRadioState()
+            // Preserve activeRadioTitle/streams here: the recovery watchdog
+            // depends on that state while Media3 is buffering or failing over.
             songs.removeAll { it.source == "Radio Việt Nam" }
             queueSongs.removeAll { it.source == "Radio Việt Nam" }
         } else {
