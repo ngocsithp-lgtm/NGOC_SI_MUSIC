@@ -269,11 +269,12 @@ class MainActivity : ComponentActivity() {
             val radioTitle = activeRadioTitle
             if (radioTitle != null && activeRadioStreamIndex + 1 < activeRadioStreams.size) {
                 activeRadioStreamIndex++
-                onlineUrl = activeRadioStreams[activeRadioStreamIndex]
+                val fallbackUrl = activeRadioStreams[activeRadioStreamIndex]
+                onlineUrl = fallbackUrl
                 errorMessage = "Luồng $radioTitle lỗi, đang thử nguồn dự phòng…"
                 lifecycleScope.launch {
                     delay(350L)
-                    playOnlineUrl(displayTitle = radioTitle, displayArtist = "VOV")
+                    playRadioFallback(radioTitle, fallbackUrl)
                 }
                 return
             }
@@ -738,6 +739,54 @@ class MainActivity : ComponentActivity() {
         onlineUrl = candidates.first()
         errorMessage = "Đang kết nối $title…"
         playOnlineUrl(displayTitle = title, displayArtist = "VOV")
+    }
+
+    private fun playRadioFallback(title: String, streamUrl: String) {
+        val c = controller ?: return
+        val uri = runCatching { Uri.parse(streamUrl) }.getOrNull() ?: return
+
+        val song = Song(
+            id = -kotlin.math.abs(streamUrl.hashCode().toLong()),
+            title = title,
+            artist = "VOV",
+            duration = 0L,
+            uri = uri,
+            source = "Radio Việt Nam"
+        )
+
+        val libraryIndex = songs.indexOfFirst { it.uri == uri }
+        val actualSong = if (libraryIndex >= 0) {
+            songs[libraryIndex]
+        } else {
+            songs.add(song)
+            queueSongs.add(song)
+            song
+        }
+
+        if (queueSongs.none { it.uri == uri }) {
+            queueSongs.add(actualSong)
+        }
+
+        val queueIndex = queueSongs.indexOfFirst { it.uri == uri }
+        if (queueIndex < 0) return
+
+        val keepShuffle = c.shuffleModeEnabled
+        val keepRepeat = c.repeatMode
+
+        c.setMediaItems(queueSongs.map { mediaItemFor(it) }, queueIndex, 0L)
+        c.shuffleModeEnabled = keepShuffle
+        c.repeatMode = keepRepeat
+        c.setPlaybackSpeed(selectedPlaybackSpeed)
+        c.prepare()
+        c.play()
+
+        currentIndex = songs.indexOfFirst { it.uri == uri }
+        lastSongUri = uri.toString()
+        position = 0L
+        savedPosition = 0L
+        saveQueueOrder()
+        savePlaybackState()
+        errorMessage = "Đang phát $title."
     }
 
     private fun playOnlineUrl(
