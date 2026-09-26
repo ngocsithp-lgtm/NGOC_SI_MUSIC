@@ -464,7 +464,13 @@ class MainActivity : ComponentActivity() {
         val byUri = songs.associateBy { it.uri.toString() }
         if (hasSavedQueue) {
             // An explicitly saved empty queue stays empty across app restarts.
+            // Drop entries that no longer exist in the current library, then
+            // persist the cleaned order so stale Drive/provider URIs do not
+            // survive another restart.
             savedQueueOrder.forEach { uri -> byUri[uri]?.let { queueSongs.add(it) } }
+            if (queueSongs.size != savedQueueOrder.size) {
+                saveQueueOrder()
+            }
         } else {
             // First launch: initialize the queue from the complete library.
             queueSongs.addAll(songs)
