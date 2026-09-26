@@ -105,6 +105,13 @@ data class YouTubeTrack(
     val thumbnailUrl: String
 )
 
+data class YouTubeFavoriteMeta(
+    val videoId: String,
+    val title: String,
+    val channelTitle: String,
+    val thumbnailUrl: String
+)
+
 data class OnlineFavoriteMeta(
     val source: String,
     val title: String,
@@ -140,6 +147,7 @@ class MainActivity : ComponentActivity() {
     private val youtubeHistory = mutableStateListOf<String>()
     private val youtubeTracks = mutableStateListOf<YouTubeTrack>()
     private val youtubeFavoriteSet = mutableStateMapOf<String, Boolean>()
+    private val youtubeFavoriteTracks = mutableStateListOf<YouTubeFavoriteMeta>()
     private var youtubeLoading by mutableStateOf(false)
     private var youtubeNextPageToken by mutableStateOf<String?>(null)
     private var youtubeSelectedVideoId by mutableStateOf<String?>(null)
@@ -1536,9 +1544,7 @@ class MainActivity : ComponentActivity() {
         repeatMode = prefs.getInt("repeat", Player.REPEAT_MODE_OFF)
         selectedPlaybackSpeed = prefs.getFloat("playback_speed", 1.0f).coerceIn(0.5f, 2.0f)
         sleepTimerEndAt = prefs.getLong("sleep_timer_end_at", 0L).coerceAtLeast(0L)
-        youtubeHistory.clear()
-        youtubeHistory.addAll((prefs.getStringSet("youtube_history", emptySet()) ?: emptySet()).toList().take(8))
-        (prefs.getStringSet("youtube_favorites", emptySet()) ?: emptySet()).forEach { youtubeFavoriteSet[it] = true }
+        loadYouTubeLibraryState()
         onlineFavoriteSet.addAll(prefs.getStringSet("online_favorites", emptySet()) ?: emptySet())
         onlineFavorites.addAll(onlineFavoriteSet)
         lastSongUri = prefs.getString("last_song_uri", null)
@@ -2762,6 +2768,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         val thumb = thumbs?.optJSONObject("medium")?.optString("url").orEmpty()
                             .ifBlank { thumbs?.optJSONObject("high")?.optString("url").orEmpty() }
                             .ifBlank { thumbs?.optJSONObject("default")?.optString("url").orEmpty() }
+                            .ifBlank { "https://i.ytimg.com/vi/" + id + "/hqdefault.jpg" }
                         found += YouTubeTrack(id, title, channel, thumb)
                     }
                 }
@@ -2797,13 +2804,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
     private fun playYouTube(track: YouTubeTrack) {
         youtubeSelectedVideoId = track.videoId
         youtubeQuery = youtubeQuery.ifBlank { track.title }
-
-        val history = (prefs.getStringSet("youtube_history", emptySet()) ?: emptySet()).toMutableList()
-        history.remove(track.title)
-        history.add(0, track.title)
-        prefs.edit().putStringSet("youtube_history", history.take(8).toSet()).apply()
-        youtubeHistory.clear()
-        youtubeHistory.addAll(history.take(8))
+        rememberYouTubeHistory(track.title)
 
         // YouTube được phát trong Activity riêng để tránh xung đột render
         // giữa WebView/video surface và Compose/ScrollView của màn hình chính.
@@ -2832,11 +2833,120 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
     private fun toggleYouTubeFavorite(track: YouTubeTrack) {
         if (youtubeFavoriteSet.contains(track.videoId)) {
             youtubeFavoriteSet.remove(track.videoId)
+            youtubeFavoriteTracks.removeAll { it.videoId == track.videoId }
         } else {
             youtubeFavoriteSet[track.videoId] = true
+            youtubeFavoriteTracks.removeAll { it.videoId == track.videoId }
+            youtubeFavoriteTracks.add(
+                YouTubeFavoriteMeta(
+                    track.videoId,
+                    track.title,
+                    track.channelTitle,
+                    track.thumbnailUrl.ifBlank {
+                        "https://i.ytimg.com/vi/" + track.videoId + "/hqdefault.jpg"
+                    }
+                )
+            )
         }
-        prefs.edit().putStringSet("youtube_favorites", youtubeFavoriteSet.keys).apply()
+        youtubeFavoriteTracks.sortBy { it.title.lowercase() }
+        saveYouTubeLibraryState()
     }
+
+    private fun rememberYouTubeHistory(title: String) {
+        val clean = title.trim()
+        if (clean.isBlank()) return
+        val updated = buildList {
+            add(clean)
+            youtubeHistory.filterNot { it.equals(clean, ignoreCase = true) }.forEach { add(it) }
+        }.take(8)
+        youtubeHistory.clear()
+        youtubeHistory.addAll(updated)
+        val array = org.json.JSONArray().apply { updated.forEach { put(it) } }
+        prefs.edit()
+            .putString("youtube_history_json", array.toString())
+            .putStringSet("youtube_history", updated.toSet())
+            .apply()
+    }
+
+    private fun loadYouTubeLibraryState() {
+        youtubeHistory.clear()
+        val historyJson = prefs.getString("youtube_history_json", null)
+        if (!historyJson.isNullOrBlank()) {
+            runCatching {
+                val array = org.json.JSONArray(historyJson)
+                for (i in 0 until array.length()) {
+                    array.optString(i).trim().takeIf { it.isNotBlank() }?.let {
+                        youtubeHistory.add(it)
+                    }
+                }
+            }
+        }
+        if (youtubeHistory.isEmpty()) {
+            youtubeHistory.addAll(
+                (prefs.getStringSet("youtube_history", emptySet()) ?: emptySet()).toList().take(8)
+            )
+        }
+
+        youtubeFavoriteSet.clear()
+        youtubeFavoriteTracks.clear()
+        val raw = prefs.getString("youtube_favorite_meta", null)
+        if (!raw.isNullOrBlank()) {
+            runCatching {
+                val root = org.json.JSONObject(raw)
+                val keys = root.keys()
+                while (keys.hasNext()) {
+                    val id = keys.next()
+                    val obj = root.optJSONObject(id) ?: continue
+                    youtubeFavoriteTracks.add(
+                        YouTubeFavoriteMeta(
+                            id,
+                            obj.optString("title").ifBlank { "Video YouTube" },
+                            obj.optString("channelTitle").ifBlank { "YouTube" },
+                            obj.optString("thumbnailUrl").ifBlank {
+                                "https://i.ytimg.com/vi/" + id + "/hqdefault.jpg"
+                            }
+                        )
+                    )
+                    youtubeFavoriteSet[id] = true
+                }
+            }
+        }
+        if (youtubeFavoriteSet.isEmpty()) {
+            (prefs.getStringSet("youtube_favorites", emptySet()) ?: emptySet())
+                .forEach { youtubeFavoriteSet[it] = true }
+        }
+        youtubeFavoriteTracks.sortBy { it.title.lowercase() }
+    }
+
+    private fun saveYouTubeLibraryState() {
+        val root = org.json.JSONObject()
+        youtubeFavoriteTracks.forEach { item ->
+            root.put(
+                item.videoId,
+                org.json.JSONObject().apply {
+                    put("title", item.title)
+                    put("channelTitle", item.channelTitle)
+                    put("thumbnailUrl", item.thumbnailUrl)
+                }
+            )
+        }
+        prefs.edit()
+            .putStringSet("youtube_favorites", youtubeFavoriteSet.keys)
+            .putString("youtube_favorite_meta", root.toString())
+            .apply()
+    }
+
+    private fun clearYouTubeHistory() {
+        youtubeHistory.clear()
+        prefs.edit()
+            .remove("youtube_history_json")
+            .remove("youtube_history")
+            .apply()
+    }
+
+    private fun youtubeFavoriteAsTrack(item: YouTubeFavoriteMeta): YouTubeTrack =
+        YouTubeTrack(item.videoId, item.title, item.channelTitle, item.thumbnailUrl)
+
 
     private fun onlineFavoriteKey(item: OnlineSearchItem): String =
         item.source + ":" + item.title + ":" + item.artist
@@ -3364,6 +3474,36 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 ) { Text("XÓA") }
             }
 
+            if (youtubeFavoriteTracks.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                Text("YOUTUBE • YÊU THÍCH", color = Color(0xFFB18CFF), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                Spacer(Modifier.height(4.dp))
+                youtubeFavoriteTracks.take(8).forEach { item ->
+                    Row(
+                        Modifier.fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Color(0xFF1B1B23))
+                            .clickable { playYouTube(youtubeFavoriteAsTrack(item)) }
+                            .padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OnlineArtwork(item.thumbnailUrl, Modifier.size(58.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(item.title, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text(item.channelTitle, color = Color(0xFF8F8F9A), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        FilledTonalButton(
+                            onClick = { toggleYouTubeFavorite(youtubeFavoriteAsTrack(item)) },
+                            shape = CircleShape,
+                            contentPadding = PaddingValues(0.dp),
+                            modifier = Modifier.size(40.dp)
+                        ) { Text("♥") }
+                    }
+                    Spacer(Modifier.height(5.dp))
+                }
+            }
+
             if (youtubeHistory.isNotEmpty()) {
                 Spacer(Modifier.height(8.dp))
                 Text("TÌM GẦN ĐÂY", color = Color(0xFFB18CFF), fontWeight = FontWeight.Bold, fontSize = 11.sp)
@@ -3381,7 +3521,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             label = { Text(item, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                         )
                     }
-                }
+                }                Spacer(Modifier.height(2.dp))
+                TextButton(
+                    onClick = ::clearYouTubeHistory,
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                ) { Text("XÓA LỊCH SỬ", fontSize = 11.sp) }
             }
 
             if (youtubeTracks.isNotEmpty()) {
