@@ -2509,7 +2509,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     )
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        "\${filteredSources.size}/\${sources.size} nguồn",
+                        "${filteredSources.size}/${sources.size} nguồn",
                         color = Color(0xFF777D8D),
                         fontSize = 11.sp
                     )
@@ -2533,7 +2533,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         Text(source.first, color = Color.White, fontWeight = FontWeight.SemiBold)
                                         Spacer(Modifier.height(2.dp))
                                         Text(
-                                            if (!streamUrls.isNullOrEmpty()) "\${source.second} • HLS + tự động dùng luồng dự phòng" else source.second,
+                                            if (!streamUrls.isNullOrEmpty()) "${source.second} • HLS + tự động dùng luồng dự phòng" else source.second,
                                             color = Color(0xFF8F8F9A),
                                             fontSize = 11.sp
                                         )
