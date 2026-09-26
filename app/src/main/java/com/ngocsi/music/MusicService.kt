@@ -126,7 +126,9 @@ class MusicService : MediaSessionService() {
         }
 
         override fun onMediaMetadataChanged(mediaMetadata: androidx.media3.common.MediaMetadata) {
-            // Refresh immediately when title/artist/artwork metadata changes.
+            // Persist metadata changes as well so lock-screen/notification state
+            // remains consistent after the Activity is gone or the service resumes.
+            savePlaybackState()
             broadcastWidget()
         }
 
