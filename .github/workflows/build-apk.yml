@@ -30,6 +30,11 @@ jobs:
         with:
           gradle-version: '8.11.1'
 
+      - name: Lint Debug
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: gradle :app:lintDebug --no-daemon
+
       - name: Build APK
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
