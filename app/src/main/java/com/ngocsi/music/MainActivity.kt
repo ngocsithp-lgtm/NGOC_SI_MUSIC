@@ -1311,21 +1311,22 @@ class MainActivity : ComponentActivity() {
         if (removingCurrent && queueSongs.isNotEmpty()) {
             val fallbackSong = fallback ?: queueSongs.last()
             val fallbackIndex = queueSongs.indexOfFirst { it.uri == fallbackSong.uri }
-            val c = controller
-            if (c != null && fallbackIndex >= 0) {
-                c.setMediaItems(queueSongs.map { mediaItemFor(it) }, fallbackIndex, 0L)
-                c.shuffleModeEnabled = shuffleEnabled
-                c.repeatMode = repeatMode
-                c.setPlaybackSpeed(selectedPlaybackSpeed)
-                c.prepare()
-                if (wasPlaying) c.play()
-                currentIndex = songs.indexOfFirst { it.uri == fallbackSong.uri }
-                lastSongUri = fallbackSong.uri.toString()
-                position = 0L
-                savedPosition = 0L
-                saveQueueOrder()
-                savePlaybackState()
-                return
+            if (fallbackIndex >= 0) {
+                controller?.let { c ->
+                    c.setMediaItems(queueSongs.map { mediaItemFor(it) }, fallbackIndex, 0L)
+                    c.shuffleModeEnabled = shuffleEnabled
+                    c.repeatMode = repeatMode
+                    c.setPlaybackSpeed(selectedPlaybackSpeed)
+                    c.prepare()
+                    if (wasPlaying) c.play()
+                    currentIndex = songs.indexOfFirst { it.uri == fallbackSong.uri }
+                    lastSongUri = fallbackSong.uri.toString()
+                    position = 0L
+                    savedPosition = 0L
+                    saveQueueOrder()
+                    savePlaybackState()
+                    return
+                }
             }
         }
 
