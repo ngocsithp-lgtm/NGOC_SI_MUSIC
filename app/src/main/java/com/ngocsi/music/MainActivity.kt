@@ -2789,14 +2789,56 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private suspend fun loadArtworkBitmap(song: Song?): androidx.compose.ui.graphics.ImageBitmap? {
+        if (song == null) return null
+        return withContext(Dispatchers.IO) {
+            try {
+                val uri = song.artworkUri
+                    ?: if (song.albumId >= 0L) {
+                        ContentUris.withAppendedId(
+                            MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI,
+                            song.albumId
+                        )
+                    } else null
+                uri?.let { contentResolver.openInputStream(it)?.use { input -> BitmapFactory.decodeStream(input)?.asImageBitmap() } }
+            } catch (_: Exception) {
+                null
+            }
+        }
+    }
+
+    @Composable
+    private fun SongArtwork(song: Song?, modifier: Modifier = Modifier) {
+        var artwork by remember(song?.uri?.toString(), song?.albumId, song?.artworkUri?.toString()) {
+            mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null)
+        }
+        LaunchedEffect(song?.uri?.toString(), song?.albumId, song?.artworkUri?.toString()) {
+            artwork = loadArtworkBitmap(song)
+        }
+        Box(
+            modifier.clip(RoundedCornerShape(22.dp))
+                .background(Brush.linearGradient(listOf(Color(0xFF6D4CC5), Color(0xFF24283A)))),
+            contentAlignment = Alignment.Center
+        ) {
+            if (artwork != null) {
+                Image(
+                    bitmap = artwork!!,
+                    contentDescription = song?.title ?: "Ảnh bìa",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Text("♫", color = Color(0xFFC8B7FF), fontSize = 42.sp)
+            }
+        }
+    }
+
     @Composable
     private fun PlayerCard(song: Song?) {
         val duration = song?.duration ?: 0L
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Brush.linearGradient(listOf(Color(0xFF211A35), Color(0xFF12151D)))).padding(18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(82.dp).clip(RoundedCornerShape(22.dp)).background(Brush.linearGradient(listOf(Color(0xFF6D4CC5), Color(0xFF24283A)))), contentAlignment = Alignment.Center) {
-                    Text("♫", color = Color(0xFFC8B7FF), fontSize = 42.sp)
-                }
+                SongArtwork(song, Modifier.size(82.dp))
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
                     Text(song?.title ?: "Chưa chọn bài hát", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
