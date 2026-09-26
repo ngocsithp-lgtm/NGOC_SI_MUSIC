@@ -162,6 +162,7 @@ class MusicService : MediaSessionService() {
         super.onCreate()
 
         player = ExoPlayer.Builder(this)
+            .setWakeMode(C.WAKE_MODE_NETWORK)
             .setSeekBackIncrementMs(10_000L)
             .setSeekForwardIncrementMs(10_000L)
             .build()
