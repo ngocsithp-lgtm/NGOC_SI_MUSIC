@@ -1,4 +1,4 @@
-name: Build NGOC SI MUSIC 4.2 Debug APK
+name: Build NGOC SI MUSIC 4.3 Debug APK
 
 on:
   workflow_dispatch:
@@ -13,6 +13,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -46,7 +47,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: NGOC_SI_MUSIC_4.2_DEBUG_APK
+          name: NGOC_SI_MUSIC_4.3_DEBUG_APK
           path: |
             app/build/outputs/apk/debug/app-debug.apk
             app/build/outputs/apk/debug/app-debug.apk.sha256
