@@ -1884,10 +1884,22 @@ class MainActivity : ComponentActivity() {
             Triple("Đắk Nông • PTD", "Kênh Đắk Nông được VOH liệt kê", "https://voh.com.vn/radios"),
             Triple("Kon Tum • FM 95.1", "Radio Kon Tum được VOH liệt kê", "https://voh.com.vn/radios")
         )
+        // HLS endpoint ưu tiên hiện tại; giữ endpoint cũ làm dự phòng.
         val verifiedStreams = mapOf(
-            "VOV1 • Thời sự" to "https://str.vov.gov.vn/vovlive/vov1vov5Vietnamese.sdp_aac/playlist.m3u8",
-            "VOV2 • Văn hóa" to "https://str.vov.gov.vn/vovlive/vov2.sdp_aac/playlist.m3u8",
-            "VOV3 • Âm nhạc" to "https://str.vov.gov.vn/vovlive/vov3.sdp_aac/playlist.m3u8"
+            "VOV1 • Thời sự" to listOf(
+                "https://audio-lss.vov.vn/han/live/vov1/audio/manifest.m3u8",
+                "https://str.vov.gov.vn/vovlive/vov1vov5Vietnamese.sdp_aac/playlist.m3u8"
+            ),
+            "VOV2 • Văn hóa" to listOf(
+                "https://audio-lss.vov.vn/han/live/vov2/audio/manifest.m3u8",
+                "https://media-audio.vov.vn/vov2.sdp_aac/playlist.m3u8",
+                "https://str.vov.gov.vn/vovlive/vov2.sdp_aac/playlist.m3u8"
+            ),
+            "VOV3 • Âm nhạc" to listOf(
+                "https://audio-lss.vov.vn/han/live/vov3/audio/manifest.m3u8",
+                "https://media-audio.vov.vn/vov3.sdp_aac/playlist.m3u8",
+                "https://str.vov.gov.vn/vovlive/vov3.sdp_aac/playlist.m3u8"
+            )
         )
         val normalizedFilter = radioFilter.trim().lowercase()
         val filteredSources = if (normalizedFilter.isBlank()) sources else sources.filter { source ->
@@ -1906,7 +1918,7 @@ class MainActivity : ComponentActivity() {
                     Text("RADIO VIỆT NAM", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "VOV1 • VOV2 • VOV3 phát bằng Media3; các nguồn khác mở trang chính thức",
+                        "VOV1 • VOV2 • VOV3 phát trực tiếp bằng Media3/HLS; các nguồn khác mở trang chính thức",
                         color = Color(0xFF8F8F9A),
                         fontSize = 12.sp
                     )
@@ -1932,7 +1944,7 @@ class MainActivity : ComponentActivity() {
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(filteredSources) { source ->
-                            val streamUrl = verifiedStreams[source.first]
+                            val streamUrls = verifiedStreams[source.first]
                             Surface(
                                 shape = RoundedCornerShape(16.dp),
                                 color = Color(0xFF181922),
