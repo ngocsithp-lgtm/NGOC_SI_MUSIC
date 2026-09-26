@@ -106,6 +106,22 @@ class YouTubePlayerActivity : ComponentActivity() {
         info.addView(titleView)
         info.addView(channelView)
 
+        val openYouTube = Button(this).apply {
+            text = "YouTube"
+            setTextColor(AndroidColor.WHITE)
+            setBackgroundColor(AndroidColor.TRANSPARENT)
+            setOnClickListener {
+                runCatching {
+                    startActivity(
+                        Intent(
+                            Intent.ACTION_VIEW,
+                            Uri.parse("https://www.youtube.com/watch?v=$videoId")
+                        )
+                    )
+                }
+            }
+        }
+
         val close = Button(this).apply {
             text = "Đóng"
             setTextColor(AndroidColor.WHITE)
@@ -117,6 +133,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             info,
             LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         )
+        header.addView(openYouTube, LinearLayout.LayoutParams(dp(88), dp(48)))
         header.addView(close, LinearLayout.LayoutParams(dp(76), dp(48)))
 
         playerContainer = FrameLayout(this).apply {
