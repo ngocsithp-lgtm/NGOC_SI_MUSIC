@@ -1858,6 +1858,7 @@ class MainActivity : ComponentActivity() {
                                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 12.dp),
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
+                                item { HomeHero(currentSong) }
                                 item { LibraryChips() }
                                 item { HomeCollections() }
                                 item { PlayerCard(currentSong) }
@@ -2041,19 +2042,49 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun Header() {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(Modifier.weight(1f)) {
-                Text("NGỌC SĨ", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .clip(RoundedCornerShape(15.dp))
+                    .background(
+                        Brush.linearGradient(
+                            listOf(Color(0xFF8C64E8), Color(0xFF4E3A8B))
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
                 Text(
-                    "MUSIC PRO",
-                    color = Color(0xFFB18CFF),
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 3.sp
+                    "NS",
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Black
                 )
             }
+
+            Spacer(Modifier.width(12.dp))
+
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "NGỌC SĨ MUSIC",
+                    color = Color.White,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 0.2.sp
+                )
+                Text(
+                    "ÂM NHẠC • RADIO • ONLINE",
+                    color = Color(0xFF9698A7),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.6.sp
+                )
+            }
+
             IconButton(onClick = { showPlaylists = true }) {
                 Text("♫", color = Color(0xFFCDBAFF), fontSize = 23.sp)
             }
@@ -2115,6 +2146,113 @@ class MainActivity : ComponentActivity() {
                 focusedBorderColor = Color(0xFF8F6FE8)
             )
         )
+    }
+
+    @Composable
+    private fun HomeHero(song: Song?) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(26.dp),
+            color = Color.Transparent
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        Brush.linearGradient(
+                            listOf(Color(0xFF2A2044), Color(0xFF121722))
+                        ),
+                        RoundedCornerShape(26.dp)
+                    )
+                    .padding(18.dp)
+            ) {
+                Column {
+                    Text(
+                        "NGHE NHẠC THEO CÁCH CỦA BẠN",
+                        color = Color(0xFFBFA9FF),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 1.8.sp
+                    )
+                    Spacer(Modifier.height(5.dp))
+                    Text(
+                        song?.title ?: "Sẵn sàng phát nhạc",
+                        color = Color.White,
+                        fontSize = 21.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        song?.artist ?: "Thiết bị • Google Drive • YouTube • Radio",
+                        color = Color(0xFFA8AAB8),
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    Spacer(Modifier.height(14.dp))
+
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        HeroAction(
+                            icon = "▶",
+                            label = "Đang phát",
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                if (song != null) showNowPlaying = true
+                                else if (songs.isNotEmpty()) selectedSection = "Thư viện"
+                            }
+                        )
+                        HeroAction(
+                            icon = "🎧",
+                            label = "YouTube",
+                            modifier = Modifier.weight(1f),
+                            onClick = { selectedSection = "Online"; onlineHubTab = "YouTube" }
+                        )
+                        HeroAction(
+                            icon = "📻",
+                            label = "Radio",
+                            modifier = Modifier.weight(1f),
+                            onClick = { selectedSection = "Radio"; showVietnamRadioHub = true }
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun HeroAction(
+        icon: String,
+        label: String,
+        modifier: Modifier = Modifier,
+        onClick: () -> Unit
+    ) {
+        Surface(
+            modifier = modifier.clickable(onClick = onClick),
+            shape = RoundedCornerShape(16.dp),
+            color = Color(0x3320202B),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x332F3150))
+        ) {
+            Column(
+                modifier = Modifier.padding(vertical = 9.dp, horizontal = 7.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(icon, color = Color.White, fontSize = 17.sp)
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    label,
+                    color = Color(0xFFD6D5DE),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
     }
 
     @Composable
@@ -2263,33 +2401,51 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun BottomNav() {
-        NavigationBar(containerColor = Color(0xFF0F1016)) {
+        NavigationBar(
+            containerColor = Color(0xFF0D0F14),
+            tonalElevation = 8.dp
+        ) {
             listOf(
                 "Trang chủ" to "⌂",
                 "Thư viện" to "♫",
-                "Online" to "☁",
+                "Online" to "▶",
                 "Radio" to "📻",
                 "Cài đặt" to "⚙"
             ).forEach { (name, icon) ->
+                val selected = selectedSection == name
                 NavigationBarItem(
-                    selected = selectedSection == name,
+                    selected = selected,
                     onClick = { selectedSection = name },
                     icon = {
                         Box(
                             Modifier
-                                .size(if (selectedSection == name) 42.dp else 34.dp)
+                                .size(if (selected) 40.dp else 32.dp)
                                 .clip(CircleShape)
-                                .background(if (selectedSection == name) Color(0xFF30234A) else Color.Transparent),
+                                .background(
+                                    if (selected) Color(0xFF33264F)
+                                    else Color.Transparent
+                                ),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 icon,
-                                color = if (selectedSection == name) Color.White else Color(0xFFAAAAB8),
-                                fontSize = 18.sp
+                                color = if (selected) Color.White else Color(0xFF9295A5),
+                                fontSize = 17.sp
                             )
                         }
                     },
-                    label = { Text(name, fontSize = 9.sp) }
+                    label = {
+                        Text(
+                            when (name) {
+                                "Trang chủ" -> "Trang chủ"
+                                "Thư viện" -> "Nhạc"
+                                else -> name
+                            },
+                            fontSize = 9.sp,
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                            maxLines = 1
+                        )
+                    }
                 )
             }
         }
