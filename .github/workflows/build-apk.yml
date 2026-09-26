@@ -1,4 +1,4 @@
-name: Build NGOC SI MUSIC 4.0 Debug APK
+name: Build NGOC SI MUSIC 4.1 Debug APK
 
 on:
   workflow_dispatch:
@@ -38,5 +38,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: NGOC_SI_MUSIC_4.0_DEBUG_APK
+          name: NGOC_SI_MUSIC_4.1_DEBUG_APK
           path: app/build/outputs/apk/debug/app-debug.apk
