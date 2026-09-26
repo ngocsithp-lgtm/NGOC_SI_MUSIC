@@ -339,7 +339,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             // the HTTP Referer that YouTube requires for embedded playback.
             // The app does not need the IFrame JavaScript API, so omit enablejsapi/origin
             // parameters to reduce configuration surface and avoid unnecessary API state.
-            val appBaseUrl = "https://www.youtube.com/"
+            val appBaseUrl = "https://com.ngocsi.music/"
             val embedUrl = "https://www.youtube.com/embed/" + safeId +
                 "?playsinline=1&autoplay=0&rel=0&controls=1&fs=1" +
                 "&hl=vi&cc_lang_pref=vi"
