@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.graphics.BitmapFactory
+import java.io.File
 import android.webkit.WebChromeClient
 import android.webkit.CookieManager
 import android.webkit.WebView
@@ -69,7 +70,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import kotlin.math.max
 
-data class Song(val id: Long, val title: String, val artist: String, val duration: Long, val uri: Uri, val source: String = "Thiết bị", val albumId: Long = -1L, val artworkUri: Uri? = null)
+data class Song(val id: Long, val title: String, val artist: String, val duration: Long, val uri: Uri, val source: String = "Thiết bị", val albumId: Long = -1L, val artworkUri: Uri? = null, val folder: String = "")
 
 data class JamendoTrack(
     val id: Long,
@@ -480,7 +481,8 @@ class MainActivity : ComponentActivity() {
             MediaStore.Audio.Media.TITLE,
             MediaStore.Audio.Media.ARTIST,
             MediaStore.Audio.Media.DURATION,
-            MediaStore.Audio.Media.ALBUM_ID
+            MediaStore.Audio.Media.ALBUM_ID,
+            MediaStore.Audio.Media.DATA
         )
         val selection = MediaStore.Audio.Media.IS_MUSIC + " != 0"
         val sort = MediaStore.Audio.Media.TITLE + " COLLATE NOCASE ASC"
@@ -490,11 +492,17 @@ class MainActivity : ComponentActivity() {
             val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
             val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
             val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
+            val dataCol = cursor.getColumnIndex(MediaStore.Audio.Media.DATA)
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idCol)
+                val rawPath = dataCol.takeIf { it >= 0 }?.let { cursor.getString(it).orEmpty() }.orEmpty()
+                val folder = rawPath.takeIf { it.isNotBlank() }
+                    ?.let { File(it).parentFile?.name }
+                    ?.ifBlank { null }
+                    ?: "Thiết bị"
                 result += Song(id, cursor.getString(titleCol).orEmpty().ifBlank { "Không có tên" },
                     cursor.getString(artistCol).orEmpty().ifBlank { "Nghệ sĩ không rõ" },
-                    cursor.getLong(durationCol), ContentUris.withAppendedId(collection, id), "Thiết bị", cursor.getLong(albumIdCol))
+                    cursor.getLong(durationCol), ContentUris.withAppendedId(collection, id), "Thiết bị", cursor.getLong(albumIdCol), folder = folder)
             }
         }
         val savedDriveUris = prefs.getStringSet("drive_uris", emptySet()) ?: emptySet()
@@ -583,6 +591,31 @@ class MainActivity : ComponentActivity() {
         return queueSongs.indices.all { index ->
             c.getMediaItemAt(index).localConfiguration?.uri == queueSongs[index].uri
         }
+    }
+
+    private fun playFilteredSongs(items: List<Song>) {
+        val first = items.firstOrNull() ?: return
+        val c = controller ?: run {
+            errorMessage = "Trình phát đang khởi động, thử lại sau."
+            return
+        }
+        clearActiveRadioState()
+        queueSongs.clear()
+        queueSongs.addAll(items)
+        c.setMediaItems(queueSongs.map { mediaItemFor(it) }, 0, 0L)
+        c.shuffleModeEnabled = shuffleEnabled
+        c.repeatMode = repeatMode
+        c.setPlaybackSpeed(selectedPlaybackSpeed)
+        c.prepare()
+        c.play()
+        currentIndex = songs.indexOfFirst { it.uri == first.uri }
+        lastSongUri = first.uri.toString()
+        position = 0L
+        duration = c.duration.coerceAtLeast(0L)
+        savedPosition = 0L
+        saveQueueOrder()
+        savePlaybackState()
+        errorMessage = "Đang phát ${items.size} bài theo danh sách hiện tại."
     }
 
     private fun play(index: Int) {
@@ -694,7 +727,8 @@ class MainActivity : ComponentActivity() {
             artist = "Google Drive",
             duration = 0L,
             uri = uri,
-            source = "Google Drive"
+            source = "Google Drive",
+            folder = "Google Drive"
         )
     }
 
@@ -850,7 +884,8 @@ class MainActivity : ComponentActivity() {
             artist = "VOV",
             duration = 0L,
             uri = uri,
-            source = "Radio Việt Nam"
+            source = "Radio Việt Nam",
+            folder = "Radio Việt Nam"
         )
 
         // Replace any older radio item so a failed candidate is not left
@@ -958,7 +993,8 @@ class MainActivity : ComponentActivity() {
             artist = "Online",
             duration = 0L,
             uri = uri,
-            source = "Online"
+            source = "Online",
+            folder = "Online"
         )
     }
 
@@ -1723,7 +1759,7 @@ class MainActivity : ComponentActivity() {
             when (libraryView) {
                 "Nghệ sĩ" -> bySource.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.artist })
                 "Album" -> bySource.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title.substringBefore(" - ") })
-                "Thư mục" -> bySource.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.source })
+                "Thư mục" -> bySource.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.folder.ifBlank { it.source } }.thenBy(String.CASE_INSENSITIVE_ORDER) { it.title })
                 else -> bySource.sortedBy { it.title.lowercase() }
             }
         }
@@ -1765,6 +1801,7 @@ class MainActivity : ComponentActivity() {
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 item { LibraryChips() }
+                                item { HomeCollections() }
                                 item { PlayerCard(currentSong) }
                                 item {
                                     Text(
@@ -1811,12 +1848,18 @@ class MainActivity : ComponentActivity() {
                                         fontSize = 17.sp,
                                         modifier = Modifier.weight(1f)
                                     )
-                                    TextButton(onClick = {
-                    loadSongs()
-                    selectedLibrary = "Tất cả"
-                    libraryView = "Bài hát"
-                    errorMessage = null
-                }) { Text("LÀM MỚI") }
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        TextButton(
+                                            onClick = { playFilteredSongs(filteredSongs) },
+                                            enabled = filteredSongs.isNotEmpty()
+                                        ) { Text("PHÁT TẤT CẢ") }
+                                        TextButton(onClick = {
+                                            loadSongs()
+                                            selectedLibrary = "Tất cả"
+                                            libraryView = "Bài hát"
+                                            errorMessage = null
+                                        }) { Text("LÀM MỚI") }
+                                    }
                                 }
                                 errorMessage?.let {
                                     Text(
@@ -2014,6 +2057,66 @@ class MainActivity : ComponentActivity() {
                 focusedBorderColor = Color(0xFF8F6FE8)
             )
         )
+    }
+
+    @Composable
+    private fun HomeCollections() {
+        val collections = listOf(
+            Triple("♫", "Bài hát", "${songs.size}"),
+            Triple("♥", "Yêu thích", favorites.count { it.value }.toString()),
+            Triple("▣", "Playlist", playlists.size.toString()),
+            Triple("☷", "Hàng đợi", queueSongs.size.toString())
+        )
+        Column(Modifier.fillMaxWidth()) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                collections.take(2).forEach { (icon, title, count) ->
+                    CollectionCard(icon, title, count, Modifier.weight(1f))
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                collections.drop(2).forEach { (icon, title, count) ->
+                    CollectionCard(icon, title, count, Modifier.weight(1f))
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun CollectionCard(
+        icon: String,
+        title: String,
+        count: String,
+        modifier: Modifier = Modifier
+    ) {
+        Surface(
+            modifier = modifier.clickable {
+                when (title) {
+                    "Bài hát" -> {
+                        selectedSection = "Thư viện"
+                        selectedLibrary = "Tất cả"
+                        libraryView = "Bài hát"
+                    }
+                    "Yêu thích" -> {
+                        selectedSection = "Thư viện"
+                        selectedLibrary = "Yêu thích"
+                        libraryView = "Bài hát"
+                    }
+                    "Playlist" -> showPlaylists = true
+                    "Hàng đợi" -> showQueue = true
+                }
+            },
+            shape = RoundedCornerShape(18.dp),
+            color = Color(0xFF15161E),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF252936))
+        ) {
+            Column(Modifier.padding(horizontal = 12.dp, vertical = 12.dp)) {
+                Text(icon, color = Color(0xFFC8B7FF), fontSize = 22.sp)
+                Spacer(Modifier.height(4.dp))
+                Text(title, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                Text("$count mục", color = Color(0xFF888894), fontSize = 11.sp)
+            }
+        }
     }
 
     @Composable
@@ -3724,7 +3827,10 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(34.dp))
             Column(Modifier.weight(1f)) {
                 Text(song.title, color = Color.White, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("${song.artist} • ${song.source}", color = Color(0xFF8F8F9A), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    if (libraryView == "Thư mục" && song.folder.isNotBlank()) "${song.folder} • ${song.artist}" else "${song.artist} • ${song.source}",
+                    color = Color(0xFF8F8F9A), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis
+                )
             }
             IconButton(onClick = { addToQueue(song) }) {
                 Text("＋", color = Color(0xFFC8B7FF), fontSize = 22.sp)
