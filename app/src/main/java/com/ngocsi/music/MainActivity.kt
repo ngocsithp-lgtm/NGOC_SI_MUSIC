@@ -524,6 +524,7 @@ class MainActivity : ComponentActivity() {
 
     private fun mediaItemFor(song: Song): MediaItem {
         return MediaItem.Builder()
+            .setMediaId(song.uri.toString())
             .setUri(song.uri)
             .setMediaMetadata(
                 androidx.media3.common.MediaMetadata.Builder()
