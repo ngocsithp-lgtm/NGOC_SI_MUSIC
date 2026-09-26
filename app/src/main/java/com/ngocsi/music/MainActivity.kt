@@ -1070,6 +1070,30 @@ class MainActivity : ComponentActivity() {
         errorMessage = "Đã xóa toàn bộ hàng đợi."
     }
 
+    private fun playQueueFromStart() {
+        val c = controller ?: return
+        if (queueSongs.isEmpty()) {
+            errorMessage = "Hàng đợi đang trống."
+            return
+        }
+
+        // Keep the visible queue as the canonical order and explicitly start
+        // from its first item. Shuffle remains available as a playback mode.
+        c.setMediaItems(queueSongs.map { mediaItemFor(it) }, 0, 0L)
+        c.shuffleModeEnabled = shuffleEnabled
+        c.repeatMode = repeatMode
+        c.setPlaybackSpeed(selectedPlaybackSpeed)
+        c.prepare()
+        c.play()
+        currentIndex = songs.indexOfFirst { it.uri == queueSongs.first().uri }
+        lastSongUri = queueSongs.first().uri.toString()
+        position = 0L
+        savedPosition = 0L
+        saveQueueOrder()
+        savePlaybackState()
+        errorMessage = "Đang phát từ đầu hàng đợi."
+    }
+
     private fun moveQueueItem(from: Int, to: Int) {
         if (from !in queueSongs.indices || to !in queueSongs.indices || from == to) return
 
@@ -1739,9 +1763,10 @@ class MainActivity : ComponentActivity() {
                             Text(queueSongs.size.toString() + " bài • " + if (shuffleEnabled) "Ngẫu nhiên" else "Theo thứ tự hàng đợi", color = Color(0xFF888894), fontSize = 12.sp)
                         }
                         if (queueSongs.isNotEmpty()) {
-                            TextButton(
-                                onClick = { clearQueue() }
-                            ) {
+                            TextButton(onClick = { playQueueFromStart() }) {
+                                Text("Phát từ đầu", color = Color(0xFFC8B7FF))
+                            }
+                            TextButton(onClick = { clearQueue() }) {
                                 Text("Xóa hết", color = Color(0xFFFF8A9A))
                             }
                         }
