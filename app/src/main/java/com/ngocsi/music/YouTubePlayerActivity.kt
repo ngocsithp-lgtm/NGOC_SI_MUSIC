@@ -174,6 +174,9 @@ class YouTubePlayerActivity : ComponentActivity() {
                 setSupportMultipleWindows(false)
                 cacheMode = WebSettings.LOAD_DEFAULT
                 databaseEnabled = true
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    safeBrowsingEnabled = true
+                }
                 setSupportZoom(false)
                 builtInZoomControls = false
                 displayZoomControls = false
@@ -294,7 +297,7 @@ class YouTubePlayerActivity : ComponentActivity() {
 
             val safeId = sanitizeVideoId(videoId)
             val embedUrl =
-                "https://www.youtube.com/embed/$safeId?playsinline=1&autoplay=0&rel=0&controls=1&fs=1"
+                "https://www.youtube.com/embed/$safeId?playsinline=1&autoplay=0&rel=0&controls=1&fs=1&hl=vi&cc_lang_pref=vi"
 
             // YouTube requires an HTTP Referer for embedded playback. Android WebView
             // normally sends an empty Referer, which causes error 153. Use the app
