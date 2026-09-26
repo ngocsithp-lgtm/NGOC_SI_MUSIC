@@ -1548,9 +1548,25 @@ class MainActivity : ComponentActivity() {
                     )
 
                     Spacer(Modifier.height(14.dp))
+                    var isSeeking by remember(song.uri.toString()) { mutableStateOf(false) }
+                    var sliderPosition by remember(song.uri.toString()) {
+                        mutableFloatStateOf(position.coerceIn(0L, max(1L, song.duration)).toFloat())
+                    }
+                    LaunchedEffect(position, isSeeking, song.uri.toString()) {
+                        if (!isSeeking) {
+                            sliderPosition = position.coerceIn(0L, max(1L, song.duration)).toFloat()
+                        }
+                    }
                     Slider(
-                        value = if (song.duration > 0) position.coerceIn(0, song.duration).toFloat() else 0f,
-                        onValueChange = { seekTo(it.toLong()) },
+                        value = sliderPosition,
+                        onValueChange = {
+                            isSeeking = true
+                            sliderPosition = it
+                        },
+                        onValueChangeFinished = {
+                            seekTo(sliderPosition.toLong())
+                            isSeeking = false
+                        },
                         valueRange = 0f..max(1L, song.duration).toFloat()
                     )
                     Row(
@@ -2647,8 +2663,28 @@ class MainActivity : ComponentActivity() {
                 }
             }
             Spacer(Modifier.height(14.dp))
-            Slider(value = if (duration > 0) position.coerceIn(0, duration).toFloat() else 0f, onValueChange = { seekTo(it.toLong()) },
-                valueRange = 0f..max(1L, duration).toFloat(), enabled = song != null)
+            var isSeeking by remember(song?.uri?.toString()) { mutableStateOf(false) }
+            var sliderPosition by remember(song?.uri?.toString()) {
+                mutableFloatStateOf(position.coerceIn(0L, max(1L, duration)).toFloat())
+            }
+            LaunchedEffect(position, isSeeking, song?.uri?.toString()) {
+                if (!isSeeking) {
+                    sliderPosition = position.coerceIn(0L, max(1L, duration)).toFloat()
+                }
+            }
+            Slider(
+                value = sliderPosition,
+                onValueChange = {
+                    isSeeking = true
+                    sliderPosition = it
+                },
+                onValueChangeFinished = {
+                    seekTo(sliderPosition.toLong())
+                    isSeeking = false
+                },
+                valueRange = 0f..max(1L, duration).toFloat(),
+                enabled = song != null
+            )
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(formatTime(position), color = Color(0xFF9999A5), fontSize = 12.sp)
                 Text(formatTime(duration), color = Color(0xFF9999A5), fontSize = 12.sp)
