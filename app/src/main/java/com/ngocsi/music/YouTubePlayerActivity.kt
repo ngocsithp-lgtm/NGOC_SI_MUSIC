@@ -192,7 +192,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 javaScriptEnabled = true
                 domStorageEnabled = true
                 loadsImagesAutomatically = true
-                mediaPlaybackRequiresUserGesture = true
+                mediaPlaybackRequiresUserGesture = false
                 useWideViewPort = true
                 loadWithOverviewMode = true
                 allowContentAccess = true
@@ -344,7 +344,8 @@ class YouTubePlayerActivity : ComponentActivity() {
             val appReferrer = "https://com.ngocsi.music/"
             val embedUrl = "https://www.youtube.com/embed/" + safeId +
                 "?playsinline=1&autoplay=0&rel=0&controls=1&fs=1" +
-                "&hl=vi&cc_lang_pref=vi"
+                "&origin=https%3A%2F%2Fcom.ngocsi.music" +
+                "&enablejsapi=1&hl=vi&cc_lang_pref=vi"
 
             val headers = mapOf("Referer" to appReferrer)
             loadUrl(embedUrl, headers)
