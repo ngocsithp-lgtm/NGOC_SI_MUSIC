@@ -1635,7 +1635,10 @@ class MainActivity : ComponentActivity() {
         // Sleep timer is owned by startSleepTimer()/sleepTimerJob so there is
         // only one timer and it can also reset playback position and persist state.
         MaterialTheme(colorScheme = darkColorScheme(background = Color(0xFF08090D), surface = Color(0xFF11131A), primary = Color(0xFFB18CFF), secondary = Color(0xFF7DD3FC))) {
-            Surface(Modifier.fillMaxSize(), color = Color(0xFF0B0B0F)) {
+            Surface(
+                Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
+                color = Color(0xFF0B0B0F)
+            ) {
                 Column(Modifier.fillMaxSize()) {
                     Header()
                     when (selectedSection) {
