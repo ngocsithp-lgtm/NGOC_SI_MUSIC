@@ -913,8 +913,8 @@ class MainActivity : ComponentActivity() {
 
     private fun syncControllerQueue() {
         controller?.let { c ->
-            if (songs.isEmpty()) {
-                // Never leave stale Media3 items after the app library is cleared.
+            if (queueSongs.isEmpty()) {
+                // Never leave stale Media3 items after the playback queue is emptied.
                 c.pause()
                 c.clearMediaItems()
                 currentIndex = -1
@@ -924,7 +924,7 @@ class MainActivity : ComponentActivity() {
                 savePlaybackState()
                 return@let
             }
-            if (songs.isNotEmpty()) {
+            if (queueSongs.isNotEmpty()) {
                 // Rebuild the queue only after capturing the exact active item,
                 // position, playing state, shuffle mode and repeat mode.
                 val selectedUri = c.currentMediaItem?.localConfiguration?.uri
@@ -981,10 +981,10 @@ class MainActivity : ComponentActivity() {
     }
     private fun togglePlayPause() {
         val c = controller ?: return
-        if (songs.isNotEmpty() && !isControllerQueueInSync(c)) {
+        if (queueSongs.isNotEmpty() && !isControllerQueueInSync(c)) {
             syncControllerQueue()
         }
-        if (c.mediaItemCount == 0 && songs.isNotEmpty()) {
+        if (c.mediaItemCount == 0 && queueSongs.isNotEmpty()) {
             c.setMediaItems(queueSongs.map { mediaItemFor(it) })
             c.shuffleModeEnabled = shuffleEnabled
             c.repeatMode = repeatMode
@@ -1001,7 +1001,7 @@ class MainActivity : ComponentActivity() {
 
     private fun next() {
         val c = controller ?: return
-        if (songs.isEmpty()) return
+        if (queueSongs.isEmpty()) return
         if (!isControllerQueueInSync(c)) syncControllerQueue()
         c.seekToNextMediaItem()
         c.play()
@@ -1009,7 +1009,7 @@ class MainActivity : ComponentActivity() {
 
     private fun previous() {
         val c = controller ?: return
-        if (songs.isEmpty()) return
+        if (queueSongs.isEmpty()) return
         if (!isControllerQueueInSync(c)) syncControllerQueue()
 
         // Standard music-player behavior: pressing Previous near the start
@@ -1043,6 +1043,11 @@ class MainActivity : ComponentActivity() {
         currentIndex = currentUri?.let { uri -> songs.indexOfFirst { it.uri.toString() == uri } } ?: -1
 
         if (queueSongs.isEmpty()) {
+            c.pause()
+            c.clearMediaItems()
+            currentIndex = -1
+            lastSongUri = null
+            savedPosition = 0L
             isPlaying = false
             position = 0L
         } else if (removedCurrent) {
