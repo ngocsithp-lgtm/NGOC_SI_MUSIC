@@ -4,7 +4,7 @@ Android music player built with Kotlin, Jetpack Compose and AndroidX Media3.
 
 ## Bản hiện tại
 
-- Version: **4.3**
+- Version: **4.4**
 - Target SDK: **Android 16 / API 36**
 - Media3: **1.9.4**
 - Min SDK: **26**
@@ -31,7 +31,7 @@ GitHub Actions tự động build khi push vào main hoặc chạy thủ công.
 
 Artifact hiện tại:
 
-NGOC_SI_MUSIC_4.3_DEBUG_APK
+NGOC_SI_MUSIC_4.4_DEBUG_APK
 
 APK debug được kiểm tra tồn tại và tạo kèm SHA-256.
 
@@ -41,4 +41,4 @@ YouTube được phát bằng embedded player; ứng dụng không tải xuống
 
 ## Ghi chú Radio
 
-URL livestream có thể thay đổi theo hạ tầng của từng đài. Ứng dụng dùng nhiều URL theo thứ tự ưu tiên và có watchdog tự chuyển sang nguồn dự phòng khi Media3 gặp lỗi hoặc buffering kéo dài.
+URL livestream có thể thay đổi theo hạ tầng của từng đài. Ứng dụng ưu tiên các manifest HLS hiện hành, tự chuyển nguồn dự phòng khi Media3 gặp lỗi hoặc buffering kéo dài, và chuyển sang nguồn chính thức trong ứng dụng khi không còn luồng trực tiếp khả dụng.
