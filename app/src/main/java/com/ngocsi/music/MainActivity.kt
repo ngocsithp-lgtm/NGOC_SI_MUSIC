@@ -170,6 +170,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var playlistStore: PlaylistStore
     private val playlists = mutableStateListOf<MusicPlaylist>()
     private var showPlaylists by mutableStateOf(false)
+    private var playlistDetailId by mutableStateOf<String?>(null)
     private var playlistTargetSongUri by mutableStateOf<String?>(null)
     private var showCreatePlaylist by mutableStateOf(false)
     private var newPlaylistName by mutableStateOf("")
@@ -1494,10 +1495,23 @@ class MainActivity : ComponentActivity() {
             errorMessage = "Tên playlist không được để trống."
             return
         }
+
+        val targetSong = playlistTargetSongUri?.let { target ->
+            songs.firstOrNull { it.uri.toString() == target }
+        }
+        if (targetSong != null) {
+            playlistStore.addSong(created.id, targetSong.uri.toString())
+        }
+
         newPlaylistName = ""
+        playlistTargetSongUri = null
         refreshPlaylists()
         showCreatePlaylist = false
-        errorMessage = "Đã tạo playlist: " + created.name
+        errorMessage = if (targetSong != null) {
+            "Đã tạo playlist “" + created.name + "” và thêm “" + targetSong.title + "”."
+        } else {
+            "Đã tạo playlist: " + created.name
+        }
     }
 
     private fun deletePlaylist(playlist: MusicPlaylist) {
@@ -1709,6 +1723,9 @@ class MainActivity : ComponentActivity() {
         currentSong?.let { if (showNowPlaying) NowPlayingDialog(it) }
         if (showQueue) QueueDialog()
         if (showPlaylists) PlaylistManagerDialog()
+        playlistDetailId?.let { id ->
+            playlists.firstOrNull { it.id == id }?.let { PlaylistDetailDialog(it) }
+        }
         playlistTargetSongUri?.let { targetUri ->
             songs.firstOrNull { it.uri.toString() == targetUri }?.let { PlaylistPickerDialog(it) }
         }
@@ -3242,9 +3259,9 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         .background(Color(0xFF181922)).padding(12.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Column(Modifier.weight(1f)) {
+                                    Column(Modifier.weight(1f).clickable { playlistDetailId = playlist.id }) {
                                         Text(playlist.name, color = Color.White, fontWeight = FontWeight.SemiBold)
-                                        Text(playlist.songUris.size.toString() + " bài", color = Color(0xFF888894), fontSize = 11.sp)
+                                        Text(playlist.songUris.size.toString() + " bài • chạm để xem", color = Color(0xFF888894), fontSize = 11.sp)
                                     }
                                     TextButton(onClick = { playPlaylist(playlist) }) { Text("▶") }
                                     TextButton(onClick = { deletePlaylist(playlist) }) { Text("×", color = Color(0xFFFF8A9A)) }
@@ -3254,6 +3271,72 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     }
                     Spacer(Modifier.height(8.dp))
                     TextButton(onClick = { showPlaylists = false }) { Text("Đóng") }
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun PlaylistDetailDialog(playlist: MusicPlaylist) {
+        val playlistSongs = playlist.songUris.mapNotNull { uri ->
+            songs.firstOrNull { it.uri.toString() == uri }
+        }
+
+        Dialog(onDismissRequest = { playlistDetailId = null }) {
+            Surface(
+                shape = RoundedCornerShape(26.dp),
+                color = Color(0xFF101117),
+                modifier = Modifier.fillMaxWidth(0.95f)
+            ) {
+                Column(Modifier.padding(18.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(playlist.name, color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                            Text(playlist.songUris.size.toString() + " bài", color = Color(0xFF888894), fontSize = 12.sp)
+                        }
+                        TextButton(
+                            onClick = { playPlaylist(playlist) },
+                            enabled = playlistSongs.isNotEmpty()
+                        ) { Text("▶ Phát") }
+                    }
+                    Spacer(Modifier.height(8.dp))
+
+                    if (playlistSongs.isEmpty()) {
+                        Text(
+                            "Playlist chưa có bài khả dụng. Hãy thêm nhạc bằng nút ▣ trong thư viện.",
+                            color = Color(0xFF9999A5),
+                            fontSize = 13.sp
+                        )
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.heightIn(max = 520.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            items(playlistSongs, key = { it.uri.toString() }) { song ->
+                                Row(
+                                    Modifier.fillMaxWidth()
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .background(Color(0xFF181922))
+                                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(song.title, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(song.artist, color = Color(0xFF888894), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    }
+                                    TextButton(
+                                        onClick = {
+                                            playlistStore.removeSong(playlist.id, song.uri.toString())
+                                            refreshPlaylists()
+                                        }
+                                    ) { Text("XÓA", color = Color(0xFFFF8A9A)) }
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+                    TextButton(onClick = { playlistDetailId = null }) { Text("Đóng") }
                 }
             }
         }
