@@ -4,8 +4,8 @@ Android music player built with Kotlin, Jetpack Compose and AndroidX Media3.
 
 ## Bản PRO
 
-- Version: **5.1 PRO**
-- Version code: **21**
+- Version: **5.2 PRO**
+- Version code: **22**
 - Target SDK: **Android 16 / API 36**
 - Min SDK: **26**
 - Media3: **1.9.4**
@@ -58,7 +58,7 @@ GitHub Actions tự động chạy:
 4. SHA-256
 5. Upload artifact
 
-Artifact: **NGOC_SI_MUSIC_5.1_PRO_DEBUG_APK**
+Artifact: **NGOC_SI_MUSIC_5.2_PRO_DEBUG_APK**
 
 ## YouTube
 
