@@ -167,6 +167,12 @@ class MainActivity : ComponentActivity() {
     private var showPlaybackSpeed by mutableStateOf(false)
     private val favorites = mutableStateMapOf<Long, Boolean>()
     private lateinit var prefs: SharedPreferences
+    private lateinit var playlistStore: PlaylistStore
+    private val playlists = mutableStateListOf<MusicPlaylist>()
+    private var showPlaylists by mutableStateOf(false)
+    private var playlistTargetSongUri by mutableStateOf<String?>(null)
+    private var showCreatePlaylist by mutableStateOf(false)
+    private var newPlaylistName by mutableStateOf("")
 
     // Radio recovery watchdog. A live stream can stay in BUFFERING without
     // emitting a fatal player error, so switch to the next known stream after
@@ -312,6 +318,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+        playlistStore = PlaylistStore(this)
+        playlists.addAll(playlistStore.load())
         loadSavedState()
         setContent { NgocSiMusicApp() }
         requestMusicPermissionIfNeeded()
@@ -1475,6 +1483,81 @@ class MainActivity : ComponentActivity() {
         savePlayerPreferences()
     }
 
+    private fun refreshPlaylists() {
+        playlists.clear()
+        playlists.addAll(playlistStore.load())
+    }
+
+    private fun createPlaylist() {
+        val created = playlistStore.create(newPlaylistName)
+        if (created == null) {
+            errorMessage = "Tên playlist không được để trống."
+            return
+        }
+        newPlaylistName = ""
+        refreshPlaylists()
+        showCreatePlaylist = false
+        errorMessage = "Đã tạo playlist: " + created.name
+    }
+
+    private fun deletePlaylist(playlist: MusicPlaylist) {
+        playlistStore.delete(playlist.id)
+        refreshPlaylists()
+        errorMessage = "Đã xóa playlist: " + playlist.name
+    }
+
+    private fun addSongToPlaylist(playlistId: String, song: Song) {
+        val updated = playlistStore.addSong(playlistId, song.uri.toString())
+        refreshPlaylists()
+        playlistTargetSongUri = null
+        errorMessage = if (updated != null) {
+            "Đã thêm “" + song.title + "” vào " + updated.name + "."
+        } else {
+            "Không tìm thấy playlist."
+        }
+    }
+
+    private fun playPlaylist(playlist: MusicPlaylist) {
+        val orderedSongs = playlist.songUris.mapNotNull { uri ->
+            songs.firstOrNull { it.uri.toString() == uri }
+        }
+        if (orderedSongs.isEmpty()) {
+            errorMessage = "Playlist “" + playlist.name + "” chưa có bài khả dụng."
+            return
+        }
+
+        val c = controller ?: run {
+            errorMessage = "Trình phát đang khởi động, thử lại sau."
+            return
+        }
+
+        cancelRadioRecovery()
+        activeRadioTitle = null
+        activeRadioStreams = emptyList()
+        activeRadioStreamIndex = 0
+
+        val keepShuffle = c.shuffleModeEnabled
+        val keepRepeat = c.repeatMode
+        queueSongs.clear()
+        queueSongs.addAll(orderedSongs)
+
+        c.setMediaItems(queueSongs.map { mediaItemFor(it) }, 0, 0L)
+        c.shuffleModeEnabled = keepShuffle
+        c.repeatMode = keepRepeat
+        c.setPlaybackSpeed(selectedPlaybackSpeed)
+        c.prepare()
+        c.play()
+
+        currentIndex = songs.indexOfFirst { it.uri == orderedSongs.first().uri }
+        position = 0L
+        savedPosition = 0L
+        lastSongUri = orderedSongs.first().uri.toString()
+        saveQueueOrder()
+        savePlaybackState()
+        showPlaylists = false
+        errorMessage = "Đang phát playlist: " + playlist.name
+    }
+
     override fun onResume() {
         super.onResume()
 
@@ -1622,6 +1705,11 @@ class MainActivity : ComponentActivity() {
         }
         currentSong?.let { if (showNowPlaying) NowPlayingDialog(it) }
         if (showQueue) QueueDialog()
+        if (showPlaylists) PlaylistManagerDialog()
+        playlistTargetSongUri?.let { targetUri ->
+            songs.firstOrNull { it.uri.toString() == targetUri }?.let { PlaylistPickerDialog(it) }
+        }
+        if (showCreatePlaylist) CreatePlaylistDialog()
         if (showVietnamRadioHub) VietnamRadioHubDialog()
         radioWebUrl?.let { RadioWebViewDialog(it, radioWebTitle) }
     }
@@ -1784,7 +1872,8 @@ class MainActivity : ComponentActivity() {
             SettingsRow("🔀", "Phát ngẫu nhiên", if (shuffleEnabled) "Đang bật" else "Đang tắt") { toggleShuffle() }
             SettingsRow("🔁", "Lặp lại", when (repeatMode) { Player.REPEAT_MODE_ONE -> "Một bài"; Player.REPEAT_MODE_ALL -> "Tất cả"; else -> "Tắt" }) { cycleRepeat() }
             SettingsRow("⏩", "Tốc độ phát", "${selectedPlaybackSpeed}x") { showPlaybackSpeed = true }
-            SettingsRow("☁", "Google Drive", "${songs.count { it.source == "Google Drive" }} bài đã nhập") { selectedSection = "Online" }
+            SettingsRow("☁", "Google Drive", songs.count { it.source == "Google Drive" }.toString() + " bài đã nhập") { selectedSection = "Online" }
+            SettingsRow("♫", "Playlist", playlists.size.toString() + " danh sách đã tạo") { showPlaylists = true }
             OutlinedButton(onClick = ::clearDriveLibrary, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
                 Text("XÓA NHẠC GOOGLE DRIVE KHỎI ỨNG DỤNG")
             }
@@ -3121,6 +3210,130 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
     }
 
     @Composable
+    private fun PlaylistManagerDialog() {
+        Dialog(onDismissRequest = { showPlaylists = false }) {
+            Surface(
+                shape = RoundedCornerShape(26.dp),
+                color = Color(0xFF101117),
+                modifier = Modifier.fillMaxWidth(0.94f)
+            ) {
+                Column(Modifier.padding(18.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("PLAYLIST", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                            Text(playlists.size.toString() + " danh sách • lưu trên thiết bị", color = Color(0xFF888894), fontSize = 12.sp)
+                        }
+                        TextButton(onClick = { showCreatePlaylist = true }) { Text("+ Tạo") }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    if (playlists.isEmpty()) {
+                        Text("Chưa có playlist. Hãy tạo playlist rồi dùng nút ▣ cạnh bài hát để thêm nhạc.", color = Color(0xFF9A9AA5), fontSize = 13.sp)
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.heightIn(max = 520.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(playlists, key = { it.id }) { playlist ->
+                                Row(
+                                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                                        .background(Color(0xFF181922)).padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(playlist.name, color = Color.White, fontWeight = FontWeight.SemiBold)
+                                        Text(playlist.songUris.size.toString() + " bài", color = Color(0xFF888894), fontSize = 11.sp)
+                                    }
+                                    TextButton(onClick = { playPlaylist(playlist) }) { Text("▶") }
+                                    TextButton(onClick = { deletePlaylist(playlist) }) { Text("×", color = Color(0xFFFF8A9A)) }
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    TextButton(onClick = { showPlaylists = false }) { Text("Đóng") }
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun PlaylistPickerDialog(song: Song) {
+        Dialog(onDismissRequest = { playlistTargetSongUri = null }) {
+            Surface(
+                shape = RoundedCornerShape(24.dp),
+                color = Color(0xFF101117),
+                modifier = Modifier.fillMaxWidth(0.94f)
+            ) {
+                Column(Modifier.padding(18.dp)) {
+                    Text("THÊM VÀO PLAYLIST", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(4.dp))
+                    Text(song.title, color = Color(0xFF9999A5), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Spacer(Modifier.height(10.dp))
+                    if (playlists.isEmpty()) {
+                        Text("Chưa có playlist.", color = Color(0xFF9999A5), fontSize = 13.sp)
+                        Spacer(Modifier.height(8.dp))
+                        Button(onClick = {
+                            playlistTargetSongUri = null
+                            newPlaylistName = ""
+                            showCreatePlaylist = true
+                        }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                            Text("TẠO PLAYLIST MỚI")
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.heightIn(max = 420.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(playlists, key = { it.id }) { playlist ->
+                                OutlinedButton(
+                                    onClick = { addSongToPlaylist(playlist.id, song) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(14.dp)
+                                ) {
+                                    Text(playlist.name + " • " + playlist.songUris.size.toString() + " bài", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                            }
+                            item {
+                                OutlinedButton(
+                                    onClick = {
+                                        playlistTargetSongUri = null
+                                        newPlaylistName = ""
+                                        showCreatePlaylist = true
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(14.dp)
+                                ) { Text("+ Tạo playlist mới") }
+                            }
+                        }
+                    }
+                    TextButton(onClick = { playlistTargetSongUri = null }) { Text("Hủy") }
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun CreatePlaylistDialog() {
+        AlertDialog(
+            onDismissRequest = { showCreatePlaylist = false },
+            title = { Text("Tạo playlist") },
+            text = {
+                OutlinedTextField(
+                    value = newPlaylistName,
+                    onValueChange = { newPlaylistName = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text("Tên playlist") },
+                    placeholder = { Text("Ví dụ: Nhạc vàng yêu thích") },
+                    shape = RoundedCornerShape(14.dp)
+                )
+            },
+            confirmButton = { Button(onClick = ::createPlaylist) { Text("TẠO") } },
+            dismissButton = { TextButton(onClick = { showCreatePlaylist = false }) { Text("HỦY") } }
+        )
+    }
+
+    @Composable
     private fun SongRow(song: Song, index: Int, selected: Boolean) {
         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(if (selected) Color(0xFF252033) else Color(0xFF141419))
             .clickable { play(index) }.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -3132,6 +3345,9 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             }
             IconButton(onClick = { addToQueue(song) }) {
                 Text("＋", color = Color(0xFFC8B7FF), fontSize = 22.sp)
+            }
+            IconButton(onClick = { playlistTargetSongUri = song.uri.toString() }) {
+                Text("▣", color = Color(0xFF8FD3FF), fontSize = 18.sp)
             }
             IconButton(onClick = { toggleFavorite(song) }) {
                 Text(if (favorites[song.id] == true) "♥" else "♡", color = if (favorites[song.id] == true) Color(0xFFFF6B81) else Color(0xFF777783), fontSize = 22.sp)
