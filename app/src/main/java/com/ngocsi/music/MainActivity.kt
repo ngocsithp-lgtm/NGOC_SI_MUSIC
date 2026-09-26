@@ -2468,6 +2468,14 @@ class MainActivity : ComponentActivity() {
                     shape = RoundedCornerShape(12.dp)
                 ) { Text("VOV3 • Âm nhạc") }
                 OutlinedButton(
+                    onClick = { openOnlineSource("https://vov2.vov.vn/") },
+                    shape = RoundedCornerShape(12.dp)
+                ) { Text("VOV2 • Văn hóa") }
+                OutlinedButton(
+                    onClick = { openOnlineSource("https://vov5.vov.vn/") },
+                    shape = RoundedCornerShape(12.dp)
+                ) { Text("VOV5 • Đối ngoại") }
+                OutlinedButton(
                     onClick = { openOnlineSource("https://voh.com.vn/radios") },
                     shape = RoundedCornerShape(12.dp)
                 ) { Text("VOH • Radio") }
