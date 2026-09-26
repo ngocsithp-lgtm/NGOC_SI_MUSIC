@@ -3855,7 +3855,9 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
     @Composable
     private fun PlayerCard(song: Song?) {
-        val duration = song?.duration ?: 0L
+        // Media3 can resolve duration after playback starts (Drive/online streams).
+        // Show the live value for the active item while retaining library metadata as fallback.
+        val shownDuration = if (song != null && duration > 0L) duration else (song?.duration ?: 0L)
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Brush.linearGradient(listOf(Color(0xFF211A35), Color(0xFF12151D)))).padding(18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 SongArtwork(song, Modifier.size(82.dp))
@@ -3869,11 +3871,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             Spacer(Modifier.height(14.dp))
             var isSeeking by remember(song?.uri?.toString()) { mutableStateOf(false) }
             var sliderPosition by remember(song?.uri?.toString()) {
-                mutableFloatStateOf(position.coerceIn(0L, max(1L, duration)).toFloat())
+                mutableFloatStateOf(position.coerceIn(0L, max(1L, shownDuration)).toFloat())
             }
             LaunchedEffect(position, isSeeking, song?.uri?.toString()) {
                 if (!isSeeking) {
-                    sliderPosition = position.coerceIn(0L, max(1L, duration)).toFloat()
+                    sliderPosition = position.coerceIn(0L, max(1L, shownDuration)).toFloat()
                 }
             }
             Slider(
@@ -3886,12 +3888,12 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     seekTo(sliderPosition.toLong())
                     isSeeking = false
                 },
-                valueRange = 0f..max(1L, duration).toFloat(),
+                valueRange = 0f..max(1L, shownDuration).toFloat(),
                 enabled = song != null
             )
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(formatTime(position), color = Color(0xFF9999A5), fontSize = 12.sp)
-                Text(formatTime(duration), color = Color(0xFF9999A5), fontSize = 12.sp)
+                Text(formatTime(shownDuration), color = Color(0xFF9999A5), fontSize = 12.sp)
             }
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
@@ -4111,6 +4113,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
     @Composable
     private fun SongRow(song: Song, index: Int, selected: Boolean) {
+        val shownDuration = if (selected && duration > 0L) duration else song.duration
         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(if (selected) Color(0xFF252033) else Color(0xFF141419))
             .clickable { play(index) }.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(String.format("%02d", index + 1), color = if (selected) Color(0xFFC8B7FF) else Color(0xFF777783),
@@ -4131,7 +4134,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             IconButton(onClick = { toggleFavorite(song) }) {
                 Text(if (favorites[song.id] == true) "♥" else "♡", color = if (favorites[song.id] == true) Color(0xFFFF6B81) else Color(0xFF777783), fontSize = 22.sp)
             }
-            Text(formatTime(song.duration), color = Color(0xFF858591), fontSize = 12.sp)
+            Text(formatTime(shownDuration), color = Color(0xFF858591), fontSize = 12.sp)
         }
     }
 
