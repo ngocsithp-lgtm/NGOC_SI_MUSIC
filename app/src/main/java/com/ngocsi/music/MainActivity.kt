@@ -1081,7 +1081,7 @@ class MainActivity : ComponentActivity() {
                     readTimeout = 20000
                     useCaches = false
                     setRequestProperty("Accept", "application/json")
-                    setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.1")
+                    setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.2")
                 }
 
                 val code = connection.responseCode
