@@ -322,17 +322,44 @@ class YouTubePlayerActivity : ComponentActivity() {
             isFocusableInTouchMode = true
 
             val safeId = sanitizeVideoId(videoId)
-            val embedUrl =
-                "https://www.youtube.com/embed/$safeId?playsinline=1&autoplay=0&rel=0&controls=1&fs=1&hl=vi&cc_lang_pref=vi"
+            val appBaseUrl = "https://github.com/ngocsithp-lgtm/NGOC_SI_MUSIC/"
+            val appOrigin = "https://github.com"
 
-            // YouTube requires an HTTP Referer for embedded playback. Android WebView
-            // normally sends an empty Referer, which causes error 153. Use the app
-            // package-based HTTPS referrer recommended by YouTube's Android guidance.
-            val appReferer = "https://github.com/ngocsithp-lgtm/NGOC_SI_MUSIC/"
+            // Load the official YouTube IFrame inside an HTML shell with a
+            // real HTTPS base URL. YouTube documents this WebView pattern for
+            // supplying a non-empty HTTP Referer and avoiding error 153.
+            val embedUrl = "https://www.youtube.com/embed/" + safeId +
+                "?playsinline=1&autoplay=0&rel=0&controls=1&fs=1&enablejsapi=1" +
+                "&origin=" + Uri.encode(appOrigin) +
+                "&hl=vi&cc_lang_pref=vi&widget_referrer=" + Uri.encode(appOrigin)
 
-            loadUrl(
-                embedUrl,
-                mapOf("Referer" to appReferer)
+            val html = """
+                <!doctype html>
+                <html lang="vi">
+                <head>
+                  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                  <meta name="referrer" content="origin">
+                  <style>
+                    html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#000; }
+                    #player, iframe { width:100%; height:100%; border:0; background:#000; }
+                  </style>
+                </head>
+                <body>
+                  <div id="player">
+                    <iframe src="${embedUrl}" title="YouTube"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      allowfullscreen></iframe>
+                  </div>
+                </body>
+                </html>
+            """.trimIndent()
+
+            loadDataWithBaseURL(
+                appBaseUrl,
+                html,
+                "text/html",
+                "UTF-8",
+                appBaseUrl
             )
         }
 
