@@ -1993,7 +1993,7 @@ class MainActivity : ComponentActivity() {
                                         Text(source.first, color = Color.White, fontWeight = FontWeight.SemiBold)
                                         Spacer(Modifier.height(2.dp))
                                         Text(
-                                            if (streamUrl != null) "\${source.second} • phát nền qua MediaSession" else source.second,
+                                            if (!streamUrls.isNullOrEmpty()) "\${source.second} • HLS + tự động dùng luồng dự phòng" else source.second,
                                             color = Color(0xFF8F8F9A),
                                             fontSize = 11.sp
                                         )
