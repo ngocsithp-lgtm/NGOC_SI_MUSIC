@@ -30,21 +30,18 @@ object RadioCatalog {
             title = "VOV2 • Văn hóa",
             description = "Văn hóa, giáo dục, khoa học và giải trí",
             sourceUrl = "https://vov2.vov.vn/",
-            streamUrls = listOf(
-                "https://audio-lss.vov.vn/han/live/vov2/audio/manifest.m3u8",
-                "https://media-audio.vov.vn/vov2.sdp_aac/playlist.m3u8",
-                "https://str.vov.gov.vn/vovlive/vov2.sdp_aac/playlist.m3u8"
-            )
+            // Direct VOV2 HLS endpoints are not currently stable enough to expose
+            // as a guaranteed in-app stream. Keep the official source button instead
+            // of showing a play button that can silently fail.
+            streamUrls = emptyList()
         ),
         RadioStation(
             title = "VOV3 • Âm nhạc",
             description = "Âm nhạc, dân ca, chương trình giải trí",
             sourceUrl = "https://vov3.vov.vn/",
-            streamUrls = listOf(
-                "https://audio-lss.vov.vn/han/live/vov3/audio/manifest.m3u8",
-                "https://media-audio.vov.vn/vov3.sdp_aac/playlist.m3u8",
-                "https://str.vov.gov.vn/vovlive/vov3.sdp_aac/playlist.m3u8"
-            )
+            // Direct VOV3 HLS endpoints are not currently stable enough to expose
+            // as a guaranteed in-app stream. Open the official source instead.
+            streamUrls = emptyList()
         ),
     )
 
