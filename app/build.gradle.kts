@@ -6,16 +6,16 @@ plugins {
 
 android {
     namespace = "com.ngocsi.music"
-    compileSdk = 35
+    compileSdk = 36
 
     val youtubeApiKey = System.getenv("YOUTUBE_API_KEY").orEmpty()
 
     defaultConfig {
         applicationId = "com.ngocsi.music"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 6
-        versionName = "4.1"
+        targetSdk = 36
+        versionCode = 7
+        versionName = "4.2"
         buildConfigField("String", "YOUTUBE_API_KEY", "\"$youtubeApiKey\"")
     }
 
