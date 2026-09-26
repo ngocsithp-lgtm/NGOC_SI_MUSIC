@@ -116,6 +116,7 @@ data class OnlineFavoriteMeta(
 class MainActivity : ComponentActivity() {
     private var controller: MediaController? = null
     private val songs = mutableStateListOf<Song>()
+    private val queueSongs = mutableStateListOf<Song>()
     private var currentIndex by mutableIntStateOf(-1)
     private var isPlaying by mutableStateOf(false)
     private var position by mutableLongStateOf(0L)
@@ -355,7 +356,7 @@ class MainActivity : ComponentActivity() {
                     if (c.mediaItemCount == 0 && songs.isNotEmpty()) {
                         c.shuffleModeEnabled = shuffleEnabled
                         c.repeatMode = repeatMode
-                        c.setMediaItems(songs.map { mediaItemFor(it) })
+                        c.setMediaItems(queueSongs.map { mediaItemFor(it) })
                         c.prepare()
 
                         val restoreIndex = lastSongUri?.let { uri ->
@@ -458,6 +459,12 @@ class MainActivity : ComponentActivity() {
 
         songs.clear()
         songs.addAll(result)
+        queueSongs.clear()
+        val byUri = songs.associateBy { it.uri.toString() }
+        savedQueueOrder.forEach { uri -> byUri[uri]?.let { queueSongs.add(it) } }
+        songs.forEach { song ->
+            if (queueSongs.none { it.uri == song.uri }) queueSongs.add(song)
+        }
         errorMessage = if (songs.isEmpty()) "Chưa tìm thấy file nhạc trong thiết bị." else null
         if (songs.isNotEmpty()) saveQueueOrder()
         controller?.let { c ->
@@ -465,7 +472,7 @@ class MainActivity : ComponentActivity() {
             // and exact position. If the library changed with the same item count,
             // rebuild the queue so a library index can never point at the wrong URI.
             if (c.mediaItemCount == 0 && songs.isNotEmpty()) {
-                c.setMediaItems(songs.map { mediaItemFor(it) })
+                c.setMediaItems(queueSongs.map { mediaItemFor(it) })
                 c.prepare()
 
                 val restoreIndex = lastSongUri?.let { uri ->
@@ -496,9 +503,9 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun isControllerQueueInSync(c: MediaController): Boolean {
-        if (c.mediaItemCount != songs.size) return false
-        return songs.indices.all { index ->
-            c.getMediaItemAt(index).localConfiguration?.uri == songs[index].uri
+        if (c.mediaItemCount != queueSongs.size) return false
+        return queueSongs.indices.all { index ->
+            c.getMediaItemAt(index).localConfiguration?.uri == queueSongs[index].uri
         }
     }
 
@@ -512,7 +519,12 @@ class MainActivity : ComponentActivity() {
         }
 
         currentIndex = index
-        c.seekToDefaultPosition(index)
+        val queueIndex = queueSongs.indexOfFirst { it.uri == songs[index].uri }
+        if (queueIndex < 0) {
+            errorMessage = "Bài hát chưa có trong hàng đợi."
+            return
+        }
+        c.seekToDefaultPosition(queueIndex)
         c.play()
         shuffleEnabled = c.shuffleModeEnabled
         repeatMode = c.repeatMode
@@ -552,7 +564,9 @@ class MainActivity : ComponentActivity() {
             } catch (_: Exception) { }
             val raw = uri.toString()
             if (saved.add(raw) && songs.none { it.uri == uri }) {
-                songs.add(songFromUri(uri))
+                val importedSong = songFromUri(uri)
+                songs.add(importedSong)
+                queueSongs.add(importedSong)
                 added++
             }
         }
@@ -679,6 +693,7 @@ class MainActivity : ComponentActivity() {
         val existingIndex = songs.indexOfFirst { it.uri.toString() == raw }
         val index = if (existingIndex >= 0) existingIndex else {
             songs.add(song)
+        queueSongs.add(song)
             songs.lastIndex
         }
 
@@ -706,6 +721,7 @@ class MainActivity : ComponentActivity() {
     private fun clearOnlineLibrary() {
         prefs.edit().remove("online_uris").apply()
         songs.removeAll { it.source == "Online" }
+        queueSongs.removeAll { it.source == "Online" }
         if (currentIndex >= songs.size) currentIndex = -1
         syncControllerQueue()
         errorMessage = "Đã xóa các luồng online đã lưu."
@@ -820,6 +836,7 @@ class MainActivity : ComponentActivity() {
         val existingIndex = songs.indexOfFirst { it.uri.toString() == track.streamUrl }
         val index = if (existingIndex >= 0) existingIndex else {
             songs.add(song)
+        queueSongs.add(song)
             songs.lastIndex
         }
         syncControllerQueue()
@@ -925,7 +942,7 @@ class MainActivity : ComponentActivity() {
                 val keepShuffle = c.shuffleModeEnabled
                 val keepRepeat = c.repeatMode
 
-                c.setMediaItems(songs.map { mediaItemFor(it) })
+                c.setMediaItems(queueSongs.map { mediaItemFor(it) })
                 saveQueueOrder()
                 c.shuffleModeEnabled = keepShuffle
                 c.repeatMode = keepRepeat
@@ -977,7 +994,7 @@ class MainActivity : ComponentActivity() {
             syncControllerQueue()
         }
         if (c.mediaItemCount == 0 && songs.isNotEmpty()) {
-            c.setMediaItems(songs.map { mediaItemFor(it) })
+            c.setMediaItems(queueSongs.map { mediaItemFor(it) })
             c.shuffleModeEnabled = shuffleEnabled
             c.repeatMode = repeatMode
             c.prepare()
@@ -1021,21 +1038,20 @@ class MainActivity : ComponentActivity() {
 
         // The library list is stable order, while Media3 may expose a different
         // queue order when shuffle is enabled. Resolve the target by URI first.
-        val targetUri = songs[index].uri.toString()
+        val targetUri = queueSongs.getOrNull(index)?.uri?.toString() ?: return
         val controllerIndex = (0 until c.mediaItemCount).firstOrNull { queueIndex ->
             c.getMediaItemAt(queueIndex).localConfiguration?.uri?.toString() == targetUri
         } ?: return
 
         val removedCurrent = c.currentMediaItem?.localConfiguration?.uri?.toString() == targetUri
-        songs.removeAt(index)
+        queueSongs.removeAt(index)
         c.removeMediaItem(controllerIndex)
         saveQueueOrder()
 
         val currentUri = c.currentMediaItem?.localConfiguration?.uri?.toString()
         currentIndex = currentUri?.let { uri -> songs.indexOfFirst { it.uri.toString() == uri } } ?: -1
 
-        if (songs.isEmpty()) {
-            currentIndex = -1
+        if (queueSongs.isEmpty()) {
             isPlaying = false
             position = 0L
         } else if (removedCurrent) {
@@ -1045,13 +1061,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun moveQueueItem(from: Int, to: Int) {
-        if (from !in songs.indices || to !in songs.indices || from == to) return
+        if (from !in queueSongs.indices || to !in queueSongs.indices || from == to) return
         val c = controller ?: return
 
-        // Map the stable library positions to Media3 queue positions so shuffle
-        // cannot cause the wrong item to be moved.
-        val fromUri = songs[from].uri.toString()
-        val toUri = songs[to].uri.toString()
+        val fromUri = queueSongs[from].uri.toString()
+        val toUri = queueSongs[to].uri.toString()
         val controllerFrom = (0 until c.mediaItemCount).firstOrNull { queueIndex ->
             c.getMediaItemAt(queueIndex).localConfiguration?.uri?.toString() == fromUri
         } ?: return
@@ -1059,7 +1073,7 @@ class MainActivity : ComponentActivity() {
             c.getMediaItemAt(queueIndex).localConfiguration?.uri?.toString() == toUri
         } ?: return
 
-        songs.add(to, songs.removeAt(from))
+        queueSongs.add(to, queueSongs.removeAt(from))
         c.moveMediaItem(controllerFrom, controllerTo)
         saveQueueOrder()
 
@@ -1137,7 +1151,7 @@ class MainActivity : ComponentActivity() {
     private fun saveQueueOrder() {
         if (!::prefs.isInitialized) return
         prefs.edit()
-            .putString("queue_order", songs.joinToString("\n") { it.uri.toString() })
+            .putString("queue_order", queueSongs.joinToString("\n") { it.uri.toString() })
             .apply()
     }
 
@@ -1164,6 +1178,7 @@ class MainActivity : ComponentActivity() {
     private fun clearDriveLibrary() {
         prefs.edit().remove("drive_uris").apply()
         songs.removeAll { it.source == "Google Drive" }
+        queueSongs.removeAll { it.source == "Google Drive" }
         if (currentIndex >= songs.size) currentIndex = -1
         syncControllerQueue()
         errorMessage = "Đã xóa các bài Google Drive khỏi thư viện ứng dụng."
@@ -1702,17 +1717,17 @@ class MainActivity : ComponentActivity() {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text("HÀNG ĐỢI PHÁT", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
-                            Text(songs.size.toString() + " bài • " + if (shuffleEnabled) "Ngẫu nhiên" else "Theo thư viện", color = Color(0xFF888894), fontSize = 12.sp)
+                            Text(queueSongs.size.toString() + " bài • " + if (shuffleEnabled) "Ngẫu nhiên" else "Theo thứ tự hàng đợi", color = Color(0xFF888894), fontSize = 12.sp)
                         }
                         TextButton(onClick = { showQueue = false }) { Text("Đóng") }
                     }
                     Spacer(Modifier.height(8.dp))
                     LazyColumn(modifier = Modifier.heightIn(max = 460.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        itemsIndexed(songs, key = { _, song -> song.id }) { index, song ->
+                        itemsIndexed(queueSongs, key = { _, song -> song.id }) { index, song ->
                             Row(
                                 Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
                                     .background(if (index == currentIndex) Color(0xFF29213E) else Color(0xFF17181F))
-                                    .clickable { play(index); showQueue = false }.padding(10.dp),
+                                    .clickable { play(queueSongs.getOrNull(index)?.let { song -> songs.indexOfFirst { it.uri == song.uri } } ?: -1); showQueue = false }.padding(10.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(if (index == currentIndex) "▶" else String.format("%02d", index + 1), color = Color(0xFFC8B7FF), fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(32.dp))
@@ -2213,6 +2228,7 @@ class MainActivity : ComponentActivity() {
             val existingIndex = songs.indexOfFirst { it.uri.toString() == meta.streamUrl }
             val index = if (existingIndex >= 0) existingIndex else {
                 songs.add(song)
+        queueSongs.add(song)
                 songs.lastIndex
             }
             syncControllerQueue()
