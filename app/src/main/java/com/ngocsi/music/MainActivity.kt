@@ -863,8 +863,8 @@ class MainActivity : ComponentActivity() {
             return
         }
         val uri = try { Uri.parse(raw) } catch (_: Exception) { null }
-        if (uri == null || (uri.scheme != "https" && uri.scheme != "http") || uri.host.isNullOrBlank()) {
-            errorMessage = "URL không hợp lệ. Hãy dùng URL HTTP/HTTPS trỏ trực tiếp tới luồng âm thanh."
+        if (uri == null || uri.scheme != "https" || uri.host.isNullOrBlank()) {
+            errorMessage = "URL không hợp lệ. Hãy dùng HTTPS trỏ trực tiếp tới luồng âm thanh."
             return
         }
 
@@ -3115,7 +3115,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 OutlinedButton(onClick = ::openDriveFolderPicker, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) { Text("Thư mục") }
             }
             Spacer(Modifier.height(8.dp))
-            OutlinedTextField(value = onlineUrl, onValueChange = { onlineUrl = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, placeholder = { Text("Dán URL luồng âm thanh HTTP/HTTPS") }, shape = RoundedCornerShape(14.dp))
+            OutlinedTextField(value = onlineUrl, onValueChange = { onlineUrl = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, placeholder = { Text("Dán URL luồng âm thanh HTTPS") }, shape = RoundedCornerShape(14.dp))
             Spacer(Modifier.height(6.dp))
             Button(onClick = ::playOnlineUrl, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text("PHÁT LUỒNG ÂM THANH") }
             Spacer(Modifier.height(6.dp))
@@ -3359,8 +3359,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         Text("Chưa có playlist.", color = Color(0xFF9999A5), fontSize = 13.sp)
                         Spacer(Modifier.height(8.dp))
                         Button(onClick = {
-                            playlistTargetSongUri = null
-                            newPlaylistName = ""
+                                            newPlaylistName = ""
                             showCreatePlaylist = true
                         }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
                             Text("TẠO PLAYLIST MỚI")
