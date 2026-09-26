@@ -328,7 +328,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             // YouTube requires an HTTP Referer for embedded playback. Android WebView
             // normally sends an empty Referer, which causes error 153. Use the app
             // package-based HTTPS referrer recommended by YouTube's Android guidance.
-            val appReferer = "https://com.ngocsi.music"
+            val appReferer = "https://github.com/ngocsithp-lgtm/NGOC_SI_MUSIC/"
 
             loadUrl(
                 embedUrl,
