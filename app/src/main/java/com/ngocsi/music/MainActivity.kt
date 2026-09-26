@@ -1032,67 +1032,31 @@ class MainActivity : ComponentActivity() {
             errorMessage = "Bài hát đã có trong hàng đợi."
             return
         }
+
+        // queueSongs is the canonical logical order. Rebuild Media3 from it so
+        // Shuffle/Repeat, the current item and the playback position stay aligned.
         queueSongs.add(song)
-        controller?.let { c ->
-            c.addMediaItem(mediaItemFor(song))
-            c.prepare()
-        }
-        saveQueueOrder()
+        syncControllerQueue()
         errorMessage = "Đã thêm vào hàng đợi: " + song.title
     }
 
     private fun removeFromQueue(index: Int) {
         if (index !in queueSongs.indices) return
-        val c = controller ?: return
 
-        // The queue list is independent from the library list; Media3 may expose a different
-        // queue order when shuffle is enabled. Resolve the target by URI first.
-        val targetUri = queueSongs.getOrNull(index)?.uri?.toString() ?: return
-        val controllerIndex = (0 until c.mediaItemCount).firstOrNull { queueIndex ->
-            c.getMediaItemAt(queueIndex).localConfiguration?.uri?.toString() == targetUri
-        } ?: return
-
-        val removedCurrent = c.currentMediaItem?.localConfiguration?.uri?.toString() == targetUri
+        // Remove from the canonical logical queue first, then rebuild Media3.
+        // This avoids relying on a physical controller index while Shuffle is active.
         queueSongs.removeAt(index)
-        c.removeMediaItem(controllerIndex)
-        saveQueueOrder()
-
-        val currentUri = c.currentMediaItem?.localConfiguration?.uri?.toString()
-        currentIndex = currentUri?.let { uri -> songs.indexOfFirst { it.uri.toString() == uri } } ?: -1
-
-        if (queueSongs.isEmpty()) {
-            c.pause()
-            c.clearMediaItems()
-            currentIndex = -1
-            lastSongUri = null
-            savedPosition = 0L
-            isPlaying = false
-            position = 0L
-        } else if (removedCurrent) {
-            position = c.currentPosition.coerceAtLeast(0L)
-        }
+        syncControllerQueue()
         savePlaybackState()
     }
 
     private fun moveQueueItem(from: Int, to: Int) {
         if (from !in queueSongs.indices || to !in queueSongs.indices || from == to) return
-        val c = controller ?: return
 
-        val fromUri = queueSongs[from].uri.toString()
-        val toUri = queueSongs[to].uri.toString()
-        val controllerFrom = (0 until c.mediaItemCount).firstOrNull { queueIndex ->
-            c.getMediaItemAt(queueIndex).localConfiguration?.uri?.toString() == fromUri
-        } ?: return
-        val controllerTo = (0 until c.mediaItemCount).firstOrNull { queueIndex ->
-            c.getMediaItemAt(queueIndex).localConfiguration?.uri?.toString() == toUri
-        } ?: return
-
+        // queueSongs is the user-visible order. Update it first and let the
+        // canonical sync preserve the active URI, position, Shuffle and Repeat.
         queueSongs.add(to, queueSongs.removeAt(from))
-        c.moveMediaItem(controllerFrom, controllerTo)
-        saveQueueOrder()
-
-        val currentUri = c.currentMediaItem?.localConfiguration?.uri?.toString()
-        currentIndex = currentUri?.let { uri -> songs.indexOfFirst { it.uri.toString() == uri } } ?: -1
+        syncControllerQueue()
         savePlaybackState()
     }
 
@@ -1343,8 +1307,8 @@ class MainActivity : ComponentActivity() {
                             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 8.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            itemsIndexed(filteredSongs.take(if (selectedSection == "Trang chủ") 12 else filteredSongs.size), key = { _, song -> song.id }) { _, song ->
-                                val realIndex = songs.indexOfFirst { it.id == song.id }
+                            itemsIndexed(filteredSongs.take(if (selectedSection == "Trang chủ") 12 else filteredSongs.size), key = { _, song -> song.uri.toString() }) { _, song ->
+                                val realIndex = songs.indexOfFirst { it.uri == song.uri }
                                 SongRow(song, realIndex, realIndex == currentIndex)
                             }
                         }
