@@ -200,7 +200,7 @@ class MusicService : MediaSessionService() {
         if (player.mediaItemCount > 0) {
             val queueUris = buildString {
                 for (index in 0 until player.mediaItemCount) {
-                    if (index > 0) append('\\n')
+                    if (index > 0) append('\n')
                     append(player.getMediaItemAt(index).mediaId)
                 }
             }
