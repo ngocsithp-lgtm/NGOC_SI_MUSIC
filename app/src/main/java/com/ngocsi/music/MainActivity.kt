@@ -143,6 +143,7 @@ class MainActivity : ComponentActivity() {
     private var selectedLibrary by mutableStateOf("Tất cả")
     private var libraryView by mutableStateOf("Bài hát")
     private var showQueue by mutableStateOf(false) // #145 queue upgrade
+    private var showVietnamRadioHub by mutableStateOf(false)
     private var selectedSection by mutableStateOf("Trang chủ")
     private var showNowPlaying by mutableStateOf(false)
     private var showYoutube by mutableStateOf(false)
@@ -1456,6 +1457,7 @@ class MainActivity : ComponentActivity() {
         }
         currentSong?.let { if (showNowPlaying) NowPlayingDialog(it) }
         if (showQueue) QueueDialog()
+        if (showVietnamRadioHub) VietnamRadioHubDialog()
         if (showYoutube) YouTubeDialog()
     }
 
@@ -1824,6 +1826,72 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.weight(1f)
                         ) { Text("Đóng") }
                     }
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun VietnamRadioHubDialog() {
+        val sources = listOf(
+            Triple("VOV3 • Âm nhạc", "Âm nhạc Việt, dân ca, cải lương, Cover Hits", "https://vov3.vov.vn/"),
+            Triple("VOV • Radio Việt Nam", "Cổng các kênh phát thanh trực tuyến của VOV", "https://vovmedia.vn/"),
+            Triple("VOH • Radio", "Radio và các kênh phát thanh của VOH", "https://voh.com.vn/radios"),
+            Triple("HTV • Radio", "Các kênh radio được HTV giới thiệu", "https://htv.vn/radio.htm"),
+            Triple("VOV3 • Podcast", "Podcast văn hóa, nghệ thuật và âm nhạc", "https://vov3.vov.vn/podcast"),
+            Triple("VOV3 • Lịch phát", "Xem lịch chương trình VOV3 theo khung giờ", "https://vov3.vov.vn/lich-phat-song")
+        )
+        Dialog(onDismissRequest = { showVietnamRadioHub = false }) {
+            Surface(
+                shape = RoundedCornerShape(26.dp),
+                color = Color(0xFF101117),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(Modifier.padding(18.dp)) {
+                    Text("RADIO VIỆT NAM", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Nguồn chính thức • chọn kênh để mở",
+                        color = Color(0xFF8F8F9A),
+                        fontSize = 12.sp
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    LazyColumn(
+                        modifier = Modifier.heightIn(max = 520.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(sources) { source ->
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = Color(0xFF181922),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    Modifier.fillMaxWidth().padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(source.first, color = Color.White, fontWeight = FontWeight.SemiBold)
+                                        Spacer(Modifier.height(2.dp))
+                                        Text(source.second, color = Color(0xFF8F8F9A), fontSize = 11.sp)
+                                    }
+                                    Spacer(Modifier.width(8.dp))
+                                    Button(
+                                        onClick = { openOnlineSource(source.third) },
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) { Text("Mở") }
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        "Một số đài chỉ cho phép phát trực tuyến theo lịch hoặc nền tảng của họ.",
+                        color = Color(0xFF777D8D),
+                        fontSize = 11.sp
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    TextButton(onClick = { showVietnamRadioHub = false }) { Text("Đóng") }
                 }
             }
         }
@@ -2460,7 +2528,10 @@ class MainActivity : ComponentActivity() {
             }
             Text("Trung tâm nhạc online • Audius + Jamendo + YouTube + Radio Việt Nam", color = Color(0xFF8F8F9A), fontSize = 12.sp)
             Spacer(Modifier.height(8.dp))
-            Text("🎧 NGUỒN NHẠC VIỆT NAM", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("🎧 NGUỒN NHẠC VIỆT NAM", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                TextButton(onClick = { showVietnamRadioHub = true }) { Text("MỞ HUB") }
+            }
             Spacer(Modifier.height(6.dp))
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
