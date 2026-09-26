@@ -1358,11 +1358,39 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun AlbumArt(song: Song, modifier: Modifier = Modifier) {
-        val bitmap = remember(song.uri.toString(), song.albumId) { albumArtBitmap(song) }
+        var onlineBitmap by remember(song.artworkUri?.toString()) { mutableStateOf<android.graphics.Bitmap?>(null) }
+
+        LaunchedEffect(song.artworkUri?.toString()) {
+            val artworkUrl = song.artworkUri?.toString().orEmpty()
+            onlineBitmap = if (artworkUrl.startsWith("http://") || artworkUrl.startsWith("https://")) {
+                withContext(Dispatchers.IO) {
+                    runCatching {
+                        java.net.URL(artworkUrl).openStream().use { BitmapFactory.decodeStream(it) }
+                    }.getOrNull()
+                }
+            } else {
+                null
+            }
+        }
+
+        val localBitmap = remember(song.uri.toString(), song.albumId, song.artworkUri?.toString()) {
+            if (song.artworkUri == null) albumArtBitmap(song) else null
+        }
+        val bitmap = onlineBitmap?.asImageBitmap() ?: localBitmap
+
         if (bitmap != null) {
-            Image(bitmap = bitmap, contentDescription = "Ảnh bìa " + song.title, modifier = modifier.clip(RoundedCornerShape(22.dp)), contentScale = ContentScale.Crop)
+            Image(
+                bitmap = bitmap,
+                contentDescription = "Ảnh bìa " + song.title,
+                modifier = modifier.clip(RoundedCornerShape(22.dp)),
+                contentScale = ContentScale.Crop
+            )
         } else {
-            Box(modifier.clip(RoundedCornerShape(22.dp)).background(Brush.linearGradient(listOf(Color(0xFF6D4CC5), Color(0xFF24283A)))), contentAlignment = Alignment.Center) {
+            Box(
+                modifier.clip(RoundedCornerShape(22.dp))
+                    .background(Brush.linearGradient(listOf(Color(0xFF6D4CC5), Color(0xFF24283A)))),
+                contentAlignment = Alignment.Center
+            ) {
                 Text("♫", color = Color(0xFFC8B7FF), fontSize = 42.sp)
             }
         }
