@@ -3,7 +3,6 @@ package com.ngocsi.music
 import android.graphics.Color as AndroidColor
 import android.os.Bundle
 import android.view.View
-import android.view.Window
 import android.webkit.CookieManager
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebChromeClient
@@ -46,7 +45,6 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var channel: String = "YouTube"
     private var errorView: LinearLayout? = null
     private var loadingBar: ProgressBar? = null
-    private var pageLoadFailed = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -219,7 +217,6 @@ class YouTubePlayerActivity : ComponentActivity() {
 
                 override fun onPageFinished(view: WebView, url: String) {
                     super.onPageFinished(view, url)
-                    pageLoadFailed = false
                     errorView?.visibility = View.GONE
                     loadingBar?.progress = 100
                     loadingBar?.visibility = View.GONE
@@ -233,7 +230,6 @@ class YouTubePlayerActivity : ComponentActivity() {
                     error: WebResourceError
                 ) {
                     if (request.isForMainFrame) {
-                        pageLoadFailed = true
                         showError("Không tải được trình phát YouTube.")
                     }
                 }
@@ -245,7 +241,6 @@ class YouTubePlayerActivity : ComponentActivity() {
                 ) {
                     super.onReceivedHttpError(view, request, errorResponse)
                     if (request.isForMainFrame && errorResponse.statusCode >= 400) {
-                        pageLoadFailed = true
                         showError("YouTube từ chối tải trình phát (HTTP " + errorResponse.statusCode + ").")
                     }
                 }
@@ -254,7 +249,6 @@ class YouTubePlayerActivity : ComponentActivity() {
                     view: WebView,
                     detail: RenderProcessGoneDetail
                 ): Boolean {
-                    pageLoadFailed = true
                     showError(
                         if (detail.didCrash()) {
                             "Trình render WebView gặp lỗi. Hãy thử lại."
@@ -304,20 +298,52 @@ class YouTubePlayerActivity : ComponentActivity() {
             isFocusableInTouchMode = true
 
             val safeId = sanitizeVideoId(videoId)
-            // Keep the embed URL minimal. A fabricated application origin/referer
-            // can trigger YouTube player configuration errors (including Error 153).
-            val embedUrl =
-                "https://www.youtube.com/embed/$safeId" +
-                "?playsinline=1&autoplay=0&rel=0&controls=1&fs=1&enablejsapi=1&origin=https%3A%2F%2Fcom.ngocsi.music"
 
-            // YouTube requires an app-identifying HTTP Referer for Android WebView embeds.
-            // Use the application reverse-DNS ID, with a trailing slash, as the app identity.
-            // The origin parameter is also supplied because the IFrame API recommends it when
-            // enablejsapi is enabled.
-            val requestHeaders = mapOf(
-                "Referer" to "https://com.ngocsi.music/"
+            // Load the embed inside a local HTML document with the app ID as baseUrl.
+            // YouTube's current Android WebView guidance recommends this approach because
+            // the baseUrl supplies the HTTP Referer reliably to the embedded player.
+            // Keep the IFrame API disabled here because NGỌC SĨ MUSIC does not need JS
+            // player control; this avoids an unnecessary origin/API identity mismatch.
+            val html = """
+                <!doctype html>
+                <html>
+                <head>
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <style>
+                        html, body {
+                            margin: 0;
+                            padding: 0;
+                            width: 100%;
+                            height: 100%;
+                            background: #000;
+                            overflow: hidden;
+                        }
+                        iframe {
+                            display: block;
+                            width: 100%;
+                            height: 100%;
+                            border: 0;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <iframe
+                        src="https://www.youtube.com/embed/$safeId?playsinline=1&autoplay=0&rel=0&controls=1&fs=1"
+                        title="YouTube"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowfullscreen>
+                    </iframe>
+                </body>
+                </html>
+            """.trimIndent()
+
+            loadDataWithBaseURL(
+                "https://com.ngocsi.music/",
+                html,
+                "text/html",
+                "UTF-8",
+                null
             )
-            loadUrl(embedUrl, requestHeaders)
         }
 
         webView = player
