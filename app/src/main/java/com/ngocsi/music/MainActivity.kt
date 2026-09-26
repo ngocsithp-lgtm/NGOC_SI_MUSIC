@@ -72,6 +72,19 @@ import kotlin.math.max
 
 data class Song(val id: Long, val title: String, val artist: String, val duration: Long, val uri: Uri, val source: String = "Thiết bị", val albumId: Long = -1L, val artworkUri: Uri? = null, val folder: String = "")
 
+data class TvSource(
+    val name: String,
+    val description: String,
+    val url: String
+)
+
+object TvCatalog {
+    val builtIn = listOf(
+        TvSource("VTVgo", "Nền tảng truyền hình số của VTV", "https://vtvgo.vn/"),
+        TvSource("HTVm", "Nền tảng nội dung của HTV", "https://htvm.htv.com.vn/")
+    )
+}
+
 data class JamendoTrack(
     val id: Long,
     val title: String,
@@ -171,6 +184,11 @@ class MainActivity : ComponentActivity() {
     private var activeRadioStreams: List<String> = emptyList()
     private var activeRadioStreamIndex = 0
     private var selectedSection by mutableStateOf("Trang chủ")
+    private var showTvSourceDialog by mutableStateOf(false)
+    private var tvSourceUrl by mutableStateOf("")
+    private var tvSourceName by mutableStateOf("")
+    private val customTvSources = mutableStateListOf<TvSource>()
+    private var mapSearchQuery by mutableStateOf("")
     private var showNowPlaying by mutableStateOf(false)
     private var youtubeQuery by mutableStateOf("")
     private var isVoiceSearching by mutableStateOf(false)
@@ -355,6 +373,7 @@ class MainActivity : ComponentActivity() {
         prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
         playlistStore = PlaylistStore(this)
         playlists.addAll(playlistStore.load())
+        loadCustomTvSources()
         loadSavedState()
         restoreSleepTimer()
         setContent { NgocSiMusicApp() }
@@ -1590,6 +1609,65 @@ class MainActivity : ComponentActivity() {
         savePlayerPreferences()
     }
 
+    private fun loadCustomTvSources() {
+        val raw = prefs.getString("tv_custom_sources", "").orEmpty()
+        if (raw.isBlank()) return
+        runCatching {
+            val array = org.json.JSONArray(raw)
+            for (i in 0 until array.length()) {
+                val item = array.optJSONObject(i) ?: continue
+                val name = item.optString("name").trim()
+                val description = item.optString("description").trim()
+                val url = item.optString("url").trim()
+                if (name.isNotBlank() && url.startsWith("https://")) {
+                    customTvSources.add(
+                        TvSource(
+                            name,
+                            description.ifBlank { "Nguồn TV cá nhân" },
+                            url
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    private fun saveCustomTvSources() {
+        val array = org.json.JSONArray()
+        customTvSources.forEach { source ->
+            array.put(
+                org.json.JSONObject().apply {
+                    put("name", source.name)
+                    put("description", source.description)
+                    put("url", source.url)
+                }
+            )
+        }
+        prefs.edit().putString("tv_custom_sources", array.toString()).apply()
+    }
+
+    private fun addCustomTvSource() {
+        val name = tvSourceName.trim()
+        val url = tvSourceUrl.trim()
+        if (name.isBlank() || url.isBlank()) {
+            errorMessage = "Hãy nhập tên và URL TV."
+            return
+        }
+        val parsed = runCatching { Uri.parse(url) }.getOrNull()
+        if (parsed?.scheme != "https" || parsed.host.isNullOrBlank()) {
+            errorMessage = "URL TV phải là HTTPS hợp lệ."
+            return
+        }
+        if (customTvSources.none { it.url == url }) {
+            customTvSources.add(TvSource(name, "Nguồn TV đã thêm", url))
+            saveCustomTvSources()
+        }
+        tvSourceName = ""
+        tvSourceUrl = ""
+        showTvSourceDialog = false
+        errorMessage = "Đã thêm nguồn TV: " + name
+    }
+
     private fun loadSavedState() {
         val savedFavorites = prefs.getStringSet("favorites", emptySet()).orEmpty()
         savedFavorites.forEach { it.toLongOrNull()?.let { id -> favorites[id] = true } }
@@ -1946,6 +2024,14 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
+                        "TV" -> {
+                            TvHub()
+                        }
+
+                        "Bản đồ" -> {
+                            MapHub()
+                        }
+
                         "Online" -> {
                             Column(
                                 Modifier.weight(1f).fillMaxWidth()
@@ -2062,6 +2148,7 @@ class MainActivity : ComponentActivity() {
         }
         if (showCreatePlaylist) CreatePlaylistDialog()
         if (showVietnamRadioHub) VietnamRadioHubDialog()
+        if (showTvSourceDialog) TvSourceDialog()
         radioWebUrl?.let { RadioWebViewDialog(it, radioWebTitle) }
     }
 
@@ -2423,6 +2510,29 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+        Spacer(Modifier.height(8.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            OutlinedButton(
+                onClick = { selectedSection = "TV" },
+                modifier = Modifier.weight(1f).height(62.dp),
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("📺", fontSize = 18.sp)
+                    Text("TV", fontWeight = FontWeight.Bold)
+                }
+            }
+            OutlinedButton(
+                onClick = { selectedSection = "Bản đồ" },
+                modifier = Modifier.weight(1f).height(62.dp),
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("🗺️", fontSize = 18.sp)
+                    Text("Bản đồ", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
     }
 
     @Composable
@@ -2486,6 +2596,8 @@ class MainActivity : ComponentActivity() {
             SettingsRow("🔁", "Lặp lại", when (repeatMode) { Player.REPEAT_MODE_ONE -> "Một bài"; Player.REPEAT_MODE_ALL -> "Tất cả"; else -> "Tắt" }) { cycleRepeat() }
             SettingsRow("⏩", "Tốc độ phát", "${selectedPlaybackSpeed}x") { showPlaybackSpeed = true }
             SettingsRow("☁", "Google Drive", songs.count { it.source == "Google Drive" }.toString() + " bài đã nhập") { selectedSection = "Online" }
+            SettingsRow("📺", "TV", (TvCatalog.builtIn.size + customTvSources.size).toString() + " nguồn TV") { selectedSection = "TV" }
+            SettingsRow("🗺️", "Bản đồ", "Bản đồ + giao thông thời gian thực") { selectedSection = "Bản đồ" }
             SettingsRow("♫", "Playlist", playlists.size.toString() + " danh sách đã tạo") { showPlaylists = true }
             OutlinedButton(onClick = ::clearDriveLibrary, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
                 Text("XÓA NHẠC GOOGLE DRIVE KHỎI ỨNG DỤNG")
@@ -2519,7 +2631,7 @@ class MainActivity : ComponentActivity() {
                 title = { Text("Hẹn giờ tắt nhạc") },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(15, 30, 45, 60, 90).forEach { min ->
+                        listOf(15, 30, 45, 60, 90, 120).forEach { min ->
                             OutlinedButton(onClick = {
                                 startSleepTimer(min)
                                 showSleepTimer = false
@@ -2702,6 +2814,228 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.weight(1f)
                         ) { Text("Đóng") }
                     }
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun TvHub() {
+        val sources = TvCatalog.builtIn + customTvSources
+
+        Column(
+            Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Surface(
+                Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                color = Color(0xFF11131A),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF252936))
+            ) {
+                Column(Modifier.padding(18.dp)) {
+                    Text("TV TRỰC TUYẾN", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold)
+                    Spacer(Modifier.height(5.dp))
+                    Text(
+                        "Xem các nguồn TV chính thức trong NGỌC SĨ MUSIC hoặc thêm nguồn HTTPS của riêng mình.",
+                        color = Color(0xFF9698A7),
+                        fontSize = 12.sp
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Button(
+                        onClick = { showTvSourceDialog = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text("+ THÊM NGUỒN TV")
+                    }
+                }
+            }
+
+            sources.forEach { source ->
+                Surface(
+                    Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    color = Color(0xFF15161E),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF252936))
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            Modifier.size(52.dp).clip(RoundedCornerShape(14.dp))
+                                .background(Brush.linearGradient(listOf(Color(0xFF7653B8), Color(0xFF293047)))),
+                            contentAlignment = Alignment.Center
+                        ) { Text("📺", fontSize = 23.sp) }
+
+                        Spacer(Modifier.width(11.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(source.name, color = Color.White, fontWeight = FontWeight.Bold)
+                            Text(
+                                source.description,
+                                color = Color(0xFF8F909E),
+                                fontSize = 11.sp,
+                                maxLines = 2
+                            )
+                        }
+                        FilledTonalButton(
+                            onClick = {
+                                radioWebTitle = source.name
+                                radioWebUrl = source.url
+                            },
+                            shape = CircleShape,
+                            contentPadding = PaddingValues(0.dp),
+                            modifier = Modifier.size(46.dp)
+                        ) { Text("▶", fontSize = 17.sp) }
+                        if (customTvSources.any { it.url == source.url }) {
+                            TextButton(
+                                onClick = {
+                                    customTvSources.removeAll { it.url == source.url }
+                                    saveCustomTvSources()
+                                    errorMessage = "Đã xóa nguồn TV: " + source.name
+                                }
+                            ) { Text("×", color = Color(0xFFFF8A9A)) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun TvSourceDialog() {
+        AlertDialog(
+            onDismissRequest = { showTvSourceDialog = false },
+            title = { Text("Thêm nguồn TV") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = tvSourceName,
+                        onValueChange = { tvSourceName = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("Tên nguồn") },
+                        placeholder = { Text("Ví dụ: TV của tôi") }
+                    )
+                    OutlinedTextField(
+                        value = tvSourceUrl,
+                        onValueChange = { tvSourceUrl = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("URL HTTPS") },
+                        placeholder = { Text("https://...") }
+                    )
+                    Text(
+                        "Nguồn nên được phép hiển thị trong WebView và hỗ trợ HTTPS.",
+                        color = Color(0xFF8F909E),
+                        fontSize = 11.sp
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = ::addCustomTvSource) { Text("THÊM") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showTvSourceDialog = false }) { Text("HỦY") }
+            }
+        )
+    }
+
+    @Composable
+    private fun MapHub() {
+        val trafficUrl =
+            "https://www.google.com/maps/@?api=1&map_action=map&center=10.8231%2C106.6297&zoom=12&basemap=roadmap&layer=traffic"
+        val satelliteUrl =
+            "https://www.google.com/maps/@?api=1&map_action=map&center=10.8231%2C106.6297&zoom=12&basemap=satellite&layer=traffic"
+
+        Column(
+            Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Surface(
+                Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                color = Color(0xFF11131A),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF252936))
+            ) {
+                Column(Modifier.padding(18.dp)) {
+                    Text("NGỌC SĨ MAP", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold)
+                    Spacer(Modifier.height(5.dp))
+                    Text(
+                        "Bản đồ đường phố, vệ tinh và lớp giao thông theo dữ liệu Google Maps.",
+                        color = Color(0xFF9698A7),
+                        fontSize = 12.sp
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = {
+                                radioWebTitle = "NGỌC SĨ MAP • GIAO THÔNG"
+                                radioWebUrl = trafficUrl
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(14.dp)
+                        ) { Text("🚦 GIAO THÔNG") }
+                        OutlinedButton(
+                            onClick = {
+                                radioWebTitle = "NGỌC SĨ MAP • VỆ TINH"
+                                radioWebUrl = satelliteUrl
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(14.dp)
+                        ) { Text("🛰 VỆ TINH") }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = mapSearchQuery,
+                        onValueChange = { mapSearchQuery = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("Tìm địa điểm") },
+                        placeholder = { Text("Ví dụ: Chợ Bến Thành") },
+                        shape = RoundedCornerShape(14.dp)
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Button(
+                        onClick = {
+                            val q = mapSearchQuery.trim()
+                            if (q.isBlank()) {
+                                errorMessage = "Nhập địa điểm cần tìm."
+                            } else {
+                                radioWebTitle = "BẢN ĐỒ • " + q
+                                radioWebUrl =
+                                    "https://www.google.com/maps/search/?api=1&query=" +
+                                        Uri.encode(q)
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp)
+                    ) { Text("TÌM TRÊN BẢN ĐỒ") }
+                }
+            }
+
+            Surface(
+                Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                color = Color(0xFF15161E)
+            ) {
+                Column(Modifier.padding(16.dp)) {
+                    Text("GIAO THÔNG", color = Color.White, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Lớp traffic hiển thị tình trạng giao thông theo thời gian thực khi khu vực hỗ trợ dữ liệu.",
+                        color = Color(0xFF8F909E),
+                        fontSize = 11.sp
+                    )
                 }
             }
         }
