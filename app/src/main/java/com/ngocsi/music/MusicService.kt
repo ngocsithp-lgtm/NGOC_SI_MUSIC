@@ -16,6 +16,7 @@ import androidx.media3.session.MediaSessionService
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.Futures
 
+@UnstableApi
 class MusicService : MediaSessionService() {
 
     private lateinit var player: ExoPlayer
@@ -31,7 +32,6 @@ class MusicService : MediaSessionService() {
     }
 
 
-    @OptIn(UnstableApi::class)
     private val mediaSessionCallback = object : MediaSession.Callback {
         override fun onPlaybackResumption(
             mediaSession: MediaSession,
