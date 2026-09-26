@@ -547,9 +547,14 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun mediaItemFor(song: Song): MediaItem {
-        return MediaItem.Builder()
+        val path = song.uri.path.orEmpty().lowercase()
+        val builder = MediaItem.Builder()
             .setMediaId(song.uri.toString())
             .setUri(song.uri)
+        if (path.endsWith(".m3u8")) {
+            builder.setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8)
+        }
+        return builder
             .setMediaMetadata(
                 androidx.media3.common.MediaMetadata.Builder()
                     .setTitle(song.title)
