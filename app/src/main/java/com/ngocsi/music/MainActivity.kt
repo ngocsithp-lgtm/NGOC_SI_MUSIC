@@ -378,7 +378,12 @@ class MainActivity : ComponentActivity() {
                         }
                         else -> -1
                     }
-                    c.setPlaybackSpeed(selectedPlaybackSpeed)
+                    // The MediaSession service is authoritative when playback
+                    // continues in the background or resumes from the lock screen.
+                    // Do not overwrite its persisted speed with the Activity default.
+                    selectedPlaybackSpeed = c.playbackParameters.speed.coerceIn(0.5f, 2.0f)
+                    shuffleEnabled = c.shuffleModeEnabled
+                    repeatMode = c.repeatMode
                     position = c.currentPosition.coerceAtLeast(0L)
                     isPlaying = c.isPlaying
                 }
