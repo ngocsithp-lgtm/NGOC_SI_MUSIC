@@ -726,6 +726,25 @@ class MainActivity : ComponentActivity() {
             name.endsWith(".wma")
     }
 
+    private fun verifiedRadioStreams(title: String): List<String> = when (title) {
+        "VOV1 • Thời sự" -> listOf(
+            "https://str.vov.gov.vn/vovlive/vov1vov5Vietnamese.sdp_aac/playlist.m3u8",
+            "https://media-audio.vov.vn/vov1vov5Vietnamese.sdp_aac/playlist.m3u8",
+            "https://audio-lss.vov.vn/live/vov1.m3u8"
+        )
+        "VOV2 • Văn hóa" -> listOf(
+            "https://media-audio.vov.vn/vov2.sdp_aac/playlist.m3u8",
+            "https://audio-lss.vov.vn/han/live/vov2/audio/manifest.m3u8",
+            "https://str.vov.gov.vn/vovlive/vov2.sdp_aac/playlist.m3u8"
+        )
+        "VOV3 • Âm nhạc" -> listOf(
+            "https://media-audio.vov.vn/vov3.sdp_aac/playlist.m3u8",
+            "https://audio-lss.vov.vn/han/live/vov3/audio/manifest.m3u8",
+            "https://str.vov.gov.vn/vovlive/vov3.sdp_aac/playlist.m3u8"
+        )
+        else -> emptyList()
+    }
+
     private fun playVerifiedRadio(title: String, streamUrls: List<String>) {
         val candidates = streamUrls.map { it.trim() }.filter { it.isNotBlank() }.distinct()
         if (candidates.isEmpty()) {
@@ -2780,16 +2799,30 @@ class MainActivity : ComponentActivity() {
                 Button(
                     onClick = {
                         playVerifiedRadio(
-                            "VOV1 • Radio",
-                            "https://str.vov.gov.vn/vovlive/vov1vov5Vietnamese.sdp_aac/playlist.m3u8"
+                            "VOV1 • Thời sự",
+                            verifiedRadioStreams("VOV1 • Thời sự")
                         )
                     },
                     shape = RoundedCornerShape(12.dp)
-                ) { Text("▶ VOV1 • PHÁT TRONG APP") }
-                OutlinedButton(
-                    onClick = { openOnlineSource("https://vov3.vov.vn/") },
+                ) { Text("▶ VOV1") }
+                Button(
+                    onClick = {
+                        playVerifiedRadio(
+                            "VOV2 • Văn hóa",
+                            verifiedRadioStreams("VOV2 • Văn hóa")
+                        )
+                    },
                     shape = RoundedCornerShape(12.dp)
-                ) { Text("VOV3 • Âm nhạc") }
+                ) { Text("▶ VOV2") }
+                Button(
+                    onClick = {
+                        playVerifiedRadio(
+                            "VOV3 • Âm nhạc",
+                            verifiedRadioStreams("VOV3 • Âm nhạc")
+                        )
+                    },
+                    shape = RoundedCornerShape(12.dp)
+                ) { Text("▶ VOV3") }
                 OutlinedButton(
                     onClick = { openOnlineSource("https://vovmedia.vn/") },
                     shape = RoundedCornerShape(12.dp)
