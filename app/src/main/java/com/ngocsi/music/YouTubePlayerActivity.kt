@@ -23,6 +23,7 @@ import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewFeature
 import androidx.webkit.WebViewMediaIntegrityApiStatusConfig
 import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -63,6 +64,15 @@ class YouTubePlayerActivity : ComponentActivity() {
         window.navigationBarColor = AndroidColor.BLACK
 
         buildUi()
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (customView != null) {
+                    exitFullscreen()
+                } else {
+                    finish()
+                }
+            }
+        })
         createPlayer()
     }
 
@@ -442,14 +452,6 @@ class YouTubePlayerActivity : ComponentActivity() {
 
     private fun dp(value: Int): Int =
         (value * resources.displayMetrics.density).toInt()
-
-    override fun onBackPressed() {
-        if (customView != null) {
-            exitFullscreen()
-            return
-        }
-        finish()
-    }
 
     override fun onDestroy() {
         if (customView != null) exitFullscreen(notifyCallback = false)
