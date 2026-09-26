@@ -1012,7 +1012,7 @@ class MainActivity : ComponentActivity() {
                     readTimeout = 20000
                     useCaches = false
                     setRequestProperty("Accept", "application/json")
-                    setRequestProperty("User-Agent", "NGOC-SI-MUSIC/3.1")
+                    setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.1")
                 }
 
                 val code = connection.responseCode
@@ -1065,9 +1065,11 @@ class MainActivity : ComponentActivity() {
                 }
             } catch (e: Exception) {
                 runOnUiThread {
-                    jamendoTracks.clear()
-                    jamendoLoading = false
-                    errorMessage = "Lỗi tìm nhạc online: ${e.message ?: "Không kết nối được Jamendo"}"
+                    if (jamendoQuery.trim() == q) {
+                        jamendoTracks.clear()
+                        jamendoLoading = false
+                        errorMessage = "Lỗi tìm nhạc online: ${e.message ?: "Không kết nối được Jamendo"}"
+                    }
                 }
             } finally {
                 connection?.disconnect()
@@ -1089,8 +1091,11 @@ class MainActivity : ComponentActivity() {
         val existingIndex = songs.indexOfFirst { it.uri.toString() == track.streamUrl }
         val index = if (existingIndex >= 0) existingIndex else {
             songs.add(song)
-        queueSongs.add(song)
+            queueSongs.add(song)
             songs.lastIndex
+        }
+        if (existingIndex >= 0 && queueSongs.none { it.uri == song.uri }) {
+            queueSongs.add(songs[index])
         }
         syncControllerQueue()
         play(index)
@@ -2612,7 +2617,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     readTimeout = 20000
                     useCaches = false
                     setRequestProperty("Accept", "application/json")
-                    setRequestProperty("User-Agent", "NGOC-SI-MUSIC/4.0")
+                    setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.1")
                 }
 
                 val code = connection.responseCode
