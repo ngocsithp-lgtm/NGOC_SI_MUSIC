@@ -1809,7 +1809,12 @@ class MainActivity : ComponentActivity() {
                                         fontSize = 17.sp,
                                         modifier = Modifier.weight(1f)
                                     )
-                                    TextButton(onClick = ::loadSongs) { Text("LÀM MỚI") }
+                                    TextButton(onClick = {
+                    loadSongs()
+                    selectedLibrary = "Tất cả"
+                    libraryView = "Bài hát"
+                    errorMessage = null
+                }) { Text("LÀM MỚI") }
                                 }
                                 errorMessage?.let {
                                     Text(
