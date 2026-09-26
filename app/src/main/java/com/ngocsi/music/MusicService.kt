@@ -186,11 +186,48 @@ class MusicService : MediaSessionService() {
 
     private fun savePlaybackState() {
         val mediaItem = player.currentMediaItem
-        val uri = mediaItem?.localConfiguration?.uri?.toString() ?: return
-        val position = player.currentPosition.coerceAtLeast(0L)
-        prefs.edit()
-            .putString("last_song_uri", uri)
-            .putLong("last_position", position)
+        val uri = mediaItem?.localConfiguration?.uri?.toString()
+
+        // Keep the service-side resumption snapshot authoritative as well.
+        // This matters when playback is controlled from the lock screen, headset,
+        // car controls, or after the Activity has already left the foreground.
+        val editor = prefs.edit()
+        if (uri != null) {
+            editor.putString("last_song_uri", uri)
+                .putLong("last_position", player.currentPosition.coerceAtLeast(0L))
+        }
+
+        if (player.mediaItemCount > 0) {
+            val queueUris = buildString {
+                for (index in 0 until player.mediaItemCount) {
+                    if (index > 0) append('\\n')
+                    append(player.getMediaItemAt(index).mediaId)
+                }
+            }
+            val metadata = org.json.JSONArray()
+            for (index in 0 until player.mediaItemCount) {
+                val item = player.getMediaItemAt(index)
+                val itemUri = item.localConfiguration?.uri?.toString().orEmpty()
+                val md = item.mediaMetadata
+                metadata.put(
+                    org.json.JSONObject().apply {
+                        put("uri", itemUri)
+                        put("title", md.title?.toString().orEmpty())
+                        put("artist", md.artist?.toString().orEmpty())
+                        put("artworkUri", md.artworkUri?.toString().orEmpty())
+                    }
+                )
+            }
+            editor.putString("queue_order", queueUris)
+                .putString("queue_metadata", metadata.toString())
+        } else {
+            editor.remove("queue_order")
+                .remove("queue_metadata")
+        }
+
+        editor.putBoolean("shuffle", player.shuffleModeEnabled)
+            .putInt("repeat", player.repeatMode)
+            .putFloat("playback_speed", player.playbackParameters.speed)
             .apply()
     }
 
