@@ -1471,7 +1471,15 @@ class MainActivity : ComponentActivity() {
                 Text(song.title, color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(song.artist, color = Color(0xFF9999A5), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            IconButton(onClick = ::togglePlayPause) { Text(if (isPlaying) "⏸" else "▶", fontSize = 20.sp) }
+            IconButton(onClick = ::previous) {
+                Text("⏮", fontSize = 18.sp, color = Color.White)
+            }
+            IconButton(onClick = ::togglePlayPause) {
+                Text(if (isPlaying) "⏸" else "▶", fontSize = 20.sp, color = Color.White)
+            }
+            IconButton(onClick = ::next) {
+                Text("⏭", fontSize = 18.sp, color = Color.White)
+            }
         }
     }
 
