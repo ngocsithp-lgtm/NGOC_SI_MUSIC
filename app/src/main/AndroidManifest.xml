@@ -30,7 +30,6 @@
         android:theme="@style/Theme.NgocSiMusic"
         android:label="NGỌC SĨ MUSIC"
         android:allowBackup="true"
-        android:usesCleartextTraffic="true"
         android:supportsRtl="true">
 
         <!-- Trình phát YouTube: giữ WebView khi xoay màn hình để tránh tải lại video -->
