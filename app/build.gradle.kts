@@ -14,8 +14,8 @@ android {
         applicationId = "com.ngocsi.music"
         minSdk = 26
         targetSdk = 36
-        versionCode = 9
-        versionName = "4.4"
+        versionCode = 10
+        versionName = "4.5"
         buildConfigField("String", "YOUTUBE_API_KEY", "\"$youtubeApiKey\"")
     }
 
