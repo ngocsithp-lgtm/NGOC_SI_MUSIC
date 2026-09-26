@@ -52,15 +52,32 @@ class MusicService : MediaSessionService() {
                 )
             }
 
+            val metadataByUri = mutableMapOf<String, org.json.JSONObject>()
+            prefs.getString("queue_metadata", null)?.let { raw ->
+                runCatching {
+                    val array = org.json.JSONArray(raw)
+                    for (index in 0 until array.length()) {
+                        val item = array.optJSONObject(index) ?: continue
+                        val itemUri = item.optString("uri")
+                        if (itemUri.isNotBlank()) metadataByUri[itemUri] = item
+                    }
+                }
+            }
+
             val items = orderedUris.map { itemUri ->
+                val saved = metadataByUri[itemUri]
+                val title = saved?.optString("title").orEmpty()
+                    .ifBlank { itemUri.substringAfterLast('/').ifBlank { "NGỌC SĨ MUSIC" } }
+                val artist = saved?.optString("artist").orEmpty()
+                val artwork = saved?.optString("artworkUri").orEmpty()
+                val metadataBuilder = MediaMetadata.Builder()
+                    .setTitle(title)
+                    .apply { if (artist.isNotBlank()) setArtist(artist) }
+                    .apply { if (artwork.isNotBlank()) setArtworkUri(android.net.Uri.parse(artwork)) }
                 MediaItem.Builder()
                     .setMediaId(itemUri)
                     .setUri(itemUri)
-                    .setMediaMetadata(
-                        MediaMetadata.Builder()
-                            .setTitle(itemUri.substringAfterLast('/').ifBlank { "NGỌC SĨ MUSIC" })
-                            .build()
-                    )
+                    .setMediaMetadata(metadataBuilder.build())
                     .build()
             }
 
