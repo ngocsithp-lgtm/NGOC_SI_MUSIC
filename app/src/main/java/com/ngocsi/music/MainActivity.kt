@@ -1027,6 +1027,20 @@ class MainActivity : ComponentActivity() {
         position = c.currentPosition.coerceAtLeast(0L)
         savePlaybackState()
     }
+    private fun addToQueue(song: Song) {
+        if (queueSongs.any { it.uri == song.uri }) {
+            errorMessage = "Bài hát đã có trong hàng đợi."
+            return
+        }
+        queueSongs.add(song)
+        controller?.let { c ->
+            c.addMediaItem(mediaItemFor(song))
+            c.prepare()
+        }
+        saveQueueOrder()
+        errorMessage = "Đã thêm vào hàng đợi: " + song.title
+    }
+
     private fun removeFromQueue(index: Int) {
         if (index !in queueSongs.indices) return
         val c = controller ?: return
@@ -2809,6 +2823,9 @@ class MainActivity : ComponentActivity() {
             Column(Modifier.weight(1f)) {
                 Text(song.title, color = Color.White, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("${song.artist} • ${song.source}", color = Color(0xFF8F8F9A), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            IconButton(onClick = { addToQueue(song) }) {
+                Text("＋", color = Color(0xFFC8B7FF), fontSize = 22.sp)
             }
             IconButton(onClick = { toggleFavorite(song) }) {
                 Text(if (favorites[song.id] == true) "♥" else "♡", color = if (favorites[song.id] == true) Color(0xFFFF6B81) else Color(0xFF777783), fontSize = 22.sp)
