@@ -702,10 +702,13 @@ class MainActivity : ComponentActivity() {
     private fun playVerifiedRadio(title: String, streamUrl: String) {
         onlineUrl = streamUrl
         errorMessage = "Đang kết nối $title…"
-        playOnlineUrl()
+        playOnlineUrl(displayTitle = title, displayArtist = "VOV")
     }
 
-    private fun playOnlineUrl() {
+    private fun playOnlineUrl(
+        displayTitle: String? = null,
+        displayArtist: String = "Online"
+    ) {
         val raw = onlineUrl.trim()
         if (raw.isBlank()) {
             errorMessage = "Nhập URL âm thanh trực tiếp (HTTPS)."
@@ -717,18 +720,21 @@ class MainActivity : ComponentActivity() {
             return
         }
 
-        val title = uri.lastPathSegment
-            ?.substringBeforeLast(".")
+        val title = displayTitle
+            ?.trim()
             ?.ifBlank { null }
+            ?: uri.lastPathSegment
+                ?.substringBeforeLast(".")
+                ?.ifBlank { null }
             ?: uri.host.orEmpty().ifBlank { "Nhạc Online" }
 
         val song = Song(
             id = -kotlin.math.abs(raw.hashCode().toLong()),
             title = title,
-            artist = "Online",
+            artist = displayArtist,
             duration = 0L,
             uri = uri,
-            source = "Online"
+            source = if (displayArtist == "VOV") "Radio Việt Nam" else "Online"
         )
 
         val saved = (prefs.getStringSet("online_uris", emptySet()) ?: emptySet()).toMutableSet()
