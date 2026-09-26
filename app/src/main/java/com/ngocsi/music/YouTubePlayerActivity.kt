@@ -322,16 +322,14 @@ class YouTubePlayerActivity : ComponentActivity() {
             isFocusableInTouchMode = true
 
             val safeId = sanitizeVideoId(videoId)
+            // Keep a stable HTTPS enclosing context so Android WebView sends
+            // the HTTP Referer that YouTube requires for embedded playback.
+            // The app does not need the IFrame JavaScript API, so omit enablejsapi/origin
+            // parameters to reduce configuration surface and avoid unnecessary API state.
             val appBaseUrl = "https://github.com/ngocsithp-lgtm/NGOC_SI_MUSIC/"
-            val appOrigin = "https://github.com"
-
-            // Load the official YouTube IFrame inside an HTML shell with a
-            // real HTTPS base URL. YouTube documents this WebView pattern for
-            // supplying a non-empty HTTP Referer and avoiding error 153.
             val embedUrl = "https://www.youtube.com/embed/" + safeId +
-                "?playsinline=1&autoplay=0&rel=0&controls=1&fs=1&enablejsapi=1" +
-                "&origin=" + Uri.encode(appOrigin) +
-                "&hl=vi&cc_lang_pref=vi&widget_referrer=" + Uri.encode(appOrigin)
+                "?playsinline=1&autoplay=0&rel=0&controls=1&fs=1" +
+                "&hl=vi&cc_lang_pref=vi"
 
             val html = """
                 <!doctype html>
