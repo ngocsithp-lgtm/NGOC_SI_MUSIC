@@ -371,8 +371,11 @@ class MainActivity : ComponentActivity() {
                     val currentUri = c.currentMediaItem?.localConfiguration?.uri?.toString()
                     currentIndex = when {
                         currentUri != null -> songs.indexOfFirst { it.uri.toString() == currentUri }
-                        c.currentMediaItemIndex >= 0 && c.currentMediaItemIndex < songs.size ->
-                            c.currentMediaItemIndex
+                        c.currentMediaItemIndex >= 0 && c.currentMediaItemIndex < c.mediaItemCount -> {
+                            val queueUri = c.getMediaItemAt(c.currentMediaItemIndex)
+                                .localConfiguration?.uri?.toString()
+                            queueUri?.let { uri -> songs.indexOfFirst { it.uri.toString() == uri } } ?: -1
+                        }
                         else -> -1
                     }
                     c.setPlaybackSpeed(selectedPlaybackSpeed)
@@ -931,8 +934,14 @@ class MainActivity : ComponentActivity() {
             if (queueSongs.isNotEmpty()) {
                 // Rebuild the queue only after capturing the exact active item,
                 // position, playing state, shuffle mode and repeat mode.
+                val controllerWasEmpty = c.mediaItemCount == 0
                 val selectedUri = c.currentMediaItem?.localConfiguration?.uri
-                val savedPositionMs = c.currentPosition.coerceAtLeast(0L)
+                    ?: if (controllerWasEmpty) lastSongUri?.let(Uri::parse) else null
+                val savedPositionMs = if (controllerWasEmpty) {
+                    savedPosition.coerceAtLeast(0L)
+                } else {
+                    c.currentPosition.coerceAtLeast(0L)
+                }
                 val wasPlaying = c.isPlaying
                 val keepShuffle = c.shuffleModeEnabled
                 val keepRepeat = c.repeatMode
