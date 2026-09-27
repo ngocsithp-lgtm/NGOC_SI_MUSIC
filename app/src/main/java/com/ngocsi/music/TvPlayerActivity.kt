@@ -32,6 +32,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class TvPlayerActivity : ComponentActivity() {
 
     companion object {
