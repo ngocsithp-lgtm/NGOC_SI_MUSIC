@@ -200,6 +200,7 @@ class MainActivity : ComponentActivity() {
     private var jamendoSearchJob: Job? = null
     private var audiusSearchJob: Job? = null
     private var youtubeSearchJob: Job? = null
+    private var driveImportJob: Job? = null
     private var lastSongUri by mutableStateOf<String?>(null)
     private var savedPosition by mutableLongStateOf(0L)
     private var shuffleEnabled by mutableStateOf(false)
@@ -730,27 +731,61 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun importDriveSongs(uris: List<Uri>) {
-        val saved = (prefs.getStringSet("drive_uris", emptySet()) ?: emptySet()).toMutableSet()
-        var added = 0
-        uris.forEach { uri ->
-            try {
-                contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            } catch (_: Exception) { }
-            val raw = uri.toString()
-            if (saved.add(raw) && songs.none { it.uri == uri }) {
-                val importedSong = songFromUri(uri)
-                if (importedSong != null) {
-                    songs.add(importedSong)
-                    queueSongs.add(importedSong)
-                    added++
-                } else {
-                    saved.remove(raw)
+        val uniqueUris = uris.distinctBy { it.toString() }
+        if (uniqueUris.isEmpty()) return
+
+        // Importing a large Drive folder can involve many provider metadata queries.
+        // Keep all provider I/O off the main thread so the player UI remains responsive.
+        driveImportJob?.cancel()
+        val existingUris = songs.map { it.uri.toString() }.toSet()
+        errorMessage = "Đang nhập ${uniqueUris.size} file từ Google Drive…"
+
+        driveImportJob = lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                val saved = (prefs.getStringSet("drive_uris", emptySet()) ?: emptySet()).toMutableSet()
+                val importedSongs = mutableListOf<Song>()
+
+                uniqueUris.forEach { uri ->
+                    val raw = uri.toString()
+                    if (raw in saved || raw in existingUris) return@forEach
+
+                    try {
+                        contentResolver.takePersistableUriPermission(
+                            uri,
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        )
+                    } catch (_: Exception) {
+                        // Some providers grant temporary read access without a
+                        // persistable grant. The current import can still proceed.
+                    }
+
+                    val importedSong = songFromUri(uri)
+                    if (importedSong != null) {
+                        saved.add(raw)
+                        importedSongs += importedSong
+                    }
                 }
+
+                saved to importedSongs
             }
+
+            val (saved, importedSongs) = result
+            prefs.edit().putStringSet("drive_uris", saved).apply()
+
+            importedSongs.forEach { song ->
+                if (songs.none { it.uri == song.uri }) songs.add(song)
+                if (queueSongs.none { it.uri == song.uri }) queueSongs.add(song)
+            }
+
+            syncControllerQueue()
+            errorMessage = when {
+                importedSongs.isNotEmpty() ->
+                    "Đã thêm ${importedSongs.size} bài từ Google Drive."
+                else ->
+                    "Các bài đã chọn đã có trong thư viện hoặc không còn truy cập được."
+            }
+            driveImportJob = null
         }
-        prefs.edit().putStringSet("drive_uris", saved).apply()
-        errorMessage = if (added > 0) "Đã thêm $added bài từ Google Drive." else "Các bài đã chọn đã có trong thư viện."
-        syncControllerQueue()
     }
 
     private fun songFromUri(uri: Uri): Song? {
@@ -1724,6 +1759,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun clearDriveLibrary() {
+        driveImportJob?.cancel()
+        driveImportJob = null
         prefs.edit().remove("drive_uris").apply()
         songs.removeAll { it.source == "Google Drive" }
         queueSongs.removeAll { it.source == "Google Drive" }
@@ -1869,6 +1906,8 @@ class MainActivity : ComponentActivity() {
         jamendoSearchJob?.cancel()
         audiusSearchJob?.cancel()
         youtubeSearchJob?.cancel()
+        driveImportJob?.cancel()
+        driveImportJob = null
         speechRecognizer?.destroy()
         speechRecognizer = null
         savePlaybackState()
