@@ -403,6 +403,7 @@ class MainActivity : ComponentActivity() {
             "tv" -> selectedSection = "TV"
             "map" -> selectedSection = "Bản đồ"
             "playlists" -> showPlaylists = true
+            "player" -> showNowPlaying = true
             "settings" -> selectedSection = "Cài đặt"
         }
 
