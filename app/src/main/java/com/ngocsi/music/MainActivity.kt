@@ -79,9 +79,13 @@ data class TvSource(
 )
 
 object TvCatalog {
+    // Official/public entry points. Playback remains inside the provider's
+    // own web experience; no stream extraction or DRM bypass is performed.
     val builtIn = listOf(
-        TvSource("VTVgo", "Nền tảng truyền hình số của VTV", "https://vtvgo.vn/"),
-        TvSource("HTVm", "Nền tảng nội dung của HTV", "https://htvm.htv.com.vn/")
+        TvSource("VTV1 • Live", "VTV Go — kênh VTV1 trực tiếp", "https://vtvgo.vn/channel/1"),
+        TvSource("VTV3 • Live", "VTV Go — kênh VTV3 trực tiếp", "https://vtvgo.vn/channel/3"),
+        TvSource("VTVgo", "Nền tảng truyền hình số quốc gia của VTV", "https://vtvgo.vn/"),
+        TvSource("HTVm", "Nền tảng nội dung truyền hình của HTV", "https://htvm.htv.com.vn/")
     )
 }
 
@@ -3152,7 +3156,7 @@ class MainActivity : ComponentActivity() {
                     )
                     Spacer(Modifier.height(5.dp))
                     Text(
-                        "Bản đồ đường phố, vệ tinh và giao thông bằng Google Maps.",
+                        "Bản đồ đường phố, vệ tinh, giao thông, tìm địa điểm và chỉ đường.",
                         color = Color(0xFF9698A7),
                         fontSize = 12.sp
                     )
@@ -3202,22 +3206,42 @@ class MainActivity : ComponentActivity() {
                         }
                         OutlinedButton(
                             onClick = {
-                                runCatching {
-                                    startActivity(
-                                        Intent(
-                                            Intent.ACTION_VIEW,
-                                            Uri.parse("https://www.google.com/maps/")
-                                        )
-                                    )
-                                }.onFailure {
-                                    errorMessage = "Không mở được Google Maps."
+                                val q = mapSearchQuery.trim()
+                                if (q.isBlank()) {
+                                    errorMessage = "Nhập điểm đến trước khi chọn chỉ đường."
+                                } else {
+                                    radioWebTitle = "CHỈ ĐƯỜNG • $q"
+                                    radioWebUrl =
+                                        "https://www.google.com/maps/dir/?api=1&destination=" +
+                                            Uri.encode(q) + "&travelmode=driving"
                                 }
                             },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(14.dp)
                         ) {
-                            Text("MỞ GOOGLE MAPS")
+                            Text("🧭 CHỈ ĐƯỜNG")
                         }
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    OutlinedButton(
+                        onClick = {
+                            runCatching {
+                                startActivity(
+                                    Intent(
+                                        Intent.ACTION_VIEW,
+                                        Uri.parse("https://www.google.com/maps/")
+                                    )
+                                )
+                            }.onFailure {
+                                errorMessage = "Không mở được Google Maps."
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text("MỞ GOOGLE MAPS ĐẦY ĐỦ")
                     }
 
                     Spacer(Modifier.height(12.dp))
@@ -3538,7 +3562,13 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 settings.loadsImagesAutomatically = true
                                 settings.useWideViewPort = true
                                 settings.loadWithOverviewMode = true
-                                settings.mediaPlaybackRequiresUserGesture = true
+                                // Allow the provider's own video player to start after
+                                // the user explicitly opens a TV source. Some live players
+                                // otherwise remain permanently paused inside WebView.
+                                settings.mediaPlaybackRequiresUserGesture = false
+                                settings.userAgentString =
+                                    "Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 " +
+                                    "(KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36"
                                 settings.allowFileAccess = false
                                 settings.allowContentAccess = true
                                 CookieManager.getInstance().setAcceptCookie(true)
@@ -3546,8 +3576,25 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     override fun shouldOverrideUrlLoading(view: WebView, request: android.webkit.WebResourceRequest): Boolean {
                                         return false
                                     }
+
+                                    override fun onReceivedError(
+                                        view: WebView,
+                                        request: android.webkit.WebResourceRequest,
+                                        error: android.webkit.WebResourceError
+                                    ) {
+                                        if (request.isForMainFrame) {
+                                            errorMessage =
+                                                "Không tải được nguồn TV/bản đồ. Có thể nguồn đang giới hạn WebView hoặc tạm ngừng."
+                                        }
+                                    }
                                 }
-                                webChromeClient = WebChromeClient()
+                                webChromeClient = object : WebChromeClient() {
+                                    override fun onPermissionRequest(request: android.webkit.PermissionRequest) {
+                                        // Do not grant camera/microphone access to arbitrary
+                                        // TV/map pages. Media playback does not require it.
+                                        request.deny()
+                                    }
+                                }
 
                                 // Track the URL requested by this dialog separately
                                 // from WebView.url. Internal navigation must not be
