@@ -20,6 +20,12 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.AspectRatioFrameLayout
+import androidx.media3.ui.PlayerView
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.core.view.WindowCompat
@@ -37,6 +43,7 @@ class TvPlayerActivity : ComponentActivity() {
     private lateinit var root: FrameLayout
     private lateinit var playerContainer: FrameLayout
     private var webView: WebView? = null
+    private var nativePlayer: ExoPlayer? = null
     private var customView: View? = null
     private var customViewCallback: WebChromeClient.CustomViewCallback? = null
     private var sourceUrl: String = ""
@@ -190,7 +197,88 @@ class TvPlayerActivity : ComponentActivity() {
 
     private fun createPlayer() {
         removePlayer()
+        errorView?.visibility = View.GONE
+        loadingBar?.progress = 0
+        loadingBar?.visibility = View.VISIBLE
 
+        if (isDirectMediaSource(sourceUrl)) {
+            createNativeVideoPlayer()
+        } else {
+            createWebViewPlayer()
+        }
+    }
+
+    private fun isDirectMediaSource(url: String): Boolean {
+        val normalized = url.trim().lowercase()
+        val path = runCatching { Uri.parse(normalized).path.orEmpty() }.getOrDefault("")
+        return path.endsWith(".m3u8") ||
+            path.endsWith(".mp4") ||
+            path.endsWith(".webm") ||
+            normalized.contains(".m3u8?")
+    }
+
+    private fun createNativeVideoPlayer() {
+        val playerView = PlayerView(this).apply {
+            setBackgroundColor(AndroidColor.BLACK)
+            useController = true
+            controllerShowTimeoutMs = 3500
+            setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS)
+            resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            keepScreenOn = true
+        }
+
+        val player = ExoPlayer.Builder(this).build().also { nativePlayer = it }
+        player.addListener(object : Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                when (playbackState) {
+                    Player.STATE_BUFFERING -> {
+                        loadingBar?.visibility = View.VISIBLE
+                    }
+                    Player.STATE_READY -> {
+                        loadingBar?.progress = 100
+                        loadingBar?.visibility = View.GONE
+                        errorView?.visibility = View.GONE
+                    }
+                    Player.STATE_ENDED -> {
+                        loadingBar?.visibility = View.GONE
+                    }
+                }
+            }
+
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                loadingBar?.visibility = View.GONE
+                showError(
+                    "Không phát được video trực tiếp. Nguồn có thể đã ngừng phát hoặc yêu cầu định dạng khác."
+                )
+            }
+        })
+
+        val normalized = sourceUrl.lowercase()
+        val path = runCatching { Uri.parse(normalized).path.orEmpty() }.getOrDefault("")
+        val isHls = path.endsWith(".m3u8") || normalized.contains(".m3u8?")
+        val mediaItem = MediaItem.Builder()
+            .setUri(Uri.parse(sourceUrl))
+            .apply {
+                if (isHls) setMimeType(MimeTypes.APPLICATION_M3U8)
+            }
+            .build()
+
+        playerView.player = player
+        player.setMediaItem(mediaItem)
+        player.prepare()
+        player.playWhenReady = true
+
+        webView = null
+        playerContainer.addView(
+            playerView,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        )
+    }
+
+    private fun createWebViewPlayer() {
         val player = WebView(this).apply {
             setBackgroundColor(AndroidColor.BLACK)
             keepScreenOn = true
@@ -205,15 +293,9 @@ class TvPlayerActivity : ComponentActivity() {
                 allowContentAccess = true
                 allowFileAccess = false
                 javaScriptCanOpenWindowsAutomatically = true
-                mediaPlaybackRequiresUserGesture = false
                 setSupportMultipleWindows(false)
                 cacheMode = WebSettings.LOAD_DEFAULT
-                // Some official TV pages are HTTPS while their embedded player/media
-                // endpoints still use HTTP. Permit compatible mixed media content.
                 mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
-                // Use a current Chrome-like Android UA so official TV web players
-                // can select their normal HTML5 video experience instead of a
-                // restricted embedded-browser variant.
                 userAgentString = "Mozilla/5.0 (Linux; Android 16; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36"
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                     safeBrowsingEnabled = true
@@ -226,8 +308,6 @@ class TvPlayerActivity : ComponentActivity() {
             CookieManager.getInstance().setAcceptCookie(true)
             CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
             CookieManager.getInstance().flush()
-            // Prefer hardware video surfaces; WebView can otherwise fall back to
-            // a software path that renders audio while leaving the video surface black.
             setLayerType(View.LAYER_TYPE_HARDWARE, null)
 
             webViewClient = object : WebViewClient() {
@@ -244,10 +324,6 @@ class TvPlayerActivity : ComponentActivity() {
                     view.requestLayout()
                     view.invalidate()
 
-                    // Some official live-TV pages create the HTML5 video element
-                    // after the initial page load. Apply a narrow, non-invasive
-                    // compatibility patch for visibility/inline playback, then
-                    // retry once after the player has finished initialising.
                     view.postDelayed({
                         if (!isFinishing && view == webView) {
                             applyVideoCompatibilityPatch(view)
@@ -303,8 +379,6 @@ class TvPlayerActivity : ComponentActivity() {
 
             webChromeClient = object : WebChromeClient() {
                 override fun onConsoleMessage(consoleMessage: android.webkit.ConsoleMessage): Boolean {
-                    // Keep provider/player JavaScript diagnostics out of the UI while
-                    // allowing WebView to report them through its normal console path.
                     return super.onConsoleMessage(consoleMessage)
                 }
 
@@ -452,6 +526,14 @@ class TvPlayerActivity : ComponentActivity() {
     }
 
     private fun removePlayer() {
+        nativePlayer?.let { player ->
+            runCatching {
+                player.stop()
+                player.release()
+            }
+        }
+        nativePlayer = null
+
         webView?.let { view ->
             try {
                 view.stopLoading()
