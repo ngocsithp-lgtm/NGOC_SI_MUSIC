@@ -54,7 +54,7 @@ jobs:
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: NGOC_SI_MUSIC_5.2_PRO_DEBUG_APK
+          name: NGOC_SI_MUSIC_5.3_PRO_DEBUG_APK
           if-no-files-found: error
           path: |
             app/build/outputs/apk/debug/app-debug.apk
