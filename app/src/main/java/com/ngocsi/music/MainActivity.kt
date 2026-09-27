@@ -96,6 +96,13 @@ object TvCatalog {
         TvSource("VieON • VTV2", "VieON — VTV2 HD trực tuyến", "https://vieon.vn/truyen-hinh-truc-tuyen/vtv2-hd/"),
         TvSource("VieON • VTV3", "VieON — VTV3 HD trực tuyến", "https://vieon.vn/truyen-hinh-truc-tuyen/vtv3-hd/"),
         TvSource("VieON • VTV9", "VieON — VTV9 HD trực tuyến", "https://vieon.vn/truyen-hinh-truc-tuyen/vtv9-hd/"),
+        TvSource("VieON • VTV5", "VieON — VTV5 HD trực tuyến", "https://vieon.vn/truyen-hinh-truc-tuyen/vtv5-hd/"),
+        TvSource("VieON • VTV7", "VieON — VTV7 HD trực tuyến", "https://vieon.vn/truyen-hinh-truc-tuyen/vtv7-hd/"),
+        TvSource("VieON • VTV8", "VieON — VTV8 HD trực tuyến", "https://vieon.vn/truyen-hinh-truc-tuyen/vtv8-hd/"),
+        TvSource("VieON • VTV Cần Thơ", "VieON — VTV Cần Thơ trực tuyến", "https://vieon.vn/truyen-hinh-truc-tuyen/vtv-can-tho/"),
+        TvSource("VieON • HTV7", "VieON — HTV7 HD trực tuyến", "https://vieon.vn/truyen-hinh-truc-tuyen/htv7-hd/"),
+        TvSource("VieON • HTV9", "VieON — HTV9 HD trực tuyến", "https://vieon.vn/truyen-hinh-truc-tuyen/htv9-hd/"),
+        TvSource("VieON • HTV3", "VieON — HTV3 trực tuyến", "https://vieon.vn/truyen-hinh-truc-tuyen/htv3/"),
         TvSource("VieON • HTV Thể Thao", "VieON — HTV Thể Thao trực tuyến", "https://vieon.vn/truyen-hinh-truc-tuyen/htv-the-thao/")
     )
 }
