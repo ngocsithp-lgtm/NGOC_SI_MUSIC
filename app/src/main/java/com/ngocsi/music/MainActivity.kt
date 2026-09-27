@@ -3806,13 +3806,12 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     val center = parsedMapUrl.getQueryParameter("center")?.split(",")
                                     val latitude = center?.getOrNull(0)?.toDoubleOrNull() ?: 10.8231
                                     val longitude = center?.getOrNull(1)?.toDoubleOrNull() ?: 106.6297
-                                    loadDataWithBaseURL(
-                                        "https://www.openstreetmap.org/",
-                                        mapHtml(query, latitude, longitude),
-                                        "text/html",
-                                        "UTF-8",
-                                        null
-                                    )
+                                    val mapPageUrl = if (!query.isNullOrBlank()) {
+                                        "https://www.openstreetmap.org/search?query=" + Uri.encode(query)
+                                    } else {
+                                        "https://www.openstreetmap.org/#map=12/$latitude/$longitude"
+                                    }
+                                    loadUrl(mapPageUrl)
                                 } else {
                                     // Keep TV/provider pages on their own origin.
                                     loadUrl(url)
@@ -3829,13 +3828,12 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     val center = parsedMapUrl.getQueryParameter("center")?.split(",")
                                     val latitude = center?.getOrNull(0)?.toDoubleOrNull() ?: 10.8231
                                     val longitude = center?.getOrNull(1)?.toDoubleOrNull() ?: 106.6297
-                                    view.loadDataWithBaseURL(
-                                        "https://www.openstreetmap.org/",
-                                        mapHtml(query, latitude, longitude),
-                                        "text/html",
-                                        "UTF-8",
-                                        null
-                                    )
+                                    val mapPageUrl = if (!query.isNullOrBlank()) {
+                                        "https://www.openstreetmap.org/search?query=" + Uri.encode(query)
+                                    } else {
+                                        "https://www.openstreetmap.org/#map=12/$latitude/$longitude"
+                                    }
+                                    view.loadUrl(mapPageUrl)
                                 } else {
                                     view.loadUrl(url)
                                 }
