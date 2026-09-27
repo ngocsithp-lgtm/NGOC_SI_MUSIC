@@ -173,6 +173,7 @@ class ProMainActivity : ComponentActivity() {
         startActivity(
             Intent(this, MainActivity::class.java).apply {
                 putExtra("pro_destination", destination)
+                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             }
         )
     }
