@@ -381,7 +381,16 @@ class MainActivity : ComponentActivity() {
         // PRO shell deep-links into the proven feature surfaces without
         // duplicating their implementation. This keeps YouTube, Drive,
         // Radio, TV, Map and Media3 playback on the same stable code paths.
-        when (intent.getStringExtra("pro_destination")) {
+        handleProDestination(intent.getStringExtra("pro_destination"))
+
+        setContent { NgocSiMusicApp() }
+        requestMusicPermissionIfNeeded()
+        requestNotificationPermissionIfNeeded()
+        connectController()
+    }
+
+    private fun handleProDestination(destination: String?) {
+        when (destination) {
             "library" -> {
                 selectedSection = "Thư viện"
                 selectedLibrary = "Tất cả"
@@ -416,11 +425,12 @@ class MainActivity : ComponentActivity() {
             }
             "settings" -> selectedSection = "Cài đặt"
         }
+    }
 
-        setContent { NgocSiMusicApp() }
-        requestMusicPermissionIfNeeded()
-        requestNotificationPermissionIfNeeded()
-        connectController()
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleProDestination(intent.getStringExtra("pro_destination"))
     }
 
     private var usingOnDeviceRecognizer = false
