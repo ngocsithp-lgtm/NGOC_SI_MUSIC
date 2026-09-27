@@ -1,4 +1,4 @@
-name: Build NGOC SI MUSIC 5.2 PRO Debug APK
+name: Build NGOC SI MUSIC 5.3 PRO Debug APK
 
 on:
   workflow_dispatch:
@@ -69,5 +69,5 @@ jobs:
           gh release create "$TAG" \
             app/build/outputs/apk/debug/app-debug.apk \
             app/build/outputs/apk/debug/app-debug.apk.sha256 \
-            --title "NGỌC SĨ MUSIC 5.2 PRO — Latest APK" \
+            --title "NGỌC SĨ MUSIC 5.3 PRO — Latest APK" \
             --notes "Latest successful debug APK built from commit ${{ github.sha }}."
