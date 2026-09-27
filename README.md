@@ -4,8 +4,8 @@ Android music player built with Kotlin, Jetpack Compose and AndroidX Media3.
 
 ## Bản PRO
 
-- Version: **5.2 PRO**
-- Version code: **22**
+- Version: **5.3 PRO**
+- Version code: **23**
 - Target SDK: **Android 16 / API 36**
 - Min SDK: **26**
 - Media3: **1.9.4**
@@ -30,6 +30,11 @@ Android music player built with Kotlin, Jetpack Compose and AndroidX Media3.
 - Tìm kiếm bằng giọng nói
 - Google Drive: file hoặc thư mục
 
+## TV PRO
+
+- Direct HTTPS .m3u8/.mp4/.webm sources use native Media3 video playback with buffering state and playback controls
+- Provider web pages continue to use the hardened WebView player
+
 ## Radio PRO
 
 - VOV1, VOV2, VOV3, VOV4, VOV5, VOV6
@@ -40,6 +45,12 @@ Android music player built with Kotlin, Jetpack Compose and AndroidX Media3.
 - Nguồn chính thức trong ứng dụng khi không còn stream trực tiếp khả dụng
 
 Các URL livestream có thể thay đổi theo hạ tầng của đài; app giữ nhiều candidate và nguồn chính thức để giảm lỗi chết stream.
+
+## Map PRO
+
+- Current location permission flow with cached-location fast path
+- Active GPS/network provider fallback and timeout recovery
+- OpenStreetMap embedded map with current-position marker
 
 ## Widget
 
@@ -58,7 +69,7 @@ GitHub Actions tự động chạy:
 4. SHA-256
 5. Upload artifact
 
-Artifact: **NGOC_SI_MUSIC_5.2_PRO_DEBUG_APK**
+Artifact: **NGOC_SI_MUSIC_5.3_PRO_DEBUG_APK**
 
 ## YouTube
 
