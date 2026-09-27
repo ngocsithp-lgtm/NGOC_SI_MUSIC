@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
-      contents: read
+      contents: write
 
     steps:
       - name: Checkout
@@ -51,10 +51,23 @@ jobs:
         run: |
           sha256sum app/build/outputs/apk/debug/app-debug.apk | tee app/build/outputs/apk/debug/app-debug.apk.sha256
 
-      - name: Upload APK
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: NGOC_SI_MUSIC_5.2_PRO_DEBUG_APK
+          if-no-files-found: error
           path: |
             app/build/outputs/apk/debug/app-debug.apk
             app/build/outputs/apk/debug/app-debug.apk.sha256
+
+      - name: Publish APK Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="ngoc-si-music-latest"
+          gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "$TAG" \
+            app/build/outputs/apk/debug/app-debug.apk \
+            app/build/outputs/apk/debug/app-debug.apk.sha256 \
+            --title "NGỌC SĨ MUSIC 5.2 PRO — Latest APK" \
+            --notes "Latest successful debug APK built from commit ${{ github.sha }}."
