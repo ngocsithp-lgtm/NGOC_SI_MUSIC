@@ -1850,6 +1850,23 @@ class MainActivity : ComponentActivity() {
         errorMessage = "Đã thêm nguồn TV: " + name
     }
 
+    private fun openTvSource(source: TvSource) {
+        runCatching {
+            startActivity(
+                Intent(this, TvPlayerActivity::class.java).apply {
+                    putExtra(TvPlayerActivity.EXTRA_URL, source.url)
+                    putExtra(TvPlayerActivity.EXTRA_TITLE, source.name)
+                    putExtra(TvPlayerActivity.EXTRA_DESCRIPTION, source.description)
+                }
+            )
+        }.onFailure {
+            errorMessage = "Không mở được trình phát TV."
+            runCatching {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(source.url)))
+            }
+        }
+    }
+
     private fun showCurrentLocationOnMap() {
         val hasFine = ContextCompat.checkSelfPermission(
             this,
@@ -3123,8 +3140,7 @@ class MainActivity : ComponentActivity() {
                         }
                         FilledTonalButton(
                             onClick = {
-                                radioWebTitle = source.name
-                                radioWebUrl = source.url
+                                openTvSource(source)
                             },
                             shape = CircleShape,
                             contentPadding = PaddingValues(0.dp),
@@ -3215,7 +3231,7 @@ class MainActivity : ComponentActivity() {
                     )
                     Spacer(Modifier.height(5.dp))
                     Text(
-                        "Bản đồ đường phố, vệ tinh, giao thông, tìm địa điểm và chỉ đường.",
+                        "Bản đồ OpenStreetMap trong ứng dụng; Vệ tinh, Giao thông và Chỉ đường mở Google Maps chính thức.",
                         color = Color(0xFF9698A7),
                         fontSize = 12.sp
                     )
@@ -3237,8 +3253,11 @@ class MainActivity : ComponentActivity() {
                         }
                         Button(
                             onClick = {
-                                radioWebTitle = "NGỌC SĨ MAP • GIAO THÔNG"
-                                radioWebUrl = trafficUrl
+                                runCatching {
+                                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(trafficUrl)))
+                                }.onFailure {
+                                    errorMessage = "Không mở được Google Maps giao thông."
+                                }
                             },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(14.dp)
@@ -3255,8 +3274,11 @@ class MainActivity : ComponentActivity() {
                     ) {
                         OutlinedButton(
                             onClick = {
-                                radioWebTitle = "NGỌC SĨ MAP • VỆ TINH"
-                                radioWebUrl = satelliteUrl
+                                runCatching {
+                                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(satelliteUrl)))
+                                }.onFailure {
+                                    errorMessage = "Không mở được Google Maps vệ tinh."
+                                }
                             },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(14.dp)
@@ -3269,10 +3291,14 @@ class MainActivity : ComponentActivity() {
                                 if (q.isBlank()) {
                                     errorMessage = "Nhập điểm đến trước khi chọn chỉ đường."
                                 } else {
-                                    radioWebTitle = "CHỈ ĐƯỜNG • $q"
-                                    radioWebUrl =
+                                    val directionsUrl =
                                         "https://www.google.com/maps/dir/?api=1&destination=" +
                                             Uri.encode(q) + "&travelmode=driving"
+                                    runCatching {
+                                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(directionsUrl)))
+                                    }.onFailure {
+                                        errorMessage = "Không mở được Google Maps chỉ đường."
+                                    }
                                 }
                             },
                             modifier = Modifier.weight(1f),
@@ -3356,7 +3382,7 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(14.dp)
                     ) {
-                        Text("TÌM TRÊN BẢN ĐỒ")
+                        Text("TÌM TRÊN BẢN ĐỒ OSM")
                     }
                 }
             }
@@ -3374,7 +3400,7 @@ class MainActivity : ComponentActivity() {
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "Có thể xem bản đồ ngay trong NGỌC SĨ MUSIC hoặc chuyển sang Google Maps để sử dụng đầy đủ chức năng điều hướng.",
+                        "Bản đồ đường phố và tìm kiếm chạy ngay trong NGỌC SĨ MUSIC; Vệ tinh, Giao thông và Chỉ đường mở Google Maps khi cần.",
                         color = Color(0xFF8F909E),
                         fontSize = 11.sp
                     )
@@ -3643,7 +3669,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             Text(
                                 when {
                                     title.startsWith("NGỌC SĨ MAP") || title.startsWith("BẢN ĐỒ") ->
-                                        "Bản đồ Google Maps trong NGỌC SĨ MUSIC"
+                                        "Bản đồ OpenStreetMap trong NGỌC SĨ MUSIC"
                                     title.startsWith("TV") ->
                                         "Truyền hình trực tuyến trong NGỌC SĨ MUSIC"
                                     else ->
@@ -3768,10 +3794,14 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 // while playback position updates are flowing).
                                 tag = url
                                 if (title.startsWith("NGỌC SĨ MAP") || title.startsWith("BẢN ĐỒ")) {
-                                    val query = Uri.parse(url).getQueryParameter("query")
+                                    val parsedMapUrl = Uri.parse(url)
+                                    val query = parsedMapUrl.getQueryParameter("query")
+                                    val center = parsedMapUrl.getQueryParameter("center")?.split(",")
+                                    val latitude = center?.getOrNull(0)?.toDoubleOrNull() ?: 10.8231
+                                    val longitude = center?.getOrNull(1)?.toDoubleOrNull() ?: 106.6297
                                     loadDataWithBaseURL(
                                         "https://www.openstreetmap.org/",
-                                        mapHtml(query),
+                                        mapHtml(query, latitude, longitude),
                                         "text/html",
                                         "UTF-8",
                                         null
@@ -3787,10 +3817,14 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             if (requestedUrl != url) {
                                 view.tag = url
                                 if (title.startsWith("NGỌC SĨ MAP") || title.startsWith("BẢN ĐỒ")) {
-                                    val query = Uri.parse(url).getQueryParameter("query")
+                                    val parsedMapUrl = Uri.parse(url)
+                                    val query = parsedMapUrl.getQueryParameter("query")
+                                    val center = parsedMapUrl.getQueryParameter("center")?.split(",")
+                                    val latitude = center?.getOrNull(0)?.toDoubleOrNull() ?: 10.8231
+                                    val longitude = center?.getOrNull(1)?.toDoubleOrNull() ?: 106.6297
                                     view.loadDataWithBaseURL(
                                         "https://www.openstreetmap.org/",
-                                        mapHtml(query),
+                                        mapHtml(query, latitude, longitude),
                                         "text/html",
                                         "UTF-8",
                                         null
