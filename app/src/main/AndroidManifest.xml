@@ -42,6 +42,13 @@
             android:screenOrientation="unspecified"
             android:configChanges="orientation|screenSize|keyboardHidden" />
 
+        <!-- Dedicated TV player keeps live-video rendering away from Compose dialogs. -->
+        <activity
+            android:name=".TvPlayerActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
+
         <activity
             android:name=".ProMainActivity"
             android:exported="true">
