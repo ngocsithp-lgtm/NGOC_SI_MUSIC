@@ -403,7 +403,17 @@ class MainActivity : ComponentActivity() {
             "tv" -> selectedSection = "TV"
             "map" -> selectedSection = "Bản đồ"
             "playlists" -> showPlaylists = true
-            "player" -> showNowPlaying = true
+            "queue" -> showQueue = true
+            "player" -> {
+                if (songs.getOrNull(currentIndex) != null) {
+                    showNowPlaying = true
+                } else {
+                    selectedSection = "Thư viện"
+                    selectedLibrary = "Tất cả"
+                    libraryView = "Bài hát"
+                    errorMessage = "Chưa có bài hát đang phát. Hãy chọn một bài hát để mở trình phát."
+                }
+            }
             "settings" -> selectedSection = "Cài đặt"
         }
 
