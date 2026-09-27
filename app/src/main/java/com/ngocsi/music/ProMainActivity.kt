@@ -89,6 +89,7 @@ class ProMainActivity : ComponentActivity() {
                 onTv = { openLegacy("tv") },
                 onMap = { openLegacy("map") },
                 onPlaylists = { openLegacy("playlists") },
+                onQueue = { openLegacy("queue") },
                 onSettings = { openLegacy("settings") },
                 onFullPlayer = { openLegacy("player") },
                 onTogglePlayback = {
@@ -149,6 +150,7 @@ private fun ProShell(
     onTv: () -> Unit,
     onMap: () -> Unit,
     onPlaylists: () -> Unit,
+    onQueue: () -> Unit,
     onSettings: () -> Unit,
     onFullPlayer: () -> Unit,
     onTogglePlayback: () -> Unit
@@ -225,6 +227,7 @@ private fun ProShell(
                     ProFeature("▣", "TV", "Nguồn truyền hình", onTv),
                     ProFeature("⌖", "Bản đồ", "Bản đồ & tìm kiếm", onMap),
                     ProFeature("♬", "Playlist", "Yêu thích & danh sách", onPlaylists),
+                    ProFeature("☷", "Hàng đợi", "Danh sách đang phát", onQueue),
                     ProFeature("⚙", "Cài đặt", "Hệ thống & phát nền", onSettings)
                 )
 
