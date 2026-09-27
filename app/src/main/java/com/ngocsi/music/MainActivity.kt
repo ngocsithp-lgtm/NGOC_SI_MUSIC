@@ -2993,6 +2993,8 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun MapHub() {
+        val mapUrl =
+            "https://www.google.com/maps/@?api=1&map_action=map&center=10.8231%2C106.6297&zoom=12&basemap=roadmap"
         val trafficUrl =
             "https://www.google.com/maps/@?api=1&map_action=map&center=10.8231%2C106.6297&zoom=12&basemap=roadmap&layer=traffic"
         val satelliteUrl =
@@ -3012,15 +3014,34 @@ class MainActivity : ComponentActivity() {
                 border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF252936))
             ) {
                 Column(Modifier.padding(18.dp)) {
-                    Text("NGỌC SĨ MAP", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold)
+                    Text(
+                        "NGỌC SĨ MAP",
+                        color = Color.White,
+                        fontSize = 21.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
                     Spacer(Modifier.height(5.dp))
                     Text(
-                        "Bản đồ đường phố, vệ tinh và lớp giao thông theo dữ liệu Google Maps.",
+                        "Bản đồ đường phố, vệ tinh và giao thông bằng Google Maps.",
                         color = Color(0xFF9698A7),
                         fontSize = 12.sp
                     )
                     Spacer(Modifier.height(12.dp))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                radioWebTitle = "NGỌC SĨ MAP • BẢN ĐỒ"
+                                radioWebUrl = mapUrl
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Text("🗺 BẢN ĐỒ")
+                        }
                         Button(
                             onClick = {
                                 radioWebTitle = "NGỌC SĨ MAP • GIAO THÔNG"
@@ -3028,7 +3049,17 @@ class MainActivity : ComponentActivity() {
                             },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(14.dp)
-                        ) { Text("🚦 GIAO THÔNG") }
+                        ) {
+                            Text("🚦 GIAO THÔNG")
+                        }
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         OutlinedButton(
                             onClick = {
                                 radioWebTitle = "NGỌC SĨ MAP • VỆ TINH"
@@ -3036,9 +3067,31 @@ class MainActivity : ComponentActivity() {
                             },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(14.dp)
-                        ) { Text("🛰 VỆ TINH") }
+                        ) {
+                            Text("🛰 VỆ TINH")
+                        }
+                        OutlinedButton(
+                            onClick = {
+                                runCatching {
+                                    startActivity(
+                                        Intent(
+                                            Intent.ACTION_VIEW,
+                                            Uri.parse("https://www.google.com/maps/")
+                                        )
+                                    )
+                                }.onFailure {
+                                    errorMessage = "Không mở được Google Maps."
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Text("MỞ GOOGLE MAPS")
+                        }
                     }
-                    Spacer(Modifier.height(8.dp))
+
+                    Spacer(Modifier.height(12.dp))
+
                     OutlinedTextField(
                         value = mapSearchQuery,
                         onValueChange = { mapSearchQuery = it },
@@ -3046,16 +3099,32 @@ class MainActivity : ComponentActivity() {
                         singleLine = true,
                         label = { Text("Tìm địa điểm") },
                         placeholder = { Text("Ví dụ: Chợ Bến Thành") },
-                        shape = RoundedCornerShape(14.dp)
+                        shape = RoundedCornerShape(14.dp),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(
+                            onSearch = {
+                                val q = mapSearchQuery.trim()
+                                if (q.isBlank()) {
+                                    errorMessage = "Nhập địa điểm cần tìm."
+                                } else {
+                                    radioWebTitle = "BẢN ĐỒ • $q"
+                                    radioWebUrl =
+                                        "https://www.google.com/maps/search/?api=1&query=" +
+                                            Uri.encode(q)
+                                }
+                            }
+                        )
                     )
+
                     Spacer(Modifier.height(8.dp))
+
                     Button(
                         onClick = {
                             val q = mapSearchQuery.trim()
                             if (q.isBlank()) {
                                 errorMessage = "Nhập địa điểm cần tìm."
                             } else {
-                                radioWebTitle = "BẢN ĐỒ • " + q
+                                radioWebTitle = "BẢN ĐỒ • $q"
                                 radioWebUrl =
                                     "https://www.google.com/maps/search/?api=1&query=" +
                                         Uri.encode(q)
@@ -3063,7 +3132,9 @@ class MainActivity : ComponentActivity() {
                         },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(14.dp)
-                    ) { Text("TÌM TRÊN BẢN ĐỒ") }
+                    ) {
+                        Text("TÌM TRÊN BẢN ĐỒ")
+                    }
                 }
             }
 
@@ -3073,12 +3144,23 @@ class MainActivity : ComponentActivity() {
                 color = Color(0xFF15161E)
             ) {
                 Column(Modifier.padding(16.dp)) {
-                    Text("GIAO THÔNG", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text(
+                        "MAP PRO",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "Lớp traffic hiển thị tình trạng giao thông theo thời gian thực khi khu vực hỗ trợ dữ liệu.",
+                        "Có thể xem bản đồ ngay trong NGỌC SĨ MUSIC hoặc chuyển sang Google Maps để sử dụng đầy đủ chức năng điều hướng.",
                         color = Color(0xFF8F909E),
                         fontSize = 11.sp
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "• Bản đồ đường phố\n• Giao thông\n• Vệ tinh\n• Tìm địa điểm",
+                        color = Color(0xFFB0B2BF),
+                        fontSize = 11.sp,
+                        lineHeight = 18.sp
                     )
                 }
             }
