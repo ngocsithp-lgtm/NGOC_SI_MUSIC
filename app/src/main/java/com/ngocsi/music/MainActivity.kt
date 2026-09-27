@@ -3375,7 +3375,18 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     ) {
                         Column(Modifier.weight(1f)) {
                             Text(title, color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text("Phát trực tuyến trong NGỌC SĨ MUSIC • nguồn chính thức", color = Color(0xFF8F8F9A), fontSize = 11.sp)
+                            Text(
+                                when {
+                                    title.startsWith("NGỌC SĨ MAP") || title.startsWith("BẢN ĐỒ") ->
+                                        "Bản đồ Google Maps trong NGỌC SĨ MUSIC"
+                                    title.startsWith("TV") ->
+                                        "Truyền hình trực tuyến trong NGỌC SĨ MUSIC"
+                                    else ->
+                                        "Phát trực tuyến trong NGỌC SĨ MUSIC • nguồn chính thức"
+                                },
+                                color = Color(0xFF8F8F9A),
+                                fontSize = 11.sp
+                            )
                         }
                         TextButton(onClick = { radioWebUrl = null }) { Text("Đóng") }
                     }
@@ -3386,6 +3397,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 settings.javaScriptEnabled = true
                                 settings.domStorageEnabled = true
                                 settings.loadsImagesAutomatically = true
+                                settings.useWideViewPort = true
+                                settings.loadWithOverviewMode = true
                                 settings.mediaPlaybackRequiresUserGesture = true
                                 settings.allowFileAccess = false
                                 settings.allowContentAccess = true
