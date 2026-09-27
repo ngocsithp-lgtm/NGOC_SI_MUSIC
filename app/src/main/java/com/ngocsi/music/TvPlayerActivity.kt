@@ -206,6 +206,9 @@ class TvPlayerActivity : ComponentActivity() {
                 mediaPlaybackRequiresUserGesture = false
                 setSupportMultipleWindows(false)
                 cacheMode = WebSettings.LOAD_DEFAULT
+                // Some official TV pages are HTTPS while their embedded player/media
+                // endpoints still use HTTP. Permit compatible mixed media content.
+                mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
                 // Use a current Chrome-like Android UA so official TV web players
                 // can select their normal HTML5 video experience instead of a
                 // restricted embedded-browser variant.
@@ -221,6 +224,8 @@ class TvPlayerActivity : ComponentActivity() {
             CookieManager.getInstance().setAcceptCookie(true)
             CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
             CookieManager.getInstance().flush()
+            // Prefer hardware video surfaces; WebView can otherwise fall back to
+            // a software path that renders audio while leaving the video surface black.
             setLayerType(View.LAYER_TYPE_HARDWARE, null)
 
             webViewClient = object : WebViewClient() {
@@ -280,6 +285,12 @@ class TvPlayerActivity : ComponentActivity() {
             }
 
             webChromeClient = object : WebChromeClient() {
+                override fun onConsoleMessage(consoleMessage: android.webkit.ConsoleMessage): Boolean {
+                    // Keep provider/player JavaScript diagnostics out of the UI while
+                    // allowing WebView to report them through its normal console path.
+                    return super.onConsoleMessage(consoleMessage)
+                }
+
                 override fun onProgressChanged(view: WebView, newProgress: Int) {
                     super.onProgressChanged(view, newProgress)
                     loadingBar?.progress = newProgress
