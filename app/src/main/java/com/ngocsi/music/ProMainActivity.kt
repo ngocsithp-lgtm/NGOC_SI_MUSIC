@@ -28,10 +28,14 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -44,6 +48,8 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.MoreExecutors
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 
 /**
  * New PRO shell for the rebuilt information architecture.
@@ -55,15 +61,19 @@ class ProMainActivity : ComponentActivity() {
     private var isPlaying by mutableStateOf(false)
     private var title by mutableStateOf("Chưa phát nhạc")
     private var artist by mutableStateOf("NGỌC SĨ MUSIC")
+    private var position by mutableLongStateOf(0L)
+    private var duration by mutableLongStateOf(0L)
 
     private val listener = object : Player.Listener {
         override fun onIsPlayingChanged(playing: Boolean) {
             isPlaying = playing
+            syncProgress()
         }
 
         override fun onMediaMetadataChanged(metadata: androidx.media3.common.MediaMetadata) {
             title = metadata.title?.toString().orEmpty().ifBlank { "Đang phát" }
             artist = metadata.artist?.toString().orEmpty().ifBlank { "NGỌC SĨ MUSIC" }
+            syncProgress()
         }
 
         override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
@@ -71,6 +81,19 @@ class ProMainActivity : ComponentActivity() {
                 title = it.title?.toString().orEmpty().ifBlank { "Đang phát" }
                 artist = it.artist?.toString().orEmpty().ifBlank { "NGỌC SĨ MUSIC" }
             }
+            syncProgress()
+        }
+
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            syncProgress()
+        }
+
+        override fun onPositionDiscontinuity(
+            oldPosition: Player.PositionInfo,
+            newPosition: Player.PositionInfo,
+            reason: Int
+        ) {
+            syncProgress()
         }
     }
 
@@ -82,6 +105,8 @@ class ProMainActivity : ComponentActivity() {
                 title = title,
                 artist = artist,
                 isPlaying = isPlaying,
+                position = position,
+                duration = duration,
                 onMusic = { openLegacy("library") },
                 onYouTube = { openLegacy("youtube") },
                 onDrive = { openLegacy("drive") },
@@ -92,8 +117,25 @@ class ProMainActivity : ComponentActivity() {
                 onQueue = { openLegacy("queue") },
                 onSettings = { openLegacy("settings") },
                 onFullPlayer = { openLegacy("player") },
+                onPrevious = {
+                    controller?.let {
+                        if (it.currentPosition > 3_000L) it.seekTo(0L)
+                        else it.seekToPreviousMediaItem()
+                        it.play()
+                    }
+                },
                 onTogglePlayback = {
                     controller?.let { if (it.isPlaying) it.pause() else it.play() }
+                },
+                onNext = {
+                    controller?.let {
+                        it.seekToNextMediaItem()
+                        it.play()
+                    }
+                },
+                onSeek = { target ->
+                    controller?.seekTo(target.coerceAtLeast(0L))
+                    position = target.coerceAtLeast(0L)
                 }
             )
         }
@@ -107,6 +149,7 @@ class ProMainActivity : ComponentActivity() {
                 controller = future.get()
                 controller?.addListener(listener)
                 controller?.let {
+                    syncProgress()
                     isPlaying = it.isPlaying
                     it.currentMediaItem?.mediaMetadata?.let { md ->
                         title = md.title?.toString().orEmpty().ifBlank { "Đang phát" }
@@ -117,9 +160,20 @@ class ProMainActivity : ComponentActivity() {
         }, MoreExecutors.directExecutor())
     }
 
+    private fun syncProgress() {
+        controller?.let {
+            position = it.currentPosition.coerceAtLeast(0L)
+            duration = it.duration.takeIf { value -> value > 0L } ?: 0L
+            isPlaying = it.isPlaying
+        }
+    }
+
     private fun openLegacy(destination: String) {
         startActivity(
-            Intent(this, MainActivity::class.java).putExtra("pro_destination", destination)
+            Intent(this, MainActivity::class.java).apply {
+                putExtra("pro_destination", destination)
+                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            }
         )
     }
 
@@ -138,11 +192,13 @@ private data class ProFeature(
     val action: () -> Unit
 )
 
-@androidx.compose.runtime.Composable
+@Composable
 private fun ProShell(
     title: String,
     artist: String,
     isPlaying: Boolean,
+    position: Long,
+    duration: Long,
     onMusic: () -> Unit,
     onYouTube: () -> Unit,
     onDrive: () -> Unit,
@@ -153,8 +209,18 @@ private fun ProShell(
     onQueue: () -> Unit,
     onSettings: () -> Unit,
     onFullPlayer: () -> Unit,
-    onTogglePlayback: () -> Unit
+    onPrevious: () -> Unit,
+    onTogglePlayback: () -> Unit,
+    onNext: () -> Unit,
+    onSeek: (Long) -> Unit
 ) {
+    LaunchedEffect(isPlaying, duration) {
+        while (isActive) {
+            delay(500L)
+            onSeekProgressTick?.invoke()
+        }
+    }
+
     MaterialTheme(
         colorScheme = darkColorScheme(
             background = Color(0xFF07080C),
@@ -212,6 +278,30 @@ private fun ProShell(
                             Text(artist, color = Color(0xFF9698A8), fontSize = 12.sp, maxLines = 1)
                         }
                         Text(if (isPlaying) "⏸" else "▶", color = Color(0xFFCDBAFF), fontSize = 22.sp)
+                    }
+                    if (duration > 0L) {
+                        Slider(
+                            value = position.coerceIn(0L, duration).toFloat(),
+                            onValueChange = { onSeek(it.toLong()) },
+                            valueRange = 0f..duration.toFloat(),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
+                        )
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(formatProTime(position), color = Color(0xFF858794), fontSize = 11.sp)
+                            Text(formatProTime(duration), color = Color(0xFF858794), fontSize = 11.sp)
+                        }
+                    }
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("⏮", color = Color.White, fontSize = 24.sp, modifier = Modifier.clickable(onClick = onPrevious))
+                        Text(if (isPlaying) "⏸" else "▶", color = Color(0xFFCDBAFF), fontSize = 28.sp, modifier = Modifier.clickable(onClick = onTogglePlayback))
+                        Text("⏭", color = Color.White, fontSize = 24.sp, modifier = Modifier.clickable(onClick = onNext))
                     }
                 }
 
@@ -274,3 +364,10 @@ private fun ProShell(
         }
     }
 }
+
+private fun formatProTime(milliseconds: Long): String {
+    val totalSeconds = milliseconds.coerceAtLeast(0L) / 1_000L
+    return String.format("%02d:%02d", totalSeconds / 60L, totalSeconds % 60L)
+}
+
+private var onSeekProgressTick: (() -> Unit)? = null
