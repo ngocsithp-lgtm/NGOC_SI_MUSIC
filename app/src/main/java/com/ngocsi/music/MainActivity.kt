@@ -10,6 +10,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
+import android.location.LocationManager
 import android.graphics.BitmapFactory
 import java.io.File
 import android.webkit.WebChromeClient
@@ -83,9 +84,14 @@ object TvCatalog {
     // own web experience; no stream extraction or DRM bypass is performed.
     val builtIn = listOf(
         TvSource("VTV1 • Live", "VTV Go — kênh VTV1 trực tiếp", "https://vtvgo.vn/channel/1"),
+        TvSource("VTV2 • Live", "VTV Go — kênh VTV2 trực tiếp", "https://package.vtvgo.vn/channel/2"),
         TvSource("VTV3 • Live", "VTV Go — kênh VTV3 trực tiếp", "https://vtvgo.vn/channel/3"),
-        TvSource("VTVgo", "Nền tảng truyền hình số quốc gia của VTV", "https://vtvgo.vn/"),
-        TvSource("HTVm", "Nền tảng nội dung truyền hình của HTV", "https://htvm.htv.com.vn/")
+        TvSource("VTV5 Tây Nam Bộ • Live", "VTV Go — kênh VTV5 Tây Nam Bộ", "https://vtvgo.vn/channel/7"),
+        TvSource("VTV9 • Live", "VTV Go — kênh VTV9 trực tiếp", "https://vtvgo.vn/channel/9"),
+        TvSource("VTVgo", "Nền tảng truyền hình số quốc gia của VTV", "https://www.vtvgo.vn/"),
+        TvSource("HTVm", "Nền tảng nội dung truyền hình của HTV", "https://htvm.htv.com.vn/"),
+        TvSource("FPT Play", "Truyền hình trực tuyến và nội dung chính thức của FPT Play", "https://fptplay.vn/"),
+        TvSource("VieON • TV Online", "Truyền hình trực tuyến của VieON", "https://vieon.vn/truyen-hinh-truc-tuyen/")
     )
 }
 
@@ -239,6 +245,14 @@ class MainActivity : ComponentActivity() {
         } else {
             isVoiceSearching = false
             errorMessage = "Cần cấp quyền microphone để tìm kiếm bằng giọng nói."
+        }
+    }
+
+    private val locationPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            showCurrentLocationOnMap()
+        } else {
+            errorMessage = "Cần cấp quyền vị trí để hiển thị vị trí hiện tại trên bản đồ."
         }
     }
 
@@ -1833,6 +1847,43 @@ class MainActivity : ComponentActivity() {
         errorMessage = "Đã thêm nguồn TV: " + name
     }
 
+    private fun showCurrentLocationOnMap() {
+        val hasFine = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        val hasCoarse = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (!hasFine && !hasCoarse) {
+            locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+            return
+        }
+
+        val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
+        val providers = locationManager.getProviders(true)
+        val location = providers.asSequence()
+            .mapNotNull { provider ->
+                runCatching {
+                    if (hasFine || hasCoarse) locationManager.getLastKnownLocation(provider) else null
+                }.getOrNull()
+            }
+            .maxByOrNull { it.time }
+
+        if (location == null) {
+            errorMessage = "Chưa có vị trí gần đây. Hãy bật GPS/Vị trí rồi thử lại."
+            return
+        }
+
+        val lat = location.latitude
+        val lon = location.longitude
+        radioWebTitle = "NGỌC SĨ MAP • VỊ TRÍ HIỆN TẠI"
+        radioWebUrl =
+            "https://www.google.com/maps/@?api=1&map_action=map&center=$lat%2C$lon&zoom=16&basemap=roadmap"
+    }
+
     private fun loadSavedState() {
         val savedFavorites = prefs.getStringSet("favorites", emptySet()).orEmpty()
         savedFavorites.forEach { it.toLongOrNull()?.let { id -> favorites[id] = true } }
@@ -3227,6 +3278,16 @@ class MainActivity : ComponentActivity() {
 
                     OutlinedButton(
                         onClick = {
+                            showCurrentLocationOnMap()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text("📍 VỊ TRÍ HIỆN TẠI")
+                    }
+
+                    OutlinedButton(
+                        onClick = {
                             runCatching {
                                 startActivity(
                                     Intent(
@@ -3542,6 +3603,19 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 fontSize = 11.sp
                             )
                         }
+                        TextButton(
+                            onClick = {
+                                runCatching {
+                                    startActivity(
+                                        Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                    )
+                                }.onFailure {
+                                    errorMessage = "Không mở được nguồn bên ngoài."
+                                }
+                            }
+                        ) {
+                            Text("Mở ngoài")
+                        }
                         TextButton(onClick = { radioWebUrl = null }) { Text("Đóng") }
                     }
                     var webViewRef by remember { mutableStateOf<WebView?>(null) }
@@ -3566,12 +3640,12 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 // the user explicitly opens a TV source. Some live players
                                 // otherwise remain permanently paused inside WebView.
                                 settings.mediaPlaybackRequiresUserGesture = false
-                                settings.userAgentString =
-                                    "Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 " +
-                                    "(KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36"
                                 settings.allowFileAccess = false
                                 settings.allowContentAccess = true
+                                settings.builtInZoomControls = false
+                                settings.displayZoomControls = false
                                 CookieManager.getInstance().setAcceptCookie(true)
+                                CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                                 webViewClient = object : WebViewClient() {
                                     override fun shouldOverrideUrlLoading(view: WebView, request: android.webkit.WebResourceRequest): Boolean {
                                         return false
@@ -3601,17 +3675,14 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 // reset on every Compose recomposition (for example,
                                 // while playback position updates are flowing).
                                 tag = url
-                                loadUrl(url, mapOf("Referer" to "https://github.com/ngocsithp-lgtm/NGOC_SI_MUSIC/"))
+                                loadUrl(url)
                             }
                         },
                         update = { view ->
                             val requestedUrl = view.tag as? String
                             if (requestedUrl != url) {
                                 view.tag = url
-                                view.loadUrl(
-                                    url,
-                                    mapOf("Referer" to "https://github.com/ngocsithp-lgtm/NGOC_SI_MUSIC/")
-                                )
+                                view.loadUrl(url)
                             }
                         }
                     )
