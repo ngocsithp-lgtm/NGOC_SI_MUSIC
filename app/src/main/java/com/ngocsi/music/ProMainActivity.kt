@@ -135,8 +135,9 @@ class ProMainActivity : ComponentActivity() {
                 },
                 onSeek = { target ->
                     controller?.seekTo(target.coerceAtLeast(0L))
-                    position = target.coerceAtLeast(0L)
-                }
+                    syncProgress()
+                },
+                onProgressTick = { syncProgress() }
             )
         }
     }
@@ -172,7 +173,6 @@ class ProMainActivity : ComponentActivity() {
         startActivity(
             Intent(this, MainActivity::class.java).apply {
                 putExtra("pro_destination", destination)
-                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             }
         )
     }
@@ -212,12 +212,13 @@ private fun ProShell(
     onPrevious: () -> Unit,
     onTogglePlayback: () -> Unit,
     onNext: () -> Unit,
-    onSeek: (Long) -> Unit
+    onSeek: (Long) -> Unit,
+    onProgressTick: () -> Unit
 ) {
     LaunchedEffect(isPlaying, duration) {
-        while (isActive) {
+        while (isActive && isPlaying) {
             delay(500L)
-            onSeekProgressTick?.invoke()
+            onProgressTick()
         }
     }
 
@@ -255,12 +256,15 @@ private fun ProShell(
                 Spacer(Modifier.height(16.dp))
 
                 Card(
-                    modifier = Modifier.fillMaxWidth().clickable(onClick = onTogglePlayback),
+                    modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(24.dp),
                     colors = CardDefaults.cardColors(containerColor = Color(0xFF171922))
                 ) {
                     Row(
-                        Modifier.fillMaxWidth().padding(16.dp),
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                            .clickable(onClick = onFullPlayer),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Surface(
@@ -277,8 +281,8 @@ private fun ProShell(
                             Text(title, color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1)
                             Text(artist, color = Color(0xFF9698A8), fontSize = 12.sp, maxLines = 1)
                         }
-                        Text(if (isPlaying) "⏸" else "▶", color = Color(0xFFCDBAFF), fontSize = 22.sp)
                     }
+
                     if (duration > 0L) {
                         Slider(
                             value = position.coerceIn(0L, duration).toFloat(),
@@ -294,13 +298,19 @@ private fun ProShell(
                             Text(formatProTime(duration), color = Color(0xFF858794), fontSize = 11.sp)
                         }
                     }
+
                     Row(
                         Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
                         horizontalArrangement = Arrangement.SpaceEvenly,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text("⏮", color = Color.White, fontSize = 24.sp, modifier = Modifier.clickable(onClick = onPrevious))
-                        Text(if (isPlaying) "⏸" else "▶", color = Color(0xFFCDBAFF), fontSize = 28.sp, modifier = Modifier.clickable(onClick = onTogglePlayback))
+                        Text(
+                            if (isPlaying) "⏸" else "▶",
+                            color = Color(0xFFCDBAFF),
+                            fontSize = 28.sp,
+                            modifier = Modifier.clickable(onClick = onTogglePlayback)
+                        )
                         Text("⏭", color = Color.White, fontSize = 24.sp, modifier = Modifier.clickable(onClick = onNext))
                     }
                 }
@@ -369,5 +379,3 @@ private fun formatProTime(milliseconds: Long): String {
     val totalSeconds = milliseconds.coerceAtLeast(0L) / 1_000L
     return String.format("%02d:%02d", totalSeconds / 60L, totalSeconds % 60L)
 }
-
-private var onSeekProgressTick: (() -> Unit)? = null
