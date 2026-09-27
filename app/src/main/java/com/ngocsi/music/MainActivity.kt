@@ -377,6 +377,35 @@ class MainActivity : ComponentActivity() {
         loadCustomTvSources()
         loadSavedState()
         restoreSleepTimer()
+
+        // PRO shell deep-links into the proven feature surfaces without
+        // duplicating their implementation. This keeps YouTube, Drive,
+        // Radio, TV, Map and Media3 playback on the same stable code paths.
+        when (intent.getStringExtra("pro_destination")) {
+            "library" -> {
+                selectedSection = "Thư viện"
+                selectedLibrary = "Tất cả"
+                libraryView = "Bài hát"
+            }
+            "youtube" -> {
+                selectedSection = "Online"
+                onlineHubTab = "YouTube"
+            }
+            "drive" -> {
+                selectedSection = "Online"
+                onlineHubTab = "Tất cả"
+                errorMessage = "Google Drive: chọn File Drive hoặc Thư mục để nhập nhạc."
+            }
+            "radio" -> {
+                selectedSection = "Radio"
+                showVietnamRadioHub = true
+            }
+            "tv" -> selectedSection = "TV"
+            "map" -> selectedSection = "Bản đồ"
+            "playlists" -> showPlaylists = true
+            "settings" -> selectedSection = "Cài đặt"
+        }
+
         setContent { NgocSiMusicApp() }
         requestMusicPermissionIfNeeded()
         requestNotificationPermissionIfNeeded()
