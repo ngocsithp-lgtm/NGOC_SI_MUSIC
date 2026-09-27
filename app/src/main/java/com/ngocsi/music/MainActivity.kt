@@ -3305,7 +3305,7 @@ class MainActivity : ComponentActivity() {
                         placeholder = { Text("https://...") }
                     )
                     Text(
-                        "Nguồn nên được phép hiển thị trong WebView và hỗ trợ HTTPS.",
+                        "Nguồn web hỗ trợ HTTPS. URL trực tiếp .m3u8/.mp4/.webm sẽ dùng trình phát video Media3 của ứng dụng.",
                         color = Color(0xFF8F909E),
                         fontSize = 11.sp
                     )
