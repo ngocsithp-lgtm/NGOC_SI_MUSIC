@@ -375,8 +375,9 @@ class YouTubePlayerActivity : ComponentActivity() {
 
                 val retry = Button(this@YouTubePlayerActivity).apply {
                     text = "THỬ LẠI"
+                    tag = "retry_button"
                     setOnClickListener {
-                        visibility = View.GONE
+                        errorView?.visibility = View.GONE
                         createPlayer()
                     }
                 }
@@ -414,6 +415,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
 
         (errorView?.tag as? TextView)?.text = message
+        errorView?.findViewWithTag<View>("retry_button")?.visibility = View.VISIBLE
         errorView?.visibility = View.VISIBLE
     }
 
