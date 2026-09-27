@@ -622,6 +622,46 @@ class MainActivity : ComponentActivity() {
 
         songs.clear()
         songs.addAll(result)
+
+        // Rehydrate a transient Radio item saved by MusicService so background
+        // playback/lock-screen resumption is not discarded when MainActivity
+        // rebuilds its local library model after a process restart.
+        if (savedQueueOrder.isNotEmpty()) {
+            val queueMetadataByUri = mutableMapOf<String, org.json.JSONObject>()
+            prefs.getString("queue_metadata", null)?.let { raw ->
+                runCatching {
+                    val array = org.json.JSONArray(raw)
+                    for (index in 0 until array.length()) {
+                        val item = array.optJSONObject(index) ?: continue
+                        val uri = item.optString("uri")
+                        if (uri.isNotBlank()) queueMetadataByUri[uri] = item
+                    }
+                }
+            }
+
+            savedQueueOrder.forEach { rawUri ->
+                if (songs.any { it.uri.toString() == rawUri }) return@forEach
+                val radioStation = RadioCatalog.stations.firstOrNull { station ->
+                    station.streamUrls.any { it == rawUri }
+                } ?: return@forEach
+
+                val metadata = queueMetadataByUri[rawUri]
+                songs.add(
+                    Song(
+                        id = -kotlin.math.abs(rawUri.hashCode().toLong()),
+                        title = metadata?.optString("title").orEmpty()
+                            .ifBlank { radioStation.title },
+                        artist = metadata?.optString("artist").orEmpty()
+                            .ifBlank { "VOV" },
+                        duration = 0L,
+                        uri = Uri.parse(rawUri),
+                        source = "Radio Việt Nam",
+                        folder = "Radio Việt Nam"
+                    )
+                )
+            }
+        }
+
         queueSongs.clear()
         val byUri = songs.associateBy { it.uri.toString() }
         if (hasSavedQueue) {
