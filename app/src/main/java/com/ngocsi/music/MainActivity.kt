@@ -2111,7 +2111,7 @@ class MainActivity : ComponentActivity() {
                                     letterSpacing = 1.sp
                                 )
 
-                                RadioCatalog.stations.take(8).forEach { station ->
+                                RadioCatalog.stations.forEach { station ->
                                     RadioStationCard(station)
                                 }
 
