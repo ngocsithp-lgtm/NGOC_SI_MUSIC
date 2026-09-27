@@ -3625,48 +3625,6 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         }
     }
 
-    private fun mapHtml(searchQuery: String? = null, latitude: Double = 10.8231, longitude: Double = 106.6297): String {
-        val safeQuery = org.json.JSONObject.quote(searchQuery.orEmpty())
-        return """
-            <!doctype html>
-            <html>
-            <head>
-              <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-              <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-              <style>
-                html,body,#map{height:100%;margin:0;background:#101117}
-                #map{min-height:100vh}
-                .leaflet-control-attribution{font-size:9px}
-              </style>
-            </head>
-            <body>
-              <div id="map"></div>
-              <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-              <script>
-                const initial = [$latitude, $longitude];
-                const map = L.map('map', {zoomControl:true}).setView(initial, 12);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                  maxZoom: 19,
-                  attribution: '&copy; OpenStreetMap contributors'
-                }).addTo(map);
-                let marker = L.marker(initial).addTo(map);
-                const q = $safeQuery;
-                if (q) {
-                  fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=' + encodeURIComponent(q), {
-                    headers: {'Accept':'application/json'}
-                  }).then(r => r.json()).then(items => {
-                    if (!items.length) return;
-                    const lat = Number(items[0].lat), lon = Number(items[0].lon);
-                    map.setView([lat, lon], 16);
-                    marker.setLatLng([lat, lon]).bindPopup(items[0].display_name).openPopup();
-                  }).catch(() => {});
-                }
-              </script>
-            </body>
-            </html>
-        """.trimIndent()
-    }
-
     @Composable
     private fun RadioWebViewDialog(url: String, title: String) {
         Dialog(
