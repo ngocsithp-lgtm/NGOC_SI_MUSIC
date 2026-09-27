@@ -248,13 +248,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private val locationPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) {
-            showCurrentLocationOnMap()
-        } else {
-            errorMessage = "Cần cấp quyền vị trí để hiển thị vị trí hiện tại trên bản đồ."
+    private val locationPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+            val granted = result[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                result[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+            if (granted) {
+                showCurrentLocationOnMap()
+            } else {
+                errorMessage = "Cần cấp quyền vị trí để hiển thị vị trí hiện tại trên bản đồ."
+            }
         }
-    }
 
     private val speechActivityLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -1858,7 +1861,12 @@ class MainActivity : ComponentActivity() {
         ) == PackageManager.PERMISSION_GRANTED
 
         if (!hasFine && !hasCoarse) {
-            locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+            locationPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
             return
         }
 
