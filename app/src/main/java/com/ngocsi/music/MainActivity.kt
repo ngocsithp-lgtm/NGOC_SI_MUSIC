@@ -1907,25 +1907,110 @@ class MainActivity : ComponentActivity() {
         }
 
         val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
-        val providers = locationManager.getProviders(true)
-        val location = providers.asSequence()
-            .mapNotNull { provider ->
-                runCatching {
-                    if (hasFine || hasCoarse) locationManager.getLastKnownLocation(provider) else null
-                }.getOrNull()
-            }
-            .maxByOrNull { it.time }
-
-        if (location == null) {
-            errorMessage = "Chưa có vị trí gần đây. Hãy bật GPS/Vị trí rồi thử lại."
+        val enabledProviders = locationManager.getProviders(true)
+        if (enabledProviders.isEmpty()) {
+            errorMessage = "Dịch vụ Vị trí đang tắt. Hãy bật Vị trí/GPS rồi thử lại."
             return
         }
 
-        val lat = location.latitude
-        val lon = location.longitude
-        radioWebTitle = "NGỌC SĨ MAP • VỊ TRÍ HIỆN TẠI"
-        radioWebUrl =
-            "https://www.google.com/maps/@?api=1&map_action=map&center=$lat%2C$lon&zoom=16&basemap=roadmap"
+        fun openLocationOnMap(location: android.location.Location) {
+            val lat = location.latitude
+            val lon = location.longitude
+            // Use OpenStreetMap's embeddable page so the current-location map
+            // reliably renders inside the app WebView instead of depending on
+            // Google Maps WebView compatibility.
+            val delta = 0.018
+            val left = lon - delta
+            val right = lon + delta
+            val bottom = lat - delta
+            val top = lat + delta
+            radioWebTitle = "NGỌC SĨ MAP • VỊ TRÍ HIỆN TẠI"
+            radioWebUrl =
+                "https://www.openstreetmap.org/export/embed.html?bbox=" +
+                    "$left%2C$bottom%2C$right%2C$top" +
+                    "&layer=mapnik&marker=$lat%2C$lon"
+            errorMessage = null
+        }
+
+        // First use a recent cached fix for instant display.
+        val cached = enabledProviders
+            .mapNotNull { provider ->
+                runCatching { locationManager.getLastKnownLocation(provider) }.getOrNull()
+            }
+            .maxByOrNull { it.time }
+
+        if (cached != null && System.currentTimeMillis() - cached.time <= 5 * 60 * 1000L) {
+            openLocationOnMap(cached)
+            return
+        }
+
+        // If there is no usable cached fix, actively request one. This fixes
+        // the previous behaviour where getLastKnownLocation() could return
+        // null indefinitely on a newly installed app/device.
+        val provider = when {
+            hasFine && enabledProviders.contains(LocationManager.GPS_PROVIDER) ->
+                LocationManager.GPS_PROVIDER
+            enabledProviders.contains(LocationManager.NETWORK_PROVIDER) ->
+                LocationManager.NETWORK_PROVIDER
+            else -> enabledProviders.first()
+        }
+
+        var delivered = false
+        val handler = android.os.Handler(android.os.Looper.getMainLooper())
+        lateinit var listener: android.location.LocationListener
+
+        fun finish() {
+            if (delivered) return
+            delivered = true
+            runCatching { locationManager.removeUpdates(listener) }
+            handler.removeCallbacksAndMessages(null)
+        }
+
+        listener = object : android.location.LocationListener {
+            override fun onLocationChanged(location: android.location.Location) {
+                if (delivered) return
+                finish()
+                openLocationOnMap(location)
+            }
+
+            override fun onProviderDisabled(providerName: String) {
+                if (providerName == provider) {
+                    finish()
+                    errorMessage = "Không lấy được vị trí. Hãy bật GPS/Vị trí rồi thử lại."
+                }
+            }
+        }
+
+        runCatching {
+            locationManager.requestLocationUpdates(
+                provider,
+                1000L,
+                1f,
+                listener,
+                android.os.Looper.getMainLooper()
+            )
+        }.onFailure {
+            finish()
+            errorMessage = "Không thể lấy vị trí hiện tại. Hãy kiểm tra quyền Vị trí."
+            return
+        }
+
+        handler.postDelayed({
+            if (!delivered) {
+                val fallback = enabledProviders
+                    .mapNotNull { p ->
+                        runCatching { locationManager.getLastKnownLocation(p) }.getOrNull()
+                    }
+                    .maxByOrNull { it.time }
+
+                finish()
+                if (fallback != null) {
+                    openLocationOnMap(fallback)
+                } else {
+                    errorMessage = "Chưa nhận được tín hiệu vị trí. Hãy bật GPS/Vị trí và thử lại."
+                }
+            }
+        }, 10_000L)
     }
 
     private fun loadSavedState() {
