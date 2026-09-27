@@ -3203,7 +3203,7 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun MapHub() {
         val mapUrl =
-            "https://www.google.com/maps/@?api=1&map_action=map&center=10.8231%2C106.6297&zoom=12&basemap=roadmap"
+            "https://www.openstreetmap.org/#map=12/10.8231/106.6297"
         val trafficUrl =
             "https://www.google.com/maps/@?api=1&map_action=map&center=10.8231%2C106.6297&zoom=12&basemap=roadmap&layer=traffic"
         val satelliteUrl =
@@ -3231,7 +3231,7 @@ class MainActivity : ComponentActivity() {
                     )
                     Spacer(Modifier.height(5.dp))
                     Text(
-                        "Bản đồ OpenStreetMap trong ứng dụng; Vệ tinh, Giao thông và Chỉ đường mở Google Maps chính thức.",
+                        "Bản đồ OpenStreetMap và tìm kiếm chạy trong ứng dụng; Vệ tinh, Giao thông và Chỉ đường mở Google Maps chính thức.",
                         color = Color(0xFF9698A7),
                         fontSize = 12.sp
                     )
@@ -3358,7 +3358,7 @@ class MainActivity : ComponentActivity() {
                                 } else {
                                     radioWebTitle = "BẢN ĐỒ • $q"
                                     radioWebUrl =
-                                        "https://www.google.com/maps/search/?api=1&query=" +
+                                        "https://www.openstreetmap.org/search?query=" +
                                             Uri.encode(q)
                                 }
                             }
@@ -3375,14 +3375,14 @@ class MainActivity : ComponentActivity() {
                             } else {
                                 radioWebTitle = "BẢN ĐỒ • $q"
                                 radioWebUrl =
-                                    "https://www.google.com/maps/search/?api=1&query=" +
+                                    "https://www.openstreetmap.org/search?query=" +
                                         Uri.encode(q)
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(14.dp)
                     ) {
-                        Text("TÌM TRÊN BẢN ĐỒ OSM")
+                        Text("TÌM TRÊN OSM")
                     }
                 }
             }
