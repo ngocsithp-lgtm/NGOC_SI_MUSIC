@@ -203,8 +203,13 @@ class TvPlayerActivity : ComponentActivity() {
                 allowContentAccess = true
                 allowFileAccess = false
                 javaScriptCanOpenWindowsAutomatically = true
+                mediaPlaybackRequiresUserGesture = false
                 setSupportMultipleWindows(false)
                 cacheMode = WebSettings.LOAD_DEFAULT
+                // Use a current Chrome-like Android UA so official TV web players
+                // can select their normal HTML5 video experience instead of a
+                // restricted embedded-browser variant.
+                userAgentString = "Mozilla/5.0 (Linux; Android 16; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36"
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                     safeBrowsingEnabled = true
                 }
