@@ -60,6 +60,7 @@ class TvPlayerActivity : ComponentActivity() {
         }
 
         WindowCompat.setDecorFitsSystemWindows(window, true)
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         buildUi()
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
@@ -192,6 +193,7 @@ class TvPlayerActivity : ComponentActivity() {
 
         val player = WebView(this).apply {
             setBackgroundColor(AndroidColor.BLACK)
+            keepScreenOn = true
             settings.apply {
                 javaScriptEnabled = true
                 domStorageEnabled = true
@@ -312,6 +314,7 @@ class TvPlayerActivity : ComponentActivity() {
                     }
                     customView = view
                     customViewCallback = callback
+                    view.keepScreenOn = true
                     playerContainer.visibility = View.GONE
                     root.addView(
                         view,
