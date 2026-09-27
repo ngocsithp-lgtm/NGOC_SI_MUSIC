@@ -3648,6 +3648,10 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 // the user explicitly opens a TV source. Some live players
                                 // otherwise remain permanently paused inside WebView.
                                 settings.mediaPlaybackRequiresUserGesture = false
+                                // Keep WebView video rendering on the hardware compositor.
+                                // Some live-TV players can continue producing audio while
+                                // a software-rendered WebView shows a black video surface.
+                                setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
                                 settings.allowFileAccess = false
                                 settings.allowContentAccess = true
                                 settings.builtInZoomControls = false
@@ -3671,6 +3675,41 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     }
                                 }
                                 webChromeClient = object : WebChromeClient() {
+                                    private var customView: android.view.View? = null
+                                    private var customViewCallback: CustomViewCallback? = null
+
+                                    override fun onShowCustomView(view: android.view.View, callback: CustomViewCallback) {
+                                        // Support provider video players that switch to the HTML5
+                                        // fullscreen surface. Without this callback, audio may
+                                        // continue while the video surface remains hidden.
+                                        if (customView != null) {
+                                            callback.onCustomViewHidden()
+                                            return
+                                        }
+                                        customView = view
+                                        customViewCallback = callback
+                                        view.setBackgroundColor(android.graphics.Color.BLACK)
+                                        val decor = window.decorView as android.view.ViewGroup
+                                        decor.addView(
+                                            view,
+                                            android.view.ViewGroup.LayoutParams(
+                                                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                                                android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                                            )
+                                        )
+                                        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN)
+                                    }
+
+                                    override fun onHideCustomView() {
+                                        val view = customView ?: return
+                                        val decor = window.decorView as android.view.ViewGroup
+                                        decor.removeView(view)
+                                        customView = null
+                                        customViewCallback?.onCustomViewHidden()
+                                        customViewCallback = null
+                                        window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN)
+                                    }
+
                                     override fun onPermissionRequest(request: android.webkit.PermissionRequest) {
                                         // Do not grant camera/microphone access to arbitrary
                                         // TV/map pages. Media playback does not require it.
