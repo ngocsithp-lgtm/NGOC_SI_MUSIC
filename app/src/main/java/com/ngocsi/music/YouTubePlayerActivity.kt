@@ -335,17 +335,15 @@ class YouTubePlayerActivity : ComponentActivity() {
             isFocusableInTouchMode = true
 
             val safeId = sanitizeVideoId(videoId)
-            // YouTube documents two supported Android WebView approaches for the
-            // required API client identity: loadDataWithBaseURL() for local HTML,
-            // or loadUrl() with an explicit Referer for a direct embed.
-            // Use the direct-embed approach here so the HTTP Referer is attached
-            // explicitly to the initial YouTube request instead of relying on
-            // iframe/meta referrer propagation inside WebView.
+            // Use YouTube's documented Android WebView identity path: load the direct
+            // embed URL and provide an explicit HTTP Referer header. The app does not
+            // call the IFrame JavaScript API, so there is no need to enable enablejsapi
+            // or send an artificial origin value. This removes an invalid/non-host
+            // origin as another variable when YouTube validates the embed.
             val appReferrer = "https://com.ngocsi.music/"
             val embedUrl = "https://www.youtube.com/embed/" + safeId +
                 "?playsinline=1&autoplay=0&rel=0&controls=1&fs=1" +
-                "&origin=https%3A%2F%2Fcom.ngocsi.music" +
-                "&enablejsapi=1&hl=vi&cc_lang_pref=vi"
+                "&hl=vi&cc_lang_pref=vi"
 
             val headers = mapOf("Referer" to appReferrer)
             loadUrl(embedUrl, headers)
