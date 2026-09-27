@@ -199,7 +199,7 @@ private fun ProShell(
                             color = Color(0xFF342650)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Text(if (isPlaying) "▶" else "♫", color = Color.White, fontSize = 22.sp)
+                                Text(if (isPlaying) "⏸" else "♫", color = Color.White, fontSize = 22.sp)
                             }
                         }
                         Spacer(Modifier.size(12.dp))
@@ -259,7 +259,7 @@ private fun ProShell(
 
                 Spacer(Modifier.height(10.dp))
                 Button(
-                    onClick = onMusic,
+                    onClick = { openLegacy("player") },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp)
                 ) {
