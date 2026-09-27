@@ -91,7 +91,12 @@ object TvCatalog {
         TvSource("VTVgo", "Nền tảng truyền hình số quốc gia của VTV", "https://www.vtvgo.vn/"),
         TvSource("HTVm", "Nền tảng nội dung truyền hình của HTV", "https://htvm.htv.com.vn/"),
         TvSource("FPT Play", "Truyền hình trực tuyến và nội dung chính thức của FPT Play", "https://fptplay.vn/"),
-        TvSource("VieON • TV Online", "Truyền hình trực tuyến của VieON", "https://vieon.vn/truyen-hinh-truc-tuyen/")
+        TvSource("VieON • TV Online", "Truyền hình trực tuyến của VieON", "https://vieon.vn/truyen-hinh-truc-tuyen/"),
+        TvSource("VieON • VTV1", "VieON — VTV1 HD trực tuyến", "https://vieon.vn/truyen-hinh-truc-tuyen/vtv1-hd/"),
+        TvSource("VieON • VTV2", "VieON — VTV2 HD trực tuyến", "https://vieon.vn/truyen-hinh-truc-tuyen/vtv2-hd/"),
+        TvSource("VieON • VTV3", "VieON — VTV3 HD trực tuyến", "https://vieon.vn/truyen-hinh-truc-tuyen/vtv3-hd/"),
+        TvSource("VieON • VTV9", "VieON — VTV9 HD trực tuyến", "https://vieon.vn/truyen-hinh-truc-tuyen/vtv9-hd/"),
+        TvSource("VieON • HTV Thể Thao", "VieON — HTV Thể Thao trực tuyến", "https://vieon.vn/truyen-hinh-truc-tuyen/htv-the-thao/")
     )
 }
 
