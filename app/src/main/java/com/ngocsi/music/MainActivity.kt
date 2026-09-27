@@ -850,9 +850,12 @@ class MainActivity : ComponentActivity() {
             return
         }
 
+        // Cancel a previous scan before starting another one. This keeps a
+        // large Drive tree from competing with the player or a newer scan.
+        driveImportJob?.cancel()
         errorMessage = "Đang quét thư mục Google Drive…"
 
-        lifecycleScope.launch {
+        driveImportJob = lifecycleScope.launch {
             val audioUris = withContext(Dispatchers.IO) {
                 val result = mutableListOf<Uri>()
                 collectDriveAudioFiles(root, result)
@@ -861,6 +864,7 @@ class MainActivity : ComponentActivity() {
 
             if (audioUris.isEmpty()) {
                 errorMessage = "Không tìm thấy file âm thanh trong thư mục đã chọn."
+                driveImportJob = null
                 return@launch
             }
 
@@ -868,11 +872,15 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun collectDriveAudioFiles(
+    private suspend fun collectDriveAudioFiles(
         folder: DocumentFile,
         result: MutableList<Uri>
     ) {
-        folder.listFiles().forEach { file ->
+        kotlinx.coroutines.currentCoroutineContext().ensureActive()
+        folder.listFiles().forEachIndexed { index, file ->
+            if (index % 32 == 0) {
+                kotlinx.coroutines.currentCoroutineContext().ensureActive()
+            }
             if (file.isDirectory) {
                 collectDriveAudioFiles(file, result)
             } else if (file.isFile && isAudioFile(file)) {
