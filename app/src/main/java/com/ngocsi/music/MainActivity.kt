@@ -850,15 +850,22 @@ class MainActivity : ComponentActivity() {
             return
         }
 
-        val audioUris = mutableListOf<Uri>()
-        collectDriveAudioFiles(root, audioUris)
+        errorMessage = "Đang quét thư mục Google Drive…"
 
-        if (audioUris.isEmpty()) {
-            errorMessage = "Không tìm thấy file âm thanh trong thư mục đã chọn."
-            return
+        lifecycleScope.launch {
+            val audioUris = withContext(Dispatchers.IO) {
+                val result = mutableListOf<Uri>()
+                collectDriveAudioFiles(root, result)
+                result.distinct()
+            }
+
+            if (audioUris.isEmpty()) {
+                errorMessage = "Không tìm thấy file âm thanh trong thư mục đã chọn."
+                return@launch
+            }
+
+            importDriveSongs(audioUris)
         }
-
-        importDriveSongs(audioUris)
     }
 
     private fun collectDriveAudioFiles(
