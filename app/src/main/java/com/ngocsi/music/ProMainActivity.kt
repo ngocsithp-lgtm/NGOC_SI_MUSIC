@@ -90,6 +90,7 @@ class ProMainActivity : ComponentActivity() {
                 onMap = { openLegacy("map") },
                 onPlaylists = { openLegacy("playlists") },
                 onSettings = { openLegacy("settings") },
+                onFullPlayer = { openLegacy("player") },
                 onTogglePlayback = {
                     controller?.let { if (it.isPlaying) it.pause() else it.play() }
                 }
@@ -149,6 +150,7 @@ private fun ProShell(
     onMap: () -> Unit,
     onPlaylists: () -> Unit,
     onSettings: () -> Unit,
+    onFullPlayer: () -> Unit,
     onTogglePlayback: () -> Unit
 ) {
     MaterialTheme(
@@ -259,7 +261,7 @@ private fun ProShell(
 
                 Spacer(Modifier.height(10.dp))
                 Button(
-                    onClick = { openLegacy("player") },
+                    onClick = onFullPlayer,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp)
                 ) {
