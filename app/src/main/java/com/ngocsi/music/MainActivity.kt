@@ -95,6 +95,13 @@ object TvCatalog {
         TvSource("VieON • VTV1", "VieON — VTV1 HD trực tuyến", "https://vieon.vn/truyen-hinh-truc-tuyen/vtv1-hd/"),
         TvSource("VieON • VTV2", "VieON — VTV2 HD trực tuyến", "https://vieon.vn/truyen-hinh-truc-tuyen/vtv2-hd/"),
         TvSource("VieON • VTV3", "VieON — VTV3 HD trực tuyến", "https://vieon.vn/truyen-hinh-truc-tuyen/vtv3-hd/"),
+        TvSource("VieON • VTV4", "VieON — VTV4 HD trực tuyến", "https://vieon.vn/truyen-hinh-truc-tuyen/vtv4-hd/"),
+        TvSource("VieON • VTV6", "VieON — VTV6 HD trực tuyến", "https://vieon.vn/truyen-hinh-truc-tuyen/vtv6-hd/"),
+        TvSource("VieON • Quốc Phòng", "VieON — Quốc Phòng HD trực tuyến", "https://vieon.vn/truyen-hinh-truc-tuyen/quoc-phong-hd/"),
+        TvSource("VieON • Vĩnh Long 1", "VieON — Vĩnh Long 1 HD trực tuyến", "https://vieon.vn/truyen-hinh-truc-tuyen/thvl1-hd/"),
+        TvSource("VieON • Vĩnh Long 2", "VieON — Vĩnh Long 2 HD trực tuyến", "https://vieon.vn/truyen-hinh-truc-tuyen/thvl2-hd/"),
+        TvSource("VieON • Vĩnh Long 3", "VieON — Vĩnh Long 3 HD trực tuyến", "https://vieon.vn/truyen-hinh-truc-tuyen/thvl3-hd/"),
+        TvSource("VieON • Vĩnh Long 4", "VieON — Vĩnh Long 4 HD trực tuyến", "https://vieon.vn/truyen-hinh-truc-tuyen/thvl4-hd/"),
         TvSource("VieON • VTV9", "VieON — VTV9 HD trực tuyến", "https://vieon.vn/truyen-hinh-truc-tuyen/vtv9-hd/"),
         TvSource("VieON • VTV5", "VieON — VTV5 HD trực tuyến", "https://vieon.vn/truyen-hinh-truc-tuyen/vtv5-hd/"),
         TvSource("VieON • VTV7", "VieON — VTV7 HD trực tuyến", "https://vieon.vn/truyen-hinh-truc-tuyen/vtv7-hd/"),
@@ -3215,7 +3222,7 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun MapHub() {
         val mapUrl =
-            "https://www.openstreetmap.org/#map=12/10.8231/106.6297"
+            "https://www.openstreetmap.org/export/embed.html?bbox=106.45,10.65,106.81,10.99&layer=mapnik&marker=10.8231,106.6297"
         val trafficUrl =
             "https://www.google.com/maps/@?api=1&map_action=map&center=10.8231%2C106.6297&zoom=12&basemap=roadmap&layer=traffic"
         val satelliteUrl =
@@ -3816,7 +3823,12 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     val mapPageUrl = if (!query.isNullOrBlank()) {
                                         "https://www.openstreetmap.org/search?query=" + Uri.encode(query)
                                     } else {
-                                        "https://www.openstreetmap.org/#map=12/$latitude/$longitude"
+                                        "https://www.openstreetmap.org/export/embed.html?bbox=" +
+                                            (longitude - 0.18).toString() + "," +
+                                            (latitude - 0.17).toString() + "," +
+                                            (longitude + 0.18).toString() + "," +
+                                            (latitude + 0.17).toString() +
+                                            "&layer=mapnik&marker=" + latitude + "," + longitude
                                     }
                                     loadUrl(mapPageUrl)
                                 } else {
@@ -3838,7 +3850,12 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     val mapPageUrl = if (!query.isNullOrBlank()) {
                                         "https://www.openstreetmap.org/search?query=" + Uri.encode(query)
                                     } else {
-                                        "https://www.openstreetmap.org/#map=12/$latitude/$longitude"
+                                        "https://www.openstreetmap.org/export/embed.html?bbox=" +
+                                            (longitude - 0.18).toString() + "," +
+                                            (latitude - 0.17).toString() + "," +
+                                            (longitude + 0.18).toString() + "," +
+                                            (latitude + 0.17).toString() +
+                                            "&layer=mapnik&marker=" + latitude + "," + longitude
                                     }
                                     view.loadUrl(mapPageUrl)
                                 } else {
