@@ -524,6 +524,25 @@ class MainActivity : ComponentActivity() {
                     }
 
                     val currentUri = c.currentMediaItem?.localConfiguration?.uri?.toString()
+
+                    // Re-arm the Radio recovery watchdog when a saved Radio item
+                    // is restored by Media3 after a process restart. Without this,
+                    // the UI can show the station correctly but won't know which
+                    // fallback streams belong to the active station.
+                    val restoredRadio = currentUri?.let { uri ->
+                        RadioCatalog.stations.firstOrNull { station ->
+                            station.streamUrls.contains(uri)
+                        }
+                    }
+                    if (restoredRadio != null) {
+                        activeRadioTitle = restoredRadio.title
+                        activeRadioStreams = restoredRadio.streamUrls
+                        activeRadioStreamIndex =
+                            activeRadioStreams.indexOf(currentUri).coerceAtLeast(0)
+                    } else if (currentUri != null) {
+                        clearActiveRadioState()
+                    }
+
                     currentIndex = when {
                         currentUri != null -> songs.indexOfFirst { it.uri.toString() == currentUri }
                         c.currentMediaItemIndex >= 0 && c.currentMediaItemIndex < c.mediaItemCount -> {
@@ -3501,10 +3520,19 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         }
                         TextButton(onClick = { radioWebUrl = null }) { Text("Đóng") }
                     }
+                    var webViewRef by remember { mutableStateOf<WebView?>(null) }
+
+                    androidx.activity.compose.BackHandler(
+                        enabled = webViewRef?.canGoBack() == true
+                    ) {
+                        webViewRef?.goBack()
+                    }
+
                     AndroidView(
                         modifier = Modifier.fillMaxSize(),
                         factory = { context ->
                             WebView(context).apply {
+                                webViewRef = this
                                 settings.javaScriptEnabled = true
                                 settings.domStorageEnabled = true
                                 settings.loadsImagesAutomatically = true
@@ -3520,11 +3548,24 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     }
                                 }
                                 webChromeClient = WebChromeClient()
+
+                                // Track the URL requested by this dialog separately
+                                // from WebView.url. Internal navigation must not be
+                                // reset on every Compose recomposition (for example,
+                                // while playback position updates are flowing).
+                                tag = url
                                 loadUrl(url, mapOf("Referer" to "https://github.com/ngocsithp-lgtm/NGOC_SI_MUSIC/"))
                             }
                         },
                         update = { view ->
-                            if (view.url != url) view.loadUrl(url, mapOf("Referer" to "https://github.com/ngocsithp-lgtm/NGOC_SI_MUSIC/"))
+                            val requestedUrl = view.tag as? String
+                            if (requestedUrl != url) {
+                                view.tag = url
+                                view.loadUrl(
+                                    url,
+                                    mapOf("Referer" to "https://github.com/ngocsithp-lgtm/NGOC_SI_MUSIC/")
+                                )
+                            }
                         }
                     )
                 }
