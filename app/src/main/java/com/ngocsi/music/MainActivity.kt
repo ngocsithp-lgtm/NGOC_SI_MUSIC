@@ -3711,6 +3711,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 settings.domStorageEnabled = true
                                 settings.loadsImagesAutomatically = true
                                 settings.databaseEnabled = true
+                                settings.userAgentString =
+                                    "Mozilla/5.0 (Linux; Android 16; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36"
                                 settings.useWideViewPort = true
                                 settings.loadWithOverviewMode = true
                                 settings.setSupportZoom(false)
