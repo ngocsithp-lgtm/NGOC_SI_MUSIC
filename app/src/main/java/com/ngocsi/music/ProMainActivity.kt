@@ -49,6 +49,7 @@ import com.google.common.util.concurrent.MoreExecutors
  * New PRO shell for the rebuilt information architecture.
  * MainActivity remains available as the proven feature surface during migration.
  */
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class ProMainActivity : ComponentActivity() {
     private var controller: MediaController? = null
     private var isPlaying by mutableStateOf(false)
