@@ -51,11 +51,10 @@
             </intent-filter>
         </activity>
 
+        <!-- Legacy feature surface is launched explicitly by the PRO shell. -->
         <activity
             android:name=".MainActivity"
-            android:exported="true">
-
-        </activity>
+            android:exported="false" />
 
         <receiver
             android:name=".MusicWidgetProvider"
