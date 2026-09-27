@@ -1135,10 +1135,20 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun clearOnlineLibrary() {
+        val activeUri = controller?.currentMediaItem?.localConfiguration?.uri
+            ?: songs.getOrNull(currentIndex)?.uri
+
         prefs.edit().remove("online_uris").apply()
         songs.removeAll { it.source == "Online" }
         queueSongs.removeAll { it.source == "Online" }
-        if (currentIndex >= songs.size) currentIndex = -1
+
+        // Re-resolve by URI after removal so an earlier deleted item cannot
+        // shift currentIndex onto an unrelated song.
+        currentIndex = activeUri?.let { uri ->
+            songs.indexOfFirst { it.uri == uri }
+        } ?: -1
+        if (currentIndex >= 0) lastSongUri = activeUri?.toString()
+
         syncControllerQueue()
         errorMessage = "Đã xóa các luồng online đã lưu."
     }
@@ -1808,10 +1818,21 @@ class MainActivity : ComponentActivity() {
     private fun clearDriveLibrary() {
         driveImportJob?.cancel()
         driveImportJob = null
+        val activeUri = controller?.currentMediaItem?.localConfiguration?.uri
+            ?: songs.getOrNull(currentIndex)?.uri
+
         prefs.edit().remove("drive_uris").apply()
         songs.removeAll { it.source == "Google Drive" }
         queueSongs.removeAll { it.source == "Google Drive" }
-        if (currentIndex >= songs.size) currentIndex = -1
+
+        // Re-resolve the active library index by URI after the list shrinks.
+        // This prevents deleting a Drive item before the current song from
+        // making currentIndex silently point to a different track.
+        currentIndex = activeUri?.let { uri ->
+            songs.indexOfFirst { it.uri == uri }
+        } ?: -1
+        if (currentIndex >= 0) lastSongUri = activeUri?.toString()
+
         syncControllerQueue()
         errorMessage = "Đã xóa các bài Google Drive khỏi thư viện ứng dụng."
     }
