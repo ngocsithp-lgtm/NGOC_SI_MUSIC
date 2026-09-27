@@ -243,6 +243,21 @@ class TvPlayerActivity : ComponentActivity() {
                     loadingBar?.visibility = View.GONE
                     view.requestLayout()
                     view.invalidate()
+
+                    // Some official live-TV pages create the HTML5 video element
+                    // after the initial page load. Apply a narrow, non-invasive
+                    // compatibility patch for visibility/inline playback, then
+                    // retry once after the player has finished initialising.
+                    view.postDelayed({
+                        if (!isFinishing && view == webView) {
+                            applyVideoCompatibilityPatch(view)
+                        }
+                    }, 700L)
+                    view.postDelayed({
+                        if (!isFinishing && view == webView) {
+                            applyVideoCompatibilityPatch(view)
+                        }
+                    }, 2500L)
                 }
 
                 override fun onReceivedError(
@@ -344,6 +359,38 @@ class TvPlayerActivity : ComponentActivity() {
                 FrameLayout.LayoutParams.MATCH_PARENT
             )
         )
+    }
+
+    private fun applyVideoCompatibilityPatch(view: WebView) {
+        val script = """
+            (function() {
+                try {
+                    var videos = document.querySelectorAll('video');
+                    for (var i = 0; i < videos.length; i++) {
+                        var v = videos[i];
+                        v.setAttribute('playsinline', '');
+                        v.setAttribute('webkit-playsinline', '');
+                        try { v.playsInline = true; } catch (e) {}
+                        v.style.visibility = 'visible';
+                        v.style.opacity = '1';
+                    }
+
+                    var frames = document.querySelectorAll('iframe');
+                    for (var j = 0; j < frames.length; j++) {
+                        frames[j].setAttribute('allowfullscreen', 'true');
+                        var allow = frames[j].getAttribute('allow') || '';
+                        if (allow.indexOf('autoplay') < 0) allow += '; autoplay';
+                        if (allow.indexOf('fullscreen') < 0) allow += '; fullscreen';
+                        frames[j].setAttribute('allow', allow.replace(/^; /, ''));
+                    }
+
+                    return String(videos.length);
+                } catch (e) {
+                    return '0';
+                }
+            })();
+        """.trimIndent()
+        view.evaluateJavascript(script, null)
     }
 
     private fun showError(message: String) {
