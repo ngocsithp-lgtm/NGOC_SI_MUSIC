@@ -3642,8 +3642,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 settings.javaScriptEnabled = true
                                 settings.domStorageEnabled = true
                                 settings.loadsImagesAutomatically = true
+                                settings.databaseEnabled = true
                                 settings.useWideViewPort = true
                                 settings.loadWithOverviewMode = true
+                                settings.setSupportZoom(false)
+                                settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
                                 // Allow the provider's own video player to start after
                                 // the user explicitly opens a TV source. Some live players
                                 // otherwise remain permanently paused inside WebView.
@@ -3722,6 +3725,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 // reset on every Compose recomposition (for example,
                                 // while playback position updates are flowing).
                                 tag = url
+                                // Keep provider pages on their own origin and preserve
+                                // the normal WebView media/video pipeline.
                                 loadUrl(url)
                             }
                         },
