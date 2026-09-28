@@ -4438,6 +4438,36 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         }
     }
 
+    private fun playStoredYouTubeOffset(offset: Int) {
+        val rawQueue = youtubeLastQueueJson ?: return
+        runCatching {
+            val array = JSONArray(rawQueue)
+            val targetIndex = (youtubeLastQueueIndex + offset).coerceIn(0, array.length() - 1)
+            val item = array.getJSONObject(targetIndex)
+            val targetTrack = YouTubeTrack(
+                videoId = item.optString("videoId"),
+                title = item.optString("title").ifBlank { "YouTube" },
+                channelTitle = item.optString("channelTitle").ifBlank { "YouTube" },
+                thumbnailUrl = item.optString("thumbnailUrl")
+            )
+            if (targetTrack.videoId.isBlank()) return@runCatching
+            startActivity(
+                Intent(this, YouTubePlayerActivity::class.java).apply {
+                    putExtra(YouTubePlayerActivity.EXTRA_VIDEO_ID, targetTrack.videoId)
+                    putExtra(YouTubePlayerActivity.EXTRA_TITLE, targetTrack.title)
+                    putExtra(YouTubePlayerActivity.EXTRA_CHANNEL, targetTrack.channelTitle)
+                    putExtra(YouTubePlayerActivity.EXTRA_QUEUE_JSON, rawQueue)
+                    putExtra(YouTubePlayerActivity.EXTRA_QUEUE_INDEX, targetIndex)
+                }
+            )
+        }.onFailure {
+            errorMessage = "Không chuyển được video trong hàng đợi YouTube."
+        }
+    }
+
+    private fun storedYouTubeQueueSize(): Int =
+        runCatching { JSONArray(youtubeLastQueueJson.orEmpty()).length() }.getOrDefault(0)
+
     private fun clearYouTubeHistory() {
         youtubeHistory.clear()
         prefs.edit()
@@ -5074,6 +5104,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             }
 
             youtubeLastPlayed?.let { item ->
+                val queueSize = storedYouTubeQueueSize().coerceAtLeast(1)
+                val queuePosition = (youtubeLastQueueIndex + 1).coerceIn(1, queueSize)
                 Spacer(Modifier.height(10.dp))
                 Row(
                     Modifier
@@ -5100,22 +5132,64 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                item.channelTitle,
+                                color = Color(0xFF8F8F9A),
+                                fontSize = 10.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                "$queuePosition/$queueSize",
+                                color = Color(0xFF8FD694),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    Spacer(Modifier.width(5.dp))
+                    Box(
+                        Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .clickable(enabled = queuePosition > 1) {
+                                playStoredYouTubeOffset(-1)
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
                         Text(
-                            item.channelTitle,
-                            color = Color(0xFF8F8F9A),
-                            fontSize = 10.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            "‹",
+                            color = if (queuePosition > 1) Color.White else Color(0xFF4B4B52),
+                            fontSize = 24.sp
                         )
                     }
                     Box(
                         Modifier
                             .size(38.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF8FD694)),
+                            .background(Color(0xFF8FD694))
+                            .clickable { playLastYouTube() },
                         contentAlignment = Alignment.Center
                     ) {
                         Text("▶", color = Color.Black, fontWeight = FontWeight.Bold)
+                    }
+                    Box(
+                        Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .clickable(enabled = queuePosition < queueSize) {
+                                playStoredYouTubeOffset(1)
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "›",
+                            color = if (queuePosition < queueSize) Color.White else Color(0xFF4B4B52),
+                            fontSize = 24.sp
+                        )
                     }
                 }
             }
