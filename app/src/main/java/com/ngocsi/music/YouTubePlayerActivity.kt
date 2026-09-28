@@ -150,6 +150,20 @@ class YouTubePlayerActivity : ComponentActivity() {
             LinearLayout.LayoutParams.MATCH_PARENT,
             playerHeight.coerceAtLeast(dp(200))
         ))
+        val backgroundHint = TextView(this).apply {
+            text = "🎧 Nghe nền: mở bằng YouTube Music/YouTube chính thức.\n" +
+                "Phát nền phụ thuộc ứng dụng và tài khoản Google đang sử dụng."
+            setTextColor(AndroidColor.rgb(180, 180, 190))
+            textSize = 12f
+            setPadding(dp(14), dp(8), dp(14), dp(8))
+        }
+        content.addView(
+            backgroundHint,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        )
 
         root.addView(content, FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
@@ -352,14 +366,21 @@ class YouTubePlayerActivity : ComponentActivity() {
 
     private fun openOfficialYouTube() {
         val uri = Uri.parse("https://www.youtube.com/watch?v=$videoId")
-        runCatching {
-            val appIntent = Intent(Intent.ACTION_VIEW, uri).apply {
-                setPackage("com.google.android.youtube")
-            }
-            startActivity(appIntent)
-        }.recoverCatching {
-            startActivity(Intent(Intent.ACTION_VIEW, uri))
+        // Hand off to an official Google app instead of extracting a YouTube audio stream.
+        val targets = listOf(
+            "com.google.android.apps.youtube.music",
+            "com.google.android.youtube"
+        )
+        for (packageName in targets) {
+            val launched = runCatching {
+                startActivity(Intent(Intent.ACTION_VIEW, uri).apply {
+                    setPackage(packageName)
+                })
+                true
+            }.getOrDefault(false)
+            if (launched) return
         }
+        runCatching { startActivity(Intent(Intent.ACTION_VIEW, uri)) }
     }
     private fun showError(message: String) {
         if (errorView == null) {
