@@ -12,6 +12,7 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.ProgressBar
+import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -423,7 +424,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                         lower.contains("missing referer") ||
                         lower.contains("missing referrer")
                     ) {
-                        showError("YouTube không xác thực được trình phát (Error 153). Hãy thử lại hoặc mở YouTube.")
+                        showError("YouTube không xác thực được trình phát (Error 153). Hãy bấm THỬ LẠI.")
                     }
                     return super.onConsoleMessage(consoleMessage)
                 }
