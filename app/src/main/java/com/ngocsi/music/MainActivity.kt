@@ -4882,10 +4882,29 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             }
             if (onlineHubTab == "Tất cả" || onlineHubTab == "YouTube") {
             Spacer(Modifier.height(10.dp))
-            Text("YOUTUBE MUSIC", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("YOUTUBE MUSIC", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text(
+                        "Tìm kiếm • phát • hàng đợi",
+                        color = Color(0xFF8F8F9A),
+                        fontSize = 11.sp
+                    )
+                }
+                Text(
+                    "● TRÌNH PHÁT NHÚNG",
+                    color = Color(0xFF8FD694),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
             Spacer(Modifier.height(6.dp))
             Text(
-                "Kho tìm kiếm YouTube chính thức • phát bằng trình phát YouTube nhúng. Không tải hoặc tách luồng âm thanh.",
+                "Phát bằng trình phát YouTube nhúng; không tải hoặc tách luồng âm thanh.",
                 color = Color(0xFF8F8F9A),
                 fontSize = 12.sp
             )
