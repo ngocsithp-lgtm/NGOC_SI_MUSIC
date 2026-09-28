@@ -4185,11 +4185,14 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             errorMessage = "Không mở được trình phát YouTube trong NGỌC SĨ MUSIC."
         }
     }
-    private fun addYouTubeWatchLater(track: YouTubeTrack) {
+    private fun toggleYouTubeWatchLater(track: YouTubeTrack) {
         if (youtubeWatchLater.any { it.videoId == track.videoId }) {
-            errorMessage = "Video đã có trong Xem sau."
+            youtubeWatchLater.removeAll { it.videoId == track.videoId }
+            saveYouTubeWatchLater()
+            errorMessage = "Đã bỏ khỏi Xem sau: " + track.title
             return
         }
+
         youtubeWatchLater.add(
             YouTubeWatchLaterMeta(
                 track.videoId,
@@ -4202,6 +4205,10 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         )
         saveYouTubeWatchLater()
         errorMessage = "Đã thêm vào Xem sau: " + track.title
+    }
+
+    private fun addYouTubeWatchLater(track: YouTubeTrack) {
+        toggleYouTubeWatchLater(track)
     }
 
     private fun removeYouTubeWatchLater(videoId: String) {
@@ -5049,12 +5056,14 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 Text(if (youtubeFavoriteSet.contains(track.videoId)) "♥" else "♡")
                             }
                             FilledTonalButton(
-                                onClick = { addYouTubeWatchLater(track) },
+                                onClick = { toggleYouTubeWatchLater(track) },
                                 shape = CircleShape,
                                 contentPadding = PaddingValues(horizontal = 10.dp),
                                 modifier = Modifier.height(40.dp)
                             ) {
-                                Text("XEM SAU")
+                                Text(
+                                    if (youtubeWatchLater.any { it.videoId == track.videoId }) "✓ XEM SAU" else "XEM SAU"
+                                )
                             }
                         }
                     }
