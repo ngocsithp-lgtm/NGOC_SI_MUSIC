@@ -16,6 +16,7 @@ import android.widget.ProgressBar
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import android.view.Gravity
 import androidx.webkit.WebSettingsCompat
@@ -106,9 +107,24 @@ class YouTubePlayerActivity : ComponentActivity() {
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(12), dp(6), dp(8), dp(6))
+            setPadding(dp(6), dp(4), dp(8), dp(4))
             setBackgroundColor(AndroidColor.rgb(18, 18, 22))
         }
+
+        val backButton = Button(this).apply {
+            text = "‹"
+            isAllCaps = false
+            textSize = 28f
+            setTextColor(AndroidColor.WHITE)
+            contentDescription = "Quay lại"
+            setOnClickListener {
+                if (customView != null) exitFullscreen() else finish()
+            }
+        }
+        header.addView(
+            backButton,
+            LinearLayout.LayoutParams(dp(48), dp(48))
+        )
 
         val info = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -198,7 +214,19 @@ class YouTubePlayerActivity : ComponentActivity() {
             gravity = Gravity.START
             leftMargin = dp(8)
         })
-        root.addView(content, FrameLayout.LayoutParams(
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            setBackgroundColor(AndroidColor.BLACK)
+            addView(
+                content,
+                ScrollView.LayoutParams(
+                    ScrollView.LayoutParams.MATCH_PARENT,
+                    ScrollView.LayoutParams.WRAP_CONTENT
+                )
+            )
+        }
+
+        root.addView(scroll, FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT
         ))
