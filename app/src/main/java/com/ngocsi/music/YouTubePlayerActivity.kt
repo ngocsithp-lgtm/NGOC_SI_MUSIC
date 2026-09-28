@@ -11,13 +11,10 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.widget.Button
 import android.widget.ProgressBar
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
-import android.content.Intent
-import android.net.Uri
 import android.view.Gravity
 import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewFeature
@@ -333,30 +330,6 @@ class YouTubePlayerActivity : ComponentActivity() {
         )
     }
 
-    private fun openOfficialYouTube() {
-        openOfficialApp(null)
-    }
-
-    private fun openOfficialApp(preferredPackage: String?) {
-        val uri = Uri.parse("https://www.youtube.com/watch?v=$videoId")
-        // Hand off to an official Google app instead of extracting a YouTube audio stream.
-        val targets = buildList {
-            preferredPackage?.let { add(it) }
-            add("com.google.android.apps.youtube.music")
-            add("com.google.android.youtube")
-        }.distinct()
-
-        for (packageName in targets) {
-            val launched = runCatching {
-                startActivity(Intent(Intent.ACTION_VIEW, uri).apply {
-                    setPackage(packageName)
-                })
-                true
-            }.getOrDefault(false)
-            if (launched) return
-        }
-        runCatching { startActivity(Intent(Intent.ACTION_VIEW, uri)) }
-    }
     private fun showError(message: String) {
         if (errorView == null) {
             errorView = LinearLayout(this).apply {
@@ -380,26 +353,11 @@ class YouTubePlayerActivity : ComponentActivity() {
                     }
                 }
 
-                val open = Button(this@YouTubePlayerActivity).apply {
-                    text = "MỞ YOUTUBE"
-                    setOnClickListener {
-                        runCatching {
-                            startActivity(
-                                Intent(
-                                    Intent.ACTION_VIEW,
-                                    Uri.parse("https://www.youtube.com/watch?v=$videoId")
-                                )
-                            )
-                        }
-                    }
-                }
-
                 addView(messageView, LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
                 ))
                 addView(retry)
-                addView(open)
                 tag = messageView
             }
 
