@@ -4149,14 +4149,28 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         youtubeQuery = youtubeQuery.ifBlank { track.title }
         rememberYouTubeHistory(track.title)
 
-        // YouTube MORPHE-style luôn chạy trong NGỌC SĨ MUSIC.
-        // Không chuyển sang YouTube/Music app bên ngoài.
+        val queueJson = org.json.JSONArray().apply {
+            youtubeTracks.forEach { item ->
+                put(org.json.JSONObject().apply {
+                    put("videoId", item.videoId)
+                    put("title", item.title)
+                    put("channelTitle", item.channelTitle)
+                    put("thumbnailUrl", item.thumbnailUrl)
+                })
+            }
+        }.toString()
+        val selectedIndex = youtubeTracks.indexOfFirst { it.videoId == track.videoId }.coerceAtLeast(0)
+
+        // YouTube MORPHE-style chạy hoàn toàn trong NGỌC SĨ MUSIC.
+        // Truyền cả danh sách kết quả để player hỗ trợ hàng đợi/next/previous.
         runCatching {
             startActivity(
                 Intent(this, YouTubePlayerActivity::class.java).apply {
                     putExtra(YouTubePlayerActivity.EXTRA_VIDEO_ID, track.videoId)
                     putExtra(YouTubePlayerActivity.EXTRA_TITLE, track.title)
                     putExtra(YouTubePlayerActivity.EXTRA_CHANNEL, track.channelTitle)
+                    putExtra(YouTubePlayerActivity.EXTRA_QUEUE_JSON, queueJson)
+                    putExtra(YouTubePlayerActivity.EXTRA_QUEUE_INDEX, selectedIndex)
                 }
             )
         }.onFailure {
