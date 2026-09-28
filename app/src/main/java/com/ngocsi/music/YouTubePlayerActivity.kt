@@ -283,11 +283,12 @@ class YouTubePlayerActivity : ComponentActivity() {
         if (queue.isEmpty()) return
         val labels = queue.mapIndexed { index, item ->
             val marker = if (index == queueIndex) "▶ " else ""
-            marker + item.title
+            val channelLabel = item.channelTitle.takeIf { it.isNotBlank() }?.let { " • $it" }.orEmpty()
+            marker + (index + 1) + ". " + item.title + channelLabel
         }.toTypedArray()
 
         android.app.AlertDialog.Builder(this)
-            .setTitle("HÀNG ĐỢI YOUTUBE")
+            .setTitle("HÀNG ĐỢI YOUTUBE • " + (queueIndex + 1) + "/" + queue.size)
             .setSingleChoiceItems(labels, queueIndex) { dialog, which ->
                 if (which != queueIndex) {
                     queueIndex = which
