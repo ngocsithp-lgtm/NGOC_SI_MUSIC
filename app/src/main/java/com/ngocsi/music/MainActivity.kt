@@ -5073,6 +5073,53 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 }
             }
 
+            youtubeLastPlayed?.let { item ->
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0xFF111111))
+                        .clickable { playLastYouTube() }
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OnlineArtwork(item.thumbnailUrl, Modifier.size(48.dp))
+                    Spacer(Modifier.width(9.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            "ĐANG PHÁT / TIẾP TỤC",
+                            color = Color(0xFF8FD694),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            item.title,
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            item.channelTitle,
+                            color = Color(0xFF8F8F9A),
+                            fontSize = 10.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Box(
+                        Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF8FD694)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("▶", color = Color.Black, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+
             if (youtubeWatchLater.isNotEmpty()) {
                 Spacer(Modifier.height(10.dp))
                 Text("YOUTUBE • XEM SAU (" + youtubeWatchLater.size + ")", color = Color(0xFFB18CFF), fontWeight = FontWeight.Bold, fontSize = 11.sp)
