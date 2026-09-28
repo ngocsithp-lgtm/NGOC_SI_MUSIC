@@ -13,6 +13,10 @@ import android.provider.MediaStore
 import android.location.LocationManager
 import android.graphics.BitmapFactory
 import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
+import org.json.JSONArray
 import android.webkit.WebChromeClient
 import android.webkit.CookieManager
 import android.webkit.WebView
@@ -218,6 +222,7 @@ class MainActivity : ComponentActivity() {
     private var tvSourceName by mutableStateOf("")
     private val customTvSources = mutableStateListOf<TvSource>()
     private var mapSearchQuery by mutableStateOf("")
+    private var mapSearching by mutableStateOf(false)
     private var showNowPlaying by mutableStateOf(false)
     private var youtubeQuery by mutableStateOf("")
     private var isVoiceSearching by mutableStateOf(false)
@@ -3320,6 +3325,63 @@ class MainActivity : ComponentActivity() {
         )
     }
 
+    private fun searchMapPlace() {
+        val query = mapSearchQuery.trim()
+        if (query.isBlank()) {
+            errorMessage = "Nhập địa điểm cần tìm."
+            return
+        }
+        if (mapSearching) return
+        mapSearching = true
+        errorMessage = null
+
+        lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    val encoded = URLEncoder.encode(query, "UTF-8")
+                    val connection = (URL(
+                        "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&accept-language=vi&q=$encoded"
+                    ).openConnection() as HttpURLConnection).apply {
+                        requestMethod = "GET"
+                        connectTimeout = 8000
+                        readTimeout = 8000
+                        setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.3 (Android)")
+                        setRequestProperty("Accept", "application/json")
+                    }
+                    try {
+                        if (connection.responseCode !in 200..299) {
+                            throw IllegalStateException("HTTP ${connection.responseCode}")
+                        }
+                        val body = connection.inputStream.bufferedReader().use { it.readText() }
+                        val first = JSONArray(body).optJSONObject(0)
+                            ?: throw NoSuchElementException("Không tìm thấy")
+                        val lat = first.optDouble("lat", Double.NaN)
+                        val lon = first.optDouble("lon", Double.NaN)
+                        val displayName = first.optString("display_name", query)
+                        if (!lat.isFinite() || !lon.isFinite()) {
+                            throw IllegalStateException("Tọa độ không hợp lệ")
+                        }
+                        Triple(lat, lon, displayName)
+                    } finally {
+                        connection.disconnect()
+                    }
+                }
+            }
+
+            mapSearching = false
+            result.onSuccess { (lat, lon, displayName) ->
+                val delta = 0.012
+                radioWebTitle = "NGỌC SĨ MAP • ${displayName.substringBefore(",")}"
+                radioWebUrl =
+                    "https://www.openstreetmap.org/export/embed.html?bbox=" +
+                        "${lon - delta}%2C${lat - delta}%2C${lon + delta}%2C${lat + delta}" +
+                        "&layer=mapnik&marker=$lat%2C$lon"
+            }.onFailure {
+                errorMessage = "Không tìm thấy địa điểm hoặc máy chủ bản đồ đang bận. Hãy thử tên địa điểm cụ thể hơn."
+            }
+        }
+    }
+
     @Composable
     private fun MapHub() {
         val mapUrl =
@@ -3471,38 +3533,18 @@ class MainActivity : ComponentActivity() {
                         shape = RoundedCornerShape(14.dp),
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                         keyboardActions = KeyboardActions(
-                            onSearch = {
-                                val q = mapSearchQuery.trim()
-                                if (q.isBlank()) {
-                                    errorMessage = "Nhập địa điểm cần tìm."
-                                } else {
-                                    radioWebTitle = "BẢN ĐỒ • $q"
-                                    radioWebUrl =
-                                        "https://www.openstreetmap.org/search?query=" +
-                                            Uri.encode(q)
-                                }
-                            }
+                            onSearch = { searchMapPlace() }
                         )
                     )
 
                     Spacer(Modifier.height(8.dp))
 
                     Button(
-                        onClick = {
-                            val q = mapSearchQuery.trim()
-                            if (q.isBlank()) {
-                                errorMessage = "Nhập địa điểm cần tìm."
-                            } else {
-                                radioWebTitle = "BẢN ĐỒ • $q"
-                                radioWebUrl =
-                                    "https://www.openstreetmap.org/search?query=" +
-                                        Uri.encode(q)
-                            }
-                        },
+                        onClick = { searchMapPlace() },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(14.dp)
                     ) {
-                        Text("TÌM TRÊN OSM")
+                        Text(if (mapSearching) "ĐANG TÌM…" else "TÌM ĐỊA ĐIỂM")
                     }
                 }
             }
