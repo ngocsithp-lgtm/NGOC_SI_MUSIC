@@ -1,5 +1,6 @@
 package com.ngocsi.music
 
+import android.content.Intent
 import android.graphics.Color as AndroidColor
 import android.os.Bundle
 import android.view.View
