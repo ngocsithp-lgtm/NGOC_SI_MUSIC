@@ -4149,9 +4149,9 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         youtubeQuery = youtubeQuery.ifBlank { track.title }
         rememberYouTubeHistory(track.title)
 
-        // YouTube được phát trong Activity riêng để tránh xung đột render
-        // giữa WebView/video surface và Compose/ScrollView của màn hình chính.
-        try {
+        // YouTube MORPHE-style luôn chạy trong NGỌC SĨ MUSIC.
+        // Không chuyển sang YouTube/Music app bên ngoài.
+        runCatching {
             startActivity(
                 Intent(this, YouTubePlayerActivity::class.java).apply {
                     putExtra(YouTubePlayerActivity.EXTRA_VIDEO_ID, track.videoId)
@@ -4159,20 +4159,10 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     putExtra(YouTubePlayerActivity.EXTRA_CHANNEL, track.channelTitle)
                 }
             )
-        } catch (_: Exception) {
-            runCatching {
-                startActivity(
-                    Intent(
-                        Intent.ACTION_VIEW,
-                        Uri.parse("https://www.youtube.com/watch?v=${track.videoId}")
-                    )
-                )
-            }.onFailure {
-                errorMessage = "Không mở được trình phát YouTube trên thiết bị."
-            }
+        }.onFailure {
+            errorMessage = "Không mở được trình phát YouTube trong NGỌC SĨ MUSIC."
         }
     }
-
     private fun addYouTubeWatchLater(track: YouTubeTrack) {
         if (youtubeWatchLater.any { it.videoId == track.videoId }) {
             errorMessage = "Video đã có trong Xem sau."
