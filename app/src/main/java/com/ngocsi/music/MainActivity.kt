@@ -2216,6 +2216,14 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
 
+        // Refresh YouTube library state after returning from the in-app player.
+        // The player writes favorites/watch-later directly to SharedPreferences,
+        // so the PRO/YouTube surface must reload them without requiring an app restart.
+        if (::prefs.isInitialized) {
+            loadYouTubeLibraryState()
+            loadYouTubeWatchLater()
+        }
+
         // Re-synchronize the Activity with Media3 after returning from the
         // background or a notification control. The service remains authoritative
         // so reopening the screen never resets the active queue or playback state.
