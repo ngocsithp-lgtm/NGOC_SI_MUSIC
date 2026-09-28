@@ -255,7 +255,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             marker + item.title
         }.toTypedArray()
 
-        androidx.appcompat.app.AlertDialog.Builder(this)
+        android.app.AlertDialog.Builder(this)
             .setTitle("HÀNG ĐỢI YOUTUBE")
             .setSingleChoiceItems(labels, queueIndex) { dialog, which ->
                 if (which != queueIndex) {
