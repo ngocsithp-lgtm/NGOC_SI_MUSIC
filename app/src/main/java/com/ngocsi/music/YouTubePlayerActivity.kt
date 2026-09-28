@@ -151,14 +151,44 @@ class YouTubePlayerActivity : ComponentActivity() {
             playerHeight.coerceAtLeast(dp(200))
         ))
         val backgroundHint = TextView(this).apply {
-            text = "🎧 Nghe nền: mở bằng YouTube Music/YouTube chính thức.\n" +
+            text = "🎧 Nghe nền: chuyển sang ứng dụng YouTube chính thức.\n" +
                 "Phát nền phụ thuộc ứng dụng và tài khoản Google đang sử dụng."
             setTextColor(AndroidColor.rgb(180, 180, 190))
             textSize = 12f
-            setPadding(dp(14), dp(8), dp(14), dp(8))
+            setPadding(dp(14), dp(8), dp(14), dp(4))
         }
         content.addView(
             backgroundHint,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        )
+
+        val officialActions = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(10), 0, dp(10), dp(8))
+        }
+
+        val youtubeMusic = Button(this).apply {
+            text = "YouTube Music"
+            setOnClickListener { openOfficialApp("com.google.android.apps.youtube.music") }
+        }
+        val youtube = Button(this).apply {
+            text = "YouTube"
+            setOnClickListener { openOfficialApp("com.google.android.youtube") }
+        }
+        officialActions.addView(
+            youtubeMusic,
+            LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginEnd = dp(5) }
+        )
+        officialActions.addView(
+            youtube,
+            LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginStart = dp(5) }
+        )
+        content.addView(
+            officialActions,
             LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -365,12 +395,18 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun openOfficialYouTube() {
+        openOfficialApp(null)
+    }
+
+    private fun openOfficialApp(preferredPackage: String?) {
         val uri = Uri.parse("https://www.youtube.com/watch?v=$videoId")
         // Hand off to an official Google app instead of extracting a YouTube audio stream.
-        val targets = listOf(
-            "com.google.android.apps.youtube.music",
-            "com.google.android.youtube"
-        )
+        val targets = buildList {
+            preferredPackage?.let { add(it) }
+            add("com.google.android.apps.youtube.music")
+            add("com.google.android.youtube")
+        }.distinct()
+
         for (packageName in targets) {
             val launched = runCatching {
                 startActivity(Intent(Intent.ACTION_VIEW, uri).apply {
