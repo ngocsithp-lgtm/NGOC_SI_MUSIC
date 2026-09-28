@@ -205,6 +205,9 @@ class MainActivity : ComponentActivity() {
     private var youtubeLoading by mutableStateOf(false)
     private var youtubeNextPageToken by mutableStateOf<String?>(null)
     private var youtubeSelectedVideoId by mutableStateOf<String?>(null)
+    private var youtubeLastPlayed by mutableStateOf<YouTubeTrack?>(null)
+    private var youtubeLastQueueJson by mutableStateOf<String?>(null)
+    private var youtubeLastQueueIndex by mutableIntStateOf(0)
     private var onlineUrl by mutableStateOf("")
     private var selectedLibrary by mutableStateOf("Tất cả")
     private var libraryView by mutableStateOf("Bài hát")
@@ -4168,6 +4171,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             }
         }.toString()
         val selectedIndex = youtubeTracks.indexOfFirst { it.videoId == track.videoId }.coerceAtLeast(0)
+        saveYouTubeLastPlayed(track, queueJson, selectedIndex)
 
         // YouTube MORPHE-style chạy hoàn toàn trong NGỌC SĨ MUSIC.
         // Truyền cả danh sách kết quả để player hỗ trợ hàng đợi/next/previous.
@@ -4296,6 +4300,22 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
     }
 
     private fun loadYouTubeLibraryState() {
+        youtubeLastPlayed = prefs.getString("youtube_last_played_video_id", null)
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?.let { id ->
+                YouTubeTrack(
+                    id,
+                    prefs.getString("youtube_last_played_title", "Video YouTube").orEmpty().ifBlank { "Video YouTube" },
+                    prefs.getString("youtube_last_played_channel", "YouTube").orEmpty().ifBlank { "YouTube" },
+                    prefs.getString("youtube_last_played_thumbnail", "").orEmpty().ifBlank {
+                        "https://i.ytimg.com/vi/" + id + "/hqdefault.jpg"
+                    }
+                )
+            }
+        youtubeLastQueueJson = prefs.getString("youtube_last_played_queue_json", null)
+        youtubeLastQueueIndex = prefs.getInt("youtube_last_played_queue_index", 0).coerceAtLeast(0)
+
         youtubeHistory.clear()
         val historyJson = prefs.getString("youtube_history_json", null)
         if (!historyJson.isNullOrBlank()) {
@@ -4361,6 +4381,54 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             .putStringSet("youtube_favorites", youtubeFavoriteSet.keys)
             .putString("youtube_favorite_meta", root.toString())
             .apply()
+    }
+
+    private fun saveYouTubeLastPlayed(track: YouTubeTrack, queueJson: String, queueIndex: Int) {
+        val thumbnail = track.thumbnailUrl.ifBlank {
+            "https://i.ytimg.com/vi/" + track.videoId + "/hqdefault.jpg"
+        }
+        prefs.edit()
+            .putString("youtube_last_played_video_id", track.videoId)
+            .putString("youtube_last_played_title", track.title)
+            .putString("youtube_last_played_channel", track.channelTitle)
+            .putString("youtube_last_played_thumbnail", thumbnail)
+            .putString("youtube_last_played_queue_json", queueJson)
+            .putInt("youtube_last_played_queue_index", queueIndex.coerceAtLeast(0))
+            .apply()
+        youtubeLastPlayed = track.copy(thumbnailUrl = thumbnail)
+        youtubeLastQueueJson = queueJson
+        youtubeLastQueueIndex = queueIndex.coerceAtLeast(0)
+    }
+
+    private fun playLastYouTube() {
+        val track = youtubeLastPlayed ?: return
+        val fallbackQueue = org.json.JSONArray().apply {
+            put(org.json.JSONObject().apply {
+                put("videoId", track.videoId)
+                put("title", track.title)
+                put("channelTitle", track.channelTitle)
+                put("thumbnailUrl", track.thumbnailUrl)
+            })
+        }.toString()
+        val queueJson = youtubeLastQueueJson?.takeIf { it.isNotBlank() } ?: fallbackQueue
+        val selectedIndex = runCatching {
+            val array = org.json.JSONArray(queueJson)
+            youtubeLastQueueIndex.coerceIn(0, (array.length() - 1).coerceAtLeast(0))
+        }.getOrDefault(0)
+
+        runCatching {
+            startActivity(
+                Intent(this, YouTubePlayerActivity::class.java).apply {
+                    putExtra(YouTubePlayerActivity.EXTRA_VIDEO_ID, track.videoId)
+                    putExtra(YouTubePlayerActivity.EXTRA_TITLE, track.title)
+                    putExtra(YouTubePlayerActivity.EXTRA_CHANNEL, track.channelTitle)
+                    putExtra(YouTubePlayerActivity.EXTRA_QUEUE_JSON, queueJson)
+                    putExtra(YouTubePlayerActivity.EXTRA_QUEUE_INDEX, selectedIndex)
+                }
+            )
+        }.onFailure {
+            errorMessage = "Không mở lại được video YouTube gần nhất."
+        }
     }
 
     private fun clearYouTubeHistory() {
@@ -4940,6 +5008,62 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(14.dp)
                 ) { Text("XÓA") }
+            }
+
+            youtubeLastPlayed?.let { item ->
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "YOUTUBE • TIẾP TỤC XEM",
+                    color = Color(0xFF8FD694),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 11.sp
+                )
+                Spacer(Modifier.height(4.dp))
+                Row(
+                    Modifier.fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0xFF17201A))
+                        .clickable { playLastYouTube() }
+                        .padding(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box {
+                        OnlineArtwork(item.thumbnailUrl, Modifier.size(72.dp))
+                        Box(
+                            Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(4.dp)
+                                .size(26.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF8FD694)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("▶", color = Color.Black, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            item.title,
+                            color = Color.White,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            item.channelTitle,
+                            color = Color(0xFF8F8F9A),
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            "Nhấn để mở lại • Hàng đợi " + (youtubeLastQueueIndex + 1),
+                            color = Color(0xFF8FD694),
+                            fontSize = 10.sp
+                        )
+                    }
+                }
             }
 
             if (youtubeWatchLater.isNotEmpty()) {
