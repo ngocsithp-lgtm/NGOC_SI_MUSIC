@@ -113,20 +113,6 @@ class YouTubePlayerActivity : ComponentActivity() {
         info.addView(titleView)
         info.addView(channelView)
 
-        val openYouTube = Button(this).apply {
-            text = "Nghe nền"
-            setTextColor(AndroidColor.WHITE)
-            setBackgroundColor(AndroidColor.TRANSPARENT)
-            setOnClickListener { openOfficialYouTube() }
-        }
-
-        val close = Button(this).apply {
-            text = "Đóng"
-            setTextColor(AndroidColor.WHITE)
-            setBackgroundColor(AndroidColor.TRANSPARENT)
-            setOnClickListener { finish() }
-        }
-
         header.addView(
             info,
             LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
@@ -150,51 +136,6 @@ class YouTubePlayerActivity : ComponentActivity() {
             LinearLayout.LayoutParams.MATCH_PARENT,
             playerHeight.coerceAtLeast(dp(200))
         ))
-        val backgroundHint = TextView(this).apply {
-            text = "🎧 Nghe nền: chuyển sang ứng dụng YouTube chính thức.\n" +
-                "Phát nền phụ thuộc ứng dụng và tài khoản Google đang sử dụng."
-            setTextColor(AndroidColor.rgb(180, 180, 190))
-            textSize = 12f
-            setPadding(dp(14), dp(8), dp(14), dp(4))
-        }
-        content.addView(
-            backgroundHint,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        )
-
-        val officialActions = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(10), 0, dp(10), dp(8))
-        }
-
-        val youtubeMusic = Button(this).apply {
-            text = "YouTube Music"
-            setOnClickListener { openOfficialApp("com.google.android.apps.youtube.music") }
-        }
-        val youtube = Button(this).apply {
-            text = "YouTube"
-            setOnClickListener { openOfficialApp("com.google.android.youtube") }
-        }
-        officialActions.addView(
-            youtubeMusic,
-            LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginEnd = dp(5) }
-        )
-        officialActions.addView(
-            youtube,
-            LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginStart = dp(5) }
-        )
-        content.addView(
-            officialActions,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        )
-
         root.addView(content, FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT
