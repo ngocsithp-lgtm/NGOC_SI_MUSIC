@@ -114,19 +114,10 @@ class YouTubePlayerActivity : ComponentActivity() {
         info.addView(channelView)
 
         val openYouTube = Button(this).apply {
-            text = "YouTube"
+            text = "Nghe nền"
             setTextColor(AndroidColor.WHITE)
             setBackgroundColor(AndroidColor.TRANSPARENT)
-            setOnClickListener {
-                runCatching {
-                    startActivity(
-                        Intent(
-                            Intent.ACTION_VIEW,
-                            Uri.parse("https://www.youtube.com/watch?v=$videoId")
-                        )
-                    )
-                }
-            }
+            setOnClickListener { openOfficialYouTube() }
         }
 
         val close = Button(this).apply {
@@ -140,7 +131,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             info,
             LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         )
-        header.addView(openYouTube, LinearLayout.LayoutParams(dp(88), dp(48)))
+        header.addView(openYouTube, LinearLayout.LayoutParams(dp(96), dp(48)))
         header.addView(close, LinearLayout.LayoutParams(dp(76), dp(48)))
 
         playerContainer = FrameLayout(this).apply {
@@ -359,6 +350,17 @@ class YouTubePlayerActivity : ComponentActivity() {
         )
     }
 
+    private fun openOfficialYouTube() {
+        val uri = Uri.parse("https://www.youtube.com/watch?v=$videoId")
+        runCatching {
+            val appIntent = Intent(Intent.ACTION_VIEW, uri).apply {
+                setPackage("com.google.android.youtube")
+            }
+            startActivity(appIntent)
+        }.recoverCatching {
+            startActivity(Intent(Intent.ACTION_VIEW, uri))
+        }
+    }
     private fun showError(message: String) {
         if (errorView == null) {
             errorView = LinearLayout(this).apply {
