@@ -217,13 +217,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         val scroll = ScrollView(this).apply {
             isFillViewport = true
             setBackgroundColor(AndroidColor.BLACK)
-            addView(
-                content,
-                ScrollView.LayoutParams(
-                    ScrollView.LayoutParams.MATCH_PARENT,
-                    ScrollView.LayoutParams.WRAP_CONTENT
-                )
-            )
+            addView(content)
         }
 
         root.addView(scroll, FrameLayout.LayoutParams(
