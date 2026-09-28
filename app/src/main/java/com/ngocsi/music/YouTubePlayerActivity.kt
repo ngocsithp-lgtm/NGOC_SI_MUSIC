@@ -319,6 +319,32 @@ class YouTubePlayerActivity : ComponentActivity() {
         createPlayer()
     }
 
+    private fun saveLastPlayedState() {
+        val queueJson = org.json.JSONArray().apply {
+            queue.forEach { item ->
+                put(org.json.JSONObject().apply {
+                    put("videoId", item.videoId)
+                    put("title", item.title)
+                    put("channelTitle", item.channelTitle)
+                    put("thumbnailUrl", item.thumbnailUrl)
+                })
+            }
+        }.toString()
+
+        val thumbnail = queue.getOrNull(queueIndex)?.thumbnailUrl?.ifBlank {
+            "https://i.ytimg.com/vi/" + videoId + "/hqdefault.jpg"
+        } ?: "https://i.ytimg.com/vi/" + videoId + "/hqdefault.jpg"
+
+        getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
+            .putString("youtube_last_played_video_id", videoId)
+            .putString("youtube_last_played_title", title)
+            .putString("youtube_last_played_channel", channel)
+            .putString("youtube_last_played_thumbnail", thumbnail)
+            .putString("youtube_last_played_queue_json", queueJson)
+            .putInt("youtube_last_played_queue_index", queueIndex.coerceAtLeast(0))
+            .apply()
+    }
+
     private fun isFavorite(): Boolean =
         (getSharedPreferences("ngoc_si_music", MODE_PRIVATE).getStringSet("youtube_favorites", emptySet()) ?: emptySet()).contains(videoId)
 
@@ -587,6 +613,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         if (::titleView.isInitialized) titleView.text = title
         if (::channelView.isInitialized) channelView.text = channel
         updateActionState()
+        saveLastPlayedState()
     }
 
     private fun updateQueueButton() {
