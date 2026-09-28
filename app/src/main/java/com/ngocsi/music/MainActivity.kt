@@ -4160,8 +4160,15 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         youtubeQuery = youtubeQuery.ifBlank { track.title }
         rememberYouTubeHistory(track.title)
 
+        // Always include the selected video in the player queue. This matters
+        // when opening items from Yêu thích/Xem sau after search results have cleared.
+        val queueTracks = youtubeTracks.toMutableList().apply {
+            if (none { it.videoId == track.videoId }) {
+                add(0, track)
+            }
+        }
         val queueJson = org.json.JSONArray().apply {
-            youtubeTracks.forEach { item ->
+            queueTracks.forEach { item ->
                 put(org.json.JSONObject().apply {
                     put("videoId", item.videoId)
                     put("title", item.title)
@@ -4170,7 +4177,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 })
             }
         }.toString()
-        val selectedIndex = youtubeTracks.indexOfFirst { it.videoId == track.videoId }.coerceAtLeast(0)
+        val selectedIndex = queueTracks.indexOfFirst { it.videoId == track.videoId }.coerceAtLeast(0)
         saveYouTubeLastPlayed(track, queueJson, selectedIndex)
 
         // YouTube MORPHE-style chạy hoàn toàn trong NGỌC SĨ MUSIC.
