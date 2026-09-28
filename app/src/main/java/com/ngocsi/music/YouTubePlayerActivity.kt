@@ -117,8 +117,6 @@ class YouTubePlayerActivity : ComponentActivity() {
             info,
             LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         )
-        header.addView(openYouTube, LinearLayout.LayoutParams(dp(96), dp(48)))
-        header.addView(close, LinearLayout.LayoutParams(dp(76), dp(48)))
 
         playerContainer = FrameLayout(this).apply {
             setBackgroundColor(AndroidColor.BLACK)
