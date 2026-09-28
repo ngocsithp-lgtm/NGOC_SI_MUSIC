@@ -31,6 +31,8 @@ class YouTubePlayerActivity : ComponentActivity() {
         const val EXTRA_VIDEO_ID = "youtube_video_id"
         const val EXTRA_TITLE = "youtube_title"
         const val EXTRA_CHANNEL = "youtube_channel"
+        const val EXTRA_QUEUE_JSON = "youtube_queue_json"
+        const val EXTRA_QUEUE_INDEX = "youtube_queue_index"
     }
 
     private lateinit var root: FrameLayout
@@ -41,6 +43,15 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var videoId: String = ""
     private var title: String = "YouTube"
     private var channel: String = "YouTube"
+    private lateinit var titleView: TextView
+    private lateinit var channelView: TextView
+    private lateinit var favoriteButton: Button
+    private lateinit var watchLaterButton: Button
+    private lateinit var previousButton: Button
+    private lateinit var nextButton: Button
+    private data class QueueItem(val videoId: String, val title: String, val channelTitle: String, val thumbnailUrl: String)
+    private val queue = mutableListOf<QueueItem>()
+    private var queueIndex = 0
     private var errorView: LinearLayout? = null
     private var loadingBar: ProgressBar? = null
 
@@ -50,6 +61,15 @@ class YouTubePlayerActivity : ComponentActivity() {
         videoId = sanitizeVideoId(intent.getStringExtra(EXTRA_VIDEO_ID).orEmpty())
         title = intent.getStringExtra(EXTRA_TITLE).orEmpty().ifBlank { "YouTube" }
         channel = intent.getStringExtra(EXTRA_CHANNEL).orEmpty().ifBlank { "YouTube" }
+        queueIndex = intent.getIntExtra(EXTRA_QUEUE_INDEX, 0).coerceAtLeast(0)
+        parseQueue(intent.getStringExtra(EXTRA_QUEUE_JSON))
+        if (queue.isNotEmpty()) {
+            queueIndex = queueIndex.coerceIn(0, queue.lastIndex)
+            val selected = queue[queueIndex]
+            videoId = selected.videoId
+            title = selected.title
+            channel = selected.channelTitle
+        }
 
         if (videoId.isBlank()) {
             finish()
@@ -91,7 +111,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             orientation = LinearLayout.VERTICAL
         }
 
-        val titleView = TextView(this).apply {
+        titleView = TextView(this).apply {
             text = title
             setTextColor(AndroidColor.WHITE)
             textSize = 15f
@@ -99,7 +119,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             ellipsize = android.text.TextUtils.TruncateAt.END
         }
 
-        val channelView = TextView(this).apply {
+        channelView = TextView(this).apply {
             text = channel
             setTextColor(AndroidColor.rgb(155, 155, 166))
             textSize = 12f
@@ -131,6 +151,36 @@ class YouTubePlayerActivity : ComponentActivity() {
             LinearLayout.LayoutParams.MATCH_PARENT,
             playerHeight.coerceAtLeast(dp(200))
         ))
+        val actions = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(8), dp(8), dp(8), dp(4))
+        }
+        previousButton = actionButton("⏮") { playPrevious() }
+        favoriteButton = actionButton("♡ Yêu thích") { toggleFavorite() }
+        watchLaterButton = actionButton("🔖 Xem sau") { toggleWatchLater() }
+        nextButton = actionButton("⏭") { playNext() }
+        actions.addView(previousButton, LinearLayout.LayoutParams(dp(56), dp(46)))
+        actions.addView(favoriteButton, LinearLayout.LayoutParams(0, dp(46), 1f).apply { marginStart = dp(4); marginEnd = dp(4) })
+        actions.addView(watchLaterButton, LinearLayout.LayoutParams(0, dp(46), 1f).apply { marginEnd = dp(4) })
+        actions.addView(nextButton, LinearLayout.LayoutParams(dp(56), dp(46)))
+        content.addView(actions)
+
+        val share = Button(this).apply {
+            text = "CHIA SẺ"
+            setOnClickListener {
+                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, "https://www.youtube.com/watch?v=" + videoId)
+                    putExtra(Intent.EXTRA_TITLE, title)
+                }
+                startActivity(Intent.createChooser(shareIntent, "Chia sẻ video"))
+            }
+        }
+        content.addView(share, LinearLayout.LayoutParams(dp(100), dp(44)).apply {
+            gravity = Gravity.START
+            leftMargin = dp(8)
+        })
         root.addView(content, FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT
@@ -154,6 +204,109 @@ class YouTubePlayerActivity : ComponentActivity() {
         setContentView(root)
     }
 
+    private fun actionButton(label: String, onClick: () -> Unit): Button =
+        Button(this).apply {
+            text = label
+            isAllCaps = false
+            setTextColor(AndroidColor.WHITE)
+            setOnClickListener { onClick() }
+        }
+
+    private fun parseQueue(raw: String?) {
+        queue.clear()
+        if (raw.isNullOrBlank()) return
+        runCatching {
+            val array = org.json.JSONArray(raw)
+            for (i in 0 until array.length()) {
+                val obj = array.optJSONObject(i) ?: continue
+                val id = sanitizeVideoId(obj.optString("videoId"))
+                if (id.isBlank()) continue
+                queue.add(QueueItem(
+                    id,
+                    obj.optString("title").ifBlank { "Video YouTube" },
+                    obj.optString("channelTitle").ifBlank { "YouTube" },
+                    obj.optString("thumbnailUrl").ifBlank { "https://i.ytimg.com/vi/" + id + "/hqdefault.jpg" }
+                ))
+            }
+        }
+    }
+
+    private fun playPrevious() {
+        if (queue.size <= 1 || queueIndex <= 0) return
+        queueIndex--
+        loadQueueItem()
+    }
+
+    private fun playNext() {
+        if (queue.size <= 1 || queueIndex >= queue.lastIndex) return
+        queueIndex++
+        loadQueueItem()
+    }
+
+    private fun loadQueueItem() {
+        val selected = queue.getOrNull(queueIndex) ?: return
+        videoId = selected.videoId
+        title = selected.title
+        channel = selected.channelTitle
+        createPlayer()
+    }
+
+    private fun isFavorite(): Boolean =
+        (getSharedPreferences("ngoc_si_music", MODE_PRIVATE).getStringSet("youtube_favorites", emptySet()) ?: emptySet()).contains(videoId)
+
+    private fun toggleFavorite() {
+        val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+        val ids = (prefs.getStringSet("youtube_favorites", emptySet()) ?: emptySet()).toMutableSet()
+        val metadata = runCatching { org.json.JSONObject(prefs.getString("youtube_favorite_meta", "{}").orEmpty()) }.getOrElse { org.json.JSONObject() }
+        if (ids.contains(videoId)) {
+            ids.remove(videoId)
+            metadata.remove(videoId)
+        } else {
+            ids.add(videoId)
+            metadata.put(videoId, org.json.JSONObject().apply {
+                put("title", title)
+                put("channelTitle", channel)
+                put("thumbnailUrl", "https://i.ytimg.com/vi/" + videoId + "/hqdefault.jpg")
+            })
+        }
+        prefs.edit().putStringSet("youtube_favorites", ids).putString("youtube_favorite_meta", metadata.toString()).apply()
+        updateActionState()
+    }
+
+    private fun isWatchLater(): Boolean {
+        val raw = getSharedPreferences("ngoc_si_music", MODE_PRIVATE).getString("youtube_watch_later", null) ?: return false
+        val array = runCatching { org.json.JSONArray(raw) }.getOrElse { return false }
+        for (i in 0 until array.length()) {
+            if (array.optJSONObject(i)?.optString("videoId") == videoId) return true
+        }
+        return false
+    }
+
+    private fun toggleWatchLater() {
+        val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+        val source = runCatching { org.json.JSONArray(prefs.getString("youtube_watch_later", "[]").orEmpty()) }.getOrElse { org.json.JSONArray() }
+        val updated = org.json.JSONArray()
+        var removed = false
+        for (i in 0 until source.length()) {
+            val obj = source.optJSONObject(i) ?: continue
+            if (obj.optString("videoId") == videoId) removed = true else updated.put(obj)
+        }
+        if (!removed) updated.put(org.json.JSONObject().apply {
+            put("videoId", videoId)
+            put("title", title)
+            put("channelTitle", channel)
+            put("thumbnailUrl", "https://i.ytimg.com/vi/" + videoId + "/hqdefault.jpg")
+        })
+        prefs.edit().putString("youtube_watch_later", updated.toString()).apply()
+        updateActionState()
+    }
+
+    private fun updateActionState() {
+        if (::favoriteButton.isInitialized) favoriteButton.text = if (isFavorite()) "♥ Yêu thích" else "♡ Yêu thích"
+        if (::watchLaterButton.isInitialized) watchLaterButton.text = if (isWatchLater()) "✓ Xem sau" else "🔖 Xem sau"
+        if (::previousButton.isInitialized) previousButton.isEnabled = queueIndex > 0
+        if (::nextButton.isInitialized) nextButton.isEnabled = queueIndex < queue.lastIndex
+    }
     private fun createPlayer() {
         removePlayer()
 
@@ -328,6 +481,9 @@ class YouTubePlayerActivity : ComponentActivity() {
                 FrameLayout.LayoutParams.MATCH_PARENT
             )
         )
+        if (::titleView.isInitialized) titleView.text = title
+        if (::channelView.isInitialized) channelView.text = channel
+        updateActionState()
     }
 
     private fun showError(message: String) {
