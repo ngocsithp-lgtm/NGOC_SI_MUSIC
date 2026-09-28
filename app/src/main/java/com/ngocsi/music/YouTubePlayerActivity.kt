@@ -188,6 +188,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         val queueButton = Button(this).apply {
             text = "☷ HÀNG ĐỢI (" + queue.size + ")"
             isAllCaps = false
+            tag = "queue_button"
             setOnClickListener { showQueueDialog() }
         }
         content.addView(queueButton, LinearLayout.LayoutParams(
@@ -578,6 +579,10 @@ class YouTubePlayerActivity : ComponentActivity() {
         if (::titleView.isInitialized) titleView.text = title
         if (::channelView.isInitialized) channelView.text = channel
         updateActionState()
+    }
+
+    private fun updateQueueButton() {
+        root.findViewWithTag<Button>("queue_button")?.text = "☷ HÀNG ĐỢI (" + queue.size + ")"
     }
 
     private fun showError(message: String) {
