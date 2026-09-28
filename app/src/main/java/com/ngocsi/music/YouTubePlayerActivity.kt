@@ -56,6 +56,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var queueIndex = 0
     private var errorView: LinearLayout? = null
     private var loadingBar: ProgressBar? = null
+    private var pageErrorVisible = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -168,6 +169,20 @@ class YouTubePlayerActivity : ComponentActivity() {
         actions.addView(nextButton, LinearLayout.LayoutParams(dp(56), dp(46)))
         content.addView(actions)
 
+        val queueButton = Button(this).apply {
+            text = "☷ HÀNG ĐỢI (" + queue.size + ")"
+            isAllCaps = false
+            setOnClickListener { showQueueDialog() }
+        }
+        content.addView(queueButton, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            dp(44)
+        ).apply {
+            leftMargin = dp(8)
+            rightMargin = dp(8)
+            topMargin = dp(2)
+        })
+
         val share = Button(this).apply {
             text = "CHIA SẺ"
             setOnClickListener {
@@ -231,6 +246,26 @@ class YouTubePlayerActivity : ComponentActivity() {
                 ))
             }
         }
+    }
+
+    private fun showQueueDialog() {
+        if (queue.isEmpty()) return
+        val labels = queue.mapIndexed { index, item ->
+            val marker = if (index == queueIndex) "▶ " else ""
+            marker + item.title
+        }.toTypedArray()
+
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("HÀNG ĐỢI YOUTUBE")
+            .setSingleChoiceItems(labels, queueIndex) { dialog, which ->
+                if (which != queueIndex) {
+                    queueIndex = which
+                    loadQueueItem()
+                }
+                dialog.dismiss()
+            }
+            .setNegativeButton("ĐÓNG", null)
+            .show()
     }
 
     private fun playPrevious() {
@@ -311,6 +346,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
     private fun createPlayer() {
         removePlayer()
+        pageErrorVisible = false
 
         val player = WebView(this).apply {
             setBackgroundColor(AndroidColor.BLACK)
@@ -367,7 +403,9 @@ class YouTubePlayerActivity : ComponentActivity() {
 
                 override fun onPageFinished(view: WebView, url: String) {
                     super.onPageFinished(view, url)
-                    errorView?.visibility = View.GONE
+                    if (!pageErrorVisible) {
+                        errorView?.visibility = View.GONE
+                    }
                     loadingBar?.progress = 100
                     loadingBar?.visibility = View.GONE
                     view.requestLayout()
@@ -489,6 +527,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun showError(message: String) {
+        pageErrorVisible = true
         if (errorView == null) {
             errorView = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
