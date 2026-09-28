@@ -1938,7 +1938,7 @@ class MainActivity : ComponentActivity() {
             radioWebUrl =
                 "https://www.openstreetmap.org/export/embed.html?bbox=" +
                     "$left%2C$bottom%2C$right%2C$top" +
-                    "&layer=mapnik&marker=$lat%2C$lon"
+                    "&layer=mapnik&marker=$lat%2C$lon&center=$lat%2C$lon"
             errorMessage = null
         }
 
@@ -3375,7 +3375,7 @@ class MainActivity : ComponentActivity() {
                 radioWebUrl =
                     "https://www.openstreetmap.org/export/embed.html?bbox=" +
                         "${lon - delta}%2C${lat - delta}%2C${lon + delta}%2C${lat + delta}" +
-                        "&layer=mapnik&marker=$lat%2C$lon"
+                        "&layer=mapnik&marker=$lat%2C$lon&center=$lat%2C$lon"
             }.onFailure {
                 errorMessage = "Không tìm thấy địa điểm hoặc máy chủ bản đồ đang bận. Hãy thử tên địa điểm cụ thể hơn."
             }
