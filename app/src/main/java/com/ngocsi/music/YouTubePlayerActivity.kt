@@ -130,6 +130,14 @@ class YouTubePlayerActivity : ComponentActivity() {
             orientation = LinearLayout.VERTICAL
         }
 
+        val nowPlaying = TextView(this).apply {
+            text = "ĐANG PHÁT"
+            setTextColor(AndroidColor.rgb(143, 214, 148))
+            textSize = 10f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+        }
+        info.addView(nowPlaying)
+
         titleView = TextView(this).apply {
             text = title
             setTextColor(AndroidColor.WHITE)
