@@ -521,18 +521,50 @@ class YouTubePlayerActivity : ComponentActivity() {
             isFocusableInTouchMode = true
 
             val safeId = sanitizeVideoId(videoId)
-            // Use YouTube's documented Android WebView identity path: load the direct
-            // embed URL and provide an explicit HTTP Referer header. The app does not
-            // call the IFrame JavaScript API, so there is no need to enable enablejsapi
-            // or send an artificial origin value. This removes an invalid/non-host
-            // origin as another variable when YouTube validates the embed.
+            // YouTube's current Android guidance allows a mobile app to host the
+            // embedded player inside an HTML page and use the page baseUrl as the
+            // HTTP Referer. This gives the embed a real enclosing web context and
+            // is preferable to navigating directly to the embed URL.
             val appReferrer = "https://com.ngocsi.music/"
             val embedUrl = "https://www.youtube.com/embed/" + safeId +
                 "?playsinline=1&autoplay=0&rel=0&controls=1&fs=1" +
                 "&hl=vi&cc_lang_pref=vi"
 
-            val headers = mapOf("Referer" to appReferrer)
-            loadUrl(embedUrl, headers)
+            val html = """
+                <!doctype html>
+                <html lang="vi">
+                <head>
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                    <meta name="referrer" content="origin">
+                    <style>
+                        html, body {
+                            margin: 0;
+                            padding: 0;
+                            width: 100%;
+                            height: 100%;
+                            background: #000;
+                            overflow: hidden;
+                        }
+                        iframe {
+                            display: block;
+                            width: 100%;
+                            height: 100%;
+                            border: 0;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <iframe
+                        src="$embedUrl"
+                        title="YouTube"
+                        allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+                        allowfullscreen>
+                    </iframe>
+                </body>
+                </html>
+            """.trimIndent()
+
+            loadDataWithBaseURL(appReferrer, html, "text/html", "UTF-8", appReferrer)
         }
 
         webView = player
