@@ -5059,29 +5059,32 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             FilledTonalButton(
                                 onClick = { playYouTube(track) },
                                 shape = CircleShape,
                                 contentPadding = PaddingValues(0.dp),
-                                modifier = Modifier.height(40.dp)
-                            ) { Text("▶ PHÁT") }
+                                modifier = Modifier.size(40.dp)
+                            ) { Text("▶") }
                             FilledTonalButton(
                                 onClick = { toggleYouTubeFavorite(track) },
                                 shape = CircleShape,
                                 contentPadding = PaddingValues(0.dp),
-                                modifier = Modifier.height(40.dp)
+                                modifier = Modifier.size(40.dp)
                             ) {
                                 Text(if (youtubeFavoriteSet.contains(track.videoId)) "♥" else "♡")
                             }
                             FilledTonalButton(
                                 onClick = { toggleYouTubeWatchLater(track) },
                                 shape = CircleShape,
-                                contentPadding = PaddingValues(horizontal = 10.dp),
-                                modifier = Modifier.height(40.dp)
+                                contentPadding = PaddingValues(0.dp),
+                                modifier = Modifier.size(40.dp)
                             ) {
                                 Text(
-                                    if (youtubeWatchLater.any { it.videoId == track.videoId }) "✓ XEM SAU" else "XEM SAU"
+                                    if (youtubeWatchLater.any { it.videoId == track.videoId }) "✓" else "🔖"
                                 )
                             }
                         }
