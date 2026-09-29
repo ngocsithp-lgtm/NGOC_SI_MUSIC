@@ -181,16 +181,20 @@ class YouTubePlayerActivity : ComponentActivity() {
         val actions = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(8), dp(8), dp(8), dp(4))
+            setPadding(dp(8), dp(5), dp(8), dp(3))
         }
         previousButton = actionButton("⏮") { playPrevious() }
-        favoriteButton = actionButton("♡ Yêu thích") { toggleFavorite() }
-        watchLaterButton = actionButton("🔖 Xem sau") { toggleWatchLater() }
+        favoriteButton = actionButton("♡") { toggleFavorite() }
+        watchLaterButton = actionButton("🔖") { toggleWatchLater() }
         nextButton = actionButton("⏭") { playNext() }
-        actions.addView(previousButton, LinearLayout.LayoutParams(dp(56), dp(46)))
-        actions.addView(favoriteButton, LinearLayout.LayoutParams(0, dp(46), 1f).apply { marginStart = dp(4); marginEnd = dp(4) })
-        actions.addView(watchLaterButton, LinearLayout.LayoutParams(0, dp(46), 1f).apply { marginEnd = dp(4) })
-        actions.addView(nextButton, LinearLayout.LayoutParams(dp(56), dp(46)))
+        previousButton.contentDescription = "Video trước"
+        favoriteButton.contentDescription = "Yêu thích"
+        watchLaterButton.contentDescription = "Xem sau"
+        nextButton.contentDescription = "Video tiếp theo"
+        actions.addView(previousButton, LinearLayout.LayoutParams(dp(50), dp(42)))
+        actions.addView(favoriteButton, LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginStart = dp(3); marginEnd = dp(3) })
+        actions.addView(watchLaterButton, LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(3) })
+        actions.addView(nextButton, LinearLayout.LayoutParams(dp(50), dp(42)))
         content.addView(actions)
 
         val queueButton = Button(this).apply {
@@ -226,7 +230,8 @@ class YouTubePlayerActivity : ComponentActivity() {
         })
 
         val share = Button(this).apply {
-            text = "CHIA SẺ"
+            text = "↗ CHIA SẺ"
+            isAllCaps = false
             setOnClickListener {
                 val shareIntent = Intent(Intent.ACTION_SEND).apply {
                     type = "text/plain"
