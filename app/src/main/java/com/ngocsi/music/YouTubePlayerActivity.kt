@@ -208,6 +208,23 @@ class YouTubePlayerActivity : ComponentActivity() {
             topMargin = dp(2)
         })
 
+        val queueProgress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = queue.size.coerceAtLeast(1)
+            progress = (queueIndex + 1).coerceIn(0, max)
+            tag = "queue_progress"
+            isIndeterminate = false
+            contentDescription = "Tiến độ hàng đợi YouTube"
+        }
+        content.addView(queueProgress, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            dp(3)
+        ).apply {
+            leftMargin = dp(8)
+            rightMargin = dp(8)
+            topMargin = dp(2)
+            bottomMargin = dp(4)
+        })
+
         val share = Button(this).apply {
             text = "CHIA SẺ"
             setOnClickListener {
@@ -619,6 +636,10 @@ class YouTubePlayerActivity : ComponentActivity() {
 
     private fun updateQueueButton() {
         root.findViewWithTag<Button>("queue_button")?.text = "☷ HÀNG ĐỢI (" + (queueIndex + 1) + "/" + queue.size + ")"
+        root.findViewWithTag<ProgressBar>("queue_progress")?.apply {
+            max = queue.size.coerceAtLeast(1)
+            progress = (queueIndex + 1).coerceIn(0, max)
+        }
     }
 
     private fun showError(message: String) {
