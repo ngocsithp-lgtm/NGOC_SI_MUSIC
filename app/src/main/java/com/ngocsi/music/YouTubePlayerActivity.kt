@@ -312,11 +312,30 @@ class YouTubePlayerActivity : ComponentActivity() {
             setPadding(dp(6), dp(4), dp(6), dp(4))
         }
 
+        val scroll = ScrollView(this).apply {
+            setBackgroundColor(AndroidColor.rgb(18, 18, 22))
+            addView(list)
+        }
+
         val dialog = android.app.AlertDialog.Builder(this)
             .setTitle("HÀNG ĐỢI YOUTUBE • " + (queueIndex + 1) + "/" + queue.size)
-            .setView(list)
+            .setView(scroll)
             .setNegativeButton("ĐÓNG", null)
             .create()
+
+        dialog.setOnShowListener {
+            val maxHeight = (resources.displayMetrics.heightPixels * 0.56f).toInt().coerceAtLeast(dp(260))
+            scroll.post {
+                val desiredHeight = list.measuredHeight
+                val targetHeight = desiredHeight.coerceAtMost(maxHeight)
+                if (targetHeight > 0) {
+                    scroll.layoutParams = scroll.layoutParams.apply {
+                        height = targetHeight
+                    }
+                    scroll.requestLayout()
+                }
+            }
+        }
 
         queue.forEachIndexed { index, item ->
             val isCurrent = index == queueIndex
