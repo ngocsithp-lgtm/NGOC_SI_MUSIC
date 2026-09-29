@@ -5229,21 +5229,49 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 )
                 Spacer(Modifier.height(6.dp))
                 youtubeTracks.forEach { track ->
+                    val isCurrent = youtubeLastPlayed?.videoId == track.videoId
                     Row(
                         Modifier.fillMaxWidth()
                             .clip(RoundedCornerShape(14.dp))
-                            .background(Color(0xFF1B1B23))
+                            .background(if (isCurrent) Color(0xFF1C2C20) else Color(0xFF1B1B23))
                             .clickable { playYouTube(track) }
                             .padding(10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        OnlineArtwork(track.thumbnailUrl, Modifier.size(92.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(92.dp)
+                                .clip(RoundedCornerShape(10.dp)),
+                            contentAlignment = Alignment.BottomStart
+                        ) {
+                            OnlineArtwork(track.thumbnailUrl, Modifier.fillMaxSize())
+                            if (isCurrent) {
+                                Text(
+                                    "ĐANG PHÁT",
+                                    color = Color.White,
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(Color(0xCC101014))
+                                        .padding(horizontal = 5.dp, vertical = 3.dp)
+                                )
+                            }
+                        }
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
+                            if (isCurrent) {
+                                Text(
+                                    "▶ ĐANG PHÁT",
+                                    color = Color(0xFF8FD694),
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                             Text(
                                 track.title,
                                 color = Color.White,
-                                fontWeight = FontWeight.SemiBold,
+                                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -5256,20 +5284,20 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             )
                         }
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             FilledTonalButton(
                                 onClick = { playYouTube(track) },
                                 shape = CircleShape,
                                 contentPadding = PaddingValues(0.dp),
-                                modifier = Modifier.size(40.dp)
+                                modifier = Modifier.size(38.dp)
                             ) { Text("▶") }
                             FilledTonalButton(
                                 onClick = { toggleYouTubeFavorite(track) },
                                 shape = CircleShape,
                                 contentPadding = PaddingValues(0.dp),
-                                modifier = Modifier.size(40.dp)
+                                modifier = Modifier.size(38.dp)
                             ) {
                                 Text(if (youtubeFavoriteSet.contains(track.videoId)) "♥" else "♡")
                             }
@@ -5277,7 +5305,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 onClick = { toggleYouTubeWatchLater(track) },
                                 shape = CircleShape,
                                 contentPadding = PaddingValues(0.dp),
-                                modifier = Modifier.size(40.dp)
+                                modifier = Modifier.size(38.dp)
                             ) {
                                 Text(
                                     if (youtubeWatchLater.any { it.videoId == track.videoId }) "✓" else "🔖"
