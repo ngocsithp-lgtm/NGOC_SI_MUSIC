@@ -357,9 +357,12 @@ class YouTubePlayerActivity : ComponentActivity() {
             }
             row.addView(number, LinearLayout.LayoutParams(dp(28), dp(58)))
 
+            val thumbnailUrl = item.thumbnailUrl.ifBlank {
+                "https://i.ytimg.com/vi/" + item.videoId + "/hqdefault.jpg"
+            }
             Thread {
                 val bitmap = runCatching {
-                    URL(item.thumbnailUrl).openConnection().apply {
+                    URL(thumbnailUrl).openConnection().apply {
                         connectTimeout = 5000
                         readTimeout = 5000
                         useCaches = true
