@@ -5048,62 +5048,6 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             }
 
             youtubeLastPlayed?.let { item ->
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    "YOUTUBE • TIẾP TỤC XEM",
-                    color = Color(0xFF8FD694),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp
-                )
-                Spacer(Modifier.height(4.dp))
-                Row(
-                    Modifier.fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(Color(0xFF17201A))
-                        .clickable { playLastYouTube() }
-                        .padding(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box {
-                        OnlineArtwork(item.thumbnailUrl, Modifier.size(72.dp))
-                        Box(
-                            Modifier
-                                .align(Alignment.BottomEnd)
-                                .padding(4.dp)
-                                .size(26.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF8FD694)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("▶", color = Color.Black, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                    Spacer(Modifier.width(10.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            item.title,
-                            color = Color.White,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            item.channelTitle,
-                            color = Color(0xFF8F8F9A),
-                            fontSize = 11.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            "Nhấn để mở lại • Hàng đợi " + (youtubeLastQueueIndex + 1),
-                            color = Color(0xFF8FD694),
-                            fontSize = 10.sp
-                        )
-                    }
-                }
-            }
-
-            youtubeLastPlayed?.let { item ->
                 val queueSize = storedYouTubeQueueSize().coerceAtLeast(1)
                 val queuePosition = (youtubeLastQueueIndex + 1).coerceIn(1, queueSize)
                 Spacer(Modifier.height(10.dp))
