@@ -1,6 +1,7 @@
 package com.ngocsi.music
 
 import android.content.Intent
+import android.graphics.BitmapFactory
 import android.graphics.Color as AndroidColor
 import android.os.Bundle
 import android.view.View
@@ -15,6 +16,7 @@ import android.webkit.WebViewClient
 import android.widget.ProgressBar
 import android.widget.Button
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -27,6 +29,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import java.net.URL
 
 class YouTubePlayerActivity : ComponentActivity() {
 
@@ -334,6 +337,15 @@ class YouTubePlayerActivity : ComponentActivity() {
                 }
             }
 
+            val thumb = ImageView(this).apply {
+                setBackgroundColor(AndroidColor.rgb(42, 42, 48))
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                contentDescription = "Ảnh thu nhỏ video " + (index + 1)
+            }
+            row.addView(thumb, LinearLayout.LayoutParams(dp(78), dp(52)).apply {
+                marginEnd = dp(8)
+            })
+
             val number = TextView(this).apply {
                 text = if (isCurrent) "▶" else (index + 1).toString()
                 setTextColor(
@@ -343,7 +355,22 @@ class YouTubePlayerActivity : ComponentActivity() {
                 gravity = Gravity.CENTER
                 typeface = android.graphics.Typeface.DEFAULT_BOLD
             }
-            row.addView(number, LinearLayout.LayoutParams(dp(34), dp(58)))
+            row.addView(number, LinearLayout.LayoutParams(dp(28), dp(58)))
+
+            Thread {
+                val bitmap = runCatching {
+                    URL(item.thumbnailUrl).openConnection().apply {
+                        connectTimeout = 5000
+                        readTimeout = 5000
+                        useCaches = true
+                    }.getInputStream().use { BitmapFactory.decodeStream(it) }
+                }.getOrNull()
+                if (bitmap != null && !isFinishing && !isDestroyed) {
+                    runOnUiThread {
+                        if (thumb.parent != null) thumb.setImageBitmap(bitmap)
+                    }
+                }
+            }.start()
 
             val info = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
