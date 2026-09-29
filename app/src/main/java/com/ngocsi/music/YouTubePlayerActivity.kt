@@ -303,23 +303,84 @@ class YouTubePlayerActivity : ComponentActivity() {
 
     private fun showQueueDialog() {
         if (queue.isEmpty()) return
-        val labels = queue.mapIndexed { index, item ->
-            val marker = if (index == queueIndex) "▶ " else ""
-            val channelLabel = item.channelTitle.takeIf { it.isNotBlank() }?.let { " • $it" }.orEmpty()
-            marker + (index + 1) + ". " + item.title + channelLabel
-        }.toTypedArray()
 
-        android.app.AlertDialog.Builder(this)
+        val list = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(6), dp(4), dp(6), dp(4))
+        }
+
+        val dialog = android.app.AlertDialog.Builder(this)
             .setTitle("HÀNG ĐỢI YOUTUBE • " + (queueIndex + 1) + "/" + queue.size)
-            .setSingleChoiceItems(labels, queueIndex) { dialog, which ->
-                if (which != queueIndex) {
-                    queueIndex = which
-                    loadQueueItem()
-                }
-                dialog.dismiss()
-            }
+            .setView(list)
             .setNegativeButton("ĐÓNG", null)
-            .show()
+            .create()
+
+        queue.forEachIndexed { index, item ->
+            val isCurrent = index == queueIndex
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(10), dp(9), dp(10), dp(9))
+                setBackgroundColor(
+                    if (isCurrent) AndroidColor.rgb(28, 44, 32)
+                    else AndroidColor.rgb(24, 24, 28)
+                )
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    queueIndex = index
+                    loadQueueItem()
+                    dialog.dismiss()
+                }
+            }
+
+            val number = TextView(this).apply {
+                text = if (isCurrent) "▶" else (index + 1).toString()
+                setTextColor(
+                    if (isCurrent) AndroidColor.rgb(143, 214, 148) else AndroidColor.rgb(170, 170, 180)
+                )
+                textSize = if (isCurrent) 14f else 13f
+                gravity = Gravity.CENTER
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
+            }
+            row.addView(number, LinearLayout.LayoutParams(dp(34), dp(58)))
+
+            val info = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+
+            val rowTitle = TextView(this).apply {
+                text = item.title
+                setTextColor(AndroidColor.WHITE)
+                textSize = 14f
+                maxLines = 2
+                ellipsize = android.text.TextUtils.TruncateAt.END
+                typeface = if (isCurrent) android.graphics.Typeface.DEFAULT_BOLD else android.graphics.Typeface.DEFAULT
+            }
+            info.addView(rowTitle)
+
+            val rowChannel = TextView(this).apply {
+                text = if (isCurrent) "ĐANG PHÁT • " + item.channelTitle else item.channelTitle
+                setTextColor(
+                    if (isCurrent) AndroidColor.rgb(143, 214, 148) else AndroidColor.rgb(155, 155, 166)
+                )
+                textSize = 11f
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            }
+            info.addView(rowChannel)
+
+            row.addView(info, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            list.addView(row, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = dp(3)
+            })
+        }
+
+        dialog.show()
     }
 
     private fun playPrevious() {
@@ -636,6 +697,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         if (::titleView.isInitialized) titleView.text = title
         if (::channelView.isInitialized) channelView.text = channel
         updateActionState()
+        updateQueueButton()
         saveLastPlayedState()
     }
 
