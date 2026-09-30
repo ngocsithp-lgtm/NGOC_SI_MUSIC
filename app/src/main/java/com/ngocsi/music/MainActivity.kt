@@ -220,6 +220,8 @@ class MainActivity : ComponentActivity() {
     private var driveSharedLink by mutableStateOf("")
     private var driveSharedLoading by mutableStateOf(false)
     private var driveSharedStatus by mutableStateOf("Chưa liên kết nguồn Drive chia sẻ")
+    private var driveOAuthSignedIn by mutableStateOf(false)
+    private lateinit var driveOAuthManager: DriveOAuthManager
     private var driveRecentLinks by mutableStateOf(listOf<String>())
     private var selectedLibrary by mutableStateOf("Tất cả")
     private var libraryView by mutableStateOf("Bài hát")
@@ -432,6 +434,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+        driveOAuthManager = DriveOAuthManager(this)
+        driveOAuthSignedIn = driveOAuthManager.isSignedIn()
+
         playlistStore = PlaylistStore(this)
         playlists.addAll(playlistStore.load())
         loadCustomTvSources()
@@ -1047,7 +1052,7 @@ class MainActivity : ComponentActivity() {
         return id to uri.getQueryParameter("resourcekey")
     }
 
-    private fun driveApiGet(url: String): org.json.JSONObject {
+    private fun driveApiGet(url: String, accessToken: String? = null): org.json.JSONObject {
         val connection = (URL(url).openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = 12000
@@ -1055,6 +1060,7 @@ class MainActivity : ComponentActivity() {
             useCaches = false
             setRequestProperty("Accept", "application/json")
             setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.7 (Android)")
+            accessToken?.takeIf { it.isNotBlank() }?.let { setRequestProperty("Authorization", "Bearer $it") }
         }
         try {
             val code = connection.responseCode
@@ -1077,7 +1083,8 @@ class MainActivity : ComponentActivity() {
     private fun inspectSharedDriveItem(
         id: String,
         resourceKey: String?,
-        apiKey: String
+        apiKey: String,
+        accessToken: String? = null
     ): org.json.JSONObject {
         val url = "https://www.googleapis.com/drive/v3/files/" +
             Uri.encode(id) +
@@ -1087,7 +1094,7 @@ class MainActivity : ComponentActivity() {
             (resourceKey?.takeIf { it.isNotBlank() }?.let {
                 "&resourceKey=" + URLEncoder.encode(it, "UTF-8")
             } ?: "")
-        return driveApiGet(url)
+        return driveApiGet(url, accessToken)
     }
 
     private fun listSharedDriveFolder(
@@ -1096,6 +1103,7 @@ class MainActivity : ComponentActivity() {
         apiKey: String,
         result: MutableList<SharedDriveItem>,
         visited: MutableSet<String>,
+        accessToken: String? = null,
         depth: Int = 0
     ) {
         if (depth > 8 || !visited.add(folderId)) return
@@ -1116,7 +1124,7 @@ class MainActivity : ComponentActivity() {
                     "&resourceKey=" + URLEncoder.encode(it, "UTF-8")
                 } ?: "")
 
-            val json = driveApiGet(url)
+            val json = driveApiGet(url, accessToken)
             val files = json.optJSONArray("files") ?: org.json.JSONArray()
             for (i in 0 until files.length()) {
                 val item = files.optJSONObject(i) ?: continue
@@ -1135,6 +1143,7 @@ class MainActivity : ComponentActivity() {
                         apiKey,
                         result,
                         visited,
+                        accessToken,
                         depth + 1
                     )
                 } else if (isSupportedDriveAudio(name, mime)) {
@@ -1302,7 +1311,9 @@ class MainActivity : ComponentActivity() {
             val result = withContext(Dispatchers.IO) {
                 runCatching {
                     val (id, suppliedResourceKey) = parsed
-                    val root = inspectSharedDriveItem(id, suppliedResourceKey, apiKey)
+                    val accessToken = driveOAuthManager.accessToken()
+                    if (accessToken == null && apiKey.isBlank()) error("Cần đăng nhập Google Drive.")
+                    val root = inspectSharedDriveItem(id, suppliedResourceKey, apiKey, accessToken)
                     if (root.optBoolean("trashed", false)) error("Nguồn Drive đã bị xóa.")
                     val canDownload = root.optJSONObject("capabilities")
                         ?.optBoolean("canDownload", true) ?: true
@@ -1321,7 +1332,8 @@ class MainActivity : ComponentActivity() {
                             rootResourceKey,
                             apiKey,
                             collected,
-                            mutableSetOf()
+                            mutableSetOf(),
+                            accessToken
                         )
                     } else {
                         if (!isSupportedDriveAudio(rootName, mime)) {
