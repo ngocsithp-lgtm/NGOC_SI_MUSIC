@@ -219,6 +219,8 @@ class MainActivity : ComponentActivity() {
     private var onlineUrl by mutableStateOf("")
     private var driveSharedLink by mutableStateOf("")
     private var driveSharedLoading by mutableStateOf(false)
+    private var driveSharedStatus by mutableStateOf("Chưa liên kết nguồn Drive chia sẻ")
+    private var driveRecentLinks by mutableStateOf(listOf<String>())
     private var selectedLibrary by mutableStateOf("Tất cả")
     private var libraryView by mutableStateOf("Bài hát")
     private var showQueue by mutableStateOf(false) // #145 queue upgrade
@@ -434,6 +436,7 @@ class MainActivity : ComponentActivity() {
         playlists.addAll(playlistStore.load())
         loadCustomTvSources()
         loadSavedState()
+        loadDriveRecentLinks()
         restoreSleepTimer()
 
         // PRO shell deep-links into the proven feature surfaces without
@@ -1214,6 +1217,60 @@ class MainActivity : ComponentActivity() {
         prefs.edit().putString("drive_shared_items", array.toString()).apply()
     }
 
+    private fun loadDriveRecentLinks() {
+        driveRecentLinks = prefs.getString("drive_recent_links", null)
+            ?.split("\n")
+            ?.map { it.trim() }
+            ?.filter { it.isNotBlank() }
+            ?.distinct()
+            ?.take(8)
+            ?: emptyList()
+        val count = loadSharedDriveItems().size
+        driveSharedStatus = if (count > 0) "Đã liên kết $count tệp Drive chia sẻ" else "Chưa liên kết nguồn Drive chia sẻ"
+    }
+
+    private fun saveDriveRecentLink(link: String) {
+        val value = link.trim()
+        if (value.isBlank()) return
+        val updated = buildList {
+            add(value)
+            addAll(driveRecentLinks.filterNot { it == value })
+        }.take(8)
+        driveRecentLinks = updated
+        prefs.edit().putString("drive_recent_links", updated.joinToString("\n")).apply()
+    }
+
+    private fun openGoogleDrive() {
+        runCatching {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://drive.google.com/drive/my-drive")))
+        }.onFailure {
+            errorMessage = "Không mở được Google Drive."
+        }
+    }
+
+    private fun clearSharedDriveLibrary() {
+        val sharedUris = songs.filter { it.source == "Google Drive" }.map { it.uri.toString() }.toSet()
+        if (sharedUris.isEmpty()) {
+            driveSharedStatus = "Không có nhạc Drive chia sẻ để xóa."
+            return
+        }
+        val activeUri = controller?.currentMediaItem?.localConfiguration?.uri?.toString()
+        prefs.edit().remove("drive_shared_items").apply()
+        songs.removeAll { it.source == "Google Drive" }
+        queueSongs.removeAll { it.source == "Google Drive" }
+        if (activeUri != null && sharedUris.contains(activeUri)) {
+            controller?.stop()
+            currentIndex = -1
+            isPlaying = false
+            position = 0L
+        } else {
+            currentIndex = songs.indexOfFirst { it.uri.toString() == activeUri }
+        }
+        syncControllerQueue()
+        driveSharedStatus = "Đã xóa nhạc Drive chia sẻ khỏi thư viện."
+        errorMessage = "Đã xóa nhạc Google Drive chia sẻ."
+    }
+
     private fun importSharedDriveLink() {
         val parsed = extractDriveIdAndResourceKey(driveSharedLink)
         if (parsed == null) {
@@ -1299,6 +1356,8 @@ class MainActivity : ComponentActivity() {
                 }
 
                 saveSharedDriveItems(savedItems)
+                saveDriveRecentLink(driveSharedLink)
+                driveSharedStatus = "Đã liên kết $added tệp từ nguồn Drive chia sẻ"
                 syncControllerQueue()
                 driveSharedLoading = false
                 driveSharedLink = ""
@@ -1311,6 +1370,7 @@ class MainActivity : ComponentActivity() {
             }.onFailure { e ->
                 driveSharedLoading = false
                 driveImportJob = null
+                driveSharedStatus = "Không thể liên kết nguồn Drive chia sẻ"
                 val message = e.message.orEmpty()
                 errorMessage = when {
                     message.contains("403") || message.contains("permission", true) ||
@@ -5681,32 +5741,110 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             }
 
             Spacer(Modifier.height(10.dp))
-            Text("GOOGLE DRIVE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            Spacer(Modifier.height(8.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = ::openDrivePicker, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) { Text("File Drive") }
-                OutlinedButton(onClick = ::openDriveFolderPicker, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) { Text("Thư mục") }
-            }
-            Spacer(Modifier.height(8.dp))
-            OutlinedTextField(
-                value = driveSharedLink,
-                onValueChange = { driveSharedLink = it },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                placeholder = { Text("Dán link Drive người khác chia sẻ") },
-                label = { Text("Link chia sẻ Google Drive") },
-                shape = RoundedCornerShape(14.dp)
-            )
-            Spacer(Modifier.height(6.dp))
-            Button(
-                onClick = ::importSharedDriveLink,
-                enabled = !driveSharedLoading,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+            Column(
+                Modifier.fillMaxWidth()
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(Brush.linearGradient(listOf(Color(0xFF1D1930), Color(0xFF11131A))))
+                    .padding(14.dp)
             ) {
-                Text(if (driveSharedLoading) "ĐANG KẾT NỐI DRIVE…" else "LIÊN KẾT DRIVE CHIA SẺ")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("GOOGLE DRIVE", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, modifier = Modifier.weight(1f))
+                    Text("PRO", color = Color(0xFFC8B7FF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "Nhạc từ Drive của thiết bị • Drive chia sẻ • link thư mục",
+                    color = Color(0xFF8F8F9A),
+                    fontSize = 11.sp
+                )
+                Spacer(Modifier.height(10.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = ::openDrivePicker,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(14.dp)
+                    ) { Text("☁ FILE") }
+                    OutlinedButton(
+                        onClick = ::openDriveFolderPicker,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(14.dp)
+                    ) { Text("▣ THƯ MỤC") }
+                }
+                Spacer(Modifier.height(7.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = ::openGoogleDrive,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(14.dp)
+                    ) { Text("MỞ DRIVE") }
+                    OutlinedButton(
+                        onClick = {
+                            loadDriveRecentLinks()
+                            loadSongs()
+                            errorMessage = "Đã làm mới thư viện Google Drive."
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(14.dp)
+                    ) { Text("↻ LÀM MỚI") }
+                }
+                Spacer(Modifier.height(10.dp))
+                Text("DRIVE CHIA SẺ", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(5.dp))
+                OutlinedTextField(
+                    value = driveSharedLink,
+                    onValueChange = { driveSharedLink = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    placeholder = { Text("Dán link tệp hoặc thư mục người khác chia sẻ") },
+                    label = { Text("Link Google Drive") },
+                    shape = RoundedCornerShape(14.dp)
+                )
+                Spacer(Modifier.height(6.dp))
+                Button(
+                    onClick = ::importSharedDriveLink,
+                    enabled = !driveSharedLoading && driveSharedLink.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text(if (driveSharedLoading) "ĐANG KẾT NỐI DRIVE…" else "LIÊN KẾT NGUỒN CHIA SẺ")
+                }
+                Spacer(Modifier.height(5.dp))
+                Text(
+                    driveSharedStatus,
+                    color = if (driveSharedLoading) Color(0xFFC8B7FF) else Color(0xFF8F8F9A),
+                    fontSize = 11.sp
+                )
+                if (driveRecentLinks.isNotEmpty()) {
+                    Spacer(Modifier.height(7.dp))
+                    Text("LINK GẦN ĐÂY", color = Color(0xFFB8B3C7), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    driveRecentLinks.take(3).forEach { link ->
+                        Row(
+                            Modifier.fillMaxWidth().padding(top = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                link,
+                                color = Color(0xFF9F9FAA),
+                                fontSize = 10.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f).clickable { driveSharedLink = link }
+                            )
+                            TextButton(onClick = {
+                                driveSharedLink = link
+                                importSharedDriveLink()
+                            }) { Text("MỞ") }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+                OutlinedButton(
+                    onClick = ::clearSharedDriveLibrary,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) { Text("XÓA NHẠC DRIVE CHIA SẺ") }
             }
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(8.dp))
             OutlinedTextField(value = onlineUrl, onValueChange = { onlineUrl = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, placeholder = { Text("Dán URL luồng âm thanh HTTPS") }, shape = RoundedCornerShape(14.dp))
             Spacer(Modifier.height(6.dp))
             Button(onClick = ::playOnlineUrl, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text("PHÁT LUỒNG ÂM THANH") }
