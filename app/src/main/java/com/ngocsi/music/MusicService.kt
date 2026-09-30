@@ -17,7 +17,12 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.google.common.util.concurrent.ListenableFuture
@@ -29,6 +34,8 @@ class MusicService : MediaSessionService() {
     private lateinit var player: ExoPlayer
     private lateinit var mediaSession: MediaSession
     private val widgetHandler = Handler(Looper.getMainLooper())
+    private val driveRecoveryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var driveRecoveryInProgress = false
     private val prefs by lazy { getSharedPreferences("ngoc_si_music", MODE_PRIVATE) }
     private val widgetTicker = object : Runnable {
         override fun run() {
@@ -132,8 +139,12 @@ class MusicService : MediaSessionService() {
         }
 
         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-            // Keep the last playable queue/position snapshot intact when a decoder
-            // or source error occurs, and refresh any lock-screen/widget UI.
+            // A Drive OAuth token can expire during an active HTTP request. Refresh
+            // the token and retry the same item once instead of leaving playback
+            // permanently stopped at the lock screen/background.
+            if (isDriveAuthorizationError(error) && !driveRecoveryInProgress) {
+                recoverDrivePlayback()
+            }
             savePlaybackState()
             broadcastWidget()
         }
@@ -227,6 +238,47 @@ class MusicService : MediaSessionService() {
             .build()
 
         broadcastWidget()
+    }
+
+    private fun isDriveAuthorizationError(error: androidx.media3.common.PlaybackException): Boolean {
+        var cause: Throwable? = error
+        repeat(8) {
+            when (cause) {
+                is HttpDataSource.InvalidResponseCodeException -> {
+                    val code = (cause as HttpDataSource.InvalidResponseCodeException).responseCode
+                    return code == 401 || code == 403
+                }
+            }
+            cause = cause?.cause
+        }
+        return false
+    }
+
+    private fun recoverDrivePlayback() {
+        val current = player.currentMediaItem ?: return
+        val uri = current.localConfiguration?.uri?.toString().orEmpty()
+        if (!uri.contains("googleapis.com/drive/v3/files/")) return
+
+        val resumePosition = player.currentPosition.coerceAtLeast(0L)
+        driveRecoveryInProgress = true
+        driveRecoveryScope.launch {
+            val token = refreshDriveTokenBlocking()
+            widgetHandler.post {
+                try {
+                    if (token.isBlank()) {
+                        driveRecoveryInProgress = false
+                        return@post
+                    }
+                    val wasPlaying = player.isPlaying
+                    val replacement = current.buildUpon().build()
+                    player.setMediaItem(replacement, resumePosition)
+                    player.prepare()
+                    if (wasPlaying) player.play()
+                } finally {
+                    driveRecoveryInProgress = false
+                }
+            }
+        }
     }
 
     private fun refreshDriveTokenBlocking(): String {
