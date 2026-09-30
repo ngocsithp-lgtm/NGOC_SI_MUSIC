@@ -3067,10 +3067,10 @@ class MainActivity : ComponentActivity() {
 
         MaterialTheme(
             colorScheme = darkColorScheme(
-                background = Color(0xFF08090D),
-                surface = Color(0xFF11131A),
-                primary = Color(0xFFB18CFF),
-                secondary = Color(0xFF7DD3FC)
+                background = NgocSiVisuals.Background,
+                surface = NgocSiVisuals.Surface,
+                primary = NgocSiVisuals.Primary,
+                secondary = NgocSiVisuals.Secondary
             )
         ) {
             Surface(
@@ -3341,13 +3341,29 @@ class MainActivity : ComponentActivity() {
                     fontWeight = FontWeight.ExtraBold,
                     letterSpacing = 0.2.sp
                 )
-                Text(
-                    "ÂM NHẠC • RADIO • ONLINE",
-                    color = Color(0xFF9698A7),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.6.sp
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "ÂM NHẠC • RADIO • ONLINE",
+                        color = NgocSiVisuals.TextSecondary,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.6.sp
+                    )
+                    Spacer(Modifier.width(7.dp))
+                    Surface(
+                        shape = RoundedCornerShape(7.dp),
+                        color = Color(0x3320202B),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, NgocSiVisuals.Primary.copy(alpha = 0.45f))
+                    ) {
+                        Text(
+                            "PRO",
+                            color = NgocSiVisuals.Primary,
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Black,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                        )
+                    }
+                }
             }
 
             IconButton(onClick = { showPlaylists = true }) {
@@ -3682,6 +3698,29 @@ class MainActivity : ComponentActivity() {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("🗺️", fontSize = 18.sp)
                     Text("Bản đồ", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            OutlinedButton(
+                onClick = { selectedSection = "Online"; driveSharedStatus = "Mở trung tâm Google Drive" },
+                modifier = Modifier.weight(1f).height(62.dp),
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("☁", fontSize = 18.sp)
+                    Text("Google Drive", fontWeight = FontWeight.Bold, maxLines = 1)
+                }
+            }
+            OutlinedButton(
+                onClick = { showSleepTimer = true },
+                modifier = Modifier.weight(1f).height(62.dp),
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("🌙", fontSize = 18.sp)
+                    Text("Hẹn giờ", fontWeight = FontWeight.Bold)
                 }
             }
         }
