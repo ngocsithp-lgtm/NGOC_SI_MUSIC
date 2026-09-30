@@ -1319,7 +1319,8 @@ class MainActivity : ComponentActivity() {
         errorMessage = "Đang tải Google Drive • Được chia sẻ với tôi…"
 
         driveImportJob = lifecycleScope.launch {
-            val result = withContext(Dispatchers.IO) {
+            try {
+                val result = withContext(Dispatchers.IO) {
                 runCatching {
                     val accessToken = driveOAuthManager.accessToken()
                         ?: error("Không lấy được quyền truy cập Google Drive. Hãy đăng nhập lại.")
@@ -1424,19 +1425,21 @@ class MainActivity : ComponentActivity() {
             } else {
                 "Không có bài mới từ Google Drive được chia sẻ."
             }
-        }.invokeOnCompletion { cause ->
-            if (cause != null) {
+            } catch (e: Exception) {
+                if (e is kotlin.coroutines.cancellation.CancellationException) throw e
                 driveSharedLoading = false
-                driveImportJob = null
                 errorMessage = when {
-                    cause.message.orEmpty().contains("403") ->
+                    e.message.orEmpty().contains("403") ->
                         "Tài khoản Google không có quyền xem/tải các nguồn được chia sẻ."
-                    cause.message.orEmpty().contains("401") ->
+                    e.message.orEmpty().contains("401") ->
                         "Phiên Google Drive đã hết hạn. Hãy đăng nhập lại."
                     else ->
                         "Không tải được “Được chia sẻ với tôi”: " +
-                            (cause.message ?: "lỗi không xác định")
+                            (e.message ?: "lỗi không xác định")
                 }
+            } finally {
+                driveImportJob = null
+                driveSharedLoading = false
             }
         }
     }
