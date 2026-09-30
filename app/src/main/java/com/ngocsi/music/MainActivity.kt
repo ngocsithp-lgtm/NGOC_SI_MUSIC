@@ -1331,6 +1331,7 @@ class MainActivity : ComponentActivity() {
                     val (id, suppliedResourceKey) = parsed
                     val accessToken = driveOAuthManager.accessToken()
                     if (accessToken == null && apiKey.isBlank()) error("Cần đăng nhập Google Drive.")
+                    accessToken?.let { prefs.edit().putString("drive_access_token", it).apply() }
                     val root = inspectSharedDriveItem(id, suppliedResourceKey, apiKey, accessToken)
                     if (root.optBoolean("trashed", false)) error("Nguồn Drive đã bị xóa.")
                     val canDownload = root.optJSONObject("capabilities")
