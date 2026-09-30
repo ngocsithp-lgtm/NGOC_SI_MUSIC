@@ -340,6 +340,19 @@ class MainActivity : ComponentActivity() {
         if (uri != null) importDriveFolder(uri)
     }
 
+    private val driveSignInLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        driveOAuthManager.handleSignInResult(result.data)
+            .onSuccess {
+                driveOAuthSignedIn = true
+                driveSharedStatus = "Đã đăng nhập Google Drive"
+                errorMessage = "Đã kết nối Google Drive. Nhấn LIÊN KẾT NGUỒN CHIA SẺ lần nữa."
+            }
+            .onFailure {
+                driveOAuthSignedIn = false
+                errorMessage = "Không đăng nhập được Google Drive. Kiểm tra tài khoản và cấu hình OAuth."
+            }
+    }
+
     private val playerListener = object : Player.Listener {
         override fun onIsPlayingChanged(playing: Boolean) {
             isPlaying = playing
@@ -1298,7 +1311,12 @@ class MainActivity : ComponentActivity() {
         }
 
         val apiKey = driveApiKey()
-        if (apiKey.isBlank()) {
+        if (!driveOAuthSignedIn && driveOAuthManager.lastAccount() == null) {
+            driveSignInLauncher.launch(driveOAuthManager.signInIntent())
+            driveSharedStatus = "Đang yêu cầu đăng nhập Google Drive…"
+            return
+        }
+        if (apiKey.isBlank() && driveOAuthManager.lastAccount() == null) {
             errorMessage = "Chưa có Google Drive API key. Thêm GitHub Secret DRIVE_API_KEY và bật Drive API."
             return
         }
