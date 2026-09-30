@@ -3380,8 +3380,7 @@ class MainActivity : ComponentActivity() {
 
             mapSearching = false
             result.onSuccess { (lat, lon, displayName) ->
-                val delta = 0.012
-                radioWebTitle = "NGỌC SĨ MAP • ${displayName.substringBefore(",")}"
+                    radioWebTitle = "NGỌC SĨ MAP • ${displayName.substringBefore(",")}"
                 radioWebUrl =
                     "https://www.openstreetmap.org/#map=15/" +
                         "$lat/$lon&layers=N"
