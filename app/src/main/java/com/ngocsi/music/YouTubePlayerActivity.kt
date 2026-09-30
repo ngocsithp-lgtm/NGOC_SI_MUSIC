@@ -774,13 +774,9 @@ class YouTubePlayerActivity : ComponentActivity() {
             isFocusableInTouchMode = true
             addJavascriptInterface(youtubeJsBridge, "AndroidBridge")
 
+            // Use a real enclosing web context and let the official IFrame API own the player.
             val safeId = sanitizeVideoId(videoId)
-            // YouTube's current Android guidance allows a mobile app to host the
-            // embedded player inside an HTML page and use the page baseUrl as the
-            // HTTP Referer. This gives the embed a real enclosing web context and
-            // is preferable to navigating directly to the embed URL.
             val appReferrer = "https://com.ngocsi.music/"
-            val safeId = sanitizeVideoId(videoId)
             val origin = "https://com.ngocsi.music"
 
             val html = """
