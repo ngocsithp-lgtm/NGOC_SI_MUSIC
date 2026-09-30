@@ -9,6 +9,7 @@ import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.common.api.Scope
+import com.google.android.gms.auth.api.signin.GoogleSignInStatusCodes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -35,7 +36,33 @@ class DriveOAuthManager(private val context: Context) {
     fun lastAccount(): GoogleSignInAccount? =
         GoogleSignIn.getLastSignedInAccount(context)
 
-    fun isSignedIn(): Boolean = lastAccount() != null
+    fun hasDriveScope(): Boolean {
+        val account = lastAccount() ?: return false
+        return account.grantedScopes?.any { it.scopeUri == DRIVE_READ_SCOPE } == true
+    }
+
+    fun isSignedIn(): Boolean = lastAccount() != null && hasDriveScope()
+
+    fun signInErrorMessage(error: Throwable): String {
+        val api = error as? ApiException
+        return when (api?.statusCode) {
+            GoogleSignInStatusCodes.SIGN_IN_CANCELLED ->
+                "Đã hủy đăng nhập Google Drive."
+            GoogleSignInStatusCodes.SIGN_IN_FAILED ->
+                "Google Sign-In thất bại. Kiểm tra kết nối mạng và tài khoản Google."
+            GoogleSignInStatusCodes.DEVELOPER_ERROR ->
+                "Google OAuth chưa khớp với ứng dụng com.ngocsi.music. Cần cấu hình Android OAuth Client đúng package + SHA-1."
+            GoogleSignInStatusCodes.NETWORK_ERROR ->
+                "Không kết nối được dịch vụ Google. Kiểm tra mạng và Google Play services."
+            GoogleSignInStatusCodes.INTERNAL_ERROR ->
+                "Google Sign-In gặp lỗi nội bộ. Hãy thử đăng nhập lại."
+            else -> {
+                val code = api?.statusCode?.toString()
+                "Google Sign-In lỗi" + (if (code != null) " (mã " + code + ")" else "") +
+                    ": " + (error.message ?: "không rõ nguyên nhân")
+            }
+        }
+    }
 
     suspend fun accessToken(): String? = withContext(Dispatchers.IO) {
         val account = lastAccount() ?: return@withContext null
