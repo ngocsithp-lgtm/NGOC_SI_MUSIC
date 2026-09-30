@@ -29,7 +29,9 @@ import androidx.activity.OnBackPressedCallback
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.Executors
 
 class YouTubePlayerActivity : ComponentActivity() {
 
@@ -61,6 +63,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var errorView: LinearLayout? = null
     private var loadingBar: ProgressBar? = null
     private var pageErrorVisible = false
+    private val thumbnailExecutor = Executors.newFixedThreadPool(3)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -379,20 +382,33 @@ class YouTubePlayerActivity : ComponentActivity() {
             val thumbnailUrl = item.thumbnailUrl.ifBlank {
                 "https://i.ytimg.com/vi/" + item.videoId + "/hqdefault.jpg"
             }
-            Thread {
+            thumb.tag = thumbnailUrl
+            thumbnailExecutor.execute {
                 val bitmap = runCatching {
-                    URL(thumbnailUrl).openConnection().apply {
-                        connectTimeout = 5000
-                        readTimeout = 5000
-                        useCaches = true
-                    }.getInputStream().use { BitmapFactory.decodeStream(it) }
+                    (URL(thumbnailUrl).openConnection() as? HttpURLConnection)?.let { connection ->
+                        connection.connectTimeout = 5000
+                        connection.readTimeout = 5000
+                        connection.instanceFollowRedirects = true
+                        connection.useCaches = true
+                        connection.setRequestProperty("User-Agent", "Mozilla/5.0")
+                        connection.connect()
+                        if (connection.responseCode in 200..299) {
+                            connection.inputStream.use { BitmapFactory.decodeStream(it) }
+                        } else {
+                            null
+                        }.also {
+                            connection.disconnect()
+                        }
+                    }
                 }.getOrNull()
                 if (bitmap != null && !isFinishing && !isDestroyed) {
                     runOnUiThread {
-                        if (thumb.parent != null) thumb.setImageBitmap(bitmap)
+                        if (thumb.parent != null && thumb.tag == thumbnailUrl) {
+                            thumb.setImageBitmap(bitmap)
+                        }
                     }
                 }
-            }.start()
+            }
 
             val info = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
@@ -852,6 +868,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     override fun onDestroy() {
         if (customView != null) exitFullscreen(notifyCallback = false)
         removePlayer()
+        thumbnailExecutor.shutdownNow()
         loadingBar = null
         super.onDestroy()
     }
