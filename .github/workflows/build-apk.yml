@@ -45,23 +45,22 @@ jobs:
           ls -lh app/build/outputs/apk/debug/app-debug.apk
       - name: Print APK signing certificate (OAuth diagnostic)
         run: |
-          set -o pipefail
+          set -euo pipefail
+          OUT="app/build/outputs/apk/debug"
           echo "Package: com.ngocsi.music"
-          echo "=== APK signer via apksigner ==="
-          apksigner verify --verbose --print-certs app/build/outputs/apk/debug/app-debug.apk 2>&1 | tee app/build/outputs/apk/debug/apk-signing-certs.txt
-          echo "=== APK signer via keytool ==="
-          keytool -printcert -jarfile app/build/outputs/apk/debug/app-debug.apk 2>&1 | tee app/build/outputs/apk/debug/apk-keytool-cert.txt || true
+          echo "=== APK certificate via keytool ==="
+          keytool -printcert -jarfile "$OUT/app-debug.apk" | tee "$OUT/apk-keytool-cert.txt"
           echo "=== Debug keystore fingerprints ==="
-          keytool -list -v -keystore "$HOME/.android/debug.keystore" -alias androiddebugkey -storepass android -keypass android 2>&1 | tee app/build/outputs/apk/debug/debug-keystore.txt || true
+          keytool -list -v -keystore "$HOME/.android/debug.keystore"             -alias androiddebugkey -storepass android -keypass android             | tee "$OUT/debug-keystore.txt"
           echo "=== Extracted SHA-1 ==="
-          grep -Ei "certificate SHA-1 digest|SHA1:|SHA-1:"             app/build/outputs/apk/debug/apk-signing-certs.txt             app/build/outputs/apk/debug/apk-keytool-cert.txt             app/build/outputs/apk/debug/debug-keystore.txt | head -n 10 || true
+          grep -Ei "SHA1:|SHA-1:" "$OUT/apk-keytool-cert.txt" "$OUT/debug-keystore.txt" || true
           {
             echo "## Android OAuth diagnostic"
             echo ""
             echo "- Package: `com.ngocsi.music`"
             echo ""
             echo "```text"
-            grep -Ei "certificate SHA-1 digest|SHA1:|SHA-1:"               app/build/outputs/apk/debug/apk-signing-certs.txt               app/build/outputs/apk/debug/apk-keytool-cert.txt               app/build/outputs/apk/debug/debug-keystore.txt | head -n 10 || true
+            grep -Ei "SHA1:|SHA-1:" "$OUT/apk-keytool-cert.txt" "$OUT/debug-keystore.txt" || true
             echo "```"
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Generate APK SHA-256
@@ -75,7 +74,6 @@ jobs:
           path: |
             app/build/outputs/apk/debug/app-debug.apk
             app/build/outputs/apk/debug/app-debug.apk.sha256
-            app/build/outputs/apk/debug/apk-signing-certs.txt
             app/build/outputs/apk/debug/apk-keytool-cert.txt
             app/build/outputs/apk/debug/debug-keystore.txt
       - name: Publish APK Release
