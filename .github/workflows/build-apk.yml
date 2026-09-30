@@ -48,19 +48,17 @@ jobs:
           set -euo pipefail
           OUT="app/build/outputs/apk/debug"
           echo "Package: com.ngocsi.music"
-          echo "=== APK certificate via keytool ==="
-          keytool -printcert -jarfile "$OUT/app-debug.apk" | tee "$OUT/apk-keytool-cert.txt"
-          echo "=== Debug keystore fingerprints ==="
-          keytool -list -v -keystore "$HOME/.android/debug.keystore"             -alias androiddebugkey -storepass android -keypass android             | tee "$OUT/debug-keystore.txt"
-          echo "=== Extracted SHA-1 ==="
-          grep -Ei "SHA1:|SHA-1:" "$OUT/apk-keytool-cert.txt" "$OUT/debug-keystore.txt" || true
+          echo "=== Gradle signingReport ==="
+          gradle :app:signingReport --no-daemon 2>&1 | tee "$OUT/signing-report.txt"
+          echo "=== SHA-1 from signingReport ==="
+          grep -Ei "SHA1:|SHA-1:" "$OUT/signing-report.txt" || true
           {
             echo "## Android OAuth diagnostic"
             echo ""
             echo "- Package: `com.ngocsi.music`"
             echo ""
             echo "```text"
-            grep -Ei "SHA1:|SHA-1:" "$OUT/apk-keytool-cert.txt" "$OUT/debug-keystore.txt" || true
+            grep -Ei "Variant: debug|Config: debug|Store:|Alias:|SHA1:|SHA-1:" "$OUT/signing-report.txt" || true
             echo "```"
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Generate APK SHA-256
