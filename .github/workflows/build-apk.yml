@@ -49,6 +49,13 @@ jobs:
           test -f app/build/outputs/apk/debug/app-debug.apk
           ls -lh app/build/outputs/apk/debug/app-debug.apk
 
+      - name: Print APK signing certificate (OAuth diagnostic)
+        run: |
+          echo "Package: com.ngocsi.music"
+          apksigner verify --print-certs app/build/outputs/apk/debug/app-debug.apk | tee app/build/outputs/apk/debug/apk-signing-certs.txt
+          echo "SHA-1 (normalized):"
+          apksigner verify --print-certs app/build/outputs/apk/debug/app-debug.apk | sed -n 's/.*Signer #1 certificate SHA-1 digest: //p' | tr '[:lower:]' '[:upper:]' | sed 's/:/:/g'
+
       - name: Generate APK SHA-256
         run: |
           sha256sum app/build/outputs/apk/debug/app-debug.apk | tee app/build/outputs/apk/debug/app-debug.apk.sha256
