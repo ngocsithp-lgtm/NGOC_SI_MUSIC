@@ -167,15 +167,15 @@ class MusicService : MediaSessionService() {
         // Build a fresh HTTP data source for each media request so a newly
         // refreshed Google OAuth token is used without restarting the service.
         val httpFactory = DataSource.Factory {
-            DefaultHttpDataSource.Factory()
+            val token = prefs.getString("drive_access_token", "").orEmpty()
+            val factory = DefaultHttpDataSource.Factory()
                 .setUserAgent("NGOC-SI-MUSIC/5.8 (Android)")
-                .setDefaultRequestProperties(
-                    mapOf(
-                        "Authorization" to "Bearer " +
-                            prefs.getString("drive_access_token", "").orEmpty()
-                    ).filterValues { it.isNotBlank() }
+            if (token.isNotBlank()) {
+                factory.setDefaultRequestProperties(
+                    mapOf("Authorization" to "Bearer $token")
                 )
-                .createDataSource()
+            }
+            factory.createDataSource()
         }
 
         // DefaultHttpDataSource only handles http/https. Drive files selected
