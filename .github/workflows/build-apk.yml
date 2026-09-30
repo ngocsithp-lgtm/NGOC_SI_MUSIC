@@ -52,9 +52,9 @@ jobs:
       - name: Print APK signing certificate (OAuth diagnostic)
         run: |
           echo "Package: com.ngocsi.music"
-          apksigner verify --print-certs app/build/outputs/apk/debug/app-debug.apk | tee app/build/outputs/apk/debug/apk-signing-certs.txt
+          apksigner verify --print-certs app/build/outputs/apk/debug/app-debug.apk 2>&1 | tee app/build/outputs/apk/debug/apk-signing-certs.txt
           echo "SHA-1 (normalized):"
-          apksigner verify --print-certs app/build/outputs/apk/debug/app-debug.apk | sed -n 's/.*Signer #1 certificate SHA-1 digest: //p' | tr '[:lower:]' '[:upper:]' | sed 's/:/:/g'
+          grep -E "certificate SHA-1 digest:" app/build/outputs/apk/debug/apk-signing-certs.txt | head -n 1
 
       - name: Generate APK SHA-256
         run: |
