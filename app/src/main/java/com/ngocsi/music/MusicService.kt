@@ -230,7 +230,7 @@ class MusicService : MediaSessionService() {
     }
 
     private fun refreshDriveTokenBlocking(): String {
-        val account = GoogleSignIn.getLastSignedInAccount(this)?.account ?: return
+        val account = GoogleSignIn.getLastSignedInAccount(this)?.account ?: return ""
         return runCatching {
             GoogleAuthUtil.getToken(
                 this,
