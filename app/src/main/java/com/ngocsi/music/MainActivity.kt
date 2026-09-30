@@ -1122,7 +1122,9 @@ class MainActivity : ComponentActivity() {
             Uri.encode(id) +
             "?fields=id,name,mimeType,size,resourceKey,webContentLink,trashed,capabilities/canDownload" +
             "&supportsAllDrives=true" +
-            "&key=" + URLEncoder.encode(apiKey, "UTF-8") +
+            apiKey.takeIf { it.isNotBlank() }?.let {
+                "&key=" + URLEncoder.encode(it, "UTF-8")
+            }.orEmpty() +
             (resourceKey?.takeIf { it.isNotBlank() }?.let {
                 "&resourceKey=" + URLEncoder.encode(it, "UTF-8")
             } ?: "")
@@ -1150,7 +1152,9 @@ class MainActivity : ComponentActivity() {
                 "&pageSize=1000" +
                 "&fields=nextPageToken,files(id,name,mimeType,size,resourceKey,webContentLink,trashed,capabilities/canDownload)" +
                 "&supportsAllDrives=true&includeItemsFromAllDrives=true" +
-                "&key=" + URLEncoder.encode(apiKey, "UTF-8") +
+                apiKey.takeIf { it.isNotBlank() }?.let {
+                    "&key=" + URLEncoder.encode(it, "UTF-8")
+                }.orEmpty() +
                 (pageToken?.let { "&pageToken=" + URLEncoder.encode(it, "UTF-8") } ?: "") +
                 (resourceKey?.takeIf { it.isNotBlank() }?.let {
                     "&resourceKey=" + URLEncoder.encode(it, "UTF-8")
@@ -1300,6 +1304,140 @@ class MainActivity : ComponentActivity() {
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://drive.google.com/drive/my-drive")))
         }.onFailure {
             errorMessage = "Không mở được Google Drive."
+        }
+    }
+
+    private fun loadSharedWithMeDrive() {
+        if (!driveOAuthManager.hasDriveScope()) {
+            signInGoogleDrive()
+            driveSharedStatus = "Cần đăng nhập Google Drive để xem mục “Được chia sẻ với tôi”."
+            return
+        }
+
+        driveImportJob?.cancel()
+        driveSharedLoading = true
+        errorMessage = "Đang tải Google Drive • Được chia sẻ với tôi…"
+
+        driveImportJob = lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    val accessToken = driveOAuthManager.accessToken()
+                        ?: error("Không lấy được quyền truy cập Google Drive. Hãy đăng nhập lại.")
+                    prefs.edit().putString("drive_access_token", accessToken).apply()
+
+                    val collected = mutableListOf<SharedDriveItem>()
+                    val visited = mutableSetOf<String>()
+                    var pageToken: String? = null
+
+                    do {
+                        val query = URLEncoder.encode(
+                            "sharedWithMe = true and trashed = false",
+                            "UTF-8"
+                        )
+                        val url = "https://www.googleapis.com/drive/v3/files?q=$query" +
+                            "&pageSize=1000" +
+                            "&orderBy=folder,name" +
+                            "&fields=nextPageToken,files(id,name,mimeType,size,resourceKey,webContentLink,trashed,capabilities/canDownload)" +
+                            "&supportsAllDrives=true&includeItemsFromAllDrives=true" +
+                            (pageToken?.let {
+                                "&pageToken=" + URLEncoder.encode(it, "UTF-8")
+                            } ?: "")
+
+                        val json = driveApiGet(url, accessToken)
+                        val files = json.optJSONArray("files") ?: org.json.JSONArray()
+
+                        for (i in 0 until files.length()) {
+                            val item = files.optJSONObject(i) ?: continue
+                            val id = item.optString("id").trim()
+                            val name = item.optString("name").ifBlank { "Google Drive" }
+                            val mime = item.optString("mimeType").trim()
+                            val resourceKey = item.optString("resourceKey").trim()
+                            val canDownload = item.optJSONObject("capabilities")
+                                ?.optBoolean("canDownload", true) ?: true
+
+                            if (id.isBlank() || !canDownload) continue
+
+                            if (mime == "application/vnd.google-apps.folder") {
+                                listSharedDriveFolder(
+                                    id,
+                                    resourceKey.ifBlank { null },
+                                    "",
+                                    collected,
+                                    visited,
+                                    accessToken
+                                )
+                            } else if (isSupportedDriveAudio(name, mime)) {
+                                collected += SharedDriveItem(
+                                    id,
+                                    name,
+                                    mime,
+                                    resourceKey,
+                                    item.optLong("size", 0L),
+                                    item.optString("webContentLink").trim()
+                                )
+                            }
+                        }
+
+                        pageToken = json.optString("nextPageToken").ifBlank { null }
+                    } while (!pageToken.isNullOrBlank())
+
+                    collected.distinctBy { it.id }
+                }.getOrElse { throw it }
+            }
+
+            val currentUris = songs.map { it.uri.toString() }.toMutableSet()
+            val savedItems = loadSharedDriveItems().toMutableList()
+            var added = 0
+
+            result.forEach { item ->
+                val uri = sharedDriveMediaUri(item, "")
+                val raw = uri.toString()
+                if (!currentUris.add(raw)) return@forEach
+
+                val song = Song(
+                    id = -kotlin.math.abs(raw.hashCode().toLong()),
+                    title = item.name.substringBeforeLast(".").ifBlank { item.name },
+                    artist = "Google Drive • Được chia sẻ",
+                    duration = 0L,
+                    uri = uri,
+                    source = "Google Drive",
+                    folder = "Được chia sẻ với tôi"
+                )
+                songs.add(song)
+                if (queueSongs.none { it.uri == uri }) queueSongs.add(song)
+                savedItems.removeAll { it.id == item.id }
+                savedItems.add(item)
+                added++
+            }
+
+            saveSharedDriveItems(savedItems)
+            syncControllerQueue()
+            driveSharedLoading = false
+            driveImportJob = null
+            driveSharedStatus = if (result.isNotEmpty()) {
+                "Đã tìm thấy " + result.size + " tệp Drive được chia sẻ với tài khoản"
+            } else {
+                "Không có tệp âm thanh trong “Được chia sẻ với tôi”"
+            }
+            errorMessage = if (added > 0) {
+                "Đã thêm " + added + " bài từ Google Drive • Được chia sẻ với tôi."
+            } else {
+                "Không có bài mới từ Google Drive được chia sẻ."
+            }
+        }.invokeOnCompletion { cause ->
+            if (cause != null) {
+                driveSharedLoading = false
+                driveImportJob = null
+                errorMessage = when {
+                    cause.message.orEmpty().contains("403") ->
+                        "Tài khoản Google không có quyền xem/tải các nguồn được chia sẻ."
+                    cause.message.orEmpty().contains("401") ->
+                        "Phiên Google Drive đã hết hạn. Hãy đăng nhập lại."
+                    else ->
+                        "Không tải được “Được chia sẻ với tôi”: " +
+                            (cause.message ?: "lỗi không xác định")
+                }
+            }
         }
     }
 
@@ -5908,6 +6046,15 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     shape = RoundedCornerShape(14.dp)
                 ) {
                     Text("📁 CHỌN THƯ MỤC DRIVE")
+                }
+                Spacer(Modifier.height(6.dp))
+                Button(
+                    onClick = ::loadSharedWithMeDrive,
+                    enabled = !driveSharedLoading,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("👥 ĐƯỢC CHIA SẺ VỚI TÔI")
                 }
                 if (driveRecentLinks.isNotEmpty()) {
                     Spacer(Modifier.height(7.dp))
