@@ -55,6 +55,17 @@ jobs:
           apksigner verify --print-certs app/build/outputs/apk/debug/app-debug.apk 2>&1 | tee app/build/outputs/apk/debug/apk-signing-certs.txt
           echo "SHA-1 (normalized):"
           grep -E "certificate SHA-1 digest:" app/build/outputs/apk/debug/apk-signing-certs.txt | head -n 1
+          echo "Debug keystore certificate (fallback):"
+          keytool -list -v -keystore "$HOME/.android/debug.keystore" -alias androiddebugkey -storepass android -keypass android 2>/dev/null | grep -E "SHA1:|SHA-1:" | head -n 1
+          {
+            echo "## Android OAuth diagnostic"
+            echo ""
+            echo "- Package: `com.ngocsi.music`"
+            echo "- APK signing certificate:"
+            grep -E "certificate SHA-1 digest:" app/build/outputs/apk/debug/apk-signing-certs.txt | head -n 1 || true
+            echo "- Debug keystore certificate:"
+            keytool -list -v -keystore "$HOME/.android/debug.keystore" -alias androiddebugkey -storepass android -keypass android 2>/dev/null | grep -E "SHA1:|SHA-1:" | head -n 1 || true
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Generate APK SHA-256
         run: |
@@ -68,6 +79,7 @@ jobs:
           path: |
             app/build/outputs/apk/debug/app-debug.apk
             app/build/outputs/apk/debug/app-debug.apk.sha256
+            app/build/outputs/apk/debug/apk-signing-certs.txt
 
       - name: Publish APK Release
         env:
