@@ -11,6 +11,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.MediaSession
@@ -162,12 +163,19 @@ class MusicService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
 
-        val httpFactory = DefaultHttpDataSource.Factory()
-            .setUserAgent("NGOC-SI-MUSIC/5.8 (Android)")
-            .setDefaultRequestProperties(
-                mapOf("Authorization" to "Bearer " + prefs.getString("drive_access_token", "").orEmpty())
-                    .filterValues { it.isNotBlank() }
-            )
+        // Build a fresh HTTP data source for each media request so a newly
+        // refreshed Google OAuth token is used without restarting the service.
+        val httpFactory = DataSource.Factory {
+            DefaultHttpDataSource.Factory()
+                .setUserAgent("NGOC-SI-MUSIC/5.8 (Android)")
+                .setDefaultRequestProperties(
+                    mapOf(
+                        "Authorization" to "Bearer " +
+                            prefs.getString("drive_access_token", "").orEmpty()
+                    ).filterValues { it.isNotBlank() }
+                )
+                .createDataSource()
+        }
 
         player = ExoPlayer.Builder(this)
             .setMediaSourceFactory(DefaultMediaSourceFactory(httpFactory))
