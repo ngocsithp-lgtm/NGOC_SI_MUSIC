@@ -13,6 +13,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
@@ -177,8 +178,14 @@ class MusicService : MediaSessionService() {
                 .createDataSource()
         }
 
+        // DefaultHttpDataSource only handles http/https. Drive files selected
+        // through the Android/Google Drive document picker use content:// URIs.
+        // Wrap the HTTP factory in DefaultDataSource so Media3 can resolve both
+        // content:// (SAF/Drive provider) and https:// (online/Drive REST) media.
+        val mediaDataSourceFactory = DefaultDataSource.Factory(this, httpFactory)
+
         player = ExoPlayer.Builder(this)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(httpFactory))
+            .setMediaSourceFactory(DefaultMediaSourceFactory(mediaDataSourceFactory))
             .setWakeMode(C.WAKE_MODE_NETWORK)
             .setSeekBackIncrementMs(10_000L)
             .setSeekForwardIncrementMs(10_000L)
