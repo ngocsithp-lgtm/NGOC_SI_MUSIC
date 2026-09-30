@@ -55,11 +55,10 @@ jobs:
           {
             echo "## Android OAuth diagnostic"
             echo ""
-            echo "- Package: `com.ngocsi.music`"
+            echo "- Package: com.ngocsi.music"
             echo ""
-            echo "```text"
+            echo "---"
             grep -Ei "Variant: debug|Config: debug|Store:|Alias:|SHA1:|SHA-1:" "$OUT/signing-report.txt" || true
-            echo "```"
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Generate APK SHA-256
         run: |
