@@ -343,14 +343,32 @@ class MainActivity : ComponentActivity() {
     private val driveSignInLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         driveOAuthManager.handleSignInResult(result.data)
             .onSuccess {
-                driveOAuthSignedIn = true
-                driveSharedStatus = "Đã đăng nhập Google Drive"
-                errorMessage = "Đã kết nối Google Drive. Nhấn LIÊN KẾT NGUỒN CHIA SẺ lần nữa."
+                driveOAuthSignedIn = driveOAuthManager.hasDriveScope()
+                if (driveOAuthSignedIn) {
+                    driveSharedStatus = "Đã đăng nhập Google Drive và cấp quyền Drive"
+                    errorMessage = "Đã kết nối Google Drive. Có thể liên kết nguồn chia sẻ hoặc chọn trực tiếp từ Drive."
+                } else {
+                    driveSharedStatus = "Tài khoản Google chưa cấp quyền Drive"
+                    errorMessage = "Đăng nhập xong nhưng chưa cấp quyền Google Drive. Hãy bấm ĐĂNG NHẬP DRIVE lại."
+                }
             }
-            .onFailure {
+            .onFailure { e ->
                 driveOAuthSignedIn = false
-                errorMessage = "Không đăng nhập được Google Drive. Kiểm tra tài khoản và cấu hình OAuth."
+                driveSharedStatus = "Google Drive chưa đăng nhập"
+                errorMessage = driveOAuthManager.signInErrorMessage(e)
             }
+    }
+
+    private fun signInGoogleDrive() {
+        runCatching {
+            driveSignInLauncher.launch(driveOAuthManager.signInIntent())
+            driveSharedStatus = "Đang mở Google Sign-In…"
+            errorMessage = null
+        }.onFailure { e ->
+            driveSharedStatus = "Không thể mở Google Sign-In"
+            errorMessage = "Không mở được màn hình đăng nhập Google: " +
+                (e.message ?: "lỗi không xác định")
+        }
     }
 
     private val playerListener = object : Player.Listener {
@@ -698,7 +716,8 @@ class MainActivity : ComponentActivity() {
         // Rehydrate files previously linked from a Google Drive sharing URL.
         val sharedItems = loadSharedDriveItems()
         val sharedApiKey = driveApiKey()
-        if (sharedApiKey.isNotBlank()) {
+        val sharedAccessToken = prefs.getString("drive_access_token", "").orEmpty()
+        if (sharedItems.isNotEmpty() && (sharedApiKey.isNotBlank() || sharedAccessToken.isNotBlank())) {
             sharedItems.forEach { item ->
                 val uri = sharedDriveMediaUri(item, sharedApiKey)
                 val raw = uri.toString()
@@ -1189,19 +1208,18 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun sharedDriveMediaUri(item: SharedDriveItem, apiKey: String): Uri {
-        // For link-shared binary files Google exposes webContentLink, which is
-        // intended for browser-style content delivery. Prefer it for Media3
-        // instead of feeding the REST metadata endpoint directly to ExoPlayer.
-        if (item.webContentLink.isNotBlank()) {
-            return Uri.parse(item.webContentLink)
-        }
-
+        // Use the Drive REST media endpoint for both public and private files.
+        // MusicService adds the current OAuth Bearer token to the HTTP request,
+        // avoiding browser-only webContentLink redirects for shared files.
         val builder = Uri.parse(
             "https://www.googleapis.com/drive/v3/files/" + Uri.encode(item.id)
         ).buildUpon()
             .appendQueryParameter("alt", "media")
             .appendQueryParameter("supportsAllDrives", "true")
-            .appendQueryParameter("key", apiKey)
+
+        if (apiKey.isNotBlank()) {
+            builder.appendQueryParameter("key", apiKey)
+        }
         if (item.resourceKey.isNotBlank()) {
             builder.appendQueryParameter("resourceKey", item.resourceKey)
         }
@@ -1258,7 +1276,12 @@ class MainActivity : ComponentActivity() {
             ?.take(8)
             ?: emptyList()
         val count = loadSharedDriveItems().size
-        driveSharedStatus = if (count > 0) "Đã liên kết $count tệp Drive chia sẻ" else "Chưa liên kết nguồn Drive chia sẻ"
+        driveSharedStatus = when {
+            count > 0 && driveOAuthSignedIn -> "Đã liên kết $count tệp Drive chia sẻ"
+            count > 0 -> "Đã lưu $count tệp Drive; đăng nhập lại để phát nguồn riêng tư"
+            driveOAuthSignedIn -> "Đã đăng nhập Google Drive"
+            else -> "Chưa đăng nhập Google Drive"
+        }
     }
 
     private fun saveDriveRecentLink(link: String) {
@@ -1311,13 +1334,9 @@ class MainActivity : ComponentActivity() {
         }
 
         val apiKey = driveApiKey()
-        if (!driveOAuthSignedIn && driveOAuthManager.lastAccount() == null) {
-            driveSignInLauncher.launch(driveOAuthManager.signInIntent())
-            driveSharedStatus = "Đang yêu cầu đăng nhập Google Drive…"
-            return
-        }
-        if (apiKey.isBlank() && driveOAuthManager.lastAccount() == null) {
-            errorMessage = "Chưa có Google Drive API key. Thêm GitHub Secret DRIVE_API_KEY và bật Drive API."
+        if (!driveOAuthSignedIn && apiKey.isBlank()) {
+            signInGoogleDrive()
+            driveSharedStatus = "Cần đăng nhập Google Drive để đọc nguồn riêng tư/chia sẻ trực tiếp."
             return
         }
 
@@ -1417,7 +1436,13 @@ class MainActivity : ComponentActivity() {
                 errorMessage = when {
                     message.contains("403") || message.contains("permission", true) ||
                         message.contains("insufficient", true) ->
-                        "Drive từ chối quyền. Link cần được chia sẻ theo “Bất kỳ ai có liên kết” hoặc tài khoản đang dùng phải có quyền xem/tải."
+                        if (driveOAuthManager.hasDriveScope()) {
+                            "Tài khoản Google hiện tại không có quyền xem/tải nguồn này."
+                        } else {
+                            "Nguồn này yêu cầu tài khoản Google có quyền truy cập. Hãy bấm ĐĂNG NHẬP DRIVE rồi thử lại."
+                        }
+                    message.contains("401") || message.contains("unauthorized", true) ->
+                        "Phiên Google Drive đã hết hạn. Hãy đăng nhập Google Drive lại."
                     else ->
                         "Không đọc được link Google Drive: " +
                             message.ifBlank { "nguồn không cho phép truy cập trực tiếp" }
@@ -5856,6 +5881,34 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     color = if (driveSharedLoading) Color(0xFFC8B7FF) else Color(0xFF8F8F9A),
                     fontSize = 11.sp
                 )
+                Spacer(Modifier.height(7.dp))
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = ::signInGoogleDrive,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text(if (driveOAuthSignedIn) "✓ GOOGLE DRIVE" else "🔐 ĐĂNG NHẬP DRIVE")
+                    }
+                    OutlinedButton(
+                        onClick = ::openDrivePicker,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text("☁ CHỌN FILE DRIVE")
+                    }
+                }
+                Spacer(Modifier.height(6.dp))
+                OutlinedButton(
+                    onClick = ::openDriveFolderPicker,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("📁 CHỌN THƯ MỤC DRIVE")
+                }
                 if (driveRecentLinks.isNotEmpty()) {
                     Spacer(Modifier.height(7.dp))
                     Text("LINK GẦN ĐÂY", color = Color(0xFFB8B3C7), fontSize = 10.sp, fontWeight = FontWeight.Bold)
