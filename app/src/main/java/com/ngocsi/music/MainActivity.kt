@@ -346,6 +346,8 @@ class MainActivity : ComponentActivity() {
         if (uri != null) importDriveFolder(uri)
     }
 
+    private var pendingDriveAction: (() -> Unit)? = null
+
     private val driveSignInLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         driveOAuthManager.handleSignInResult(result.data)
             .onSuccess {
@@ -353,13 +355,20 @@ class MainActivity : ComponentActivity() {
                 driveGoogleAccountEmail = driveOAuthManager.lastAccount()?.email.orEmpty()
                 if (driveOAuthSignedIn) {
                     driveSharedStatus = "Đã đăng nhập Google Drive và cấp quyền Drive"
-                    errorMessage = "Đã kết nối Google Drive. Có thể liên kết nguồn chia sẻ hoặc chọn trực tiếp từ Drive."
+                    errorMessage = null
+                    val action = pendingDriveAction
+                    pendingDriveAction = null
+                    if (action != null) {
+                        action()
+                    }
                 } else {
+                    pendingDriveAction = null
                     driveSharedStatus = "Tài khoản Google chưa cấp quyền Drive"
-                    errorMessage = "Đăng nhập xong nhưng chưa cấp quyền Google Drive. Hãy bấm ĐĂNG NHẬP DRIVE lại."
+                    errorMessage = "Đăng nhập xong nhưng chưa cấp quyền Google Drive. Hãy cấp quyền Drive rồi thử lại."
                 }
             }
             .onFailure { e ->
+                pendingDriveAction = null
                 driveOAuthSignedIn = false
                 driveGoogleAccountEmail = ""
                 driveSharedStatus = "Google Drive chưa đăng nhập"
@@ -367,12 +376,14 @@ class MainActivity : ComponentActivity() {
             }
     }
 
-    private fun signInGoogleDrive() {
+    private fun signInGoogleDrive(afterSignIn: (() -> Unit)? = null) {
+        pendingDriveAction = afterSignIn
         runCatching {
             driveSignInLauncher.launch(driveOAuthManager.signInIntent())
             driveSharedStatus = "Đang mở Google Sign-In…"
             errorMessage = null
         }.onFailure { e ->
+            pendingDriveAction = null
             driveSharedStatus = "Không thể mở Google Sign-In"
             errorMessage = "Không mở được màn hình đăng nhập Google: " +
                 (e.message ?: "lỗi không xác định")
@@ -1338,8 +1349,8 @@ class MainActivity : ComponentActivity() {
 
     private fun loadSharedWithMeDrive() {
         if (!driveOAuthManager.hasDriveScope()) {
-            signInGoogleDrive()
             driveSharedStatus = "Cần đăng nhập Google Drive để xem mục “Được chia sẻ với tôi”."
+            signInGoogleDrive { loadSharedWithMeDrive() }
             return
         }
 
@@ -1639,8 +1650,8 @@ class MainActivity : ComponentActivity() {
 
         val apiKey = driveApiKey()
         if (!driveOAuthSignedIn && apiKey.isBlank()) {
-            signInGoogleDrive()
             driveSharedStatus = "Cần đăng nhập Google Drive để đọc nguồn riêng tư/chia sẻ trực tiếp."
+            signInGoogleDrive { importSharedDriveLink() }
             return
         }
 
