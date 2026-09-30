@@ -4,6 +4,9 @@ import android.app.PendingIntent
 import android.content.Intent
 import android.os.Handler
 import android.os.Looper
+import com.google.android.gms.auth.GoogleAuthUtil
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.common.api.Scope
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.Player
@@ -167,7 +170,12 @@ class MusicService : MediaSessionService() {
         // Build a fresh HTTP data source for each media request so a newly
         // refreshed Google OAuth token is used without restarting the service.
         val httpFactory = DataSource.Factory {
-            val token = prefs.getString("drive_access_token", "").orEmpty()
+            // Refresh the Google Drive OAuth token from Play services when the
+            // MediaSession is resumed from the lock screen/background. The Activity
+            // may no longer be alive at that point, and the token persisted in prefs
+            // can have expired. GoogleAuthUtil returns a cached valid token or refreshes
+            // it when possible.
+            val token = refreshDriveTokenBlocking()
             val factory = DefaultHttpDataSource.Factory()
                 .setUserAgent("NGOC-SI-MUSIC/5.8 (Android)")
             if (token.isNotBlank()) {
@@ -219,6 +227,21 @@ class MusicService : MediaSessionService() {
             .build()
 
         broadcastWidget()
+    }
+
+    private fun refreshDriveTokenBlocking(): String {
+        val account = GoogleSignIn.getLastSignedInAccount(this)?.account ?: return
+        return runCatching {
+            GoogleAuthUtil.getToken(
+                this,
+                account,
+                "oauth2:https://www.googleapis.com/auth/drive.readonly"
+            )
+        }.getOrNull().orEmpty().also { token ->
+            if (token.isNotBlank()) {
+                prefs.edit().putString("drive_access_token", token).apply()
+            }
+        }
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession {
