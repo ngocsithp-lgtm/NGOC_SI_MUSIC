@@ -9,7 +9,6 @@ import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.common.api.Scope
-import com.google.android.gms.auth.api.signin.GoogleSignInStatusCodes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -45,22 +44,16 @@ class DriveOAuthManager(private val context: Context) {
 
     fun signInErrorMessage(error: Throwable): String {
         val api = error as? ApiException
-        return when (api?.statusCode) {
-            GoogleSignInStatusCodes.SIGN_IN_CANCELLED ->
-                "Đã hủy đăng nhập Google Drive."
-            GoogleSignInStatusCodes.SIGN_IN_FAILED ->
-                "Google Sign-In thất bại. Kiểm tra kết nối mạng và tài khoản Google."
-            GoogleSignInStatusCodes.DEVELOPER_ERROR ->
-                "Google OAuth chưa khớp với ứng dụng com.ngocsi.music. Cần cấu hình Android OAuth Client đúng package + SHA-1."
-            GoogleSignInStatusCodes.NETWORK_ERROR ->
-                "Không kết nối được dịch vụ Google. Kiểm tra mạng và Google Play services."
-            GoogleSignInStatusCodes.INTERNAL_ERROR ->
-                "Google Sign-In gặp lỗi nội bộ. Hãy thử đăng nhập lại."
-            else -> {
-                val code = api?.statusCode?.toString()
-                "Google Sign-In lỗi" + (if (code != null) " (mã " + code + ")" else "") +
+        val code = api?.statusCode
+        return when (code) {
+            12501 -> "Đã hủy đăng nhập Google Drive."
+            12500 -> "Google Sign-In thất bại. Kiểm tra kết nối mạng và tài khoản Google."
+            10 -> "Google OAuth chưa khớp với ứng dụng com.ngocsi.music. Cần cấu hình Android OAuth Client đúng package + SHA-1."
+            7 -> "Không kết nối được dịch vụ Google. Kiểm tra mạng và Google Play services."
+            8 -> "Google Sign-In gặp lỗi nội bộ. Hãy thử đăng nhập lại."
+            else ->
+                "Google Sign-In lỗi" + (code?.let { " (mã " + it + ")" } ?: "") +
                     ": " + (error.message ?: "không rõ nguyên nhân")
-            }
         }
     }
 
