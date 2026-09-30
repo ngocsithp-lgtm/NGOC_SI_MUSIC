@@ -38,7 +38,10 @@ class DriveOAuthManager(private val context: Context) {
 
     fun hasDriveScope(): Boolean {
         val account = lastAccount() ?: return false
-        return account.grantedScopes?.any { it.scopeUri == DRIVE_READ_SCOPE } == true
+        // Use Google Play services permission state instead of relying only on
+        // grantedScopes returned by the cached account object. The latter can be
+        // stale after the user changes Drive consent.
+        return GoogleSignIn.hasPermissions(account, Scope(DRIVE_READ_SCOPE))
     }
 
     fun isSignedIn(): Boolean = lastAccount() != null && hasDriveScope()
