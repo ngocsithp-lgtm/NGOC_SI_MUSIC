@@ -6298,6 +6298,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
     @Composable
     private fun DriveBrowserDialog() {
         if (!showDriveBrowser) return
+        val driveBrowserScope = rememberCoroutineScope()
         Dialog(onDismissRequest = { showDriveBrowser = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
             Surface(Modifier.fillMaxWidth(0.95f), RoundedCornerShape(26.dp), color = Color(0xFF101117)) {
                 Column(Modifier.padding(16.dp)) {
@@ -6317,7 +6318,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 val isFolder = item.mimeType == "application/vnd.google-apps.folder"
                                 Row(
                                     Modifier.fillMaxWidth().clip(RoundedCornerShape(15.dp)).background(Color(0xFF181922)).clickable {
-                                        if (isFolder) openDriveFolder(item) else addSharedDriveItemToLibrary(item, true)
+                                        if (isFolder) openDriveFolder(item) else driveBrowserScope.launch { addSharedDriveItemToLibrary(item, true) }
                                     }.padding(horizontal = 11.dp, vertical = 10.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
@@ -6327,7 +6328,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         Text(item.name, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                         Text(if (isFolder) "Thư mục • chạm để mở" else "Google Drive • chạm để phát", color = Color(0xFF858591), fontSize = 11.sp)
                                     }
-                                    if (!isFolder) TextButton(onClick = { addSharedDriveItemToLibrary(item, false) }) { Text("THÊM") }
+                                    if (!isFolder) TextButton(onClick = { driveBrowserScope.launch { addSharedDriveItemToLibrary(item, false) } }) { Text("THÊM") }
                                     else Text("›", color = Color(0xFFB18CFF), fontSize = 25.sp)
                                 }
                             }
