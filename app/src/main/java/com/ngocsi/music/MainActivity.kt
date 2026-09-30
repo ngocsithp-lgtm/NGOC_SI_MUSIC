@@ -1593,7 +1593,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun openDrivePicker() {
-        drivePickerLauncher.launch(arrayOf("audio/*"))
+        // Do not restrict the system picker to audio/*: some Google Drive
+        // DocumentsProvider versions expose shared files with a generic MIME.
+        // Let Drive show the shared file, then validate the selected URI locally.
+        drivePickerLauncher.launch(arrayOf("*/*"))
     }
 
     private fun openDriveFolderPicker() {
