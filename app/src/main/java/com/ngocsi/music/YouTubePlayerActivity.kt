@@ -516,7 +516,21 @@ class YouTubePlayerActivity : ComponentActivity() {
         videoId = selected.videoId
         title = selected.title
         channel = selected.channelTitle
-        createPlayer()
+
+        if (youtubePlayerReady && webView != null) {
+            // Keep one IFrame player alive while moving through the queue.
+            // This reduces WebView churn and makes next/previous transitions
+            // much less prone to blank surfaces or repeated player handshakes.
+            titleView.text = title
+            channelView.text = channel
+            updateActionState()
+            updateQueueButton()
+            saveLastPlayedState()
+            val safeId = sanitizeVideoId(videoId)
+            webView?.evaluateJavascript("loadVideoById('$safeId');", null)
+        } else {
+            createPlayer()
+        }
     }
 
     private fun saveLastPlayedState() {
@@ -839,6 +853,15 @@ class YouTubePlayerActivity : ComponentActivity() {
 
                         function pauseVideo() {
                             if (lamPlayer && typeof lamPlayer.pauseVideo === 'function') lamPlayer.pauseVideo();
+                        }
+
+                        function loadVideoById(id) {
+                            if (!lamPlayer || typeof lamPlayer.loadVideoById !== 'function') return;
+                            try {
+                                lamPlayer.loadVideoById({videoId: id});
+                            } catch (_) {
+                                try { lamPlayer.loadVideoById(id); } catch (_) {}
+                            }
                         }
                     </script>
                     <script src="https://www.youtube.com/iframe_api"></script>
