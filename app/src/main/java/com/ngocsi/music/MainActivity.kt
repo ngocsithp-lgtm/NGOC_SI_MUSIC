@@ -894,8 +894,28 @@ class MainActivity : ComponentActivity() {
         errorMessage = "Đang phát ${items.size} bài theo danh sách hiện tại."
     }
 
-    private fun play(index: Int) {
+    private fun play(index: Int, driveTokenReady: Boolean = false) {
         if (index !in songs.indices) return
+
+        // Google Drive media uses a short-lived OAuth bearer token. Refresh it
+        // immediately before playback, including after an app restart, so a
+        // previously saved Drive item does not fail because prefs contains an
+        // expired token. The recursive call is guarded by driveTokenReady.
+        if (!driveTokenReady && songs[index].source == "Google Drive") {
+            errorMessage = "Đang xác thực Google Drive để phát…"
+            lifecycleScope.launch {
+                val token = driveOAuthManager.accessToken()
+                if (token.isNullOrBlank()) {
+                    errorMessage = "Phiên Google Drive đã hết hạn. Hãy đăng nhập lại."
+                    signInGoogleDrive()
+                    return@launch
+                }
+                prefs.edit().putString("drive_access_token", token).apply()
+                play(index, driveTokenReady = true)
+            }
+            return
+        }
+
         val c = controller ?: run { errorMessage = "Trình phát đang khởi động, thử lại sau."; return }
 
         if (songs[index].source != "Radio Việt Nam") {
