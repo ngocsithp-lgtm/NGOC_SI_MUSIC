@@ -114,7 +114,15 @@ object TvCatalog {
         TvSource("VieON • HTV7", "VieON — HTV7 HD trực tuyến", "https://vieon.vn/truyen-hinh-truc-tuyen/htv7-hd/"),
         TvSource("VieON • HTV9", "VieON — HTV9 HD trực tuyến", "https://vieon.vn/truyen-hinh-truc-tuyen/htv9-hd/"),
         TvSource("VieON • HTV3", "VieON — HTV3 trực tuyến", "https://vieon.vn/truyen-hinh-truc-tuyen/htv3/"),
-        TvSource("VieON • HTV Thể Thao", "VieON — HTV Thể Thao trực tuyến", "https://vieon.vn/truyen-hinh-truc-tuyen/htv-the-thao/")
+        TvSource("VieON • HTV Thể Thao", "VieON — HTV Thể Thao trực tuyến", "https://vieon.vn/truyen-hinh-truc-tuyen/htv-the-thao/"),
+        TvSource("SCTV3 • Live", "VTVgo — SCTV3 trực tiếp", "https://vtvgo.vn/channel/sctv3"),
+        TvSource("SCTV22 • Live", "VTVgo — SCTV22 trực tiếp", "https://vtvgo.vn/channel/sctv22"),
+        TvSource("ON VFamily • Live", "VTVgo — ON VFamily trực tiếp", "https://vtvgo.vn/channel/vtvcab24"),
+        TvSource("ON Info TV • Live", "VTVgo — ON Info TV trực tiếp", "https://vtvgo.vn/channel/vtvcab9"),
+        TvSource("VTV3 Miền Bắc • Live", "VTVgo — VTV3 Miền Bắc trực tiếp", "https://vtvgo.vn/channel/3_nb"),
+        TvSource("VTV6 • Live", "VTVgo — VTV6 trực tiếp", "https://vtvgo.vn/channel/xem-truc-tuyen-kenh-vtv6"),
+        TvSource("Truyền hình Hải Phòng 3 • Live", "VTVgo — Truyền hình Hải Phòng 3", "https://vtvgo.vn/channel/143"),
+        TvSource("Truyền hình Đồng Nai 2 • Live", "VTVgo — Truyền hình Đồng Nai 2", "https://vtvgo.vn/channel/145")
     )
 }
 
