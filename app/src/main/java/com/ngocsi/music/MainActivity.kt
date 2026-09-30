@@ -1562,7 +1562,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun addSharedDriveItemToLibrary(item: SharedDriveItem, playNow: Boolean = false) {
+    private suspend fun addSharedDriveItemToLibrary(item: SharedDriveItem, playNow: Boolean = false) {
         val token = driveOAuthManager.accessToken() ?: run { signInGoogleDrive(); return }
         val uri = sharedDriveMediaUri(item, "")
         val existing = songs.firstOrNull { it.uri == uri }
