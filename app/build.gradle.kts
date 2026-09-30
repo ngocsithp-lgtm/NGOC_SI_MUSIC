@@ -48,4 +48,6 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer-hls:1.9.4")
     implementation("androidx.media3:media3-session:1.9.4")
     implementation("androidx.media3:media3-ui:1.9.4")
+    // Google OAuth: required for Drive files/folders shared privately with the signed-in account.
+    implementation("com.google.android.gms:play-services-auth:21.4.0")
 }
