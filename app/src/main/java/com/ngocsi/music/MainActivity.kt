@@ -1939,9 +1939,8 @@ class MainActivity : ComponentActivity() {
 
             radioWebTitle = "NGỌC SĨ MAP • VỊ TRÍ HIỆN TẠI"
             radioWebUrl =
-                "https://www.openstreetmap.org/export/embed.html?bbox=" +
-                    "$left%2C$bottom%2C$right%2C$top" +
-                    "&layer=mapnik&marker=$lat%2C$lon&center=$lat%2C$lon"
+                "https://www.openstreetmap.org/#map=15/" +
+                    "$lat/$lon&layers=N"
             errorMessage = null
         }
 
@@ -3384,9 +3383,8 @@ class MainActivity : ComponentActivity() {
                 val delta = 0.012
                 radioWebTitle = "NGỌC SĨ MAP • ${displayName.substringBefore(",")}"
                 radioWebUrl =
-                    "https://www.openstreetmap.org/export/embed.html?bbox=" +
-                        "${lon - delta}%2C${lat - delta}%2C${lon + delta}%2C${lat + delta}" +
-                        "&layer=mapnik&marker=$lat%2C$lon&center=$lat%2C$lon"
+                    "https://www.openstreetmap.org/#map=15/" +
+                        "$lat/$lon&layers=N"
             }.onFailure {
                 errorMessage = "Không tìm thấy địa điểm hoặc máy chủ bản đồ đang bận. Hãy thử tên địa điểm cụ thể hơn."
             }
@@ -3396,7 +3394,7 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun MapHub() {
         val mapUrl =
-            "https://www.openstreetmap.org/export/embed.html?bbox=106.45,10.65,106.81,10.99&layer=mapnik&marker=10.8231,106.6297"
+            "https://www.openstreetmap.org/#map=13/10.8231/106.6297&layers=N"
         val trafficUrl =
             "https://www.google.com/maps/@?api=1&map_action=map&center=10.8231%2C106.6297&zoom=12&basemap=roadmap&layer=traffic"
         val satelliteUrl =
@@ -3424,7 +3422,7 @@ class MainActivity : ComponentActivity() {
                     )
                     Spacer(Modifier.height(5.dp))
                     Text(
-                        "Bản đồ OpenStreetMap và tìm kiếm chạy trong ứng dụng; Vệ tinh, Giao thông và Chỉ đường mở Google Maps chính thức.",
+                        "Bản đồ OpenStreetMap tương tác, tìm kiếm và vị trí hiện tại chạy trong ứng dụng; Vệ tinh, Giao thông và Chỉ đường mở Google Maps chính thức.",
                         color = Color(0xFF9698A7),
                         fontSize = 12.sp
                     )
