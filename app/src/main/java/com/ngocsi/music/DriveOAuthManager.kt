@@ -1,8 +1,9 @@
 package com.ngocsi.music
 
-import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import com.google.android.gms.auth.GoogleAuthUtil
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
@@ -42,13 +43,33 @@ class DriveOAuthManager(private val context: Context) {
 
     fun isSignedIn(): Boolean = lastAccount() != null && hasDriveScope()
 
+    fun signingCertificateSha1(): String {
+        return runCatching {
+            val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                context.packageManager.getPackageInfo(
+                    context.packageName,
+                    PackageManager.GET_SIGNING_CERTIFICATES
+                ).signingInfo.apkContentsSigners
+            } else {
+                @Suppress("DEPRECATION")
+                context.packageManager.getPackageInfo(
+                    context.packageName,
+                    PackageManager.GET_SIGNATURES
+                ).signatures
+            }
+            val digest = java.security.MessageDigest.getInstance("SHA-1")
+                .digest(signatures.first().toByteArray())
+            digest.joinToString(":") { "%02X".format(it) }
+        }.getOrElse { "không đọc được SHA-1" }
+    }
+
     fun signInErrorMessage(error: Throwable): String {
         val api = error as? ApiException
         val code = api?.statusCode
         return when (code) {
             12501 -> "Đã hủy đăng nhập Google Drive."
             12500 -> "Google Sign-In thất bại. Kiểm tra kết nối mạng và tài khoản Google."
-            10 -> "Google OAuth chưa khớp với ứng dụng com.ngocsi.music. Cần cấu hình Android OAuth Client đúng package + SHA-1."
+            10 -> "Google OAuth chưa khớp với ứng dụng com.ngocsi.music. Package com.ngocsi.music; SHA-1 hiện tại: ${signingCertificateSha1()}"
             7 -> "Không kết nối được dịch vụ Google. Kiểm tra mạng và Google Play services."
             8 -> "Google Sign-In gặp lỗi nội bộ. Hãy thử đăng nhập lại."
             else ->
