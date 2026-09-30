@@ -5,10 +5,13 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -22,9 +25,12 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -40,6 +46,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -225,15 +232,15 @@ private fun ProShell(
 
     MaterialTheme(
         colorScheme = darkColorScheme(
-            background = Color(0xFF07080C),
-            surface = Color(0xFF11131A),
-            primary = Color(0xFFB18CFF),
-            secondary = Color(0xFF7DD3FC)
+            background = Color(0xFF050711),
+            surface = Color(0xFF10131E),
+            primary = Color(0xFF62E8FF),
+            secondary = Color(0xFFB995FF)
         )
     ) {
         Surface(
             modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
-            color = Color(0xFF07080C)
+            color = Color(0xFF050711)
         ) {
             Column(
                 Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp)
@@ -243,138 +250,265 @@ private fun ProShell(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(Modifier.weight(1f)) {
-                        Text("NGỌC SĨ MUSIC", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.Black)
                         Text(
-                            "MUSIC • VIDEO • RADIO • TV • MAP",
-                            color = Color(0xFF8E90A0),
-                            fontSize = 10.sp,
+                            "NGỌC SĨ MUSIC",
+                            color = Color.White,
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                        Text(
+                            "ÂM NHẠC • VIDEO • RADIO • TV • MAP",
+                            color = Color(0xFF8A90A6),
+                            fontSize = 9.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
-                    Text("PRO", color = Color(0xFFCDBAFF), fontWeight = FontWeight.Black, fontSize = 14.sp)
+                    Surface(
+                        shape = RoundedCornerShape(50),
+                        color = Color(0xFF122E39),
+                        modifier = Modifier.border(
+                            1.dp,
+                            Color(0xFF2C7080),
+                            RoundedCornerShape(50)
+                        )
+                    ) {
+                        Text(
+                            "● PRO",
+                            color = Color(0xFF7FEAFF),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Black,
+                            modifier = Modifier.padding(horizontal = 11.dp, vertical = 6.dp)
+                        )
+                    }
                 }
 
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(14.dp))
 
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF171922))
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onFullPlayer),
+                    shape = RoundedCornerShape(26.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.Transparent)
                 ) {
-                    Row(
-                        Modifier
+                    Box(
+                        modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp)
-                            .clickable(onClick = onFullPlayer),
-                        verticalAlignment = Alignment.CenterVertically
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(
+                                        Color(0xFF101C3A),
+                                        Color(0xFF15234C),
+                                        Color(0xFF21163D)
+                                    )
+                                ),
+                                RoundedCornerShape(26.dp)
+                            )
+                            .padding(18.dp)
                     ) {
-                        Surface(
-                            modifier = Modifier.size(54.dp),
-                            shape = RoundedCornerShape(16.dp),
-                            color = Color(0xFF342650)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text(if (isPlaying) "⏸" else "♫", color = Color.White, fontSize = 22.sp)
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Surface(
+                                    modifier = Modifier.size(66.dp),
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = Color(0xFF203D66)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            if (isPlaying) "⏸" else "♫",
+                                            color = Color(0xFFBDF9FF),
+                                            fontSize = 27.sp
+                                        )
+                                    }
+                                }
+                                Spacer(Modifier.size(13.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        "ĐANG PHÁT",
+                                        color = Color(0xFF75E8FF),
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Black
+                                    )
+                                    Text(
+                                        title,
+                                        color = Color.White,
+                                        fontSize = 17.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        maxLines = 1
+                                    )
+                                    Text(
+                                        artist,
+                                        color = Color(0xFFA9AFBF),
+                                        fontSize = 12.sp,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+
+                            if (duration > 0L) {
+                                Spacer(Modifier.height(8.dp))
+                                Slider(
+                                    value = position.coerceIn(0L, duration).toFloat(),
+                                    onValueChange = { onSeek(it.toLong()) },
+                                    valueRange = 0f..duration.toFloat(),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Row(
+                                    Modifier.fillMaxWidth().padding(horizontal = 2.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(formatProTime(position), color = Color(0xFF858CA0), fontSize = 10.sp)
+                                    Text(formatProTime(duration), color = Color(0xFF858CA0), fontSize = 10.sp)
+                                }
+                            }
+
+                            Spacer(Modifier.height(4.dp))
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("⏮", color = Color.White, fontSize = 23.sp, modifier = Modifier.clickable(onClick = onPrevious))
+                                Text(
+                                    if (isPlaying) "⏸" else "▶",
+                                    color = Color(0xFF7CEBFF),
+                                    fontSize = 31.sp,
+                                    modifier = Modifier.clickable(onClick = onTogglePlayback)
+                                )
+                                Text("⏭", color = Color.White, fontSize = 23.sp, modifier = Modifier.clickable(onClick = onNext))
                             }
                         }
-                        Spacer(Modifier.size(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(title, color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1)
-                            Text(artist, color = Color(0xFF9698A8), fontSize = 12.sp, maxLines = 1)
-                        }
-                    }
-
-                    if (duration > 0L) {
-                        Slider(
-                            value = position.coerceIn(0L, duration).toFloat(),
-                            onValueChange = { onSeek(it.toLong()) },
-                            valueRange = 0f..duration.toFloat(),
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
-                        )
-                        Row(
-                            Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(formatProTime(position), color = Color(0xFF858794), fontSize = 11.sp)
-                            Text(formatProTime(duration), color = Color(0xFF858794), fontSize = 11.sp)
-                        }
-                    }
-
-                    Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("⏮", color = Color.White, fontSize = 24.sp, modifier = Modifier.clickable(onClick = onPrevious))
-                        Text(
-                            if (isPlaying) "⏸" else "▶",
-                            color = Color(0xFFCDBAFF),
-                            fontSize = 28.sp,
-                            modifier = Modifier.clickable(onClick = onTogglePlayback)
-                        )
-                        Text("⏭", color = Color.White, fontSize = 24.sp, modifier = Modifier.clickable(onClick = onNext))
                     }
                 }
 
-                Spacer(Modifier.height(16.dp))
-                Text("KHÁM PHÁ", color = Color(0xFF999BA9), fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "TRUY CẬP NHANH",
+                    color = Color(0xFF8F96AA),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+                Spacer(Modifier.height(7.dp))
+
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(end = 4.dp)
+                ) {
+                    items(
+                        listOf(
+                            ProQuick("♫", "Nhạc", onMusic),
+                            ProQuick("▶", "YouTube", onYouTube),
+                            ProQuick("◉", "Radio", onRadio),
+                            ProQuick("▣", "TV", onTv)
+                        )
+                    ) { quick ->
+                        Surface(
+                            shape = RoundedCornerShape(18.dp),
+                            color = Color(0xFF111827),
+                            modifier = Modifier
+                                .border(1.dp, Color(0xFF25334A), RoundedCornerShape(18.dp))
+                                .clickable(onClick = quick.action)
+                        ) {
+                            Row(
+                                Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(quick.icon, color = Color(0xFF85EDFF), fontSize = 17.sp)
+                                Spacer(Modifier.size(7.dp))
+                                Text(quick.title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(13.dp))
+                Text(
+                    "TIỆN ÍCH PRO",
+                    color = Color(0xFF8F96AA),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+                Spacer(Modifier.height(7.dp))
 
                 val features = listOf(
-                    ProFeature("♫", "Nhạc", "Thiết bị & thư viện", onMusic),
-                    ProFeature("▶", "YouTube", "Tìm kiếm & phát", onYouTube),
                     ProFeature("☁", "Google Drive", "Thư mục & bài hát", onDrive),
-                    ProFeature("◉", "Radio", "Đài Việt Nam", onRadio),
-                    ProFeature("▣", "TV", "Nguồn truyền hình", onTv),
                     ProFeature("⌖", "Bản đồ", "Bản đồ & tìm kiếm", onMap),
                     ProFeature("♬", "Playlist", "Yêu thích & danh sách", onPlaylists),
-                    ProFeature("☷", "Hàng đợi", "Danh sách đang phát", onQueue),
-                    ProFeature("⚙", "Cài đặt", "Hệ thống & phát nền", onSettings)
+                    ProFeature("☷", "Hàng đợi", "Đang chờ phát", onQueue),
+                    ProFeature("◫", "Trình phát", "Điều khiển đầy đủ", onFullPlayer),
+                    ProFeature("⚙", "Cài đặt", "Phát nền • hẹn giờ", onSettings)
                 )
 
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(9.dp),
+                    horizontalArrangement = Arrangement.spacedBy(9.dp)
                 ) {
                     items(features) { feature ->
                         Card(
-                            modifier = Modifier.fillMaxWidth().clickable(onClick = feature.action),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(onClick = feature.action),
                             shape = RoundedCornerShape(20.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFF12141B))
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF0E1320))
                         ) {
-                            Column(Modifier.padding(16.dp)) {
+                            Row(
+                                Modifier.padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 Surface(
                                     modifier = Modifier.size(40.dp),
-                                    shape = CircleShape,
-                                    color = Color(0xFF29213D)
+                                    shape = RoundedCornerShape(13.dp),
+                                    color = Color(0xFF162840)
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
-                                        Text(feature.icon, color = Color(0xFFD8C9FF), fontSize = 18.sp)
+                                        Text(feature.icon, color = Color(0xFF89EEFF), fontSize = 18.sp)
                                     }
                                 }
-                                Spacer(Modifier.height(12.dp))
-                                Text(feature.title, color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp)
-                                Spacer(Modifier.height(3.dp))
-                                Text(feature.subtitle, color = Color(0xFF858794), fontSize = 11.sp)
+                                Spacer(Modifier.size(10.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        feature.title,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 13.sp,
+                                        maxLines = 1
+                                    )
+                                    Text(
+                                        feature.subtitle,
+                                        color = Color(0xFF7F879B),
+                                        fontSize = 10.sp,
+                                        maxLines = 1
+                                    )
+                                }
                             }
                         }
                     }
                 }
 
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(9.dp))
                 Button(
                     onClick = onFullPlayer,
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp)
+                    shape = RoundedCornerShape(17.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF55DDF4),
+                        contentColor = Color(0xFF041018)
+                    )
                 ) {
-                    Text("MỞ TRÌNH PHÁT ĐẦY ĐỦ")
+                    Text("MỞ TRÌNH PHÁT ĐẦY ĐỦ", fontWeight = FontWeight.Black)
                 }
             }
         }
     }
 }
+
+private data class ProQuick(
+    val icon: String,
+    val title: String,
+    val action: () -> Unit
+)
 
 private fun formatProTime(milliseconds: Long): String {
     val totalSeconds = milliseconds.coerceAtLeast(0L) / 1_000L

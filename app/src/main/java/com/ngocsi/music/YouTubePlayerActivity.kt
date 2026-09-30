@@ -6,6 +6,7 @@ import android.graphics.Color as AndroidColor
 import android.os.Bundle
 import android.view.View
 import android.webkit.CookieManager
+import android.webkit.JavascriptInterface
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
@@ -57,13 +58,61 @@ class YouTubePlayerActivity : ComponentActivity() {
     private lateinit var watchLaterButton: Button
     private lateinit var previousButton: Button
     private lateinit var nextButton: Button
+    private lateinit var playPauseButton: Button
     private data class QueueItem(val videoId: String, val title: String, val channelTitle: String, val thumbnailUrl: String)
     private val queue = mutableListOf<QueueItem>()
     private var queueIndex = 0
     private var errorView: LinearLayout? = null
     private var loadingBar: ProgressBar? = null
     private var pageErrorVisible = false
+    private var youtubePlayerReady = false
+    private var youtubePlayerState = -1
     private val thumbnailExecutor = Executors.newFixedThreadPool(3)
+
+    private inner class YoutubeJsBridge {
+        @JavascriptInterface
+        fun onReady() {
+            runOnUiThread {
+                youtubePlayerReady = true
+                updatePlaybackButton()
+            }
+        }
+
+        @JavascriptInterface
+        fun onStateChanged(state: Int) {
+            runOnUiThread {
+                youtubePlayerState = state
+                updatePlaybackButton()
+                if (state == 0 && queueIndex < queue.lastIndex) {
+                    playNext()
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun onError(code: Int) {
+            runOnUiThread {
+                showError(
+                    when (code) {
+                        153 -> "YouTube không xác thực được trình phát (Error 153). Hãy bấm THỬ LẠI."
+                        101, 150 -> "Video này không cho phép phát trong trình phát nhúng."
+                        100 -> "Video không tồn tại hoặc đã bị gỡ."
+                        else -> "YouTube báo lỗi trình phát ($code). Hãy bấm THỬ LẠI."
+                    }
+                )
+            }
+        }
+
+        @JavascriptInterface
+        fun onAutoplayBlocked() {
+            runOnUiThread {
+                youtubePlayerState = -1
+                updatePlaybackButton()
+            }
+        }
+    }
+
+    private val youtubeJsBridge = YoutubeJsBridge()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -190,6 +239,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             setPadding(dp(8), dp(5), dp(8), dp(3))
         }
         previousButton = actionButton("⏮") { playPrevious() }
+        playPauseButton = actionButton("▶") { toggleYoutubePlayback() }
         favoriteButton = actionButton("♡") { toggleFavorite() }
         watchLaterButton = actionButton("🔖") { toggleWatchLater() }
         nextButton = actionButton("⏭") { playNext() }
@@ -197,10 +247,11 @@ class YouTubePlayerActivity : ComponentActivity() {
         favoriteButton.contentDescription = "Yêu thích"
         watchLaterButton.contentDescription = "Xem sau"
         nextButton.contentDescription = "Video tiếp theo"
-        actions.addView(previousButton, LinearLayout.LayoutParams(dp(50), dp(42)))
-        actions.addView(favoriteButton, LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginStart = dp(3); marginEnd = dp(3) })
+        actions.addView(previousButton, LinearLayout.LayoutParams(dp(44), dp(42)))
+        actions.addView(playPauseButton, LinearLayout.LayoutParams(dp(54), dp(42)).apply { marginStart = dp(3); marginEnd = dp(3) })
+        actions.addView(favoriteButton, LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(3) })
         actions.addView(watchLaterButton, LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(3) })
-        actions.addView(nextButton, LinearLayout.LayoutParams(dp(50), dp(42)))
+        actions.addView(nextButton, LinearLayout.LayoutParams(dp(44), dp(42)))
         content.addView(actions)
 
         val queueButton = Button(this).apply {
@@ -544,15 +595,33 @@ class YouTubePlayerActivity : ComponentActivity() {
         updateActionState()
     }
 
+    private fun toggleYoutubePlayback() {
+        if (!youtubePlayerReady) return
+        val command = if (youtubePlayerState == 1) "pauseVideo()" else "playVideo()"
+        webView?.evaluateJavascript(command, null)
+    }
+
+    private fun updatePlaybackButton() {
+        if (!::playPauseButton.isInitialized) return
+        playPauseButton.text = when {
+            !youtubePlayerReady -> "…"
+            youtubePlayerState == 1 -> "⏸"
+            else -> "▶"
+        }
+    }
+
     private fun updateActionState() {
         if (::favoriteButton.isInitialized) favoriteButton.text = if (isFavorite()) "♥ Yêu thích" else "♡ Yêu thích"
         if (::watchLaterButton.isInitialized) watchLaterButton.text = if (isWatchLater()) "✓ Xem sau" else "🔖 Xem sau"
         if (::previousButton.isInitialized) previousButton.isEnabled = queueIndex > 0
         if (::nextButton.isInitialized) nextButton.isEnabled = queueIndex < queue.lastIndex
+        updatePlaybackButton()
     }
     private fun createPlayer() {
         removePlayer()
         pageErrorVisible = false
+        youtubePlayerReady = false
+        youtubePlayerState = -1
 
         val player = WebView(this).apply {
             setBackgroundColor(AndroidColor.BLACK)
@@ -703,6 +772,7 @@ class YouTubePlayerActivity : ComponentActivity() {
 
             isFocusable = true
             isFocusableInTouchMode = true
+            addJavascriptInterface(youtubeJsBridge, "AndroidBridge")
 
             val safeId = sanitizeVideoId(videoId)
             // YouTube's current Android guidance allows a mobile app to host the
@@ -710,9 +780,8 @@ class YouTubePlayerActivity : ComponentActivity() {
             // HTTP Referer. This gives the embed a real enclosing web context and
             // is preferable to navigating directly to the embed URL.
             val appReferrer = "https://com.ngocsi.music/"
-            val embedUrl = "https://www.youtube.com/embed/" + safeId +
-                "?playsinline=1&autoplay=0&rel=0&controls=1&fs=1" +
-                "&hl=vi&cc_lang_pref=vi"
+            val safeId = sanitizeVideoId(videoId)
+            val origin = "https://com.ngocsi.music"
 
             val html = """
                 <!doctype html>
@@ -721,7 +790,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
                     <meta name="referrer" content="origin">
                     <style>
-                        html, body {
+                        html, body, #player {
                             margin: 0;
                             padding: 0;
                             width: 100%;
@@ -729,21 +798,54 @@ class YouTubePlayerActivity : ComponentActivity() {
                             background: #000;
                             overflow: hidden;
                         }
-                        iframe {
-                            display: block;
-                            width: 100%;
-                            height: 100%;
-                            border: 0;
-                        }
                     </style>
                 </head>
                 <body>
-                    <iframe
-                        src="$embedUrl"
-                        title="YouTube"
-                        allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-                        allowfullscreen>
-                    </iframe>
+                    <div id="player"></div>
+                    <script>
+                        var lamPlayer = null;
+
+                        function onYouTubeIframeAPIReady() {
+                            lamPlayer = new YT.Player('player', {
+                                width: '100%',
+                                height: '100%',
+                                videoId: '$safeId',
+                                playerVars: {
+                                    playsinline: 1,
+                                    autoplay: 0,
+                                    rel: 0,
+                                    controls: 1,
+                                    fs: 1,
+                                    hl: 'vi',
+                                    cc_lang_pref: 'vi',
+                                    origin: '$origin'
+                                },
+                                events: {
+                                    onReady: function() {
+                                        try { AndroidBridge.onReady(); } catch (_) {}
+                                    },
+                                    onStateChange: function(event) {
+                                        try { AndroidBridge.onStateChanged(Number(event.data)); } catch (_) {}
+                                    },
+                                    onError: function(event) {
+                                        try { AndroidBridge.onError(Number(event.data)); } catch (_) {}
+                                    },
+                                    onAutoplayBlocked: function() {
+                                        try { AndroidBridge.onAutoplayBlocked(); } catch (_) {}
+                                    }
+                                }
+                            });
+                        }
+
+                        function playVideo() {
+                            if (lamPlayer && typeof lamPlayer.playVideo === 'function') lamPlayer.playVideo();
+                        }
+
+                        function pauseVideo() {
+                            if (lamPlayer && typeof lamPlayer.pauseVideo === 'function') lamPlayer.pauseVideo();
+                        }
+                    </script>
+                    <script src="https://www.youtube.com/iframe_api"></script>
                 </body>
                 </html>
             """.trimIndent()
