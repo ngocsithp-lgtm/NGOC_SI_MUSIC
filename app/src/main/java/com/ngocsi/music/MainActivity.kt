@@ -1421,6 +1421,12 @@ class MainActivity : ComponentActivity() {
             }
 
             saveSharedDriveItems(savedItems)
+            driveBrowserItems.clear()
+            driveBrowserItems.addAll(result)
+            driveBrowserTitle = "ĐƯỢC CHIA SẺ VỚI TÔI"
+            driveBrowserFolderId = null
+            driveBrowserResourceKey = null
+            showDriveBrowser = result.isNotEmpty()
             syncControllerQueue()
             driveSharedLoading = false
             driveImportJob = null
@@ -3283,6 +3289,7 @@ class MainActivity : ComponentActivity() {
         }
 
         currentSong?.let { if (showNowPlaying) NowPlayingDialog(it) }
+        if (showDriveBrowser) DriveBrowserDialog()
         if (showQueue) QueueDialog()
         if (showPlaylists) PlaylistManagerDialog()
         playlistDetailId?.let { id ->
