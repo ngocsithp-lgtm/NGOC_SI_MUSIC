@@ -49,13 +49,13 @@ class DriveOAuthManager(private val context: Context) {
                 context.packageManager.getPackageInfo(
                     context.packageName,
                     PackageManager.GET_SIGNING_CERTIFICATES
-                ).signingInfo.apkContentsSigners
+                ).signingInfo?.apkContentsSigners ?: emptyArray()
             } else {
                 @Suppress("DEPRECATION")
                 context.packageManager.getPackageInfo(
                     context.packageName,
                     PackageManager.GET_SIGNATURES
-                ).signatures
+                ).signatures ?: emptyArray()
             }
             val digest = java.security.MessageDigest.getInstance("SHA-1")
                 .digest(signatures.first().toByteArray())
