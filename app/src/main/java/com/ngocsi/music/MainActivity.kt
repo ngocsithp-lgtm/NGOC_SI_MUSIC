@@ -1018,7 +1018,8 @@ class MainActivity : ComponentActivity() {
         val name: String,
         val mimeType: String,
         val resourceKey: String,
-        val size: Long
+        val size: Long,
+        val webContentLink: String = ""
     )
 
     private fun driveApiKey(): String = BuildConfig.DRIVE_API_KEY.trim()
@@ -1080,7 +1081,7 @@ class MainActivity : ComponentActivity() {
     ): org.json.JSONObject {
         val url = "https://www.googleapis.com/drive/v3/files/" +
             Uri.encode(id) +
-            "?fields=id,name,mimeType,size,resourceKey,trashed,capabilities/canDownload" +
+            "?fields=id,name,mimeType,size,resourceKey,webContentLink,trashed,capabilities/canDownload" +
             "&supportsAllDrives=true" +
             "&key=" + URLEncoder.encode(apiKey, "UTF-8") +
             (resourceKey?.takeIf { it.isNotBlank() }?.let {
@@ -1107,7 +1108,7 @@ class MainActivity : ComponentActivity() {
             )
             val url = "https://www.googleapis.com/drive/v3/files?q=$query" +
                 "&pageSize=1000" +
-                "&fields=nextPageToken,files(id,name,mimeType,size,resourceKey,trashed,capabilities/canDownload)" +
+                "&fields=nextPageToken,files(id,name,mimeType,size,resourceKey,webContentLink,trashed,capabilities/canDownload)" +
                 "&supportsAllDrives=true&includeItemsFromAllDrives=true" +
                 "&key=" + URLEncoder.encode(apiKey, "UTF-8") +
                 (pageToken?.let { "&pageToken=" + URLEncoder.encode(it, "UTF-8") } ?: "") +
@@ -1142,7 +1143,8 @@ class MainActivity : ComponentActivity() {
                         name,
                         mime,
                         childKey,
-                        item.optLong("size", 0L)
+                        item.optLong("size", 0L),
+                        item.optString("webContentLink").trim()
                     )
                 }
             }
@@ -1165,6 +1167,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun sharedDriveMediaUri(item: SharedDriveItem, apiKey: String): Uri {
+        // For link-shared binary files Google exposes webContentLink, which is
+        // intended for browser-style content delivery. Prefer it for Media3
+        // instead of feeding the REST metadata endpoint directly to ExoPlayer.
+        if (item.webContentLink.isNotBlank()) {
+            return Uri.parse(item.webContentLink)
+        }
+
         val builder = Uri.parse(
             "https://www.googleapis.com/drive/v3/files/" + Uri.encode(item.id)
         ).buildUpon()
@@ -1211,6 +1220,7 @@ class MainActivity : ComponentActivity() {
                     put("mimeType", item.mimeType)
                     put("resourceKey", item.resourceKey)
                     put("size", item.size)
+                    put("webContentLink", item.webContentLink)
                 }
             )
         }
@@ -1322,7 +1332,8 @@ class MainActivity : ComponentActivity() {
                             rootName,
                             mime,
                             rootResourceKey.orEmpty(),
-                            root.optLong("size", 0L)
+                            root.optLong("size", 0L),
+                            root.optString("webContentLink").trim()
                         )
                     }
                     collected.distinctBy { it.id }
