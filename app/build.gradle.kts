@@ -9,14 +9,16 @@ android {
     compileSdk = 36
 
     val youtubeApiKey = System.getenv("YOUTUBE_API_KEY").orEmpty()
+    val driveApiKey = System.getenv("DRIVE_API_KEY").orEmpty()
 
     defaultConfig {
         applicationId = "com.ngocsi.music"
         minSdk = 26
         targetSdk = 36
-        versionCode = 26
-        versionName = "5.6"
+        versionCode = 27
+        versionName = "5.7"
         buildConfigField("String", "YOUTUBE_API_KEY", "\"$youtubeApiKey\"")
+        buildConfigField("String", "DRIVE_API_KEY", "\"$driveApiKey\"")
     }
 
     compileOptions {
