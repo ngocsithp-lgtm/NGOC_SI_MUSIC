@@ -224,6 +224,11 @@ class MainActivity : ComponentActivity() {
     private var driveGoogleAccountEmail by mutableStateOf("")
     private lateinit var driveOAuthManager: DriveOAuthManager
     private var driveRecentLinks by mutableStateOf(listOf<String>())
+    private val driveBrowserItems = mutableStateListOf<SharedDriveItem>()
+    private var showDriveBrowser by mutableStateOf(false)
+    private var driveBrowserTitle by mutableStateOf("GOOGLE DRIVE")
+    private var driveBrowserFolderId by mutableStateOf<String?>(null)
+    private var driveBrowserResourceKey by mutableStateOf<String?>(null)
     private var selectedLibrary by mutableStateOf("Tất cả")
     private var libraryView by mutableStateOf("Bài hát")
     private var showQueue by mutableStateOf(false) // #145 queue upgrade
@@ -1445,6 +1450,134 @@ class MainActivity : ComponentActivity() {
                 driveImportJob = null
                 driveSharedLoading = false
             }
+        }
+    }
+
+    private fun ensureDriveSignedIn(action: String = "duyệt Google Drive"): Boolean {
+        if (!driveOAuthManager.hasDriveScope()) {
+            signInGoogleDrive()
+            driveSharedStatus = "Cần đăng nhập Google Drive để " + action + "."
+            return false
+        }
+        return true
+    }
+
+    private fun loadDriveRoot() {
+        if (!ensureDriveSignedIn()) return
+        driveSharedLoading = true
+        errorMessage = "Đang tải Drive của tôi…"
+        driveImportJob?.cancel()
+        driveImportJob = lifecycleScope.launch {
+            try {
+                val loaded = withContext(Dispatchers.IO) {
+                    val token = driveOAuthManager.accessToken() ?: error("Không lấy được phiên Google Drive. Hãy đăng nhập lại.")
+                    prefs.edit().putString("drive_access_token", token).apply()
+                    val q = URLEncoder.encode("'root' in parents and trashed = false", "UTF-8")
+                    val url = "https://www.googleapis.com/drive/v3/files?q=" + q +
+                        "&pageSize=1000&orderBy=folder,name" +
+                        "&fields=files(id,name,mimeType,size,resourceKey,webContentLink,capabilities/canDownload)" +
+                        "&supportsAllDrives=true&includeItemsFromAllDrives=true"
+                    val json = driveApiGet(url, token)
+                    val files = json.optJSONArray("files") ?: JSONArray()
+                    buildList {
+                        for (i in 0 until files.length()) {
+                            val item = files.optJSONObject(i) ?: continue
+                            val id = item.optString("id").trim()
+                            val name = item.optString("name").ifBlank { "Google Drive" }
+                            val mime = item.optString("mimeType").trim()
+                            val canDownload = item.optJSONObject("capabilities")?.optBoolean("canDownload", true) ?: true
+                            if (id.isNotBlank() && canDownload &&
+                                (mime == "application/vnd.google-apps.folder" || isSupportedDriveAudio(name, mime))) {
+                                add(SharedDriveItem(id, name, mime, item.optString("resourceKey").trim(),
+                                    item.optLong("size", 0L), item.optString("webContentLink").trim()))
+                            }
+                        }
+                    }
+                }
+                driveBrowserItems.clear()
+                driveBrowserItems.addAll(loaded)
+                driveBrowserTitle = "DRIVE CỦA TÔI"
+                driveBrowserFolderId = null
+                driveBrowserResourceKey = null
+                showDriveBrowser = true
+                driveSharedStatus = "Đã tải " + loaded.size + " mục từ Drive"
+            } catch (e: Exception) {
+                errorMessage = "Không tải được Drive: " + (e.message ?: "lỗi không xác định")
+            } finally {
+                driveSharedLoading = false
+                driveImportJob = null
+            }
+        }
+    }
+
+    private fun openDriveFolder(item: SharedDriveItem) {
+        if (!ensureDriveSignedIn()) return
+        driveSharedLoading = true
+        errorMessage = "Đang mở thư mục " + item.name + "…"
+        driveImportJob?.cancel()
+        driveImportJob = lifecycleScope.launch {
+            try {
+                val loaded = withContext(Dispatchers.IO) {
+                    val token = driveOAuthManager.accessToken() ?: error("Không lấy được phiên Google Drive.")
+                    val q = URLEncoder.encode("'" + item.id + "' in parents and trashed = false", "UTF-8")
+                    val url = "https://www.googleapis.com/drive/v3/files?q=" + q +
+                        "&pageSize=1000&orderBy=folder,name" +
+                        "&fields=files(id,name,mimeType,size,resourceKey,webContentLink,capabilities/canDownload)" +
+                        "&supportsAllDrives=true&includeItemsFromAllDrives=true"
+                    val json = driveApiGet(url, token)
+                    val files = json.optJSONArray("files") ?: JSONArray()
+                    buildList {
+                        for (i in 0 until files.length()) {
+                            val f = files.optJSONObject(i) ?: continue
+                            val id = f.optString("id").trim()
+                            val name = f.optString("name").ifBlank { "Google Drive" }
+                            val mime = f.optString("mimeType").trim()
+                            val canDownload = f.optJSONObject("capabilities")?.optBoolean("canDownload", true) ?: true
+                            if (id.isNotBlank() && canDownload &&
+                                (mime == "application/vnd.google-apps.folder" || isSupportedDriveAudio(name, mime))) {
+                                add(SharedDriveItem(id, name, mime, f.optString("resourceKey").trim(),
+                                    f.optLong("size", 0L), f.optString("webContentLink").trim()))
+                            }
+                        }
+                    }
+                }
+                driveBrowserItems.clear()
+                driveBrowserItems.addAll(loaded)
+                driveBrowserTitle = item.name
+                driveBrowserFolderId = item.id
+                driveBrowserResourceKey = item.resourceKey.ifBlank { null }
+                showDriveBrowser = true
+            } catch (e: Exception) {
+                errorMessage = "Không mở được thư mục Drive: " + (e.message ?: "lỗi không xác định")
+            } finally {
+                driveSharedLoading = false
+                driveImportJob = null
+            }
+        }
+    }
+
+    private fun addSharedDriveItemToLibrary(item: SharedDriveItem, playNow: Boolean = false) {
+        val token = driveOAuthManager.accessToken() ?: run { signInGoogleDrive(); return }
+        val uri = sharedDriveMediaUri(item, "")
+        val existing = songs.firstOrNull { it.uri == uri }
+        val song = existing ?: Song(
+            -kotlin.math.abs(uri.toString().hashCode().toLong()),
+            item.name.substringBeforeLast(".").ifBlank { item.name },
+            "Google Drive", 0L, uri, "Google Drive", folder = driveBrowserTitle
+        )
+        if (existing == null) {
+            songs.add(song)
+            if (queueSongs.none { it.uri == song.uri }) queueSongs.add(song)
+            saveSharedDriveItems(loadSharedDriveItems().filterNot { it.id == item.id } + item)
+        }
+        prefs.edit().putString("drive_access_token", token).apply()
+        syncControllerQueue()
+        if (playNow) {
+            val index = songs.indexOfFirst { it.uri == song.uri }
+            if (index >= 0) play(index)
+            showDriveBrowser = false
+        } else {
+            errorMessage = "Đã thêm “" + item.name + "” vào thư viện Google Drive."
         }
     }
 
@@ -6009,29 +6142,30 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             Spacer(Modifier.height(9.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
-                    onClick = ::openDrivePicker,
+                    onClick = ::loadDriveRoot,
+                    enabled = driveOAuthSignedIn && !driveSharedLoading,
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(14.dp)
-                ) { Text("☁ FILE") }
-                OutlinedButton(
-                    onClick = ::openDriveFolderPicker,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(14.dp)
-                ) { Text("📁 THƯ MỤC") }
-            }
-            Spacer(Modifier.height(7.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ) { Text("☁ DRIVE CỦA TÔI") }
                 OutlinedButton(
                     onClick = ::loadSharedWithMeDrive,
                     enabled = !driveSharedLoading,
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(14.dp)
                 ) { Text("👥 ĐƯỢC CHIA SẺ") }
+            }
+            Spacer(Modifier.height(7.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
-                    onClick = ::openGoogleDrive,
+                    onClick = ::openDrivePicker,
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(14.dp)
-                ) { Text("MỞ DRIVE") }
+                ) { Text("CHỌN FILE") }
+                OutlinedButton(
+                    onClick = ::openDriveFolderPicker,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp)
+                ) { Text("CHỌN THƯ MỤC") }
             }
 
             Spacer(Modifier.height(10.dp))
@@ -6113,6 +6247,51 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             OutlinedButton(onClick = ::clearOnlineLibrary, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text("XÓA URL ONLINE ĐÃ LƯU") }
         }
     }
+    }
+
+    @Composable
+    private fun DriveBrowserDialog() {
+        if (!showDriveBrowser) return
+        Dialog(onDismissRequest = { showDriveBrowser = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+            Surface(Modifier.fillMaxWidth(0.95f), RoundedCornerShape(26.dp), color = Color(0xFF101117)) {
+                Column(Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(driveBrowserTitle, color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold)
+                            Text(driveBrowserItems.size.toString() + " mục • Google Drive", color = Color(0xFF888894), fontSize = 11.sp)
+                        }
+                        TextButton(onClick = { showDriveBrowser = false }) { Text("ĐÓNG") }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    if (driveBrowserItems.isEmpty()) {
+                        Text("Thư mục không có file âm thanh khả dụng.", color = Color(0xFF9999A5), fontSize = 13.sp)
+                    } else {
+                        LazyColumn(Modifier.heightIn(max = 560.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                            items(driveBrowserItems, key = { it.id }) { item ->
+                                val isFolder = item.mimeType == "application/vnd.google-apps.folder"
+                                Row(
+                                    Modifier.fillMaxWidth().clip(RoundedCornerShape(15.dp)).background(Color(0xFF181922)).clickable {
+                                        if (isFolder) openDriveFolder(item) else addSharedDriveItemToLibrary(item, true)
+                                    }.padding(horizontal = 11.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(if (isFolder) "📁" else "🎵", fontSize = 21.sp)
+                                    Spacer(Modifier.width(10.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(item.name, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(if (isFolder) "Thư mục • chạm để mở" else "Google Drive • chạm để phát", color = Color(0xFF858591), fontSize = 11.sp)
+                                    }
+                                    if (!isFolder) TextButton(onClick = { addSharedDriveItemToLibrary(item, false) }) { Text("THÊM") }
+                                    else Text("›", color = Color(0xFFB18CFF), fontSize = 25.sp)
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    TextButton(onClick = { showDriveBrowser = false }) { Text("XONG") }
+                }
+            }
+        }
     }
 
     private suspend fun loadArtworkBitmap(song: Song?): androidx.compose.ui.graphics.ImageBitmap? {
