@@ -5963,7 +5963,6 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     .padding(14.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("GOOGLE DRIVE", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 17.sp, modifier = Modifier.weight(1f))
                 Text("PRO", color = Color(0xFFC8B7FF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
