@@ -29,6 +29,9 @@ class DriveOAuthManager(private val context: Context) {
     fun signInIntent(): Intent {
         val options = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestEmail()
+            // Primary Drive authorization path: request the Drive scope
+            // together with Google account selection.
+            .requestScopes(Scope(DRIVE_READ_SCOPE))
             .build()
         return GoogleSignIn.getClient(context, options).signInIntent
     }
