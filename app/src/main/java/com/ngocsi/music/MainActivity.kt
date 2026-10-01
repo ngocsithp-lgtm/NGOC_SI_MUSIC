@@ -6349,7 +6349,13 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 val isFolder = item.mimeType == "application/vnd.google-apps.folder"
                                 Row(
                                     Modifier.fillMaxWidth().clip(RoundedCornerShape(15.dp)).background(Color(0xFF181922)).clickable {
-                                        if (isFolder) openDriveFolder(item) else driveBrowserScope.launch { addSharedDriveItemToLibrary(item, true) }
+                                        if (isFolder) {
+                                            openDriveFolder(item)
+                                        } else {
+                                            driveBrowserScope.launch {
+                                                addSharedDriveItemToLibrary(item, true)
+                                            }
+                                        }
                                     }.padding(horizontal = 11.dp, vertical = 10.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
