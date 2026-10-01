@@ -350,26 +350,30 @@ class MainActivity : ComponentActivity() {
     private var pendingDriveAction: (() -> Unit)? = null
 
     private val driveSignInLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        // Surface canceled/empty Google Sign-In results explicitly. Previously,
-        // a closed account chooser could leave the Drive panel looking unchanged.
-        if (result.resultCode != RESULT_OK || result.data == null) {
+        // Do not discard a non-OK result: Google Play services can return useful
+        // ApiException diagnostics in the returned Intent even when the chooser
+        // is canceled or the OAuth client is misconfigured.
+        val data = result.data
+        driveOAuthSignedIn = driveOAuthManager.isSignedIn()
+        driveGoogleAccountEmail = driveOAuthManager.lastAccount()?.email.orEmpty()
+
+        if (data == null) {
             pendingDriveAction = null
-            driveOAuthSignedIn = driveOAuthManager.isSignedIn()
-            driveGoogleAccountEmail = driveOAuthManager.lastAccount()?.email.orEmpty()
             driveSharedStatus = if (driveOAuthSignedIn) {
                 "Đã kết nối Google Drive"
             } else {
-                "Chưa đăng nhập — hãy bấm KẾT NỐI và chọn tài khoản Google"
+                "Google Sign-In không trả về dữ liệu"
             }
             errorMessage = if (driveOAuthSignedIn) {
                 null
             } else {
-                "Cửa sổ đăng nhập Google chưa hoàn tất. Hãy bấm KẾT NỐI, chọn tài khoản và chấp nhận quyền Google Drive."
+                "Google Sign-In chưa hoàn tất (resultCode=$"+"{result.resultCode}). " +
+                    "Package: $ "+"{packageName} • SHA-1: $ "+"{driveOAuthManager.signingCertificateSha1()}"
             }
             return@registerForActivityResult
         }
 
-        driveOAuthManager.handleSignInResult(result.data)
+        driveOAuthManager.handleSignInResult(data)
             .onSuccess {
                 driveOAuthSignedIn = driveOAuthManager.hasDriveScope()
                 driveGoogleAccountEmail = driveOAuthManager.lastAccount()?.email.orEmpty()
@@ -386,7 +390,8 @@ class MainActivity : ComponentActivity() {
                     if (!requested) {
                         pendingDriveAction = null
                         driveSharedStatus = "Không thể mở yêu cầu quyền Google Drive"
-                        errorMessage = "Tài khoản Google đã đăng nhập nhưng không mở được màn hình cấp quyền Drive. Hãy thử KẾT NỐI lại."
+                        errorMessage = "Tài khoản Google đã đăng nhập nhưng không mở được màn hình cấp quyền Drive. " +
+                            "Package: $ "+"{packageName} • SHA-1: $ "+"{driveOAuthManager.signingCertificateSha1()}"
                     }
                 }
             }
