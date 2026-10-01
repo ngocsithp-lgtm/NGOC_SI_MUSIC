@@ -1,4 +1,5 @@
 name: Build NGOC SI MUSIC 5.7 PRO Debug APK
+# CI verification trigger: build and verify the current main branch.
 
 on:
   workflow_dispatch:
