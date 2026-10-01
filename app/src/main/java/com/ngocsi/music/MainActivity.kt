@@ -349,6 +349,25 @@ class MainActivity : ComponentActivity() {
     private var pendingDriveAction: (() -> Unit)? = null
 
     private val driveSignInLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        // Surface canceled/empty Google Sign-In results explicitly. Previously,
+        // a closed account chooser could leave the Drive panel looking unchanged.
+        if (result.resultCode != RESULT_OK || result.data == null) {
+            pendingDriveAction = null
+            driveOAuthSignedIn = driveOAuthManager.isSignedIn()
+            driveGoogleAccountEmail = driveOAuthManager.lastAccount()?.email.orEmpty()
+            driveSharedStatus = if (driveOAuthSignedIn) {
+                "Đã kết nối Google Drive"
+            } else {
+                "Chưa đăng nhập — hãy bấm KẾT NỐI và chọn tài khoản Google"
+            }
+            errorMessage = if (driveOAuthSignedIn) {
+                null
+            } else {
+                "Cửa sổ đăng nhập Google chưa hoàn tất. Hãy bấm KẾT NỐI, chọn tài khoản và chấp nhận quyền Google Drive."
+            }
+            return@registerForActivityResult
+        }
+
         driveOAuthManager.handleSignInResult(result.data)
             .onSuccess {
                 driveOAuthSignedIn = driveOAuthManager.hasDriveScope()
@@ -363,8 +382,8 @@ class MainActivity : ComponentActivity() {
                     }
                 } else {
                     pendingDriveAction = null
-                    driveSharedStatus = "Tài khoản Google chưa cấp quyền Drive"
-                    errorMessage = "Đăng nhập xong nhưng chưa cấp quyền Google Drive. Hãy cấp quyền Drive rồi thử lại."
+                    driveSharedStatus = "Đăng nhập Google nhưng chưa cấp quyền Drive"
+                    errorMessage = "Tài khoản đã chọn nhưng chưa cấp quyền Google Drive. Hãy bấm KẾT NỐI lại và chấp nhận quyền truy cập Drive."
                 }
             }
             .onFailure { e ->
