@@ -1210,7 +1210,7 @@ class MainActivity : ComponentActivity() {
                 val childKey = item.optString("resourceKey").trim()
                 val canDownload = item.optJSONObject("capabilities")
                     ?.optBoolean("canDownload", true) ?: true
-                if (id.isBlank() || !canDownload) continue
+                if (id.isBlank()) continue
 
                 if (mime == "application/vnd.google-apps.folder") {
                     listSharedDriveFolder(
@@ -1396,7 +1396,7 @@ class MainActivity : ComponentActivity() {
                             val canDownload = item.optJSONObject("capabilities")
                                 ?.optBoolean("canDownload", true) ?: true
 
-                            if (id.isBlank() || !canDownload) continue
+                            if (id.isBlank()) continue
 
                             if (mime == "application/vnd.google-apps.folder") {
                                 listSharedDriveFolder(
@@ -1523,8 +1523,9 @@ class MainActivity : ComponentActivity() {
                             val name = item.optString("name").ifBlank { "Google Drive" }
                             val mime = item.optString("mimeType").trim()
                             val canDownload = item.optJSONObject("capabilities")?.optBoolean("canDownload", true) ?: true
-                            if (id.isNotBlank() && canDownload &&
-                                (mime == "application/vnd.google-apps.folder" || isSupportedDriveAudio(name, mime))) {
+                            if (id.isNotBlank() &&
+                                (mime == "application/vnd.google-apps.folder" ||
+                                    (canDownload && isSupportedDriveAudio(name, mime)))) {
                                 add(SharedDriveItem(id, name, mime, item.optString("resourceKey").trim(),
                                     item.optLong("size", 0L), item.optString("webContentLink").trim()))
                             }
@@ -1570,8 +1571,9 @@ class MainActivity : ComponentActivity() {
                             val name = f.optString("name").ifBlank { "Google Drive" }
                             val mime = f.optString("mimeType").trim()
                             val canDownload = f.optJSONObject("capabilities")?.optBoolean("canDownload", true) ?: true
-                            if (id.isNotBlank() && canDownload &&
-                                (mime == "application/vnd.google-apps.folder" || isSupportedDriveAudio(name, mime))) {
+                            if (id.isNotBlank() &&
+                                (mime == "application/vnd.google-apps.folder" ||
+                                    (canDownload && isSupportedDriveAudio(name, mime)))) {
                                 add(SharedDriveItem(id, name, mime, f.optString("resourceKey").trim(),
                                     f.optLong("size", 0L), f.optString("webContentLink").trim()))
                             }
