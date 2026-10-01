@@ -71,8 +71,7 @@ jobs:
           path: |
             app/build/outputs/apk/debug/app-debug.apk
             app/build/outputs/apk/debug/app-debug.apk.sha256
-            app/build/outputs/apk/debug/apk-keytool-cert.txt
-            app/build/outputs/apk/debug/debug-keystore.txt
+            app/build/outputs/apk/debug/signing-report.txt
       - name: Publish APK Release
         env:
           GH_TOKEN: ${{ github.token }}
