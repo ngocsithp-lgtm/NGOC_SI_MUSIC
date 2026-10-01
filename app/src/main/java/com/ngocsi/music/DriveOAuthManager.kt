@@ -1,5 +1,6 @@
 package com.ngocsi.music
 
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -28,7 +29,6 @@ class DriveOAuthManager(private val context: Context) {
     fun signInIntent(): Intent {
         val options = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestEmail()
-            .requestScopes(Scope(DRIVE_READ_SCOPE))
             .build()
         return GoogleSignIn.getClient(context, options).signInIntent
     }
@@ -45,6 +45,22 @@ class DriveOAuthManager(private val context: Context) {
     }
 
     fun isSignedIn(): Boolean = lastAccount() != null && hasDriveScope()
+
+    fun requestDrivePermission(activity: Activity): Boolean {
+        val account = lastAccount() ?: return false
+        return runCatching {
+            if (!hasDriveScope()) {
+                GoogleSignIn.requestPermissions(
+                    activity,
+                    REQUEST_CODE,
+                    account,
+                    Scope(DRIVE_READ_SCOPE)
+                )
+            }
+            true
+        }.getOrElse { false }
+    }
+
 
     fun signingCertificateSha1(): String {
         return runCatching {
