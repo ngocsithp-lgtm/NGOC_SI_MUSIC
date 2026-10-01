@@ -189,10 +189,20 @@ class MusicService : MediaSessionService() {
             val token = refreshDriveTokenBlocking()
             val factory = DefaultHttpDataSource.Factory()
                 .setUserAgent("NGOC-SI-MUSIC/5.8 (Android)")
+            val requestHeaders = mutableMapOf<String, String>()
             if (token.isNotBlank()) {
-                factory.setDefaultRequestProperties(
-                    mapOf("Authorization" to "Bearer $token")
-                )
+                requestHeaders["Authorization"] = "Bearer $token"
+            }
+            val driveUri = player.currentMediaItem?.localConfiguration?.uri
+            if (driveUri != null && driveUri.toString().contains("googleapis.com/drive/v3/files/")) {
+                val fileId = driveUri.pathSegments.lastOrNull().orEmpty()
+                val resourceKey = driveUri.getQueryParameter("resourceKey").orEmpty()
+                if (fileId.isNotBlank() && resourceKey.isNotBlank()) {
+                    requestHeaders["X-Goog-Drive-Resource-Keys"] = "$fileId/$resourceKey"
+                }
+            }
+            if (requestHeaders.isNotEmpty()) {
+                factory.setDefaultRequestProperties(requestHeaders)
             }
             factory.createDataSource()
         }
