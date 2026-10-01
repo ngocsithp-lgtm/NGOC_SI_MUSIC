@@ -1208,7 +1208,7 @@ class MainActivity : ComponentActivity() {
                 }.orEmpty() +
                 (pageToken?.let { "&pageToken=" + URLEncoder.encode(it, "UTF-8") } ?: "") +
                 (resourceKey?.takeIf { it.isNotBlank() }?.let {
-                    "&resourceKey=" + URLEncoder.encode(it, "UTF-8")
+                    "&resourceKeys=" + URLEncoder.encode("$folderId/$it", "UTF-8")
                 } ?: "")
 
             val resourceKeysHeader = resourceKey?.takeIf { it.isNotBlank() }?.let {
