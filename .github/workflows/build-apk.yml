@@ -52,7 +52,12 @@ jobs:
           test -f "$APK"
           ls -lh "$APK"
           echo "=== Package ==="
-          find "$ANDROID_HOME/build-tools" -name aapt -type f -print -quit | xargs -r -I{} {} dump badging "$APK" | grep -m1 "package: name='com.ngocsi.music' versionName='5.7'"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt -print -quit)"
+          if [ -z "$AAPT" ]; then
+            echo "::error::Android build-tools aapt executable was not found"
+            exit 1
+          fi
+          "$AAPT" dump badging "$APK" | grep -m1 -E "package: name='com.ngocsi.music'.*versionName='5.7'"
       - name: Print APK signing certificate (OAuth diagnostic)
         run: |
           set -euo pipefail
