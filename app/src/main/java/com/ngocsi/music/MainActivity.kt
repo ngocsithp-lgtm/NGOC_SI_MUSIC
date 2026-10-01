@@ -367,8 +367,8 @@ class MainActivity : ComponentActivity() {
             errorMessage = if (driveOAuthSignedIn) {
                 null
             } else {
-                "Google Sign-In chưa hoàn tất (resultCode=$"+"{result.resultCode}). " +
-                    "Package: $ "+"{packageName} • SHA-1: $ "+"{driveOAuthManager.signingCertificateSha1()}"
+                "Google Sign-In chưa hoàn tất (resultCode=" + result.resultCode + "). " +
+                    "Package: " + packageName + " • SHA-1: " + driveOAuthManager.signingCertificateSha1()
             }
             return@registerForActivityResult
         }
@@ -391,7 +391,7 @@ class MainActivity : ComponentActivity() {
                         pendingDriveAction = null
                         driveSharedStatus = "Không thể mở yêu cầu quyền Google Drive"
                         errorMessage = "Tài khoản Google đã đăng nhập nhưng không mở được màn hình cấp quyền Drive. " +
-                            "Package: $ "+"{packageName} • SHA-1: $ "+"{driveOAuthManager.signingCertificateSha1()}"
+                            "Package: " + packageName + " • SHA-1: " + driveOAuthManager.signingCertificateSha1()
                     }
                 }
             }
