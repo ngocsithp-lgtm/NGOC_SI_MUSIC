@@ -1,5 +1,6 @@
 package com.ngocsi.music
 
+import android.app.Activity
 import android.Manifest
 import android.content.ComponentName
 import android.content.Intent
@@ -377,13 +378,16 @@ class MainActivity : ComponentActivity() {
                     errorMessage = null
                     val action = pendingDriveAction
                     pendingDriveAction = null
-                    if (action != null) {
-                        action()
-                    }
+                    action?.invoke()
                 } else {
-                    pendingDriveAction = null
-                    driveSharedStatus = "Đăng nhập Google nhưng chưa cấp quyền Drive"
-                    errorMessage = "Tài khoản đã chọn nhưng chưa cấp quyền Google Drive. Hãy bấm KẾT NỐI lại và chấp nhận quyền truy cập Drive."
+                    driveSharedStatus = "Đã chọn tài khoản • đang xin quyền Google Drive…"
+                    errorMessage = null
+                    val requested = driveOAuthManager.requestDrivePermission(this@MainActivity)
+                    if (!requested) {
+                        pendingDriveAction = null
+                        driveSharedStatus = "Không thể mở yêu cầu quyền Google Drive"
+                        errorMessage = "Tài khoản Google đã đăng nhập nhưng không mở được màn hình cấp quyền Drive. Hãy thử KẾT NỐI lại."
+                    }
                 }
             }
             .onFailure { e ->
@@ -408,6 +412,31 @@ class MainActivity : ComponentActivity() {
                 (e.message ?: "lỗi không xác định")
         }
     }
+
+    @Deprecated("Google Play services legacy additional-scope callback")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != DriveOAuthManager.REQUEST_CODE) return
+
+        driveOAuthSignedIn = driveOAuthManager.hasDriveScope()
+        driveGoogleAccountEmail = driveOAuthManager.lastAccount()?.email.orEmpty()
+
+        if (resultCode == Activity.RESULT_OK && driveOAuthSignedIn) {
+            driveSharedStatus = "Đã cấp quyền Google Drive"
+            errorMessage = null
+            val action = pendingDriveAction
+            pendingDriveAction = null
+            action?.invoke()
+        } else {
+            driveSharedStatus = if (driveOAuthManager.lastAccount() != null)
+                "Đã đăng nhập nhưng chưa cấp quyền Google Drive"
+            else
+                "Google Drive chưa đăng nhập"
+            errorMessage = "Chưa cấp quyền Google Drive. Hãy bấm KẾT NỐI và chấp nhận quyền truy cập Drive."
+            pendingDriveAction = null
+        }
+    }
+
 
     private val playerListener = object : Player.Listener {
         override fun onIsPlayingChanged(playing: Boolean) {
