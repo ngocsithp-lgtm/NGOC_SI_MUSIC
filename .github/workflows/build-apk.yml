@@ -34,6 +34,11 @@ jobs:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           DRIVE_API_KEY: ${{ secrets.DRIVE_API_KEY }}
         run: gradle :app:lintDebug --no-daemon
+      - name: Unit tests
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          DRIVE_API_KEY: ${{ secrets.DRIVE_API_KEY }}
+        run: gradle :app:testDebugUnitTest --no-daemon
       - name: Build PRO APK
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
@@ -41,8 +46,12 @@ jobs:
         run: gradle :app:assembleDebug --no-daemon
       - name: Verify APK
         run: |
-          test -f app/build/outputs/apk/debug/app-debug.apk
-          ls -lh app/build/outputs/apk/debug/app-debug.apk
+          set -euo pipefail
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          test -f "$APK"
+          ls -lh "$APK"
+          echo "=== Package ==="
+          find "$ANDROID_HOME/build-tools" -name aapt -type f -print -quit | xargs -r -I{} {} dump badging "$APK" | grep -m1 "package: name='com.ngocsi.music' versionName='5.7'"
       - name: Print APK signing certificate (OAuth diagnostic)
         run: |
           set -euo pipefail
