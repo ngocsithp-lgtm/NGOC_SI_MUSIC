@@ -1121,7 +1121,14 @@ class MainActivity : ComponentActivity() {
         }.trim().removeSuffix("/")
 
         if (id.isBlank() || !id.matches(Regex("[A-Za-z0-9_-]{10,}"))) return null
-        return id to uri.getQueryParameter("resourcekey")
+        // Google Drive links may use either resourcekey or resourceKey casing.
+        // Android Uri query-parameter lookup is case-sensitive, so normalize the key.
+        val resourceKey = uri.queryParameterNames
+            .firstOrNull { it.equals("resourcekey", ignoreCase = true) }
+            ?.let { uri.getQueryParameter(it) }
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+        return id to resourceKey
     }
 
     private fun driveApiGet(
