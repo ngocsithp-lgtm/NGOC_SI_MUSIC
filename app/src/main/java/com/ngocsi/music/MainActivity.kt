@@ -1124,7 +1124,11 @@ class MainActivity : ComponentActivity() {
         return id to uri.getQueryParameter("resourcekey")
     }
 
-    private fun driveApiGet(url: String, accessToken: String? = null): org.json.JSONObject {
+    private fun driveApiGet(
+        url: String,
+        accessToken: String? = null,
+        resourceKeys: String? = null
+    ): org.json.JSONObject {
         val connection = (URL(url).openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = 12000
@@ -1133,6 +1137,9 @@ class MainActivity : ComponentActivity() {
             setRequestProperty("Accept", "application/json")
             setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.7 (Android)")
             accessToken?.takeIf { it.isNotBlank() }?.let { setRequestProperty("Authorization", "Bearer $it") }
+            resourceKeys?.takeIf { it.isNotBlank() }?.let {
+                setRequestProperty("X-Goog-Drive-Resource-Keys", it)
+            }
         }
         try {
             val code = connection.responseCode
@@ -1168,7 +1175,11 @@ class MainActivity : ComponentActivity() {
             (resourceKey?.takeIf { it.isNotBlank() }?.let {
                 "&resourceKey=" + URLEncoder.encode(it, "UTF-8")
             } ?: "")
-        return driveApiGet(url, accessToken)
+        return driveApiGet(
+            url,
+            accessToken,
+            resourceKey?.takeIf { it.isNotBlank() }?.let { "$id/$it" }
+        )
     }
 
     private fun listSharedDriveFolder(
@@ -1200,7 +1211,10 @@ class MainActivity : ComponentActivity() {
                     "&resourceKey=" + URLEncoder.encode(it, "UTF-8")
                 } ?: "")
 
-            val json = driveApiGet(url, accessToken)
+            val resourceKeysHeader = resourceKey?.takeIf { it.isNotBlank() }?.let {
+                "$folderId/$it"
+            }
+            val json = driveApiGet(url, accessToken, resourceKeysHeader)
             val files = json.optJSONArray("files") ?: org.json.JSONArray()
             for (i in 0 until files.length()) {
                 val item = files.optJSONObject(i) ?: continue
