@@ -2069,7 +2069,6 @@ class MainActivity : ComponentActivity() {
                     folder = sourceName
                 )
                 songs.add(song)
-                if (queueSongs.none { it.uri == uri }) queueSongs.add(song)
                 savedItems.removeAll { it.id == item.id }
                 savedItems.add(item)
                 added++
@@ -2399,6 +2398,7 @@ class MainActivity : ComponentActivity() {
                     if (!canDownload) error("Nguồn Drive không cho phép tải nội dung.")
 
                     val rootName = root.optString("name").ifBlank { "Google Drive" }
+                    val stableSourceName = "Chia sẻ • " + rootName + " • " + id.take(6)
                     val mime = root.optString("mimeType").trim()
                     val rootResourceKey = root.optString("resourceKey")
                         .ifBlank { suppliedResourceKey.orEmpty() }
@@ -2413,7 +2413,7 @@ class MainActivity : ComponentActivity() {
                             collected,
                             mutableSetOf(),
                             accessToken,
-                            sourceName = rootName
+                            sourceName = stableSourceName
                         )
                     } else {
                         if (!isSupportedDriveAudio(rootName, mime)) {
@@ -2425,10 +2425,13 @@ class MainActivity : ComponentActivity() {
                             mime,
                             rootResourceKey.orEmpty(),
                             root.optLong("size", 0L),
-                            root.optString("webContentLink").trim()
+                            root.optString("webContentLink").trim(),
+                            sourceName = stableSourceName
                         )
                     }
-                    collected.distinctBy { it.id }.map { item -> item.copy(sourceName = rootName) }
+                    collected.distinctBy { it.id }.map { item ->
+                        if (item.sourceName.isBlank()) item.copy(sourceName = stableSourceName) else item
+                    }
                 }
             }
 
