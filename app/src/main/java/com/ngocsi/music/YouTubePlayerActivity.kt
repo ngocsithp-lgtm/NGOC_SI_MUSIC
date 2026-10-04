@@ -95,6 +95,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 showError(
                     when (code) {
                         153 -> "YouTube không xác thực được trình phát (Error 153). Hãy bấm THỬ LẠI."
+                        152 -> "YouTube báo lỗi xác thực/trình phát (Error 152). Hãy bấm THỬ LẠI."
                         101, 150 -> "Video này không cho phép phát trong trình phát nhúng."
                         100 -> "Video không tồn tại hoặc đã bị gỡ."
                         else -> "YouTube báo lỗi trình phát ($code). Hãy bấm THỬ LẠI."
@@ -790,7 +791,10 @@ class YouTubePlayerActivity : ComponentActivity() {
 
             // Use a real enclosing web context and let the official IFrame API own the player.
             val safeId = sanitizeVideoId(videoId)
-            val appReferrer = "https://www.youtube.com/"
+            // Keep the document origin inside the official YouTube embed namespace.
+            // This is more explicit than using youtube.com/ as the synthetic base URL and
+            // gives newer YouTube player identity checks a stable embed context.
+            val embedBaseUrl = "https://www.youtube.com/embed/" + safeId
             val origin = "https://www.youtube.com"
 
             val html = """
@@ -798,7 +802,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 <html lang="vi">
                 <head>
                     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-                    <meta name="referrer" content="strict-origin-when-cross-origin">
+                    <meta name="referrer" content="origin">
                     <style>
                         html, body, #player {
                             margin: 0;
@@ -828,7 +832,8 @@ class YouTubePlayerActivity : ComponentActivity() {
                                     fs: 1,
                                     hl: 'vi',
                                     cc_lang_pref: 'vi',
-                                    origin: '$origin'
+                                    origin: '$origin',
+                                    widget_referrer: '$origin'
                                 },
                                 events: {
                                     onReady: function() {
@@ -869,7 +874,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 </html>
             """.trimIndent()
 
-            loadDataWithBaseURL(appReferrer, html, "text/html", "UTF-8", appReferrer)
+            loadDataWithBaseURL(embedBaseUrl, html, "text/html", "UTF-8", embedBaseUrl)
         }
 
         webView = player
