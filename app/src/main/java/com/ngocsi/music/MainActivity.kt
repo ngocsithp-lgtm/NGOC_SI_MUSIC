@@ -1562,7 +1562,7 @@ class MainActivity : ComponentActivity() {
                     "--" + boundary + "\r\n" +
                     "Content-Type: " + DRIVE_SOURCE_CLOUD_MIME + "\r\n\r\n"
                 ).toByteArray(Charsets.UTF_8)
-                val suffix = "\r\n--" + boundary + "--\r\n".toByteArray(Charsets.UTF_8)
+                val suffix = ("\r\n--" + boundary + "--\r\n").toByteArray(Charsets.UTF_8)
                 driveHttp(
                     "POST",
                     "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name",
