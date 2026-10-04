@@ -1186,7 +1186,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun songFromUri(uri: Uri): Song? {
-        var title = "Nhạc online"
+        var title = "Nhạc Google Drive"
         var displayName = "drive_audio_" + kotlin.math.abs(uri.toString().hashCode())
 
         val metadataReadable = runCatching {
@@ -1202,7 +1202,7 @@ class MainActivity : ComponentActivity() {
                     val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
                     if (nameIndex >= 0) {
                         displayName = cursor.getString(nameIndex).orEmpty()
-                        title = displayName.substringBeforeLast(".").ifBlank { "Nhạc online" }
+                        title = displayName.substringBeforeLast(".").trim().ifBlank { "Nhạc Google Drive" }
                     }
                     if (sizeIndex >= 0) cursor.getLong(sizeIndex)
                 }
@@ -1249,7 +1249,7 @@ class MainActivity : ComponentActivity() {
             artist = "Google Drive",
             duration = 0L,
             uri = playbackUri,
-            source = "Google Drive Local",
+            source = "Google Drive",
             folder = "Google Drive"
         )
     }
