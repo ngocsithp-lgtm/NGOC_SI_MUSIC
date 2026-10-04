@@ -1517,10 +1517,11 @@ class MainActivity : ComponentActivity() {
                     folder = sourceName
                 )
                 songs.add(song)
-                if (queueSongs.none { it.uri == uri }) queueSongs.add(song)
             }
         }
-        syncControllerQueue()
+        // Restoring a saved Drive source must only rebuild the Library.
+        // The playback queue changes only through an explicit Play / Queue action.
+        if (queueSongs.isNotEmpty()) syncControllerQueue()
     }
 
     private fun repairSavedDriveSourceNames() {
@@ -2994,6 +2995,14 @@ class MainActivity : ComponentActivity() {
 
     private fun syncControllerQueue() {
         controller?.let { c ->
+            if (queueSongs.isNotEmpty()) {
+                if (queueSource.isBlank()) queueSource = queueSongs.first().source
+                val scopedQueue = queueSongs.filter { it.source == queueSource }
+                if (scopedQueue.size != queueSongs.size) {
+                    queueSongs.clear()
+                    queueSongs.addAll(scopedQueue)
+                }
+            }
             if (queueSongs.isEmpty()) {
                 queueSource = ""
                 // Never leave stale Media3 items or persisted queue metadata
@@ -3765,15 +3774,19 @@ class MainActivity : ComponentActivity() {
 
     private fun playPlaylistFromSong(playlist: MusicPlaylist, songIndex: Int) {
         val orderedSongs = playlist.songUris.mapNotNull { uri -> songs.firstOrNull { it.uri.toString() == uri } }
-        if (songIndex !in orderedSongs.indices) return
+        val requestedSong = orderedSongs.getOrNull(songIndex)
+        if (requestedSong == null) return
+        val sourceScopedSongs = orderedSongs.filter { it.source == requestedSong.source }
+        val scopedIndex = sourceScopedSongs.indexOfFirst { it.uri == requestedSong.uri }
+        if (sourceScopedSongs.isEmpty() || scopedIndex < 0) return
         val c = controller ?: run {
             errorMessage = "Trình phát đang khởi động, thử lại sau."
             return
         }
         queueSongs.clear()
-        queueSongs.addAll(orderedSongs)
-        queueSource = orderedSongs.firstOrNull()?.source.orEmpty()
-        c.setMediaItems(queueSongs.map { mediaItemFor(it) }, songIndex, 0L)
+        queueSongs.addAll(sourceScopedSongs)
+        queueSource = requestedSong.source
+        c.setMediaItems(queueSongs.map { mediaItemFor(it) }, scopedIndex, 0L)
         c.shuffleModeEnabled = shuffleEnabled
         c.repeatMode = repeatMode
         c.setPlaybackSpeed(selectedPlaybackSpeed)
@@ -3809,8 +3822,14 @@ class MainActivity : ComponentActivity() {
 
         val keepShuffle = c.shuffleModeEnabled
         val keepRepeat = c.repeatMode
+        val sourceScopedSongs = orderedSongs.filter { it.source == orderedSongs.first().source }
         queueSongs.clear()
-        queueSongs.addAll(orderedSongs)
+        queueSongs.addAll(sourceScopedSongs)
+        queueSource = sourceScopedSongs.firstOrNull()?.source.orEmpty()
+        if (queueSongs.isEmpty()) {
+            errorMessage = "Playlist không có bài hát khả dụng."
+            return
+        }
 
         c.setMediaItems(queueSongs.map { mediaItemFor(it) }, 0, 0L)
         c.shuffleModeEnabled = keepShuffle
