@@ -1711,10 +1711,8 @@ class MainActivity : ComponentActivity() {
         driveImportJob = lifecycleScope.launch {
             try {
                 val loaded = withContext(Dispatchers.IO) {
-                    val token = driveOAuthManager.accessToken()
-                        ?: error("Không lấy được phiên Google Drive. Hãy đăng nhập lại.")
+                    val token = driveOAuthManager.accessToken() ?: error("Không lấy được phiên Google Drive. Hãy đăng nhập lại.")
                     prefs.edit().putString("drive_access_token", token).apply()
-
                     val collected = mutableListOf<SharedDriveItem>()
                     var pageToken: String? = null
                     do {
@@ -1731,39 +1729,26 @@ class MainActivity : ComponentActivity() {
                             val id = item.optString("id").trim()
                             val name = item.optString("name").ifBlank { "Google Drive" }
                             val mime = item.optString("mimeType").trim()
-                            val canDownload = item.optJSONObject("capabilities")
-                                ?.optBoolean("canDownload", true) ?: true
+                            val canDownload = item.optJSONObject("capabilities")?.optBoolean("canDownload", true) ?: true
                             if (id.isNotBlank() &&
                                 (mime == "application/vnd.google-apps.folder" ||
-                                    (canDownload && isSupportedDriveAudio(name, mime)))
-                            ) {
-                                collected += SharedDriveItem(
-                                    id,
-                                    name,
-                                    mime,
-                                    item.optString("resourceKey").trim(),
-                                    item.optLong("size", 0L),
-                                    item.optString("webContentLink").trim()
-                                )
+                                    (canDownload && isSupportedDriveAudio(name, mime)))) {
+                                collected += SharedDriveItem(id, name, mime, item.optString("resourceKey").trim(),
+                                    item.optLong("size", 0L), item.optString("webContentLink").trim())
                             }
                         }
-                        pageToken = json.optString("nextPageToken")
-                            .trim()
+                        pageToken = json.optString("nextPageToken").trim()
                             .takeIf { it.isNotBlank() }
                     } while (pageToken != null)
-
                     collected
                 }
-
                 driveBrowserItems.clear()
                 driveBrowserItems.addAll(loaded)
                 driveBrowserTitle = "DRIVE CỦA TÔI"
                 driveBrowserFolderId = null
                 driveBrowserResourceKey = null
-                driveBrowserQuery = ""
                 showDriveBrowser = true
                 driveSharedStatus = "Đã tải " + loaded.size + " mục từ Drive"
-                errorMessage = null
             } catch (e: Exception) {
                 errorMessage = "Không tải được Drive: " + (e.message ?: "lỗi không xác định")
             } finally {
@@ -1831,8 +1816,7 @@ class MainActivity : ComponentActivity() {
                             val id = file.optString("id").trim()
                             val name = file.optString("name").ifBlank { "Google Drive" }
                             val mime = file.optString("mimeType").trim()
-                            val canDownload = file.optJSONObject("capabilities")
-                                ?.optBoolean("canDownload", true) ?: true
+                            val canDownload = file.optJSONObject("capabilities")?.optBoolean("canDownload", true) ?: true
                             if (id.isNotBlank() &&
                                 (mime == "application/vnd.google-apps.folder" ||
                                     (canDownload && isSupportedDriveAudio(name, mime)))
@@ -1847,25 +1831,25 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
                         }
-                        pageToken = json.optString("nextPageToken")
-                            .trim()
+                        pageToken = json.optString("nextPageToken").trim()
                             .takeIf { it.isNotBlank() }
                     } while (pageToken != null)
-
                     collected
                 }
-
                 driveBrowserItems.clear()
                 driveBrowserItems.addAll(loaded)
                 driveBrowserTitle = title
                 driveBrowserFolderId = folderId
                 driveBrowserResourceKey = resourceKey
-                driveBrowserQuery = ""
                 showDriveBrowser = true
-                driveSharedStatus = "Đã tải " + loaded.size + " mục trong “" + title + "”"
+                driveSharedStatus = "Đã tải " + loaded.size + " mục từ “" + title + "”"
                 errorMessage = null
             } catch (e: Exception) {
-                errorMessage = "Không tải được thư mục: " + (e.message ?: "lỗi không xác định")
+                driveSharedStatus = "Không thể mở thư mục Drive"
+                errorMessage = e.message ?: "Lỗi không xác định khi đọc Google Drive"
+                if (driveBrowserHistory.isNotEmpty()) {
+                    driveBrowserHistory.removeLastOrNull()
+                }
             } finally {
                 driveSharedLoading = false
                 driveImportJob = null
