@@ -3825,7 +3825,7 @@ class MainActivity : ComponentActivity() {
                         "Thư viện" -> {
                             Column(Modifier.weight(1f).fillMaxWidth()) {
                                 LibraryYouTubeHeader(filteredSongs.size)
-                                LibraryChips()
+                                LibrarySourcesPanel()
                                 LibraryViewTabs()
                                 Spacer(Modifier.height(6.dp))
                                 LazyColumn(
@@ -4492,6 +4492,178 @@ class MainActivity : ComponentActivity() {
             }
         }
         Spacer(Modifier.height(8.dp))
+    }
+
+    @Composable
+    private fun LibrarySourcesPanel() {
+        val sourceNames = songs.map { it.source }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it })
+
+        val allCount = songs.size
+        val favoriteCount = songs.count { favorites[it.id] == true }
+
+        fun sourceTitle(source: String): String = when {
+            source.startsWith("Google Drive • ") -> source.removePrefix("Google Drive • ").ifBlank { "Google Drive" }
+            source == "Google Drive" -> "Google Drive"
+            else -> source
+        }
+
+        fun sourceCount(source: String): Int = when (source) {
+            "Tất cả" -> allCount
+            "Yêu thích" -> favoriteCount
+            else -> songs.count { it.source == source }
+        }
+
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+        ) {
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "NGUỒN NHẠC",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 1.2.sp
+                    )
+                    Text(
+                        "Chọn từng nguồn để xem riêng",
+                        color = Color(0xFF777D8D),
+                        fontSize = 9.sp
+                    )
+                }
+                Text(
+                    "\${sourceNames.size} nguồn",
+                    color = Color(0xFF777D8D),
+                    fontSize = 10.sp
+                )
+            }
+
+            Spacer(Modifier.height(9.dp))
+
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(9.dp),
+                contentPadding = PaddingValues(end = 8.dp)
+            ) {
+                item {
+                    LibrarySourceCard(
+                        title = "Tất cả",
+                        subtitle = "Tất cả nguồn",
+                        count = allCount,
+                        icon = "♫",
+                        selected = selectedLibrary == "Tất cả",
+                        onClick = { selectedLibrary = "Tất cả" }
+                    )
+                }
+
+                item {
+                    LibrarySourceCard(
+                        title = "Yêu thích",
+                        subtitle = "Bài đã lưu",
+                        count = favoriteCount,
+                        icon = "♥",
+                        selected = selectedLibrary == "Yêu thích",
+                        onClick = { selectedLibrary = "Yêu thích" }
+                    )
+                }
+
+                items(sourceNames.size) { index ->
+                    val source = sourceNames[index]
+                    val isDrive = source.startsWith("Google Drive")
+                    LibrarySourceCard(
+                        title = sourceTitle(source),
+                        subtitle = if (isDrive) "Google Drive" else source,
+                        count = sourceCount(source),
+                        icon = if (isDrive) "☁" else "♫",
+                        selected = selectedLibrary == source,
+                        onClick = { selectedLibrary = source }
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(10.dp))
+    }
+
+    @Composable
+    private fun LibrarySourceCard(
+        title: String,
+        subtitle: String,
+        count: Int,
+        icon: String,
+        selected: Boolean,
+        onClick: () -> Unit
+    ) {
+        Surface(
+            modifier = Modifier
+                .width(156.dp)
+                .height(82.dp)
+                .clip(RoundedCornerShape(18.dp))
+                .clickable(onClick = onClick),
+            shape = RoundedCornerShape(18.dp),
+            color = if (selected) Color(0xFF2A2045) else Color(0xFF12151C),
+            border = androidx.compose.foundation.BorderStroke(
+                if (selected) 1.5.dp else 1.dp,
+                if (selected) Color(0xFF8062C9) else Color(0xFF252B37)
+            )
+        ) {
+            Row(
+                Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 11.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    modifier = Modifier.size(42.dp),
+                    shape = RoundedCornerShape(13.dp),
+                    color = if (selected) Color(0xFF6549A4) else Color(0xFF1B1F29)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            icon,
+                            color = if (selected) Color.White else Color(0xFFB9A9DC),
+                            fontSize = 20.sp
+                        )
+                    }
+                }
+
+                Spacer(Modifier.width(9.dp))
+
+                Column(
+                    Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    Text(
+                        title,
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        subtitle,
+                        color = if (selected) Color(0xFFBCA8EA) else Color(0xFF747B8B),
+                        fontSize = 9.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        "\${count} bài",
+                        color = Color(0xFF858C9D),
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        }
     }
 
     @Composable
