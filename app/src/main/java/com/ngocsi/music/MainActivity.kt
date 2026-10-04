@@ -3906,7 +3906,7 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun NgocSiMusicApp() {
         val currentSong = songs.getOrNull(currentIndex)
-        val filteredSongs = remember(searchQuery, songs.size, selectedLibrary, favorites.size, libraryView) {
+        val filteredSongs = remember(searchQuery, songs.toList(), selectedLibrary, favorites.toMap(), libraryView) {
             val q = searchQuery.trim()
             val byText = if (q.isBlank()) songs.toList() else songs.filter {
                 it.title.contains(q, true) || it.artist.contains(q, true) || it.source.contains(q, true)
