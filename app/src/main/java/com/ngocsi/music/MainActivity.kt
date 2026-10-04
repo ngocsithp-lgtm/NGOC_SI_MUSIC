@@ -970,8 +970,18 @@ class MainActivity : ComponentActivity() {
             // persist the cleaned order so stale Drive/provider URIs do not
             // survive another restart.
             savedQueueOrder.forEach { uri -> byUri[uri]?.let { queueSongs.add(it) } }
-            if (queueSongs.size != savedQueueOrder.size) {
-                saveQueueOrder()
+            // A queue is always scoped to one source. Clean legacy/mixed queues
+            // instead of exposing tracks from several Drive/device sources together.
+            if (queueSongs.isNotEmpty()) {
+                if (queueSource.isBlank()) queueSource = queueSongs.first().source
+                val scopedQueue = queueSongs.filter { it.source == queueSource }
+                if (scopedQueue.size != queueSongs.size) {
+                    queueSongs.clear()
+                    queueSongs.addAll(scopedQueue)
+                    saveQueueOrder()
+                } else if (queueSongs.size != savedQueueOrder.size) {
+                    saveQueueOrder()
+                }
             }
         } else {
             // New installs start with an empty queue. The queue is created only
@@ -1086,11 +1096,14 @@ class MainActivity : ComponentActivity() {
             syncControllerQueue()
         }
 
-        // A direct tap on a library item must remain playable even when the
-        // user previously replaced the queue with a filtered/playlist subset.
-        // Add the target to the logical queue instead of showing a dead-end
-        // "not in queue" state.
-        if (queueSongs.none { it.uri == songs[index].uri }) {
+        // A direct tap switches the queue to the tapped source. Never mix
+        // device/Drive/online sources into one playback queue.
+        if (queueSource != songs[index].source) {
+            queueSongs.clear()
+            queueSongs.add(songs[index])
+            queueSource = songs[index].source
+            syncControllerQueue()
+        } else if (queueSongs.none { it.uri == songs[index].uri }) {
             queueSongs.add(songs[index])
             syncControllerQueue()
         }
@@ -1211,10 +1224,14 @@ class MainActivity : ComponentActivity() {
 
             importedSongs.forEach { song ->
                 if (songs.none { it.uri == song.uri }) songs.add(song)
-                if (queueSongs.none { it.uri == song.uri }) queueSongs.add(song)
             }
 
-            syncControllerQueue()
+            // Importing a source must not silently append every imported file
+            // to the active playback queue. The queue changes only by explicit
+            // Play / Add-to-queue actions.
+            if (queueSongs.isNotEmpty()) {
+                syncControllerQueue()
+            }
             errorMessage = when {
                 importedSongs.isNotEmpty() ->
                     "Đã thêm ${importedSongs.size} bài từ Google Drive."
@@ -6069,21 +6086,15 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             queueSongs.mapIndexed { index, song -> Pair(index, song) }
         }
 
-        val queueSources = buildList {
-            add("Tất cả")
-            addAll(queueSongs.map { it.source }.filter { it.isNotBlank() }.distinct())
+        // Queue is intentionally single-source. The source label is informational;
+        // no "Tất cả" filter is offered because mixed queues are not allowed.
+        val activeSource = queueSource.ifBlank {
+            activeQueueIndex.takeIf { it >= 0 }?.let { queueSongs.getOrNull(it)?.source }.orEmpty()
         }
-        var queueSourceFilter by remember { mutableStateOf("Tất cả") }
-        LaunchedEffect(activeQueueIndex, queueSongs.size) {
-            if (queueSourceFilter == "Tất cả") {
-                val activeSource = activeQueueIndex.takeIf { it >= 0 }?.let { queueSongs.getOrNull(it)?.source }.orEmpty()
-                if (activeSource.isNotBlank()) queueSourceFilter = activeSource
-            }
-        }
-        val visibleNextEntries = if (queueSourceFilter == "Tất cả") {
+        val visibleNextEntries = if (activeSource.isBlank()) {
             nextEntries
         } else {
-            nextEntries.filter { it.second.source == queueSourceFilter }
+            nextEntries.filter { it.second.source == activeSource }
         }
 
         val playedCount = if (activeQueueIndex > 0) activeQueueIndex else 0
@@ -6149,34 +6160,28 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
                         Spacer(Modifier.height(12.dp))
 
-                        if (queueSources.size > 1) {
-                            Text(
-                                "NGUỒN TRONG HÀNG ĐỢI",
-                                color = Color(0xFF747B8A),
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Black,
-                                letterSpacing = 1.1.sp
-                            )
-                            Spacer(Modifier.height(6.dp))
-                            LazyRow(
-                                horizontalArrangement = Arrangement.spacedBy(7.dp),
-                                contentPadding = PaddingValues(end = 4.dp)
+                        if (activeSource.isNotBlank()) {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color(0xFF171A22),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF292E3A))
                             ) {
-                                items(queueSources) { source ->
-                                    FilterChip(
-                                        selected = queueSourceFilter == source,
-                                        onClick = { queueSourceFilter = source },
-                                        label = {
-                                            Text(
-                                                if (source == "Tất cả") "Tất cả" else source.removePrefix("Google Drive • ").removePrefix("Chia sẻ • "),
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                                fontSize = 10.sp
-                                            )
-                                        },
-                                        leadingIcon = if (source.startsWith("Google Drive")) {
-                                            { Text("☁", fontSize = 11.sp) }
-                                        } else null
+                                Row(
+                                    Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        if (activeSource.startsWith("Google Drive")) "☁" else "♫",
+                                        color = Color(0xFFB18CFF),
+                                        fontSize = 12.sp
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        "Nguồn: " + activeSource.removePrefix("Google Drive • ").removePrefix("Chia sẻ • "),
+                                        color = Color(0xFFBFC3D0),
+                                        fontSize = 10.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
                             }
