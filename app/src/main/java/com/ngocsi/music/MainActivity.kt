@@ -244,6 +244,7 @@ class MainActivity : ComponentActivity() {
     private var driveBrowserResourceKey by mutableStateOf<String?>(null)
     private var selectedLibrary by mutableStateOf("Tất cả")
     private var libraryView by mutableStateOf("Bài hát")
+    private var queueSource by mutableStateOf("")
     private var showQueue by mutableStateOf(false) // #145 queue upgrade
     private var showVietnamRadioHub by mutableStateOf(false)
     private var radioWebUrl by mutableStateOf<String?>(null)
@@ -961,6 +962,7 @@ class MainActivity : ComponentActivity() {
         }
 
         queueSongs.clear()
+        queueSource = prefs.getString("queue_source", "").orEmpty()
         val byUri = songs.associateBy { it.uri.toString() }
         if (hasSavedQueue) {
             // An explicitly saved empty queue stays empty across app restarts.
@@ -972,8 +974,14 @@ class MainActivity : ComponentActivity() {
                 saveQueueOrder()
             }
         } else {
-            // First launch: initialize the queue from the complete library.
-            queueSongs.addAll(songs)
+            // New installs start with an empty queue. The queue is created only
+            // when the user explicitly plays/adds songs from a source.
+            queueSongs.clear()
+            queueSource = ""
+            saveQueueOrder()
+        }
+        if (queueSongs.isNotEmpty() && queueSource.isBlank()) {
+            queueSource = queueSongs.first().source
             saveQueueOrder()
         }
         errorMessage = if (songs.isEmpty()) "Chưa tìm thấy file nhạc trong thiết bị." else null
@@ -1028,6 +1036,7 @@ class MainActivity : ComponentActivity() {
         clearActiveRadioState()
         queueSongs.clear()
         queueSongs.addAll(items)
+        queueSource = first.source
         c.setMediaItems(queueSongs.map { mediaItemFor(it) }, 0, 0L)
         c.shuffleModeEnabled = shuffleEnabled
         c.repeatMode = repeatMode
@@ -2969,6 +2978,7 @@ class MainActivity : ComponentActivity() {
     private fun syncControllerQueue() {
         controller?.let { c ->
             if (queueSongs.isEmpty()) {
+                queueSource = ""
                 // Never leave stale Media3 items or persisted queue metadata
                 // after the playback queue is emptied.
                 c.pause()
@@ -3125,6 +3135,12 @@ class MainActivity : ComponentActivity() {
             return
         }
 
+        if (queueSource.isNotBlank() && song.source != queueSource) {
+            errorMessage = "Không thể trộn nguồn vào hàng đợi hiện tại."
+            return
+        }
+        if (queueSource.isBlank()) queueSource = song.source
+
         // Keep the visible queue order canonical and place the selected song
         // immediately after the current item. Do not duplicate an existing item.
         val existingIndex = queueSongs.indexOfFirst { it.uri == song.uri }
@@ -3150,6 +3166,11 @@ class MainActivity : ComponentActivity() {
             errorMessage = "Bài hát đã có trong hàng đợi."
             return
         }
+        if (queueSource.isNotBlank() && song.source != queueSource) {
+            errorMessage = "Không thể trộn nguồn vào hàng đợi hiện tại."
+            return
+        }
+        if (queueSource.isBlank()) queueSource = song.source
 
         // queueSongs is the canonical logical order. Rebuild Media3 from it so
         // Shuffle/Repeat, the current item and the playback position stay aligned.
@@ -3607,6 +3628,7 @@ class MainActivity : ComponentActivity() {
         prefs.edit()
             .putString("queue_order", queueSongs.joinToString("\n") { it.uri.toString() })
             .putString("queue_metadata", metadata.toString())
+            .putString("queue_source", queueSource)
             .apply()
     }
 
@@ -3733,6 +3755,7 @@ class MainActivity : ComponentActivity() {
         }
         queueSongs.clear()
         queueSongs.addAll(orderedSongs)
+        queueSource = orderedSongs.firstOrNull()?.source.orEmpty()
         c.setMediaItems(queueSongs.map { mediaItemFor(it) }, songIndex, 0L)
         c.shuffleModeEnabled = shuffleEnabled
         c.repeatMode = repeatMode
@@ -4690,43 +4713,34 @@ class MainActivity : ComponentActivity() {
                 addAll(sourceNames)
             }
 
-            Column(
-                Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(7.dp)
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(end = 16.dp)
             ) {
-                sourceEntries.chunked(2).forEach { rowSources ->
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(7.dp)
-                    ) {
-                        rowSources.forEach { source ->
-                            val isDrive = source.startsWith("Google Drive")
-                            LibrarySourceCard(
-                                title = when (source) {
-                                    "Tất cả" -> "Tất cả nguồn"
-                                    "Yêu thích" -> "Yêu thích"
-                                    else -> sourceTitle(source)
-                                },
-                                subtitle = when (source) {
-                                    "Tất cả" -> "Thư viện tổng"
-                                    "Yêu thích" -> "Bài đã lưu"
-                                    else -> if (isDrive) "Google Drive" else source
-                                },
-                                count = sourceCount(source),
-                                icon = when (source) {
-                                    "Yêu thích" -> "♥"
-                                    "Tất cả" -> "♫"
-                                    else -> if (isDrive) "☁" else "♫"
-                                },
-                                selected = selectedLibrary == source,
-                                onClick = { selectedLibrary = source },
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                        if (rowSources.size == 1) Spacer(Modifier.weight(1f))
-                    }
+                items(sourceEntries) { source ->
+                    val isDrive = source.startsWith("Google Drive")
+                    LibrarySourceCard(
+                        title = when (source) {
+                            "Tất cả" -> "Tất cả"
+                            "Yêu thích" -> "Yêu thích"
+                            else -> sourceTitle(source)
+                        },
+                        subtitle = when (source) {
+                            "Tất cả" -> "Mọi nguồn"
+                            "Yêu thích" -> "Đã lưu"
+                            else -> if (isDrive) "Drive" else source
+                        },
+                        count = sourceCount(source),
+                        icon = when (source) {
+                            "Yêu thích" -> "♥"
+                            "Tất cả" -> "♫"
+                            else -> if (isDrive) "☁" else "♫"
+                        },
+                        selected = selectedLibrary == source,
+                        onClick = { selectedLibrary = source },
+                        modifier = Modifier.width(142.dp)
+                    )
                 }
-            }
             }
 
         Spacer(Modifier.height(10.dp))
@@ -4744,7 +4758,7 @@ class MainActivity : ComponentActivity() {
     ) {
         Surface(
             modifier = modifier
-                .height(64.dp)
+                .height(58.dp)
                 .clip(RoundedCornerShape(15.dp))
                 .clickable(onClick = onClick),
             shape = RoundedCornerShape(15.dp),
@@ -4757,7 +4771,7 @@ class MainActivity : ComponentActivity() {
             Row(
                 Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 9.dp, vertical = 7.dp),
+                    .padding(horizontal = 9.dp, vertical = 5.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Surface(
