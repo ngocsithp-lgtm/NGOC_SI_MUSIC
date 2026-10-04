@@ -1159,7 +1159,7 @@ class MainActivity : ComponentActivity() {
 
         driveImportJob = lifecycleScope.launch {
             val result = withContext(Dispatchers.IO) {
-                val saved = (prefs.getStringSet("drive_uris", emptySet()) ?: emptySet()).toMutableSet()
+                val saved = (driveSourcePrefs.getStringSet("drive_uris", emptySet()) ?: emptySet()).toMutableSet()
                 val sourceNames = loadDriveSourceNames().toMutableMap()
                 val importedSongs = mutableListOf<Song>()
 
@@ -1188,11 +1188,11 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                saved to importedSongs to sourceNames
+                Triple(saved, importedSongs, sourceNames)
             }
 
             val (saved, importedSongs, sourceNames) = result
-            prefs.edit().putStringSet("drive_uris", saved).apply()
+            driveSourcePrefs.edit().putStringSet("drive_uris", saved).apply()
             saveDriveSourceNames(sourceNames)
 
             importedSongs.forEach { song ->
@@ -1293,6 +1293,27 @@ class MainActivity : ComponentActivity() {
     private fun driveSongSource(sourceName: String): String {
         val clean = sourceName.trim().removePrefix("Google Drive •").trim()
         return "Google Drive • " + clean.ifBlank { "Chia sẻ" }
+    }
+
+    private fun loadDriveSourceNames(): MutableMap<String, String> {
+        val raw = driveSourcePrefs.getString("drive_source_names", null) ?: return mutableMapOf()
+        return runCatching {
+            val json = org.json.JSONObject(raw)
+            buildMap {
+                json.keys().forEach { key ->
+                    val value = json.optString(key).trim()
+                    if (key.isNotBlank() && value.isNotBlank()) put(key, value)
+                }
+            }.toMutableMap()
+        }.getOrElse { mutableMapOf() }
+    }
+
+    private fun saveDriveSourceNames(sourceNames: Map<String, String>) {
+        val json = org.json.JSONObject()
+        sourceNames.forEach { (uri, name) ->
+            if (uri.isNotBlank() && name.isNotBlank()) json.put(uri, name)
+        }
+        driveSourcePrefs.edit().putString("drive_source_names", json.toString()).apply()
     }
 
     private fun formatDriveSize(bytes: Long): String {
