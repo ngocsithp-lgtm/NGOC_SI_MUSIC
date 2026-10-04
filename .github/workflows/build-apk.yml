@@ -21,7 +21,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-      - name: Restore stable CI signing keystore
+      - name: Restore stable CI signing keystore (optional)
         env:
           NGOCSI_KEYSTORE_BASE64: ${{ secrets.NGOCSI_KEYSTORE_BASE64 }}
           NGOCSI_KEYSTORE_PASSWORD: ${{ secrets.NGOCSI_KEYSTORE_PASSWORD }}
@@ -30,8 +30,9 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${NGOCSI_KEYSTORE_BASE64:-}" ] || [ -z "${NGOCSI_KEYSTORE_PASSWORD:-}" ] || [ -z "${NGOCSI_KEY_ALIAS:-}" ] || [ -z "${NGOCSI_KEY_PASSWORD:-}" ]; then
-            echo "::error::Stable signing secrets are not configured. Add NGOCSI_KEYSTORE_BASE64, NGOCSI_KEYSTORE_PASSWORD, NGOCSI_KEY_ALIAS and NGOCSI_KEY_PASSWORD in GitHub Secrets."
-            exit 1
+            echo "::warning::Stable signing secrets are not configured. Continuing with the standard Gradle debug keystore. This APK is for non-OAuth testing (for example Drive system picker) and is not the durable Google OAuth signing identity."
+            echo "NGOCSI_SIGNING_MODE=debug-fallback" >> "$GITHUB_ENV"
+            exit 0
           fi
           KEYSTORE="$RUNNER_TEMP/ngocsi-ci.jks"
           printf "%s" "$NGOCSI_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE"
@@ -40,6 +41,7 @@ jobs:
           echo "CI_KEYSTORE_PASSWORD=$NGOCSI_KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
           echo "CI_KEY_ALIAS=$NGOCSI_KEY_ALIAS" >> "$GITHUB_ENV"
           echo "CI_KEY_PASSWORD=$NGOCSI_KEY_PASSWORD" >> "$GITHUB_ENV"
+          echo "NGOCSI_SIGNING_MODE=stable" >> "$GITHUB_ENV"
 
       - name: Set up JDK 17
         uses: actions/setup-java@v5
@@ -77,6 +79,19 @@ jobs:
           CI_KEY_ALIAS: ${{ env.CI_KEY_ALIAS }}
           CI_KEY_PASSWORD: ${{ env.CI_KEY_PASSWORD }}
         run: gradle :app:assembleDebug --no-daemon
+      - name: Verify signing mode
+        run: |
+          set -euo pipefail
+          MODE="${NGOCSI_SIGNING_MODE:-debug-default}"
+          echo "Signing mode: $MODE"
+          if [ "$MODE" = "stable" ]; then
+            echo "Stable CI signing is active."
+          else
+            echo "::warning::This build uses the runner's default debug signing. Do not register its SHA-1 as the permanent OAuth identity."
+          fi
+          echo "## Signing mode" >> "$GITHUB_STEP_SUMMARY"
+          echo "- $MODE" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Verify APK
         run: |
           set -euo pipefail
