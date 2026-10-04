@@ -4690,26 +4690,25 @@ class MainActivity : ComponentActivity() {
                 addAll(sourceNames)
             }
 
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(9.dp)
+            Column(
+                Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(9.dp)
             ) {
-                sourceEntries.chunked(2).forEach { columnSources ->
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                sourceEntries.chunked(2).forEach { rowSources ->
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(9.dp)
                     ) {
-                        columnSources.forEach { source ->
+                        rowSources.forEach { source ->
                             val isDrive = source.startsWith("Google Drive")
                             LibrarySourceCard(
                                 title = when (source) {
-                                    "Tất cả" -> "Tất cả"
+                                    "Tất cả" -> "Tất cả nguồn"
                                     "Yêu thích" -> "Yêu thích"
                                     else -> sourceTitle(source)
                                 },
                                 subtitle = when (source) {
-                                    "Tất cả" -> "Tất cả nguồn"
+                                    "Tất cả" -> "Thư viện tổng"
                                     "Yêu thích" -> "Bài đã lưu"
                                     else -> if (isDrive) "Google Drive" else source
                                 },
@@ -4720,13 +4719,14 @@ class MainActivity : ComponentActivity() {
                                     else -> if (isDrive) "☁" else "♫"
                                 },
                                 selected = selectedLibrary == source,
-                                onClick = { selectedLibrary = source }
+                                onClick = { selectedLibrary = source },
+                                modifier = Modifier.weight(1f)
                             )
                         }
+                        if (rowSources.size == 1) Spacer(Modifier.weight(1f))
                     }
                 }
             }
-        }
 
         Spacer(Modifier.height(10.dp))
     }
@@ -4738,12 +4738,12 @@ class MainActivity : ComponentActivity() {
         count: Int,
         icon: String,
         selected: Boolean,
-        onClick: () -> Unit
+        onClick: () -> Unit,
+        modifier: Modifier = Modifier
     ) {
         Surface(
-            modifier = Modifier
-                .width(156.dp)
-                .height(82.dp)
+            modifier = modifier
+                .height(88.dp)
                 .clip(RoundedCornerShape(18.dp))
                 .clickable(onClick = onClick),
             shape = RoundedCornerShape(18.dp),
