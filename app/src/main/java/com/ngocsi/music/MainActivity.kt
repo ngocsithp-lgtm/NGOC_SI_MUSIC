@@ -6733,7 +6733,26 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             Text(driveBrowserTitle, color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold)
                             Text(driveBrowserItems.size.toString() + " mục • Google Drive", color = Color(0xFF888894), fontSize = 11.sp)
                         }
-                        TextButton(onClick = { showDriveBrowser = false }) { Text("ĐÓNG") }
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            val visibleAudioCount = driveBrowserItems.count {
+                                it.mimeType != "application/vnd.google-apps.folder" &&
+                                    (driveBrowserQuery.isBlank() || it.name.contains(driveBrowserQuery, ignoreCase = true))
+                            }
+                            if (visibleAudioCount > 0) {
+                                TextButton(
+                                    onClick = {
+                                        driveBrowserScope.launch {
+                                            visibleDriveItems
+                                                .filter { it.mimeType != "application/vnd.google-apps.folder" }
+                                                .forEach { addSharedDriveItemToLibrary(it, false) }
+                                            driveSharedStatus = "Đã thêm $visibleAudioCount bài vào thư viện."
+                                        }
+                                    },
+                                    enabled = !driveSharedLoading
+                                ) { Text("THÊM TẤT CẢ") }
+                            }
+                            TextButton(onClick = { showDriveBrowser = false }) { Text("ĐÓNG") }
+                        }
                     }
                     Spacer(Modifier.height(8.dp))
                     OutlinedTextField(
