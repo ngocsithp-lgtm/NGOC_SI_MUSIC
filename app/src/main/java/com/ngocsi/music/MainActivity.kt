@@ -1187,32 +1187,68 @@ class MainActivity : ComponentActivity() {
 
     private fun songFromUri(uri: Uri): Song? {
         var title = "Nhạc online"
-        // A persisted Drive URI can outlive its provider grant. Treat a failed
-        // metadata query as stale so the broken entry is removed from the library.
+        var displayName = "drive_audio_" + kotlin.math.abs(uri.toString().hashCode())
+
         val metadataReadable = runCatching {
             contentResolver.query(
                 uri,
-                arrayOf(OpenableColumns.DISPLAY_NAME),
+                arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE),
                 null,
                 null,
                 null
             )?.use { cursor ->
                 if (cursor.moveToFirst()) {
-                    title = cursor.getString(cursor.getColumnIndexOrThrow(OpenableColumns.DISPLAY_NAME))
-                        .substringBeforeLast(".")
-                        .ifBlank { "Nhạc online" }
+                    val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                    if (nameIndex >= 0) {
+                        displayName = cursor.getString(nameIndex).orEmpty()
+                        title = displayName.substringBeforeLast(".").ifBlank { "Nhạc online" }
+                    }
+                    if (sizeIndex >= 0) cursor.getLong(sizeIndex)
                 }
             }
             true
         }.getOrDefault(false)
+
         if (!metadataReadable) return null
+
+        // Drive DocumentsProvider content:// streams can be unreliable with
+        // Media3 on some phones/providers. Materialize picker-selected audio
+        // into app-private storage first; importDriveSongs() runs this on IO.
+        val playbackUri = if (uri.scheme.equals("content", ignoreCase = true)) {
+            runCatching {
+                val sourceName = displayName.ifBlank {
+                    "drive_audio_" + kotlin.math.abs(uri.toString().hashCode())
+                }
+                val safeName = sourceName
+                    .replace(Regex("[\\\\/:*?\"<>|]"), "_")
+                    .trim()
+                    .ifBlank {
+                        "drive_audio_" + kotlin.math.abs(uri.toString().hashCode())
+                    }
+                val importsDir = File(filesDir, "drive_imports").apply { mkdirs() }
+                val target = File(importsDir, safeName)
+                if (!target.exists() || target.length() <= 0L) {
+                    contentResolver.openInputStream(uri)?.use { input ->
+                        target.outputStream().use { output ->
+                            input.copyTo(output, DEFAULT_BUFFER_SIZE)
+                        }
+                    } ?: throw java.io.IOException("Không mở được dữ liệu file Google Drive")
+                }
+                Uri.fromFile(target)
+            }.getOrNull()
+        } else {
+            uri
+        }
+
+        if (playbackUri == null) return null
 
         return Song(
             id = -kotlin.math.abs(uri.toString().hashCode().toLong()),
             title = title,
             artist = "Google Drive",
             duration = 0L,
-            uri = uri,
+            uri = playbackUri,
             source = "Google Drive",
             folder = "Google Drive"
         )
