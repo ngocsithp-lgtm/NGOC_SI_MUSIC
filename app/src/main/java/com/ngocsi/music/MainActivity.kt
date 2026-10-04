@@ -1528,9 +1528,12 @@ class MainActivity : ComponentActivity() {
                                     )
                                 }
                             }
-                            saveSharedDriveItems(
-                                (loadSharedDriveItems() + cloudItems).distinctBy { it.id }
-                            )
+                            val mergedItems = (loadSharedDriveItems() + cloudItems)
+                                .groupBy { it.id }
+                                .mapNotNull { (_, variants) ->
+                                    variants.maxByOrNull { if (it.sourceName.isNotBlank()) 1 else 0 }
+                                }
+                            saveSharedDriveItems(mergedItems)
                             val cloudLinks = buildList {
                                 val array = root.optJSONArray("recentLinks") ?: org.json.JSONArray()
                                 for (i in 0 until array.length()) {
@@ -1778,6 +1781,7 @@ class MainActivity : ComponentActivity() {
                     put("resourceKey", item.resourceKey)
                     put("size", item.size)
                     put("webContentLink", item.webContentLink)
+                    put("sourceName", item.sourceName)
                 }
             )
         }
