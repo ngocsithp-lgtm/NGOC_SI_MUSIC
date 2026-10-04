@@ -52,15 +52,15 @@ class MusicService : MediaSessionService() {
     // Activity is no longer in the foreground.
     private val sleepTimerRunnable = object : Runnable {
         override fun run() {
-            if (player.isPlaying) {
-                val endAt = prefs.getLong("sleep_timer_end_at", 0L)
-                if (endAt > 0L && System.currentTimeMillis() >= endAt) {
-                    player.pause()
-                    player.seekTo(0L)
-                    prefs.edit().remove("sleep_timer_end_at").apply()
-                    savePlaybackState()
-                    broadcastWidget()
-                }
+            val endAt = prefs.getLong("sleep_timer_end_at", 0L)
+            if (endAt > 0L && System.currentTimeMillis() >= endAt) {
+                // The timer is wall-clock based. Expire it even if playback was
+                // paused, so a stale timer cannot survive indefinitely.
+                player.pause()
+                player.seekTo(0L)
+                prefs.edit().remove("sleep_timer_end_at").apply()
+                savePlaybackState()
+                broadcastWidget()
             }
             widgetHandler.postDelayed(this, 1000L)
         }
