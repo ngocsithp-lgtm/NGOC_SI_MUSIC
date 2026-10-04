@@ -108,26 +108,30 @@ jobs:
         run: |
           set -euo pipefail
           OUT="app/build/outputs/apk/debug"
+          APK="$OUT/app-debug.apk"
+          test -f "$APK"
           echo "Package: com.ngocsi.music"
-          echo "=== Gradle signingReport ==="
-          gradle :app:signingReport --no-daemon 2>&1 | tee "$OUT/signing-report.txt"
-          echo "=== SHA-1 from signingReport ==="
-          SHA1="$(grep -Ei "^[[:space:]]*SHA1:" "$OUT/signing-report.txt" | head -n1 | sed 's/.*SHA1:[[:space:]]*//' | tr -d '\r')"
+          echo "=== APK signing certificate ==="
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner -print -quit)"
+          if [ -z "$APKSIGNER" ]; then
+            echo "::error::Android build-tools apksigner executable was not found"
+            exit 1
+          fi
+          "$APKSIGNER" verify --verbose --print-certs "$APK" 2>&1 | tee "$OUT/signing-report.txt"
+          echo "=== SHA-1 from actual APK ==="
+          SHA1="$(grep -E "certificate SHA-1 digest:" "$OUT/signing-report.txt" | head -n1 | sed 's/.*certificate SHA-1 digest:[[:space:]]*//' | tr -d '\r')"
           echo "SHA-1: $SHA1"
           EXPECTED_SHA1="53:3F:A1:9C:58:A4:0D:92:66:68:F9:62:96:E7:DB:D3:4D:69:6A:ED"
           if [ "$SHA1" != "$EXPECTED_SHA1" ]; then
-            echo "::error::Unexpected signing certificate. Expected stable OAuth SHA-1 $EXPECTED_SHA1 but got $SHA1"
+            echo "::error::Unexpected APK signing certificate. Expected stable OAuth SHA-1 $EXPECTED_SHA1 but got $SHA1"
             exit 1
           fi
           {
             echo "## Android OAuth diagnostic"
             echo ""
             echo "- Package: com.ngocsi.music"
-            echo ""
-            echo "---"
-            grep -Ei "Variant: debug|Config: debug|Store:|Alias:|SHA1:|SHA-1:" "$OUT/signing-report.txt" || true
-            echo ""
-            echo "- Expected OAuth SHA-1: 53:3F:A1:9C:58:A4:0D:92:66:68:F9:62:96:E7:DB:D3:4D:69:6A:ED"
+            echo "- Actual APK SHA-1: $SHA1"
+            echo "- Expected OAuth SHA-1: $EXPECTED_SHA1"
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Generate APK SHA-256
         run: |
