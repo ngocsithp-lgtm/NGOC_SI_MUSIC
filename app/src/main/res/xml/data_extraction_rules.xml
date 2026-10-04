@@ -7,13 +7,12 @@
         <include domain="sharedpref" path="ngocsi_music_drive_sources.xml" />
         <!-- Audio files imported from Drive are needed to restore local playback. -->
         <include domain="file" path="drive_imports/" />
-        <!-- OAuth tokens must never be restored from backup. -->
-        <exclude domain="sharedpref" path="ngocsi_music_secure.xml" />
+        <!-- OAuth storage is intentionally omitted from the included paths. -->
     </cloud-backup>
     <device-transfer>
         <include domain="sharedpref" path="ngoc_si_music.xml" />
         <include domain="sharedpref" path="ngocsi_music_drive_sources.xml" />
         <include domain="file" path="drive_imports/" />
-        <exclude domain="sharedpref" path="ngocsi_music_secure.xml" />
+        <!-- OAuth storage is intentionally omitted from the included paths. -->
     </device-transfer>
 </data-extraction-rules>
