@@ -1029,7 +1029,7 @@ class MainActivity : ComponentActivity() {
         // immediately before playback, including after an app restart, so a
         // previously saved Drive item does not fail because prefs contains an
         // expired token. The recursive call is guarded by driveTokenReady.
-        if (!driveTokenReady && songs[index].source == "Google Drive") {
+        if (!driveTokenReady && songs[index].source == "Google Drive" && (songs[index].uri.scheme.equals("content", true) || songs[index].uri.scheme.equals("https", true))) {
             errorMessage = "Đang xác thực Google Drive để phát…"
             lifecycleScope.launch {
                 val token = driveOAuthManager.accessToken()
@@ -1249,7 +1249,7 @@ class MainActivity : ComponentActivity() {
             artist = "Google Drive",
             duration = 0L,
             uri = playbackUri,
-            source = "Google Drive",
+            source = "Google Drive Local",
             folder = "Google Drive"
         )
     }
