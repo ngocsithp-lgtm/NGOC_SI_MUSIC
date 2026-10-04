@@ -2710,6 +2710,24 @@ class MainActivity : ComponentActivity() {
         errorMessage = "Đã xóa toàn bộ hàng đợi."
     }
 
+    private fun playQueueAt(queueIndex: Int) {
+        val c = controller ?: return
+        if (queueIndex !in queueSongs.indices) return
+
+        c.setMediaItems(queueSongs.map { mediaItemFor(it) }, queueIndex, 0L)
+        c.shuffleModeEnabled = shuffleEnabled
+        c.repeatMode = repeatMode
+        c.setPlaybackSpeed(selectedPlaybackSpeed)
+        c.prepare()
+        c.play()
+        currentIndex = songs.indexOfFirst { it.uri == queueSongs[queueIndex].uri }
+        lastSongUri = queueSongs[queueIndex].uri.toString()
+        position = 0L
+        savedPosition = 0L
+        saveQueueOrder()
+        savePlaybackState()
+        errorMessage = "Đang phát từ vị trí " + (queueIndex + 1) + " trong hàng đợi."
+    }
     private fun playQueueFromStart() {
         val c = controller ?: return
         if (queueSongs.isEmpty()) {
@@ -5100,8 +5118,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         .clip(RoundedCornerShape(18.dp))
                                         .background(if (isCurrent) Color(0xFF29213E) else Color(0xFF161820))
                                         .clickable {
-                                            val libraryIndex = songs.indexOfFirst { it.uri == song.uri }
-                                            if (libraryIndex >= 0) play(libraryIndex)
+                                            playQueueAt(index)
                                             showQueue = false
                                         }
                                         .padding(horizontal = 10.dp, vertical = 9.dp),
@@ -5132,7 +5149,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         }
                                     }
                                     Spacer(Modifier.width(6.dp))
-                                    Text(formatTime(song.duration), color = Color(0xFF858895), fontSize = 10.sp)
+                                    Text(
+                                        formatTime(if (isCurrent && duration > 0L) duration else song.duration),
+                                        color = Color(0xFF858895),
+                                        fontSize = 10.sp
+                                    )
                                     Spacer(Modifier.width(2.dp))
                                     QueueIconButton("↑", index > 0) { if (index > 0) moveQueueItem(index, index - 1) }
                                     QueueIconButton("↓", index < queueSongs.lastIndex) { if (index < queueSongs.lastIndex) moveQueueItem(index, index + 1) }
