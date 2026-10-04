@@ -519,13 +519,23 @@ class MainActivity : ComponentActivity() {
                 return
             }
 
+            val activeTitle = controller?.currentMediaItem?.mediaMetadata?.title?.toString()
+                ?.takeIf { it.isNotBlank() }
+                ?: radioTitle
+                ?: "bài hát"
+            val detail = generatePlaybackErrorDetail(error)
             errorMessage = when (error.errorCode) {
                 androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ->
-                    "Mất kết nối mạng khi phát ${radioTitle ?: "nhạc online"}."
+                    "Mất kết nối mạng khi phát $activeTitle. $detail"
+                androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ->
+                    "Máy chủ từ chối phát $activeTitle. $detail"
+                androidx.media3.common.PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND ->
+                    "Không tìm thấy nguồn phát của $activeTitle. $detail"
                 androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED,
                 androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED ->
-                    "Luồng ${radioTitle ?: "âm thanh"} không được hỗ trợ hoặc máy chủ đang thay đổi nguồn phát."
-                else -> "Không thể phát ${radioTitle ?: "bài hát"}. Hãy kiểm tra kết nối mạng."
+                    "Nguồn âm thanh của $activeTitle không được hỗ trợ hoặc máy chủ trả về dữ liệu không hợp lệ. $detail"
+                else ->
+                    "Không thể phát $activeTitle. Mã Media3 ${error.errorCode}. $detail"
             }
 
             activeRadioTitle = null
@@ -534,6 +544,21 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun generatePlaybackErrorDetail(error: androidx.media3.common.PlaybackException): String {
+        var cause: Throwable? = error
+        repeat(8) {
+            if (cause is androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException) {
+                val http = cause as androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException
+                val body = http.headerFields["Content-Type"]?.firstOrNull().orEmpty()
+                return "HTTP ${http.responseCode}" +
+                    (http.responseMessage?.takeIf { it.isNotBlank() }?.let { " $it" } ?: "") +
+                    (if (body.isNotBlank()) " • $body" else "")
+            }
+            cause = cause?.cause
+        }
+        val message = error.message?.trim().orEmpty()
+        return if (message.isNotBlank()) message.take(180) else "Hãy thử lại sau khi kiểm tra Wi‑Fi/4G."
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
