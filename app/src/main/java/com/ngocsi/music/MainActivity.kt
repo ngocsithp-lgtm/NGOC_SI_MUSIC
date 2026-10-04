@@ -6334,8 +6334,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             )
             Spacer(Modifier.height(10.dp))
 
-            // Drive account — one clear connection point, matching the
-            // reference app's simple "connect -> browse -> play" flow.
+            // Phone-first Drive path:
+            // Android's system document picker can use the Google Drive
+            // DocumentsProvider already authenticated on the phone. This lets
+            // shared files/folders be imported without depending on this APK's
+            // Google Sign-In SHA-1. Private Drive API browsing remains optional.
             Row(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
                     .background(Color(0xFF171720)).padding(12.dp),
@@ -6345,7 +6348,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
-                        if (driveOAuthSignedIn) "Google Drive đã kết nối" else "Google Drive chưa kết nối",
+                        if (driveOAuthSignedIn) "Google Drive API đã kết nối" else "Drive chọn trực tiếp • không bắt buộc đăng nhập app",
                         color = Color.White,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 13.sp
@@ -6354,21 +6357,40 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         if (driveOAuthSignedIn && driveGoogleAccountEmail.isNotBlank())
                             driveGoogleAccountEmail
                         else
-                            "Đăng nhập để duyệt kho riêng tư và mục được chia sẻ",
+                            "Ưu tiên CHỌN FILE / CHỌN THƯ MỤC để lấy cả nguồn được chia sẻ",
                         color = Color(0xFF8F8F9A),
                         fontSize = 10.sp,
-                        maxLines = 1,
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
                 TextButton(onClick = ::signInGoogleDrive) {
-                    Text(if (driveOAuthSignedIn) "↻" else "KẾT NỐI")
+                    Text(if (driveOAuthSignedIn) "↻" else "API")
                 }
             }
 
             Spacer(Modifier.height(9.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
+                    onClick = ::openDrivePicker,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp)
+                ) { Text("☁ CHỌN FILE TỪ DRIVE") }
+                Button(
+                    onClick = ::openDriveFolderPicker,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp)
+                ) { Text("📁 CHỌN THƯ MỤC DRIVE") }
+            }
+            Text(
+                "Cách này dùng bộ chọn tệp Android/Google Drive trên điện thoại, không phụ thuộc SHA-1 của APK.",
+                color = Color(0xFF8F8F9A),
+                fontSize = 10.sp,
+                modifier = Modifier.padding(top = 5.dp)
+            )
+            Spacer(Modifier.height(7.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
                     onClick = ::loadDriveRoot,
                     enabled = driveOAuthSignedIn && !driveSharedLoading,
                     modifier = Modifier.weight(1f),
@@ -6376,23 +6398,10 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 ) { Text("☁ DRIVE CỦA TÔI") }
                 OutlinedButton(
                     onClick = ::loadSharedWithMeDrive,
-                    enabled = !driveSharedLoading,
+                    enabled = driveOAuthSignedIn && !driveSharedLoading,
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(14.dp)
-                ) { Text("👥 ĐƯỢC CHIA SẺ") }
-            }
-            Spacer(Modifier.height(7.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(
-                    onClick = ::openDrivePicker,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(14.dp)
-                ) { Text("CHỌN FILE") }
-                OutlinedButton(
-                    onClick = ::openDriveFolderPicker,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(14.dp)
-                ) { Text("CHỌN THƯ MỤC") }
+                ) { Text("👥 ĐƯỢC CHIA SẺ (API)") }
             }
 
             Spacer(Modifier.height(10.dp))
