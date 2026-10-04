@@ -876,15 +876,19 @@ class MainActivity : ComponentActivity() {
             sharedItems.forEach { item ->
                 val uri = sharedDriveMediaUri(item, sharedApiKey)
                 val raw = uri.toString()
+                val sourceName = item.sourceName.trim().ifBlank {
+                    "Chia sẻ • " + item.name.substringBeforeLast(".").ifBlank { item.name }
+                }
+                val songSource = driveSongSource(sourceName)
                 if (existing.add(raw)) {
                     result += Song(
                         id = -kotlin.math.abs(raw.hashCode().toLong()),
                         title = item.name.substringBeforeLast(".").ifBlank { item.name },
-                        artist = driveSongSource(item.sourceName),
+                        artist = songSource,
                         duration = 0L,
                         uri = uri,
-                        source = driveSongSource(item.sourceName),
-                        folder = item.sourceName.ifBlank { "Drive chia sẻ" }
+                        source = songSource,
+                        folder = sourceName
                     )
                 }
             }
