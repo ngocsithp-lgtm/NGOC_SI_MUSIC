@@ -264,6 +264,8 @@ class MainActivity : ComponentActivity() {
     private var shuffleEnabled by mutableStateOf(false)
     private var repeatMode by mutableIntStateOf(Player.REPEAT_MODE_OFF)
     private var selectedPlaybackSpeed by mutableFloatStateOf(1.0f)
+    // Media3 1004 can be a transient invalid-player-state/runtime check. Retry the active item once.
+    private var runtimeRecoveryInProgress = false
     private var showPlaybackSpeed by mutableStateOf(false)
     private val favorites = mutableStateMapOf<Long, Boolean>()
     private lateinit var prefs: SharedPreferences
@@ -501,6 +503,34 @@ class MainActivity : ComponentActivity() {
             isPlaying = false
             cancelRadioRecovery()
 
+            // Media3 1004 is ERROR_CODE_FAILED_RUNTIME_CHECK. It is not a network
+            // error and can be triggered by a transient player/decoder state.
+            // Rebuild the active item once before surfacing the error to the user.
+            if (error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_FAILED_RUNTIME_CHECK &&
+                !runtimeRecoveryInProgress
+            ) {
+                val activeItem = controller?.currentMediaItem
+                val activeUri = activeItem?.localConfiguration?.uri
+                if (activeItem != null && activeUri != null) {
+                    runtimeRecoveryInProgress = true
+                    val resumePosition = controller?.currentPosition?.coerceAtLeast(0L) ?: 0L
+                    lifecycleScope.launch {
+                        delay(250L)
+                        runCatching {
+                            controller?.setMediaItem(activeItem, resumePosition)
+                            controller?.prepare()
+                            controller?.play()
+                        }.onFailure { recoveryError ->
+                            errorMessage = "Media3 không thể khôi phục bài đang phát: " +
+                                (recoveryError.message ?: recoveryError.javaClass.simpleName)
+                        }
+                        runtimeRecoveryInProgress = false
+                    }
+                    return
+                }
+            }
+            runtimeRecoveryInProgress = false
+
             val radioTitle = activeRadioTitle
             if (radioTitle != null && activeRadioStreamIndex + 1 < activeRadioStreams.size) {
                 activeRadioStreamIndex++
@@ -546,19 +576,28 @@ class MainActivity : ComponentActivity() {
 
     private fun generatePlaybackErrorDetail(error: androidx.media3.common.PlaybackException): String {
         var cause: Throwable? = error
+        var depth = 0
         repeat(8) {
             if (cause is androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException) {
                 val http = cause as androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException
                 val body = http.headerFields["Content-Type"]?.firstOrNull().orEmpty()
                 return "HTTP ${http.responseCode}" +
-                    (http.responseMessage?.takeIf { it.isNotBlank() }?.let { " $it" } ?: "") +
-                    (if (body.isNotBlank()) " • $body" else "")
+                    (http.responseMessage?.takeIf { it.isNotBlank() }?.let { " ${it}" } ?: "") +
+                    (if (body.isNotBlank()) " • ${body}" else "")
+            }
+            if (depth > 0 && cause != null) {
+                val causeMessage = cause?.message?.trim().orEmpty()
+                if (causeMessage.isNotBlank()) {
+                    return cause!!.javaClass.simpleName + ": " + causeMessage.take(180)
+                }
             }
             cause = cause?.cause
+            depth++
         }
         val message = error.message?.trim().orEmpty()
-        return if (message.isNotBlank()) message.take(180) else "Hãy thử lại sau khi kiểm tra Wi‑Fi/4G."
+        return if (message.isNotBlank()) message.take(180) else "Không có thông tin chi tiết từ Media3."
     }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
@@ -1054,6 +1093,17 @@ class MainActivity : ComponentActivity() {
             rawUri.contains("/manifest")
         if (isHls) {
             builder.setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8)
+        } else {
+            // Some local DocumentsProvider/MediaStore URIs do not expose a
+            // useful filename extension. Supplying the provider MIME type
+            // helps Media3 select the correct progressive audio path.
+            val providerMime = runCatching { contentResolver.getType(song.uri) }
+                .getOrNull()
+                ?.trim()
+                .orEmpty()
+            if (providerMime.startsWith("audio/")) {
+                builder.setMimeType(providerMime)
+            }
         }
         return builder
             .setMediaMetadata(
