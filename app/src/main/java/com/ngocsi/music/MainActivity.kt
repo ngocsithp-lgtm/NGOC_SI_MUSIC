@@ -4520,10 +4520,15 @@ class MainActivity : ComponentActivity() {
         val allCount = songs.size
         val favoriteCount = songs.count { favorites[it.id] == true }
 
-        fun sourceTitle(source: String): String = when {
-            source.startsWith("Google Drive • ") -> source.removePrefix("Google Drive • ").ifBlank { "Google Drive" }
-            source == "Google Drive" -> "Google Drive"
-            else -> source
+        fun sourceTitle(source: String): String {
+            var title = source.trim()
+            if (title.startsWith("Google Drive • ")) {
+                title = title.removePrefix("Google Drive • ").trim()
+            }
+            if (title.startsWith("Chia sẻ • ")) {
+                title = title.removePrefix("Chia sẻ • ").trim()
+            }
+            return title.ifBlank { "Google Drive" }
         }
 
         fun sourceCount(source: String): Int = when (source) {
@@ -4564,43 +4569,46 @@ class MainActivity : ComponentActivity() {
 
             Spacer(Modifier.height(9.dp))
 
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(9.dp),
-                contentPadding = PaddingValues(end = 8.dp)
+            val sourceEntries = buildList {
+                add("Tất cả")
+                add("Yêu thích")
+                addAll(sourceNames)
+            }
+
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(9.dp)
             ) {
-                item {
-                    LibrarySourceCard(
-                        title = "Tất cả",
-                        subtitle = "Tất cả nguồn",
-                        count = allCount,
-                        icon = "♫",
-                        selected = selectedLibrary == "Tất cả",
-                        onClick = { selectedLibrary = "Tất cả" }
-                    )
-                }
-
-                item {
-                    LibrarySourceCard(
-                        title = "Yêu thích",
-                        subtitle = "Bài đã lưu",
-                        count = favoriteCount,
-                        icon = "♥",
-                        selected = selectedLibrary == "Yêu thích",
-                        onClick = { selectedLibrary = "Yêu thích" }
-                    )
-                }
-
-                items(sourceNames.size) { index ->
-                    val source = sourceNames[index]
-                    val isDrive = source.startsWith("Google Drive")
-                    LibrarySourceCard(
-                        title = sourceTitle(source),
-                        subtitle = if (isDrive) "Google Drive" else source,
-                        count = sourceCount(source),
-                        icon = if (isDrive) "☁" else "♫",
-                        selected = selectedLibrary == source,
-                        onClick = { selectedLibrary = source }
-                    )
+                sourceEntries.chunked(2).forEach { columnSources ->
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        columnSources.forEach { source ->
+                            val isDrive = source.startsWith("Google Drive")
+                            LibrarySourceCard(
+                                title = when (source) {
+                                    "Tất cả" -> "Tất cả"
+                                    "Yêu thích" -> "Yêu thích"
+                                    else -> sourceTitle(source)
+                                },
+                                subtitle = when (source) {
+                                    "Tất cả" -> "Tất cả nguồn"
+                                    "Yêu thích" -> "Bài đã lưu"
+                                    else -> if (isDrive) "Google Drive" else source
+                                },
+                                count = sourceCount(source),
+                                icon = when (source) {
+                                    "Yêu thích" -> "♥"
+                                    "Tất cả" -> "♫"
+                                    else -> if (isDrive) "☁" else "♫"
+                                },
+                                selected = selectedLibrary == source,
+                                onClick = { selectedLibrary = source }
+                            )
+                        }
+                    }
                 }
             }
         }
