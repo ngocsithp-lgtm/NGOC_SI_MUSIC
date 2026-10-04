@@ -5245,18 +5245,35 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             onDismissRequest = { showQueue = false },
             properties = DialogProperties(usePlatformDefaultWidth = false)
         ) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.BottomCenter
+            ) {
             Surface(
-                shape = RoundedCornerShape(30.dp),
+                shape = RoundedCornerShape(
+                    topStart = 28.dp,
+                    topEnd = 28.dp,
+                    bottomStart = 0.dp,
+                    bottomEnd = 0.dp
+                ),
                 color = Color(0xFF0B0D13),
                 modifier = Modifier
-                    .fillMaxWidth(0.98f)
-                    .padding(vertical = 10.dp)
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.90f)
             ) {
                 Column(
                     Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 15.dp)
+                        .padding(horizontal = 16.dp, vertical = 10.dp)
                 ) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.CenterHorizontally)
+                            .padding(top = 1.dp, bottom = 11.dp)
+                            .size(width = 38.dp, height = 4.dp)
+                            .clip(RoundedCornerShape(50))
+                            .background(Color(0xFF414654))
+                    )
                     Row(
                         Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
@@ -5623,6 +5640,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         }
                     }
                 }
+            }
             }
         }
     }
