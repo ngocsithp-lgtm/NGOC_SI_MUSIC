@@ -10,6 +10,21 @@ android {
 
     val youtubeApiKey = System.getenv("YOUTUBE_API_KEY").orEmpty()
     val driveApiKey = System.getenv("DRIVE_API_KEY").orEmpty()
+    val ciKeystorePath = System.getenv("CI_KEYSTORE_PATH").orEmpty()
+    val ciStorePassword = System.getenv("CI_KEYSTORE_PASSWORD").orEmpty()
+    val ciKeyAlias = System.getenv("CI_KEY_ALIAS").orEmpty()
+    val ciKeyPassword = System.getenv("CI_KEY_PASSWORD").orEmpty()
+
+    signingConfigs {
+        if (ciKeystorePath.isNotBlank() && ciStorePassword.isNotBlank() && ciKeyAlias.isNotBlank() && ciKeyPassword.isNotBlank()) {
+            create("ciStable") {
+                storeFile = file(ciKeystorePath)
+                storePassword = ciStorePassword
+                keyAlias = ciKeyAlias
+                keyPassword = ciKeyPassword
+            }
+        }
+    }
 
     defaultConfig {
         applicationId = "com.ngocsi.music"
@@ -17,6 +32,9 @@ android {
         targetSdk = 36
         versionCode = 27
         versionName = "5.7"
+        if (ciKeystorePath.isNotBlank() && ciStorePassword.isNotBlank() && ciKeyAlias.isNotBlank() && ciKeyPassword.isNotBlank()) {
+            signingConfig = signingConfigs.getByName("ciStable")
+        }
         buildConfigField("String", "YOUTUBE_API_KEY", "\"$youtubeApiKey\"")
         buildConfigField("String", "DRIVE_API_KEY", "\"$driveApiKey\"")
     }
