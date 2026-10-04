@@ -198,14 +198,9 @@ class MusicService : MediaSessionService() {
             if (token.isNotBlank()) {
                 requestHeaders["Authorization"] = "Bearer $token"
             }
-            val driveUri = player.currentMediaItem?.localConfiguration?.uri
-            if (driveUri != null && driveUri.toString().contains("googleapis.com/drive/v3/files/")) {
-                val fileId = driveUri.pathSegments.lastOrNull().orEmpty()
-                val resourceKey = driveUri.getQueryParameter("resourceKey").orEmpty()
-                if (fileId.isNotBlank() && resourceKey.isNotBlank()) {
-                    requestHeaders["X-Goog-Drive-Resource-Keys"] = "$fileId/$resourceKey"
-                }
-            }
+            // Do not access player.currentMediaItem here: Media3 may create
+            // DataSources on the ExoPlayer playback thread. Drive resource keys are
+            // carried on the request URI itself, so no Player access is needed here.
             if (requestHeaders.isNotEmpty()) {
                 factory.setDefaultRequestProperties(requestHeaders)
             }
