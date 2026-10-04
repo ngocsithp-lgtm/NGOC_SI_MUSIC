@@ -3,5 +3,5 @@
     <include domain="sharedpref" path="ngoc_si_music.xml" />
     <include domain="sharedpref" path="ngocsi_music_drive_sources.xml" />
     <include domain="file" path="drive_imports/" />
-    <exclude domain="sharedpref" path="ngocsi_music_secure.xml" />
+    <!-- Sensitive OAuth storage is intentionally omitted from the included paths. -->
 </full-backup-content>
