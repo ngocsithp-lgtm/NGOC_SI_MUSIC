@@ -1,4 +1,4 @@
-name: Build NGOC SI MUSIC 5.7 PRO Debug APK
+name: Build NGOC SI MUSIC 5.8 PRO Debug APK
 # CI verification trigger: build and verify the current main branch.
 
 on:
@@ -30,7 +30,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${NGOCSI_KEYSTORE_BASE64:-}" ] || [ -z "${NGOCSI_KEYSTORE_PASSWORD:-}" ] || [ -z "${NGOCSI_KEY_ALIAS:-}" ] || [ -z "${NGOCSI_KEY_PASSWORD:-}" ]; then
-            echo "::error::Stable signing secrets are required. Configure NGOCSI_KEYSTORE_BASE64, NGOCSI_KEYSTORE_PASSWORD, NGOCSI_KEY_ALIAS and NGOCSI_KEY_PASSWORD in GitHub Actions Secrets."
+            echo "::error::Stable signing secrets are required."
             exit 1
           fi
           KEYSTORE="$RUNNER_TEMP/ngocsi-ci.jks"
@@ -84,7 +84,7 @@ jobs:
           MODE="${NGOCSI_SIGNING_MODE:-debug-default}"
           echo "Signing mode: $MODE"
           if [ "$MODE" != "stable" ]; then
-            echo "::error::Stable CI signing is not active. Refusing to publish an APK with a runner-generated debug certificate."
+            echo "::error::Stable CI signing is not active."
             exit 1
           fi
           echo "Stable CI signing is active."
@@ -97,33 +97,24 @@ jobs:
           APK=app/build/outputs/apk/debug/app-debug.apk
           test -f "$APK"
           ls -lh "$APK"
-          echo "=== Package ==="
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt -print -quit)"
-          if [ -z "$AAPT" ]; then
-            echo "::error::Android build-tools aapt executable was not found"
-            exit 1
-          fi
-          "$AAPT" dump badging "$APK" | grep -m1 -E "package: name='com.ngocsi.music'.*versionName='5.7'"
+          test -n "$AAPT"
+          "$AAPT" dump badging "$APK" | grep -m1 -E "package: name='com.ngocsi.music'.*versionName='5.8'"
+
       - name: Print APK signing certificate (OAuth diagnostic)
         run: |
           set -euo pipefail
           OUT="app/build/outputs/apk/debug"
           APK="$OUT/app-debug.apk"
           test -f "$APK"
-          echo "Package: com.ngocsi.music"
-          echo "=== APK signing certificate ==="
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner -print -quit)"
-          if [ -z "$APKSIGNER" ]; then
-            echo "::error::Android build-tools apksigner executable was not found"
-            exit 1
-          fi
+          test -n "$APKSIGNER"
           "$APKSIGNER" verify --verbose --print-certs "$APK" 2>&1 | tee "$OUT/signing-report.txt"
-          echo "=== SHA-1 from actual APK ==="
           SHA1="$(grep -E "certificate SHA-1 digest:" "$OUT/signing-report.txt" | head -n1 | sed 's/.*certificate SHA-1 digest:[[:space:]]*//' | tr -d '\r')"
-          echo "SHA-1: $SHA1"
           EXPECTED_SHA1="533fa19c58a40d926668f96296e7dbd34d696aed"
+          echo "SHA-1: $SHA1"
           if [ "$SHA1" != "$EXPECTED_SHA1" ]; then
-            echo "::error::Unexpected APK signing certificate. Expected stable OAuth SHA-1 $EXPECTED_SHA1 but got $SHA1"
+            echo "::error::Unexpected APK signing certificate."
             exit 1
           fi
           {
@@ -133,13 +124,13 @@ jobs:
             echo "- Actual APK SHA-1: $SHA1"
             echo "- Expected OAuth SHA-1: $EXPECTED_SHA1"
           } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Generate APK SHA-256
-        run: |
-          sha256sum app/build/outputs/apk/debug/app-debug.apk | tee app/build/outputs/apk/debug/app-debug.apk.sha256
+        run: sha256sum app/build/outputs/apk/debug/app-debug.apk | tee app/build/outputs/apk/debug/app-debug.apk.sha256
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: NGOC_SI_MUSIC_5.7_PRO_DEBUG_APK
+          name: NGOC_SI_MUSIC_5.8_PRO_DEBUG_APK
           if-no-files-found: error
           path: |
             app/build/outputs/apk/debug/app-debug.apk
@@ -151,4 +142,4 @@ jobs:
         run: |
           TAG="ngoc-si-music-latest"
           gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
-          gh release create "$TAG"             app/build/outputs/apk/debug/app-debug.apk             app/build/outputs/apk/debug/app-debug.apk.sha256             --title "NGỌC SĨ MUSIC 5.7 PRO — Latest APK"             --notes "Latest successful debug APK built from commit ${{ github.sha }}."
+          gh release create "$TAG" app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/app-debug.apk.sha256 --title "NGỌC SĨ MUSIC 5.8 PRO — Latest APK" --notes "Latest successful APK built from commit ${{ github.sha }}."
