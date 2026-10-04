@@ -6528,20 +6528,13 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                                         maxLines = 2,
                                                         overflow = TextOverflow.Ellipsis
                                                     )
-                                                    Row(
-                                                        verticalAlignment = Alignment.CenterVertically,
-                                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                                    ) {
-                                                        Text(
-                                                            song.artist.ifBlank { "Nghệ sĩ chưa xác định" },
-                                                            color = Color(0xFF858B9B),
-                                                            fontSize = 10.sp,
-                                                            maxLines = 1,
-                                                            overflow = TextOverflow.Ellipsis,
-                                                            modifier = Modifier.weight(1f, fill = false)
-                                                        )
-                                                        SourceBadge(song.source)
-                                                    }
+                                                    Text(
+                                                        song.artist.ifBlank { "Nghệ sĩ chưa xác định" },
+                                                        color = Color(0xFF858B9B),
+                                                        fontSize = 10.sp,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
                                                     if (song.duration > 0L) {
                                                         Text(
                                                             formatTime(song.duration),
@@ -6724,11 +6717,13 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
     @Composable
     private fun SourceBadge(source: String) {
-        val label = when (source) {
-            "Google Drive" -> "DRIVE"
-            "Thiết bị" -> "THIẾT BỊ"
-            "Radio Việt Nam" -> "RADIO"
-            else -> source.uppercase()
+        val normalized = source.trim()
+        val label = when {
+            normalized.startsWith("Google Drive", ignoreCase = true) -> "DRIVE"
+            normalized.equals("Thiết bị", ignoreCase = true) -> "THIẾT BỊ"
+            normalized.equals("Radio Việt Nam", ignoreCase = true) -> "RADIO"
+            normalized.equals("Online", ignoreCase = true) -> "ONLINE"
+            else -> normalized.uppercase()
         }
         Surface(shape = RoundedCornerShape(7.dp), color = Color(0xFF222532)) {
             Text(
