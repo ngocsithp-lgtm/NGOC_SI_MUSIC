@@ -3700,8 +3700,8 @@ class MainActivity : ComponentActivity() {
             ?: songs.getOrNull(currentIndex)?.uri
 
         driveSourcePrefs.edit().remove("drive_uris").apply()
-        songs.removeAll { it.source == "Google Drive" }
-        queueSongs.removeAll { it.source == "Google Drive" }
+        songs.removeAll { it.source.startsWith("Google Drive", ignoreCase = true) }
+        queueSongs.removeAll { it.source.startsWith("Google Drive", ignoreCase = true) }
 
         // Re-resolve the active library index by URI after the list shrinks.
         // This prevents deleting a Drive item before the current song from
@@ -4077,7 +4077,7 @@ class MainActivity : ComponentActivity() {
                                 OnlineSourcesCard()
                                 Spacer(Modifier.height(12.dp))
                                 Text(
-                                    "Nguồn đã nhập: ${songs.count { it.source == "Google Drive" }} bài",
+                                    "Nguồn đã nhập: ${songs.count { it.source.startsWith("Google Drive", ignoreCase = true) }} bài",
                                     color = Color(0xFF9B9BA8),
                                     fontSize = 13.sp
                                 )
@@ -5068,7 +5068,7 @@ class MainActivity : ComponentActivity() {
             SettingsRow("🔀", "Phát ngẫu nhiên", if (shuffleEnabled) "Đang bật" else "Đang tắt") { toggleShuffle() }
             SettingsRow("🔁", "Lặp lại", when (repeatMode) { Player.REPEAT_MODE_ONE -> "Một bài"; Player.REPEAT_MODE_ALL -> "Tất cả"; else -> "Tắt" }) { cycleRepeat() }
             SettingsRow("⏩", "Tốc độ phát", "${selectedPlaybackSpeed}x") { showPlaybackSpeed = true }
-            SettingsRow("☁", "Google Drive", songs.count { it.source == "Google Drive" }.toString() + " bài đã nhập") { selectedSection = "Online" }
+            SettingsRow("☁", "Google Drive", songs.count { it.source.startsWith("Google Drive", ignoreCase = true) }.toString() + " bài đã nhập") { selectedSection = "Online" }
             SettingsRow("📺", "TV", (TvCatalog.builtIn.size + customTvSources.size).toString() + " nguồn TV") { selectedSection = "TV" }
             SettingsRow("🗺️", "Bản đồ", "Bản đồ + giao thông thời gian thực") { selectedSection = "Bản đồ" }
             SettingsRow("♫", "Playlist", playlists.size.toString() + " danh sách đã tạo") { showPlaylists = true }
