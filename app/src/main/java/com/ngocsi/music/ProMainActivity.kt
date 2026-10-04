@@ -334,7 +334,7 @@ private fun ProShell(
                                         color = Color.White,
                                         fontSize = 17.sp,
                                         fontWeight = FontWeight.ExtraBold,
-                                        maxLines = 1
+                                        maxLines = 2
                                     )
                                     Text(
                                         artist,
@@ -382,6 +382,57 @@ private fun ProShell(
                 }
 
                 Spacer(Modifier.height(12.dp))
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onSettings),
+                    shape = RoundedCornerShape(18.dp),
+                    color = Color(0xFF0C1720),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        Color(0xFF1E4650)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            modifier = Modifier.size(34.dp),
+                            shape = RoundedCornerShape(11.dp),
+                            color = Color(0xFF123340)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text("◉", color = Color(0xFF7FEAFF), fontSize = 16.sp)
+                            }
+                        }
+                        Spacer(Modifier.size(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                "PHÁT NỀN • KHÓA MÀN HÌNH",
+                                color = Color.White,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                            Text(
+                                "Media3 • MediaSession • điều khiển từ thông báo và tai nghe",
+                                color = Color(0xFF788B95),
+                                fontSize = 9.sp,
+                                maxLines = 1
+                            )
+                        }
+                        Text(
+                            "›",
+                            color = Color(0xFF6EEBFF),
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Light
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
                 Text(
                     "TRUY CẬP NHANH",
                     color = Color(0xFF8F96AA),
@@ -423,7 +474,7 @@ private fun ProShell(
 
                 Spacer(Modifier.height(13.dp))
                 Text(
-                    "TIỆN ÍCH PRO",
+                    "THƯ VIỆN & TIỆN ÍCH",
                     color = Color(0xFF8F96AA),
                     fontSize = 11.sp,
                     fontWeight = FontWeight.ExtraBold
