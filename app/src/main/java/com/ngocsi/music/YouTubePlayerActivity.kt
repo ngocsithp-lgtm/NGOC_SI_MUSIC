@@ -790,15 +790,15 @@ class YouTubePlayerActivity : ComponentActivity() {
 
             // Use a real enclosing web context and let the official IFrame API own the player.
             val safeId = sanitizeVideoId(videoId)
-            val appReferrer = "https://com.ngocsi.music/"
-            val origin = "https://com.ngocsi.music"
+            val appReferrer = "https://www.youtube.com/"
+            val origin = "https://www.youtube.com"
 
             val html = """
                 <!doctype html>
                 <html lang="vi">
                 <head>
                     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-                    <meta name="referrer" content="origin">
+                    <meta name="referrer" content="strict-origin-when-cross-origin">
                     <style>
                         html, body, #player {
                             margin: 0;
