@@ -1465,14 +1465,16 @@ class MainActivity : ComponentActivity() {
         saved.forEach { item ->
             val uri = sharedDriveMediaUri(item, apiKey)
             if (songs.none { it.uri == uri }) {
+                val sourceName = item.sourceName.trim().ifBlank { "Chia sẻ • " + item.name }
+                val songSource = driveSongSource(sourceName)
                 val song = Song(
                     id = -kotlin.math.abs(uri.toString().hashCode().toLong()),
                     title = item.name.substringBeforeLast(".").ifBlank { item.name },
-                    artist = "Google Drive • Chia sẻ",
+                    artist = songSource,
                     duration = 0L,
                     uri = uri,
-                    source = "Google Drive",
-                    folder = "Drive chia sẻ"
+                    source = songSource,
+                    folder = sourceName
                 )
                 songs.add(song)
                 if (queueSongs.none { it.uri == uri }) queueSongs.add(song)
@@ -2277,7 +2279,8 @@ class MainActivity : ComponentActivity() {
                             apiKey,
                             collected,
                             mutableSetOf(),
-                            accessToken
+                            accessToken,
+                            sourceName = rootName
                         )
                     } else {
                         if (!isSupportedDriveAudio(rootName, mime)) {
