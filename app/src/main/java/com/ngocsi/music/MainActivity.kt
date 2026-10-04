@@ -5409,7 +5409,12 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             }
                         }
 
-                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            "Giữ lâu một bài hát rồi kéo lên hoặc xuống để đổi thứ tự",
+                            color = Color(0xFF70788B),
+                            fontSize = 10.sp,
+                            modifier = Modifier.padding(start = 3.dp, bottom = 7.dp)
+                        )
                     }
 
                     if (queueSongs.isEmpty()) {
@@ -5493,7 +5498,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 Surface(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .pointerInput(index, queueSongs.size) {
+                                        .pointerInput(song.uri, queueSongs.size) {
                                             detectDragGesturesAfterLongPress(
                                                 onDragStart = {
                                                     draggingQueueIndex = index
