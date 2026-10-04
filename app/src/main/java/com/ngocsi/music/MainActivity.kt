@@ -2918,11 +2918,22 @@ class MainActivity : ComponentActivity() {
             // full OSM SPA/hash URL. The embed page is more reliable inside
             // Android WebView and does not depend on the site's client router.
             radioWebTitle = "NGỌC SĨ MAP • VỊ TRÍ HIỆN TẠI"
-            radioWebUrl =
-                "https://www.openstreetmap.org/export/embed.html" +
-                    "?bbox=" + left + "," + bottom + "," + right + "," + top +
-                    "&layer=mapnik&marker=" + lat + "," + lon
             errorMessage = null
+
+            // Prefer the native geo handler: Google Maps and other installed
+            // map apps can render the exact location more reliably than a
+            // WebView, while the OSM embed remains the fallback.
+            val geoUri = Uri.parse(
+                "geo:" + lat + "," + lon + "?q=" + lat + "," + lon + "(Vị trí hiện tại)"
+            )
+            runCatching {
+                startActivity(Intent(Intent.ACTION_VIEW, geoUri))
+            }.onFailure {
+                radioWebUrl =
+                    "https://www.openstreetmap.org/export/embed.html" +
+                        "?bbox=" + left + "," + bottom + "," + right + "," + top +
+                        "&layer=mapnik&marker=" + lat + "," + lon
+            }
         }
 
         // Prefer a recent cached fix for instant response.
@@ -4462,8 +4473,13 @@ class MainActivity : ComponentActivity() {
                     ) {
                         Button(
                             onClick = {
-                                radioWebTitle = "NGỌC SĨ MAP • BẢN ĐỒ"
-                                radioWebUrl = mapUrl
+                                // Open the map with a standard geo URI first. This avoids
+                                // WebView/OSM embed rendering failures on some Android builds.
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("geo:10.8231,106.6297?z=13"))
+                                runCatching { startActivity(intent) }.onFailure {
+                                    radioWebTitle = "NGỌC SĨ MAP • BẢN ĐỒ"
+                                    radioWebUrl = mapUrl
+                                }
                             },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(14.dp)
@@ -4508,7 +4524,17 @@ class MainActivity : ComponentActivity() {
                             onClick = {
                                 val q = mapSearchQuery.trim()
                                 if (q.isBlank()) {
-                                    errorMessage = "Nhập điểm đến trước khi chọn chỉ đường."
+                                    // Open Google Maps navigation/search instead of silently
+                                    // doing nothing when no destination has been entered.
+                                    runCatching {
+                                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("google.navigation:q=")))
+                                    }.onFailure {
+                                        runCatching {
+                                            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps/dir/")))
+                                        }.onFailure {
+                                            errorMessage = "Không mở được Google Maps chỉ đường."
+                                        }
+                                    }
                                 } else {
                                     val directionsUrl =
                                         "https://www.google.com/maps/dir/?api=1&destination=" +
