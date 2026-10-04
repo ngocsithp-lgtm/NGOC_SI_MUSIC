@@ -32,11 +32,16 @@ android {
         targetSdk = 36
         versionCode = 27
         versionName = "5.7"
-        if (ciKeystorePath.isNotBlank() && ciStorePassword.isNotBlank() && ciKeyAlias.isNotBlank() && ciKeyPassword.isNotBlank()) {
-            signingConfig = signingConfigs.getByName("ciStable")
-        }
         buildConfigField("String", "YOUTUBE_API_KEY", "\"$youtubeApiKey\"")
         buildConfigField("String", "DRIVE_API_KEY", "\"$driveApiKey\"")
+    }
+
+    buildTypes {
+        getByName("debug") {
+            if (ciKeystorePath.isNotBlank() && ciStorePassword.isNotBlank() && ciKeyAlias.isNotBlank() && ciKeyPassword.isNotBlank()) {
+                signingConfig = signingConfigs.getByName("ciStable")
+            }
+        }
     }
 
     compileOptions {
