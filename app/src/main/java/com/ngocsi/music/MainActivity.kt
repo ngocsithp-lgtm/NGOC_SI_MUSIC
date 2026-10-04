@@ -4324,15 +4324,32 @@ class MainActivity : ComponentActivity() {
             Column(Modifier.weight(1f)) {
                 Text("Thư viện", color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.ExtraBold)
                 Spacer(Modifier.height(3.dp))
+                val selectedDriveSourceName = selectedLibrary
+                    .removePrefix("Google Drive • ")
+                    .removePrefix("Chia sẻ • ")
+                    .trim()
+
                 Text(
-                    when (selectedLibrary) {
-                        "Google Drive" -> driveCount.toString() + " bài • Google Drive"
-                        "Thiết bị" -> deviceCount.toString() + " bài • Thiết bị"
-                        "Yêu thích" -> songs.count { favorites[it.id] == true }.toString() + " bài • Yêu thích"
-                        else -> count.toString() + " bài hát • tất cả nguồn"
+                    when {
+                        selectedLibrary.startsWith("Google Drive • ") ->
+                            songs.count { it.source == selectedLibrary }.toString() +
+                                " bài • " + selectedDriveSourceName.ifBlank { "Google Drive" }
+                        selectedLibrary == "Google Drive" ->
+                            driveCount.toString() + " bài • Google Drive"
+                        selectedLibrary == "Thiết bị" ->
+                            deviceCount.toString() + " bài • Thiết bị"
+                        selectedLibrary == "Yêu thích" ->
+                            songs.count { favorites[it.id] == true }.toString() + " bài • Yêu thích"
+                        selectedLibrary == "Tất cả" ->
+                            count.toString() + " bài hát • tất cả nguồn"
+                        else ->
+                            songs.count { it.source == selectedLibrary }.toString() +
+                                " bài • " + selectedLibrary
                     },
                     color = Color(0xFF8F919F),
-                    fontSize = 12.sp
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
