@@ -47,6 +47,25 @@ class MusicService : MediaSessionService() {
     }
 
 
+    // PRO sleep timer watchdog: keep the timer active in the MediaSession
+    // service so it can still stop playback when the screen is off and the UI
+    // Activity is no longer in the foreground.
+    private val sleepTimerRunnable = object : Runnable {
+        override fun run() {
+            if (player.isPlaying) {
+                val endAt = prefs.getLong("sleep_timer_end_at", 0L)
+                if (endAt > 0L && System.currentTimeMillis() >= endAt) {
+                    player.pause()
+                    player.seekTo(0L)
+                    prefs.edit().remove("sleep_timer_end_at").apply()
+                    savePlaybackState()
+                    broadcastWidget()
+                }
+            }
+            widgetHandler.postDelayed(this, 1000L)
+        }
+    }
+
     private val mediaSessionCallback = object : MediaSession.Callback {
         override fun onPlaybackResumption(
             mediaSession: MediaSession,
@@ -235,6 +254,7 @@ class MusicService : MediaSessionService() {
 
         player.addListener(playerListener)
         broadcastWidget()
+        widgetHandler.post(sleepTimerRunnable)
 
         val sessionActivity = PendingIntent.getActivity(
             this,
@@ -381,6 +401,7 @@ class MusicService : MediaSessionService() {
         // Persist once more before releasing Media3 resources.
         savePlaybackState()
         widgetHandler.removeCallbacks(widgetTicker)
+        widgetHandler.removeCallbacks(sleepTimerRunnable)
         player.removeListener(playerListener)
         mediaSession.release()
         player.release()
