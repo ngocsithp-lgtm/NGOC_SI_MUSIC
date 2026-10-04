@@ -3530,56 +3530,54 @@ class MainActivity : ComponentActivity() {
 
                         "Thư viện" -> {
                             Column(Modifier.weight(1f).fillMaxWidth()) {
+                                LibraryYouTubeHeader(filteredSongs.size)
+                                LibraryChips()
                                 LibraryViewTabs()
-                                Spacer(Modifier.height(8.dp))
-                                Row(
-                                    Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        "THƯ VIỆN • ${filteredSongs.size} bài",
-                                        color = Color.White,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 17.sp,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        TextButton(
-                                            onClick = { playFilteredSongs(filteredSongs) },
-                                            enabled = filteredSongs.isNotEmpty()
-                                        ) { Text("PHÁT TẤT CẢ") }
-                                        TextButton(onClick = {
-                                            loadSongs()
-                                            selectedLibrary = "Tất cả"
-                                            libraryView = "Bài hát"
-                                            errorMessage = null
-                                        }) { Text("LÀM MỚI") }
-                                    }
-                                }
-                                errorMessage?.let {
-                                    Text(
-                                        it,
-                                        color = Color(0xFFFFB4AB),
-                                        fontSize = 13.sp,
-                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                                    )
-                                }
+                                Spacer(Modifier.height(6.dp))
                                 LazyColumn(
                                     Modifier.weight(1f),
-                                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 8.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 18.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    itemsIndexed(
-                                        filteredSongs,
-                                        key = { _, song -> "library:" + song.uri.toString() }
-                                    ) { _, song ->
-                                        val realIndex = songs.indexOfFirst { it.uri == song.uri }
-                                        SongRow(song, realIndex, realIndex == currentIndex)
+                                    item {
+                                        Row(
+                                            Modifier.fillMaxWidth().padding(vertical = 5.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                when (libraryView) {
+                                                    "Nghệ sĩ" -> "NGHỆ SĨ"
+                                                    "Album" -> "ALBUM"
+                                                    "Thư mục" -> "THƯ MỤC"
+                                                    else -> "BÀI HÁT"
+                                                },
+                                                color = Color(0xFF9A9BA7),
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                letterSpacing = 1.3.sp,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            Text(
+                                                "${filteredSongs.size} bài",
+                                                color = Color(0xFF777987),
+                                                fontSize = 11.sp
+                                            )
+                                        }
+                                    }
+                                    if (filteredSongs.isEmpty()) {
+                                        item { LibraryEmptyState() }
+                                    } else {
+                                        itemsIndexed(
+                                            filteredSongs,
+                                            key = { _, song -> "library-youtube:" + song.uri.toString() }
+                                        ) { _, song ->
+                                            val realIndex = songs.indexOfFirst { it.uri == song.uri }
+                                            YouTubeLibrarySongRow(song, realIndex, realIndex == currentIndex)
+                                        }
                                     }
                                 }
                             }
                         }
-
                         "TV" -> {
                             TvHub()
                         }
@@ -3998,6 +3996,115 @@ class MainActivity : ComponentActivity() {
                 Text(title, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                 Text("$count mục", color = Color(0xFF888894), fontSize = 11.sp)
             }
+        }
+    }
+
+    @Composable
+    private fun LibraryYouTubeHeader(count: Int) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("Thư viện", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold)
+                Text(
+                    "${count} bài hát • cá nhân • Drive • thiết bị",
+                    color = Color(0xFF8F919F),
+                    fontSize = 12.sp
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                SongActionButton("▶") {
+                    val snapshot = songs.filter {
+                        when (selectedLibrary) {
+                            "Yêu thích" -> favorites[it.id] == true
+                            "Thiết bị" -> it.source == "Thiết bị"
+                            "Google Drive" -> it.source == "Google Drive"
+                            "Online" -> it.source in setOf("Online", "Jamendo", "Audius", "Radio Việt Nam")
+                            else -> true
+                        }
+                    }
+                    playFilteredSongs(snapshot)
+                }
+                SongActionButton("↻") {
+                    loadSongs()
+                    errorMessage = null
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun YouTubeLibrarySongRow(song: Song, index: Int, selected: Boolean) {
+        val shownDuration = if (selected && duration > 0L) duration else song.duration
+        Row(
+            Modifier.fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(if (selected) Color(0xFF24202E) else Color.Transparent)
+                .clickable { play(index) }
+                .padding(vertical = 7.dp, horizontal = 5.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(Modifier.size(58.dp).clip(RoundedCornerShape(8.dp))) {
+                SongArtwork(song, Modifier.fillMaxSize())
+                if (selected) {
+                    Box(
+                        Modifier.fillMaxSize().background(Color(0x88000000)),
+                        contentAlignment = Alignment.Center
+                    ) { Text("▶", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
+                }
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(
+                    song.title,
+                    color = Color.White,
+                    fontSize = 15.sp,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        song.artist.ifBlank { "Không rõ nghệ sĩ" },
+                        color = Color(0xFF9294A1),
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    SourceBadge(song.source)
+                }
+            }
+            Spacer(Modifier.width(5.dp))
+            Column(horizontalAlignment = Alignment.End) {
+                Text(formatTime(shownDuration), color = Color(0xFF777986), fontSize = 10.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    SongActionButton("＋") { addToQueue(song) }
+                    SongActionButton(
+                        if (favorites[song.id] == true) "♥" else "♡",
+                        if (favorites[song.id] == true) Color(0xFFFF6B81) else Color(0xFF777986)
+                    ) { toggleFavorite(song) }
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun LibraryEmptyState() {
+        Column(
+            Modifier.fillMaxWidth().padding(vertical = 55.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text("♫", color = Color(0xFF7B6AA8), fontSize = 44.sp)
+            Spacer(Modifier.height(10.dp))
+            Text("Chưa có bài hát", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text(
+                "Thêm nhạc từ thiết bị, Google Drive hoặc Online.",
+                color = Color(0xFF858795),
+                fontSize = 12.sp
+            )
         }
     }
 
