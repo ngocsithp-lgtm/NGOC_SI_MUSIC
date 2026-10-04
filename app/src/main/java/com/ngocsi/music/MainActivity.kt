@@ -1815,6 +1815,44 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private suspend fun addSharedDriveItemsToLibrary(items: List<SharedDriveItem>): Pair<Int, Int> {
+        val token = driveOAuthManager.accessToken() ?: run {
+            signInGoogleDrive()
+            return 0 to items.size
+        }
+        if (items.isEmpty()) return 0 to 0
+
+        val savedItems = loadSharedDriveItems().toMutableList()
+        val savedIds = savedItems.map { it.id }.toMutableSet()
+        var addedCount = 0
+        var existingCount = 0
+
+        items.distinctBy { it.id }.forEach { item ->
+            val uri = sharedDriveMediaUri(item, "")
+            if (songs.any { it.uri == uri }) {
+                existingCount++
+            } else {
+                songs.add(
+                    Song(
+                        -kotlin.math.abs(uri.toString().hashCode().toLong()),
+                        item.name.substringBeforeLast(".").ifBlank { item.name },
+                        "Google Drive", 0L, uri, "Google Drive", folder = driveBrowserTitle
+                    )
+                )
+                if (queueSongs.none { it.uri == uri }) queueSongs.add(songs.last())
+                addedCount++
+            }
+            if (savedIds.add(item.id)) savedItems.add(item)
+        }
+
+        prefs.edit().putString("drive_access_token", token).apply()
+        if (savedIds.size > loadSharedDriveItems().size) {
+            saveSharedDriveItems(savedItems)
+        }
+        if (addedCount > 0) syncControllerQueue()
+        return addedCount to existingCount
+    }
+
     private fun clearSharedDriveLibrary() {
         val sharedUris = songs.filter { it.source == "Google Drive" }.map { it.uri.toString() }.toSet()
         if (sharedUris.isEmpty()) {
@@ -6741,17 +6779,33 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             if (visibleAudioCount > 0) {
                                 TextButton(
                                     onClick = {
-                                        driveBrowserScope.launch {
-                                            driveBrowserItems
-                                                .filter {
-                                                    it.mimeType != "application/vnd.google-apps.folder" &&
-                                                        (driveBrowserQuery.isBlank() || it.name.contains(driveBrowserQuery, ignoreCase = true))
+                                        val itemsToAdd = driveBrowserItems.filter {
+                                            it.mimeType != "application/vnd.google-apps.folder" &&
+                                                (driveBrowserQuery.isBlank() || it.name.contains(driveBrowserQuery, ignoreCase = true))
+                                        }
+                                        val addAction = {
+                                            driveBrowserScope.launch {
+                                                val (addedCount, existingCount) = addSharedDriveItemsToLibrary(itemsToAdd)
+                                                driveSharedStatus = when {
+                                                    addedCount > 0 && existingCount > 0 ->
+                                                        "Đã thêm $addedCount bài • $existingCount bài đã có sẵn"
+                                                    addedCount > 0 ->
+                                                        "Đã thêm $addedCount bài vào thư viện Google Drive"
+                                                    existingCount > 0 ->
+                                                        "$existingCount bài đã có sẵn trong thư viện"
+                                                    else ->
+                                                        "Không có bài hát mới để thêm"
                                                 }
-                                                .forEach { addSharedDriveItemToLibrary(it, false) }
-                                            driveSharedStatus = "Đã thêm $visibleAudioCount bài vào thư viện."
+                                                errorMessage = null
+                                            }
+                                        }
+                                        if (driveOAuthSignedIn) {
+                                            addAction()
+                                        } else {
+                                            signInGoogleDrive { addAction() }
                                         }
                                     },
-                                    enabled = !driveSharedLoading
+                                    enabled = !driveSharedLoading && visibleAudioCount > 0
                                 ) { Text("THÊM TẤT CẢ") }
                             }
                             TextButton(onClick = { showDriveBrowser = false }) { Text("ĐÓNG") }
