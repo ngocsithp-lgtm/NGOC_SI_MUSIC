@@ -1643,7 +1643,8 @@ class MainActivity : ComponentActivity() {
         result: MutableList<SharedDriveItem>,
         visited: MutableSet<String>,
         accessToken: String? = null,
-        depth: Int = 0
+        depth: Int = 0,
+        sourceName: String? = null
     ) {
         if (depth > 8 || !visited.add(folderId)) return
 
@@ -1688,7 +1689,8 @@ class MainActivity : ComponentActivity() {
                         result,
                         visited,
                         accessToken,
-                        depth + 1
+                        depth + 1,
+                        sourceName
                     )
                 } else if (isSupportedDriveAudio(name, mime)) {
                     result += SharedDriveItem(
@@ -1697,7 +1699,8 @@ class MainActivity : ComponentActivity() {
                         mime,
                         childKey,
                         item.optLong("size", 0L),
-                        item.optString("webContentLink").trim()
+                        item.optString("webContentLink").trim(),
+                        sourceName = sourceName.orEmpty()
                     )
                 }
             }
@@ -1838,6 +1841,7 @@ class MainActivity : ComponentActivity() {
 
                     val collected = mutableListOf<SharedDriveItem>()
                     val visited = mutableSetOf<String>()
+                    val usedSourceNames = mutableSetOf<String>()
                     var pageToken: String? = null
 
                     do {
@@ -1868,6 +1872,13 @@ class MainActivity : ComponentActivity() {
 
                             if (id.isBlank()) continue
 
+                            val baseSourceName = "Chia sẻ • " + name
+                            val sourceName = if (usedSourceNames.add(baseSourceName)) {
+                                baseSourceName
+                            } else {
+                                baseSourceName + " • " + id.take(6)
+                            }
+
                             if (mime == "application/vnd.google-apps.folder") {
                                 listSharedDriveFolder(
                                     id,
@@ -1875,7 +1886,8 @@ class MainActivity : ComponentActivity() {
                                     "",
                                     collected,
                                     visited,
-                                    accessToken
+                                    accessToken,
+                                    sourceName = sourceName
                                 )
                             } else if (isSupportedDriveAudio(name, mime)) {
                                 collected += SharedDriveItem(
@@ -1884,7 +1896,8 @@ class MainActivity : ComponentActivity() {
                                     mime,
                                     resourceKey,
                                     item.optLong("size", 0L),
-                                    item.optString("webContentLink").trim()
+                                    item.optString("webContentLink").trim(),
+                                    sourceName = sourceName
                                 )
                             }
                         }
@@ -1905,14 +1918,16 @@ class MainActivity : ComponentActivity() {
                 val raw = uri.toString()
                 if (!currentUris.add(raw)) return@forEach
 
+                val sourceName = item.sourceName.trim().ifBlank { "Chia sẻ • " + item.name }
+                val songSource = driveSongSource(sourceName)
                 val song = Song(
                     id = -kotlin.math.abs(raw.hashCode().toLong()),
                     title = item.name.substringBeforeLast(".").ifBlank { item.name },
-                    artist = "Google Drive • Được chia sẻ",
+                    artist = songSource,
                     duration = 0L,
                     uri = uri,
-                    source = "Google Drive",
-                    folder = "Được chia sẻ với tôi"
+                    source = songSource,
+                    folder = sourceName
                 )
                 songs.add(song)
                 if (queueSongs.none { it.uri == uri }) queueSongs.add(song)
