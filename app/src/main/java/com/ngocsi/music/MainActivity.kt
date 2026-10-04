@@ -31,9 +31,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
@@ -51,6 +53,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.Image
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.text.KeyboardActions
@@ -5241,6 +5244,9 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
     @Composable
     private fun QueueDialog() {
+        val queueListState = rememberLazyListState()
+        var draggingQueueIndex by remember { mutableStateOf(-1) }
+        var dragDistance by remember { mutableStateOf(0f) }
         Dialog(
             onDismissRequest = { showQueue = false },
             properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -5469,6 +5475,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         }
                     } else {
                         LazyColumn(
+                            state = queueListState,
                             modifier = Modifier.heightIn(max = 575.dp),
                             verticalArrangement = Arrangement.spacedBy(7.dp),
                             contentPadding = PaddingValues(bottom = 6.dp)
@@ -5486,6 +5493,42 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 Surface(
                                     modifier = Modifier
                                         .fillMaxWidth()
+                                        .pointerInput(index, queueSongs.size) {
+                                            detectDragGesturesAfterLongPress(
+                                                onDragStart = {
+                                                    draggingQueueIndex = index
+                                                    dragDistance = 0f
+                                                },
+                                                onDragEnd = {
+                                                    draggingQueueIndex = -1
+                                                    dragDistance = 0f
+                                                },
+                                                onDragCancel = {
+                                                    draggingQueueIndex = -1
+                                                    dragDistance = 0f
+                                                }
+                                            ) { change, dragAmount ->
+                                                change.consume()
+                                                dragDistance += dragAmount.y
+                                                val from = draggingQueueIndex
+                                                val currentInfo = queueListState.layoutInfo.visibleItemsInfo
+                                                    .firstOrNull { it.index == from }
+                                                if (from >= 0 && currentInfo != null) {
+                                                    val draggedCenter = currentInfo.offset +
+                                                        currentInfo.size / 2f + dragDistance
+                                                    val target = queueListState.layoutInfo.visibleItemsInfo
+                                                        .firstOrNull {
+                                                            draggedCenter >= it.offset &&
+                                                                draggedCenter < it.offset + it.size
+                                                        }?.index
+                                                    if (target != null && target in queueSongs.indices && target != from) {
+                                                        moveQueueItem(from, target)
+                                                        draggingQueueIndex = target
+                                                        dragDistance = 0f
+                                                    }
+                                                }
+                                            }
+                                        }
                                         .clickable {
                                             playQueueAt(index)
                                             showQueue = false
