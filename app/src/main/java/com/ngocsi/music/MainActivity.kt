@@ -4742,6 +4742,7 @@ class MainActivity : ComponentActivity() {
                     )
                 }
             }
+            }
 
         Spacer(Modifier.height(10.dp))
     }
