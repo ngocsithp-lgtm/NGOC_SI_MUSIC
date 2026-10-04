@@ -789,20 +789,20 @@ class YouTubePlayerActivity : ComponentActivity() {
             isFocusableInTouchMode = true
             addJavascriptInterface(youtubeJsBridge, "AndroidBridge")
 
-            // Use a real enclosing web context and let the official IFrame API own the player.
+            // YouTube requires an HTTP Referer (or equivalent API client identity)
+            // for embedded players in WebView. For local HTML, loadDataWithBaseURL()
+            // supplies the Referer from baseUrl. Use the app package as the stable identity
+            // instead of youtube.com as the referring page.
             val safeId = sanitizeVideoId(videoId)
-            // Keep the document origin inside the official YouTube embed namespace.
-            // This is more explicit than using youtube.com/ as the synthetic base URL and
-            // gives newer YouTube player identity checks a stable embed context.
-            val embedBaseUrl = "https://www.youtube.com/embed/" + safeId
-            val origin = "https://www.youtube.com"
+            val appIdentityUrl = "https://com.ngocsi.music/"
+            val origin = appIdentityUrl
 
             val html = """
                 <!doctype html>
                 <html lang="vi">
                 <head>
                     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-                    <meta name="referrer" content="origin">
+                    <meta name="referrer" content="strict-origin-when-cross-origin">
                     <style>
                         html, body, #player {
                             margin: 0;
@@ -874,7 +874,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 </html>
             """.trimIndent()
 
-            loadDataWithBaseURL(embedBaseUrl, html, "text/html", "UTF-8", embedBaseUrl)
+            loadDataWithBaseURL(appIdentityUrl, html, "text/html", "UTF-8", appIdentityUrl)
         }
 
         webView = player
