@@ -4325,6 +4325,37 @@ class MainActivity : ComponentActivity() {
                         overflow = TextOverflow.Ellipsis
                     )
 
+                    Spacer(Modifier.height(7.dp))
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(50),
+                            color = Color(0xFF171922)
+                        ) {
+                            Text(
+                                "Nguồn: ${song.source.ifBlank { "Thiết bị" }}",
+                                color = Color(0xFFA7A9B8),
+                                fontSize = 10.sp,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                            )
+                        }
+                        Spacer(Modifier.width(7.dp))
+                        Surface(
+                            shape = RoundedCornerShape(50),
+                            color = Color(0xFF171922)
+                        ) {
+                            Text(
+                                "Hàng đợi: ${queueSongs.size}",
+                                color = Color(0xFFA7A9B8),
+                                fontSize = 10.sp,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                            )
+                        }
+                    }
+
                     Spacer(Modifier.height(14.dp))
                     // Media3 may discover the real duration only after prepare.
                     // Prefer the live controller duration, with the library value
@@ -4401,7 +4432,12 @@ class MainActivity : ComponentActivity() {
                         OutlinedButton(
                             onClick = { showQueue = true },
                             modifier = Modifier.weight(1f)
-                        ) { Text("☷ Hàng đợi") }
+                        ) {
+                            Text(
+                                if (queueSongs.isEmpty()) "☷ Hàng đợi"
+                                else "☷ Hàng đợi • ${queueSongs.size}"
+                            )
+                        }
                         TextButton(
                             onClick = { showNowPlaying = false },
                             modifier = Modifier.weight(1f)
