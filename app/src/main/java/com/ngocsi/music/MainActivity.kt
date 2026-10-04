@@ -229,7 +229,8 @@ class MainActivity : ComponentActivity() {
     private data class DriveBrowserLocation(
         val folderId: String?,
         val resourceKey: String?,
-        val title: String
+        val title: String,
+        val items: List<SharedDriveItem>
     )
     private val driveBrowserHistory = mutableStateListOf<DriveBrowserLocation>()
     private var showDriveBrowser by mutableStateOf(false)
@@ -1756,22 +1757,24 @@ class MainActivity : ComponentActivity() {
             DriveBrowserLocation(
                 driveBrowserFolderId,
                 driveBrowserResourceKey,
-                driveBrowserTitle
+                driveBrowserTitle,
+                driveBrowserItems.toList()
             )
         )
         loadDriveFolderContents(item.id, item.name, item.resourceKey.ifBlank { null })
     }
 
     private fun goBackDriveFolder() {
-        val previous = driveBrowserHistory.removeLastOrNull() ?: run {
-            loadDriveRoot()
-            return
-        }
-        if (previous.folderId == null) {
-            loadDriveRoot()
-        } else {
-            loadDriveFolderContents(previous.folderId, previous.title, previous.resourceKey)
-        }
+        val previous = driveBrowserHistory.removeLastOrNull() ?: return
+        driveBrowserItems.clear()
+        driveBrowserItems.addAll(previous.items)
+        driveBrowserTitle = previous.title
+        driveBrowserFolderId = previous.folderId
+        driveBrowserResourceKey = previous.resourceKey
+        driveBrowserQuery = ""
+        showDriveBrowser = true
+        driveSharedStatus = "Đã quay lại “" + previous.title + "”"
+        errorMessage = null
     }
 
     private fun loadDriveFolderContents(
