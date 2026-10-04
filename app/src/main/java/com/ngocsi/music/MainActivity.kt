@@ -280,6 +280,8 @@ class MainActivity : ComponentActivity() {
     private var showPlaybackSpeed by mutableStateOf(false)
     private val favorites = mutableStateMapOf<Long, Boolean>()
     private lateinit var prefs: SharedPreferences
+    private lateinit var driveSourcePrefs: SharedPreferences
+    private lateinit var securePrefs: SharedPreferences
     private lateinit var playlistStore: PlaylistStore
     private val playlists = mutableStateListOf<MusicPlaylist>()
     private var showPlaylists by mutableStateOf(false)
@@ -612,6 +614,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+        driveSourcePrefs = getSharedPreferences("ngocsi_music_drive_sources", MODE_PRIVATE)
+        securePrefs = getSharedPreferences("ngocsi_music_secure", MODE_PRIVATE)
+        migrateDrivePersistence()
         driveOAuthManager = DriveOAuthManager(this)
         driveOAuthSignedIn = driveOAuthManager.isSignedIn()
         driveGoogleAccountEmail = driveOAuthManager.lastAccount()?.email.orEmpty()
@@ -857,14 +862,14 @@ class MainActivity : ComponentActivity() {
                     cursor.getLong(durationCol), ContentUris.withAppendedId(collection, id), "Thiết bị", cursor.getLong(albumIdCol), folder = folder)
             }
         }
-        val savedDriveUris = prefs.getStringSet("drive_uris", emptySet()) ?: emptySet()
+        val savedDriveUris = driveSourcePrefs.getStringSet("drive_uris", emptySet()) ?: emptySet()
         val savedOnlineUris = prefs.getStringSet("online_uris", emptySet()) ?: emptySet()
         val existing = result.map { it.uri.toString() }.toMutableSet()
 
         // Rehydrate files previously linked from a Google Drive sharing URL.
         val sharedItems = loadSharedDriveItems()
         val sharedApiKey = driveApiKey()
-        val sharedAccessToken = prefs.getString("drive_access_token", "").orEmpty()
+        val sharedAccessToken = securePrefs.getString("drive_access_token", "").orEmpty()
         if (sharedItems.isNotEmpty() && (sharedApiKey.isNotBlank() || sharedAccessToken.isNotBlank())) {
             sharedItems.forEach { item ->
                 val uri = sharedDriveMediaUri(item, sharedApiKey)
@@ -893,7 +898,7 @@ class MainActivity : ComponentActivity() {
         }
         if (staleDriveUris.isNotEmpty()) {
             val cleanedDriveUris = savedDriveUris.toMutableSet().apply { removeAll(staleDriveUris) }
-            prefs.edit().putStringSet("drive_uris", cleanedDriveUris).apply()
+            driveSourcePrefs.edit().putStringSet("drive_uris", cleanedDriveUris).apply()
         }
         savedOnlineUris.forEach { raw ->
             val uri = Uri.parse(raw)
@@ -1049,7 +1054,7 @@ class MainActivity : ComponentActivity() {
                     signInGoogleDrive()
                     return@launch
                 }
-                prefs.edit().putString("drive_access_token", token).apply()
+                securePrefs.edit().putString("drive_access_token", token).apply()
                 play(index, driveTokenReady = true)
             }
             return
@@ -1476,7 +1481,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun loadSharedDriveItems(): MutableList<SharedDriveItem> {
-        val raw = prefs.getString("drive_shared_items", null) ?: return mutableListOf()
+        val raw = driveSourcePrefs.getString("drive_shared_items", null) ?: return mutableListOf()
         return runCatching {
             val array = org.json.JSONArray(raw)
             buildList {
@@ -1513,11 +1518,11 @@ class MainActivity : ComponentActivity() {
                 }
             )
         }
-        prefs.edit().putString("drive_shared_items", array.toString()).apply()
+        driveSourcePrefs.edit().putString("drive_shared_items", array.toString()).apply()
     }
 
     private fun loadDriveRecentLinks() {
-        driveRecentLinks = prefs.getString("drive_recent_links", null)
+        driveRecentLinks = driveSourcePrefs.getString("drive_recent_links", null)
             ?.split("\n")
             ?.map { it.trim() }
             ?.filter { it.isNotBlank() }
@@ -1541,7 +1546,7 @@ class MainActivity : ComponentActivity() {
             addAll(driveRecentLinks.filterNot { it == value })
         }.take(8)
         driveRecentLinks = updated
-        prefs.edit().putString("drive_recent_links", updated.joinToString("\n")).apply()
+        driveSourcePrefs.edit().putString("drive_recent_links", updated.joinToString("\n")).apply()
     }
 
     private fun openGoogleDrive() {
@@ -1931,7 +1936,7 @@ class MainActivity : ComponentActivity() {
             return
         }
         val activeUri = controller?.currentMediaItem?.localConfiguration?.uri?.toString()
-        prefs.edit().remove("drive_shared_items").apply()
+        driveSourcePrefs.edit().remove("drive_shared_items").apply()
         songs.removeAll { it.source == "Google Drive" }
         queueSongs.removeAll { it.source == "Google Drive" }
         if (activeUri != null && sharedUris.contains(activeUri)) {
@@ -3166,6 +3171,31 @@ class MainActivity : ComponentActivity() {
         }, 10_000L)
     }
 
+    private fun migrateDrivePersistence() {
+        if (!driveSourcePrefs.getBoolean("migration_v1_complete", false)) {
+            val editor = driveSourcePrefs.edit()
+            prefs.getStringSet("drive_uris", null)?.let { editor.putStringSet("drive_uris", it) }
+            prefs.getString("drive_shared_items", null)?.let { editor.putString("drive_shared_items", it) }
+            prefs.getString("drive_recent_links", null)?.let { editor.putString("drive_recent_links", it) }
+            editor.putBoolean("migration_v1_complete", true).apply()
+
+            prefs.edit()
+                .remove("drive_uris")
+                .remove("drive_shared_items")
+                .remove("drive_recent_links")
+                .apply()
+        }
+
+        if (!securePrefs.contains("drive_access_token")) {
+            prefs.getString("drive_access_token", null)?.let { token ->
+                if (token.isNotBlank()) {
+                    securePrefs.edit().putString("drive_access_token", token).apply()
+                }
+            }
+            prefs.edit().remove("drive_access_token").apply()
+        }
+    }
+
     private fun loadSavedState() {
         val savedFavorites = prefs.getStringSet("favorites", emptySet()).orEmpty()
         savedFavorites.forEach { it.toLongOrNull()?.let { id -> favorites[id] = true } }
@@ -3227,7 +3257,7 @@ class MainActivity : ComponentActivity() {
         val activeUri = controller?.currentMediaItem?.localConfiguration?.uri
             ?: songs.getOrNull(currentIndex)?.uri
 
-        prefs.edit().remove("drive_uris").apply()
+        driveSourcePrefs.edit().remove("drive_uris").apply()
         songs.removeAll { it.source == "Google Drive" }
         queueSongs.removeAll { it.source == "Google Drive" }
 
