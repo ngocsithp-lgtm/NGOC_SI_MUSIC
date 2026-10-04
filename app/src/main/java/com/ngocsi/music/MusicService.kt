@@ -18,6 +18,7 @@ import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.HttpDataSource
+import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -183,35 +184,35 @@ class MusicService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
 
-        // Build a fresh HTTP data source for each media request so a newly
-        // refreshed Google OAuth token is used without restarting the service.
-        val httpFactory = DataSource.Factory {
-            // Refresh the Google Drive OAuth token from Play services when the
-            // MediaSession is resumed from the lock screen/background. The Activity
-            // may no longer be alive at that point, and the token persisted in prefs
-            // can have expired. GoogleAuthUtil returns a cached valid token or refreshes
-            // it when possible.
-            val token = refreshDriveTokenBlocking()
-            val factory = DefaultHttpDataSource.Factory()
-                .setUserAgent("NGOC-SI-MUSIC/5.8 (Android)")
-            val requestHeaders = mutableMapOf<String, String>()
-            if (token.isNotBlank()) {
-                requestHeaders["Authorization"] = "Bearer $token"
+        // Keep the base HTTP client free of Google OAuth headers. The Bearer token
+        // must only be attached to Google Drive REST media requests; attaching it
+        // globally would leak the Drive credential to YouTube/Radio/other hosts.
+        val httpFactory = DefaultHttpDataSource.Factory()
+            .setUserAgent("NGOC-SI-MUSIC/5.8 (Android)")
+
+        // Resolve each request by URI so Drive gets a fresh OAuth token while all
+        // other online sources remain completely unauthenticated.
+        val driveAwareHttpFactory = ResolvingDataSource.Factory(httpFactory) { dataSpec ->
+            val uri = dataSpec.uri.toString()
+            if (uri.startsWith("https://www.googleapis.com/drive/v3/files/")) {
+                val token = refreshDriveTokenBlocking()
+                if (token.isNotBlank()) {
+                    dataSpec.withRequestHeaders(
+                        mapOf("Authorization" to "Bearer $token")
+                    )
+                } else {
+                    dataSpec
+                }
+            } else {
+                dataSpec
             }
-            // Do not access player.currentMediaItem here: Media3 may create
-            // DataSources on the ExoPlayer playback thread. Drive resource keys are
-            // carried on the request URI itself, so no Player access is needed here.
-            if (requestHeaders.isNotEmpty()) {
-                factory.setDefaultRequestProperties(requestHeaders)
-            }
-            factory.createDataSource()
         }
 
         // DefaultHttpDataSource only handles http/https. Drive files selected
         // through the Android/Google Drive document picker use content:// URIs.
         // Wrap the HTTP factory in DefaultDataSource so Media3 can resolve both
         // content:// (SAF/Drive provider) and https:// (online/Drive REST) media.
-        val mediaDataSourceFactory = DefaultDataSource.Factory(this, httpFactory)
+        val mediaDataSourceFactory = DefaultDataSource.Factory(this, driveAwareHttpFactory)
 
         player = ExoPlayer.Builder(this)
             .setMediaSourceFactory(DefaultMediaSourceFactory(mediaDataSourceFactory))
