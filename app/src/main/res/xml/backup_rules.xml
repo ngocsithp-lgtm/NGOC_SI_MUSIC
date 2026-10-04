@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <include domain="sharedpref" path="ngoc_si_music.xml" />
+    <include domain="sharedpref" path="ngocsi_music_drive_sources.xml" />
+    <include domain="file" path="drive_imports/" />
+    <exclude domain="sharedpref" path="ngocsi_music_secure.xml" />
+</full-backup-content>
