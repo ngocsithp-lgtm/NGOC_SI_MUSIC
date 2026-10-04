@@ -1153,7 +1153,6 @@ class MainActivity : ComponentActivity() {
     )
 
     private fun driveApiKey(): String = BuildConfig.DRIVE_API_KEY.trim()
-        .ifBlank { BuildConfig.YOUTUBE_API_KEY.trim() }
 
     private fun extractDriveIdAndResourceKey(raw: String): Pair<String, String?>? {
         val value = raw.trim()
