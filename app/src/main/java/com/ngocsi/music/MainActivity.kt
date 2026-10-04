@@ -5728,6 +5728,23 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         val queueListState = rememberLazyListState()
         var draggingQueueIndex by remember { mutableStateOf(-1) }
         var dragDistance by remember { mutableStateOf(0f) }
+
+        val activeUri = controller?.currentMediaItem?.localConfiguration?.uri
+        val activeQueueIndex = activeUri?.let { uri ->
+            queueSongs.indexOfFirst { it.uri == uri }
+        } ?: -1
+
+        val nextEntries = if (activeQueueIndex >= 0) {
+            queueSongs
+                .drop(activeQueueIndex + 1)
+                .mapIndexed { offset, song -> Pair(activeQueueIndex + 1 + offset, song) }
+        } else {
+            queueSongs.mapIndexed { index, song -> Pair(index, song) }
+        }
+
+        val playedCount = if (activeQueueIndex > 0) activeQueueIndex else 0
+        val currentSong = activeQueueIndex.takeIf { it >= 0 }?.let { queueSongs[it] }
+
         Dialog(
             onDismissRequest = { showQueue = false },
             properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -5736,446 +5753,511 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.BottomCenter
             ) {
-            Surface(
-                shape = RoundedCornerShape(
-                    topStart = 28.dp,
-                    topEnd = 28.dp,
-                    bottomStart = 0.dp,
-                    bottomEnd = 0.dp
-                ),
-                color = Color(0xFF0B0D13),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .fillMaxHeight(0.90f)
-            ) {
-                Column(
-                    Modifier
+                Surface(
+                    shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                    color = Color(0xFF080A0F),
+                    modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 10.dp)
+                        .fillMaxHeight(0.94f)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.CenterHorizontally)
-                            .padding(top = 1.dp, bottom = 11.dp)
-                            .size(width = 38.dp, height = 4.dp)
-                            .clip(RoundedCornerShape(50))
-                            .background(Color(0xFF414654))
-                    )
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
+                    Column(
+                        Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp)
                     ) {
-                        Surface(
-                            modifier = Modifier.size(42.dp),
-                            shape = RoundedCornerShape(14.dp),
-                            color = Color(0xFF19162A),
-                            border = androidx.compose.foundation.BorderStroke(
-                                1.dp,
-                                Color(0xFF3A3158)
-                            )
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text(
-                                    "☷",
-                                    color = Color(0xFFC8B7FF),
-                                    fontSize = 21.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-                        Spacer(Modifier.width(11.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                "HÀNG ĐỢI",
-                                color = Color.White,
-                                fontSize = 21.sp,
-                                fontWeight = FontWeight.Black,
-                                letterSpacing = 0.5.sp
-                            )
-                            Text(
-                                when {
-                                    queueSongs.isEmpty() -> "Chưa có bài hát trong hàng đợi"
-                                    shuffleEnabled -> queueSongs.size.toString() + " bài • Phát ngẫu nhiên"
-                                    else -> queueSongs.size.toString() + " bài • Theo thứ tự"
-                                },
-                                color = Color(0xFF8C91A2),
-                                fontSize = 11.sp
-                            )
-                        }
-                        TextButton(onClick = { showQueue = false }) {
-                            Text(
-                                "Đóng",
-                                color = Color(0xFFCBBEFF),
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.CenterHorizontally)
+                                .padding(top = 8.dp, bottom = 10.dp)
+                                .size(width = 38.dp, height = 4.dp)
+                                .clip(RoundedCornerShape(50))
+                                .background(Color(0xFF414654))
+                        )
 
-                    Spacer(Modifier.height(11.dp))
-
-                    if (queueSongs.isNotEmpty()) {
                         Row(
                             Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            QueueActionChip(
-                                icon = "▶",
-                                label = "PHÁT TỪ ĐẦU",
-                                emphasized = true,
-                                modifier = Modifier.weight(1f),
-                                onClick = { playQueueFromStart() }
-                            )
-                            QueueActionChip(
-                                icon = if (shuffleEnabled) "🔀" else "⇄",
-                                label = if (shuffleEnabled) "NGẪU NHIÊN" else "THỨ TỰ",
-                                emphasized = shuffleEnabled,
-                                modifier = Modifier.weight(1f),
-                                onClick = { toggleShuffle() }
-                            )
-                            QueueActionChip(
-                                icon = "＋",
-                                label = "THÊM BÀI",
-                                modifier = Modifier.weight(1f),
-                                onClick = {
-                                    showQueue = false
-                                    selectedSection = "Thư viện"
-                                }
-                            )
-                            QueueActionChip(
-                                icon = "×",
-                                label = "XÓA HẾT",
-                                modifier = Modifier.weight(1f),
-                                onClick = { clearQueue() }
-                            )
-                        }
-
-                        Spacer(Modifier.height(11.dp))
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(15.dp),
-                            color = Color(0xFF111520),
-                            border = androidx.compose.foundation.BorderStroke(
-                                1.dp,
-                                Color(0xFF20283A)
-                            )
-                        ) {
-                            Row(
-                                Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
+                            Column(Modifier.weight(1f)) {
                                 Text(
-                                    "●",
-                                    color = Color(0xFF6BE9FF),
-                                    fontSize = 10.sp
+                                    "Hàng đợi",
+                                    color = Color.White,
+                                    fontSize = 23.sp,
+                                    fontWeight = FontWeight.Black
                                 )
-                                Spacer(Modifier.width(8.dp))
                                 Text(
-                                    "BÀI ĐANG PHÁT",
-                                    color = Color(0xFF6BE9FF),
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Black,
-                                    letterSpacing = 1.1.sp
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Text(
-                                    controller?.currentMediaItem?.mediaMetadata?.title?.toString()
-                                        ?.ifBlank { "Chưa xác định" }
-                                        ?: "Chưa xác định",
-                                    color = Color(0xFFD5D9E6),
-                                    fontSize = 11.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f)
+                                    when {
+                                        queueSongs.isEmpty() -> "Chưa có bài hát"
+                                        shuffleEnabled -> queueSongs.size.toString() + " bài • Phát ngẫu nhiên"
+                                        else -> queueSongs.size.toString() + " bài • Theo thứ tự"
+                                    },
+                                    color = Color(0xFF8B91A0),
+                                    fontSize = 11.sp
                                 )
                             }
+
+                            QueueHeaderButton(
+                                label = "×",
+                                title = "Đóng",
+                                onClick = { showQueue = false }
+                            )
                         }
 
-                        Text(
-                            "Giữ lâu một bài hát rồi kéo lên hoặc xuống để đổi thứ tự",
-                            color = Color(0xFF70788B),
-                            fontSize = 10.sp,
-                            modifier = Modifier.padding(start = 3.dp, bottom = 7.dp)
-                        )
-                    }
+                        Spacer(Modifier.height(12.dp))
 
-                    if (queueSongs.isEmpty()) {
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(23.dp),
-                            color = Color(0xFF111520),
-                            border = androidx.compose.foundation.BorderStroke(
-                                1.dp,
-                                Color(0xFF242B3A)
-                            )
-                        ) {
-                            Column(
-                                Modifier.padding(horizontal = 24.dp, vertical = 42.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
+                        if (queueSongs.isNotEmpty()) {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Surface(
-                                    modifier = Modifier.size(74.dp),
-                                    shape = CircleShape,
-                                    color = Color(0xFF17152A),
-                                    border = androidx.compose.foundation.BorderStroke(
-                                        1.dp,
-                                        Color(0xFF342A51)
-                                    )
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Text(
-                                            "☷",
-                                            color = Color(0xFFC8B7FF),
-                                            fontSize = 33.sp
-                                        )
-                                    }
-                                }
-                                Spacer(Modifier.height(13.dp))
-                                Text(
-                                    "Hàng đợi đang trống",
-                                    color = Color.White,
-                                    fontSize = 17.sp,
-                                    fontWeight = FontWeight.ExtraBold
+                                QueueActionChip(
+                                    icon = "▶",
+                                    label = "PHÁT TỪ ĐẦU",
+                                    emphasized = true,
+                                    modifier = Modifier.weight(1f),
+                                    onClick = { playQueueFromStart() }
                                 )
-                                Spacer(Modifier.height(5.dp))
-                                Text(
-                                    "Chọn bài hát trong thư viện để thêm vào danh sách phát tiếp theo.",
-                                    color = Color(0xFF83899A),
-                                    fontSize = 11.sp,
-                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                QueueActionChip(
+                                    icon = if (shuffleEnabled) "🔀" else "⇄",
+                                    label = if (shuffleEnabled) "NGẪU NHIÊN" else "THỨ TỰ",
+                                    emphasized = shuffleEnabled,
+                                    modifier = Modifier.weight(1f),
+                                    onClick = { toggleShuffle() }
                                 )
-                                Spacer(Modifier.height(15.dp))
-                                Button(
+                                QueueActionChip(
+                                    icon = "＋",
+                                    label = "THÊM BÀI",
+                                    modifier = Modifier.weight(1f),
                                     onClick = {
                                         showQueue = false
                                         selectedSection = "Thư viện"
-                                    },
-                                    shape = RoundedCornerShape(14.dp)
-                                ) {
-                                    Text(
-                                        "MỞ THƯ VIỆN",
-                                        fontWeight = FontWeight.Black,
-                                        fontSize = 11.sp
-                                    )
-                                }
+                                    }
+                                )
+                                QueueActionChip(
+                                    icon = "×",
+                                    label = "XÓA HẾT",
+                                    modifier = Modifier.weight(1f),
+                                    onClick = { clearQueue() }
+                                )
                             }
-                        }
-                    } else {
-                        LazyColumn(
-                            state = queueListState,
-                            modifier = Modifier.heightIn(max = 575.dp),
-                            verticalArrangement = Arrangement.spacedBy(7.dp),
-                            contentPadding = PaddingValues(bottom = 6.dp)
-                        ) {
-                            itemsIndexed(
-                                queueSongs,
-                                key = { _, song -> song.uri.toString() }
-                            ) { index, song ->
-                                val activeUri = controller
-                                    ?.currentMediaItem
-                                    ?.localConfiguration
-                                    ?.uri
-                                val isCurrent = activeUri == song.uri
+
+                            Spacer(Modifier.height(14.dp))
+
+                            if (currentSong != null) {
+                                Text(
+                                    "ĐANG PHÁT",
+                                    color = Color(0xFF6BE9FF),
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Black,
+                                    letterSpacing = 1.2.sp,
+                                    modifier = Modifier.padding(start = 2.dp, bottom = 6.dp)
+                                )
 
                                 Surface(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .pointerInput(song.uri, queueSongs.size) {
-                                            detectDragGesturesAfterLongPress(
-                                                onDragStart = {
-                                                    draggingQueueIndex = index
-                                                    dragDistance = 0f
-                                                },
-                                                onDragEnd = {
-                                                    draggingQueueIndex = -1
-                                                    dragDistance = 0f
-                                                },
-                                                onDragCancel = {
-                                                    draggingQueueIndex = -1
-                                                    dragDistance = 0f
-                                                }
-                                            ) { change, dragAmount ->
-                                                change.consume()
-                                                dragDistance += dragAmount.y
-                                                val from = draggingQueueIndex
-                                                val currentInfo = queueListState.layoutInfo.visibleItemsInfo
-                                                    .firstOrNull { it.index == from }
-                                                if (from >= 0 && currentInfo != null) {
-                                                    val draggedCenter = currentInfo.offset +
-                                                        currentInfo.size / 2f + dragDistance
-                                                    val target = queueListState.layoutInfo.visibleItemsInfo
-                                                        .firstOrNull {
-                                                            draggedCenter >= it.offset &&
-                                                                draggedCenter < it.offset + it.size
-                                                        }?.index
-                                                    if (target != null && target in queueSongs.indices && target != from) {
-                                                        moveQueueItem(from, target)
-                                                        draggingQueueIndex = target
-                                                        dragDistance = 0f
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        .clickable {
-                                            playQueueAt(index)
-                                            showQueue = false
-                                        },
-                                    shape = RoundedCornerShape(18.dp),
-                                    color = if (isCurrent) {
-                                        Color(0xFF211C35)
-                                    } else {
-                                        Color(0xFF12151D)
-                                    },
+                                        .clickable { showQueue = false },
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = Color(0xFF19132A),
                                     border = androidx.compose.foundation.BorderStroke(
                                         1.dp,
-                                        if (isCurrent) {
-                                            Color(0xFF4A3C6E)
-                                        } else {
-                                            Color(0xFF202531)
-                                        }
+                                        Color(0xFF4A3A72)
                                     )
                                 ) {
                                     Row(
-                                        Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 9.dp, vertical = 8.dp),
+                                        Modifier.padding(11.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Column(
-                                            horizontalAlignment = Alignment.CenterHorizontally,
-                                            modifier = Modifier.width(27.dp)
-                                        ) {
-                                            if (isCurrent) {
-                                                Text(
-                                                    "●",
-                                                    color = Color(0xFF69E7FF),
-                                                    fontSize = 9.sp
-                                                )
-                                                Text(
-                                                    "PLAY",
-                                                    color = Color(0xFF69E7FF),
-                                                    fontSize = 7.sp,
-                                                    fontWeight = FontWeight.Black
-                                                )
-                                            } else {
-                                                Text(
-                                                    String.format("%02d", index + 1),
-                                                    color = Color(0xFF697082),
-                                                    fontSize = 10.sp,
-                                                    fontWeight = FontWeight.Bold
-                                                )
-                                            }
-                                        }
-
-                                        Spacer(Modifier.width(7.dp))
                                         Box {
-                                            SongArtwork(song, Modifier.size(54.dp))
-                                            if (isCurrent) {
-                                                Surface(
-                                                    modifier = Modifier
-                                                        .align(Alignment.BottomEnd)
-                                                        .size(20.dp),
-                                                    shape = CircleShape,
-                                                    color = Color(0xFF5A45A5)
-                                                ) {
-                                                    Box(contentAlignment = Alignment.Center) {
-                                                        Text(
-                                                            "▶",
-                                                            color = Color.White,
-                                                            fontSize = 8.sp
-                                                        )
-                                                    }
+                                            SongArtwork(currentSong, Modifier.size(68.dp))
+                                            Surface(
+                                                modifier = Modifier
+                                                    .align(Alignment.BottomEnd)
+                                                    .size(22.dp),
+                                                shape = CircleShape,
+                                                color = Color(0xFF6A4AC1)
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Text(
+                                                        if (isPlaying) "▶" else "Ⅱ",
+                                                        color = Color.White,
+                                                        fontSize = 8.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
                                                 }
                                             }
                                         }
-
-                                        Spacer(Modifier.width(10.dp))
+                                        Spacer(Modifier.width(12.dp))
                                         Column(
                                             Modifier.weight(1f),
-                                            verticalArrangement = Arrangement.spacedBy(3.dp)
+                                            verticalArrangement = Arrangement.spacedBy(4.dp)
                                         ) {
                                             Text(
-                                                song.title,
-                                                color = if (isCurrent) Color.White else Color(0xFFE7E9F0),
-                                                fontSize = 14.sp,
-                                                lineHeight = 18.sp,
-                                                fontWeight = if (isCurrent) {
-                                                    FontWeight.Black
-                                                } else {
-                                                    FontWeight.SemiBold
-                                                },
+                                                currentSong.title,
+                                                color = Color.White,
+                                                fontSize = 15.sp,
+                                                lineHeight = 20.sp,
+                                                fontWeight = FontWeight.Black,
                                                 maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                currentSong.artist.ifBlank { "Nghệ sĩ chưa xác định" },
+                                                color = Color(0xFF9BA1B0),
+                                                fontSize = 10.sp,
+                                                maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis
                                             )
                                             Row(
                                                 verticalAlignment = Alignment.CenterVertically,
                                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                                             ) {
-                                                Text(
-                                                    song.artist.ifBlank { "Nghệ sĩ chưa xác định" },
-                                                    color = Color(0xFF858B9B),
-                                                    fontSize = 10.sp,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                    modifier = Modifier.weight(1f, fill = false)
-                                                )
-                                                SourceBadge(song.source)
-                                            }
-                                            if (isCurrent && duration > 0L) {
-                                                Text(
-                                                    formatTime(position) + " / " + formatTime(duration),
-                                                    color = Color(0xFF69E7FF),
-                                                    fontSize = 9.sp,
-                                                    fontWeight = FontWeight.Bold
-                                                )
+                                                SourceBadge(currentSong.source)
+                                                if (duration > 0L) {
+                                                    Text(
+                                                        formatTime(position) + " / " + formatTime(duration),
+                                                        color = Color(0xFF6BE9FF),
+                                                        fontSize = 9.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                }
                                             }
                                         }
+                                    }
+                                }
 
-                                        Column(
-                                            horizontalAlignment = Alignment.End
-                                        ) {
-                                            Text(
-                                                formatTime(
-                                                    if (isCurrent && duration > 0L) {
-                                                        duration
-                                                    } else {
-                                                        song.duration
+                                if (duration > 0L) {
+                                    Spacer(Modifier.height(7.dp))
+                                    LinearProgressIndicator(
+                                        progress = {
+                                            (position.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
+                                        },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(3.dp)
+                                            .clip(RoundedCornerShape(50)),
+                                        color = Color(0xFF6BE9FF),
+                                        trackColor = Color(0xFF222633)
+                                    )
+                                }
+                            }
+
+                            Spacer(Modifier.height(14.dp))
+
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "TIẾP THEO",
+                                    color = Color.White,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Black,
+                                    letterSpacing = 1.1.sp
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    nextEntries.size.toString() + " bài",
+                                    color = Color(0xFF747B8A),
+                                    fontSize = 10.sp
+                                )
+                                Spacer(Modifier.weight(1f))
+                                if (playedCount > 0) {
+                                    Text(
+                                        playedCount.toString() + " đã phát",
+                                        color = Color(0xFF666D7C),
+                                        fontSize = 9.sp
+                                    )
+                                }
+                            }
+
+                            Spacer(Modifier.height(7.dp))
+
+                            if (nextEntries.isEmpty()) {
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(17.dp),
+                                    color = Color(0xFF11141B),
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        1.dp,
+                                        Color(0xFF202632)
+                                    )
+                                ) {
+                                    Row(
+                                        Modifier.padding(horizontal = 15.dp, vertical = 15.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            "✓",
+                                            color = Color(0xFF70788B),
+                                            fontSize = 17.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Spacer(Modifier.width(10.dp))
+                                        Text(
+                                            "Không còn bài hát tiếp theo",
+                                            color = Color(0xFF8B91A0),
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                }
+                            } else {
+                                Text(
+                                    "Giữ lâu để kéo • chạm để phát",
+                                    color = Color(0xFF676E7D),
+                                    fontSize = 9.sp,
+                                    modifier = Modifier.padding(start = 2.dp, bottom = 6.dp)
+                                )
+
+                                LazyColumn(
+                                    state = queueListState,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .weight(1f, fill = true),
+                                    verticalArrangement = Arrangement.spacedBy(7.dp),
+                                    contentPadding = PaddingValues(bottom = 8.dp)
+                                ) {
+                                    itemsIndexed(
+                                        nextEntries,
+                                        key = { _, entry -> entry.second.uri.toString() }
+                                    ) { displayIndex, entry ->
+                                        val originalIndex = entry.first
+                                        val song = entry.second
+                                        val isCurrent = controller
+                                            ?.currentMediaItem
+                                            ?.localConfiguration
+                                            ?.uri == song.uri
+
+                                        Surface(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .pointerInput(song.uri, nextEntries.size) {
+                                                    detectDragGesturesAfterLongPress(
+                                                        onDragStart = {
+                                                            draggingQueueIndex = displayIndex
+                                                            dragDistance = 0f
+                                                        },
+                                                        onDragEnd = {
+                                                            draggingQueueIndex = -1
+                                                            dragDistance = 0f
+                                                        },
+                                                        onDragCancel = {
+                                                            draggingQueueIndex = -1
+                                                            dragDistance = 0f
+                                                        }
+                                                    ) { change, dragAmount ->
+                                                        change.consume()
+                                                        dragDistance += dragAmount.y
+
+                                                        val from = draggingQueueIndex
+                                                        val currentInfo = queueListState.layoutInfo.visibleItemsInfo
+                                                            .firstOrNull { it.index == from }
+
+                                                        if (from >= 0 && currentInfo != null) {
+                                                            val draggedCenter = currentInfo.offset +
+                                                                currentInfo.size / 2f +
+                                                                dragDistance
+
+                                                            val target = queueListState.layoutInfo.visibleItemsInfo
+                                                                .firstOrNull {
+                                                                    draggedCenter >= it.offset &&
+                                                                        draggedCenter < it.offset + it.size
+                                                                }?.index
+
+                                                            if (target != null &&
+                                                                target in nextEntries.indices &&
+                                                                target != from
+                                                            ) {
+                                                                val targetOriginalIndex = nextEntries[target].first
+                                                                moveQueueItem(originalIndex, targetOriginalIndex)
+                                                                draggingQueueIndex = target
+                                                                dragDistance = 0f
+                                                            }
+                                                        }
                                                     }
-                                                ),
-                                                color = Color(0xFF747B8C),
-                                                fontSize = 9.sp
+                                                }
+                                                .clickable {
+                                                    playQueueAt(originalIndex)
+                                                    showQueue = false
+                                                },
+                                            shape = RoundedCornerShape(17.dp),
+                                            color = if (draggingQueueIndex == displayIndex) {
+                                                Color(0xFF211C35)
+                                            } else {
+                                                Color(0xFF11141B)
+                                            },
+                                            border = androidx.compose.foundation.BorderStroke(
+                                                1.dp,
+                                                if (draggingQueueIndex == displayIndex) {
+                                                    Color(0xFF4A3C6E)
+                                                } else {
+                                                    Color(0xFF202632)
+                                                }
                                             )
-                                            Spacer(Modifier.height(4.dp))
+                                        ) {
                                             Row(
-                                                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                                Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 9.dp, vertical = 8.dp),
+                                                verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                QueueIconButton("↑", index > 0) {
-                                                    if (index > 0) {
-                                                        moveQueueItem(index, index - 1)
+                                                Text(
+                                                    String.format("%02d", displayIndex + 1),
+                                                    color = Color(0xFF626A7B),
+                                                    fontSize = 9.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier.width(24.dp)
+                                                )
+
+                                                SongArtwork(song, Modifier.size(52.dp))
+
+                                                Spacer(Modifier.width(10.dp))
+
+                                                Column(
+                                                    Modifier.weight(1f),
+                                                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                                                ) {
+                                                    Text(
+                                                        song.title,
+                                                        color = Color(0xFFE9EBF1),
+                                                        fontSize = 13.sp,
+                                                        lineHeight = 17.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        maxLines = 2,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                    ) {
+                                                        Text(
+                                                            song.artist.ifBlank { "Nghệ sĩ chưa xác định" },
+                                                            color = Color(0xFF858B9B),
+                                                            fontSize = 10.sp,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis,
+                                                            modifier = Modifier.weight(1f, fill = false)
+                                                        )
+                                                        SourceBadge(song.source)
+                                                    }
+                                                    if (song.duration > 0L) {
+                                                        Text(
+                                                            formatTime(song.duration),
+                                                            color = Color(0xFF6F7788),
+                                                            fontSize = 9.sp
+                                                        )
                                                     }
                                                 }
-                                                QueueIconButton("↓", index < queueSongs.lastIndex) {
-                                                    if (index < queueSongs.lastIndex) {
-                                                        moveQueueItem(index, index + 1)
+
+                                                Spacer(Modifier.width(5.dp))
+
+                                                Column(
+                                                    horizontalAlignment = Alignment.CenterHorizontally
+                                                ) {
+                                                    Text(
+                                                        "☰",
+                                                        color = Color(0xFF676F80),
+                                                        fontSize = 14.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                    Row(
+                                                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                                    ) {
+                                                        QueueIconButton("↑", originalIndex > 0) {
+                                                            if (originalIndex > 0) {
+                                                                moveQueueItem(originalIndex, originalIndex - 1)
+                                                            }
+                                                        }
+                                                        QueueIconButton("↓", originalIndex < queueSongs.lastIndex) {
+                                                            if (originalIndex < queueSongs.lastIndex) {
+                                                                moveQueueItem(originalIndex, originalIndex + 1)
+                                                            }
+                                                        }
+                                                        QueueIconButton("×", true) {
+                                                            removeFromQueue(originalIndex)
+                                                        }
                                                     }
-                                                }
-                                                QueueIconButton("×", true) {
-                                                    removeFromQueue(index)
                                                 }
                                             }
                                         }
                                     }
                                 }
                             }
+                        } else {
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(23.dp),
+                                color = Color(0xFF11141B),
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp,
+                                    Color(0xFF242B3A)
+                                )
+                            ) {
+                                Column(
+                                    Modifier
+                                        .padding(horizontal = 24.dp, vertical = 42.dp)
+                                        .fillMaxWidth(),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Surface(
+                                        modifier = Modifier.size(74.dp),
+                                        shape = CircleShape,
+                                        color = Color(0xFF17152A),
+                                        border = androidx.compose.foundation.BorderStroke(
+                                            1.dp,
+                                            Color(0xFF342A51)
+                                        )
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Text(
+                                                "☷",
+                                                color = Color(0xFFC8B7FF),
+                                                fontSize = 33.sp
+                                            )
+                                        }
+                                    }
+                                    Spacer(Modifier.height(13.dp))
+                                    Text(
+                                        "Hàng đợi đang trống",
+                                        color = Color.White,
+                                        fontSize = 17.sp,
+                                        fontWeight = FontWeight.ExtraBold
+                                    )
+                                    Spacer(Modifier.height(5.dp))
+                                    Text(
+                                        "Chọn bài hát trong thư viện để thêm vào danh sách phát tiếp theo.",
+                                        color = Color(0xFF83899A),
+                                        fontSize = 11.sp,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                    )
+                                    Spacer(Modifier.height(15.dp))
+                                    Button(
+                                        onClick = {
+                                            showQueue = false
+                                            selectedSection = "Thư viện"
+                                        },
+                                        shape = RoundedCornerShape(14.dp)
+                                    ) {
+                                        Text(
+                                            "MỞ THƯ VIỆN",
+                                            fontWeight = FontWeight.Black,
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                }
+                            }
                         }
+
+                        Spacer(Modifier.height(8.dp))
                     }
                 }
-            }
             }
         }
     }
 
     @Composable
     private fun QueueActionChip(
+
         icon: String,
         label: String,
         emphasized: Boolean = false,
