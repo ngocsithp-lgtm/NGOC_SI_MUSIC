@@ -1468,9 +1468,19 @@ class MainActivity : ComponentActivity() {
         if (saved.isEmpty()) return
         saved.forEach { item ->
             val uri = sharedDriveMediaUri(item, apiKey)
-            if (songs.none { it.uri == uri }) {
-                val sourceName = item.sourceName.trim().ifBlank { "Chia sẻ • " + item.name }
-                val songSource = driveSongSource(sourceName)
+            val sourceName = item.sourceName.trim().ifBlank { "Chia sẻ • " + item.name }
+            val songSource = driveSongSource(sourceName)
+            val existingSong = songs.firstOrNull { it.uri == uri }
+            if (existingSong != null) {
+                val index = songs.indexOf(existingSong)
+                if (existingSong.source != songSource || existingSong.folder != sourceName) {
+                    songs[index] = existingSong.copy(
+                        artist = songSource,
+                        source = songSource,
+                        folder = sourceName
+                    )
+                }
+            } else {
                 val song = Song(
                     id = -kotlin.math.abs(uri.toString().hashCode().toLong()),
                     title = item.name.substringBeforeLast(".").ifBlank { item.name },
@@ -1485,6 +1495,82 @@ class MainActivity : ComponentActivity() {
             }
         }
         syncControllerQueue()
+    }
+
+    private fun repairSavedDriveSourceNames() {
+        if (!driveOAuthManager.hasDriveScope()) return
+        val saved = loadSharedDriveItems()
+        if (saved.isEmpty() || saved.none { it.sourceName.isBlank() }) return
+        val links = driveRecentLinks
+        if (links.isEmpty()) return
+
+        lifecycleScope.launch {
+            val repaired = withContext(Dispatchers.IO) {
+                runCatching {
+                    val token = driveOAuthManager.accessToken() ?: return@runCatching emptyMap<String, String>()
+                    val apiKey = driveApiKey()
+                    val namesById = mutableMapOf<String, String>()
+
+                    links.forEach { link ->
+                        val parsed = extractDriveIdAndResourceKey(link) ?: return@forEach
+                        val (rootId, suppliedKey) = parsed
+                        val root = inspectSharedDriveItem(rootId, suppliedKey, apiKey, token)
+                        if (root.optBoolean("trashed", false)) return@forEach
+
+                        val rootName = root.optString("name").trim()
+                            .ifBlank { "Nguồn Drive " + rootId.take(6) }
+                        val mime = root.optString("mimeType").trim()
+                        val rootKey = root.optString("resourceKey")
+                            .ifBlank { suppliedKey.orEmpty() }
+                            .ifBlank { null }
+
+                        val collected = mutableListOf<SharedDriveItem>()
+                        if (mime == "application/vnd.google-apps.folder") {
+                            listSharedDriveFolder(
+                                rootId,
+                                rootKey,
+                                apiKey,
+                                collected,
+                                mutableSetOf(),
+                                token,
+                                sourceName = rootName
+                            )
+                        } else if (isSupportedDriveAudio(rootName, mime)) {
+                            collected += SharedDriveItem(
+                                rootId,
+                                rootName,
+                                mime,
+                                rootKey.orEmpty(),
+                                root.optLong("size", 0L),
+                                root.optString("webContentLink").trim(),
+                                rootName
+                            )
+                        }
+
+                        collected.forEach { namesById[it.id] = it.sourceName.ifBlank { rootName } }
+                    }
+
+                    namesById
+                }.getOrDefault(emptyMap())
+            }
+
+            if (repaired.isEmpty()) return@launch
+
+            val current = loadSharedDriveItems()
+            val updated = current.map { item ->
+                val sourceName = repaired[item.id]
+                if (item.sourceName.isBlank() && !sourceName.isNullOrBlank()) {
+                    item.copy(sourceName = sourceName)
+                } else {
+                    item
+                }
+            }
+
+            if (updated != current) {
+                saveSharedDriveItems(updated)
+                rebuildSongsFromSavedDriveSources()
+            }
+        }
     }
 
     private fun restoreDriveSourcesFromCloud(afterRestore: (() -> Unit)? = null) {
@@ -1562,6 +1648,7 @@ class MainActivity : ComponentActivity() {
             if (restored) {
                 loadDriveRecentLinks()
                 rebuildSongsFromSavedDriveSources()
+                repairSavedDriveSourceNames()
             }
             afterRestore?.invoke()
         }
