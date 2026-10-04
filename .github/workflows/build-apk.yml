@@ -21,7 +21,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-      - name: Restore stable CI signing keystore (optional)
+      - name: Restore stable CI signing keystore (required)
         env:
           NGOCSI_KEYSTORE_BASE64: ${{ secrets.NGOCSI_KEYSTORE_BASE64 }}
           NGOCSI_KEYSTORE_PASSWORD: ${{ secrets.NGOCSI_KEYSTORE_PASSWORD }}
@@ -30,9 +30,8 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${NGOCSI_KEYSTORE_BASE64:-}" ] || [ -z "${NGOCSI_KEYSTORE_PASSWORD:-}" ] || [ -z "${NGOCSI_KEY_ALIAS:-}" ] || [ -z "${NGOCSI_KEY_PASSWORD:-}" ]; then
-            echo "::warning::Stable signing secrets are not configured. Continuing with the standard Gradle debug keystore. This APK is for non-OAuth testing (for example Drive system picker) and is not the durable Google OAuth signing identity."
-            echo "NGOCSI_SIGNING_MODE=debug-fallback" >> "$GITHUB_ENV"
-            exit 0
+            echo "::error::Stable signing secrets are required. Configure NGOCSI_KEYSTORE_BASE64, NGOCSI_KEYSTORE_PASSWORD, NGOCSI_KEY_ALIAS and NGOCSI_KEY_PASSWORD in GitHub Actions Secrets."
+            exit 1
           fi
           KEYSTORE="$RUNNER_TEMP/ngocsi-ci.jks"
           printf "%s" "$NGOCSI_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE"
@@ -84,11 +83,11 @@ jobs:
           set -euo pipefail
           MODE="${NGOCSI_SIGNING_MODE:-debug-default}"
           echo "Signing mode: $MODE"
-          if [ "$MODE" = "stable" ]; then
-            echo "Stable CI signing is active."
-          else
-            echo "::warning::This build uses the runner's default debug signing. Do not register its SHA-1 as the permanent OAuth identity."
+          if [ "$MODE" != "stable" ]; then
+            echo "::error::Stable CI signing is not active. Refusing to publish an APK with a runner-generated debug certificate."
+            exit 1
           fi
+          echo "Stable CI signing is active."
           echo "## Signing mode" >> "$GITHUB_STEP_SUMMARY"
           echo "- $MODE" >> "$GITHUB_STEP_SUMMARY"
 
@@ -113,7 +112,13 @@ jobs:
           echo "=== Gradle signingReport ==="
           gradle :app:signingReport --no-daemon 2>&1 | tee "$OUT/signing-report.txt"
           echo "=== SHA-1 from signingReport ==="
-          grep -Ei "SHA1:|SHA-1:" "$OUT/signing-report.txt" || true
+          SHA1="$(grep -Ei "^[[:space:]]*SHA1:" "$OUT/signing-report.txt" | head -n1 | sed 's/.*SHA1:[[:space:]]*//' | tr -d '\r')"
+          echo "SHA-1: $SHA1"
+          EXPECTED_SHA1="53:3F:A1:9C:58:A4:0D:92:66:68:F9:62:96:E7:DB:D3:4D:69:6A:ED"
+          if [ "$SHA1" != "$EXPECTED_SHA1" ]; then
+            echo "::error::Unexpected signing certificate. Expected stable OAuth SHA-1 $EXPECTED_SHA1 but got $SHA1"
+            exit 1
+          fi
           {
             echo "## Android OAuth diagnostic"
             echo ""
@@ -121,6 +126,8 @@ jobs:
             echo ""
             echo "---"
             grep -Ei "Variant: debug|Config: debug|Store:|Alias:|SHA1:|SHA-1:" "$OUT/signing-report.txt" || true
+            echo ""
+            echo "- Expected OAuth SHA-1: 53:3F:A1:9C:58:A4:0D:92:66:68:F9:62:96:E7:DB:D3:4D:69:6A:ED"
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Generate APK SHA-256
         run: |
