@@ -2914,10 +2914,14 @@ class MainActivity : ComponentActivity() {
             val bottom = lat - delta
             val top = lat + delta
 
+            // Use OpenStreetMap's dedicated embed endpoint instead of the
+            // full OSM SPA/hash URL. The embed page is more reliable inside
+            // Android WebView and does not depend on the site's client router.
             radioWebTitle = "NGỌC SĨ MAP • VỊ TRÍ HIỆN TẠI"
             radioWebUrl =
-                "https://www.openstreetmap.org/#map=15/" +
-                    "$lat/$lon&layers=N"
+                "https://www.openstreetmap.org/export/embed.html" +
+                    "?bbox=" + left + "," + bottom + "," + right + "," + top +
+                    "&layer=mapnik&marker=" + lat + "," + lon
             errorMessage = null
         }
 
@@ -4397,10 +4401,16 @@ class MainActivity : ComponentActivity() {
 
             mapSearching = false
             result.onSuccess { (lat, lon, displayName) ->
-                    radioWebTitle = "NGỌC SĨ MAP • ${displayName.substringBefore(",")}"
+                val delta = 0.018
+                val left = lon - delta
+                val right = lon + delta
+                val bottom = lat - delta
+                val top = lat + delta
+                radioWebTitle = "NGỌC SĨ MAP • ${displayName.substringBefore(",")}"
                 radioWebUrl =
-                    "https://www.openstreetmap.org/#map=15/" +
-                        "$lat/$lon&layers=N"
+                    "https://www.openstreetmap.org/export/embed.html" +
+                        "?bbox=" + left + "," + bottom + "," + right + "," + top +
+                        "&layer=mapnik&marker=" + lat + "," + lon
             }.onFailure {
                 errorMessage = "Không tìm thấy địa điểm hoặc máy chủ bản đồ đang bận. Hãy thử tên địa điểm cụ thể hơn."
             }
@@ -4410,7 +4420,9 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun MapHub() {
         val mapUrl =
-            "https://www.openstreetmap.org/#map=13/10.8231/106.6297&layers=N"
+            "https://www.openstreetmap.org/export/embed.html" +
+                "?bbox=106.48,10.72,106.78,10.92" +
+                "&layer=mapnik&marker=10.8231,106.6297"
         val trafficUrl =
             "https://www.google.com/maps/@?api=1&map_action=map&center=10.8231%2C106.6297&zoom=12&basemap=roadmap&layer=traffic"
         val satelliteUrl =
