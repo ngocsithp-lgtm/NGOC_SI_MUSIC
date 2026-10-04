@@ -89,7 +89,7 @@ object TvCatalog {
     // own web experience; no stream extraction or DRM bypass is performed.
     val builtIn = listOf(
         TvSource("VTV1 • Live", "VTV Go — kênh VTV1 trực tiếp", "https://vtvgo.vn/channel/1"),
-        TvSource("VTV2 • Live", "VTV Go — kênh VTV2 trực tiếp", "https://package.vtvgo.vn/channel/2"),
+        TvSource("VTV2 • Live", "VTV Go — kênh VTV2 trực tiếp", "https://vtvgo.vn/channel/2"),
         TvSource("VTV3 • Live", "VTV Go — kênh VTV3 trực tiếp", "https://vtvgo.vn/channel/3"),
         TvSource("VTV5 Tây Nam Bộ • Live", "VTV Go — kênh VTV5 Tây Nam Bộ", "https://vtvgo.vn/channel/7"),
         TvSource("VTV9 • Live", "VTV Go — kênh VTV9 trực tiếp", "https://vtvgo.vn/channel/9"),
