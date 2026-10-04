@@ -6742,8 +6742,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 TextButton(
                                     onClick = {
                                         driveBrowserScope.launch {
-                                            visibleDriveItems
-                                                .filter { it.mimeType != "application/vnd.google-apps.folder" }
+                                            driveBrowserItems
+                                                .filter {
+                                                    it.mimeType != "application/vnd.google-apps.folder" &&
+                                                        (driveBrowserQuery.isBlank() || it.name.contains(driveBrowserQuery, ignoreCase = true))
+                                                }
                                                 .forEach { addSharedDriveItemToLibrary(it, false) }
                                             driveSharedStatus = "Đã thêm $visibleAudioCount bài vào thư viện."
                                         }
