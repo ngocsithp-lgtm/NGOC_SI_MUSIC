@@ -4727,6 +4727,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+            }
 
         Spacer(Modifier.height(10.dp))
     }
@@ -8114,6 +8115,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             Spacer(Modifier.height(6.dp))
             OutlinedButton(onClick = ::clearOnlineLibrary, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text("XÓA URL ONLINE ĐÃ LƯU") }
         }
+    }
     }
 
     @Composable
