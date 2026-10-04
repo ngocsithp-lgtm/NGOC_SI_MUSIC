@@ -122,45 +122,50 @@ class MusicService : MediaSessionService() {
 
     private val playerListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
-            savePlaybackState()
-            broadcastWidget()
-            widgetHandler.removeCallbacks(widgetTicker)
-            if (isPlaying) widgetHandler.postDelayed(widgetTicker, 2000L)
+            widgetHandler.post {
+                savePlaybackState()
+                broadcastWidget()
+                widgetHandler.removeCallbacks(widgetTicker)
+                if (isPlaying) widgetHandler.postDelayed(widgetTicker, 2000L)
+            }
         }
 
         override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
-            savePlaybackState()
-            broadcastWidget()
+            widgetHandler.post {
+                savePlaybackState()
+                broadcastWidget()
+            }
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
-            savePlaybackState()
-            broadcastWidget()
+            widgetHandler.post {
+                savePlaybackState()
+                broadcastWidget()
+            }
         }
 
         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-            // A Drive OAuth token can expire during an active HTTP request. Refresh
-            // the token and retry the same item once instead of leaving playback
-            // permanently stopped at the lock screen/background.
-            if (isDriveAuthorizationError(error) && !driveRecoveryInProgress) {
-                recoverDrivePlayback()
+            widgetHandler.post {
+                if (isDriveAuthorizationError(error) && !driveRecoveryInProgress) {
+                    recoverDrivePlayback()
+                }
+                savePlaybackState()
+                broadcastWidget()
             }
-            savePlaybackState()
-            broadcastWidget()
         }
 
         override fun onMediaMetadataChanged(mediaMetadata: androidx.media3.common.MediaMetadata) {
-            // Persist metadata changes as well so lock-screen/notification state
-            // remains consistent after the Activity is gone or the service resumes.
-            savePlaybackState()
-            broadcastWidget()
+            widgetHandler.post {
+                savePlaybackState()
+                broadcastWidget()
+            }
         }
 
         override fun onPlaybackParametersChanged(playbackParameters: androidx.media3.common.PlaybackParameters) {
-            // Persist speed changes immediately, including when playback is paused
-            // or changed from a lock-screen/headset/car controller.
-            savePlaybackState()
-            broadcastWidget()
+            widgetHandler.post {
+                savePlaybackState()
+                broadcastWidget()
+            }
         }
 
         override fun onPositionDiscontinuity(
@@ -168,10 +173,10 @@ class MusicService : MediaSessionService() {
             newPosition: Player.PositionInfo,
             reason: Int
         ) {
-            // Persist immediately after seek/previous/next, including when paused.
-            // This avoids losing a manually selected position before the next ticker.
-            savePlaybackState()
-            broadcastWidget()
+            widgetHandler.post {
+                savePlaybackState()
+                broadcastWidget()
+            }
         }
     }
 
