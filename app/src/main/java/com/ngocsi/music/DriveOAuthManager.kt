@@ -23,6 +23,7 @@ import kotlinx.coroutines.withContext
 class DriveOAuthManager(private val context: Context) {
     companion object {
         const val DRIVE_READ_SCOPE = "https://www.googleapis.com/auth/drive.readonly"
+        const val DRIVE_APPDATA_SCOPE = "https://www.googleapis.com/auth/drive.appdata"
         const val REQUEST_CODE = 7401
     }
 
@@ -31,7 +32,7 @@ class DriveOAuthManager(private val context: Context) {
             .requestEmail()
             // Primary Drive authorization path: request the Drive scope
             // together with Google account selection.
-            .requestScopes(Scope(DRIVE_READ_SCOPE))
+            .requestScopes(Scope(DRIVE_READ_SCOPE), Scope(DRIVE_APPDATA_SCOPE))
             .build()
         return GoogleSignIn.getClient(context, options).signInIntent
     }
@@ -44,7 +45,7 @@ class DriveOAuthManager(private val context: Context) {
         // Use Google Play services permission state instead of relying only on
         // grantedScopes returned by the cached account object. The latter can be
         // stale after the user changes Drive consent.
-        return GoogleSignIn.hasPermissions(account, Scope(DRIVE_READ_SCOPE))
+        return GoogleSignIn.hasPermissions(account, Scope(DRIVE_READ_SCOPE), Scope(DRIVE_APPDATA_SCOPE))
     }
 
     fun isSignedIn(): Boolean = lastAccount() != null && hasDriveScope()
@@ -107,7 +108,7 @@ class DriveOAuthManager(private val context: Context) {
             GoogleAuthUtil.getToken(
                 context,
                 googleAccount,
-                "oauth2:$DRIVE_READ_SCOPE"
+                "oauth2:$DRIVE_READ_SCOPE $DRIVE_APPDATA_SCOPE"
             )
         }.getOrNull()
     }
