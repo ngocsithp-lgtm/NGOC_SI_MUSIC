@@ -866,6 +866,7 @@ class MainActivity : ComponentActivity() {
             }
         }
         val savedDriveUris = driveSourcePrefs.getStringSet("drive_uris", emptySet()) ?: emptySet()
+        val savedDriveSourceNames = loadDriveSourceNames()
         val savedOnlineUris = prefs.getStringSet("online_uris", emptySet()) ?: emptySet()
         val existing = result.map { it.uri.toString() }.toMutableSet()
 
@@ -900,7 +901,19 @@ class MainActivity : ComponentActivity() {
             val uri = Uri.parse(raw)
             if (existing.add(raw)) {
                 val song = songFromUri(uri)
-                if (song != null) result += song else staleDriveUris += raw
+                if (song != null) {
+                    val savedSourceName = savedDriveSourceNames[raw].orEmpty()
+                    result += if (savedSourceName.isNotBlank()) {
+                        song.copy(
+                            source = driveSongSource(savedSourceName),
+                            folder = savedSourceName
+                        )
+                    } else {
+                        song
+                    }
+                } else {
+                    staleDriveUris += raw
+                }
             }
         }
         if (staleDriveUris.isNotEmpty()) {
@@ -1070,7 +1083,8 @@ class MainActivity : ComponentActivity() {
         // immediately before playback, including after an app restart, so a
         // previously saved Drive item does not fail because prefs contains an
         // expired token. The recursive call is guarded by driveTokenReady.
-        if (!driveTokenReady && songs[index].source == "Google Drive" && (songs[index].uri.scheme.equals("content", true) || songs[index].uri.scheme.equals("https", true))) {
+        if (!driveTokenReady && songs[index].source.startsWith("Google Drive", ignoreCase = true) &&
+            (songs[index].uri.scheme.equals("content", true) || songs[index].uri.scheme.equals("https", true))) {
             errorMessage = "Đang xác thực Google Drive để phát…"
             lifecycleScope.launch {
                 val token = driveOAuthManager.accessToken()
@@ -1284,7 +1298,8 @@ class MainActivity : ComponentActivity() {
                         "drive_audio_" + kotlin.math.abs(uri.toString().hashCode())
                     }
                 val importsDir = File(filesDir, "drive_imports").apply { mkdirs() }
-                val target = File(importsDir, safeName)
+                val stablePrefix = "drive_" + kotlin.math.abs(uri.toString().hashCode())
+                val target = File(importsDir, stablePrefix + "_" + safeName)
                 if (!target.exists() || target.length() <= 0L) {
                     contentResolver.openInputStream(uri)?.use { input ->
                         target.outputStream().use { output ->
