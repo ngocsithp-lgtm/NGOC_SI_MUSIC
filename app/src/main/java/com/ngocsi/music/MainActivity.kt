@@ -1711,52 +1711,38 @@ class MainActivity : ComponentActivity() {
         driveImportJob = lifecycleScope.launch {
             try {
                 val loaded = withContext(Dispatchers.IO) {
-                    val token = driveOAuthManager.accessToken()
-                        ?: error("Không lấy được phiên Google Drive. Hãy đăng nhập lại.")
+                    val token = driveOAuthManager.accessToken() ?: error("Không lấy được phiên Google Drive. Hãy đăng nhập lại.")
                     prefs.edit().putString("drive_access_token", token).apply()
-                    val collected = mutableListOf<SharedDriveItem>()
-                    var pageToken: String? = null
-                    do {
-                        val q = URLEncoder.encode("'root' in parents and trashed = false", "UTF-8")
-                        val url = "https://www.googleapis.com/drive/v3/files?q=" + q +
-                            "&pageSize=1000&orderBy=folder,name" +
-                            "&fields=nextPageToken,files(id,name,mimeType,size,resourceKey,webContentLink,capabilities/canDownload)" +
-                            "&supportsAllDrives=true&includeItemsFromAllDrives=true" +
-                            (pageToken?.let { "&pageToken=" + URLEncoder.encode(it, "UTF-8") } ?: "")
-                        val json = driveApiGet(url, token)
-                        val files = json.optJSONArray("files") ?: JSONArray()
+                    val q = URLEncoder.encode("'root' in parents and trashed = false", "UTF-8")
+                    val url = "https://www.googleapis.com/drive/v3/files?q=" + q +
+                        "&pageSize=1000&orderBy=folder,name" +
+                        "&fields=files(id,name,mimeType,size,resourceKey,webContentLink,capabilities/canDownload)" +
+                        "&supportsAllDrives=true&includeItemsFromAllDrives=true"
+                    val json = driveApiGet(url, token)
+                    val files = json.optJSONArray("files") ?: JSONArray()
+                    buildList {
                         for (i in 0 until files.length()) {
                             val item = files.optJSONObject(i) ?: continue
                             val id = item.optString("id").trim()
                             val name = item.optString("name").ifBlank { "Google Drive" }
                             val mime = item.optString("mimeType").trim()
-                            val canDownload = item.optJSONObject("capabilities")
-                                ?.optBoolean("canDownload", true) ?: true
+                            val canDownload = item.optJSONObject("capabilities")?.optBoolean("canDownload", true) ?: true
                             if (id.isNotBlank() &&
                                 (mime == "application/vnd.google-apps.folder" ||
-                                    (canDownload && isSupportedDriveAudio(name, mime)))
-                            ) {
-                                collected += SharedDriveItem(
-                                    id, name, mime,
-                                    item.optString("resourceKey").trim(),
-                                    item.optLong("size", 0L),
-                                    item.optString("webContentLink").trim()
-                                )
+                                    (canDownload && isSupportedDriveAudio(name, mime)))) {
+                                add(SharedDriveItem(id, name, mime, item.optString("resourceKey").trim(),
+                                    item.optLong("size", 0L), item.optString("webContentLink").trim()))
                             }
                         }
-                        pageToken = json.optString("nextPageToken").trim().takeIf { it.isNotBlank() }
-                    } while (pageToken != null)
-                    collected
+                    }
                 }
                 driveBrowserItems.clear()
                 driveBrowserItems.addAll(loaded)
                 driveBrowserTitle = "DRIVE CỦA TÔI"
                 driveBrowserFolderId = null
                 driveBrowserResourceKey = null
-                driveBrowserQuery = ""
                 showDriveBrowser = true
                 driveSharedStatus = "Đã tải " + loaded.size + " mục từ Drive"
-                errorMessage = null
             } catch (e: Exception) {
                 errorMessage = "Không tải được Drive: " + (e.message ?: "lỗi không xác định")
             } finally {
@@ -1805,20 +1791,17 @@ class MainActivity : ComponentActivity() {
                 val loaded = withContext(Dispatchers.IO) {
                     val token = driveOAuthManager.accessToken()
                         ?: error("Không lấy được phiên Google Drive.")
-                    val collected = mutableListOf<SharedDriveItem>()
-                    var pageToken: String? = null
-                    do {
-                        val q = URLEncoder.encode(
-                            "'" + folderId + "' in parents and trashed = false",
-                            "UTF-8"
-                        )
-                        val url = "https://www.googleapis.com/drive/v3/files?q=" + q +
-                            "&pageSize=1000&orderBy=folder,name" +
-                            "&fields=nextPageToken,files(id,name,mimeType,size,resourceKey,webContentLink,capabilities/canDownload)" +
-                            "&supportsAllDrives=true&includeItemsFromAllDrives=true" +
-                            (pageToken?.let { "&pageToken=" + URLEncoder.encode(it, "UTF-8") } ?: "")
-                        val json = driveApiGet(url, token)
-                        val files = json.optJSONArray("files") ?: JSONArray()
+                    val q = URLEncoder.encode(
+                        "'" + folderId + "' in parents and trashed = false",
+                        "UTF-8"
+                    )
+                    val url = "https://www.googleapis.com/drive/v3/files?q=" + q +
+                        "&pageSize=1000&orderBy=folder,name" +
+                        "&fields=files(id,name,mimeType,size,resourceKey,webContentLink,capabilities/canDownload)" +
+                        "&supportsAllDrives=true&includeItemsFromAllDrives=true"
+                    val json = driveApiGet(url, token)
+                    val files = json.optJSONArray("files") ?: JSONArray()
+                    buildList {
                         for (i in 0 until files.length()) {
                             val file = files.optJSONObject(i) ?: continue
                             val id = file.optString("id").trim()
@@ -1830,34 +1813,257 @@ class MainActivity : ComponentActivity() {
                                 (mime == "application/vnd.google-apps.folder" ||
                                     (canDownload && isSupportedDriveAudio(name, mime)))
                             ) {
-                                collected += SharedDriveItem(
-                                    id, name, mime,
-                                    file.optString("resourceKey").trim(),
-                                    file.optLong("size", 0L),
-                                    file.optString("webContentLink").trim()
+                                add(
+                                    SharedDriveItem(
+                                        id,
+                                        name,
+                                        mime,
+                                        file.optString("resourceKey").trim(),
+                                        file.optLong("size", 0L),
+                                        file.optString("webContentLink").trim()
+                                    )
                                 )
                             }
                         }
-                        pageToken = json.optString("nextPageToken").trim().takeIf { it.isNotBlank() }
-                    } while (pageToken != null)
-                    collected
+                    }
                 }
                 driveBrowserItems.clear()
                 driveBrowserItems.addAll(loaded)
                 driveBrowserTitle = title
                 driveBrowserFolderId = folderId
                 driveBrowserResourceKey = resourceKey
-                driveBrowserQuery = ""
                 showDriveBrowser = true
-                driveSharedStatus = "Đã tải " + loaded.size + " mục trong “" + title + "”"
+                driveSharedStatus = "Đã tải " + loaded.size + " mục từ “" + title + "”"
                 errorMessage = null
             } catch (e: Exception) {
-                errorMessage = "Không tải được thư mục: " + (e.message ?: "lỗi không xác định")
+                driveSharedStatus = "Không thể mở thư mục Drive"
+                errorMessage = e.message ?: "Lỗi không xác định khi đọc Google Drive"
+                if (driveBrowserHistory.isNotEmpty()) {
+                    driveBrowserHistory.removeLastOrNull()
+                }
             } finally {
                 driveSharedLoading = false
                 driveImportJob = null
             }
         }
+    }
+
+    private suspend fun addSharedDriveItemToLibrary(item: SharedDriveItem, playNow: Boolean = false) {
+        val token = driveOAuthManager.accessToken() ?: run { signInGoogleDrive(); return }
+        val uri = sharedDriveMediaUri(item, "")
+        val existing = songs.firstOrNull { it.uri == uri }
+        val song = existing ?: Song(
+            -kotlin.math.abs(uri.toString().hashCode().toLong()),
+            item.name.substringBeforeLast(".").ifBlank { item.name },
+            "Google Drive", 0L, uri, "Google Drive", folder = driveBrowserTitle
+        )
+        if (existing == null) {
+            songs.add(song)
+            if (queueSongs.none { it.uri == song.uri }) queueSongs.add(song)
+            saveSharedDriveItems(loadSharedDriveItems().filterNot { it.id == item.id } + item)
+        }
+        prefs.edit().putString("drive_access_token", token).apply()
+        syncControllerQueue()
+        if (playNow) {
+            val index = songs.indexOfFirst { it.uri == song.uri }
+            if (index >= 0) play(index)
+            showDriveBrowser = false
+        } else {
+            errorMessage = "Đã thêm “" + item.name + "” vào thư viện Google Drive."
+        }
+    }
+
+    private suspend fun addSharedDriveItemsToLibrary(items: List<SharedDriveItem>): Pair<Int, Int> {
+        val token = driveOAuthManager.accessToken() ?: run {
+            signInGoogleDrive()
+            return 0 to items.size
+        }
+        if (items.isEmpty()) return 0 to 0
+
+        val savedItems = loadSharedDriveItems().toMutableList()
+        val savedIds = savedItems.map { it.id }.toMutableSet()
+        var addedCount = 0
+        var existingCount = 0
+
+        items.distinctBy { it.id }.forEach { item ->
+            val uri = sharedDriveMediaUri(item, "")
+            if (songs.any { it.uri == uri }) {
+                existingCount++
+            } else {
+                songs.add(
+                    Song(
+                        -kotlin.math.abs(uri.toString().hashCode().toLong()),
+                        item.name.substringBeforeLast(".").ifBlank { item.name },
+                        "Google Drive", 0L, uri, "Google Drive", folder = driveBrowserTitle
+                    )
+                )
+                if (queueSongs.none { it.uri == uri }) queueSongs.add(songs.last())
+                addedCount++
+            }
+            if (savedIds.add(item.id)) savedItems.add(item)
+        }
+
+        prefs.edit().putString("drive_access_token", token).apply()
+        if (savedIds.size > loadSharedDriveItems().size) {
+            saveSharedDriveItems(savedItems)
+        }
+        if (addedCount > 0) syncControllerQueue()
+        return addedCount to existingCount
+    }
+
+    private fun clearSharedDriveLibrary() {
+        val sharedUris = songs.filter { it.source == "Google Drive" }.map { it.uri.toString() }.toSet()
+        if (sharedUris.isEmpty()) {
+            driveSharedStatus = "Không có nhạc Drive chia sẻ để xóa."
+            return
+        }
+        val activeUri = controller?.currentMediaItem?.localConfiguration?.uri?.toString()
+        prefs.edit().remove("drive_shared_items").apply()
+        songs.removeAll { it.source == "Google Drive" }
+        queueSongs.removeAll { it.source == "Google Drive" }
+        if (activeUri != null && sharedUris.contains(activeUri)) {
+            controller?.stop()
+            currentIndex = -1
+            isPlaying = false
+            position = 0L
+        } else {
+            currentIndex = songs.indexOfFirst { it.uri.toString() == activeUri }
+        }
+        syncControllerQueue()
+        driveSharedStatus = "Đã xóa nhạc Drive chia sẻ khỏi thư viện."
+        errorMessage = "Đã xóa nhạc Google Drive chia sẻ."
+    }
+
+    private fun importSharedDriveLink() {
+        val parsed = extractDriveIdAndResourceKey(driveSharedLink)
+        if (parsed == null) {
+            errorMessage = "Link Google Drive không hợp lệ. Hãy dán link tệp hoặc thư mục Drive."
+            return
+        }
+
+        val apiKey = driveApiKey()
+        if (!driveOAuthSignedIn && apiKey.isBlank()) {
+            driveSharedStatus = "Cần đăng nhập Google Drive để đọc nguồn riêng tư/chia sẻ trực tiếp."
+            signInGoogleDrive { importSharedDriveLink() }
+            return
+        }
+
+        driveImportJob?.cancel()
+        driveSharedLoading = true
+        errorMessage = "Đang kết nối Google Drive được chia sẻ…"
+
+        driveImportJob = lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    val (id, suppliedResourceKey) = parsed
+                    val accessToken = driveOAuthManager.accessToken()
+                    if (accessToken == null && apiKey.isBlank()) error("Cần đăng nhập Google Drive.")
+                    accessToken?.let { prefs.edit().putString("drive_access_token", it).apply() }
+                    val root = inspectSharedDriveItem(id, suppliedResourceKey, apiKey, accessToken)
+                    if (root.optBoolean("trashed", false)) error("Nguồn Drive đã bị xóa.")
+                    val canDownload = root.optJSONObject("capabilities")
+                        ?.optBoolean("canDownload", true) ?: true
+                    if (!canDownload) error("Nguồn Drive không cho phép tải nội dung.")
+
+                    val rootName = root.optString("name").ifBlank { "Google Drive" }
+                    val mime = root.optString("mimeType").trim()
+                    val rootResourceKey = root.optString("resourceKey")
+                        .ifBlank { suppliedResourceKey.orEmpty() }
+                        .ifBlank { null }
+
+                    val collected = mutableListOf<SharedDriveItem>()
+                    if (mime == "application/vnd.google-apps.folder") {
+                        listSharedDriveFolder(
+                            id,
+                            rootResourceKey,
+                            apiKey,
+                            collected,
+                            mutableSetOf(),
+                            accessToken
+                        )
+                    } else {
+                        if (!isSupportedDriveAudio(rootName, mime)) {
+                            error("Link này không trỏ tới tệp âm thanh được hỗ trợ.")
+                        }
+                        collected += SharedDriveItem(
+                            id,
+                            rootName,
+                            mime,
+                            rootResourceKey.orEmpty(),
+                            root.optLong("size", 0L),
+                            root.optString("webContentLink").trim()
+                        )
+                    }
+                    collected.distinctBy { it.id }
+                }
+            }
+
+            result.onSuccess { items ->
+                val currentUris = songs.map { it.uri.toString() }.toMutableSet()
+                val savedItems = loadSharedDriveItems().toMutableList()
+                var added = 0
+
+                items.forEach { item ->
+                    val uri = sharedDriveMediaUri(item, apiKey)
+                    val raw = uri.toString()
+                    if (!currentUris.add(raw)) return@forEach
+
+                    val song = Song(
+                        id = -kotlin.math.abs(raw.hashCode().toLong()),
+                        title = item.name.substringBeforeLast(".").ifBlank { item.name },
+                        artist = "Google Drive • Chia sẻ",
+                        duration = 0L,
+                        uri = uri,
+                        source = "Google Drive",
+                        folder = "Drive chia sẻ"
+                    )
+                    songs.add(song)
+                    if (queueSongs.none { it.uri == uri }) queueSongs.add(song)
+                    savedItems.removeAll { it.id == item.id }
+                    savedItems.add(item)
+                    added++
+                }
+
+                saveSharedDriveItems(savedItems)
+                saveDriveRecentLink(driveSharedLink)
+                driveSharedStatus = "Đã liên kết $added tệp từ nguồn Drive chia sẻ"
+                syncControllerQueue()
+                driveSharedLoading = false
+                driveSharedLink = ""
+                errorMessage = if (added > 0) {
+                    "Đã liên kết $added bài từ Google Drive được chia sẻ."
+                } else {
+                    "Các bài trong link Drive đã có trong thư viện."
+                }
+                driveImportJob = null
+            }.onFailure { e ->
+                driveSharedLoading = false
+                driveImportJob = null
+                driveSharedStatus = "Không thể liên kết nguồn Drive chia sẻ"
+                val message = e.message.orEmpty()
+                errorMessage = when {
+                    message.contains("403") || message.contains("permission", true) ||
+                        message.contains("insufficient", true) ->
+                        if (driveOAuthManager.hasDriveScope()) {
+                            "Tài khoản Google hiện tại không có quyền xem/tải nguồn này."
+                        } else {
+                            "Nguồn này yêu cầu tài khoản Google có quyền truy cập. Hãy bấm ĐĂNG NHẬP DRIVE rồi thử lại."
+                        }
+                    message.contains("401") || message.contains("unauthorized", true) ->
+                        "Phiên Google Drive đã hết hạn. Hãy đăng nhập Google Drive lại."
+                    else ->
+                        "Không đọc được link Google Drive: " +
+                            message.ifBlank { "nguồn không cho phép truy cập trực tiếp" }
+                }
+            }
+        }
+    }
+
+    private fun openDrivePicker() {
+        // Do not restrict the system picker to audio/*: some Google Drive
+        // DocumentsProvider versions expose shared files with a generic MIME.
+        // Let Drive show the shared file, then validate the selected URI locally.
+        drivePickerLauncher.launch(arrayOf("*/*"))
     }
 
     private fun openDriveFolderPicker() {
