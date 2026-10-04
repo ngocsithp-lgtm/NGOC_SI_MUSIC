@@ -1264,6 +1264,16 @@ class MainActivity : ComponentActivity() {
         val webContentLink: String = ""
     )
 
+    private fun formatDriveSize(bytes: Long): String {
+        if (bytes <= 0L) return "Không rõ dung lượng"
+        val kb = bytes / 1024.0
+        if (kb < 1024.0) return String.format(java.util.Locale.getDefault(), "%.0f KB", kb)
+        val mb = kb / 1024.0
+        if (mb < 1024.0) return String.format(java.util.Locale.getDefault(), "%.1f MB", mb)
+        val gb = mb / 1024.0
+        return String.format(java.util.Locale.getDefault(), "%.2f GB", gb)
+    }
+
     private fun driveApiKey(): String = BuildConfig.DRIVE_API_KEY.trim()
 
     private fun extractDriveIdAndResourceKey(raw: String): Pair<String, String?>? {
@@ -6740,11 +6750,15 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         }
                     )
                     Spacer(Modifier.height(8.dp))
-                    if (driveBrowserItems.filter { driveBrowserQuery.isBlank() || it.name.contains(driveBrowserQuery, ignoreCase = true) }.isEmpty()) {
-                        Text("Thư mục không có file âm thanh khả dụng.", color = Color(0xFF9999A5), fontSize = 13.sp)
+                    val visibleDriveItems = driveBrowserItems
+                        .filter { driveBrowserQuery.isBlank() || it.name.contains(driveBrowserQuery, ignoreCase = true) }
+                        .sortedWith(compareBy<SharedDriveItem>({ it.mimeType != "application/vnd.google-apps.folder" }, { it.name.lowercase() }))
+
+                    if (visibleDriveItems.isEmpty()) {
+                        Text("Không có mục phù hợp với từ khóa hiện tại.", color = Color(0xFF9999A5), fontSize = 13.sp)
                     } else {
                         LazyColumn(Modifier.heightIn(max = 560.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                            items(driveBrowserItems.filter { driveBrowserQuery.isBlank() || it.name.contains(driveBrowserQuery, ignoreCase = true) }, key = { it.id }) { item ->
+                            items(visibleDriveItems, key = { it.id }) { item ->
                                 val isFolder = item.mimeType == "application/vnd.google-apps.folder"
                                 Row(
                                     Modifier.fillMaxWidth().clip(RoundedCornerShape(15.dp)).background(Color(0xFF181922)).clickable {
@@ -6762,7 +6776,14 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     Spacer(Modifier.width(10.dp))
                                     Column(Modifier.weight(1f)) {
                                         Text(item.name, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 2, lineHeight = 18.sp, overflow = TextOverflow.Ellipsis)
-                                        Text(if (isFolder) "Thư mục • chạm để mở" else "Google Drive • chạm để phát", color = Color(0xFF858591), fontSize = 11.sp)
+                                        Text(
+                                            if (isFolder) "Thư mục • chạm để mở"
+                                            else "Google Drive • ${formatDriveSize(item.size)} • chạm để phát",
+                                            color = Color(0xFF858591),
+                                            fontSize = 11.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
                                     }
                                     if (!isFolder) TextButton(onClick = { driveBrowserScope.launch { addSharedDriveItemToLibrary(item, false) } }) { Text("THÊM") }
                                     else Text("›", color = Color(0xFFB18CFF), fontSize = 25.sp)
