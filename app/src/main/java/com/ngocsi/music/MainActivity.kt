@@ -4691,9 +4691,6 @@ class MainActivity : ComponentActivity() {
             .distinct()
             .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it })
 
-        val allCount = songs.size
-        val favoriteCount = songs.count { favorites[it.id] == true }
-
         fun sourceTitle(source: String): String {
             var title = source.trim()
             if (title.startsWith("Google Drive • ")) {
@@ -4703,12 +4700,6 @@ class MainActivity : ComponentActivity() {
                 title = title.removePrefix("Chia sẻ • ").trim()
             }
             return title.ifBlank { "Google Drive" }
-        }
-
-        fun sourceCount(source: String): Int = when (source) {
-            "Tất cả" -> allCount
-            "Yêu thích" -> favoriteCount
-            else -> songs.count { it.source == source }
         }
 
         Column(
@@ -4722,20 +4713,20 @@ class MainActivity : ComponentActivity() {
             ) {
                 Column(Modifier.weight(1f)) {
                     Text(
-                        "NGUỒN NHẠC",
+                        "THƯ VIỆN THEO NGUỒN",
                         color = Color.White,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Black,
                         letterSpacing = 1.2.sp
                     )
                     Text(
-                        "Chọn từng nguồn để xem riêng",
+                        "Mỗi nguồn mở thành một thư viện riêng",
                         color = Color(0xFF777D8D),
                         fontSize = 9.sp
                     )
                 }
                 Text(
-                    "\${sourceNames.size} nguồn",
+                    "${sourceNames.size} nguồn",
                     color = Color(0xFF777D8D),
                     fontSize = 10.sp
                 )
@@ -4743,42 +4734,69 @@ class MainActivity : ComponentActivity() {
 
             Spacer(Modifier.height(9.dp))
 
-            val sourceEntries = buildList {
-                add("Tất cả")
-                add("Yêu thích")
-                addAll(sourceNames)
-            }
-
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(end = 16.dp)
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(7.dp)
             ) {
-                items(sourceEntries) { source ->
-                    val isDrive = source.startsWith("Google Drive")
-                    LibrarySourceCard(
-                        title = when (source) {
-                            "Tất cả" -> "Tất cả"
-                            "Yêu thích" -> "Yêu thích"
-                            else -> sourceTitle(source)
+                listOf("Tất cả", "Yêu thích").forEach { filter ->
+                    FilterChip(
+                        selected = selectedLibrary == filter,
+                        onClick = { selectedLibrary = filter },
+                        label = {
+                            Text(
+                                filter,
+                                fontSize = 11.sp,
+                                fontWeight = if (selectedLibrary == filter) FontWeight.Bold else FontWeight.Medium
+                            )
                         },
-                        subtitle = when (source) {
-                            "Tất cả" -> "Mọi nguồn"
-                            "Yêu thích" -> "Đã lưu"
-                            else -> if (isDrive) "Drive" else source
-                        },
-                        count = sourceCount(source),
-                        icon = when (source) {
-                            "Yêu thích" -> "♥"
-                            "Tất cả" -> "♫"
-                            else -> if (isDrive) "☁" else "♫"
-                        },
-                        selected = selectedLibrary == source,
-                        onClick = { selectedLibrary = source },
-                        modifier = Modifier.width(142.dp)
+                        shape = RoundedCornerShape(13.dp)
                     )
                 }
             }
+
+            if (sourceNames.isNotEmpty()) {
+                Spacer(Modifier.height(9.dp))
+                Text(
+                    "NGUỒN RIÊNG",
+                    color = Color(0xFF686F80),
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 1.1.sp
+                )
+                Spacer(Modifier.height(6.dp))
+
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(end = 16.dp)
+                ) {
+                    items(
+                        sourceNames,
+                        key = { "source:" + it }
+                    ) { source ->
+                        val isDrive = source.startsWith("Google Drive", ignoreCase = true)
+                        LibrarySourceCard(
+                            title = sourceTitle(source),
+                            subtitle = if (isDrive) "Google Drive" else source,
+                            count = songs.count { it.source == source },
+                            icon = if (isDrive) "☁" else "♫",
+                            selected = selectedLibrary == source,
+                            onClick = { selectedLibrary = source },
+                            modifier = Modifier.width(148.dp)
+                        )
+                    }
+                }
+            } else {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Chưa có nguồn nhạc. Hãy thêm nhạc từ thiết bị hoặc Google Drive.",
+                    color = Color(0xFF737A8A),
+                    fontSize = 10.sp,
+                    maxLines = 2
+                )
             }
+        }
 
         Spacer(Modifier.height(10.dp))
     }
