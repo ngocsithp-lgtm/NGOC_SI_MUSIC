@@ -121,7 +121,7 @@ jobs:
           echo "=== SHA-1 from actual APK ==="
           SHA1="$(grep -E "certificate SHA-1 digest:" "$OUT/signing-report.txt" | head -n1 | sed 's/.*certificate SHA-1 digest:[[:space:]]*//' | tr -d '\r')"
           echo "SHA-1: $SHA1"
-          EXPECTED_SHA1="53:3F:A1:9C:58:A4:0D:92:66:68:F9:62:96:E7:DB:D3:4D:69:6A:ED"
+          EXPECTED_SHA1="533fa19c58a40d926668f96296e7dbd34d696aed"
           if [ "$SHA1" != "$EXPECTED_SHA1" ]; then
             echo "::error::Unexpected APK signing certificate. Expected stable OAuth SHA-1 $EXPECTED_SHA1 but got $SHA1"
             exit 1
