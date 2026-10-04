@@ -1406,7 +1406,7 @@ class MainActivity : ComponentActivity() {
                         accessToken,
                         depth + 1
                     )
-                } else if (canDownload && isSupportedDriveAudio(name, mime)) {
+                } else if (isSupportedDriveAudio(name, mime)) {
                     result += SharedDriveItem(
                         id,
                         name,
@@ -1591,7 +1591,7 @@ class MainActivity : ComponentActivity() {
                                     visited,
                                     accessToken
                                 )
-                            } else if (canDownload && isSupportedDriveAudio(name, mime)) {
+                            } else if (isSupportedDriveAudio(name, mime)) {
                                 collected += SharedDriveItem(
                                     id,
                                     name,
@@ -3198,3 +3198,3863 @@ class MainActivity : ComponentActivity() {
         c.play()
 
         currentIndex = songs.indexOfFirst { it.uri == orderedSongs.first().uri }
+        position = 0L
+        savedPosition = 0L
+        lastSongUri = orderedSongs.first().uri.toString()
+        saveQueueOrder()
+        savePlaybackState()
+        showPlaylists = false
+        errorMessage = "Đang phát playlist: " + playlist.name
+    }
+
+    override fun onResume() {
+        super.onResume()
+
+        // Refresh YouTube library state after returning from the in-app player.
+        // The player writes favorites/watch-later directly to SharedPreferences,
+        // so the PRO/YouTube surface must reload them without requiring an app restart.
+        if (::prefs.isInitialized) {
+            loadYouTubeLibraryState()
+            loadYouTubeWatchLater()
+        }
+
+        // Re-synchronize the Activity with Media3 after returning from the
+        // background or a notification control. The service remains authoritative
+        // so reopening the screen never resets the active queue or playback state.
+        controller?.let { c ->
+            val activeUri = c.currentMediaItem?.localConfiguration?.uri?.toString()
+            if (activeUri != null) {
+                val libraryIndex = songs.indexOfFirst { it.uri.toString() == activeUri }
+                if (libraryIndex >= 0) {
+                    currentIndex = libraryIndex
+                    lastSongUri = activeUri
+                }
+            }
+            position = c.currentPosition.coerceAtLeast(0L)
+            isPlaying = c.isPlaying
+            shuffleEnabled = c.shuffleModeEnabled
+            repeatMode = c.repeatMode
+        }
+    }
+
+    override fun onStop() {
+        // Persist the latest position even when the Activity leaves the foreground.
+        // MusicService/MediaSession remains alive for background playback.
+        if (::prefs.isInitialized) savePlaybackState()
+        super.onStop()
+    }
+
+    override fun onDestroy() {
+        cancelRadioRecovery()
+        sleepTimerJob?.cancel()
+        jamendoSearchJob?.cancel()
+        audiusSearchJob?.cancel()
+        youtubeSearchJob?.cancel()
+        driveImportJob?.cancel()
+        driveImportJob = null
+        speechRecognizer?.destroy()
+        speechRecognizer = null
+        savePlaybackState()
+        controller?.removeListener(playerListener)
+        controller?.release()
+        controller = null
+        super.onDestroy()
+    }
+
+
+    @Composable
+    private fun NgocSiMusicApp() {
+        val currentSong = songs.getOrNull(currentIndex)
+        val filteredSongs = remember(searchQuery, songs.size, selectedLibrary, favorites.size, libraryView) {
+            val q = searchQuery.trim()
+            val byText = if (q.isBlank()) songs.toList() else songs.filter {
+                it.title.contains(q, true) || it.artist.contains(q, true) || it.source.contains(q, true)
+            }
+            val bySource = when (selectedLibrary) {
+                "Yêu thích" -> byText.filter { favorites[it.id] == true }
+                "Thiết bị" -> byText.filter { it.source == "Thiết bị" }
+                "Google Drive" -> byText.filter { it.source == "Google Drive" }
+                "Online" -> byText.filter { it.source in setOf("Online", "Jamendo", "Audius", "Radio Việt Nam") }
+                else -> byText
+            }
+            when (libraryView) {
+                "Nghệ sĩ" -> bySource.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.artist })
+                "Album" -> bySource.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title.substringBefore(" - ") })
+                "Thư mục" -> bySource.sortedWith(compareBy<Song> { it.folder.ifBlank { it.source }.lowercase() }.thenBy { it.title.lowercase() })
+                else -> bySource.sortedBy { it.title.lowercase() }
+            }
+        }
+
+        LaunchedEffect(isPlaying, currentIndex) {
+            while (isPlaying) {
+                controller?.let {
+                    val liveDuration = it.duration
+                    if (liveDuration > 0L) duration = liveDuration
+                    position = it.currentPosition.coerceAtLeast(0L)
+                    if (duration > 0L && position >= duration) position = duration
+                }
+                delay(500)
+            }
+        }
+
+        MaterialTheme(
+            colorScheme = darkColorScheme(
+                background = NgocSiVisuals.Background,
+                surface = NgocSiVisuals.Surface,
+                primary = NgocSiVisuals.Primary,
+                secondary = NgocSiVisuals.Secondary
+            )
+        ) {
+            Surface(
+                Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
+                color = Color(0xFF08090D)
+            ) {
+                Column(Modifier.fillMaxSize()) {
+                    Header()
+                    SearchBarModern()
+                    Spacer(Modifier.height(8.dp))
+
+                    when (selectedSection) {
+                        "Trang chủ" -> {
+                            LazyColumn(
+                                Modifier.weight(1f),
+                                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 12.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                item { HomeHero(currentSong) }
+                                item { LibraryChips() }
+                                item { HomeCollections() }
+                                item { PlayerCard(currentSong) }
+                                item {
+                                    Text(
+                                        "TRUY CẬP NHANH",
+                                        color = Color(0xFF8F8F9D),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        letterSpacing = 1.2.sp
+                                    )
+                                }
+                                item { QuickActions() }
+                                item {
+                                    Row(
+                                        Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text("THƯ VIỆN", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
+                                        TextButton(onClick = { selectedSection = "Thư viện" }) { Text("XEM TẤT CẢ") }
+                                    }
+                                }
+                                itemsIndexed(
+                                    filteredSongs.take(8),
+                                    key = { _, song -> "home:" + song.uri.toString() }
+                                ) { _, song ->
+                                    val realIndex = songs.indexOfFirst { it.uri == song.uri }
+                                    SongRow(song, realIndex, realIndex == currentIndex)
+                                }
+                            }
+                        }
+
+                        "Thư viện" -> {
+                            Column(Modifier.weight(1f).fillMaxWidth()) {
+                                LibraryViewTabs()
+                                Spacer(Modifier.height(8.dp))
+                                Row(
+                                    Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        "THƯ VIỆN • ${filteredSongs.size} bài",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 17.sp,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        TextButton(
+                                            onClick = { playFilteredSongs(filteredSongs) },
+                                            enabled = filteredSongs.isNotEmpty()
+                                        ) { Text("PHÁT TẤT CẢ") }
+                                        TextButton(onClick = {
+                                            loadSongs()
+                                            selectedLibrary = "Tất cả"
+                                            libraryView = "Bài hát"
+                                            errorMessage = null
+                                        }) { Text("LÀM MỚI") }
+                                    }
+                                }
+                                errorMessage?.let {
+                                    Text(
+                                        it,
+                                        color = Color(0xFFFFB4AB),
+                                        fontSize = 13.sp,
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                                    )
+                                }
+                                LazyColumn(
+                                    Modifier.weight(1f),
+                                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    itemsIndexed(
+                                        filteredSongs,
+                                        key = { _, song -> "library:" + song.uri.toString() }
+                                    ) { _, song ->
+                                        val realIndex = songs.indexOfFirst { it.uri == song.uri }
+                                        SongRow(song, realIndex, realIndex == currentIndex)
+                                    }
+                                }
+                            }
+                        }
+
+                        "TV" -> {
+                            TvHub()
+                        }
+
+                        "Bản đồ" -> {
+                            MapHub()
+                        }
+
+                        "Online" -> {
+                            Column(
+                                Modifier.weight(1f).fillMaxWidth()
+                                    .verticalScroll(rememberScrollState())
+                                    .padding(horizontal = 16.dp)
+                            ) {
+                                OnlineSourcesCard()
+                                Spacer(Modifier.height(12.dp))
+                                Text(
+                                    "Nguồn đã nhập: ${songs.count { it.source == "Google Drive" }} bài",
+                                    color = Color(0xFF9B9BA8),
+                                    fontSize = 13.sp
+                                )
+                                Spacer(Modifier.height(24.dp))
+                            }
+                        }
+
+                        "Radio" -> {
+                            Column(
+                                Modifier.weight(1f).fillMaxWidth()
+                                    .verticalScroll(rememberScrollState())
+                                    .padding(horizontal = 16.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(24.dp),
+                                    color = Color(0xFF11131A),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF252936))
+                                ) {
+                                    Column(Modifier.padding(18.dp)) {
+                                        Text("RADIO VIỆT NAM", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                                        Spacer(Modifier.height(6.dp))
+                                        Text(
+                                            if (activeRadioTitle != null) "Đang phát: $activeRadioTitle" else "Chọn đài để bắt đầu phát",
+                                            color = Color(0xFF9C9DA9),
+                                            fontSize = 13.sp
+                                        )
+                                        Spacer(Modifier.height(14.dp))
+                                        Row(
+                                            Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Button(
+                                                onClick = { showVietnamRadioHub = true },
+                                                modifier = Modifier.weight(1f),
+                                                shape = RoundedCornerShape(14.dp)
+                                            ) {
+                                                Text("TẤT CẢ ĐÀI")
+                                            }
+                                            OutlinedButton(
+                                                onClick = { selectedSection = "Online"; onlineHubTab = "YouTube" },
+                                                modifier = Modifier.weight(1f),
+                                                shape = RoundedCornerShape(14.dp)
+                                            ) {
+                                                Text("YOUTUBE")
+                                            }
+                                        }
+                                        if (activeRadioTitle != null) {
+                                            Spacer(Modifier.height(8.dp))
+                                            OutlinedButton(
+                                                onClick = { controller?.pause() },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                shape = RoundedCornerShape(14.dp)
+                                            ) {
+                                                Text("TẠM DỪNG RADIO")
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Text(
+                                    "ĐÀI NỔI BẬT",
+                                    color = Color.White,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    letterSpacing = 1.sp
+                                )
+
+                                RadioCatalog.stations.forEach { station ->
+                                    RadioStationCard(station)
+                                }
+
+                                errorMessage?.takeIf { activeRadioTitle != null }?.let {
+                                    Text(it, color = Color(0xFFFFB4AB), fontSize = 13.sp)
+                                }
+                            }
+                        }
+
+                        "Cài đặt" -> {
+                            Column(
+                                Modifier.weight(1f).fillMaxWidth()
+                                    .verticalScroll(rememberScrollState())
+                            ) {
+                                SettingsPanel()
+                            }
+                        }
+                    }
+
+                    currentSong?.let { MiniPlayer(it) }
+                    BottomNav()
+                }
+            }
+        }
+
+        currentSong?.let { if (showNowPlaying) NowPlayingDialog(it) }
+        if (showDriveBrowser) DriveBrowserDialog()
+        if (showQueue) QueueDialog()
+        if (showPlaylists) PlaylistManagerDialog()
+        playlistDetailId?.let { id ->
+            playlists.firstOrNull { it.id == id }?.let { PlaylistDetailDialog(it) }
+        }
+        playlistTargetSongUri?.let { targetUri ->
+            songs.firstOrNull { it.uri.toString() == targetUri }?.let { PlaylistPickerDialog(it) }
+        }
+        if (showCreatePlaylist) CreatePlaylistDialog()
+        if (showVietnamRadioHub) VietnamRadioHubDialog()
+        if (showTvSourceDialog) TvSourceDialog()
+        radioWebUrl?.let { RadioWebViewDialog(it, radioWebTitle) }
+    }
+
+    @Composable
+    private fun Header() {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .clip(RoundedCornerShape(15.dp))
+                    .background(
+                        Brush.linearGradient(
+                            listOf(Color(0xFF8C64E8), Color(0xFF4E3A8B))
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "NS",
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Black
+                )
+            }
+
+            Spacer(Modifier.width(12.dp))
+
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "NGỌC SĨ MUSIC",
+                    color = Color.White,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 0.2.sp
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "ÂM NHẠC • RADIO • ONLINE",
+                        color = NgocSiVisuals.TextSecondary,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.6.sp
+                    )
+                    Spacer(Modifier.width(7.dp))
+                    Surface(
+                        shape = RoundedCornerShape(7.dp),
+                        color = Color(0x3320202B),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, NgocSiVisuals.Primary.copy(alpha = 0.45f))
+                    ) {
+                        Text(
+                            "PRO",
+                            color = NgocSiVisuals.Primary,
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Black,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                        )
+                    }
+                }
+            }
+
+            IconButton(onClick = { showPlaylists = true }) {
+                Text("♫", color = Color(0xFFCDBAFF), fontSize = 23.sp)
+            }
+            IconButton(onClick = { selectedSection = "Cài đặt" }) {
+                Text("⚙", color = Color(0xFFA7A9B7), fontSize = 21.sp)
+            }
+        }
+    }
+
+    @Composable
+    private fun SearchBarModern() {
+        val runSearch = {
+            val q = searchQuery.trim()
+            if (q.isBlank()) {
+                selectedSection = "Thư viện"
+            } else {
+                youtubeQuery = q
+                jamendoQuery = q
+                onlineSearchActive = true
+                jamendoTracks.clear()
+                audiusTracks.clear()
+                youtubeTracks.clear()
+                youtubeNextPageToken = null
+                selectedSection = "Online"
+                searchJamendo()
+                searchAudius(q)
+                searchYouTube()
+            }
+        }
+
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            singleLine = true,
+            placeholder = { Text("Tìm bài hát, nghệ sĩ, album...", color = Color(0xFF777D8D)) },
+            leadingIcon = { Text("⌕", color = Color(0xFFB18CFF), fontSize = 25.sp) },
+            trailingIcon = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(enabled = !isVoiceSearching, onClick = ::startVoiceSearch) {
+                        Text(
+                            if (isVoiceSearching) "…" else "🎙",
+                            color = if (isVoiceSearching) Color(0xFF7DD3FC) else Color(0xFFB18CFF),
+                            fontSize = 18.sp
+                        )
+                    }
+                    IconButton(onClick = runSearch) {
+                        Text("›", color = Color(0xFFB7B4C6), fontSize = 27.sp)
+                    }
+                }
+            },
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = { runSearch() }),
+            shape = RoundedCornerShape(18.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                unfocusedContainerColor = Color(0xFF11131A),
+                focusedContainerColor = Color(0xFF151722),
+                unfocusedBorderColor = Color(0xFF252936),
+                focusedBorderColor = Color(0xFF8F6FE8)
+            )
+        )
+    }
+
+    @Composable
+    private fun HomeHero(song: Song?) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(26.dp),
+            color = Color.Transparent
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        Brush.linearGradient(
+                            listOf(Color(0xFF2A2044), Color(0xFF121722))
+                        ),
+                        RoundedCornerShape(26.dp)
+                    )
+                    .padding(18.dp)
+            ) {
+                Column {
+                    Text(
+                        "NGHE NHẠC THEO CÁCH CỦA BẠN",
+                        color = Color(0xFFBFA9FF),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 1.8.sp
+                    )
+                    Spacer(Modifier.height(5.dp))
+                    Text(
+                        song?.title ?: "Sẵn sàng phát nhạc",
+                        color = Color.White,
+                        fontSize = 21.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        song?.artist ?: "Thiết bị • Google Drive • YouTube • Radio",
+                        color = Color(0xFFA8AAB8),
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    Spacer(Modifier.height(14.dp))
+
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        HeroAction(
+                            icon = "▶",
+                            label = "Đang phát",
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                if (song != null) showNowPlaying = true
+                                else if (songs.isNotEmpty()) selectedSection = "Thư viện"
+                            }
+                        )
+                        HeroAction(
+                            icon = "🎧",
+                            label = "YouTube",
+                            modifier = Modifier.weight(1f),
+                            onClick = { selectedSection = "Online"; onlineHubTab = "YouTube" }
+                        )
+                        HeroAction(
+                            icon = "📻",
+                            label = "Radio",
+                            modifier = Modifier.weight(1f),
+                            onClick = { selectedSection = "Radio"; showVietnamRadioHub = true }
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun HeroAction(
+        icon: String,
+        label: String,
+        modifier: Modifier = Modifier,
+        onClick: () -> Unit
+    ) {
+        Surface(
+            modifier = modifier.clickable(onClick = onClick),
+            shape = RoundedCornerShape(16.dp),
+            color = Color(0x3320202B),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x332F3150))
+        ) {
+            Column(
+                modifier = Modifier.padding(vertical = 9.dp, horizontal = 7.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(icon, color = Color.White, fontSize = 17.sp)
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    label,
+                    color = Color(0xFFD6D5DE),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+
+    @Composable
+    private fun HomeCollections() {
+        val collections = listOf(
+            Triple("♫", "Bài hát", "${songs.size}"),
+            Triple("♥", "Yêu thích", favorites.count { it.value }.toString()),
+            Triple("▣", "Playlist", playlists.size.toString()),
+            Triple("☷", "Hàng đợi", queueSongs.size.toString())
+        )
+        Column(Modifier.fillMaxWidth()) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                collections.take(2).forEach { (icon, title, count) ->
+                    CollectionCard(icon, title, count, Modifier.weight(1f))
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                collections.drop(2).forEach { (icon, title, count) ->
+                    CollectionCard(icon, title, count, Modifier.weight(1f))
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun CollectionCard(
+        icon: String,
+        title: String,
+        count: String,
+        modifier: Modifier = Modifier
+    ) {
+        Surface(
+            modifier = modifier.clickable {
+                when (title) {
+                    "Bài hát" -> {
+                        selectedSection = "Thư viện"
+                        selectedLibrary = "Tất cả"
+                        libraryView = "Bài hát"
+                    }
+                    "Yêu thích" -> {
+                        selectedSection = "Thư viện"
+                        selectedLibrary = "Yêu thích"
+                        libraryView = "Bài hát"
+                    }
+                    "Playlist" -> showPlaylists = true
+                    "Hàng đợi" -> showQueue = true
+                }
+            },
+            shape = RoundedCornerShape(18.dp),
+            color = Color(0xFF15161E),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF252936))
+        ) {
+            Column(Modifier.padding(horizontal = 12.dp, vertical = 12.dp)) {
+                Text(icon, color = Color(0xFFC8B7FF), fontSize = 22.sp)
+                Spacer(Modifier.height(4.dp))
+                Text(title, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                Text("$count mục", color = Color(0xFF888894), fontSize = 11.sp)
+            }
+        }
+    }
+
+    @Composable
+    private fun LibraryChips() {
+        val tabs = listOf("Tất cả", "Yêu thích", "Thiết bị", "Google Drive", "Online")
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            tabs.forEach { tab ->
+                FilterChip(
+                    selected = selectedLibrary == tab,
+                    onClick = { selectedLibrary = tab },
+                    label = { Text(tab) },
+                    shape = RoundedCornerShape(14.dp)
+                )
+            }
+        }
+    }
+
+    @Composable
+    private fun LibraryViewTabs() {
+        Row(
+            Modifier.padding(horizontal = 16.dp).fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            listOf("Bài hát", "Nghệ sĩ", "Album", "Thư mục").forEach { tab ->
+                FilterChip(
+                    selected = libraryView == tab,
+                    onClick = { libraryView = tab },
+                    label = { Text(tab) },
+                    shape = RoundedCornerShape(14.dp)
+                )
+            }
+        }
+    }
+
+    @Composable
+    private fun QuickActions() {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            FilledTonalButton(
+                onClick = { selectedSection = "Thư viện" },
+                modifier = Modifier.weight(1f).height(68.dp),
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("♫", fontSize = 20.sp)
+                    Text("Thư viện", fontWeight = FontWeight.Bold)
+                }
+            }
+            FilledTonalButton(
+                onClick = { selectedSection = "Online" },
+                modifier = Modifier.weight(1f).height(68.dp),
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("☁", fontSize = 20.sp)
+                    Text("Online", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            OutlinedButton(
+                onClick = { selectedSection = "Radio"; showVietnamRadioHub = true },
+                modifier = Modifier.weight(1f).height(62.dp),
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("📻", fontSize = 18.sp)
+                    Text("Radio", fontWeight = FontWeight.Bold)
+                }
+            }
+            OutlinedButton(
+                onClick = { showQueue = true },
+                modifier = Modifier.weight(1f).height(62.dp),
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("☷", fontSize = 18.sp)
+                    Text("Hàng đợi", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            OutlinedButton(
+                onClick = { selectedSection = "TV" },
+                modifier = Modifier.weight(1f).height(62.dp),
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("📺", fontSize = 18.sp)
+                    Text("TV", fontWeight = FontWeight.Bold)
+                }
+            }
+            OutlinedButton(
+                onClick = { selectedSection = "Bản đồ" },
+                modifier = Modifier.weight(1f).height(62.dp),
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("🗺️", fontSize = 18.sp)
+                    Text("Bản đồ", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            OutlinedButton(
+                onClick = { selectedSection = "Online"; driveSharedStatus = "Mở trung tâm Google Drive" },
+                modifier = Modifier.weight(1f).height(62.dp),
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("☁", fontSize = 18.sp)
+                    Text("Google Drive", fontWeight = FontWeight.Bold, maxLines = 1)
+                }
+            }
+            OutlinedButton(
+                onClick = { showSleepTimer = true },
+                modifier = Modifier.weight(1f).height(62.dp),
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("🌙", fontSize = 18.sp)
+                    Text("Hẹn giờ", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun BottomNav() {
+        NavigationBar(
+            containerColor = Color(0xFF0D0F14),
+            tonalElevation = 8.dp
+        ) {
+            listOf(
+                "Trang chủ" to "⌂",
+                "Thư viện" to "♫",
+                "Online" to "▶",
+                "Radio" to "📻",
+                "Cài đặt" to "⚙"
+            ).forEach { (name, icon) ->
+                val selected = selectedSection == name
+                NavigationBarItem(
+                    selected = selected,
+                    onClick = { selectedSection = name },
+                    icon = {
+                        Box(
+                            Modifier
+                                .size(if (selected) 40.dp else 32.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (selected) Color(0xFF33264F)
+                                    else Color.Transparent
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                icon,
+                                color = if (selected) Color.White else Color(0xFF9295A5),
+                                fontSize = 17.sp
+                            )
+                        }
+                    },
+                    label = {
+                        Text(
+                            when (name) {
+                                "Trang chủ" -> "Trang chủ"
+                                "Thư viện" -> "Nhạc"
+                                else -> name
+                            },
+                            fontSize = 9.sp,
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                            maxLines = 1
+                        )
+                    }
+                )
+            }
+        }
+    }
+
+    @Composable
+    private fun SettingsPanel() {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("CÀI ĐẶT", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+            SettingsRow("⏱", "Hẹn giờ tắt nhạc", if (sleepMinutes > 0) "${sleepMinutes} phút" else "Tắt") { showSleepTimer = true }
+            SettingsRow("🔀", "Phát ngẫu nhiên", if (shuffleEnabled) "Đang bật" else "Đang tắt") { toggleShuffle() }
+            SettingsRow("🔁", "Lặp lại", when (repeatMode) { Player.REPEAT_MODE_ONE -> "Một bài"; Player.REPEAT_MODE_ALL -> "Tất cả"; else -> "Tắt" }) { cycleRepeat() }
+            SettingsRow("⏩", "Tốc độ phát", "${selectedPlaybackSpeed}x") { showPlaybackSpeed = true }
+            SettingsRow("☁", "Google Drive", songs.count { it.source == "Google Drive" }.toString() + " bài đã nhập") { selectedSection = "Online" }
+            SettingsRow("📺", "TV", (TvCatalog.builtIn.size + customTvSources.size).toString() + " nguồn TV") { selectedSection = "TV" }
+            SettingsRow("🗺️", "Bản đồ", "Bản đồ + giao thông thời gian thực") { selectedSection = "Bản đồ" }
+            SettingsRow("♫", "Playlist", playlists.size.toString() + " danh sách đã tạo") { showPlaylists = true }
+            OutlinedButton(onClick = ::clearDriveLibrary, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                Text("XÓA NHẠC GOOGLE DRIVE KHỎI ỨNG DỤNG")
+            }
+        }
+        if (showPlaybackSpeed) {
+            AlertDialog(
+                onDismissRequest = { showPlaybackSpeed = false },
+                title = { Text("Tốc độ phát") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f).forEach { speed ->
+                            OutlinedButton(
+                                onClick = {
+                                    setPlaybackSpeed(speed)
+                                    showPlaybackSpeed = false
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(if (speed == selectedPlaybackSpeed) "✓ ${speed}x" else "${speed}x")
+                            }
+                        }
+                    }
+                },
+                confirmButton = {}
+            )
+        }
+        if (showSleepTimer) {
+            AlertDialog(
+                onDismissRequest = { showSleepTimer = false },
+                title = { Text("Hẹn giờ tắt nhạc") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(15, 30, 45, 60, 90, 120).forEach { min ->
+                            OutlinedButton(onClick = {
+                                startSleepTimer(min)
+                                showSleepTimer = false
+                            }, modifier = Modifier.fillMaxWidth()) { Text("${min} phút") }
+                        }
+                        TextButton(onClick = { startSleepTimer(0); showSleepTimer = false }) { Text("Tắt hẹn giờ") }
+                    }
+                },
+                confirmButton = {}
+            )
+        }
+    }
+
+    @Composable
+    private fun SettingsRow(icon: String, title: String, value: String, action: () -> Unit) {
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0xFF15161D))
+                .clickable(onClick = action).padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(icon, fontSize = 22.sp)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, color = Color.White, fontWeight = FontWeight.SemiBold)
+                Text(value, color = Color(0xFF8E8E99), fontSize = 12.sp)
+            }
+            Text("›", color = Color(0xFFB18CFF), fontSize = 24.sp)
+        }
+    }
+
+    @Composable
+    private fun NowPlayingDialog(song: Song) {
+        Dialog(
+            onDismissRequest = { showNowPlaying = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(28.dp),
+                color = Color(0xFF101117),
+                modifier = Modifier.fillMaxWidth(0.94f)
+            ) {
+                Column(
+                    Modifier.padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                "ĐANG PHÁT",
+                                color = Color(0xFFB18CFF),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 3.sp
+                            )
+                            Text(
+                                if (shuffleEnabled) "NGẪU NHIÊN • " + when (repeatMode) {
+                                    Player.REPEAT_MODE_ONE -> "LẶP 1"
+                                    Player.REPEAT_MODE_ALL -> "LẶP TẤT CẢ"
+                                    else -> "KHÔNG LẶP"
+                                } else "THƯ VIỆN • " + when (repeatMode) {
+                                    Player.REPEAT_MODE_ONE -> "LẶP 1"
+                                    Player.REPEAT_MODE_ALL -> "LẶP TẤT CẢ"
+                                    else -> "KHÔNG LẶP"
+                                },
+                                color = Color(0xFF777783),
+                                fontSize = 10.sp
+                            )
+                        }
+                        IconButton(onClick = { toggleFavorite(song) }) {
+                            Text(
+                                if (favorites[song.id] == true) "♥" else "♡",
+                                color = if (favorites[song.id] == true) Color(0xFFFF6B81) else Color(0xFF8A8A96),
+                                fontSize = 26.sp
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(14.dp))
+                    SongArtwork(song, Modifier.size(250.dp))
+                    Spacer(Modifier.height(18.dp))
+
+                    Text(
+                        song.title,
+                        color = Color.White,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        song.artist,
+                        color = Color(0xFF9999A5),
+                        fontSize = 14.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    Spacer(Modifier.height(14.dp))
+                    // Media3 may discover the real duration only after prepare.
+                    // Prefer the live controller duration, with the library value
+                    // as a fallback for local files that already have metadata.
+                    val totalDuration = max(duration, song.duration).coerceAtLeast(1L)
+                    var isSeeking by remember(song.uri.toString()) { mutableStateOf(false) }
+                    var sliderPosition by remember(song.uri.toString(), totalDuration) {
+                        mutableFloatStateOf(position.coerceIn(0L, totalDuration).toFloat())
+                    }
+                    LaunchedEffect(position, isSeeking, song.uri.toString(), totalDuration) {
+                        if (!isSeeking) {
+                            sliderPosition = position.coerceIn(0L, totalDuration).toFloat()
+                        }
+                    }
+                    Slider(
+                        value = sliderPosition,
+                        onValueChange = {
+                            isSeeking = true
+                            sliderPosition = it.coerceIn(0f, totalDuration.toFloat())
+                        },
+                        onValueChangeFinished = {
+                            seekTo(sliderPosition.toLong())
+                            isSeeking = false
+                        },
+                        valueRange = 0f..totalDuration.toFloat()
+                    )
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(formatTime(position), color = Color(0xFF888894), fontSize = 12.sp)
+                        Text(
+                            formatTime(totalDuration),
+                            color = Color(0xFF888894),
+                            fontSize = 12.sp
+                        )
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        SmallControl(if (shuffleEnabled) "🔀" else "⇄", ::toggleShuffle, shuffleEnabled)
+                        SmallControl("⏪10", { seekBy(-10_000L) })
+                        SmallControl("⏮", ::previous)
+                        Button(
+                            onClick = ::togglePlayPause,
+                            modifier = Modifier.size(64.dp),
+                            shape = CircleShape
+                        ) {
+                            Text(if (isPlaying) "⏸" else "▶", fontSize = 23.sp)
+                        }
+                        SmallControl("⏭", ::next)
+                        SmallControl("10⏩", { seekBy(10_000L) })
+                        SmallControl("■", ::stop)
+                        SmallControl(
+                            when (repeatMode) {
+                                Player.REPEAT_MODE_ONE -> "🔂"
+                                Player.REPEAT_MODE_ALL -> "🔁"
+                                else -> "↻"
+                            },
+                            ::cycleRepeat,
+                            repeatMode != Player.REPEAT_MODE_OFF
+                        )
+                    }
+
+                    Spacer(Modifier.height(10.dp))
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { showQueue = true },
+                            modifier = Modifier.weight(1f)
+                        ) { Text("☷ Hàng đợi") }
+                        TextButton(
+                            onClick = { showNowPlaying = false },
+                            modifier = Modifier.weight(1f)
+                        ) { Text("Đóng") }
+                    }
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun TvHub() {
+        val sources = TvCatalog.builtIn + customTvSources
+
+        Column(
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Surface(
+                Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                color = Color(0xFF11131A),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF252936))
+            ) {
+                Column(Modifier.padding(18.dp)) {
+                    Text("TV TRỰC TUYẾN", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold)
+                    Spacer(Modifier.height(5.dp))
+                    Text(
+                        "Xem các nguồn TV chính thức trong NGỌC SĨ MUSIC hoặc thêm nguồn HTTPS của riêng mình.",
+                        color = Color(0xFF9698A7),
+                        fontSize = 12.sp
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Button(
+                        onClick = { showTvSourceDialog = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text("+ THÊM NGUỒN TV")
+                    }
+                }
+            }
+
+            sources.forEach { source ->
+                Surface(
+                    Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    color = Color(0xFF15161E),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF252936))
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            Modifier.size(52.dp).clip(RoundedCornerShape(14.dp))
+                                .background(Brush.linearGradient(listOf(Color(0xFF7653B8), Color(0xFF293047)))),
+                            contentAlignment = Alignment.Center
+                        ) { Text("📺", fontSize = 23.sp) }
+
+                        Spacer(Modifier.width(11.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(source.name, color = Color.White, fontWeight = FontWeight.Bold)
+                            Text(
+                                source.description,
+                                color = Color(0xFF8F909E),
+                                fontSize = 11.sp,
+                                maxLines = 2
+                            )
+                        }
+                        FilledTonalButton(
+                            onClick = {
+                                openTvSource(source)
+                            },
+                            shape = CircleShape,
+                            contentPadding = PaddingValues(0.dp),
+                            modifier = Modifier.size(46.dp)
+                        ) { Text("▶", fontSize = 17.sp) }
+                        if (customTvSources.any { it.url == source.url }) {
+                            TextButton(
+                                onClick = {
+                                    customTvSources.removeAll { it.url == source.url }
+                                    saveCustomTvSources()
+                                    errorMessage = "Đã xóa nguồn TV: " + source.name
+                                }
+                            ) { Text("×", color = Color(0xFFFF8A9A)) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun TvSourceDialog() {
+        AlertDialog(
+            onDismissRequest = { showTvSourceDialog = false },
+            title = { Text("Thêm nguồn TV") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = tvSourceName,
+                        onValueChange = { tvSourceName = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("Tên nguồn") },
+                        placeholder = { Text("Ví dụ: TV của tôi") }
+                    )
+                    OutlinedTextField(
+                        value = tvSourceUrl,
+                        onValueChange = { tvSourceUrl = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("URL HTTPS") },
+                        placeholder = { Text("https://...") }
+                    )
+                    Text(
+                        "Nguồn web hỗ trợ HTTPS. URL trực tiếp .m3u8/.mp4/.webm sẽ dùng trình phát video Media3 của ứng dụng.",
+                        color = Color(0xFF8F909E),
+                        fontSize = 11.sp
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = ::addCustomTvSource) { Text("THÊM") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showTvSourceDialog = false }) { Text("HỦY") }
+            }
+        )
+    }
+
+    private fun searchMapPlace() {
+        val query = mapSearchQuery.trim()
+        if (query.isBlank()) {
+            errorMessage = "Nhập địa điểm cần tìm."
+            return
+        }
+        if (mapSearching) return
+        mapSearching = true
+        errorMessage = null
+
+        lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    val encoded = URLEncoder.encode(query, "UTF-8")
+                    val connection = (URL(
+                        "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&accept-language=vi&q=$encoded"
+                    ).openConnection() as HttpURLConnection).apply {
+                        requestMethod = "GET"
+                        connectTimeout = 8000
+                        readTimeout = 8000
+                        setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.3 (Android)")
+                        setRequestProperty("Accept", "application/json")
+                    }
+                    try {
+                        if (connection.responseCode !in 200..299) {
+                            throw IllegalStateException("HTTP ${connection.responseCode}")
+                        }
+                        val body = connection.inputStream.bufferedReader().use { it.readText() }
+                        val first = JSONArray(body).optJSONObject(0)
+                            ?: throw NoSuchElementException("Không tìm thấy")
+                        val lat = first.optDouble("lat", Double.NaN)
+                        val lon = first.optDouble("lon", Double.NaN)
+                        val displayName = first.optString("display_name", query)
+                        if (!lat.isFinite() || !lon.isFinite()) {
+                            throw IllegalStateException("Tọa độ không hợp lệ")
+                        }
+                        Triple(lat, lon, displayName)
+                    } finally {
+                        connection.disconnect()
+                    }
+                }
+            }
+
+            mapSearching = false
+            result.onSuccess { (lat, lon, displayName) ->
+                val delta = 0.018
+                val left = lon - delta
+                val right = lon + delta
+                val bottom = lat - delta
+                val top = lat + delta
+                radioWebTitle = "NGỌC SĨ MAP • ${displayName.substringBefore(",")}"
+                radioWebUrl =
+                    "https://www.openstreetmap.org/export/embed.html" +
+                        "?bbox=" + left + "," + bottom + "," + right + "," + top +
+                        "&layer=mapnik&marker=" + lat + "," + lon
+            }.onFailure {
+                errorMessage = "Không tìm thấy địa điểm hoặc máy chủ bản đồ đang bận. Hãy thử tên địa điểm cụ thể hơn."
+            }
+        }
+    }
+
+    @Composable
+    private fun MapHub() {
+        val mapUrl =
+            "https://www.openstreetmap.org/export/embed.html" +
+                "?bbox=106.48,10.72,106.78,10.92" +
+                "&layer=mapnik&marker=10.8231,106.6297"
+        val trafficUrl =
+            "https://www.google.com/maps/@?api=1&map_action=map&center=10.8231%2C106.6297&zoom=12&basemap=roadmap&layer=traffic"
+        val satelliteUrl =
+            "https://www.google.com/maps/@?api=1&map_action=map&center=10.8231%2C106.6297&zoom=12&basemap=satellite&layer=traffic"
+
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Surface(
+                Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                color = Color(0xFF11131A),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF252936))
+            ) {
+                Column(Modifier.padding(18.dp)) {
+                    Text(
+                        "NGỌC SĨ MAP",
+                        color = Color.White,
+                        fontSize = 21.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                    Spacer(Modifier.height(5.dp))
+                    Text(
+                        "Bản đồ OpenStreetMap tương tác, tìm kiếm và vị trí hiện tại chạy trong ứng dụng; Vệ tinh, Giao thông và Chỉ đường mở Google Maps chính thức.",
+                        color = Color(0xFF9698A7),
+                        fontSize = 12.sp
+                    )
+                    Spacer(Modifier.height(12.dp))
+
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                // Open the map with a standard geo URI first. This avoids
+                                // WebView/OSM embed rendering failures on some Android builds.
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("geo:10.8231,106.6297?z=13"))
+                                runCatching { startActivity(intent) }.onFailure {
+                                    radioWebTitle = "NGỌC SĨ MAP • BẢN ĐỒ"
+                                    radioWebUrl = mapUrl
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Text("🗺 BẢN ĐỒ")
+                        }
+                        Button(
+                            onClick = {
+                                runCatching {
+                                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(trafficUrl)))
+                                }.onFailure {
+                                    errorMessage = "Không mở được Google Maps giao thông."
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Text("🚦 GIAO THÔNG")
+                        }
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                runCatching {
+                                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(satelliteUrl)))
+                                }.onFailure {
+                                    errorMessage = "Không mở được Google Maps vệ tinh."
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Text("🛰 VỆ TINH")
+                        }
+                        OutlinedButton(
+                            onClick = {
+                                val q = mapSearchQuery.trim()
+                                if (q.isBlank()) {
+                                    // Open Google Maps navigation/search instead of silently
+                                    // doing nothing when no destination has been entered.
+                                    runCatching {
+                                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("google.navigation:q=")))
+                                    }.onFailure {
+                                        runCatching {
+                                            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps/dir/")))
+                                        }.onFailure {
+                                            errorMessage = "Không mở được Google Maps chỉ đường."
+                                        }
+                                    }
+                                } else {
+                                    val directionsUrl =
+                                        "https://www.google.com/maps/dir/?api=1&destination=" +
+                                            Uri.encode(q) + "&travelmode=driving"
+                                    runCatching {
+                                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(directionsUrl)))
+                                    }.onFailure {
+                                        errorMessage = "Không mở được Google Maps chỉ đường."
+                                    }
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Text("🧭 CHỈ ĐƯỜNG")
+                        }
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    OutlinedButton(
+                        onClick = {
+                            showCurrentLocationOnMap()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text("📍 VỊ TRÍ HIỆN TẠI")
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            runCatching {
+                                startActivity(
+                                    Intent(
+                                        Intent.ACTION_VIEW,
+                                        Uri.parse("https://www.google.com/maps/")
+                                    )
+                                )
+                            }.onFailure {
+                                errorMessage = "Không mở được Google Maps."
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text("MỞ GOOGLE MAPS ĐẦY ĐỦ")
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = mapSearchQuery,
+                        onValueChange = { mapSearchQuery = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("Tìm địa điểm") },
+                        placeholder = { Text("Ví dụ: Chợ Bến Thành") },
+                        shape = RoundedCornerShape(14.dp),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(
+                            onSearch = { searchMapPlace() }
+                        )
+                    )
+
+                    Spacer(Modifier.height(8.dp))
+
+                    Button(
+                        onClick = { searchMapPlace() },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text(if (mapSearching) "ĐANG TÌM…" else "TÌM ĐỊA ĐIỂM")
+                    }
+                }
+            }
+
+            Surface(
+                Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                color = Color(0xFF15161E)
+            ) {
+                Column(Modifier.padding(16.dp)) {
+                    Text(
+                        "MAP PRO",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Bản đồ đường phố và tìm kiếm chạy ngay trong NGỌC SĨ MUSIC; Vệ tinh, Giao thông và Chỉ đường mở Google Maps khi cần.",
+                        color = Color(0xFF8F909E),
+                        fontSize = 11.sp
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "• Bản đồ đường phố\n• Giao thông\n• Vệ tinh\n• Tìm địa điểm",
+                        color = Color(0xFFB0B2BF),
+                        fontSize = 11.sp,
+                        lineHeight = 18.sp
+                    )
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun RadioStationCard(station: RadioStation) {
+        val playing = activeRadioTitle == station.title && isPlaying
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(18.dp),
+            color = if (playing) Color(0xFF241B38) else Color(0xFF15161E),
+            border = androidx.compose.foundation.BorderStroke(
+                1.dp,
+                if (playing) Color(0xFF6E53A8) else Color(0xFF252936)
+            )
+        ) {
+            Row(
+                Modifier.fillMaxWidth().padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(
+                            Brush.linearGradient(
+                                listOf(Color(0xFF7653B8), Color(0xFF2C243E))
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("📻", fontSize = 22.sp)
+                }
+
+                Spacer(Modifier.width(10.dp))
+
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        station.title,
+                        color = Color.White,
+                        fontWeight = if (playing) FontWeight.ExtraBold else FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        station.description,
+                        color = Color(0xFF8F909E),
+                        fontSize = 11.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (playing) {
+                        Text(
+                            "● ĐANG PHÁT",
+                            color = Color(0xFFBFA9FF),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 1.sp
+                        )
+                    }
+                }
+
+                Spacer(Modifier.width(8.dp))
+
+                FilledTonalButton(
+                    onClick = {
+                        if (playing) controller?.pause()
+                        else playVerifiedRadio(station.title, station.streamUrls)
+                    },
+                    shape = CircleShape,
+                    contentPadding = PaddingValues(0.dp),
+                    modifier = Modifier.size(46.dp)
+                ) {
+                    Text(if (playing) "⏸" else "▶", fontSize = 18.sp)
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun VietnamRadioHubDialog() {
+        val sources = RadioCatalog.stations.map {
+            Triple(it.title, it.description, it.sourceUrl)
+        } + listOf(
+            Triple("VOV • Radio Việt Nam", "Cổng các kênh phát thanh trực tuyến của VOV", "https://vovmedia.vn/"),
+            Triple("VOH • Radio", "Radio và các kênh phát thanh của VOH", "https://voh.com.vn/radios"),
+            Triple("HTV • Radio", "Các kênh radio được HTV giới thiệu", "https://htv.vn/radio.htm"),
+            Triple("VOV3 • Podcast", "Podcast văn hóa, nghệ thuật và âm nhạc", "https://vov3.vov.vn/podcast"),
+            Triple("VOV3 • Lịch phát", "Xem lịch chương trình VOV3 theo khung giờ", "https://vov3.vov.vn/lich-phat-song")
+        )
+val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrls }
+        val normalizedFilter = radioFilter.trim().lowercase()
+        val filteredSources = if (normalizedFilter.isBlank()) sources else sources.filter { source ->
+            source.first.lowercase().contains(normalizedFilter) || source.second.lowercase().contains(normalizedFilter)
+        }
+        Dialog(onDismissRequest = {
+            showVietnamRadioHub = false
+            radioFilter = ""
+        }) {
+            Surface(
+                shape = RoundedCornerShape(26.dp),
+                color = Color(0xFF101117),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(Modifier.padding(18.dp)) {
+                    Text("RADIO VIỆT NAM", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "VOV1 • VOV2 • VOV3 phát trực tiếp bằng Media3/HLS; có tự động chuyển luồng dự phòng",
+                        color = Color(0xFF8F8F9A),
+                        fontSize = 12.sp
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = radioFilter,
+                        onValueChange = { radioFilter = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("Tìm đài") },
+                        placeholder = { Text("Ví dụ: Hà Nội, VOV3, FM 96") },
+                        shape = RoundedCornerShape(14.dp)
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "${filteredSources.size}/${sources.size} nguồn",
+                        color = Color(0xFF777D8D),
+                        fontSize = 11.sp
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    LazyColumn(
+                        modifier = Modifier.heightIn(max = 520.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(filteredSources) { source ->
+                            val streamUrls = verifiedStreams[source.first]
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = Color(0xFF181922),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    Modifier.fillMaxWidth().padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(source.first, color = Color.White, fontWeight = FontWeight.SemiBold)
+                                        Spacer(Modifier.height(2.dp))
+                                        Text(
+                                            if (!streamUrls.isNullOrEmpty()) "${source.second} • HLS + tự động dùng luồng dự phòng" else source.second,
+                                            color = Color(0xFF8F8F9A),
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                    Spacer(Modifier.width(8.dp))
+                                    if (!streamUrls.isNullOrEmpty()) {
+                                        Button(
+                                            onClick = {
+                                                showVietnamRadioHub = false
+                                                radioFilter = ""
+                                                playVerifiedRadio(source.first, streamUrls)
+                                            },
+                                            shape = RoundedCornerShape(12.dp)
+                                        ) { Text("PHÁT APP") }
+                                    } else {
+                                        OutlinedButton(
+                                            onClick = {
+                                                radioWebTitle = source.first
+                                                radioWebUrl = source.third
+                                                showVietnamRadioHub = false
+                                                radioFilter = ""
+                                            },
+                                            shape = RoundedCornerShape(12.dp)
+                                        ) { Text("MỞ NGUỒN") }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        "Các luồng Media3 chỉ dùng URL HTTPS HLS đã xác minh; các đài chưa có luồng phù hợp vẫn mở nguồn chính thức.",
+                        color = Color(0xFF777D8D),
+                        fontSize = 11.sp
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    TextButton(onClick = {
+                        showVietnamRadioHub = false
+                        radioFilter = ""
+                    }) { Text("Đóng") }
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun RadioWebViewDialog(url: String, title: String) {
+        Dialog(
+            onDismissRequest = { radioWebUrl = null },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(24.dp),
+                color = Color(0xFF101117),
+                modifier = Modifier.fillMaxWidth(0.97f).fillMaxHeight(0.88f)
+            ) {
+                Column(Modifier.fillMaxSize()) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(title, color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(
+                                when {
+                                    title.startsWith("NGỌC SĨ MAP") || title.startsWith("BẢN ĐỒ") ->
+                                        "Bản đồ OpenStreetMap trong NGỌC SĨ MUSIC"
+                                    title.startsWith("TV") ->
+                                        "Truyền hình trực tuyến trong NGỌC SĨ MUSIC"
+                                    else ->
+                                        "Phát trực tuyến trong NGỌC SĨ MUSIC • nguồn chính thức"
+                                },
+                                color = Color(0xFF8F8F9A),
+                                fontSize = 11.sp
+                            )
+                        }
+                        TextButton(
+                            onClick = {
+                                runCatching {
+                                    startActivity(
+                                        Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                    )
+                                }.onFailure {
+                                    errorMessage = "Không mở được nguồn bên ngoài."
+                                }
+                            }
+                        ) {
+                            Text("Mở ngoài")
+                        }
+                        TextButton(onClick = { radioWebUrl = null }) { Text("Đóng") }
+                    }
+                    var webViewRef by remember { mutableStateOf<WebView?>(null) }
+
+                    androidx.activity.compose.BackHandler(
+                        enabled = webViewRef?.canGoBack() == true
+                    ) {
+                        webViewRef?.goBack()
+                    }
+
+                    AndroidView(
+                        modifier = Modifier.fillMaxSize(),
+                        factory = { context ->
+                            WebView(context).apply {
+                                webViewRef = this
+                                settings.javaScriptEnabled = true
+                                settings.domStorageEnabled = true
+                                settings.loadsImagesAutomatically = true
+                                settings.databaseEnabled = true
+                                settings.userAgentString =
+                                    "Mozilla/5.0 (Linux; Android 16; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36"
+                                settings.useWideViewPort = true
+                                settings.loadWithOverviewMode = true
+                                settings.setSupportZoom(false)
+                                settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+                                // Allow the provider's own video player to start after
+                                // the user explicitly opens a TV source. Some live players
+                                // otherwise remain permanently paused inside WebView.
+                                settings.mediaPlaybackRequiresUserGesture = false
+                                // Keep WebView video rendering on the hardware compositor.
+                                // Some live-TV players can continue producing audio while
+                                // a software-rendered WebView shows a black video surface.
+                                setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
+                                settings.allowFileAccess = false
+                                settings.allowContentAccess = true
+                                settings.builtInZoomControls = false
+                                settings.displayZoomControls = false
+                                CookieManager.getInstance().setAcceptCookie(true)
+                                CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                                webViewClient = object : WebViewClient() {
+                                    override fun shouldOverrideUrlLoading(view: WebView, request: android.webkit.WebResourceRequest): Boolean {
+                                        return false
+                                    }
+
+                                    override fun onReceivedError(
+                                        view: WebView,
+                                        request: android.webkit.WebResourceRequest,
+                                        error: android.webkit.WebResourceError
+                                    ) {
+                                        if (request.isForMainFrame) {
+                                            errorMessage =
+                                                "Không tải được nguồn TV/bản đồ. Có thể nguồn đang giới hạn WebView hoặc tạm ngừng."
+                                        }
+                                    }
+                                }
+                                webChromeClient = object : WebChromeClient() {
+                                    private var customView: android.view.View? = null
+                                    private var customViewCallback: CustomViewCallback? = null
+
+                                    override fun onShowCustomView(view: android.view.View, callback: CustomViewCallback) {
+                                        // Support provider video players that switch to the HTML5
+                                        // fullscreen surface. Without this callback, audio may
+                                        // continue while the video surface remains hidden.
+                                        if (customView != null) {
+                                            callback.onCustomViewHidden()
+                                            return
+                                        }
+                                        customView = view
+                                        customViewCallback = callback
+                                        view.setBackgroundColor(android.graphics.Color.BLACK)
+                                        val decor = window.decorView as android.view.ViewGroup
+                                        decor.addView(
+                                            view,
+                                            android.view.ViewGroup.LayoutParams(
+                                                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                                                android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                                            )
+                                        )
+                                        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN)
+                                    }
+
+                                    override fun onHideCustomView() {
+                                        val view = customView ?: return
+                                        val decor = window.decorView as android.view.ViewGroup
+                                        decor.removeView(view)
+                                        customView = null
+                                        customViewCallback?.onCustomViewHidden()
+                                        customViewCallback = null
+                                        window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN)
+                                    }
+
+                                    override fun onPermissionRequest(request: android.webkit.PermissionRequest) {
+                                        // Do not grant camera/microphone access to arbitrary
+                                        // TV/map pages. Media playback does not require it.
+                                        request.deny()
+                                    }
+                                }
+
+                                // Track the URL requested by this dialog separately
+                                // from WebView.url. Internal navigation must not be
+                                // reset on every Compose recomposition (for example,
+                                // while playback position updates are flowing).
+                                tag = url
+                                if (title.startsWith("NGỌC SĨ MAP") || title.startsWith("BẢN ĐỒ")) {
+                                    val parsedMapUrl = Uri.parse(url)
+                                    val query = parsedMapUrl.getQueryParameter("query")
+                                    val center = parsedMapUrl.getQueryParameter("center")?.split(",")
+                                    val latitude = center?.getOrNull(0)?.toDoubleOrNull() ?: 10.8231
+                                    val longitude = center?.getOrNull(1)?.toDoubleOrNull() ?: 106.6297
+                                    val mapPageUrl = if (!query.isNullOrBlank()) {
+                                        "https://www.openstreetmap.org/search?query=" + Uri.encode(query)
+                                    } else {
+                                        "https://www.openstreetmap.org/export/embed.html?bbox=" +
+                                            (longitude - 0.18).toString() + "," +
+                                            (latitude - 0.17).toString() + "," +
+                                            (longitude + 0.18).toString() + "," +
+                                            (latitude + 0.17).toString() +
+                                            "&layer=mapnik&marker=" + latitude + "," + longitude
+                                    }
+                                    loadUrl(mapPageUrl)
+                                } else {
+                                    // Keep TV/provider pages on their own origin.
+                                    loadUrl(url)
+                                }
+                            }
+                        },
+                        update = { view ->
+                            val requestedUrl = view.tag as? String
+                            if (requestedUrl != url) {
+                                view.tag = url
+                                if (title.startsWith("NGỌC SĨ MAP") || title.startsWith("BẢN ĐỒ")) {
+                                    val parsedMapUrl = Uri.parse(url)
+                                    val query = parsedMapUrl.getQueryParameter("query")
+                                    val center = parsedMapUrl.getQueryParameter("center")?.split(",")
+                                    val latitude = center?.getOrNull(0)?.toDoubleOrNull() ?: 10.8231
+                                    val longitude = center?.getOrNull(1)?.toDoubleOrNull() ?: 106.6297
+                                    val mapPageUrl = if (!query.isNullOrBlank()) {
+                                        "https://www.openstreetmap.org/search?query=" + Uri.encode(query)
+                                    } else {
+                                        "https://www.openstreetmap.org/export/embed.html?bbox=" +
+                                            (longitude - 0.18).toString() + "," +
+                                            (latitude - 0.17).toString() + "," +
+                                            (longitude + 0.18).toString() + "," +
+                                            (latitude + 0.17).toString() +
+                                            "&layer=mapnik&marker=" + latitude + "," + longitude
+                                    }
+                                    view.loadUrl(mapPageUrl)
+                                } else {
+                                    view.loadUrl(url)
+                                }
+                            }
+                        }
+                    )
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun QueueDialog() {
+        Dialog(onDismissRequest = { showQueue = false }) {
+            Surface(shape = RoundedCornerShape(26.dp), color = Color(0xFF101117), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(18.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("HÀNG ĐỢI PHÁT", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+                            Text(queueSongs.size.toString() + " bài • " + if (shuffleEnabled) "Ngẫu nhiên" else "Theo thứ tự hàng đợi", color = Color(0xFF888894), fontSize = 12.sp)
+                        }
+                        if (queueSongs.isNotEmpty()) {
+                            TextButton(onClick = { playQueueFromStart() }) {
+                                Text("Phát từ đầu", color = Color(0xFFC8B7FF))
+                            }
+                            TextButton(onClick = { clearQueue() }) {
+                                Text("Xóa hết", color = Color(0xFFFF8A9A))
+                            }
+                        }
+                        TextButton(onClick = { showQueue = false }) { Text("Đóng") }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    LazyColumn(modifier = Modifier.heightIn(max = 460.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        itemsIndexed(queueSongs, key = { _, song -> song.uri.toString() }) { index, song ->
+                            val activeUri = controller?.currentMediaItem?.localConfiguration?.uri
+                            val isCurrent = activeUri == song.uri
+                            Row(
+                                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                                    .background(if (isCurrent) Color(0xFF29213E) else Color(0xFF17181F))
+                                    .clickable {
+                                        val libraryIndex = songs.indexOfFirst { it.uri == song.uri }
+                                        if (libraryIndex >= 0) play(libraryIndex)
+                                        showQueue = false
+                                    }.padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(if (isCurrent) "▶" else String.format("%02d", index + 1), color = Color(0xFFC8B7FF), fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(32.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(song.title, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(song.artist, color = Color(0xFF888894), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                                Text(formatTime(song.duration), color = Color(0xFF777783), fontSize = 11.sp)
+                                TextButton(
+                                    onClick = { if (index > 0) moveQueueItem(index, index - 1) },
+                                    enabled = index > 0
+                                ) { Text("↑") }
+                                TextButton(
+                                    onClick = { if (index < queueSongs.lastIndex) moveQueueItem(index, index + 1) },
+                                    enabled = index < queueSongs.lastIndex
+                                ) { Text("↓") }
+                                TextButton(
+                                    onClick = { removeFromQueue(index) }
+                                ) { Text("×") }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun searchYouTube(loadMore: Boolean = false) {
+        val q = youtubeQuery.trim()
+        if (q.isBlank()) {
+            errorMessage = "Nhập tên bài hát hoặc nghệ sĩ để tìm trên YouTube."
+            return
+        }
+
+        val apiKey = BuildConfig.YOUTUBE_API_KEY.trim()
+        if (apiKey.isBlank()) {
+            errorMessage = "YouTube chưa được cấu hình API key. Hãy thêm GitHub Secret YOUTUBE_API_KEY."
+            return
+        }
+
+        if (loadMore && youtubeNextPageToken.isNullOrBlank()) return
+
+        youtubeSearchJob?.cancel()
+        youtubeLoading = true
+        errorMessage = null
+        youtubeSearchJob = lifecycleScope.launch(Dispatchers.IO) {
+            var connection: java.net.HttpURLConnection? = null
+            try {
+                val params = buildString {
+                    append("part=snippet")
+                    append("&type=video")
+                    append("&videoEmbeddable=true")
+                    append("&maxResults=50")
+                    append("&order=relevance")
+                    append("&regionCode=VN")
+                    append("&relevanceLanguage=vi")
+                    append("&safeSearch=moderate")
+                    if (loadMore) {
+                        append("&pageToken=")
+                        append(java.net.URLEncoder.encode(youtubeNextPageToken.orEmpty(), "UTF-8"))
+                    }
+                    append("&q=")
+                    append(java.net.URLEncoder.encode(q, "UTF-8"))
+                    append("&key=")
+                    append(java.net.URLEncoder.encode(apiKey, "UTF-8"))
+                }
+                val endpoint = "https://www.googleapis.com/youtube/v3/search?$params"
+                connection = (java.net.URL(endpoint).openConnection() as java.net.HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 15000
+                    readTimeout = 20000
+                    useCaches = false
+                    setRequestProperty("Accept", "application/json")
+                    setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.1")
+                }
+
+                val code = connection.responseCode
+                val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+                val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                if (code !in 200..299) {
+                    val message = runCatching {
+                        org.json.JSONObject(body).optJSONObject("error")?.optString("message").orEmpty()
+                    }.getOrDefault("")
+                    throw java.io.IOException(
+                        if (message.isBlank()) "YouTube HTTP $code" else message
+                    )
+                }
+
+                val json = org.json.JSONObject(body)
+                val items = json.optJSONArray("items")
+                val found = mutableListOf<YouTubeTrack>()
+                if (items != null) {
+                    for (i in 0 until items.length()) {
+                        val item = items.optJSONObject(i) ?: continue
+                        val id = item.optJSONObject("id")?.optString("videoId").orEmpty().trim()
+                        val snippet = item.optJSONObject("snippet") ?: continue
+                        if (id.isBlank()) continue
+                        val title = snippet.optString("title").orEmpty()
+                            .replace("&amp;", "&")
+                            .ifBlank { "Video YouTube" }
+                        val channel = snippet.optString("channelTitle").ifBlank { "YouTube" }
+                        // Prefer YouTube's stable thumbnail host to avoid intermittent API-image
+                        // rendering failures in WebView/Compose lists.
+                        val thumbs = snippet.optJSONObject("thumbnails")
+                        val apiThumb = thumbs?.optJSONObject("medium")?.optString("url").orEmpty()
+                            .ifBlank { thumbs?.optJSONObject("high")?.optString("url").orEmpty() }
+                            .ifBlank { thumbs?.optJSONObject("default")?.optString("url").orEmpty() }
+                        val thumb = "https://i.ytimg.com/vi/" + id + "/hqdefault.jpg"
+                            .ifBlank { apiThumb }
+                        found += YouTubeTrack(id, title, channel, thumb)
+                    }
+                }
+                val nextPageToken = json.optString("nextPageToken").ifBlank { null }
+
+                withContext(Dispatchers.Main) {
+                    if (youtubeQuery.trim() == q) {
+                        if (loadMore) {
+                            val existingIds = youtubeTracks.mapTo(mutableSetOf()) { it.videoId }
+                            youtubeTracks.addAll(found.filter { existingIds.add(it.videoId) })
+                        } else {
+                            youtubeTracks.clear()
+                            youtubeTracks.addAll(found)
+                        }
+                        youtubeNextPageToken = nextPageToken
+                        youtubeLoading = false
+                        if (youtubeTracks.isEmpty()) {
+                            errorMessage = "Không tìm thấy nội dung YouTube phù hợp."
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    youtubeLoading = false
+                    errorMessage = "YouTube: " + (e.message ?: "không thể tìm kiếm")
+                }
+            } finally {
+                connection?.disconnect()
+            }
+        }
+    }
+
+    private fun playYouTube(track: YouTubeTrack) {
+        youtubeSelectedVideoId = track.videoId
+        youtubeQuery = youtubeQuery.ifBlank { track.title }
+        rememberYouTubeHistory(track.title)
+
+        // Always include the selected video in the player queue. This matters
+        // when opening items from Yêu thích/Xem sau after search results have cleared.
+        val queueTracks = youtubeTracks.toMutableList().apply {
+            if (none { it.videoId == track.videoId }) {
+                add(0, track)
+            }
+        }
+        val queueJson = org.json.JSONArray().apply {
+            queueTracks.forEach { item ->
+                put(org.json.JSONObject().apply {
+                    put("videoId", item.videoId)
+                    put("title", item.title)
+                    put("channelTitle", item.channelTitle)
+                    put("thumbnailUrl", item.thumbnailUrl)
+                })
+            }
+        }.toString()
+        val selectedIndex = queueTracks.indexOfFirst { it.videoId == track.videoId }.coerceAtLeast(0)
+        saveYouTubeLastPlayed(track, queueJson, selectedIndex)
+
+        // YouTube MORPHE-style chạy hoàn toàn trong NGỌC SĨ MUSIC.
+        // Truyền cả danh sách kết quả để player hỗ trợ hàng đợi/next/previous.
+        runCatching {
+            startActivity(
+                Intent(this, YouTubePlayerActivity::class.java).apply {
+                    putExtra(YouTubePlayerActivity.EXTRA_VIDEO_ID, track.videoId)
+                    putExtra(YouTubePlayerActivity.EXTRA_TITLE, track.title)
+                    putExtra(YouTubePlayerActivity.EXTRA_CHANNEL, track.channelTitle)
+                    putExtra(YouTubePlayerActivity.EXTRA_QUEUE_JSON, queueJson)
+                    putExtra(YouTubePlayerActivity.EXTRA_QUEUE_INDEX, selectedIndex)
+                }
+            )
+        }.onFailure {
+            errorMessage = "Không mở được trình phát YouTube trong NGỌC SĨ MUSIC."
+        }
+    }
+    private fun toggleYouTubeWatchLater(track: YouTubeTrack) {
+        if (youtubeWatchLater.any { it.videoId == track.videoId }) {
+            youtubeWatchLater.removeAll { it.videoId == track.videoId }
+            saveYouTubeWatchLater()
+            errorMessage = "Đã bỏ khỏi Xem sau: " + track.title
+            return
+        }
+
+        youtubeWatchLater.add(
+            YouTubeWatchLaterMeta(
+                track.videoId,
+                track.title,
+                track.channelTitle,
+                track.thumbnailUrl.ifBlank {
+                    "https://i.ytimg.com/vi/" + track.videoId + "/hqdefault.jpg"
+                }
+            )
+        )
+        saveYouTubeWatchLater()
+        errorMessage = "Đã thêm vào Xem sau: " + track.title
+    }
+
+    private fun addYouTubeWatchLater(track: YouTubeTrack) {
+        toggleYouTubeWatchLater(track)
+    }
+
+    private fun removeYouTubeWatchLater(videoId: String) {
+        youtubeWatchLater.removeAll { it.videoId == videoId }
+        saveYouTubeWatchLater()
+    }
+
+    private fun loadYouTubeWatchLater() {
+        youtubeWatchLater.clear()
+        val raw = prefs.getString("youtube_watch_later", null) ?: return
+        runCatching {
+            val root = org.json.JSONArray(raw)
+            for (i in 0 until root.length()) {
+                val obj = root.optJSONObject(i) ?: continue
+                val id = obj.optString("videoId").trim()
+                if (id.isBlank()) continue
+                youtubeWatchLater.add(
+                    YouTubeWatchLaterMeta(
+                        id,
+                        obj.optString("title").ifBlank { "Video YouTube" },
+                        obj.optString("channelTitle").ifBlank { "YouTube" },
+                        obj.optString("thumbnailUrl").ifBlank {
+                            "https://i.ytimg.com/vi/" + id + "/hqdefault.jpg"
+                        }
+                    )
+                )
+            }
+        }
+    }
+
+    private fun saveYouTubeWatchLater() {
+        val root = org.json.JSONArray()
+        youtubeWatchLater.forEach { item ->
+            root.put(
+                org.json.JSONObject().apply {
+                    put("videoId", item.videoId)
+                    put("title", item.title)
+                    put("channelTitle", item.channelTitle)
+                    put("thumbnailUrl", item.thumbnailUrl)
+                }
+            )
+        }
+        prefs.edit().putString("youtube_watch_later", root.toString()).apply()
+    }
+
+    private fun youtubeWatchLaterAsTrack(item: YouTubeWatchLaterMeta): YouTubeTrack =
+        YouTubeTrack(item.videoId, item.title, item.channelTitle, item.thumbnailUrl)
+
+    private fun toggleYouTubeFavorite(track: YouTubeTrack) {
+        if (youtubeFavoriteSet.contains(track.videoId)) {
+            youtubeFavoriteSet.remove(track.videoId)
+            youtubeFavoriteTracks.removeAll { it.videoId == track.videoId }
+        } else {
+            youtubeFavoriteSet[track.videoId] = true
+            youtubeFavoriteTracks.removeAll { it.videoId == track.videoId }
+            youtubeFavoriteTracks.add(
+                YouTubeFavoriteMeta(
+                    track.videoId,
+                    track.title,
+                    track.channelTitle,
+                    track.thumbnailUrl.ifBlank {
+                        "https://i.ytimg.com/vi/" + track.videoId + "/hqdefault.jpg"
+                    }
+                )
+            )
+        }
+        youtubeFavoriteTracks.sortBy { it.title.lowercase() }
+        saveYouTubeLibraryState()
+    }
+
+    private fun rememberYouTubeHistory(title: String) {
+        val clean = title.trim()
+        if (clean.isBlank()) return
+        val updated = buildList {
+            add(clean)
+            youtubeHistory.filterNot { it.equals(clean, ignoreCase = true) }.forEach { add(it) }
+        }.take(8)
+        youtubeHistory.clear()
+        youtubeHistory.addAll(updated)
+        val array = org.json.JSONArray().apply { updated.forEach { put(it) } }
+        prefs.edit()
+            .putString("youtube_history_json", array.toString())
+            .putStringSet("youtube_history", updated.toSet())
+            .apply()
+    }
+
+    private fun loadYouTubeLibraryState() {
+        youtubeLastPlayed = prefs.getString("youtube_last_played_video_id", null)
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?.let { id ->
+                YouTubeTrack(
+                    id,
+                    prefs.getString("youtube_last_played_title", "Video YouTube").orEmpty().ifBlank { "Video YouTube" },
+                    prefs.getString("youtube_last_played_channel", "YouTube").orEmpty().ifBlank { "YouTube" },
+                    prefs.getString("youtube_last_played_thumbnail", "").orEmpty().ifBlank {
+                        "https://i.ytimg.com/vi/" + id + "/hqdefault.jpg"
+                    }
+                )
+            }
+        youtubeLastQueueJson = prefs.getString("youtube_last_played_queue_json", null)
+        youtubeLastQueueIndex = prefs.getInt("youtube_last_played_queue_index", 0).coerceAtLeast(0)
+
+        youtubeHistory.clear()
+        val historyJson = prefs.getString("youtube_history_json", null)
+        if (!historyJson.isNullOrBlank()) {
+            runCatching {
+                val array = org.json.JSONArray(historyJson)
+                for (i in 0 until array.length()) {
+                    array.optString(i).trim().takeIf { it.isNotBlank() }?.let {
+                        youtubeHistory.add(it)
+                    }
+                }
+            }
+        }
+        if (youtubeHistory.isEmpty()) {
+            youtubeHistory.addAll(
+                (prefs.getStringSet("youtube_history", emptySet()) ?: emptySet()).toList().take(8)
+            )
+        }
+
+        youtubeFavoriteSet.clear()
+        youtubeFavoriteTracks.clear()
+        val raw = prefs.getString("youtube_favorite_meta", null)
+        if (!raw.isNullOrBlank()) {
+            runCatching {
+                val root = org.json.JSONObject(raw)
+                val keys = root.keys()
+                while (keys.hasNext()) {
+                    val id = keys.next()
+                    val obj = root.optJSONObject(id) ?: continue
+                    youtubeFavoriteTracks.add(
+                        YouTubeFavoriteMeta(
+                            id,
+                            obj.optString("title").ifBlank { "Video YouTube" },
+                            obj.optString("channelTitle").ifBlank { "YouTube" },
+                            obj.optString("thumbnailUrl").ifBlank {
+                                "https://i.ytimg.com/vi/" + id + "/hqdefault.jpg"
+                            }
+                        )
+                    )
+                    youtubeFavoriteSet[id] = true
+                }
+            }
+        }
+        if (youtubeFavoriteSet.isEmpty()) {
+            (prefs.getStringSet("youtube_favorites", emptySet()) ?: emptySet())
+                .forEach { youtubeFavoriteSet[it] = true }
+        }
+        youtubeFavoriteTracks.sortBy { it.title.lowercase() }
+    }
+
+    private fun saveYouTubeLibraryState() {
+        val root = org.json.JSONObject()
+        youtubeFavoriteTracks.forEach { item ->
+            root.put(
+                item.videoId,
+                org.json.JSONObject().apply {
+                    put("title", item.title)
+                    put("channelTitle", item.channelTitle)
+                    put("thumbnailUrl", item.thumbnailUrl)
+                }
+            )
+        }
+        prefs.edit()
+            .putStringSet("youtube_favorites", youtubeFavoriteSet.keys)
+            .putString("youtube_favorite_meta", root.toString())
+            .apply()
+    }
+
+    private fun saveYouTubeLastPlayed(track: YouTubeTrack, queueJson: String, queueIndex: Int) {
+        val thumbnail = track.thumbnailUrl.ifBlank {
+            "https://i.ytimg.com/vi/" + track.videoId + "/hqdefault.jpg"
+        }
+        prefs.edit()
+            .putString("youtube_last_played_video_id", track.videoId)
+            .putString("youtube_last_played_title", track.title)
+            .putString("youtube_last_played_channel", track.channelTitle)
+            .putString("youtube_last_played_thumbnail", thumbnail)
+            .putString("youtube_last_played_queue_json", queueJson)
+            .putInt("youtube_last_played_queue_index", queueIndex.coerceAtLeast(0))
+            .apply()
+        youtubeLastPlayed = track.copy(thumbnailUrl = thumbnail)
+        youtubeLastQueueJson = queueJson
+        youtubeLastQueueIndex = queueIndex.coerceAtLeast(0)
+    }
+
+    private fun playLastYouTube() {
+        val track = youtubeLastPlayed ?: return
+        val fallbackQueue = org.json.JSONArray().apply {
+            put(org.json.JSONObject().apply {
+                put("videoId", track.videoId)
+                put("title", track.title)
+                put("channelTitle", track.channelTitle)
+                put("thumbnailUrl", track.thumbnailUrl)
+            })
+        }.toString()
+        val queueJson = youtubeLastQueueJson?.takeIf { it.isNotBlank() } ?: fallbackQueue
+        val selectedIndex = runCatching {
+            val array = org.json.JSONArray(queueJson)
+            youtubeLastQueueIndex.coerceIn(0, (array.length() - 1).coerceAtLeast(0))
+        }.getOrDefault(0)
+
+        runCatching {
+            startActivity(
+                Intent(this, YouTubePlayerActivity::class.java).apply {
+                    putExtra(YouTubePlayerActivity.EXTRA_VIDEO_ID, track.videoId)
+                    putExtra(YouTubePlayerActivity.EXTRA_TITLE, track.title)
+                    putExtra(YouTubePlayerActivity.EXTRA_CHANNEL, track.channelTitle)
+                    putExtra(YouTubePlayerActivity.EXTRA_QUEUE_JSON, queueJson)
+                    putExtra(YouTubePlayerActivity.EXTRA_QUEUE_INDEX, selectedIndex)
+                }
+            )
+        }.onFailure {
+            errorMessage = "Không mở lại được video YouTube gần nhất."
+        }
+    }
+
+    private fun playStoredYouTubeOffset(offset: Int) {
+        val rawQueue = youtubeLastQueueJson ?: return
+        runCatching {
+            val array = JSONArray(rawQueue)
+            val targetIndex = (youtubeLastQueueIndex + offset).coerceIn(0, array.length() - 1)
+            val item = array.getJSONObject(targetIndex)
+            val targetTrack = YouTubeTrack(
+                videoId = item.optString("videoId"),
+                title = item.optString("title").ifBlank { "YouTube" },
+                channelTitle = item.optString("channelTitle").ifBlank { "YouTube" },
+                thumbnailUrl = item.optString("thumbnailUrl")
+            )
+            if (targetTrack.videoId.isBlank()) return@runCatching
+            startActivity(
+                Intent(this, YouTubePlayerActivity::class.java).apply {
+                    putExtra(YouTubePlayerActivity.EXTRA_VIDEO_ID, targetTrack.videoId)
+                    putExtra(YouTubePlayerActivity.EXTRA_TITLE, targetTrack.title)
+                    putExtra(YouTubePlayerActivity.EXTRA_CHANNEL, targetTrack.channelTitle)
+                    putExtra(YouTubePlayerActivity.EXTRA_QUEUE_JSON, rawQueue)
+                    putExtra(YouTubePlayerActivity.EXTRA_QUEUE_INDEX, targetIndex)
+                }
+            )
+        }.onFailure {
+            errorMessage = "Không chuyển được video trong hàng đợi YouTube."
+        }
+    }
+
+    private fun storedYouTubeQueueSize(): Int =
+        runCatching { JSONArray(youtubeLastQueueJson.orEmpty()).length() }.getOrDefault(0)
+
+    private fun clearYouTubeHistory() {
+        youtubeHistory.clear()
+        prefs.edit()
+            .remove("youtube_history_json")
+            .remove("youtube_history")
+            .apply()
+    }
+
+    private fun youtubeFavoriteAsTrack(item: YouTubeFavoriteMeta): YouTubeTrack =
+        YouTubeTrack(item.videoId, item.title, item.channelTitle, item.thumbnailUrl)
+
+
+    private fun onlineFavoriteKey(item: OnlineSearchItem): String =
+        item.source + ":" + item.title + ":" + item.artist
+
+    private fun favoriteMetaFor(item: OnlineSearchItem): OnlineFavoriteMeta? {
+        return if (item.source == "Audius") {
+            audiusTracks.getOrNull(item.index)?.let {
+                OnlineFavoriteMeta("Audius", it.title, it.artist, it.duration, it.streamUrl, it.imageUrl)
+            }
+        } else {
+            jamendoTracks.getOrNull(item.index)?.let {
+                OnlineFavoriteMeta("Jamendo", it.title, it.artist, it.duration, it.audioUrl, it.imageUrl)
+            }
+        }
+    }
+
+    private fun getOnlineFavoriteMeta(key: String): OnlineFavoriteMeta? {
+        val raw = prefs.getString("online_favorite_meta", null) ?: return null
+        return runCatching {
+            val obj = org.json.JSONObject(raw).optJSONObject(key) ?: return@runCatching null
+            OnlineFavoriteMeta(
+                obj.optString("source"),
+                obj.optString("title"),
+                obj.optString("artist"),
+                obj.optLong("duration", 0L),
+                obj.optString("streamUrl"),
+                obj.optString("imageUrl")
+            )
+        }.getOrNull()
+    }
+
+    private fun saveOnlineFavoriteMeta(key: String, meta: OnlineFavoriteMeta?) {
+        val root = runCatching { org.json.JSONObject(prefs.getString("online_favorite_meta", null).orEmpty()) }
+            .getOrElse { org.json.JSONObject() }
+        if (meta == null) {
+            root.remove(key)
+        } else {
+            root.put(key, org.json.JSONObject().apply {
+                put("source", meta.source)
+                put("title", meta.title)
+                put("artist", meta.artist)
+                put("duration", meta.duration)
+                put("streamUrl", meta.streamUrl)
+                put("imageUrl", meta.imageUrl)
+            })
+        }
+        prefs.edit().putString("online_favorite_meta", root.toString()).apply()
+    }
+
+    private fun toggleOnlineFavorite(item: OnlineSearchItem) {
+        val key = onlineFavoriteKey(item)
+        if (onlineFavoriteSet.contains(key)) {
+            onlineFavoriteSet.remove(key)
+            saveOnlineFavoriteMeta(key, null)
+        } else {
+            onlineFavoriteSet.add(key)
+            saveOnlineFavoriteMeta(key, favoriteMetaFor(item))
+        }
+        onlineFavorites.clear()
+        onlineFavorites.addAll(onlineFavoriteSet)
+        prefs.edit().putStringSet("online_favorites", onlineFavoriteSet).apply()
+    }
+
+    private fun playOnlineFavoriteKey(key: String) {
+        val meta = getOnlineFavoriteMeta(key)
+        if (meta != null && meta.streamUrl.isNotBlank()) {
+            val song = Song(
+                id = -kotlin.math.abs(("favorite:" + key).hashCode().toLong()),
+                title = meta.title,
+                artist = meta.artist,
+                duration = meta.duration,
+                uri = Uri.parse(meta.streamUrl),
+                source = meta.source
+            )
+            val existingIndex = songs.indexOfFirst { it.uri.toString() == meta.streamUrl }
+            val index = if (existingIndex >= 0) existingIndex else {
+                songs.add(song)
+        queueSongs.add(song)
+                songs.lastIndex
+            }
+            syncControllerQueue()
+            play(index)
+            return
+        }
+
+        val parts = key.split(":", limit = 3)
+        if (parts.size != 3) return
+        val source = parts[0]
+        val title = parts[1]
+        val artist = parts[2]
+        if (source == "Audius") {
+            val track = audiusTracks.firstOrNull { it.title == title && it.artist == artist }
+            if (track != null) playAudiusTrack(track)
+            else errorMessage = "Hãy tìm lại bài Audius này để phát."
+        } else if (source == "Jamendo") {
+            val track = jamendoTracks.firstOrNull { it.title == title && it.artist == artist }
+            if (track != null) playJamendoTrack(track)
+            else errorMessage = "Hãy tìm lại bài Jamendo này để phát."
+        }
+    }
+
+    private fun removeOnlineFavoriteKey(key: String) {
+        onlineFavoriteSet.remove(key)
+        saveOnlineFavoriteMeta(key, null)
+        onlineFavorites.clear()
+        onlineFavorites.addAll(onlineFavoriteSet)
+        prefs.edit().putStringSet("online_favorites", onlineFavoriteSet).apply()
+    }
+
+    private fun clearOnlineFavorites() {
+        onlineFavoriteSet.clear()
+        onlineFavorites.clear()
+        prefs.edit().remove("online_favorites").remove("online_favorite_meta").apply()
+    }
+
+    private fun isOnlineTrackPlaying(streamUrl: String): Boolean {
+        val current = controller?.currentMediaItem?.localConfiguration?.uri?.toString().orEmpty()
+        return isPlaying && current == streamUrl
+    }
+
+    private fun refreshOnlineSearch() {
+        val q = jamendoQuery.trim()
+        if (q.isBlank()) {
+            errorMessage = "Nhập tên bài hát hoặc nghệ sĩ trước khi làm mới."
+            return
+        }
+        onlineSearchActive = true
+        errorMessage = null
+        jamendoTracks.clear()
+        audiusTracks.clear()
+        onlineVisibleCount = 30
+        searchJamendo()
+        searchAudius(q)
+    }
+
+    @Composable
+    private fun OnlineArtwork(url: String, modifier: Modifier = Modifier) {
+        var bitmap by remember(url) { mutableStateOf<android.graphics.Bitmap?>(null) }
+
+        LaunchedEffect(url) {
+            bitmap = if (url.isBlank()) {
+                null
+            } else {
+                withContext(Dispatchers.IO) {
+                    runCatching {
+                        val connection = (java.net.URL(url).openConnection() as java.net.HttpURLConnection).apply {
+                            connectTimeout = 8000
+                            readTimeout = 10000
+                            useCaches = true
+                            doInput = true
+                            setRequestProperty("Accept", "image/avif,image/webp,image/apng,image/*,*/*;q=0.8")
+                            setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.2")
+                        }
+                        try {
+                            if (connection.responseCode in 200..299) {
+                                connection.inputStream.use { BitmapFactory.decodeStream(it) }
+                            } else {
+                                null
+                            }
+                        } finally {
+                            connection.disconnect()
+                        }
+                    }.getOrNull()
+                }
+            }
+        }
+
+        Box(
+            modifier
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color(0xFF25252F)),
+            contentAlignment = Alignment.Center
+        ) {
+            val image = bitmap
+            if (image != null) {
+                Image(
+                    bitmap = image.asImageBitmap(),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Text("♪", color = Color(0xFFB18CFF), fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+
+    @Composable
+    private fun OnlineSourcesCard() {
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color(0xFF14141B)).padding(14.dp)) {
+            Text("NGỌC SĨ ONLINE MUSIC", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+            if (onlineFavorites.isNotEmpty()) {
+                Spacer(Modifier.height(4.dp))
+                Text("YÊU THÍCH ONLINE • " + onlineFavorites.size, color = Color(0xFF8F8F9A), fontSize = 12.sp)
+            }
+            Text("Trung tâm nhạc online • Audius + Jamendo + YouTube + Radio Việt Nam", color = Color(0xFF8F8F9A), fontSize = 12.sp)
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("🎧 NGUỒN NHẠC VIỆT NAM", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                TextButton(onClick = { showVietnamRadioHub = true }) { Text("MỞ HUB") }
+            }
+            Spacer(Modifier.height(6.dp))
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = {
+                        playVerifiedRadio(
+                            "VOV1 • Thời sự",
+                            verifiedRadioStreams("VOV1 • Thời sự")
+                        )
+                    },
+                    shape = RoundedCornerShape(12.dp)
+                ) { Text("▶ VOV1") }
+                Button(
+                    onClick = {
+                        playVerifiedRadio(
+                            "VOV2 • Văn hóa",
+                            verifiedRadioStreams("VOV2 • Văn hóa")
+                        )
+                    },
+                    shape = RoundedCornerShape(12.dp)
+                ) { Text("▶ VOV2") }
+                Button(
+                    onClick = {
+                        playVerifiedRadio(
+                            "VOV3 • Âm nhạc",
+                            verifiedRadioStreams("VOV3 • Âm nhạc")
+                        )
+                    },
+                    shape = RoundedCornerShape(12.dp)
+                ) { Text("▶ VOV3") }
+                OutlinedButton(
+                    onClick = { openOnlineSource("https://vovmedia.vn/") },
+                    shape = RoundedCornerShape(12.dp)
+                ) { Text("VOV • Radio Việt Nam") }
+                OutlinedButton(
+                    onClick = { openOnlineSource("https://voh.com.vn/radios") },
+                    shape = RoundedCornerShape(12.dp)
+                ) { Text("VOH • Radio") }
+                OutlinedButton(
+                    onClick = { openOnlineSource("https://htv.vn/radio.htm") },
+                    shape = RoundedCornerShape(12.dp)
+                ) { Text("HTV • Radio") }
+                OutlinedButton(
+                    onClick = { openOnlineSource("https://vov3.vov.vn/podcast") },
+                    shape = RoundedCornerShape(12.dp)
+                ) { Text("VOV3 • Podcast") }
+                OutlinedButton(
+                    onClick = { openOnlineSource("https://vov3.vov.vn/lich-phat-song") },
+                    shape = RoundedCornerShape(12.dp)
+                ) { Text("VOV3 • Lịch phát") }
+            }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "VOV1 có luồng HLS chính thức được đưa vào Media3; các đài khác vẫn mở nguồn chính thức cho đến khi có luồng trực tiếp được xác minh.",
+                color = Color(0xFF777D8D),
+                fontSize = 11.sp
+            )
+            Spacer(Modifier.height(10.dp))
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf("Tất cả", "Audius", "Jamendo", "Yêu thích", "YouTube").forEach { tab ->
+                    FilterChip(selected = onlineHubTab == tab, onClick = { onlineHubTab = tab }, label = { Text(tab) })
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            if (onlineHubTab != "YouTube" && onlineHubTab != "Yêu thích") {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = jamendoQuery,
+                    onValueChange = { jamendoQuery = it },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    placeholder = { Text("Tên bài hát / nghệ sĩ") },
+                    shape = RoundedCornerShape(14.dp),
+                    keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(
+                        onSearch = {
+                            val q = jamendoQuery.trim()
+                            if (q.isBlank()) {
+                                errorMessage = "Nhập tên bài hát hoặc nghệ sĩ để tìm."
+                            } else {
+                                errorMessage = null
+                                onlineSearchActive = true
+                                jamendoTracks.clear()
+                                audiusTracks.clear()
+                                onlineVisibleCount = 30
+                                searchJamendo()
+                                searchAudius(q)
+                            }
+                        },
+                        onDone = {
+                            val q = jamendoQuery.trim()
+                            if (q.isBlank()) {
+                                errorMessage = "Nhập tên bài hát hoặc nghệ sĩ để tìm."
+                            } else {
+                                errorMessage = null
+                                onlineSearchActive = true
+                                jamendoTracks.clear()
+                                audiusTracks.clear()
+                                searchJamendo()
+                                searchAudius(q)
+                            }
+                        }
+                    )
+                )
+                Button(onClick = {
+                    val q = jamendoQuery.trim()
+                    if (q.isBlank()) {
+                        errorMessage = "Nhập tên bài hát hoặc nghệ sĩ để tìm."
+                    } else {
+                        errorMessage = null
+                        onlineSearchActive = true
+                        jamendoTracks.clear()
+                        audiusTracks.clear()
+                        searchJamendo()
+                        searchAudius(q)
+                    }
+                }, shape = RoundedCornerShape(14.dp)) { Text("TÌM") }
+            }
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = ::startVoiceSearch,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                enabled = !isVoiceSearching
+            ) {
+                Text(if (isVoiceSearching) "🎙️ ĐANG NGHE…" else "🎙️ TÌM KIẾM BẰNG GIỌNG NÓI")
+            }
+            Spacer(Modifier.height(6.dp))
+            OutlinedButton(
+                onClick = {
+                    jamendoQuery = ""
+                    onlineSearchActive = false
+                    jamendoTracks.clear()
+                    audiusTracks.clear()
+                    errorMessage = null
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) { Text("XÓA TÌM KIẾM") }
+            Spacer(Modifier.height(10.dp))
+            OutlinedButton(
+                onClick = ::refreshOnlineSearch,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                enabled = !jamendoLoading && !audiusLoading
+            ) { Text("↻ LÀM MỚI KẾT QUẢ") }
+            Spacer(Modifier.height(10.dp))
+            if (jamendoLoading) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(8.dp))
+            }
+            if (audiusLoading) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(8.dp))
+            }
+            val onlineResults = buildList {
+                val seen = mutableSetOf<String>()
+                if (onlineHubTab == "Tất cả" || onlineHubTab == "Audius") {
+                    audiusTracks.forEachIndexed { index, track ->
+                        val key = track.title.trim().lowercase() + "|" + track.artist.trim().lowercase()
+                        if (seen.add(key)) add(OnlineSearchItem("Audius", index, track.title, track.artist, track.duration))
+                    }
+                }
+                if (onlineHubTab == "Tất cả" || onlineHubTab == "Jamendo") {
+                    jamendoTracks.forEachIndexed { index, track ->
+                        val key = track.title.trim().lowercase() + "|" + track.artist.trim().lowercase()
+                        if (seen.add(key)) add(OnlineSearchItem("Jamendo", index, track.title, track.artist, track.duration))
+                    }
+                }
+            }
+
+            if (onlineSearchActive && (jamendoLoading || audiusLoading)) {
+                Text(
+                    "ĐANG TÌM KIẾM ĐA NGUỒN…",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp
+                )
+                Spacer(Modifier.height(8.dp))
+            }
+
+            if (onlineSearchActive && !jamendoLoading && !audiusLoading) {
+                if (onlineResults.isEmpty()) {
+                    Text("Không tìm thấy kết quả trên Jamendo hoặc Audius.", color = Color(0xFF8F8F9A), fontSize = 13.sp)
+                } else {
+                    Text(
+                        "KẾT QUẢ ONLINE • ${onlineResults.size} BÀI",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        "Audius ${audiusTracks.size} • Jamendo ${jamendoTracks.size} • đã lọc trùng",
+                        color = Color(0xFF8F8F9A),
+                        fontSize = 11.sp
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf("Tên A-Z", "Nghệ sĩ", "Thời lượng").forEach { sort ->
+                            FilterChip(
+                                selected = onlineSort == sort,
+                                onClick = { onlineSort = sort },
+                                label = { Text(sort) }
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    val sortedOnlineResults = when (onlineSort) {
+                        "Nghệ sĩ" -> onlineResults.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.artist })
+                        "Thời lượng" -> onlineResults.sortedBy { it.duration }
+                        else -> onlineResults.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
+                    }
+                    val visibleOnlineResults = sortedOnlineResults.take(onlineVisibleCount)
+                    visibleOnlineResults.forEach { item ->
+                        val artworkUrl = if (item.source == "Audius") audiusTracks.getOrNull(item.index)?.imageUrl.orEmpty() else jamendoTracks.getOrNull(item.index)?.imageUrl.orEmpty()
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color(0xFF1B1B23))
+                                .clickable {
+                                    if (item.source == "Audius") playAudiusTrack(audiusTracks[item.index])
+                                    else playJamendoTrack(jamendoTracks[item.index])
+                                }
+                                .padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OnlineArtwork(artworkUrl, Modifier.size(54.dp))
+                            Spacer(Modifier.width(10.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(item.title, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text("${item.artist} • ${item.source} • ${formatTime(item.duration)}", color = Color(0xFF8F8F9A), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                FilledTonalButton(
+                                    onClick = { if (item.source == "Audius") playAudiusTrack(audiusTracks[item.index]) else playJamendoTrack(jamendoTracks[item.index]) },
+                                    shape = CircleShape
+                                ) {
+                                    val streamUrl = if (item.source == "Audius") {
+                                        audiusTracks.getOrNull(item.index)?.streamUrl.orEmpty()
+                                    } else {
+                                        jamendoTracks.getOrNull(item.index)?.audioUrl.orEmpty()
+                                    }
+                                    Text(if (isOnlineTrackPlaying(streamUrl)) "⏸" else "▶")
+                                }
+                                FilledTonalButton(onClick = { toggleOnlineFavorite(item) }, shape = CircleShape) { Text(if (onlineFavoriteSet.contains(item.source + ":" + item.title + ":" + item.artist)) "♥" else "♡") }
+                            }
+                        }
+                        Spacer(Modifier.height(6.dp))
+                    }
+                    if (sortedOnlineResults.size > onlineVisibleCount) {
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedButton(
+                            onClick = { onlineVisibleCount += 30 },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp)
+                        ) { Text("XEM THÊM • CÒN " + (sortedOnlineResults.size - onlineVisibleCount) + " BÀI") }
+                    }
+                }
+            }
+            }
+            if (onlineHubTab == "Yêu thích") {
+                Text("DANH SÁCH YÊU THÍCH ONLINE • ${onlineFavorites.size}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Spacer(Modifier.height(8.dp))
+                if (onlineFavorites.isEmpty()) Text("Chưa có bài online yêu thích.", color = Color(0xFF8F8F9A), fontSize = 13.sp)
+                else {
+                    onlineFavorites.forEach { key ->
+                        val parts = key.split(":", limit = 3)
+                        if (parts.size == 3) {
+                            val meta = getOnlineFavoriteMeta(key)
+                            Row(
+                                Modifier.fillMaxWidth()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(Color(0xFF1B1B23))
+                                    .clickable { playOnlineFavoriteKey(key) }
+                                    .padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                OnlineArtwork(meta?.imageUrl.orEmpty(), Modifier.size(54.dp))
+                                Spacer(Modifier.width(10.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(meta?.title ?: parts[1], color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    val durationText = if ((meta?.duration ?: 0L) > 0L) " • " + formatTime(meta!!.duration) else ""
+                                    Text((meta?.artist ?: parts[2]) + " • " + (meta?.source ?: parts[0]) + durationText,
+                                        color = Color(0xFF8F8F9A), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    FilledTonalButton(onClick = { playOnlineFavoriteKey(key) }, shape = CircleShape) { Text("▶") }
+                                    FilledTonalButton(onClick = { removeOnlineFavoriteKey(key) }, shape = CircleShape) { Text("♥") }
+                                }
+                            }
+                            Spacer(Modifier.height(6.dp))
+                        }
+                    }
+                    if (onlineFavorites.isNotEmpty()) {
+                        OutlinedButton(
+                            onClick = ::clearOnlineFavorites,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp)
+                        ) { Text("XÓA TẤT CẢ YÊU THÍCH") }
+                    }
+                }
+            }
+            if (onlineHubTab == "Tất cả" || onlineHubTab == "YouTube") {
+            Spacer(Modifier.height(10.dp))
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("YOUTUBE MUSIC", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text(
+                        "Tìm kiếm • phát • hàng đợi",
+                        color = Color(0xFF8F8F9A),
+                        fontSize = 11.sp
+                    )
+                }
+                Text(
+                    "● TRÌNH PHÁT NHÚNG",
+                    color = Color(0xFF8FD694),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Phát bằng trình phát YouTube nhúng; không tải hoặc tách luồng âm thanh.",
+                color = Color(0xFF8F8F9A),
+                fontSize = 12.sp
+            )
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(
+                value = youtubeQuery,
+                onValueChange = { youtubeQuery = it },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                placeholder = { Text("Tìm bài hát / nghệ sĩ trên YouTube") },
+                shape = RoundedCornerShape(14.dp),
+                keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(
+                    onSearch = { searchYouTube() },
+                    onDone = { searchYouTube() }
+                )
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = ::searchYouTube,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp),
+                    enabled = !youtubeLoading
+                ) { Text(if (youtubeLoading) "ĐANG TÌM..." else "TÌM YOUTUBE") }
+                OutlinedButton(
+                    onClick = {
+                        youtubeQuery = ""
+                        youtubeTracks.clear()
+                        youtubeNextPageToken = null
+                        errorMessage = null
+                    },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp)
+                ) { Text("XÓA") }
+            }
+
+            youtubeLastPlayed?.let { item ->
+                val queueSize = storedYouTubeQueueSize().coerceAtLeast(1)
+                val queuePosition = (youtubeLastQueueIndex + 1).coerceIn(1, queueSize)
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0xFF111111))
+                        .clickable { playLastYouTube() }
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OnlineArtwork(item.thumbnailUrl, Modifier.size(48.dp))
+                    Spacer(Modifier.width(9.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            "ĐANG PHÁT / TIẾP TỤC",
+                            color = Color(0xFF8FD694),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            item.title,
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                item.channelTitle,
+                                color = Color(0xFF8F8F9A),
+                                fontSize = 10.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                "$queuePosition/$queueSize",
+                                color = Color(0xFF8FD694),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    Spacer(Modifier.width(5.dp))
+                    Box(
+                        Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .clickable(enabled = queuePosition > 1) {
+                                playStoredYouTubeOffset(-1)
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "‹",
+                            color = if (queuePosition > 1) Color.White else Color(0xFF4B4B52),
+                            fontSize = 24.sp
+                        )
+                    }
+                    Box(
+                        Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF8FD694))
+                            .clickable { playLastYouTube() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("▶", color = Color.Black, fontWeight = FontWeight.Bold)
+                    }
+                    Box(
+                        Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .clickable(enabled = queuePosition < queueSize) {
+                                playStoredYouTubeOffset(1)
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "›",
+                            color = if (queuePosition < queueSize) Color.White else Color(0xFF4B4B52),
+                            fontSize = 24.sp
+                        )
+                    }
+                }
+            }
+
+            if (youtubeWatchLater.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                Text("YOUTUBE • XEM SAU (" + youtubeWatchLater.size + ")", color = Color(0xFFB18CFF), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                Spacer(Modifier.height(4.dp))
+                youtubeWatchLater.take(8).forEach { item ->
+                    Row(
+                        Modifier.fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Color(0xFF1B1B23))
+                            .padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OnlineArtwork(item.thumbnailUrl, Modifier.size(58.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f).clickable { playYouTube(youtubeWatchLaterAsTrack(item)) }) {
+                            Text(item.title, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text(item.channelTitle, color = Color(0xFF8F8F9A), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        IconButton(onClick = { removeYouTubeWatchLater(item.videoId) }) {
+                            Text("×", color = Color(0xFFFFB4AB), fontSize = 22.sp)
+                        }
+                    }
+                    Spacer(Modifier.height(5.dp))
+                }
+            }
+
+            if (youtubeFavoriteTracks.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                Text("YOUTUBE • YÊU THÍCH", color = Color(0xFFB18CFF), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                Spacer(Modifier.height(4.dp))
+                youtubeFavoriteTracks.take(8).forEach { item ->
+                    Row(
+                        Modifier.fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Color(0xFF1B1B23))
+                            .clickable { playYouTube(youtubeFavoriteAsTrack(item)) }
+                            .padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OnlineArtwork(item.thumbnailUrl, Modifier.size(58.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(item.title, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text(item.channelTitle, color = Color(0xFF8F8F9A), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        FilledTonalButton(
+                            onClick = { toggleYouTubeFavorite(youtubeFavoriteAsTrack(item)) },
+                            shape = CircleShape,
+                            contentPadding = PaddingValues(0.dp),
+                            modifier = Modifier.size(40.dp)
+                        ) { Text("♥") }
+                    }
+                    Spacer(Modifier.height(5.dp))
+                }
+            }
+
+            if (youtubeHistory.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                Text("TÌM GẦN ĐÂY", color = Color(0xFFB18CFF), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                Spacer(Modifier.height(4.dp))
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    youtubeHistory.take(8).forEach { item ->
+                        AssistChip(
+                            onClick = {
+                                youtubeQuery = item
+                                searchYouTube()
+                            },
+                            label = { Text(item, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                        )
+                    }
+                }
+                Spacer(Modifier.height(2.dp))
+                TextButton(
+                    onClick = ::clearYouTubeHistory,
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                ) { Text("XÓA LỊCH SỬ", fontSize = 11.sp) }
+            }
+
+            if (youtubeTracks.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "KẾT QUẢ YOUTUBE • " + youtubeTracks.size + " VIDEO",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
+                )
+                Spacer(Modifier.height(6.dp))
+                youtubeTracks.forEach { track ->
+                    val isCurrent = youtubeLastPlayed?.videoId == track.videoId
+                    Row(
+                        Modifier.fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(if (isCurrent) Color(0xFF1C2C20) else Color(0xFF1B1B23))
+                            .clickable { playYouTube(track) }
+                            .padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(92.dp)
+                                .clip(RoundedCornerShape(10.dp)),
+                            contentAlignment = Alignment.BottomStart
+                        ) {
+                            OnlineArtwork(track.thumbnailUrl, Modifier.fillMaxSize())
+                            if (isCurrent) {
+                                Text(
+                                    "ĐANG PHÁT",
+                                    color = Color.White,
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(Color(0xCC101014))
+                                        .padding(horizontal = 5.dp, vertical = 3.dp)
+                                )
+                            }
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            if (isCurrent) {
+                                Text(
+                                    "▶ ĐANG PHÁT",
+                                    color = Color(0xFF8FD694),
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Text(
+                                track.title,
+                                color = Color.White,
+                                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                track.channelTitle,
+                                color = Color(0xFF8F8F9A),
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            FilledTonalButton(
+                                onClick = { playYouTube(track) },
+                                shape = CircleShape,
+                                contentPadding = PaddingValues(0.dp),
+                                modifier = Modifier.size(38.dp)
+                            ) { Text("▶") }
+                            FilledTonalButton(
+                                onClick = { toggleYouTubeFavorite(track) },
+                                shape = CircleShape,
+                                contentPadding = PaddingValues(0.dp),
+                                modifier = Modifier.size(38.dp)
+                            ) {
+                                Text(if (youtubeFavoriteSet.contains(track.videoId)) "♥" else "♡")
+                            }
+                            FilledTonalButton(
+                                onClick = { toggleYouTubeWatchLater(track) },
+                                shape = CircleShape,
+                                contentPadding = PaddingValues(0.dp),
+                                modifier = Modifier.size(38.dp)
+                            ) {
+                                Text(
+                                    if (youtubeWatchLater.any { it.videoId == track.videoId }) "✓" else "🔖"
+                                )
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(6.dp))
+                }
+
+                if (youtubeNextPageToken != null) {
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = { searchYouTube(loadMore = true) },
+                        enabled = !youtubeLoading,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text(if (youtubeLoading) "ĐANG TẢI..." else "XEM THÊM 50 VIDEO")
+                    }
+                }
+            } else if (!youtubeLoading && youtubeQuery.isNotBlank()) {
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "Nhấn TÌM YOUTUBE để tải kho kết quả.",
+                    color = Color(0xFF8F8F9A),
+                    fontSize = 12.sp
+                )
+            }
+            }
+
+            Spacer(Modifier.height(10.dp))
+            Column(
+                Modifier.fillMaxWidth()
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(Brush.linearGradient(listOf(Color(0xFF1D1930), Color(0xFF11131A))))
+                    .padding(14.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("GOOGLE DRIVE", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 17.sp, modifier = Modifier.weight(1f))
+                Text("PRO", color = Color(0xFFC8B7FF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Thư viện nhạc trên Google Drive • riêng tư • chia sẻ • thư mục",
+                color = Color(0xFF8F8F9A),
+                fontSize = 11.sp
+            )
+            Spacer(Modifier.height(10.dp))
+
+            // Phone-first Drive path:
+            // Android's system document picker can use the Google Drive
+            // DocumentsProvider already authenticated on the phone. This lets
+            // shared files/folders be imported without depending on this APK's
+            // Google Sign-In SHA-1. Private Drive API browsing remains optional.
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                    .background(Color(0xFF171720)).padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("☁", fontSize = 24.sp)
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        if (driveOAuthSignedIn) "Google Drive API đã kết nối" else "Drive chọn trực tiếp • không bắt buộc đăng nhập app",
+                        color = Color.White,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp
+                    )
+                    Text(
+                        if (driveOAuthSignedIn && driveGoogleAccountEmail.isNotBlank())
+                            driveGoogleAccountEmail
+                        else
+                            "Ưu tiên CHỌN FILE / CHỌN THƯ MỤC để lấy cả nguồn được chia sẻ",
+                        color = Color(0xFF8F8F9A),
+                        fontSize = 10.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                TextButton(onClick = ::signInGoogleDrive) {
+                    Text(if (driveOAuthSignedIn) "↻" else "API")
+                }
+            }
+
+            Spacer(Modifier.height(9.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = ::openDrivePicker,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp)
+                ) { Text("☁ CHỌN FILE TỪ DRIVE") }
+                Button(
+                    onClick = ::openDriveFolderPicker,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp)
+                ) { Text("📁 CHỌN THƯ MỤC DRIVE") }
+            }
+            Text(
+                "Cách này dùng bộ chọn tệp Android/Google Drive trên điện thoại, không phụ thuộc SHA-1 của APK.",
+                color = Color(0xFF8F8F9A),
+                fontSize = 10.sp,
+                modifier = Modifier.padding(top = 5.dp)
+            )
+            Spacer(Modifier.height(7.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = ::loadDriveRoot,
+                    enabled = driveOAuthSignedIn && !driveSharedLoading,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp)
+                ) { Text("☁ DRIVE CỦA TÔI") }
+                OutlinedButton(
+                    onClick = ::loadSharedWithMeDrive,
+                    enabled = driveOAuthSignedIn && !driveSharedLoading,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp)
+                ) { Text("👥 ĐƯỢC CHIA SẺ (API)") }
+            }
+
+            Spacer(Modifier.height(10.dp))
+            Text("NGUỒN CHIA SẺ", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(5.dp))
+            OutlinedTextField(
+                value = driveSharedLink,
+                onValueChange = { driveSharedLink = it },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                placeholder = { Text("Dán link file hoặc thư mục được chia sẻ") },
+                label = { Text("Link Google Drive") },
+                shape = RoundedCornerShape(14.dp)
+            )
+            Spacer(Modifier.height(6.dp))
+            Button(
+                onClick = ::importSharedDriveLink,
+                enabled = !driveSharedLoading && driveSharedLink.isNotBlank(),
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text(if (driveSharedLoading) "ĐANG ĐỌC DRIVE…" else "THÊM NGUỒN CHIA SẺ")
+            }
+            Spacer(Modifier.height(5.dp))
+            Text(
+                driveSharedStatus,
+                color = if (driveSharedLoading) Color(0xFFC8B7FF) else Color(0xFF8F8F9A),
+                fontSize = 11.sp
+            )
+
+            if (driveRecentLinks.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                Text("NGUỒN GẦN ĐÂY", color = Color(0xFFB8B3C7), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                driveRecentLinks.take(5).forEach { link ->
+                    Row(
+                        Modifier.fillMaxWidth().padding(top = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            link,
+                            color = Color(0xFF9F9FAA),
+                            fontSize = 10.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f).clickable { driveSharedLink = link }
+                        )
+                        TextButton(onClick = {
+                            driveSharedLink = link
+                            importSharedDriveLink()
+                        }) { Text("MỞ") }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(6.dp))
+            OutlinedButton(
+                onClick = {
+                    loadDriveRecentLinks()
+                    loadSongs()
+                    errorMessage = "Đã làm mới thư viện Google Drive."
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) { Text("↻ LÀM MỚI THƯ VIỆN DRIVE") }
+
+            Spacer(Modifier.height(5.dp))
+            OutlinedButton(
+                onClick = ::clearSharedDriveLibrary,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) { Text("XÓA NHẠC DRIVE CHIA SẺ") }
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(value = onlineUrl, onValueChange = { onlineUrl = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, placeholder = { Text("Dán URL luồng âm thanh HTTPS") }, shape = RoundedCornerShape(14.dp))
+            Spacer(Modifier.height(6.dp))
+            Button(onClick = ::playOnlineUrl, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text("PHÁT LUỒNG ÂM THANH") }
+            Spacer(Modifier.height(6.dp))
+            OutlinedButton(onClick = { onlineUrl = "https://stream.radioparadise.com/mp3-192"; playOnlineUrl() }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text("THỬ RADIO ONLINE") }
+            Spacer(Modifier.height(6.dp))
+            OutlinedButton(onClick = ::clearOnlineLibrary, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text("XÓA URL ONLINE ĐÃ LƯU") }
+        }
+    }
+    }
+
+    @Composable
+    private fun DriveBrowserDialog() {
+        if (!showDriveBrowser) return
+        val driveBrowserScope = rememberCoroutineScope()
+        Dialog(onDismissRequest = { showDriveBrowser = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+            Surface(Modifier.fillMaxWidth(0.95f), RoundedCornerShape(26.dp), color = Color(0xFF101117)) {
+                Column(Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(driveBrowserTitle, color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold)
+                            Text(driveBrowserItems.size.toString() + " mục • Google Drive", color = Color(0xFF888894), fontSize = 11.sp)
+                        }
+                        TextButton(onClick = { showDriveBrowser = false }) { Text("ĐÓNG") }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    if (driveBrowserItems.isEmpty()) {
+                        Text("Thư mục không có file âm thanh khả dụng.", color = Color(0xFF9999A5), fontSize = 13.sp)
+                    } else {
+                        LazyColumn(Modifier.heightIn(max = 560.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                            items(driveBrowserItems, key = { it.id }) { item ->
+                                val isFolder = item.mimeType == "application/vnd.google-apps.folder"
+                                Row(
+                                    Modifier.fillMaxWidth().clip(RoundedCornerShape(15.dp)).background(Color(0xFF181922)).clickable {
+                                        if (isFolder) {
+                                            openDriveFolder(item)
+                                        } else {
+                                            driveBrowserScope.launch {
+                                                addSharedDriveItemToLibrary(item, true)
+                                            }
+                                        }
+                                    }.padding(horizontal = 11.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(if (isFolder) "📁" else "🎵", fontSize = 21.sp)
+                                    Spacer(Modifier.width(10.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(item.name, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(if (isFolder) "Thư mục • chạm để mở" else "Google Drive • chạm để phát", color = Color(0xFF858591), fontSize = 11.sp)
+                                    }
+                                    if (!isFolder) TextButton(onClick = { driveBrowserScope.launch { addSharedDriveItemToLibrary(item, false) } }) { Text("THÊM") }
+                                    else Text("›", color = Color(0xFFB18CFF), fontSize = 25.sp)
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    TextButton(onClick = { showDriveBrowser = false }) { Text("XONG") }
+                }
+            }
+        }
+    }
+
+    private suspend fun loadArtworkBitmap(song: Song?): androidx.compose.ui.graphics.ImageBitmap? {
+        if (song == null) return null
+        return withContext(Dispatchers.IO) {
+            try {
+                val uri = song.artworkUri
+                    ?: if (song.albumId >= 0L) {
+                        ContentUris.withAppendedId(
+                            MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI,
+                            song.albumId
+                        )
+                    } else null
+                uri?.let { contentResolver.openInputStream(it)?.use { input -> BitmapFactory.decodeStream(input)?.asImageBitmap() } }
+            } catch (_: Exception) {
+                null
+            }
+        }
+    }
+
+    @Composable
+    private fun SongArtwork(song: Song?, modifier: Modifier = Modifier) {
+        var artwork by remember(song?.uri?.toString(), song?.albumId, song?.artworkUri?.toString()) {
+            mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null)
+        }
+        LaunchedEffect(song?.uri?.toString(), song?.albumId, song?.artworkUri?.toString()) {
+            artwork = loadArtworkBitmap(song)
+        }
+        Box(
+            modifier.clip(RoundedCornerShape(22.dp))
+                .background(Brush.linearGradient(listOf(Color(0xFF6D4CC5), Color(0xFF24283A)))),
+            contentAlignment = Alignment.Center
+        ) {
+            if (artwork != null) {
+                Image(
+                    bitmap = artwork!!,
+                    contentDescription = song?.title ?: "Ảnh bìa",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Text("♫", color = Color(0xFFC8B7FF), fontSize = 42.sp)
+            }
+        }
+    }
+
+    @Composable
+    private fun MiniPlayer(song: Song) {
+        val totalDuration = max(duration, song.duration).coerceAtLeast(1L)
+        val progress = (position.toFloat() / totalDuration.toFloat()).coerceIn(0f, 1f)
+
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 6.dp)
+                .clip(RoundedCornerShape(18.dp))
+                .background(Color(0xFF161820))
+                .clickable { showNowPlaying = true }
+                .padding(horizontal = 10.dp, vertical = 8.dp)
+        ) {
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                SongArtwork(song, Modifier.size(50.dp))
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        song.title,
+                        color = Color.White,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        song.artist,
+                        color = Color(0xFF8F8F9A),
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                IconButton(
+                    onClick = ::previous,
+                    enabled = queueSongs.size > 1
+                ) {
+                    Text("⏮", color = Color(0xFFB8B3C7), fontSize = 18.sp)
+                }
+                IconButton(onClick = ::togglePlayPause) {
+                    Text(
+                        if (isPlaying) "⏸" else "▶",
+                        color = Color.White,
+                        fontSize = 20.sp
+                    )
+                }
+                IconButton(
+                    onClick = ::next,
+                    enabled = queueSongs.size > 1
+                ) {
+                    Text("⏭", color = Color(0xFFB8B3C7), fontSize = 18.sp)
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(3.dp)
+                    .clip(RoundedCornerShape(99.dp)),
+                color = Color(0xFFB18CFF),
+                trackColor = Color(0xFF2B2B35)
+            )
+        }
+    }
+
+    @Composable
+    private fun PlayerCard(song: Song?) {
+        // Media3 can resolve duration after playback starts (Drive/online streams).
+        // Show the live value for the active item while retaining library metadata as fallback.
+        val shownDuration = if (song != null && duration > 0L) duration else (song?.duration ?: 0L)
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Brush.linearGradient(listOf(Color(0xFF211A35), Color(0xFF12151D)))).padding(18.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                SongArtwork(song, Modifier.size(82.dp))
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(song?.title ?: "Chưa chọn bài hát", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Spacer(Modifier.height(4.dp))
+                    Text(song?.artist ?: "Chọn một bài trong thư viện", color = Color(0xFFAAAAB5), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+            var isSeeking by remember(song?.uri?.toString()) { mutableStateOf(false) }
+            var sliderPosition by remember(song?.uri?.toString()) {
+                mutableFloatStateOf(position.coerceIn(0L, max(1L, shownDuration)).toFloat())
+            }
+            LaunchedEffect(position, isSeeking, song?.uri?.toString()) {
+                if (!isSeeking) {
+                    sliderPosition = position.coerceIn(0L, max(1L, shownDuration)).toFloat()
+                }
+            }
+            Slider(
+                value = sliderPosition,
+                onValueChange = {
+                    isSeeking = true
+                    sliderPosition = it
+                },
+                onValueChangeFinished = {
+                    seekTo(sliderPosition.toLong())
+                    isSeeking = false
+                },
+                valueRange = 0f..max(1L, shownDuration).toFloat(),
+                enabled = song != null
+            )
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(formatTime(position), color = Color(0xFF9999A5), fontSize = 12.sp)
+                Text(formatTime(shownDuration), color = Color(0xFF9999A5), fontSize = 12.sp)
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                SmallControl(if (shuffleEnabled) "🔀" else "⇄", ::toggleShuffle, shuffleEnabled)
+                SmallControl("⏮", ::previous)
+                Button(
+                    onClick = ::togglePlayPause,
+                    enabled = song != null || songs.isNotEmpty(),
+                    modifier = Modifier.size(58.dp),
+                    shape = CircleShape,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7657D8))
+                ) {
+                    Text(if (isPlaying) "⏸" else "▶", fontSize = 23.sp)
+                }
+                SmallControl("⏭", ::next)
+                SmallControl(
+                    when (repeatMode) {
+                        Player.REPEAT_MODE_ONE -> "🔂"
+                        Player.REPEAT_MODE_ALL -> "🔁"
+                        else -> "↻"
+                    },
+                    ::cycleRepeat,
+                    repeatMode != Player.REPEAT_MODE_OFF
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = { showQueue = true },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("☷ HÀNG ĐỢI")
+                }
+                OutlinedButton(
+                    onClick = ::stop,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("■ DỪNG")
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun SmallControl(label: String, action: () -> Unit, active: Boolean = false) {
+        FilledTonalButton(onClick = action, modifier = Modifier.size(48.dp), shape = CircleShape, contentPadding = PaddingValues(0.dp),
+            colors = ButtonDefaults.filledTonalButtonColors(containerColor = if (active) Color(0xFF4A396F) else Color(0xFF25252D))) {
+            Text(label, fontSize = 17.sp)
+        }
+    }
+
+    @Composable
+    private fun PlaylistManagerDialog() {
+        Dialog(onDismissRequest = { showPlaylists = false }) {
+            Surface(
+                shape = RoundedCornerShape(26.dp),
+                color = Color(0xFF101117),
+                modifier = Modifier.fillMaxWidth(0.94f)
+            ) {
+                Column(Modifier.padding(18.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("PLAYLIST", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                            Text(playlists.size.toString() + " danh sách • lưu trên thiết bị", color = Color(0xFF888894), fontSize = 12.sp)
+                        }
+                        TextButton(onClick = { showCreatePlaylist = true }) { Text("+ Tạo") }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    if (playlists.isEmpty()) {
+                        Text("Chưa có playlist. Hãy tạo playlist rồi dùng nút ▣ cạnh bài hát để thêm nhạc.", color = Color(0xFF9A9AA5), fontSize = 13.sp)
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.heightIn(max = 520.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(playlists, key = { it.id }) { playlist ->
+                                Row(
+                                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                                        .background(Color(0xFF181922)).padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(Modifier.weight(1f).clickable { playlistDetailId = playlist.id }) {
+                                        Text(playlist.name, color = Color.White, fontWeight = FontWeight.SemiBold)
+                                        Text(playlist.songUris.size.toString() + " bài • chạm để xem", color = Color(0xFF888894), fontSize = 11.sp)
+                                    }
+                                    TextButton(onClick = { playPlaylist(playlist) }) { Text("▶") }
+                                    TextButton(onClick = { deletePlaylist(playlist) }) { Text("×", color = Color(0xFFFF8A9A)) }
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    TextButton(onClick = { showPlaylists = false }) { Text("Đóng") }
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun PlaylistDetailDialog(playlist: MusicPlaylist) {
+        val playlistSongs = playlist.songUris.mapNotNull { uri ->
+            songs.firstOrNull { it.uri.toString() == uri }
+        }
+
+        Dialog(onDismissRequest = { playlistDetailId = null }) {
+            Surface(
+                shape = RoundedCornerShape(26.dp),
+                color = Color(0xFF101117),
+                modifier = Modifier.fillMaxWidth(0.95f)
+            ) {
+                Column(Modifier.padding(18.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(playlist.name, color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                            Text(playlist.songUris.size.toString() + " bài", color = Color(0xFF888894), fontSize = 12.sp)
+                        }
+                        TextButton(
+                            onClick = { playPlaylist(playlist) },
+                            enabled = playlistSongs.isNotEmpty()
+                        ) { Text("▶ Phát") }
+                    }
+                    Spacer(Modifier.height(8.dp))
+
+                    if (playlistSongs.isEmpty()) {
+                        Text(
+                            "Playlist chưa có bài khả dụng. Hãy thêm nhạc bằng nút ▣ trong thư viện.",
+                            color = Color(0xFF9999A5),
+                            fontSize = 13.sp
+                        )
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.heightIn(max = 520.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            items(playlistSongs, key = { it.uri.toString() }) { song ->
+                                Row(
+                                    Modifier.fillMaxWidth()
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .background(Color(0xFF181922))
+                                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(song.title, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(song.artist, color = Color(0xFF888894), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    }
+                                    TextButton(
+                                        onClick = {
+                                            playlistStore.removeSong(playlist.id, song.uri.toString())
+                                            refreshPlaylists()
+                                        }
+                                    ) { Text("XÓA", color = Color(0xFFFF8A9A)) }
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+                    TextButton(onClick = { playlistDetailId = null }) { Text("Đóng") }
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun PlaylistPickerDialog(song: Song) {
+        Dialog(onDismissRequest = { playlistTargetSongUri = null }) {
+            Surface(
+                shape = RoundedCornerShape(24.dp),
+                color = Color(0xFF101117),
+                modifier = Modifier.fillMaxWidth(0.94f)
+            ) {
+                Column(Modifier.padding(18.dp)) {
+                    Text("THÊM VÀO PLAYLIST", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(4.dp))
+                    Text(song.title, color = Color(0xFF9999A5), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Spacer(Modifier.height(10.dp))
+                    if (playlists.isEmpty()) {
+                        Text("Chưa có playlist.", color = Color(0xFF9999A5), fontSize = 13.sp)
+                        Spacer(Modifier.height(8.dp))
+                        Button(onClick = {
+                                            newPlaylistName = ""
+                            showCreatePlaylist = true
+                        }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                            Text("TẠO PLAYLIST MỚI")
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.heightIn(max = 420.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(playlists, key = { it.id }) { playlist ->
+                                OutlinedButton(
+                                    onClick = { addSongToPlaylist(playlist.id, song) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(14.dp)
+                                ) {
+                                    Text(playlist.name + " • " + playlist.songUris.size.toString() + " bài", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                            }
+                            item {
+                                OutlinedButton(
+                                    onClick = {
+                                        newPlaylistName = ""
+                                        showCreatePlaylist = true
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(14.dp)
+                                ) { Text("+ Tạo playlist mới") }
+                            }
+                        }
+                    }
+                    TextButton(onClick = { playlistTargetSongUri = null }) { Text("Hủy") }
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun CreatePlaylistDialog() {
+        AlertDialog(
+            onDismissRequest = {
+                playlistTargetSongUri = null
+                showCreatePlaylist = false
+            },
+            title = { Text("Tạo playlist") },
+            text = {
+                OutlinedTextField(
+                    value = newPlaylistName,
+                    onValueChange = { newPlaylistName = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text("Tên playlist") },
+                    placeholder = { Text("Ví dụ: Nhạc vàng yêu thích") },
+                    shape = RoundedCornerShape(14.dp)
+                )
+            },
+            confirmButton = { Button(onClick = ::createPlaylist) { Text("TẠO") } },
+            dismissButton = {
+                TextButton(onClick = {
+                    playlistTargetSongUri = null
+                    showCreatePlaylist = false
+                }) { Text("HỦY") }
+            }
+        )
+    }
+
+    @Composable
+    private fun SongRow(song: Song, index: Int, selected: Boolean) {
+        val shownDuration = if (selected && duration > 0L) duration else song.duration
+        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(if (selected) Color(0xFF252033) else Color(0xFF141419))
+            .clickable { play(index) }.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(String.format("%02d", index + 1), color = if (selected) Color(0xFFC8B7FF) else Color(0xFF777783),
+                fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(34.dp))
+            Column(Modifier.weight(1f)) {
+                Text(song.title, color = Color.White, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    if (libraryView == "Thư mục" && song.folder.isNotBlank()) "${song.folder} • ${song.artist}" else "${song.artist} • ${song.source}",
+                    color = Color(0xFF8F8F9A), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis
+                )
+            }
+            IconButton(
+                onClick = { playNext(song) },
+            ) {
+                Text("⏭", color = Color(0xFFB5A1FF), fontSize = 18.sp)
+            }
+            IconButton(onClick = { addToQueue(song) }) {
+                Text("＋", color = Color(0xFFC8B7FF), fontSize = 22.sp)
+            }
+            IconButton(onClick = { playlistTargetSongUri = song.uri.toString() }) {
+                Text("▣", color = Color(0xFF8FD3FF), fontSize = 18.sp)
+            }
+            IconButton(onClick = { toggleFavorite(song) }) {
+                Text(if (favorites[song.id] == true) "♥" else "♡", color = if (favorites[song.id] == true) Color(0xFFFF6B81) else Color(0xFF777783), fontSize = 22.sp)
+            }
+            Text(formatTime(shownDuration), color = Color(0xFF858591), fontSize = 12.sp)
+        }
+    }
+
+    private fun formatTime(milliseconds: Long): String {
+        val totalSeconds = max(0L, milliseconds) / 1000
+        return String.format("%02d:%02d", totalSeconds / 60, totalSeconds % 60)
+    }
+}
