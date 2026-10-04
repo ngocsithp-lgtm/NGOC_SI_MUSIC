@@ -1654,6 +1654,7 @@ class MainActivity : ComponentActivity() {
             }
 
             saveSharedDriveItems(savedItems)
+            driveBrowserHistory.clear()
             driveBrowserItems.clear()
             driveBrowserItems.addAll(result)
             driveBrowserTitle = "ĐƯỢC CHIA SẺ VỚI TÔI"
