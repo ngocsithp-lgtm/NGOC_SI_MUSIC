@@ -5036,60 +5036,155 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
     @Composable
     private fun QueueDialog() {
         Dialog(onDismissRequest = { showQueue = false }) {
-            Surface(shape = RoundedCornerShape(26.dp), color = Color(0xFF101117), modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(18.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+            Surface(
+                shape = RoundedCornerShape(28.dp),
+                color = Color(0xFF0E1016),
+                modifier = Modifier
+                    .fillMaxWidth(0.97f)
+                    .padding(vertical = 12.dp)
+            ) {
+                Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Column(Modifier.weight(1f)) {
-                            Text("HÀNG ĐỢI PHÁT", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
-                            Text(queueSongs.size.toString() + " bài • " + if (shuffleEnabled) "Ngẫu nhiên" else "Theo thứ tự hàng đợi", color = Color(0xFF888894), fontSize = 12.sp)
+                            Text("HÀNG ĐỢI PHÁT", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                queueSongs.size.toString() + " bài • " + if (shuffleEnabled) "Phát ngẫu nhiên" else "Theo thứ tự",
+                                color = Color(0xFF8F92A0),
+                                fontSize = 12.sp
+                            )
                         }
                         if (queueSongs.isNotEmpty()) {
-                            TextButton(onClick = { playQueueFromStart() }) {
-                                Text("Phát từ đầu", color = Color(0xFFC8B7FF))
-                            }
-                            TextButton(onClick = { clearQueue() }) {
-                                Text("Xóa hết", color = Color(0xFFFF8A9A))
+                            QueueHeaderButton("▶", "Phát", onClick = { playQueueFromStart() })
+                            Spacer(Modifier.width(6.dp))
+                            QueueHeaderButton("×", "Xóa", onClick = { clearQueue() })
+                        }
+                        Spacer(Modifier.width(4.dp))
+                        TextButton(onClick = { showQueue = false }) {
+                            Text("Đóng", color = Color(0xFFBEB6D6))
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    if (queueSongs.isEmpty()) {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(20.dp),
+                            color = Color(0xFF151821),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF252936))
+                        ) {
+                            Column(
+                                Modifier.padding(vertical = 30.dp, horizontal = 20.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text("☷", color = Color(0xFFC8B7FF), fontSize = 34.sp)
+                                Spacer(Modifier.height(8.dp))
+                                Text("Hàng đợi đang trống", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                Text("Thêm bài hát từ thư viện bằng nút ＋", color = Color(0xFF858895), fontSize = 12.sp)
                             }
                         }
-                        TextButton(onClick = { showQueue = false }) { Text("Đóng") }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    LazyColumn(modifier = Modifier.heightIn(max = 460.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        itemsIndexed(queueSongs, key = { _, song -> song.uri.toString() }) { index, song ->
-                            val activeUri = controller?.currentMediaItem?.localConfiguration?.uri
-                            val isCurrent = activeUri == song.uri
-                            Row(
-                                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-                                    .background(if (isCurrent) Color(0xFF29213E) else Color(0xFF17181F))
-                                    .clickable {
-                                        val libraryIndex = songs.indexOfFirst { it.uri == song.uri }
-                                        if (libraryIndex >= 0) play(libraryIndex)
-                                        showQueue = false
-                                    }.padding(10.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(if (isCurrent) "▶" else String.format("%02d", index + 1), color = Color(0xFFC8B7FF), fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(32.dp))
-                                Column(Modifier.weight(1f)) {
-                                    Text(song.title, color = Color.White, softWrap = true)
-                                    Text(song.artist, color = Color(0xFF888894), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.heightIn(max = 560.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            contentPadding = PaddingValues(bottom = 6.dp)
+                        ) {
+                            itemsIndexed(queueSongs, key = { _, song -> song.uri.toString() }) { index, song ->
+                                val activeUri = controller?.currentMediaItem?.localConfiguration?.uri
+                                val isCurrent = activeUri == song.uri
+                                Row(
+                                    Modifier.fillMaxWidth()
+                                        .clip(RoundedCornerShape(18.dp))
+                                        .background(if (isCurrent) Color(0xFF29213E) else Color(0xFF161820))
+                                        .clickable {
+                                            val libraryIndex = songs.indexOfFirst { it.uri == song.uri }
+                                            if (libraryIndex >= 0) play(libraryIndex)
+                                            showQueue = false
+                                        }
+                                        .padding(horizontal = 10.dp, vertical = 9.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        Modifier.size(30.dp).clip(CircleShape)
+                                            .background(if (isCurrent) Color(0xFF7657D8) else Color(0xFF222532)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(if (isCurrent) "▶" else String.format("%02d", index + 1), color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                    Spacer(Modifier.width(10.dp))
+                                    SongArtwork(song, Modifier.size(52.dp))
+                                    Spacer(Modifier.width(10.dp))
+                                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                        Text(
+                                            song.title,
+                                            color = Color.White,
+                                            fontSize = 14.sp,
+                                            lineHeight = 18.sp,
+                                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold,
+                                            softWrap = true
+                                        )
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            Text(song.artist, color = Color(0xFF9A9CAA), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                            SourceBadge(song.source)
+                                        }
+                                    }
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(formatTime(song.duration), color = Color(0xFF858895), fontSize = 10.sp)
+                                    Spacer(Modifier.width(2.dp))
+                                    QueueIconButton("↑", index > 0) { if (index > 0) moveQueueItem(index, index - 1) }
+                                    QueueIconButton("↓", index < queueSongs.lastIndex) { if (index < queueSongs.lastIndex) moveQueueItem(index, index + 1) }
+                                    QueueIconButton("×", true) { removeFromQueue(index) }
                                 }
-                                Text(formatTime(song.duration), color = Color(0xFF777783), fontSize = 11.sp)
-                                TextButton(
-                                    onClick = { if (index > 0) moveQueueItem(index, index - 1) },
-                                    enabled = index > 0
-                                ) { Text("↑") }
-                                TextButton(
-                                    onClick = { if (index < queueSongs.lastIndex) moveQueueItem(index, index + 1) },
-                                    enabled = index < queueSongs.lastIndex
-                                ) { Text("↓") }
-                                TextButton(
-                                    onClick = { removeFromQueue(index) }
-                                ) { Text("×") }
                             }
                         }
                     }
                 }
             }
+        }
+    }
+
+    @Composable
+    private fun QueueHeaderButton(label: String, title: String, onClick: () -> Unit) {
+        Column(
+            modifier = Modifier.clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(horizontal = 7.dp, vertical = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(label, color = Color(0xFFC8B7FF), fontSize = 15.sp)
+            Text(title, color = Color(0xFF9E9FAA), fontSize = 8.sp)
+        }
+    }
+
+    @Composable
+    private fun QueueIconButton(label: String, enabled: Boolean, onClick: () -> Unit) {
+        Box(
+            modifier = Modifier.size(34.dp).clip(RoundedCornerShape(10.dp))
+                .background(if (enabled) Color(0xFF20232D) else Color.Transparent)
+                .clickable(enabled = enabled, onClick = onClick),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(label, color = if (enabled) Color(0xFFBDB7CC) else Color(0xFF4D4F58), fontSize = 15.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+
+    @Composable
+    private fun SourceBadge(source: String) {
+        val label = when (source) {
+            "Google Drive" -> "DRIVE"
+            "Thiết bị" -> "THIẾT BỊ"
+            "Radio Việt Nam" -> "RADIO"
+            else -> source.uppercase()
+        }
+        Surface(shape = RoundedCornerShape(7.dp), color = Color(0xFF222532)) {
+            Text(
+                label,
+                color = Color(0xFFBEB6D6),
+                fontSize = 8.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.4.sp,
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+            )
         }
     }
 
@@ -7024,32 +7119,66 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
     @Composable
     private fun SongRow(song: Song, index: Int, selected: Boolean) {
         val shownDuration = if (selected && duration > 0L) duration else song.duration
-        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(if (selected) Color(0xFF252033) else Color(0xFF141419))
-            .clickable { play(index) }.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(String.format("%02d", index + 1), color = if (selected) Color(0xFFC8B7FF) else Color(0xFF777783),
-                fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(34.dp))
-            Column(Modifier.weight(1f)) {
-                Text(song.title, color = Color.White, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, softWrap = true)
-                Text(
-                    if (libraryView == "Thư mục" && song.folder.isNotBlank()) "${song.folder} • ${song.artist}" else "${song.artist} • ${song.source}",
-                    color = Color(0xFF8F8F9A), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis
-                )
-            }
-            IconButton(
-                onClick = { playNext(song) },
+        Row(
+            Modifier.fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .background(if (selected) Color(0xFF28203D) else Color(0xFF14161D))
+                .clickable { play(index) }
+                .padding(horizontal = 10.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                Modifier.size(30.dp).clip(CircleShape)
+                    .background(if (selected) Color(0xFF7657D8) else Color(0xFF222530)),
+                contentAlignment = Alignment.Center
             ) {
-                Text("⏭", color = Color(0xFFB5A1FF), fontSize = 18.sp)
+                Text(if (selected) "▶" else String.format("%02d", index + 1), color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
             }
-            IconButton(onClick = { addToQueue(song) }) {
-                Text("＋", color = Color(0xFFC8B7FF), fontSize = 22.sp)
+            Spacer(Modifier.width(10.dp))
+            SongArtwork(song, Modifier.size(56.dp))
+            Spacer(Modifier.width(11.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    song.title,
+                    color = Color.White,
+                    fontSize = 15.sp,
+                    lineHeight = 19.sp,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
+                    softWrap = true
+                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(song.artist, color = Color(0xFF989AA8), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    SourceBadge(song.source)
+                }
+                if (libraryView == "Thư mục" && song.folder.isNotBlank()) {
+                    Text(song.folder, color = Color(0xFF70727E), fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
-            IconButton(onClick = { playlistTargetSongUri = song.uri.toString() }) {
-                Text("▣", color = Color(0xFF8FD3FF), fontSize = 18.sp)
+            Spacer(Modifier.width(6.dp))
+            Column(horizontalAlignment = Alignment.End) {
+                Text(formatTime(shownDuration), color = Color(0xFF858895), fontSize = 10.sp)
+                Spacer(Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    SongActionButton("⏭") { playNext(song) }
+                    SongActionButton("＋") { addToQueue(song) }
+                    SongActionButton("▣") { playlistTargetSongUri = song.uri.toString() }
+                    SongActionButton(
+                        if (favorites[song.id] == true) "♥" else "♡",
+                        if (favorites[song.id] == true) Color(0xFFFF6B81) else Color(0xFF8E8F9A)
+                    ) { toggleFavorite(song) }
+                }
             }
-            IconButton(onClick = { toggleFavorite(song) }) {
-                Text(if (favorites[song.id] == true) "♥" else "♡", color = if (favorites[song.id] == true) Color(0xFFFF6B81) else Color(0xFF777783), fontSize = 22.sp)
-            }
-            Text(formatTime(shownDuration), color = Color(0xFF858591), fontSize = 12.sp)
+        }
+    }
+
+    @Composable
+    private fun SongActionButton(label: String, tint: Color = Color(0xFFBEB6D6), onClick: () -> Unit) {
+        Box(
+            modifier = Modifier.size(30.dp).clip(RoundedCornerShape(9.dp))
+                .background(Color(0xFF20232D)).clickable(onClick = onClick),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(label, color = tint, fontSize = 13.sp)
         }
     }
 
