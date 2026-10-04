@@ -4692,12 +4692,12 @@ class MainActivity : ComponentActivity() {
 
             Column(
                 Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(9.dp)
+                verticalArrangement = Arrangement.spacedBy(7.dp)
             ) {
                 sourceEntries.chunked(2).forEach { rowSources ->
                     Row(
                         Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(9.dp)
+                        horizontalArrangement = Arrangement.spacedBy(7.dp)
                     ) {
                         rowSources.forEach { source ->
                             val isDrive = source.startsWith("Google Drive")
@@ -4744,10 +4744,10 @@ class MainActivity : ComponentActivity() {
     ) {
         Surface(
             modifier = modifier
-                .height(88.dp)
-                .clip(RoundedCornerShape(18.dp))
+                .height(64.dp)
+                .clip(RoundedCornerShape(15.dp))
                 .clickable(onClick = onClick),
-            shape = RoundedCornerShape(18.dp),
+            shape = RoundedCornerShape(15.dp),
             color = if (selected) Color(0xFF2A2045) else Color(0xFF12151C),
             border = androidx.compose.foundation.BorderStroke(
                 if (selected) 1.5.dp else 1.dp,
@@ -4757,19 +4757,19 @@ class MainActivity : ComponentActivity() {
             Row(
                 Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 11.dp, vertical = 10.dp),
+                    .padding(horizontal = 9.dp, vertical = 7.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Surface(
-                    modifier = Modifier.size(42.dp),
-                    shape = RoundedCornerShape(13.dp),
+                    modifier = Modifier.size(32.dp),
+                    shape = RoundedCornerShape(10.dp),
                     color = if (selected) Color(0xFF6549A4) else Color(0xFF1B1F29)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Text(
                             icon,
                             color = if (selected) Color.White else Color(0xFFB9A9DC),
-                            fontSize = 20.sp
+                            fontSize = 16.sp
                         )
                     }
                 }
@@ -4783,7 +4783,7 @@ class MainActivity : ComponentActivity() {
                     Text(
                         title,
                         color = Color.White,
-                        fontSize = 12.sp,
+                        fontSize = 10.5.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
@@ -6054,6 +6054,23 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             queueSongs.mapIndexed { index, song -> Pair(index, song) }
         }
 
+        val queueSources = buildList {
+            add("Tất cả")
+            addAll(queueSongs.map { it.source }.filter { it.isNotBlank() }.distinct())
+        }
+        var queueSourceFilter by remember { mutableStateOf("Tất cả") }
+        LaunchedEffect(activeQueueIndex, queueSongs.size) {
+            if (queueSourceFilter == "Tất cả") {
+                val activeSource = activeQueueIndex.takeIf { it >= 0 }?.let { queueSongs.getOrNull(it)?.source }.orEmpty()
+                if (activeSource.isNotBlank()) queueSourceFilter = activeSource
+            }
+        }
+        val visibleNextEntries = if (queueSourceFilter == "Tất cả") {
+            nextEntries
+        } else {
+            nextEntries.filter { it.second.source == queueSourceFilter }
+        }
+
         val playedCount = if (activeQueueIndex > 0) activeQueueIndex else 0
         val currentSong = activeQueueIndex.takeIf { it >= 0 }?.let { queueSongs[it] }
 
@@ -6116,6 +6133,40 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         }
 
                         Spacer(Modifier.height(12.dp))
+
+                        if (queueSources.size > 1) {
+                            Text(
+                                "NGUỒN TRONG HÀNG ĐỢI",
+                                color = Color(0xFF747B8A),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 1.1.sp
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(7.dp),
+                                contentPadding = PaddingValues(end = 4.dp)
+                            ) {
+                                items(queueSources) { source ->
+                                    FilterChip(
+                                        selected = queueSourceFilter == source,
+                                        onClick = { queueSourceFilter = source },
+                                        label = {
+                                            Text(
+                                                if (source == "Tất cả") "Tất cả" else source.removePrefix("Google Drive • ").removePrefix("Chia sẻ • "),
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                fontSize = 10.sp
+                                            )
+                                        },
+                                        leadingIcon = if (source.startsWith("Google Drive")) {
+                                            { Text("☁", fontSize = 11.sp) }
+                                        } else null
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.height(10.dp))
+                        }
 
                         if (queueSongs.isNotEmpty()) {
                             Row(
@@ -6269,7 +6320,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 )
                                 Spacer(Modifier.width(8.dp))
                                 Text(
-                                    nextEntries.size.toString() + " bài",
+                                    visibleNextEntries.size.toString() + " bài",
                                     color = Color(0xFF747B8A),
                                     fontSize = 10.sp
                                 )
@@ -6285,7 +6336,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
                             Spacer(Modifier.height(7.dp))
 
-                            if (nextEntries.isEmpty()) {
+                            if (visibleNextEntries.isEmpty()) {
                                 Surface(
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(17.dp),
@@ -6343,7 +6394,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         Surface(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .pointerInput(song.uri, nextEntries.size) {
+                                                .pointerInput(song.uri, visibleNextEntries.size) {
                                                     detectDragGesturesAfterLongPress(
                                                         onDragStart = {
                                                             draggingQueueIndex = displayIndex
