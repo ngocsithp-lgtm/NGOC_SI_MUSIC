@@ -879,11 +879,11 @@ class MainActivity : ComponentActivity() {
                     result += Song(
                         id = -kotlin.math.abs(raw.hashCode().toLong()),
                         title = item.name.substringBeforeLast(".").ifBlank { item.name },
-                        artist = "Google Drive • Chia sẻ",
+                        artist = driveSongSource(item.sourceName),
                         duration = 0L,
                         uri = uri,
-                        source = "Google Drive",
-                        folder = "Drive chia sẻ"
+                        source = driveSongSource(item.sourceName),
+                        folder = item.sourceName.ifBlank { "Drive chia sẻ" }
                     )
                 }
             }
@@ -1144,7 +1144,10 @@ class MainActivity : ComponentActivity() {
             .build()
     }
 
-    private fun importDriveSongs(uris: List<Uri>) {
+    private fun importDriveSongs(
+        uris: List<Uri>,
+        sourceName: String = "Tệp đã chọn"
+    ) {
         val uniqueUris = uris.distinctBy { it.toString() }
         if (uniqueUris.isEmpty()) return
 
@@ -1176,7 +1179,10 @@ class MainActivity : ComponentActivity() {
                     val importedSong = songFromUri(uri)
                     if (importedSong != null) {
                         saved.add(raw)
-                        importedSongs += importedSong
+                        importedSongs += importedSong.copy(
+                            source = driveSongSource(sourceName),
+                            folder = sourceName
+                        )
                     }
                 }
 
@@ -1277,8 +1283,14 @@ class MainActivity : ComponentActivity() {
         val mimeType: String,
         val resourceKey: String,
         val size: Long,
-        val webContentLink: String = ""
+        val webContentLink: String = "",
+        val sourceName: String = ""
     )
+
+    private fun driveSongSource(sourceName: String): String {
+        val clean = sourceName.trim().removePrefix("Google Drive •").trim()
+        return "Google Drive • " + clean.ifBlank { "Chia sẻ" }
+    }
 
     private fun formatDriveSize(bytes: Long): String {
         if (bytes <= 0L) return "Không rõ dung lượng"
@@ -1375,6 +1387,7 @@ class MainActivity : ComponentActivity() {
                     put("resourceKey", item.resourceKey)
                     put("size", item.size)
                     put("webContentLink", item.webContentLink)
+                    put("sourceName", item.sourceName)
                 })
             }
         })
@@ -1484,7 +1497,8 @@ class MainActivity : ComponentActivity() {
                                             item.optString("mimeType"),
                                             item.optString("resourceKey"),
                                             item.optLong("size", 0L),
-                                            item.optString("webContentLink")
+                                            item.optString("webContentLink"),
+                                            item.optString("sourceName").trim()
                                         )
                                     )
                                 }
@@ -1715,7 +1729,9 @@ class MainActivity : ComponentActivity() {
                             name,
                             item.optString("mimeType"),
                             item.optString("resourceKey"),
-                            item.optLong("size", 0L)
+                            item.optLong("size", 0L),
+                            item.optString("webContentLink").trim(),
+                            item.optString("sourceName").trim()
                         )
                     )
                 }
@@ -2232,11 +2248,12 @@ class MainActivity : ComponentActivity() {
                             root.optString("webContentLink").trim()
                         )
                     }
-                    collected.distinctBy { it.id }
+                    collected.distinctBy { it.id }.map { item -> item.copy(sourceName = rootName) }
                 }
             }
 
             result.onSuccess { items ->
+                val sourceName = items.firstOrNull()?.sourceName.orEmpty().ifBlank { "Nguồn Drive chia sẻ" }
                 val currentUris = songs.map { it.uri.toString() }.toMutableSet()
                 val savedItems = loadSharedDriveItems().toMutableList()
                 var added = 0
@@ -2249,11 +2266,11 @@ class MainActivity : ComponentActivity() {
                     val song = Song(
                         id = -kotlin.math.abs(raw.hashCode().toLong()),
                         title = item.name.substringBeforeLast(".").ifBlank { item.name },
-                        artist = "Google Drive • Chia sẻ",
+                        artist = driveSongSource(sourceName),
                         duration = 0L,
                         uri = uri,
-                        source = "Google Drive",
-                        folder = "Drive chia sẻ"
+                        source = driveSongSource(sourceName),
+                        folder = sourceName
                     )
                     songs.add(song)
                     if (queueSongs.none { it.uri == uri }) queueSongs.add(song)
@@ -2344,7 +2361,10 @@ class MainActivity : ComponentActivity() {
                 return@launch
             }
 
-            importDriveSongs(audioUris)
+            importDriveSongs(
+                audioUris,
+                root.name?.trim().orEmpty().ifBlank { "Thư mục Google Drive" }
+            )
         }
     }
 
@@ -3694,12 +3714,12 @@ class MainActivity : ComponentActivity() {
             val byText = if (q.isBlank()) songs.toList() else songs.filter {
                 it.title.contains(q, true) || it.artist.contains(q, true) || it.source.contains(q, true)
             }
-            val bySource = when (selectedLibrary) {
-                "Yêu thích" -> byText.filter { favorites[it.id] == true }
-                "Thiết bị" -> byText.filter { it.source == "Thiết bị" }
-                "Google Drive" -> byText.filter { it.source == "Google Drive" }
-                "Online" -> byText.filter { it.source in setOf("Online", "Jamendo", "Audius", "Radio Việt Nam") }
-                else -> byText
+            val bySource = when {
+                selectedLibrary == "Yêu thích" -> byText.filter { favorites[it.id] == true }
+                selectedLibrary == "Tất cả" -> byText
+                selectedLibrary == "Thiết bị" -> byText.filter { it.source == "Thiết bị" }
+                selectedLibrary == "Online" -> byText.filter { it.source in setOf("Online", "Jamendo", "Audius", "Radio Việt Nam") }
+                else -> byText.filter { it.source == selectedLibrary }
             }
             when (libraryView) {
                 "Nghệ sĩ" -> bySource.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.artist })
@@ -3708,7 +3728,6 @@ class MainActivity : ComponentActivity() {
                 else -> bySource.sortedBy { it.title.lowercase() }
             }
         }
-
         LaunchedEffect(isPlaying, currentIndex) {
             while (isPlaying) {
                 controller?.let {
@@ -4276,12 +4295,12 @@ class MainActivity : ComponentActivity() {
                 Surface(
                     modifier = Modifier.clip(RoundedCornerShape(13.dp)).clickable {
                         val snapshot = songs.filter {
-                            when (selectedLibrary) {
-                                "Yêu thích" -> favorites[it.id] == true
-                                "Thiết bị" -> it.source == "Thiết bị"
-                                "Google Drive" -> it.source == "Google Drive"
-                                "Online" -> it.source in setOf("Online", "Jamendo", "Audius", "Radio Việt Nam")
-                                else -> true
+                            when {
+                                selectedLibrary == "Yêu thích" -> favorites[it.id] == true
+                                selectedLibrary == "Tất cả" -> true
+                                selectedLibrary == "Thiết bị" -> it.source == "Thiết bị"
+                                selectedLibrary == "Online" -> it.source in setOf("Online", "Jamendo", "Audius", "Radio Việt Nam")
+                                else -> it.source == selectedLibrary
                             }
                         }
                         playFilteredSongs(snapshot)
@@ -4403,22 +4422,49 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun LibraryChips() {
-        val tabs = listOf("Tất cả", "Yêu thích", "Thiết bị", "Google Drive", "Online")
+        val sourceNames = songs.map { it.source }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it })
+        val chips = listOf("Tất cả", "Yêu thích") + sourceNames
+
         Column(Modifier.padding(horizontal = 16.dp)) {
-            Text("NGUỒN NHẠC", color = Color(0xFF777D8D), fontSize = 9.sp, fontWeight = FontWeight.Black, letterSpacing = 1.2.sp)
+            Text(
+                "NGUỒN NHẠC",
+                color = Color(0xFF777D8D),
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Black,
+                letterSpacing = 1.2.sp
+            )
             Spacer(Modifier.height(6.dp))
             Row(
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(7.dp)
             ) {
-                tabs.forEach { tab ->
+                chips.forEach { source ->
                     FilterChip(
-                        selected = selectedLibrary == tab,
-                        onClick = { selectedLibrary = tab },
-                        label = { Text(tab, fontSize = 11.sp, fontWeight = if (selectedLibrary == tab) FontWeight.Bold else FontWeight.Medium) },
+                        selected = selectedLibrary == source,
+                        onClick = { selectedLibrary = source },
+                        label = {
+                            Text(
+                                source,
+                                fontSize = 11.sp,
+                                fontWeight = if (selectedLibrary == source) FontWeight.Bold else FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        },
                         shape = RoundedCornerShape(13.dp)
                     )
                 }
+            }
+            if (sourceNames.size > 2) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    sourceNames.size.toString() + " nguồn riêng • chạm vào nguồn để mở riêng",
+                    color = Color(0xFF727786),
+                    fontSize = 9.sp
+                )
             }
         }
         Spacer(Modifier.height(8.dp))
