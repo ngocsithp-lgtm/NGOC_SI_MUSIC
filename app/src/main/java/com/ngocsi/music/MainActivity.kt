@@ -7080,7 +7080,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             modifier = Modifier.heightIn(max = 520.dp),
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            items(playlistSongs, key = { it.uri.toString() }) { song ->
+                            items(playlistSongs, key = { it.uri.toString() }) { index, song ->
                                 Row(
                                     Modifier.fillMaxWidth()
                                         .clip(RoundedCornerShape(14.dp))
