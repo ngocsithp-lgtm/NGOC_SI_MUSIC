@@ -5241,115 +5241,429 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
     @Composable
     private fun QueueDialog() {
-        Dialog(onDismissRequest = { showQueue = false }) {
+        Dialog(
+            onDismissRequest = { showQueue = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
             Surface(
-                shape = RoundedCornerShape(28.dp),
-                color = Color(0xFF0E1016),
+                shape = RoundedCornerShape(30.dp),
+                color = Color(0xFF0B0D13),
                 modifier = Modifier
-                    .fillMaxWidth(0.97f)
-                    .padding(vertical = 12.dp)
+                    .fillMaxWidth(0.98f)
+                    .padding(vertical = 10.dp)
             ) {
-                Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 15.dp)
+                ) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        Surface(
+                            modifier = Modifier.size(42.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            color = Color(0xFF19162A),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                Color(0xFF3A3158)
+                            )
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    "☷",
+                                    color = Color(0xFFC8B7FF),
+                                    fontSize = 21.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                        Spacer(Modifier.width(11.dp))
                         Column(Modifier.weight(1f)) {
-                            Text("HÀNG ĐỢI PHÁT", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
-                            Spacer(Modifier.height(2.dp))
                             Text(
-                                queueSongs.size.toString() + " bài • " + if (shuffleEnabled) "Phát ngẫu nhiên" else "Theo thứ tự",
-                                color = Color(0xFF8F92A0),
-                                fontSize = 12.sp
+                                "HÀNG ĐỢI",
+                                color = Color.White,
+                                fontSize = 21.sp,
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 0.5.sp
+                            )
+                            Text(
+                                when {
+                                    queueSongs.isEmpty() -> "Chưa có bài hát trong hàng đợi"
+                                    shuffleEnabled -> queueSongs.size.toString() + " bài • Phát ngẫu nhiên"
+                                    else -> queueSongs.size.toString() + " bài • Theo thứ tự"
+                                },
+                                color = Color(0xFF8C91A2),
+                                fontSize = 11.sp
                             )
                         }
-                        if (queueSongs.isNotEmpty()) {
-                            QueueHeaderButton("▶", "Phát", onClick = { playQueueFromStart() })
-                            Spacer(Modifier.width(6.dp))
-                            QueueHeaderButton("×", "Xóa", onClick = { clearQueue() })
-                        }
-                        Spacer(Modifier.width(4.dp))
                         TextButton(onClick = { showQueue = false }) {
-                            Text("Đóng", color = Color(0xFFBEB6D6))
+                            Text(
+                                "Đóng",
+                                color = Color(0xFFCBBEFF),
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
-                    Spacer(Modifier.height(12.dp))
+
+                    Spacer(Modifier.height(11.dp))
+
+                    if (queueSongs.isNotEmpty()) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            QueueActionChip(
+                                icon = "▶",
+                                label = "PHÁT TỪ ĐẦU",
+                                emphasized = true,
+                                modifier = Modifier.weight(1f),
+                                onClick = { playQueueFromStart() }
+                            )
+                            QueueActionChip(
+                                icon = if (shuffleEnabled) "🔀" else "⇄",
+                                label = if (shuffleEnabled) "NGẪU NHIÊN" else "THỨ TỰ",
+                                emphasized = shuffleEnabled,
+                                modifier = Modifier.weight(1f),
+                                onClick = { toggleShuffle() }
+                            )
+                            QueueActionChip(
+                                icon = "＋",
+                                label = "THÊM BÀI",
+                                modifier = Modifier.weight(1f),
+                                onClick = {
+                                    showQueue = false
+                                    selectedSection = "Thư viện"
+                                }
+                            )
+                            QueueActionChip(
+                                icon = "×",
+                                label = "XÓA HẾT",
+                                modifier = Modifier.weight(1f),
+                                onClick = { clearQueue() }
+                            )
+                        }
+
+                        Spacer(Modifier.height(11.dp))
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(15.dp),
+                            color = Color(0xFF111520),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                Color(0xFF20283A)
+                            )
+                        ) {
+                            Row(
+                                Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "●",
+                                    color = Color(0xFF6BE9FF),
+                                    fontSize = 10.sp
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    "BÀI ĐANG PHÁT",
+                                    color = Color(0xFF6BE9FF),
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Black,
+                                    letterSpacing = 1.1.sp
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    controller?.currentMediaItem?.mediaMetadata?.title?.toString()
+                                        ?.ifBlank { "Chưa xác định" }
+                                        ?: "Chưa xác định",
+                                    color = Color(0xFFD5D9E6),
+                                    fontSize = 11.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+
+                        Spacer(Modifier.height(10.dp))
+                    }
+
                     if (queueSongs.isEmpty()) {
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(20.dp),
-                            color = Color(0xFF151821),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF252936))
+                            shape = RoundedCornerShape(23.dp),
+                            color = Color(0xFF111520),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                Color(0xFF242B3A)
+                            )
                         ) {
                             Column(
-                                Modifier.padding(vertical = 30.dp, horizontal = 20.dp),
+                                Modifier.padding(horizontal = 24.dp, vertical = 42.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                Text("☷", color = Color(0xFFC8B7FF), fontSize = 34.sp)
-                                Spacer(Modifier.height(8.dp))
-                                Text("Hàng đợi đang trống", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                                Text("Thêm bài hát từ thư viện bằng nút ＋", color = Color(0xFF858895), fontSize = 12.sp)
+                                Surface(
+                                    modifier = Modifier.size(74.dp),
+                                    shape = CircleShape,
+                                    color = Color(0xFF17152A),
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        1.dp,
+                                        Color(0xFF342A51)
+                                    )
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            "☷",
+                                            color = Color(0xFFC8B7FF),
+                                            fontSize = 33.sp
+                                        )
+                                    }
+                                }
+                                Spacer(Modifier.height(13.dp))
+                                Text(
+                                    "Hàng đợi đang trống",
+                                    color = Color.White,
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.ExtraBold
+                                )
+                                Spacer(Modifier.height(5.dp))
+                                Text(
+                                    "Chọn bài hát trong thư viện để thêm vào danh sách phát tiếp theo.",
+                                    color = Color(0xFF83899A),
+                                    fontSize = 11.sp,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+                                Spacer(Modifier.height(15.dp))
+                                Button(
+                                    onClick = {
+                                        showQueue = false
+                                        selectedSection = "Thư viện"
+                                    },
+                                    shape = RoundedCornerShape(14.dp)
+                                ) {
+                                    Text(
+                                        "MỞ THƯ VIỆN",
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 11.sp
+                                    )
+                                }
                             }
                         }
                     } else {
                         LazyColumn(
-                            modifier = Modifier.heightIn(max = 560.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.heightIn(max = 575.dp),
+                            verticalArrangement = Arrangement.spacedBy(7.dp),
                             contentPadding = PaddingValues(bottom = 6.dp)
                         ) {
-                            itemsIndexed(queueSongs, key = { _, song -> song.uri.toString() }) { index, song ->
-                                val activeUri = controller?.currentMediaItem?.localConfiguration?.uri
+                            itemsIndexed(
+                                queueSongs,
+                                key = { _, song -> song.uri.toString() }
+                            ) { index, song ->
+                                val activeUri = controller
+                                    ?.currentMediaItem
+                                    ?.localConfiguration
+                                    ?.uri
                                 val isCurrent = activeUri == song.uri
-                                Row(
-                                    Modifier.fillMaxWidth()
-                                        .clip(RoundedCornerShape(18.dp))
-                                        .background(if (isCurrent) Color(0xFF29213E) else Color(0xFF161820))
+
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
                                         .clickable {
                                             playQueueAt(index)
                                             showQueue = false
+                                        },
+                                    shape = RoundedCornerShape(18.dp),
+                                    color = if (isCurrent) {
+                                        Color(0xFF211C35)
+                                    } else {
+                                        Color(0xFF12151D)
+                                    },
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        1.dp,
+                                        if (isCurrent) {
+                                            Color(0xFF4A3C6E)
+                                        } else {
+                                            Color(0xFF202531)
                                         }
-                                        .padding(horizontal = 10.dp, vertical = 9.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Box(
-                                        Modifier.size(30.dp).clip(CircleShape)
-                                            .background(if (isCurrent) Color(0xFF7657D8) else Color(0xFF222532)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(if (isCurrent) "▶" else String.format("%02d", index + 1), color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                    }
-                                    Spacer(Modifier.width(10.dp))
-                                    SongArtwork(song, Modifier.size(52.dp))
-                                    Spacer(Modifier.width(10.dp))
-                                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                        Text(
-                                            song.title,
-                                            color = Color.White,
-                                            fontSize = 14.sp,
-                                            lineHeight = 18.sp,
-                                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold,
-                                            softWrap = true
-                                        )
-                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                            Text(song.artist, color = Color(0xFF9A9CAA), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                            SourceBadge(song.source)
-                                        }
-                                    }
-                                    Spacer(Modifier.width(6.dp))
-                                    Text(
-                                        formatTime(if (isCurrent && duration > 0L) duration else song.duration),
-                                        color = Color(0xFF858895),
-                                        fontSize = 10.sp
                                     )
-                                    Spacer(Modifier.width(2.dp))
-                                    QueueIconButton("↑", index > 0) { if (index > 0) moveQueueItem(index, index - 1) }
-                                    QueueIconButton("↓", index < queueSongs.lastIndex) { if (index < queueSongs.lastIndex) moveQueueItem(index, index + 1) }
-                                    QueueIconButton("×", true) { removeFromQueue(index) }
+                                ) {
+                                    Row(
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 9.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            modifier = Modifier.width(27.dp)
+                                        ) {
+                                            if (isCurrent) {
+                                                Text(
+                                                    "●",
+                                                    color = Color(0xFF69E7FF),
+                                                    fontSize = 9.sp
+                                                )
+                                                Text(
+                                                    "PLAY",
+                                                    color = Color(0xFF69E7FF),
+                                                    fontSize = 7.sp,
+                                                    fontWeight = FontWeight.Black
+                                                )
+                                            } else {
+                                                Text(
+                                                    String.format("%02d", index + 1),
+                                                    color = Color(0xFF697082),
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                        }
+
+                                        Spacer(Modifier.width(7.dp))
+                                        Box {
+                                            SongArtwork(song, Modifier.size(54.dp))
+                                            if (isCurrent) {
+                                                Surface(
+                                                    modifier = Modifier
+                                                        .align(Alignment.BottomEnd)
+                                                        .size(20.dp),
+                                                    shape = CircleShape,
+                                                    color = Color(0xFF5A45A5)
+                                                ) {
+                                                    Box(contentAlignment = Alignment.Center) {
+                                                        Text(
+                                                            "▶",
+                                                            color = Color.White,
+                                                            fontSize = 8.sp
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        Spacer(Modifier.width(10.dp))
+                                        Column(
+                                            Modifier.weight(1f),
+                                            verticalArrangement = Arrangement.spacedBy(3.dp)
+                                        ) {
+                                            Text(
+                                                song.title,
+                                                color = if (isCurrent) Color.White else Color(0xFFE7E9F0),
+                                                fontSize = 14.sp,
+                                                lineHeight = 18.sp,
+                                                fontWeight = if (isCurrent) {
+                                                    FontWeight.Black
+                                                } else {
+                                                    FontWeight.SemiBold
+                                                },
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                Text(
+                                                    song.artist.ifBlank { "Nghệ sĩ chưa xác định" },
+                                                    color = Color(0xFF858B9B),
+                                                    fontSize = 10.sp,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                    modifier = Modifier.weight(1f, fill = false)
+                                                )
+                                                SourceBadge(song.source)
+                                            }
+                                            if (isCurrent && duration > 0L) {
+                                                Text(
+                                                    formatTime(position) + " / " + formatTime(duration),
+                                                    color = Color(0xFF69E7FF),
+                                                    fontSize = 9.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                        }
+
+                                        Column(
+                                            horizontalAlignment = Alignment.End
+                                        ) {
+                                            Text(
+                                                formatTime(
+                                                    if (isCurrent && duration > 0L) {
+                                                        duration
+                                                    } else {
+                                                        song.duration
+                                                    }
+                                                ),
+                                                color = Color(0xFF747B8C),
+                                                fontSize = 9.sp
+                                            )
+                                            Spacer(Modifier.height(4.dp))
+                                            Row(
+                                                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                            ) {
+                                                QueueIconButton("↑", index > 0) {
+                                                    if (index > 0) {
+                                                        moveQueueItem(index, index - 1)
+                                                    }
+                                                }
+                                                QueueIconButton("↓", index < queueSongs.lastIndex) {
+                                                    if (index < queueSongs.lastIndex) {
+                                                        moveQueueItem(index, index + 1)
+                                                    }
+                                                }
+                                                QueueIconButton("×", true) {
+                                                    removeFromQueue(index)
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
                 }
+            }
+        }
+    }
+
+    @Composable
+    private fun QueueActionChip(
+        icon: String,
+        label: String,
+        emphasized: Boolean = false,
+        modifier: Modifier = Modifier,
+        onClick: () -> Unit
+    ) {
+        Surface(
+            modifier = modifier
+                .height(46.dp)
+                .clickable(onClick = onClick),
+            shape = RoundedCornerShape(14.dp),
+            color = if (emphasized) Color(0xFF241D40) else Color(0xFF141923),
+            border = androidx.compose.foundation.BorderStroke(
+                1.dp,
+                if (emphasized) Color(0xFF59458E) else Color(0xFF273040)
+            )
+        ) {
+            Column(
+                Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    icon,
+                    color = if (emphasized) Color(0xFFCFBEFF) else Color(0xFF9FA6B6),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    label,
+                    color = if (emphasized) Color(0xFFE6DEFF) else Color(0xFF858C9B),
+                    fontSize = 7.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 0.4.sp
+                )
             }
         }
     }
