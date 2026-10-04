@@ -5070,7 +5070,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             ) {
                                 Text(if (isCurrent) "▶" else String.format("%02d", index + 1), color = Color(0xFFC8B7FF), fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(32.dp))
                                 Column(Modifier.weight(1f)) {
-                                    Text(song.title, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(song.title, color = Color.White, softWrap = true)
                                     Text(song.artist, color = Color(0xFF888894), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                                 Text(formatTime(song.duration), color = Color(0xFF777783), fontSize = 11.sp)
@@ -6917,7 +6917,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Column(Modifier.weight(1f)) {
-                                        Text(song.title, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(song.title, color = Color.White, softWrap = true)
                                         Text(song.artist, color = Color(0xFF888894), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     }
                                     TextButton(
@@ -7029,7 +7029,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             Text(String.format("%02d", index + 1), color = if (selected) Color(0xFFC8B7FF) else Color(0xFF777783),
                 fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(34.dp))
             Column(Modifier.weight(1f)) {
-                Text(song.title, color = Color.White, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(song.title, color = Color.White, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, softWrap = true)
                 Text(
                     if (libraryView == "Thư mục" && song.folder.isNotBlank()) "${song.folder} • ${song.artist}" else "${song.artist} • ${song.source}",
                     color = Color(0xFF8F8F9A), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis
