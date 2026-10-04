@@ -318,8 +318,7 @@ class TvPlayerActivity : ComponentActivity() {
             CookieManager.getInstance().setAcceptCookie(true)
             CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
             CookieManager.getInstance().flush()
-            setLayerType(View.LAYER_TYPE_HARDWARE, null)
-
+            // Keep the Activity hardware-accelerated by default. Forcing a separate hardware layer here\n            // can cause black-video/sound-only rendering on some Android WebView/Chromium builds.\n
             webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(
                     view: WebView,
