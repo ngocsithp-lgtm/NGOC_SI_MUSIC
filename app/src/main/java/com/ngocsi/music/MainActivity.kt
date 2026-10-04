@@ -1160,6 +1160,7 @@ class MainActivity : ComponentActivity() {
         driveImportJob = lifecycleScope.launch {
             val result = withContext(Dispatchers.IO) {
                 val saved = (prefs.getStringSet("drive_uris", emptySet()) ?: emptySet()).toMutableSet()
+                val sourceNames = loadDriveSourceNames().toMutableMap()
                 val importedSongs = mutableListOf<Song>()
 
                 uniqueUris.forEach { uri ->
@@ -1179,6 +1180,7 @@ class MainActivity : ComponentActivity() {
                     val importedSong = songFromUri(uri)
                     if (importedSong != null) {
                         saved.add(raw)
+                        sourceNames[raw] = sourceName
                         importedSongs += importedSong.copy(
                             source = driveSongSource(sourceName),
                             folder = sourceName
@@ -1186,11 +1188,12 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                saved to importedSongs
+                saved to importedSongs to sourceNames
             }
 
-            val (saved, importedSongs) = result
+            val (saved, importedSongs, sourceNames) = result
             prefs.edit().putStringSet("drive_uris", saved).apply()
+            saveDriveSourceNames(sourceNames)
 
             importedSongs.forEach { song ->
                 if (songs.none { it.uri == song.uri }) songs.add(song)
@@ -2165,7 +2168,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun clearSharedDriveLibrary() {
-        val sharedUris = songs.filter { it.source == "Google Drive" }.map { it.uri.toString() }.toSet()
+        val sharedUris = songs.filter { it.source.startsWith("Google Drive") }.map { it.uri.toString() }.toSet()
         if (sharedUris.isEmpty()) {
             driveSharedStatus = "Không có nhạc Drive chia sẻ để xóa."
             return
@@ -2173,8 +2176,8 @@ class MainActivity : ComponentActivity() {
         val activeUri = controller?.currentMediaItem?.localConfiguration?.uri?.toString()
         driveSourcePrefs.edit().remove("drive_shared_items").apply()
         syncDriveSourcesToCloud()
-        songs.removeAll { it.source == "Google Drive" }
-        queueSongs.removeAll { it.source == "Google Drive" }
+        songs.removeAll { it.source.startsWith("Google Drive") }
+        queueSongs.removeAll { it.source.startsWith("Google Drive") }
         if (activeUri != null && sharedUris.contains(activeUri)) {
             controller?.stop()
             currentIndex = -1
@@ -4271,7 +4274,7 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun LibraryYouTubeHeader(count: Int) {
-        val driveCount = songs.count { it.source == "Google Drive" }
+        val driveCount = songs.count { it.source.startsWith("Google Drive") }
         val deviceCount = songs.count { it.source == "Thiết bị" }
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
