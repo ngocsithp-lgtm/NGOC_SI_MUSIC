@@ -3185,6 +3185,41 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun addQueueToPlaylist(playlist: MusicPlaylist) {
+        val queueUris = queueSongs.map { it.uri.toString() }.distinct()
+        if (queueUris.isEmpty()) {
+            errorMessage = "Hàng đợi đang trống."
+            return
+        }
+        queueUris.forEach { playlistStore.addSong(playlist.id, it) }
+        refreshPlaylists()
+        errorMessage = "Đã thêm " + queueUris.size + " bài từ hàng đợi vào " + playlist.name + "."
+    }
+
+    private fun playPlaylistFromSong(playlist: MusicPlaylist, songIndex: Int) {
+        val orderedSongs = playlist.songUris.mapNotNull { uri -> songs.firstOrNull { it.uri.toString() == uri } }
+        if (songIndex !in orderedSongs.indices) return
+        val c = controller ?: run {
+            errorMessage = "Trình phát đang khởi động, thử lại sau."
+            return
+        }
+        queueSongs.clear()
+        queueSongs.addAll(orderedSongs)
+        c.setMediaItems(queueSongs.map { mediaItemFor(it) }, songIndex, 0L)
+        c.shuffleModeEnabled = shuffleEnabled
+        c.repeatMode = repeatMode
+        c.setPlaybackSpeed(selectedPlaybackSpeed)
+        c.prepare()
+        c.play()
+        currentIndex = songs.indexOfFirst { it.uri == orderedSongs[songIndex].uri }
+        position = 0L
+        savedPosition = 0L
+        lastSongUri = orderedSongs[songIndex].uri.toString()
+        saveQueueOrder()
+        savePlaybackState()
+        playlistDetailId = null
+        showPlaylists = false
+    }
     private fun playPlaylist(playlist: MusicPlaylist) {
         val orderedSongs = playlist.songUris.mapNotNull { uri ->
             songs.firstOrNull { it.uri.toString() == uri }
@@ -7021,10 +7056,16 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             Text(playlist.name, color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
                             Text(playlist.songUris.size.toString() + " bài", color = Color(0xFF888894), fontSize = 12.sp)
                         }
-                        TextButton(
-                            onClick = { playPlaylist(playlist) },
-                            enabled = playlistSongs.isNotEmpty()
-                        ) { Text("▶ Phát") }
+                        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                            TextButton(
+                                onClick = { playPlaylist(playlist) },
+                                enabled = playlistSongs.isNotEmpty()
+                            ) { Text("▶ Phát") }
+                            TextButton(
+                                onClick = { addQueueToPlaylist(playlist) },
+                                enabled = queueSongs.isNotEmpty()
+                            ) { Text("＋ HÀNG ĐỢI") }
+                        }
                     }
                     Spacer(Modifier.height(8.dp))
 
@@ -7044,13 +7085,15 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     Modifier.fillMaxWidth()
                                         .clip(RoundedCornerShape(14.dp))
                                         .background(Color(0xFF181922))
+                                        .clickable { playPlaylistFromSong(playlist, index) }
                                         .padding(horizontal = 10.dp, vertical = 8.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Column(Modifier.weight(1f)) {
-                                        Text(song.title, color = Color.White, softWrap = true)
+                                        Text(song.title, color = Color.White, softWrap = true, lineHeight = 18.sp)
                                         Text(song.artist, color = Color(0xFF888894), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     }
+                                    TextButton(onClick = { playPlaylistFromSong(playlist, index) }) { Text("▶") }
                                     TextButton(
                                         onClick = {
                                             playlistStore.removeSong(playlist.id, song.uri.toString())
