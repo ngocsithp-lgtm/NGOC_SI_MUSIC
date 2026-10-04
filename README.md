@@ -4,8 +4,8 @@ Android music player built with Kotlin, Jetpack Compose and AndroidX Media3.
 
 ## Bản PRO hiện tại
 
-- Version: **5.8 PRO**
-- Version code: **28**
+- Version: **5.9 PRO**
+- Version code: **29**
 - Package: **com.ngocsi.music**
 - Target/Compile SDK: **Android 16 / API 36**
 - Min SDK: **26**
