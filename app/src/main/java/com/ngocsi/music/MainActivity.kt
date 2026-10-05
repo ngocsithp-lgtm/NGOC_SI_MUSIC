@@ -612,7 +612,7 @@ class MainActivity : ComponentActivity() {
         migrateDrivePersistence()
         driveOAuthManager = DriveOAuthManager(this)
         driveOAuthSignedIn = driveOAuthManager.isSignedIn()
-        driveGoogleAccountEmail = driveOAuthManager.lastAccount()?.email.orEmpty()
+        driveGoogleAccountEmail = ""
 
         playlistStore = PlaylistStore(this)
         playlists.addAll(playlistStore.load())
