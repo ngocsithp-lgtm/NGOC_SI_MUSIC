@@ -8567,7 +8567,6 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     }
                                 }
                             }
-                        }
                         } else {
                             null
                         }
