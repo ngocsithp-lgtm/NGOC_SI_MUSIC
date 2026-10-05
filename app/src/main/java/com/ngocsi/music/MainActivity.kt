@@ -8590,8 +8590,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         if (uri != null) {
                             // Prefer the local MediaStore album-art file when available.
                             val localAlbumArt = if (song.albumId >= 0L) {
-                                albumArtPathCache.getOrPut(song.albumId) {
-                                    runCatching {
+                                // ConcurrentHashMap does not allow null values. Only cache
+                                // a real album-art path; a missing path is handled as a miss
+                                // without poisoning the cache or throwing on getOrPut.
+                                albumArtPathCache[song.albumId] ?: run {
+                                    val resolvedPath = runCatching {
                                         contentResolver.query(
                                             MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI,
                                             arrayOf(MediaStore.Audio.Albums.ALBUM_ART),
@@ -8604,6 +8607,10 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                             } else null
                                         }
                                     }.getOrNull()
+                                    if (!resolvedPath.isNullOrBlank()) {
+                                        albumArtPathCache.putIfAbsent(song.albumId, resolvedPath)
+                                    }
+                                    resolvedPath
                                 }
                             } else null
 
