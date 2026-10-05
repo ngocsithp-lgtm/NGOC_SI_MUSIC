@@ -1146,31 +1146,51 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun playFilteredSongs(items: List<Song>) {
-        val first = items.firstOrNull() ?: return
+        val requestedItems = items.filter { it.source.isNotBlank() }
+        val first = requestedItems.firstOrNull() ?: return
         val c = controller ?: run {
             errorMessage = "Trình phát đang khởi động, thử lại sau."
             return
         }
+
+        // Queue is source-scoped by design. Aggregate library filters such as
+        // "Tất cả", "Online" or "Yêu thích" can contain multiple sources, so
+        // choose one deterministic source instead of silently creating a mixed queue.
+        val preferredSource = queueSource.takeIf { source ->
+            source.isNotBlank() && requestedItems.any { it.source == source }
+        } ?: first.source
+        val scopedItems = requestedItems.filter { it.source == preferredSource }
+        val selectedFirst = scopedItems.firstOrNull() ?: first
+
         clearActiveRadioState()
         queueSongs.clear()
-        queueSongs.addAll(items)
-        queueSource = first.source
+        queueSongs.addAll(scopedItems)
+        queueSource = preferredSource
+
         c.setMediaItems(queueSongs.map { mediaItemFor(it) }, 0, 0L)
         c.shuffleModeEnabled = shuffleEnabled
         c.repeatMode = repeatMode
         c.setPlaybackSpeed(selectedPlaybackSpeed)
         c.prepare()
         c.play()
-        currentIndex = songs.indexOfFirst { it.uri == first.uri && it.source == first.source }
-        lastSongUri = first.uri.toString()
+
+        currentIndex = songs.indexOfFirst {
+            it.uri == selectedFirst.uri && it.source == selectedFirst.source
+        }
+        lastSongUri = selectedFirst.uri.toString()
         position = 0L
         duration = c.duration.coerceAtLeast(0L)
         savedPosition = 0L
         saveQueueOrder()
         savePlaybackState()
-        errorMessage = "Đang phát ${items.size} bài theo danh sách hiện tại."
-    }
 
+        if (scopedItems.size < requestedItems.size) {
+            val displaySource = preferredSource.removePrefix("Google Drive • ").removePrefix("Chia sẻ • ")
+            errorMessage = "Đang phát " + scopedItems.size + " bài • nguồn: " + displaySource
+        } else {
+            errorMessage = "Đang phát " + scopedItems.size + " bài theo danh sách hiện tại."
+        }
+    }
     private fun play(index: Int, driveTokenReady: Boolean = false) {
         if (index !in songs.indices) return
 
