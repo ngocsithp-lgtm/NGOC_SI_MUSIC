@@ -58,7 +58,8 @@ class DriveOAuthManager(private val context: Context) {
                     activity,
                     REQUEST_CODE,
                     account,
-                    Scope(DRIVE_READ_SCOPE)
+                    Scope(DRIVE_READ_SCOPE),
+                    Scope(DRIVE_APPDATA_SCOPE)
                 )
             }
             true
