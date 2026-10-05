@@ -66,7 +66,15 @@ class MusicService : MediaSessionService() {
                 savePlaybackState()
                 broadcastWidget()
             }
-            widgetHandler.postDelayed(this, 1000L)
+
+            // No need to wake the main looper every second. Schedule the next
+            // check close to the actual deadline, with a 30-second idle interval.
+            val delayMs = if (endAt > System.currentTimeMillis()) {
+                (endAt - System.currentTimeMillis()).coerceIn(1_000L, 30_000L)
+            } else {
+                30_000L
+            }
+            widgetHandler.postDelayed(this, delayMs)
         }
     }
 

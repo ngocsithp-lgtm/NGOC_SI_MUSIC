@@ -8544,11 +8544,14 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         }
         if (selected.isEmpty()) return
 
+        // Keep background image work below the audio decoder's CPU/I/O
+        // priority while a track is playing. When paused, allow slightly more
+        // concurrency to keep the library responsive.
+        val prefetchConcurrency = if (isPlaying) 2 else 4
+
         artworkPrefetchJob = lifecycleScope.launch(Dispatchers.IO) {
-            // Decode/fetch several album covers concurrently. Sequential prefetch
-            // made the first screen wait on slow Drive/MediaStore items one by one.
             selected
-                .chunked(6)
+                .chunked(prefetchConcurrency)
                 .forEach { batch ->
                     batch.map { song ->
                         async {
