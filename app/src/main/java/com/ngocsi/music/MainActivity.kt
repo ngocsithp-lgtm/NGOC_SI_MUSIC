@@ -78,6 +78,8 @@ import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.MoreExecutors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
@@ -8491,10 +8493,18 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         if (selected.isEmpty()) return
 
         artworkPrefetchJob = lifecycleScope.launch(Dispatchers.IO) {
-            selected.forEach { song ->
-                runCatching { loadArtworkBitmap(song) }
-                kotlinx.coroutines.yield()
-            }
+            // Decode/fetch several album covers concurrently. Sequential prefetch
+            // made the first screen wait on slow Drive/MediaStore items one by one.
+            selected
+                .chunked(6)
+                .forEach { batch ->
+                    batch.map { song ->
+                        async {
+                            runCatching { loadArtworkBitmap(song) }
+                        }
+                    }.awaitAll()
+                    kotlinx.coroutines.yield()
+                }
         }
     }
 
@@ -8521,7 +8531,13 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
                         if (uri != null) {
                             contentResolver.openInputStream(uri)?.use { input ->
-                                BitmapFactory.decodeStream(input)?.asImageBitmap()
+                                // Album artwork can be several thousand pixels wide.
+                                // Decode a small display-sized bitmap instead of the full cover.
+                                val options = BitmapFactory.Options().apply {
+                                    inSampleSize = 4
+                                    inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888
+                                }
+                                BitmapFactory.decodeStream(input, null, options)?.asImageBitmap()
                             }
                         } else if (
                             song.source.startsWith("Google Drive") &&
