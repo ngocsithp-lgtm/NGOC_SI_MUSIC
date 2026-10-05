@@ -277,6 +277,7 @@ class MainActivity : ComponentActivity() {
     private var audiusSearchJob: Job? = null
     private var youtubeSearchJob: Job? = null
     private var driveImportJob: Job? = null
+    private var artworkPrefetchJob: Job? = null
     private val driveSyncMutex = Mutex()
     private var lastSongUri by mutableStateOf<String?>(null)
     private var savedPosition by mutableLongStateOf(0L)
@@ -292,10 +293,10 @@ class MainActivity : ComponentActivity() {
     private lateinit var securePrefs: SharedPreferences
     private lateinit var playlistStore: PlaylistStore
     private val playlists = mutableStateListOf<MusicPlaylist>()
-    // Artwork cache: Drive covers are remote and MediaMetadataRetriever can be slow.
-    // Keep decoded covers in memory and persist extracted bytes on disk so the same
-    // song does not trigger another authenticated Drive stream read on every row.
-    private val artworkMemoryCache = LruCache<String, androidx.compose.ui.graphics.ImageBitmap>(48)
+    // Artwork cache is album-first: one decoded cover is shared by every song
+    // in the same local album. Drive falls back to a stable source/file key when
+    // album metadata is unavailable.
+    private val artworkMemoryCache = LruCache<String, androidx.compose.ui.graphics.ImageBitmap>(96)
     private val artworkLocks = ConcurrentHashMap<String, Mutex>()
     private var showPlaylists by mutableStateOf(false)
     private var playlistDetailId by mutableStateOf<String?>(null)
@@ -4001,6 +4002,8 @@ class MainActivity : ComponentActivity() {
         youtubeSearchJob?.cancel()
         driveImportJob?.cancel()
         driveImportJob = null
+        artworkPrefetchJob?.cancel()
+        artworkPrefetchJob = null
         speechRecognizer?.destroy()
         speechRecognizer = null
         savePlaybackState()
@@ -4033,6 +4036,16 @@ class MainActivity : ComponentActivity() {
                 else -> bySource.sortedBy { it.title.lowercase() }
             }
         }
+
+        LaunchedEffect(selectedSection, selectedLibrary, libraryView, filteredSongs.size) {
+            if (selectedSection == "Thư viện" && filteredSongs.isNotEmpty()) {
+                prefetchAlbumArtworks(
+                    filteredSongs,
+                    fullAlbumPass = libraryView == "Album"
+                )
+            }
+        }
+
         LaunchedEffect(isPlaying, currentIndex) {
             while (isPlaying) {
                 controller?.let {
@@ -8451,13 +8464,43 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         }
     }
 
+    private fun artworkCacheKey(song: Song): String {
+        if (song.albumId >= 0L) {
+            return "album:" + song.source + ":" + song.albumId
+        }
+        song.artworkUri?.toString()?.takeIf { it.isNotBlank() }?.let {
+            return "artwork:" + song.source + ":" + it
+        }
+        return "song:" + song.source + ":" + song.uri
+    }
+
+    private fun prefetchAlbumArtworks(items: List<Song>, fullAlbumPass: Boolean) {
+        artworkPrefetchJob?.cancel()
+        val keysAndSongs = LinkedHashMap<String, Song>()
+        items.forEach { song ->
+            val key = artworkCacheKey(song)
+            if (artworkMemoryCache.get(key) == null) {
+                keysAndSongs.putIfAbsent(key, song)
+            }
+        }
+        val selected = if (fullAlbumPass) {
+            keysAndSongs.values.toList()
+        } else {
+            keysAndSongs.values.take(40).toList()
+        }
+        if (selected.isEmpty()) return
+
+        artworkPrefetchJob = lifecycleScope.launch(Dispatchers.IO) {
+            selected.forEach { song ->
+                runCatching { loadArtworkBitmap(song) }
+                kotlinx.coroutines.yield()
+            }
+        }
+    }
+
     private suspend fun loadArtworkBitmap(song: Song?): androidx.compose.ui.graphics.ImageBitmap? {
         if (song == null) return null
-        val cacheKey = listOf(
-            song.uri.toString(),
-            song.artworkUri?.toString().orEmpty(),
-            song.albumId.toString()
-        ).joinToString("|")
+        val cacheKey = artworkCacheKey(song)
 
         artworkMemoryCache.get(cacheKey)?.let { return it }
 
