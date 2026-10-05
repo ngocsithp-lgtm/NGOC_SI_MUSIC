@@ -312,7 +312,7 @@ class MainActivity : ComponentActivity() {
     // Album covers are decoded off the UI thread, but cap concurrency so rapid
     // queue scrolling cannot compete with the audio decoder for CPU/I/O.
     private val artworkDecodeDispatcher = Dispatchers.IO.limitedParallelism(2)
-    private val albumArtPathCache = ConcurrentHashMap<Long, String?>()
+    private val albumArtPathCache = ConcurrentHashMap<Long, String>()
     private var showPlaylists by mutableStateOf(false)
     private var playlistDetailId by mutableStateOf<String?>(null)
     private var playlistTargetSongUri by mutableStateOf<String?>(null)
@@ -8603,7 +8603,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                             null
                                         )?.use { cursor ->
                                             if (cursor.moveToFirst()) {
-                                                cursor.getString(0)?.takeIf { it.isNotBlank() }
+                                                cursor.getString(0)?.trim()?.takeIf { path ->
+                                                    path.isNotBlank() &&
+                                                        File(path).isFile &&
+                                                        File(path).length() > 0L
+                                                }
                                             } else null
                                         }
                                     }.getOrNull()
