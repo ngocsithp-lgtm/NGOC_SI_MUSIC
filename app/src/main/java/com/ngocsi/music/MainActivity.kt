@@ -89,6 +89,16 @@ import kotlin.math.max
 
 data class Song(val id: Long, val title: String, val artist: String, val duration: Long, val uri: Uri, val source: String = "Thiết bị", val albumId: Long = -1L, val artworkUri: Uri? = null, val folder: String = "")
 
+@Stable
+private data class QueueRenderState(
+    val activeQueueIndex: Int,
+    val nextEntries: List<Pair<Int, Song>>,
+    val visibleNextEntries: List<Pair<Int, Song>>,
+    val activeSource: String,
+    val playedCount: Int,
+    val currentSong: Song?
+)
+
 data class TvSource(
     val name: String,
     val description: String,
@@ -6290,32 +6300,53 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         var draggingQueueIndex by remember { mutableStateOf(-1) }
         var dragDistance by remember { mutableStateOf(0f) }
 
-        val activeUri = controller?.currentMediaItem?.localConfiguration?.uri
-        val activeQueueIndex = activeUri?.let { uri ->
-            queueSongs.indexOfFirst { it.uri == uri }
-        } ?: -1
+        // Keep queue-derived data isolated from playback progress ticks.
+        // This recalculates only when queueSongs/currentIndex/queueSource changes,
+        // so scrolling does not rebuild the visible queue on every position update.
+        val queueRenderState by remember {
+            derivedStateOf {
+                val activeUri = controller?.currentMediaItem?.localConfiguration?.uri
+                val activeQueueIndex = when {
+                    currentIndex >= 0 && currentIndex < queueSongs.size -> currentIndex
+                    else -> activeUri?.let { uri -> queueSongs.indexOfFirst { it.uri == uri } } ?: -1
+                }
 
-        val nextEntries = if (activeQueueIndex >= 0) {
-            queueSongs
-                .drop(activeQueueIndex + 1)
-                .mapIndexed { offset, song -> Pair(activeQueueIndex + 1 + offset, song) }
-        } else {
-            queueSongs.mapIndexed { index, song -> Pair(index, song) }
+                val nextEntries = if (activeQueueIndex >= 0) {
+                    queueSongs
+                        .drop(activeQueueIndex + 1)
+                        .mapIndexed { offset, song -> Pair(activeQueueIndex + 1 + offset, song) }
+                } else {
+                    queueSongs.mapIndexed { index, song -> Pair(index, song) }
+                }
+
+                // Queue is intentionally single-source. The source label is informational;
+                // no "Tất cả" filter is offered because mixed queues are not allowed.
+                val activeSource = queueSource.ifBlank {
+                    activeQueueIndex.takeIf { it >= 0 }?.let { queueSongs.getOrNull(it)?.source }.orEmpty()
+                }
+                val visibleNextEntries = if (activeSource.isBlank()) {
+                    nextEntries
+                } else {
+                    nextEntries.filter { it.second.source == activeSource }
+                }
+
+                QueueRenderState(
+                    activeQueueIndex = activeQueueIndex,
+                    nextEntries = nextEntries,
+                    visibleNextEntries = visibleNextEntries,
+                    activeSource = activeSource,
+                    playedCount = if (activeQueueIndex > 0) activeQueueIndex else 0,
+                    currentSong = activeQueueIndex.takeIf { it >= 0 }?.let { queueSongs[it] }
+                )
+            }
         }
 
-        // Queue is intentionally single-source. The source label is informational;
-        // no "Tất cả" filter is offered because mixed queues are not allowed.
-        val activeSource = queueSource.ifBlank {
-            activeQueueIndex.takeIf { it >= 0 }?.let { queueSongs.getOrNull(it)?.source }.orEmpty()
-        }
-        val visibleNextEntries = if (activeSource.isBlank()) {
-            nextEntries
-        } else {
-            nextEntries.filter { it.second.source == activeSource }
-        }
-
-        val playedCount = if (activeQueueIndex > 0) activeQueueIndex else 0
-        val currentSong = activeQueueIndex.takeIf { it >= 0 }?.let { queueSongs[it] }
+        val activeQueueIndex = queueRenderState.activeQueueIndex
+        val nextEntries = queueRenderState.nextEntries
+        val visibleNextEntries = queueRenderState.visibleNextEntries
+        val activeSource = queueRenderState.activeSource
+        val playedCount = queueRenderState.playedCount
+        val currentSong = queueRenderState.currentSong
 
         Dialog(
             onDismissRequest = { showQueue = false },
@@ -6623,11 +6654,6 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     ) { displayIndex, entry ->
                                         val originalIndex = entry.first
                                         val song = entry.second
-                                        val isCurrent = controller
-                                            ?.currentMediaItem
-                                            ?.localConfiguration
-                                            ?.uri == song.uri
-
                                         Surface(
                                             modifier = Modifier
                                                 .fillMaxWidth()
