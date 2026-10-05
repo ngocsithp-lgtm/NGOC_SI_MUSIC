@@ -5,6 +5,7 @@ package com.ngocsi.music
 import android.content.ComponentName
 import android.content.Intent
 import android.os.Bundle
+import android.graphics.BitmapFactory
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -50,10 +51,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.Image
 import androidx.compose.ui.unit.sp
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
@@ -61,6 +65,8 @@ import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.MoreExecutors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * New PRO shell for the rebuilt information architecture.
@@ -74,6 +80,7 @@ class ProMainActivity : ComponentActivity() {
     private var artist by mutableStateOf("NGỌC SĨ MUSIC")
     private var position by mutableLongStateOf(0L)
     private var duration by mutableLongStateOf(0L)
+    private var artworkUri by mutableStateOf<android.net.Uri?>(null)
 
     private val listener = object : Player.Listener {
         override fun onIsPlayingChanged(playing: Boolean) {
@@ -118,6 +125,7 @@ class ProMainActivity : ComponentActivity() {
                 isPlaying = isPlaying,
                 position = position,
                 duration = duration,
+                artworkUri = artworkUri,
                 onMusic = { openLegacy("library") },
                 onYouTube = { openLegacy("youtube") },
                 onDrive = { openLegacy("drive") },
@@ -166,6 +174,7 @@ class ProMainActivity : ComponentActivity() {
                     it.currentMediaItem?.mediaMetadata?.let { md ->
                         title = md.title?.toString().orEmpty().ifBlank { "Đang phát" }
                         artist = md.artist?.toString().orEmpty().ifBlank { "NGỌC SĨ MUSIC" }
+                        artworkUri = md.artworkUri
                     }
                 }
             }
@@ -211,6 +220,7 @@ private fun ProShell(
     isPlaying: Boolean,
     position: Long,
     duration: Long,
+    artworkUri: android.net.Uri?,
     onMusic: () -> Unit,
     onYouTube: () -> Unit,
     onDrive: () -> Unit,
@@ -335,14 +345,7 @@ private fun ProShell(
                                             Color(0xFF3F587D)
                                         )
                                     ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Text(
-                                                if (isPlaying) "♫" else "♪",
-                                                color = Color(0xFF9EEFFF),
-                                                fontSize = 34.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        }
+                                        ProArtwork(artworkUri = artworkUri, isPlaying = isPlaying)
                                     }
 
                                     Spacer(Modifier.width(12.dp))
@@ -446,7 +449,9 @@ private fun ProShell(
                     Spacer(Modifier.height(10.dp))
 
                     Surface(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(onClick = onQueue),
                         shape = RoundedCornerShape(17.dp),
                         color = Color(0xFF0D1118),
                         border = androidx.compose.foundation.BorderStroke(
@@ -480,8 +485,7 @@ private fun ProShell(
                                 "›",
                                 color = Color(0xFF9DEFFF),
                                 fontSize = 22.sp,
-                                modifier = Modifier.clickable(onClick = onQueue)
-                            )
+                                                                )
                         }
                     }
 
@@ -577,6 +581,42 @@ private fun ProShell(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ProArtwork(artworkUri: android.net.Uri?, isPlaying: Boolean) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var bitmap by remember(artworkUri) { mutableStateOf<android.graphics.Bitmap?>(null) }
+
+    LaunchedEffect(artworkUri) {
+        bitmap = artworkUri?.let { uri ->
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        BitmapFactory.decodeStream(input)
+                    }
+                }.getOrNull()
+            }
+        }
+    }
+
+    if (bitmap != null) {
+        Image(
+            bitmap = bitmap!!.asImageBitmap(),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(20.dp))
+        )
+    } else {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(
+                if (isPlaying) "♫" else "♪",
+                color = Color(0xFF9EEFFF),
+                fontSize = 34.sp,
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 }
