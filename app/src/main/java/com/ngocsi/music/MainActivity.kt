@@ -474,8 +474,13 @@ class MainActivity : ComponentActivity() {
             // two indexes are identical.
             val activeUri = mediaItem?.localConfiguration?.uri?.toString()
                 ?: controller?.currentMediaItem?.localConfiguration?.uri?.toString()
+            val activeSource = activeUri?.let { uri ->
+                queueSongs.firstOrNull { it.uri.toString() == uri }?.source
+            } ?: queueSource
             val libraryIndex = activeUri?.let { uri ->
-                songs.indexOfFirst { it.uri.toString() == uri }
+                songs.indexOfFirst { it.uri.toString() == uri &&
+                    (activeSource.isBlank() || it.source == activeSource)
+                }
             } ?: -1
 
             if (libraryIndex >= 0) {
@@ -871,7 +876,9 @@ class MainActivity : ComponentActivity() {
         val savedDriveUris = driveSourcePrefs.getStringSet("drive_uris", emptySet()) ?: emptySet()
         val savedDriveSourceNames = loadDriveSourceNames()
         val savedOnlineUris = prefs.getStringSet("online_uris", emptySet()) ?: emptySet()
-        val existing = result.map { it.uri.toString() }.toMutableSet()
+        val existing = result
+            .map { it.uri.toString() + "::" + it.source }
+            .toMutableSet()
 
         // Rehydrate files previously linked from a Google Drive sharing URL.
         val sharedItems = loadSharedDriveItems()
@@ -885,9 +892,10 @@ class MainActivity : ComponentActivity() {
                     "Chia sẻ • " + item.name.substringBeforeLast(".").ifBlank { item.name }
                 }
                 val songSource = driveSongSource(sourceName)
-                if (existing.add(raw)) {
+                val sourceKey = raw + "::" + songSource
+                if (existing.add(sourceKey)) {
                     result += Song(
-                        id = -kotlin.math.abs(raw.hashCode().toLong()),
+                        id = -kotlin.math.abs(sourceKey.hashCode().toLong()),
                         title = item.name.substringBeforeLast(".").ifBlank { item.name },
                         artist = songSource,
                         duration = 0L,
@@ -902,10 +910,16 @@ class MainActivity : ComponentActivity() {
         val staleDriveUris = mutableSetOf<String>()
         savedDriveUris.forEach { raw ->
             val uri = Uri.parse(raw)
-            if (existing.add(raw)) {
-                val song = songFromUri(uri)
-                if (song != null) {
-                    val savedSourceName = savedDriveSourceNames[raw].orEmpty()
+            val savedSourceName = savedDriveSourceNames[raw].orEmpty()
+            val song = songFromUri(uri)
+            if (song != null) {
+                val candidateSource = if (savedSourceName.isNotBlank()) {
+                    driveSongSource(savedSourceName)
+                } else {
+                    song.source
+                }
+                val sourceKey = raw + "::" + candidateSource
+                if (existing.add(sourceKey)) {
                     result += if (savedSourceName.isNotBlank()) {
                         song.copy(
                             source = driveSongSource(savedSourceName),
@@ -925,7 +939,9 @@ class MainActivity : ComponentActivity() {
         }
         savedOnlineUris.forEach { raw ->
             val uri = Uri.parse(raw)
-            if (existing.add(raw)) result += onlineSongFromUri(uri)
+            val onlineSong = onlineSongFromUri(uri)
+            val sourceKey = raw + "::" + onlineSong.source
+            if (existing.add(sourceKey)) result += onlineSong
         }
         // Keep the library in its own stable order. Queue order is restored
         // separately below so reordering the queue never reorders the library.
@@ -985,7 +1001,12 @@ class MainActivity : ComponentActivity() {
             // Drop entries that no longer exist in the current library, then
             // persist the cleaned order so stale Drive/provider URIs do not
             // survive another restart.
-            savedQueueOrder.forEach { uri -> byUri[uri]?.let { queueSongs.add(it) } }
+            savedQueueOrder.forEach { uri ->
+                songs.firstOrNull { song ->
+                    song.uri.toString() == uri &&
+                        (queueSource.isBlank() || song.source == queueSource)
+                }?.let { queueSongs.add(it) }
+            }
             // A queue is always scoped to one source. Clean legacy/mixed queues
             // instead of exposing tracks from several Drive/device sources together.
             if (queueSongs.isNotEmpty()) {
@@ -1033,8 +1054,13 @@ class MainActivity : ComponentActivity() {
                 }
 
                 val activeUri = c.currentMediaItem?.localConfiguration?.uri?.toString()
+                val activeSource = activeUri?.let { uri ->
+                    queueSongs.firstOrNull { it.uri.toString() == uri }?.source
+                } ?: queueSource
                 val activeIndex = activeUri?.let { uri ->
-                    songs.indexOfFirst { it.uri.toString() == activeUri }
+                    songs.indexOfFirst { it.uri.toString() == activeUri &&
+                        (activeSource.isBlank() || it.source == activeSource)
+                    }
                 } ?: -1
                 if (activeIndex >= 0) {
                     currentIndex = activeIndex
@@ -1069,7 +1095,7 @@ class MainActivity : ComponentActivity() {
         c.setPlaybackSpeed(selectedPlaybackSpeed)
         c.prepare()
         c.play()
-        currentIndex = songs.indexOfFirst { it.uri == first.uri }
+        currentIndex = songs.indexOfFirst { it.uri == first.uri && it.source == first.source }
         lastSongUri = first.uri.toString()
         position = 0L
         duration = c.duration.coerceAtLeast(0L)
@@ -1120,13 +1146,15 @@ class MainActivity : ComponentActivity() {
             queueSongs.add(songs[index])
             queueSource = songs[index].source
             syncControllerQueue()
-        } else if (queueSongs.none { it.uri == songs[index].uri }) {
+        } else if (queueSongs.none { it.uri == songs[index].uri && it.source == songs[index].source }) {
             queueSongs.add(songs[index])
             syncControllerQueue()
         }
 
         currentIndex = index
-        val queueIndex = queueSongs.indexOfFirst { it.uri == songs[index].uri }
+        val queueIndex = queueSongs.indexOfFirst {
+            it.uri == songs[index].uri && it.source == songs[index].source
+        }
         if (queueIndex < 0) {
             errorMessage = "Không thể thêm bài hát vào hàng đợi."
             return
@@ -2059,19 +2087,23 @@ class MainActivity : ComponentActivity() {
                 }.getOrElse { throw it }
             }
 
-            val currentUris = songs.map { it.uri.toString() }.toMutableSet()
+            val currentUris = songs
+                .map { it.uri.toString() + "::" + it.source }
+                .toMutableSet()
             val savedItems = loadSharedDriveItems().toMutableList()
             var added = 0
 
             result.forEach { item ->
                 val uri = sharedDriveMediaUri(item, "")
                 val raw = uri.toString()
-                if (!currentUris.add(raw)) return@forEach
 
                 val sourceName = item.sourceName.trim().ifBlank { "Chia sẻ • " + item.name }
                 val songSource = driveSongSource(sourceName)
+                val sourceKey = raw + "::" + songSource
+                if (!currentUris.add(sourceKey)) return@forEach
+
                 val song = Song(
-                    id = -kotlin.math.abs(raw.hashCode().toLong()),
+                    id = -kotlin.math.abs(sourceKey.hashCode().toLong()),
                     title = item.name.substringBeforeLast(".").ifBlank { item.name },
                     artist = songSource,
                     duration = 0L,
@@ -2080,7 +2112,7 @@ class MainActivity : ComponentActivity() {
                     folder = sourceName
                 )
                 songs.add(song)
-                savedItems.removeAll { it.id == item.id }
+                savedItems.removeAll { sharedDriveIdentity(it) == sharedDriveIdentity(item) }
                 savedItems.add(item)
                 added++
             }
@@ -2312,7 +2344,9 @@ class MainActivity : ComponentActivity() {
         securePrefs.edit().putString("drive_access_token", token).apply()
         syncControllerQueue()
         if (playNow) {
-            val index = songs.indexOfFirst { it.uri == song.uri }
+            val index = songs.indexOfFirst {
+                it.uri == song.uri && it.source == song.source
+            }
             if (index >= 0) play(index)
             showDriveBrowser = false
         } else {
@@ -3078,7 +3112,7 @@ class MainActivity : ComponentActivity() {
                 c.prepare()
 
                 val queueIndex = selectedUri?.let { uri ->
-                    queueSongs.indexOfFirst { it.uri == uri }
+                    queueSongs.indexOfFirst { it.uri == uri && it.source == queueSource }
                 } ?: -1
 
                 if (queueIndex >= 0) {
