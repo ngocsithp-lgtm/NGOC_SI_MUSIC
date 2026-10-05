@@ -2283,6 +2283,7 @@ class MainActivity : ComponentActivity() {
 
     private suspend fun addSharedDriveItemToLibrary(item: SharedDriveItem, playNow: Boolean = false) {
         val token = driveOAuthManager.accessToken() ?: run { signInGoogleDrive(); return }
+        val uri = sharedDriveMediaUri(item, "")
         val sourceName = item.sourceName.trim().ifBlank {
             driveBrowserTitle.trim().ifBlank { "Chia sẻ • " + item.name }
         }
