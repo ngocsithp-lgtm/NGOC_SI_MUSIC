@@ -8520,7 +8520,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                                 .authority("drive.google.com")
                                                 .appendPath("thumbnail")
                                                 .appendQueryParameter("id", fileId)
-                                                .appendQueryParameter("sz", "w512")
+                                                .appendQueryParameter("sz", "w160")
                                                 .apply {
                                                     if (resourceKey.isNotBlank()) {
                                                         appendQueryParameter("resourceKey", resourceKey)
