@@ -4135,23 +4135,35 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun NgocSiMusicApp() {
         val currentSong = songs.getOrNull(currentIndex)
-        val filteredSongs = remember(searchQuery, songs.toList(), selectedLibrary, favorites.toMap(), libraryView) {
-            val q = searchQuery.trim()
-            val byText = if (q.isBlank()) songs.toList() else songs.filter {
-                it.title.contains(q, true) || it.artist.contains(q, true) || it.source.contains(q, true)
-            }
-            val bySource = when {
-                selectedLibrary == "Yêu thích" -> byText.filter { favorites[it.id] == true }
-                selectedLibrary == "Tất cả" -> byText
-                selectedLibrary == "Thiết bị" -> byText.filter { it.source == "Thiết bị" }
-                selectedLibrary == "Online" -> byText.filter { it.source in setOf("Online", "Jamendo", "Audius", "Radio Việt Nam") }
-                else -> byText.filter { it.source == selectedLibrary }
-            }
-            when (libraryView) {
-                "Nghệ sĩ" -> bySource.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.artist })
-                "Album" -> bySource.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title.substringBefore(" - ") })
-                "Thư mục" -> bySource.sortedWith(compareBy<Song> { it.folder.ifBlank { it.source }.lowercase() }.thenBy { it.title.lowercase() })
-                else -> bySource.sortedBy { it.title.lowercase() }
+        // Keep expensive library filtering/sorting out of the 500ms playback
+        // recomposition loop. derivedStateOf tracks the snapshot-backed songs/favorites
+        // collections and recomputes only when their relevant state actually changes.
+        val filteredSongs by remember(searchQuery, selectedLibrary, libraryView) {
+            derivedStateOf {
+                val q = searchQuery.trim()
+                val byText = if (q.isBlank()) songs.toList() else songs.filter {
+                    it.title.contains(q, true) || it.artist.contains(q, true) || it.source.contains(q, true)
+                }
+                val bySource = when {
+                    selectedLibrary == "Yêu thích" -> byText.filter { favorites[it.id] == true }
+                    selectedLibrary == "Tất cả" -> byText
+                    selectedLibrary == "Thiết bị" -> byText.filter { it.source == "Thiết bị" }
+                    selectedLibrary == "Online" -> byText.filter {
+                        it.source in setOf("Online", "Jamendo", "Audius", "Radio Việt Nam")
+                    }
+                    else -> byText.filter { it.source == selectedLibrary }
+                }
+                when (libraryView) {
+                    "Nghệ sĩ" -> bySource.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.artist })
+                    "Album" -> bySource.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) {
+                        it.title.substringBefore(" - ")
+                    })
+                    "Thư mục" -> bySource.sortedWith(
+                        compareBy<Song> { it.folder.ifBlank { it.source }.lowercase() }
+                            .thenBy { it.title.lowercase() }
+                    )
+                    else -> bySource.sortedBy { it.title.lowercase() }
+                }
             }
         }
 
@@ -4869,10 +4881,16 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun LibraryChips() {
-        val sourceNames = songs.map { it.source }
-            .filter { it.isNotBlank() }
-            .distinct()
-            .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it })
+        val sourceNames by remember {
+            derivedStateOf {
+                songs.asSequence()
+                    .map { it.source }
+                    .filter { it.isNotBlank() }
+                    .distinct()
+                    .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it })
+                    .toList()
+            }
+        }
         val chips = listOf("Tất cả", "Yêu thích") + sourceNames
 
         Column(Modifier.padding(horizontal = 16.dp)) {
@@ -4919,10 +4937,27 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun LibrarySourcesPanel() {
-        val sourceNames = songs.map { it.source }
-            .filter { it.isNotBlank() }
-            .distinct()
-            .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it })
+        val sourceNames by remember {
+            derivedStateOf {
+                songs.asSequence()
+                    .map { it.source }
+                    .filter { it.isNotBlank() }
+                    .distinct()
+                    .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it })
+                    .toList()
+            }
+        }
+        val sourceCounts by remember {
+            derivedStateOf {
+                buildMap {
+                    songs.forEach { song ->
+                        if (song.source.isNotBlank()) {
+                            put(song.source, (get(song.source) ?: 0) + 1)
+                        }
+                    }
+                }
+            }
+        }
 
         fun sourceTitle(source: String): String {
             var title = source.trim()
@@ -5012,7 +5047,7 @@ class MainActivity : ComponentActivity() {
                         LibrarySourceCard(
                             title = sourceTitle(source),
                             subtitle = if (isDrive) "Google Drive" else source,
-                            count = songs.count { it.source == source },
+                            count = sourceCounts[source] ?: 0,
                             icon = if (isDrive) "☁" else "♫",
                             selected = selectedLibrary == source,
                             onClick = { selectedLibrary = source },
