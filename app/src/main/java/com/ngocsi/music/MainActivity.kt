@@ -6546,7 +6546,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     contentPadding = PaddingValues(bottom = 8.dp)
                                 ) {
                                     itemsIndexed(
-                                        nextEntries,
+                                        visibleNextEntries,
                                         key = { _, entry -> entry.second.uri.toString() }
                                     ) { displayIndex, entry ->
                                         val originalIndex = entry.first
