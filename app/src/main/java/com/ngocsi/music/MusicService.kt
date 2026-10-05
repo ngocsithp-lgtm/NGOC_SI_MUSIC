@@ -254,10 +254,13 @@ class MusicService : MediaSessionService() {
         broadcastWidget()
         widgetHandler.post(sleepTimerRunnable)
 
+        // Keep notification/lock-screen taps in the same stable shell as the
+        // launcher. ProMainActivity is a compatibility shell and should not become
+        // a second entry point with a different navigation state.
         val sessionActivity = PendingIntent.getActivity(
             this,
             0,
-            Intent(this, ProMainActivity::class.java),
+            Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
