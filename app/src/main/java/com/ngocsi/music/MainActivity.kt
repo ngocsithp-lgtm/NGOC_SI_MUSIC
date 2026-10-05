@@ -601,6 +601,85 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        // Initialize lightweight app state before any feature surface is opened.
+        // The UI is attached early so startup never appears as a blank window while
+        // library/Drive state is being restored in the background.
+        prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+        driveSourcePrefs = getSharedPreferences("ngocsi_music_drive_sources", MODE_PRIVATE)
+        migrateDrivePersistence()
+        driveOAuthManager = DriveOAuthManager(this)
+        driveOAuthSignedIn = driveOAuthManager.isSignedIn()
+        driveGoogleAccountEmail = driveOAuthManager.lastAccount()?.email.orEmpty()
+
+        playlistStore = PlaylistStore(this)
+        playlists.addAll(playlistStore.load())
+        loadCustomTvSources()
+        loadSavedState()
+        loadDriveRecentLinks()
+        restoreSleepTimer()
+
+        // Attach the Compose UI before background restoration/permission prompts.
+        setContent { NgocSiMusicApp() }
+
+        // Restore persisted Drive sources only after the first frame can render.
+        if (driveOAuthSignedIn) {
+            window.decorView.post { restoreDriveSourcesFromCloud() }
+        }
+
+        requestMusicPermissionIfNeeded()
+        requestNotificationPermissionIfNeeded()
+
+        // Media3 connects after the UI is visible; playback remains service-owned.
+        connectController()
+    }
+
+    private fun handleProDestination(destination: String?) {
+        when (destination) {
+            "library" -> {
+                selectedSection = "Thư viện"
+                selectedLibrary = "Tất cả"
+                libraryView = "Bài hát"
+            }
+            "youtube" -> {
+                selectedSection = "Online"
+                onlineHubTab = "YouTube"
+            }
+            "drive" -> {
+                selectedSection = "Online"
+                onlineHubTab = "Tất cả"
+                errorMessage = "Google Drive: chọn File Drive hoặc Thư mục để nhập nhạc."
+            }
+            "radio" -> {
+                selectedSection = "Radio"
+                showVietnamRadioHub = true
+            }
+            "tv" -> selectedSection = "TV"
+            "map" -> selectedSection = "Bản đồ"
+            "playlists" -> showPlaylists = true
+            "queue" -> showQueue = true
+            "player" -> {
+                if (songs.getOrNull(currentIndex) != null) {
+                    showNowPlaying = true
+                } else {
+                    selectedSection = "Thư viện"
+                    selectedLibrary = "Tất cả"
+                    libraryView = "Bài hát"
+                    errorMessage = "Chưa có bài hát đang phát. Hãy chọn một bài hát để mở trình phát."
+                }
+            }
+            "settings" -> selectedSection = "Cài đặt"
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleProDestination(intent.getStringExtra("pro_destination"))
+    }
+
     private fun connectController() {
         val token = SessionToken(this, ComponentName(this, MusicService::class.java))
         val future = MediaController.Builder(this, token).buildAsync()
