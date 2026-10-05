@@ -3517,10 +3517,26 @@ class MainActivity : ComponentActivity() {
     private fun moveQueueItem(from: Int, to: Int) {
         if (from !in queueSongs.indices || to !in queueSongs.indices || from == to) return
 
-        // queueSongs is the user-visible order. Update it first and let the
-        // canonical sync preserve the active URI, position, Shuffle and Repeat.
+        val c = controller
+        if (c != null && !isControllerQueueInSync(c)) {
+            // Repair rare queue drift before applying an in-place move.
+            syncControllerQueue()
+        }
+
+        // queueSongs is the user-visible canonical order. Mirror the same move
+        // directly in Media3 instead of rebuilding/prepare()-ing the whole queue.
+        // This keeps the active decoder, current URI and playback position intact
+        // while the user rapidly reorders tracks.
         queueSongs.add(to, queueSongs.removeAt(from))
-        syncControllerQueue()
+        controller?.let { mediaController ->
+            if (from in 0 until mediaController.mediaItemCount &&
+                to in 0 until mediaController.mediaItemCount
+            ) {
+                mediaController.moveMediaItem(from, to)
+            }
+        }
+
+        saveQueueOrder()
         savePlaybackState()
     }
 
