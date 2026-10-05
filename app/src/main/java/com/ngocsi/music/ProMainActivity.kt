@@ -1,5 +1,3 @@
-@file:Suppress("all")
-
 package com.ngocsi.music
 
 import android.content.ComponentName
