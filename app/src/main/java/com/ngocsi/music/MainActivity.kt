@@ -296,6 +296,7 @@ class MainActivity : ComponentActivity() {
     private val youtubeFavoriteTracks = mutableStateListOf<YouTubeFavoriteMeta>()
     private val youtubeWatchLater = mutableStateListOf<YouTubeWatchLaterMeta>()
     private var youtubeLoading by mutableStateOf(false)
+    private var youtubeShelf by mutableStateOf("Khám phá")
     private var youtubeNextPageToken by mutableStateOf<String?>(null)
     private var youtubeSelectedVideoId by mutableStateOf<String?>(null)
     private var youtubeLastPlayed by mutableStateOf<YouTubeTrack?>(null)
@@ -7965,7 +7966,234 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
     }
 
     @Composable
+    private fun YouTubeFocusedScreen() {
+        Column(
+            Modifier.fillMaxWidth().padding(bottom = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(22.dp),
+                color = Color(0xFF14141B),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF292430))
+            ) {
+                Column(Modifier.padding(14.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(modifier = Modifier.size(42.dp), shape = RoundedCornerShape(13.dp), color = Color(0xFF2A151A)) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text("▶", color = Color(0xFFFF6B78), fontSize = 18.sp, fontWeight = FontWeight.Black)
+                            }
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("YOUTUBE", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Black, letterSpacing = 0.6.sp)
+                            Text("Tìm kiếm • phát trong app • Xem sau", color = Color(0xFF8F8F9A), fontSize = 11.sp)
+                        }
+                        if (youtubeLastPlayed != null) {
+                            Surface(shape = RoundedCornerShape(50), color = Color(0xFF17261E)) {
+                                Text("ĐANG CÓ BÀI", color = Color(0xFF8FD694), fontSize = 8.sp, fontWeight = FontWeight.Black, modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp))
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("Tất cả", "YouTube", "Drive", "Nhạc online", "Yêu thích").forEach { tab ->
+                            FilterChip(selected = onlineHubTab == tab, onClick = { onlineHubTab = tab }, label = { Text(tab, fontSize = 11.sp) })
+                        }
+                    }
+                }
+            }
+
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                color = Color(0xFF11131A),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF252936))
+            ) {
+                OutlinedTextField(
+                    value = youtubeQuery,
+                    onValueChange = { youtubeQuery = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    placeholder = { Text("Tìm tên bài hát, nghệ sĩ, video...", color = Color(0xFF747A89)) },
+                    leadingIcon = { Text("⌕", color = Color(0xFFFF7180), fontSize = 23.sp) },
+                    trailingIcon = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (youtubeQuery.isNotBlank()) {
+                                IconButton(onClick = {
+                                    youtubeQuery = ""; youtubeTracks.clear(); youtubeNextPageToken = null; errorMessage = null
+                                }) { Text("×", color = Color(0xFF858B9A), fontSize = 21.sp) }
+                            }
+                            IconButton(onClick = ::searchYouTube, enabled = !youtubeLoading && youtubeQuery.isNotBlank()) {
+                                Text("➜", color = if (!youtubeLoading && youtubeQuery.isNotBlank()) Color(0xFFFF7180) else Color(0xFF555966), fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    },
+                    shape = RoundedCornerShape(18.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        unfocusedContainerColor = Color.Transparent, focusedContainerColor = Color.Transparent,
+                        unfocusedBorderColor = Color.Transparent, focusedBorderColor = Color.Transparent
+                    ),
+                    keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { searchYouTube() }, onDone = { searchYouTube() })
+                )
+            }
+
+            if (youtubeLoading) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(3.dp), color = Color(0xFFFF6678), trackColor = Color(0xFF28232A))
+            }
+
+            when (youtubeShelf) {
+                "Xem sau" -> {
+                    SectionTitle("XEM SAU", youtubeWatchLater.size.toString() + " video")
+                    if (youtubeWatchLater.isEmpty()) {
+                        YouTubeEmptyState("🔖", "Chưa có video Xem sau", "Bấm 🔖 ở một video để lưu lại.")
+                    } else {
+                        youtubeWatchLater.forEach { item ->
+                            YouTubeShelfRow(item.title, item.channelTitle, item.thumbnailUrl, { playYouTube(youtubeWatchLaterAsTrack(item)) }, "✓", { removeYouTubeWatchLater(item.videoId) })
+                        }
+                    }
+                }
+                "Yêu thích" -> {
+                    SectionTitle("YOUTUBE YÊU THÍCH", youtubeFavoriteTracks.size.toString() + " video")
+                    if (youtubeFavoriteTracks.isEmpty()) {
+                        YouTubeEmptyState("♡", "Chưa có video yêu thích", "Bấm ♡ ở kết quả để đưa video vào mục này.")
+                    } else {
+                        youtubeFavoriteTracks.forEach { item ->
+                            YouTubeShelfRow(item.title, item.channelTitle, item.thumbnailUrl, { playYouTube(youtubeFavoriteAsTrack(item)) }, "♥", { toggleYouTubeFavorite(youtubeFavoriteAsTrack(item)) })
+                        }
+                    }
+                }
+                else -> {
+                    youtubeLastPlayed?.let { item ->
+                        val queueSize = storedYouTubeQueueSize().coerceAtLeast(1)
+                        val queuePosition = (youtubeLastQueueIndex + 1).coerceIn(1, queueSize)
+                        Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), color = Color(0xFF151D19), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF263A2C))) {
+                            Row(Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                OnlineArtwork(item.thumbnailUrl, Modifier.size(64.dp))
+                                Spacer(Modifier.width(10.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text("TIẾP TỤC NGHE", color = Color(0xFF8FD694), fontSize = 9.sp, fontWeight = FontWeight.Black)
+                                    Text(item.title, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    Text(item.channelTitle + " • " + queuePosition + "/" + queueSize, color = Color(0xFF8C938D), fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                                IconButton(onClick = { playStoredYouTubeOffset(-1) }, enabled = queuePosition > 1) { Text("‹", color = if (queuePosition > 1) Color.White else Color(0xFF4B4B52), fontSize = 24.sp) }
+                                Surface(modifier = Modifier.size(42.dp).clip(CircleShape).clickable { playLastYouTube() }, shape = CircleShape, color = Color(0xFFFF6678)) {
+                                    Box(contentAlignment = Alignment.Center) { Text("▶", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Black) }
+                                }
+                                IconButton(onClick = { playStoredYouTubeOffset(1) }, enabled = queuePosition < queueSize) { Text("›", color = if (queuePosition < queueSize) Color.White else Color(0xFF4B4B52), fontSize = 24.sp) }
+                            }
+                        }
+                    }
+
+                    if (youtubeHistory.isNotEmpty() && youtubeTracks.isEmpty()) {
+                        SectionTitle("TÌM GẦN ĐÂY", youtubeHistory.size.toString() + " mục")
+                        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            youtubeHistory.take(8).forEach { item ->
+                                AssistChip(onClick = { youtubeQuery = item; searchYouTube() }, label = { Text(item, maxLines = 1, overflow = TextOverflow.Ellipsis) })
+                            }
+                        }
+                    }
+
+                    if (youtubeTracks.isNotEmpty()) {
+                        SectionTitle("KẾT QUẢ", youtubeTracks.size.toString() + " video")
+                        youtubeTracks.take(30).forEach { track ->
+                            val isFavorite = youtubeFavoriteSet.contains(track.videoId)
+                            val isWatchLater = youtubeWatchLater.any { it.videoId == track.videoId }
+                            val isCurrent = youtubeLastPlayed?.videoId == track.videoId
+                            Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), color = if (isCurrent) Color(0xFF20171A) else Color(0xFF15161D), border = androidx.compose.foundation.BorderStroke(1.dp, if (isCurrent) Color(0xFF5B2C35) else Color(0xFF232733))) {
+                                Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Box(Modifier.size(124.dp, 70.dp).clip(RoundedCornerShape(10.dp)).clickable { playYouTube(track) }) {
+                                        OnlineArtwork(track.thumbnailUrl, Modifier.fillMaxSize())
+                                        Surface(modifier = Modifier.align(Alignment.BottomStart).padding(5.dp), shape = RoundedCornerShape(6.dp), color = Color(0xCC0A0C11)) {
+                                            Text(if (isCurrent) "ĐANG PHÁT" else "YOUTUBE", color = if (isCurrent) Color(0xFFFF7A87) else Color.White, fontSize = 7.sp, fontWeight = FontWeight.Black, modifier = Modifier.padding(horizontal = 5.dp, vertical = 3.dp))
+                                        }
+                                    }
+                                    Spacer(Modifier.width(9.dp))
+                                    Column(Modifier.weight(1f).clickable { playYouTube(track) }, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                        Text(track.title, color = Color.White, fontSize = 13.sp, lineHeight = 17.sp, fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                        Text(track.channelTitle, color = Color(0xFF8F8F9A), fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        if (isCurrent) Text("ĐANG PHÁT", color = Color(0xFFFF7A87), fontSize = 8.sp, fontWeight = FontWeight.Black)
+                                    }
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        IconButton(onClick = { toggleYouTubeFavorite(track) }, modifier = Modifier.size(34.dp)) { Text(if (isFavorite) "♥" else "♡", color = if (isFavorite) Color(0xFFFF7180) else Color(0xFF858B99), fontSize = 18.sp) }
+                                        IconButton(onClick = { toggleYouTubeWatchLater(track) }, modifier = Modifier.size(34.dp)) { Text(if (isWatchLater) "✓" else "🔖", color = if (isWatchLater) Color(0xFFFFC66D) else Color(0xFF858B99), fontSize = 16.sp) }
+                                    }
+                                }
+                            }
+                        }
+                        if (youtubeNextPageToken != null) {
+                            OutlinedButton(onClick = { searchYouTube(loadMore = true) }, enabled = !youtubeLoading, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                                Text(if (youtubeLoading) "ĐANG TẢI..." else "XEM THÊM 50 VIDEO")
+                            }
+                        }
+                    } else if (!youtubeLoading) {
+                        YouTubeEmptyState("⌕", "Bắt đầu tìm kiếm trên YouTube", "Nhập tên bài hát hoặc nghệ sĩ, sau đó chạm ➜ hoặc nhấn Tìm trên bàn phím.")
+                    }
+
+                    if (youtubeHistory.isNotEmpty()) {
+                        TextButton(onClick = ::clearYouTubeHistory, contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)) { Text("XÓA LỊCH SỬ TÌM KIẾM", fontSize = 10.sp, color = Color(0xFF777D8D)) }
+                    }
+                }
+            }
+
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = youtubeShelf == "Xem sau", onClick = { youtubeShelf = "Xem sau" }, label = { Text("🔖 Xem sau • " + youtubeWatchLater.size, fontSize = 10.sp) }, modifier = Modifier.weight(1f))
+                FilterChip(selected = youtubeShelf == "Yêu thích", onClick = { youtubeShelf = "Yêu thích" }, label = { Text("♥ Yêu thích • " + youtubeFavoriteTracks.size, fontSize = 10.sp) }, modifier = Modifier.weight(1f))
+                if (youtubeShelf != "Khám phá") {
+                    FilterChip(selected = false, onClick = { youtubeShelf = "Khám phá" }, label = { Text("‹ Khám phá", fontSize = 10.sp) }, modifier = Modifier.weight(1f))
+                }
+            }
+
+            errorMessage?.takeIf { it.startsWith("YouTube") }?.let {
+                Text(it, color = Color(0xFFFFB4AB), fontSize = 11.sp, modifier = Modifier.padding(horizontal = 2.dp))
+            }
+        }
+    }
+
+    @Composable
+    private fun SectionTitle(title: String, count: String) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(title, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Black, letterSpacing = 0.8.sp, modifier = Modifier.weight(1f))
+            Text(count, color = Color(0xFF777D8D), fontSize = 10.sp)
+        }
+    }
+
+    @Composable
+    private fun YouTubeShelfRow(title: String, subtitle: String, thumbnailUrl: String, primaryAction: () -> Unit, secondaryIcon: String, secondaryAction: () -> Unit) {
+        Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(15.dp), color = Color(0xFF15161D)) {
+            Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                OnlineArtwork(thumbnailUrl, Modifier.size(88.dp, 50.dp).clip(RoundedCornerShape(8.dp)).clickable(onClick = primaryAction))
+                Spacer(Modifier.width(9.dp))
+                Column(Modifier.weight(1f).clickable(onClick = primaryAction), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(title, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(subtitle, color = Color(0xFF8F8F9A), fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                IconButton(onClick = secondaryAction, modifier = Modifier.size(38.dp)) {
+                    Text(secondaryIcon, color = if (secondaryIcon == "♥") Color(0xFFFF7180) else Color(0xFFB9A1D9), fontSize = 18.sp)
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun YouTubeEmptyState(icon: String, title: String, subtitle: String) {
+        Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), color = Color(0xFF11131A), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF222733))) {
+            Column(Modifier.fillMaxWidth().padding(vertical = 28.dp, horizontal = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(icon, color = Color(0xFFB18CFF), fontSize = 28.sp)
+                Spacer(Modifier.height(7.dp))
+                Text(title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                Spacer(Modifier.height(3.dp))
+                Text(subtitle, color = Color(0xFF7D8492), fontSize = 10.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            }
+        }
+    }
+    @Composable
     private fun OnlineSourcesCard() {
+        if (onlineHubTab == "YouTube") {
+            YouTubeFocusedScreen()
+            return
+        }
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color(0xFF14141B)).padding(14.dp)) {
             Text("NGỌC SĨ ONLINE MUSIC", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
             if (onlineFavorites.isNotEmpty()) {
