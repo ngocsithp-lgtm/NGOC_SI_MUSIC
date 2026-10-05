@@ -18,11 +18,13 @@ import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import java.util.concurrent.ConcurrentHashMap
 import org.json.JSONArray
 import android.webkit.WebChromeClient
 import android.webkit.CookieManager
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.util.LruCache
 import android.content.SharedPreferences
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -290,6 +292,11 @@ class MainActivity : ComponentActivity() {
     private lateinit var securePrefs: SharedPreferences
     private lateinit var playlistStore: PlaylistStore
     private val playlists = mutableStateListOf<MusicPlaylist>()
+    // Artwork cache: Drive covers are remote and MediaMetadataRetriever can be slow.
+    // Keep decoded covers in memory and persist extracted bytes on disk so the same
+    // song does not trigger another authenticated Drive stream read on every row.
+    private val artworkMemoryCache = LruCache<String, androidx.compose.ui.graphics.ImageBitmap>(48)
+    private val artworkLocks = ConcurrentHashMap<String, Mutex>()
     private var showPlaylists by mutableStateOf(false)
     private var playlistDetailId by mutableStateOf<String?>(null)
     private var playlistTargetSongUri by mutableStateOf<String?>(null)
@@ -8446,44 +8453,92 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
     private suspend fun loadArtworkBitmap(song: Song?): androidx.compose.ui.graphics.ImageBitmap? {
         if (song == null) return null
-        return withContext(Dispatchers.IO) {
-            try {
-                val uri = song.artworkUri
-                    ?: if (song.albumId >= 0L) {
-                        ContentUris.withAppendedId(
-                            MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI,
-                            song.albumId
-                        )
-                    } else null
+        val cacheKey = listOf(
+            song.uri.toString(),
+            song.artworkUri?.toString().orEmpty(),
+            song.albumId.toString()
+        ).joinToString("|")
 
-                if (uri != null) {
-                    contentResolver.openInputStream(uri)?.use { input ->
-                        BitmapFactory.decodeStream(input)?.asImageBitmap()
+        artworkMemoryCache.get(cacheKey)?.let { return it }
+
+        val lock = artworkLocks.computeIfAbsent(cacheKey) { Mutex() }
+        return try {
+            withContext(Dispatchers.IO) {
+                lock.withLock {
+                    artworkMemoryCache.get(cacheKey)?.let { return@withLock it }
+
+                    val result = try {
+                        val uri = song.artworkUri
+                            ?: if (song.albumId >= 0L) {
+                                ContentUris.withAppendedId(
+                                    MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI,
+                                    song.albumId
+                                )
+                            } else null
+
+                        if (uri != null) {
+                            contentResolver.openInputStream(uri)?.use { input ->
+                                BitmapFactory.decodeStream(input)?.asImageBitmap()
+                            }
+                        } else if (
+                            song.source.startsWith("Google Drive") &&
+                            song.uri.scheme.equals("https", ignoreCase = true)
+                        ) {
+                            val artworkDir = File(filesDir, "drive_artwork").apply { mkdirs() }
+                            val artworkFile = File(
+                                artworkDir,
+                                "cover_" + kotlin.math.abs(song.uri.toString().hashCode()) + ".jpg"
+                            )
+
+                            // Fast path: a previously extracted cover is already local.
+                            val cachedBitmap = if (artworkFile.exists() && artworkFile.length() > 0L) {
+                                runCatching {
+                                    BitmapFactory.decodeFile(artworkFile.absolutePath)?.asImageBitmap()
+                                }.getOrNull()
+                            } else null
+
+                            if (cachedBitmap != null) {
+                                cachedBitmap
+                            } else {
+                                val token = driveOAuthManager.accessToken()
+                                if (token.isNullOrBlank()) {
+                                    null
+                                } else {
+                                    val retriever = MediaMetadataRetriever()
+                                    try {
+                                        retriever.setDataSource(
+                                            song.uri.toString(),
+                                            mapOf("Authorization" to "Bearer $token")
+                                        )
+                                        val picture = retriever.embeddedPicture
+                                        if (picture != null && picture.isNotEmpty()) {
+                                            runCatching {
+                                                artworkFile.outputStream().use { it.write(picture) }
+                                            }
+                                            BitmapFactory.decodeByteArray(
+                                                picture, 0, picture.size
+                                            )?.asImageBitmap()
+                                        } else {
+                                            null
+                                        }
+                                    } finally {
+                                        retriever.release()
+                                    }
+                                }
+                            }
+                        } else {
+                            null
+                        }
+                    } catch (_: Exception) {
+                        null
                     }
-                } else if (song.source.startsWith("Google Drive") &&
-                    song.uri.scheme.equals("https", ignoreCase = true)
-                ) {
-                    // Drive songs are streamed through the REST media endpoint.
-                    // Read embedded artwork directly with the OAuth Bearer token;
-                    // this avoids requiring a local audio download just to show the cover.
-                    val token = driveOAuthManager.accessToken()
-                    if (token.isNullOrBlank()) return@withContext null
-                    val retriever = MediaMetadataRetriever()
-                    try {
-                        retriever.setDataSource(
-                            song.uri.toString(),
-                            mapOf("Authorization" to "Bearer $token")
-                        )
-                        retriever.embeddedPicture?.let { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }
-                    } finally {
-                        retriever.release()
-                    }
-                } else {
-                    null
+
+                    result?.also { artworkMemoryCache.put(cacheKey, it) }
+                    result
                 }
-            } catch (_: Exception) {
-                null
             }
+        } finally {
+            artworkLocks.remove(cacheKey, lock)
         }
     }
 
