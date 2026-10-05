@@ -9565,6 +9565,29 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         }
     }
 
+    @Composable
+    private fun SongActionButton(
+        label: String,
+        tint: Color = Color(0xFFBEB6D6),
+        onClick: () -> Unit
+    ) {
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color(0xFF20232D))
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                label,
+                color = tint,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+
     private fun formatTime(milliseconds: Long): String {
         val totalSeconds = max(0L, milliseconds) / 1000
         return String.format("%02d:%02d", totalSeconds / 60, totalSeconds % 60)
