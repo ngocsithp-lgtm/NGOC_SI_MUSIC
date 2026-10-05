@@ -300,6 +300,7 @@ class MainActivity : ComponentActivity() {
     // album metadata is unavailable.
     private val artworkMemoryCache = LruCache<String, androidx.compose.ui.graphics.ImageBitmap>(96)
     private val artworkLocks = ConcurrentHashMap<String, Mutex>()
+    private val albumArtPathCache = ConcurrentHashMap<Long, String?>()
     private var showPlaylists by mutableStateOf(false)
     private var playlistDetailId by mutableStateOf<String?>(null)
     private var playlistTargetSongUri by mutableStateOf<String?>(null)
@@ -8530,13 +8531,36 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             } else null
 
                         if (uri != null) {
-                            contentResolver.openInputStream(uri)?.use { input ->
-                                // Album artwork can be several thousand pixels wide.
-                                // Decode a small display-sized bitmap instead of the full cover.
-                                val options = BitmapFactory.Options().apply {
-                                    inSampleSize = 4
-                                    inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888
+                            // Prefer the local MediaStore album-art file when available.
+                            val localAlbumArt = if (song.albumId >= 0L) {
+                                albumArtPathCache.getOrPut(song.albumId) {
+                                    runCatching {
+                                        contentResolver.query(
+                                            MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI,
+                                            arrayOf(MediaStore.Audio.Albums.ALBUM_ART),
+                                            MediaStore.Audio.Albums._ID + "=?",
+                                            arrayOf(song.albumId.toString()),
+                                            null
+                                        )?.use { cursor ->
+                                            if (cursor.moveToFirst()) {
+                                                cursor.getString(0)?.takeIf { it.isNotBlank() }
+                                            } else null
+                                        }
+                                    }.getOrNull()
                                 }
+                            } else null
+
+                            val options = BitmapFactory.Options().apply {
+                                inSampleSize = 4
+                                inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
+                                inScaled = false
+                            }
+                            val localBitmap = localAlbumArt?.let { path ->
+                                runCatching {
+                                    BitmapFactory.decodeFile(path, options)?.asImageBitmap()
+                                }.getOrNull()
+                            }
+                            localBitmap ?: contentResolver.openInputStream(uri)?.use { input ->
                                 BitmapFactory.decodeStream(input, null, options)?.asImageBitmap()
                             }
                         } else if (
@@ -8603,7 +8627,14 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                                 connection.disconnect()
                                             }
                                         }
-                                        BitmapFactory.decodeFile(thumbFile.absolutePath)?.asImageBitmap()
+                                        BitmapFactory.decodeFile(
+                                            thumbFile.absolutePath,
+                                            BitmapFactory.Options().apply {
+                                                inSampleSize = 2
+                                                inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
+                                                inScaled = false
+                                            }
+                                        )?.asImageBitmap()
                                     }.getOrNull()
 
                                     if (thumbnailBitmap != null) {
