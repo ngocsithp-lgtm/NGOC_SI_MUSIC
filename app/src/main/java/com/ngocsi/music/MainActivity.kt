@@ -4161,6 +4161,7 @@ class MainActivity : ComponentActivity() {
                 Column(Modifier.fillMaxSize()) {
                     if (selectedSection == "Trang chủ") {
                         ProHomeScreen(
+                            modifier = Modifier.weight(1f),
                             currentSong = currentSong,
                             libraryCount = songs.size,
                             queueCount = queueSongs.size,
@@ -4215,9 +4216,11 @@ class MainActivity : ComponentActivity() {
                             onOpenSleepTimer = { showSleepTimer = true }
                         )
                     } else {
-                        Header()
-                        SearchBarModern()
-                        Spacer(Modifier.height(6.dp))
+                        ProSectionHeader()
+                        if (selectedSection == "Thư viện" || selectedSection == "Online") {
+                            SearchBarModern()
+                        }
+                        Spacer(Modifier.height(4.dp))
 
                         when (selectedSection) {
                         "Trang chủ" -> {
@@ -4407,9 +4410,11 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                        currentSong?.let { MiniPlayer(it) }
-                        BottomNav()
                     }
+                    if (selectedSection != "Trang chủ") {
+                        currentSong?.let { MiniPlayer(it) }
+                    }
+                    BottomNav()
                 }
             }
         }
@@ -4432,6 +4437,7 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun ProHomeScreen(
+        modifier: Modifier = Modifier,
         currentSong: Song?,
         libraryCount: Int,
         queueCount: Int,
@@ -4454,11 +4460,8 @@ class MainActivity : ComponentActivity() {
         onSeek: (Long) -> Unit,
         onOpenSleepTimer: () -> Unit
     ) {
-        var showMore by remember { mutableStateOf(false) }
-
-        Column(Modifier.fillMaxSize()) {
-            LazyColumn(
-                modifier = Modifier.weight(1f),
+        LazyColumn(
+            modifier = modifier.fillMaxWidth(),
             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -4701,47 +4704,6 @@ class MainActivity : ComponentActivity() {
                     )
                 }
             }
-        }
-
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = Color(0xFF0B0D12),
-            tonalElevation = 8.dp,
-            shadowElevation = 8.dp
-        ) {
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 7.dp),
-                horizontalArrangement = Arrangement.SpaceAround,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                ProHomeNavItem("⌂", "Trang chủ", true) { }
-                ProHomeNavItem("♫", "Nhạc", false, onOpenLibrary)
-                ProHomeNavItem("▶", "YouTube", false, onOpenYouTube)
-                ProHomeNavItem("◉", "Radio", false, onOpenRadio)
-                ProHomeNavItem("＋", "Thêm", showMore) { showMore = !showMore }
-            }
-        }
-
-        if (showMore) {
-            // Keep the extra actions compact and close to the navigation bar.
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = Color(0xFF10131A),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF202632))
-            ) {
-                Row(
-                    Modifier.fillMaxWidth().padding(8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    ProHomeNavChip("Drive", onOpenDrive, Modifier.weight(1f))
-                    ProHomeNavChip("Queue", onOpenQueue, Modifier.weight(1f))
-                    ProHomeNavChip("Playlist", onOpenPlaylists, Modifier.weight(1f))
-                    ProHomeNavChip("Map", onOpenMap, Modifier.weight(1f))
-                    ProHomeNavChip("Cài đặt", onOpenSettings, Modifier.weight(1f))
-                }
-    }
-            }
-    }
         }
 
     @Composable
@@ -5153,46 +5115,47 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun LibraryYouTubeHeader(count: Int) {
-        val driveCount = songs.count { it.source.startsWith("Google Drive") }
-        val deviceCount = songs.count { it.source == "Thiết bị" }
+        val selectedDriveSourceName = selectedLibrary
+            .removePrefix("Google Drive • ")
+            .removePrefix("Chia sẻ • ")
+            .trim()
+        val label = when {
+            selectedLibrary.startsWith("Google Drive • ") ->
+                selectedDriveSourceName.ifBlank { "Google Drive" }
+            selectedLibrary == "Google Drive" -> "Google Drive"
+            selectedLibrary == "Thiết bị" -> "Thiết bị"
+            selectedLibrary == "Yêu thích" -> "Yêu thích"
+            selectedLibrary == "Online" -> "Nguồn online"
+            selectedLibrary == "Tất cả" -> "Tất cả nguồn"
+            else -> selectedLibrary
+        }
+
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(Modifier.weight(1f)) {
-                Text("Thư viện", color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.ExtraBold)
-                Spacer(Modifier.height(3.dp))
-                val selectedDriveSourceName = selectedLibrary
-                    .removePrefix("Google Drive • ")
-                    .removePrefix("Chia sẻ • ")
-                    .trim()
-
                 Text(
-                    when {
-                        selectedLibrary.startsWith("Google Drive • ") ->
-                            songs.count { it.source == selectedLibrary }.toString() +
-                                " bài • " + selectedDriveSourceName.ifBlank { "Google Drive" }
-                        selectedLibrary == "Google Drive" ->
-                            driveCount.toString() + " bài • Google Drive"
-                        selectedLibrary == "Thiết bị" ->
-                            deviceCount.toString() + " bài • Thiết bị"
-                        selectedLibrary == "Yêu thích" ->
-                            songs.count { favorites[it.id] == true }.toString() + " bài • Yêu thích"
-                        selectedLibrary == "Tất cả" ->
-                            count.toString() + " bài hát • tất cả nguồn"
-                        else ->
-                            songs.count { it.source == selectedLibrary }.toString() +
-                                " bài • " + selectedLibrary
-                    },
-                    color = Color(0xFF8F919F),
+                    label,
+                    color = Color(0xFFE7E8EF),
                     fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+                Text(
+                    "$count bài • chọn bài để phát",
+                    color = Color(0xFF777E8D),
+                    fontSize = 9.sp
+                )
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Surface(
-                    modifier = Modifier.clip(RoundedCornerShape(13.dp)).clickable {
+
+            Surface(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable {
                         val snapshot = songs.filter {
                             when {
                                 selectedLibrary == "Yêu thích" -> favorites[it.id] == true
@@ -5204,28 +5167,34 @@ class MainActivity : ComponentActivity() {
                         }
                         playFilteredSongs(snapshot)
                     },
-                    shape = RoundedCornerShape(13.dp),
-                    color = Color(0xFF29213F),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF4D3D70))
-                ) {
-                    Row(Modifier.padding(horizontal = 12.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("▶", color = Color(0xFFD9CAFF), fontSize = 12.sp)
-                        Spacer(Modifier.width(6.dp))
-                        Text("PHÁT", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Black)
-                    }
-                }
-                Surface(
-                    modifier = Modifier.size(38.dp).clip(CircleShape).clickable {
+                shape = RoundedCornerShape(12.dp),
+                color = Color(0xFF2A2045),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF4D3D70))
+            ) {
+                Text(
+                    "▶ PHÁT",
+                    color = Color.White,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Black,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp)
+                )
+            }
+
+            Spacer(Modifier.width(5.dp))
+            Surface(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .clickable {
                         loadSongs()
                         errorMessage = null
                     },
-                    shape = CircleShape,
-                    color = Color(0xFF171A22),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF292E3A))
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text("↻", color = Color(0xFFB7BBC8), fontSize = 18.sp)
-                    }
+                shape = CircleShape,
+                color = Color(0xFF171A22),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF292E3A))
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text("↻", color = Color(0xFFB7BBC8), fontSize = 16.sp)
                 }
             }
         }
@@ -5642,52 +5611,182 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun BottomNav() {
-        NavigationBar(
-            containerColor = Color(0xFF0D0F14),
-            tonalElevation = 8.dp
+        var showMore by remember { mutableStateOf(false) }
+
+        Column(Modifier.fillMaxWidth()) {
+            if (showMore) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = Color(0xFF10131A),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF232836))
+                ) {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(horizontal = 8.dp, vertical = 7.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        ProHomeNavChip("☁ Drive", {
+                            showMore = false
+                            selectedSection = "Online"
+                            onlineHubTab = "Tất cả"
+                            driveSharedStatus = "Mở trung tâm Google Drive"
+                        })
+                        ProHomeNavChip("☷ Hàng đợi", {
+                            showMore = false
+                            showQueue = true
+                        })
+                        ProHomeNavChip("♬ Playlist", {
+                            showMore = false
+                            showPlaylists = true
+                        })
+                        ProHomeNavChip("▣ TV", {
+                            showMore = false
+                            selectedSection = "TV"
+                        })
+                        ProHomeNavChip("⌖ Bản đồ", {
+                            showMore = false
+                            selectedSection = "Bản đồ"
+                        })
+                        ProHomeNavChip("⚙ Cài đặt", {
+                            showMore = false
+                            selectedSection = "Cài đặt"
+                        })
+                    }
+                }
+            }
+
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = Color(0xFF0A0C11),
+                tonalElevation = 8.dp,
+                shadowElevation = 10.dp,
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1D212B))
+            ) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 7.dp, vertical = 5.dp),
+                    horizontalArrangement = Arrangement.SpaceAround,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    ProHomeNavItem("⌂", "Trang chủ", selectedSection == "Trang chủ") {
+                        showMore = false
+                        selectedSection = "Trang chủ"
+                    }
+                    ProHomeNavItem("♫", "Nhạc", selectedSection == "Thư viện") {
+                        showMore = false
+                        selectedSection = "Thư viện"
+                        selectedLibrary = "Tất cả"
+                        libraryView = "Bài hát"
+                    }
+                    ProHomeNavItem("▶", "YouTube", selectedSection == "Online" && onlineHubTab == "YouTube") {
+                        showMore = false
+                        selectedSection = "Online"
+                        onlineHubTab = "YouTube"
+                    }
+                    ProHomeNavItem("◉", "Radio", selectedSection == "Radio") {
+                        showMore = false
+                        selectedSection = "Radio"
+                        showVietnamRadioHub = true
+                    }
+                    ProHomeNavItem("＋", "Thêm", showMore) {
+                        showMore = !showMore
+                    }
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun ProSectionHeader() {
+        val title = when (selectedSection) {
+            "Thư viện" -> "THƯ VIỆN"
+            "Online" -> "ONLINE"
+            "Radio" -> "RADIO"
+            "TV" -> "TV TRỰC TUYẾN"
+            "Bản đồ" -> "BẢN ĐỒ"
+            "Cài đặt" -> "CÀI ĐẶT"
+            else -> "NGỌC SĨ MUSIC"
+        }
+        val subtitle = when (selectedSection) {
+            "Thư viện" -> "${songs.size} bài • ${selectedLibrary}"
+            "Online" -> "YouTube • Google Drive • nhạc trực tuyến"
+            "Radio" -> if (activeRadioTitle != null) "Đang phát • $activeRadioTitle" else "Đài phát thanh Việt Nam"
+            "TV" -> "${TvCatalog.builtIn.size + customTvSources.size} nguồn truyền hình"
+            "Bản đồ" -> "Bản đồ • tìm địa điểm • vị trí hiện tại"
+            "Cài đặt" -> "Phát nhạc • giao diện • nguồn nội dung"
+            else -> ""
+        }
+
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            shape = RoundedCornerShape(17.dp),
+            color = Color(0xFF10131A),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF202530))
         ) {
-            listOf(
-                "Trang chủ" to "⌂",
-                "Thư viện" to "♫",
-                "Online" to "▶",
-                "Radio" to "📻",
-                "Cài đặt" to "⚙"
-            ).forEach { (name, icon) ->
-                val selected = selectedSection == name
-                NavigationBarItem(
-                    selected = selected,
-                    onClick = { selectedSection = name },
-                    icon = {
-                        Box(
-                            Modifier
-                                .size(if (selected) 40.dp else 32.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    if (selected) Color(0xFF33264F)
-                                    else Color.Transparent
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                icon,
-                                color = if (selected) Color.White else Color(0xFF9295A5),
-                                fontSize = 17.sp
-                            )
-                        }
-                    },
-                    label = {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 11.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    modifier = Modifier.size(34.dp),
+                    shape = RoundedCornerShape(11.dp),
+                    color = Color(0xFF29203F)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
                         Text(
-                            when (name) {
-                                "Trang chủ" -> "Trang chủ"
-                                "Thư viện" -> "Nhạc"
-                                else -> name
+                            when (selectedSection) {
+                                "Thư viện" -> "♫"
+                                "Online" -> "▶"
+                                "Radio" -> "◉"
+                                "TV" -> "▣"
+                                "Bản đồ" -> "⌖"
+                                "Cài đặt" -> "⚙"
+                                else -> "NS"
                             },
-                            fontSize = 9.sp,
-                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                            maxLines = 1
+                            color = Color(0xFFCDBEFF),
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Black
                         )
                     }
-                )
+                }
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        title,
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 0.8.sp
+                    )
+                    Text(
+                        subtitle,
+                        color = Color(0xFF777F8E),
+                        fontSize = 9.5.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (selectedSection != "Cài đặt") {
+                    Surface(
+                        shape = RoundedCornerShape(50),
+                        color = Color(0xFF171D28)
+                    ) {
+                        Text(
+                            "PRO",
+                            color = Color(0xFF8EEBFF),
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Black,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                        )
+                    }
+                }
             }
         }
     }
