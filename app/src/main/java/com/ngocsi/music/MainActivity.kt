@@ -864,167 +864,149 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private var songsLoadJob: Job? = null
-
     private fun loadSongs() {
         songsLoadJob?.cancel()
-        songsLoadJob = lifecycleScope.launch(Dispatchers.IO) {
-            val loaded = runCatching {
-                val result = mutableListOf<Song>()
-                val collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
-                val projection = arrayOf(
-                    MediaStore.Audio.Media._ID,
-                    MediaStore.Audio.Media.TITLE,
-                    MediaStore.Audio.Media.ARTIST,
-                    MediaStore.Audio.Media.DURATION,
-                    MediaStore.Audio.Media.ALBUM_ID,
-                    MediaStore.Audio.Media.DATA
-                )
-                val selection = MediaStore.Audio.Media.IS_MUSIC + " != 0"
-                val sort = MediaStore.Audio.Media.TITLE + " COLLATE NOCASE ASC"
+        songsLoadJob = lifecycleScope.launch {
+            try {
+                val (result, hasSavedQueue, savedQueueOrder) = withContext(Dispatchers.IO) {
+                    val result = mutableListOf<Song>()
+                    val collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+                    val projection = arrayOf(
+                        MediaStore.Audio.Media._ID,
+                        MediaStore.Audio.Media.TITLE,
+                        MediaStore.Audio.Media.ARTIST,
+                        MediaStore.Audio.Media.DURATION,
+                        MediaStore.Audio.Media.ALBUM_ID,
+                        MediaStore.Audio.Media.DATA
+                    )
+                    val selection = MediaStore.Audio.Media.IS_MUSIC + " != 0"
+                    val sort = MediaStore.Audio.Media.TITLE + " COLLATE NOCASE ASC"
 
-                contentResolver.query(collection, projection, selection, null, sort)?.use { cursor ->
-                    val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
-                    val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
-                    val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
-                    val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
-                    val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
-                    val dataCol = cursor.getColumnIndex(MediaStore.Audio.Media.DATA)
+                    contentResolver.query(collection, projection, selection, null, sort)?.use { cursor ->
+                        val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+                        val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
+                        val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
+                        val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+                        val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
+                        val dataCol = cursor.getColumnIndex(MediaStore.Audio.Media.DATA)
 
-                    while (cursor.moveToNext()) {
-                        val id = cursor.getLong(idCol)
-                        val rawPath = dataCol.takeIf { it >= 0 }
-                            ?.let { cursor.getString(it).orEmpty() }
-                            .orEmpty()
-                        val folder = rawPath.takeIf { it.isNotBlank() }
-                            ?.let { File(it).parentFile?.name }
-                            ?.ifBlank { null }
-                            ?: "Thiết bị"
-                        result += Song(
-                            id,
-                            cursor.getString(titleCol).orEmpty().ifBlank { "Không có tên" },
-                            cursor.getString(artistCol).orEmpty().ifBlank { "Nghệ sĩ không rõ" },
-                            cursor.getLong(durationCol),
-                            ContentUris.withAppendedId(collection, id),
-                            "Thiết bị",
-                            cursor.getLong(albumIdCol),
-                            folder = folder
-                        )
-                    }
-                }
-
-                val savedDriveUris = driveSourcePrefs.getStringSet("drive_uris", emptySet()) ?: emptySet()
-                val savedDriveSourceNames = loadDriveSourceNames()
-                val savedOnlineUris = prefs.getStringSet("online_uris", emptySet()) ?: emptySet()
-                val existing = result
-                    .map { it.uri.toString() + "::" + it.source }
-                    .toMutableSet()
-
-                // Rehydrate files previously linked from a Google Drive sharing URL.
-                val sharedItems = loadSharedDriveItems()
-                val sharedApiKey = driveApiKey()
-                if (sharedItems.isNotEmpty() && (sharedApiKey.isNotBlank() || driveOAuthSignedIn)) {
-                    sharedItems.forEach { item ->
-                        val uri = sharedDriveMediaUri(item, sharedApiKey)
-                        val raw = uri.toString()
-                        val sourceName = item.sourceName.trim().ifBlank {
-                            "Chia sẻ • " + item.name.substringBeforeLast(".").ifBlank { item.name }
-                        }
-                        val songSource = driveSongSource(sourceName)
-                        val sourceKey = raw + "::" + songSource
-                        if (existing.add(sourceKey)) {
+                        while (cursor.moveToNext()) {
+                            val id = cursor.getLong(idCol)
+                            val rawPath = dataCol.takeIf { it >= 0 }
+                                ?.let { cursor.getString(it).orEmpty() }
+                                .orEmpty()
+                            val folder = rawPath.takeIf { it.isNotBlank() }
+                                ?.let { File(it).parentFile?.name }
+                                ?.ifBlank { null }
+                                ?: "Thiết bị"
                             result += Song(
-                                id = -kotlin.math.abs(sourceKey.hashCode().toLong()),
-                                title = item.name.substringBeforeLast(".").ifBlank { item.name },
-                                artist = songSource,
-                                duration = 0L,
-                                uri = uri,
-                                source = songSource,
-                                folder = sourceName
+                                id,
+                                cursor.getString(titleCol).orEmpty().ifBlank { "Không có tên" },
+                                cursor.getString(artistCol).orEmpty().ifBlank { "Nghệ sĩ không rõ" },
+                                cursor.getLong(durationCol),
+                                ContentUris.withAppendedId(collection, id),
+                                "Thiết bị",
+                                cursor.getLong(albumIdCol),
+                                folder = folder
                             )
                         }
                     }
-                }
 
-                val staleDriveUris = mutableSetOf<String>()
-                val savedDriveLocalFiles = loadDriveLocalFiles()
-                val staleDriveLocalFiles = mutableSetOf<String>()
+                    val savedDriveUris = driveSourcePrefs.getStringSet("drive_uris", emptySet()) ?: emptySet()
+                    val savedDriveSourceNames = loadDriveSourceNames()
+                    val savedOnlineUris = prefs.getStringSet("online_uris", emptySet()) ?: emptySet()
+                    val existing = result
+                        .map { it.uri.toString() + "::" + it.source }
+                        .toMutableSet()
 
-                savedDriveUris.forEach { raw ->
-                    val uri = Uri.parse(raw)
-                    val savedSourceName = savedDriveSourceNames[raw].orEmpty()
-                    val restoredLocalUri = savedDriveLocalFiles[raw]
-                        ?.let { runCatching { Uri.parse(it) }.getOrNull() }
-                    val song = songFromUri(uri) ?: restoredLocalUri?.let(::songFromUri)
-                    if (song != null) {
-                        val candidateSource = if (savedSourceName.isNotBlank()) {
-                            driveSongSource(savedSourceName)
-                        } else {
-                            song.source
-                        }
-                        val sourceKey = raw + "::" + candidateSource
-                        if (existing.add(sourceKey)) {
-                            result += if (savedSourceName.isNotBlank()) {
-                                song.copy(
-                                    source = driveSongSource(savedSourceName),
-                                    folder = savedSourceName
-                                )
-                            } else {
-                                song
+                    val sharedItems = loadSharedDriveItems()
+                    val sharedApiKey = driveApiKey()
+                    if (sharedItems.isNotEmpty() && (sharedApiKey.isNotBlank() || driveOAuthSignedIn)) {
+                        sharedItems.forEach { item ->
+                            val uri = sharedDriveMediaUri(item, sharedApiKey)
+                            val raw = uri.toString()
+                            val sourceName = item.sourceName.trim().ifBlank {
+                                "Chia sẻ • " + item.name.substringBeforeLast(".").ifBlank { item.name }
                             }
-                        } else {
-                            staleDriveUris += raw
-                            staleDriveLocalFiles += raw
+                            val songSource = driveSongSource(sourceName)
+                            val sourceKey = raw + "::" + songSource
+                            if (existing.add(sourceKey)) {
+                                result += Song(
+                                    id = -kotlin.math.abs(sourceKey.hashCode().toLong()),
+                                    title = item.name.substringBeforeLast(".").ifBlank { item.name },
+                                    artist = songSource,
+                                    duration = 0L,
+                                    uri = uri,
+                                    source = songSource,
+                                    folder = sourceName
+                                )
+                            }
                         }
                     }
+
+                    val staleDriveUris = mutableSetOf<String>()
+                    val savedDriveLocalFiles = loadDriveLocalFiles()
+                    val staleDriveLocalFiles = mutableSetOf<String>()
+
+                    savedDriveUris.forEach { raw ->
+                        val uri = Uri.parse(raw)
+                        val savedSourceName = savedDriveSourceNames[raw].orEmpty()
+                        val restoredLocalUri = savedDriveLocalFiles[raw]
+                            ?.let { runCatching { Uri.parse(it) }.getOrNull() }
+                        val song = songFromUri(uri) ?: restoredLocalUri?.let(::songFromUri)
+                        if (song != null) {
+                            val candidateSource = if (savedSourceName.isNotBlank()) {
+                                driveSongSource(savedSourceName)
+                            } else {
+                                song.source
+                            }
+                            val sourceKey = raw + "::" + candidateSource
+                            if (existing.add(sourceKey)) {
+                                result += if (savedSourceName.isNotBlank()) {
+                                    song.copy(
+                                        source = driveSongSource(savedSourceName),
+                                        folder = savedSourceName
+                                    )
+                                } else {
+                                    song
+                                }
+                            } else {
+                                staleDriveUris += raw
+                                staleDriveLocalFiles += raw
+                            }
+                        }
+                    }
+
+                    if (staleDriveUris.isNotEmpty() || staleDriveLocalFiles.isNotEmpty()) {
+                        val cleanedDriveUris = savedDriveUris.toMutableSet().apply { removeAll(staleDriveUris) }
+                        val cleanedLocalFiles = savedDriveLocalFiles.toMutableMap()
+                        staleDriveLocalFiles.forEach { cleanedLocalFiles.remove(it) }
+                        driveSourcePrefs.edit()
+                            .putStringSet("drive_uris", cleanedDriveUris)
+                            .apply()
+                        saveDriveLocalFiles(cleanedLocalFiles)
+                    }
+
+                    savedOnlineUris.forEach { raw ->
+                        val uri = Uri.parse(raw)
+                        val onlineSong = onlineSongFromUri(uri)
+                        val sourceKey = raw + "::" + onlineSong.source
+                        if (existing.add(sourceKey)) result += onlineSong
+                    }
+
+                    val hasSavedQueue = prefs.contains("queue_order")
+                    val savedQueueOrder = prefs.getString("queue_order", "").orEmpty()
+                        .split("\n")
+                        .map { it.trim() }
+                        .filter { it.isNotBlank() }
+
+                    Triple(result, hasSavedQueue, savedQueueOrder)
                 }
 
-                if (staleDriveUris.isNotEmpty() || staleDriveLocalFiles.isNotEmpty()) {
-                    val cleanedDriveUris = savedDriveUris.toMutableSet().apply { removeAll(staleDriveUris) }
-                    val cleanedLocalFiles = savedDriveLocalFiles.toMutableMap()
-                    staleDriveLocalFiles.forEach { cleanedLocalFiles.remove(it) }
-                    driveSourcePrefs.edit()
-                        .putStringSet("drive_uris", cleanedDriveUris)
-                        .apply()
-                    saveDriveLocalFiles(cleanedLocalFiles)
-                }
-
-                savedOnlineUris.forEach { raw ->
-                    val uri = Uri.parse(raw)
-                    val onlineSong = onlineSongFromUri(uri)
-                    val sourceKey = raw + "::" + onlineSong.source
-                    if (existing.add(sourceKey)) result += onlineSong
-                }
-
-                // Queue order is restored separately so queue reordering never
-                // reorders the library.
-                val hasSavedQueue = prefs.contains("queue_order")
-                val savedQueueOrder = prefs.getString("queue_order", "").orEmpty()
-                    .split("\n")
-                    .map { it.trim() }
-                    .filter { it.isNotBlank() }
-
-                Triple(result, hasSavedQueue, savedQueueOrder)
-            }
-
-            if (loaded.isFailure) {
-                withContext(Dispatchers.Main) {
-                    songsLoadJob = null
-                    errorMessage = "Không thể quét thư viện nhạc: " +
-                        (loaded.exceptionOrNull()?.message?.take(180) ?: "lỗi không xác định")
-                }
-                return@launch
-            }
-
-            val (result, hasSavedQueue, savedQueueOrder) = loaded.getOrThrow()
-
-            withContext(Dispatchers.Main) {
                 songs.clear()
                 songs.addAll(result)
 
-                // Rehydrate a transient Radio item saved by MusicService so
-                // background playback/lock-screen resumption is not discarded
-                // when MainActivity rebuilds its local library model.
+                // Rehydrate transient Radio items stored in the saved queue.
                 if (savedQueueOrder.isNotEmpty()) {
                     val queueMetadataByUri = mutableMapOf<String, org.json.JSONObject>()
                     prefs.getString("queue_metadata", null)?.let { raw ->
@@ -1100,14 +1082,9 @@ class MainActivity : ComponentActivity() {
                 }
 
                 controller?.let { c ->
-                    // If MusicService already owns a matching queue, preserve its
-                    // active item and exact position. Rebuild only when the
-                    // controller queue is actually empty or out of sync.
-                    if (c.mediaItemCount == 0 && songs.isNotEmpty()) {
-                        if (queueSongs.isNotEmpty()) {
-                            c.setMediaItems(queueSongs.map { mediaItemFor(it) })
-                            c.prepare()
-                        }
+                    if (c.mediaItemCount == 0 && queueSongs.isNotEmpty()) {
+                        c.setMediaItems(queueSongs.map { mediaItemFor(it) })
+                        c.prepare()
 
                         val restoreQueueIndex = lastSongUri?.let { uri ->
                             queueSongs.indexOfFirst { it.uri.toString() == uri }
@@ -1140,9 +1117,245 @@ class MainActivity : ComponentActivity() {
                         isPlaying = c.isPlaying
                     }
                 }
-
-                songsLoadJob = null
+            } catch (e: java.util.concurrent.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                errorMessage = "Không thể quét thư viện nhạc: " +
+                    (e.message?.take(180) ?: "lỗi không xác định")
+            } finally {
+                if (songsLoadJob?.isCompleted == true) {
+                    songsLoadJob = null
+                }
             }
+        }
+    }
+
+    private fun isControllerQueueInSync(c: MediaController): Boolean {
+        if (c.mediaItemCount != queueSongs.size) return false
+        return queueSongs.indices.all { index ->
+            c.getMediaItemAt(index).localConfiguration?.uri == queueSongs[index].uri
+        }
+    }
+
+    private fun playFilteredSongs(items: List<Song>) {
+        val first = items.firstOrNull() ?: return
+        val c = controller ?: run {
+            errorMessage = "Trình phát đang khởi động, thử lại sau."
+            return
+        }
+        clearActiveRadioState()
+        queueSongs.clear()
+        queueSongs.addAll(items)
+        queueSource = first.source
+        c.setMediaItems(queueSongs.map { mediaItemFor(it) }, 0, 0L)
+        c.shuffleModeEnabled = shuffleEnabled
+        c.repeatMode = repeatMode
+        c.setPlaybackSpeed(selectedPlaybackSpeed)
+        c.prepare()
+        c.play()
+        currentIndex = songs.indexOfFirst { it.uri == first.uri && it.source == first.source }
+        lastSongUri = first.uri.toString()
+        position = 0L
+        duration = c.duration.coerceAtLeast(0L)
+        savedPosition = 0L
+        saveQueueOrder()
+        savePlaybackState()
+        errorMessage = "Đang phát ${items.size} bài theo danh sách hiện tại."
+    }
+
+    private fun play(index: Int, driveTokenReady: Boolean = false) {
+        if (index !in songs.indices) return
+
+        // Google Drive media uses a short-lived OAuth bearer token. Refresh it
+        // immediately before playback, including after an app restart, so a
+        // previously saved Drive item does not fail because prefs contains an
+        // expired token. The recursive call is guarded by driveTokenReady.
+        if (!driveTokenReady && songs[index].source.startsWith("Google Drive", ignoreCase = true) &&
+            (songs[index].uri.scheme.equals("content", true) || songs[index].uri.scheme.equals("https", true))) {
+            errorMessage = "Đang xác thực Google Drive để phát…"
+            lifecycleScope.launch {
+                val token = driveOAuthManager.accessToken()
+                if (token.isNullOrBlank()) {
+                    errorMessage = "Phiên Google Drive đã hết hạn. Hãy đăng nhập lại."
+                    signInGoogleDrive()
+                    return@launch
+                }
+                play(index, driveTokenReady = true)
+            }
+            return
+        }
+
+        val c = controller ?: run {
+            errorMessage = "Trình phát đang khởi động, thử lại sau."
+            return
+        }
+
+        if (songs[index].source != "Radio Việt Nam") {
+            clearActiveRadioState()
+        }
+
+        val target = songs[index]
+
+        // Handle a source change first. The previous implementation could sync
+        // the old queue and then immediately rebuild it for the new source,
+        // causing two prepare() operations for one tap.
+        if (queueSource != target.source) {
+            queueSongs.clear()
+            queueSongs.add(target)
+            queueSource = target.source
+            syncControllerQueue()
+        } else {
+            if (!isControllerQueueInSync(c)) {
+                syncControllerQueue()
+            }
+
+            if (queueSongs.none { it.uri == target.uri && it.source == target.source }) {
+                queueSongs.add(target)
+                appendSongToControllerQueue(target)
+            }
+        }
+
+        currentIndex = index
+        val queueIndex = queueSongs.indexOfFirst {
+            it.uri == target.uri && it.source == target.source
+        }
+        if (queueIndex < 0) {
+            errorMessage = "Không thể thêm bài hát vào hàng đợi."
+            return
+        }
+
+        // Selecting a track already present in a prepared queue should not rebuild
+        // or prepare the queue; just move the current position and start playback.
+        c.seekToDefaultPosition(queueIndex)
+        c.play()
+        shuffleEnabled = c.shuffleModeEnabled
+        repeatMode = c.repeatMode
+        errorMessage = null
+    }
+
+    private fun mediaItemFor(song: Song): MediaItem {
+        val rawUri = song.uri.toString().lowercase()
+        val path = song.uri.path.orEmpty().lowercase()
+        val builder = MediaItem.Builder()
+            .setMediaId(song.uri.toString())
+            .setUri(song.uri)
+        // Force HLS only when the URL actually identifies an HLS manifest.
+        // Some radio providers expose a direct AAC/MP3 stream without a .m3u8
+        // suffix; forcing APPLICATION_M3U8 on those URLs makes Media3 reject
+        // an otherwise playable audio stream.
+        val isHls = path.endsWith(".m3u8") ||
+            rawUri.contains(".m3u8") ||
+            rawUri.contains("/playlist") ||
+            rawUri.contains("/manifest")
+        if (isHls) {
+            builder.setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8)
+        } else {
+            // Some local DocumentsProvider/MediaStore URIs do not expose a
+            // useful filename extension. Supplying the provider MIME type
+            // helps Media3 select the correct progressive audio path.
+            val providerMime = runCatching { contentResolver.getType(song.uri) }
+                .getOrNull()
+                ?.trim()
+                .orEmpty()
+            if (providerMime.startsWith("audio/")) {
+                builder.setMimeType(providerMime)
+            }
+        }
+        return builder
+            .setMediaMetadata(
+                androidx.media3.common.MediaMetadata.Builder()
+                    .setTitle(song.title)
+                    .setArtist(song.artist)
+                    .apply {
+                        if (song.artworkUri != null) {
+                            setArtworkUri(song.artworkUri)
+                        } else if (song.albumId >= 0) {
+                            setArtworkUri(
+                                ContentUris.withAppendedId(
+                                    MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI,
+                                    song.albumId
+                                )
+                            )
+                        }
+                    }
+                    .build()
+            )
+            .build()
+    }
+
+    private fun importDriveSongs(
+        uris: List<Uri>,
+        sourceName: String = "Tệp đã chọn"
+    ) {
+        val uniqueUris = uris.distinctBy { it.toString() }
+        if (uniqueUris.isEmpty()) return
+
+        // Importing a large Drive folder can involve many provider metadata queries.
+        // Keep all provider I/O off the main thread so the player UI remains responsive.
+        driveImportJob?.cancel()
+        val existingUris = songs.map { it.uri.toString() }.toSet()
+        errorMessage = "Đang nhập ${uniqueUris.size} file từ Google Drive…"
+
+        driveImportJob = lifecycleScope.launch {
+            val localFiles = loadDriveLocalFiles()
+            val result = withContext(Dispatchers.IO) {
+                val saved = (driveSourcePrefs.getStringSet("drive_uris", emptySet()) ?: emptySet()).toMutableSet()
+                val sourceNames = loadDriveSourceNames().toMutableMap()
+                val importedSongs = mutableListOf<Song>()
+
+                uniqueUris.forEach { uri ->
+                    val raw = uri.toString()
+                    if (raw in saved || raw in existingUris) return@forEach
+
+                    try {
+                        contentResolver.takePersistableUriPermission(
+                            uri,
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        )
+                    } catch (_: Exception) {
+                        // Some providers grant temporary read access without a
+                        // persistable grant. The current import can still proceed.
+                    }
+
+                    val importedSong = songFromUri(uri)
+                    if (importedSong != null) {
+                        saved.add(raw)
+                        sourceNames[raw] = sourceName
+                        if (importedSong.uri.scheme.equals("file", ignoreCase = true)) {
+                            localFiles[raw] = importedSong.uri.toString()
+                        }
+                        importedSongs += importedSong.copy(
+                            source = driveSongSource(sourceName),
+                            folder = sourceName
+                        )
+                    }
+                }
+
+                Triple(saved, importedSongs, sourceNames)
+            }
+
+            val (saved, importedSongs, sourceNames) = result
+            driveSourcePrefs.edit().putStringSet("drive_uris", saved).apply()
+            saveDriveSourceNames(sourceNames)
+            saveDriveLocalFiles(localFiles)
+
+            importedSongs.forEach { song ->
+                if (songs.none { it.uri == song.uri }) songs.add(song)
+            }
+
+            // Importing a source must not silently append every imported file
+            // to the active playback queue. The queue changes only by explicit
+            // Play / Add-to-queue actions.
+            if (queueSongs.isNotEmpty()) {
+                syncControllerQueue()
+            }
+            errorMessage = when {
+                importedSongs.isNotEmpty() ->
+                    "Đã thêm ${importedSongs.size} bài từ Google Drive."
+                else ->
+                    "Các bài đã chọn đã có trong thư viện hoặc không còn truy cập được."
+            }
+            driveImportJob = null
         }
     }
 
