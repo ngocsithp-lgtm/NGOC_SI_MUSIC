@@ -1557,7 +1557,7 @@ class MainActivity : ComponentActivity() {
                 runCatching {
                     val token = driveOAuthManager.accessToken() ?: return@runCatching emptyMap<String, String>()
                     val apiKey = driveApiKey()
-                    val namesById = mutableMapOf<String, String>()
+                    val namesByIdentity = mutableMapOf<String, String>()
 
                     links.forEach { link ->
                         val parsed = extractDriveIdAndResourceKey(link) ?: return@forEach
@@ -1595,10 +1595,13 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        collected.forEach { namesById[it.id] = it.sourceName.ifBlank { rootName } }
+                        collected.forEach { item ->
+                            val sourceName = item.sourceName.ifBlank { rootName }
+                            namesByIdentity[sharedDriveIdentity(item.copy(sourceName = sourceName))] = sourceName
+                        }
                     }
 
-                    namesById
+                    namesByIdentity
                 }.getOrDefault(emptyMap())
             }
 
@@ -1606,7 +1609,7 @@ class MainActivity : ComponentActivity() {
 
             val current = loadSharedDriveItems()
             val updated = current.map { item ->
-                val sourceName = repaired[item.id]
+                val sourceName = repaired[sharedDriveIdentity(item)]
                 if (item.sourceName.isBlank() && !sourceName.isNullOrBlank()) {
                     item.copy(sourceName = sourceName)
                 } else {
@@ -2325,7 +2328,7 @@ class MainActivity : ComponentActivity() {
         if (items.isEmpty()) return 0 to 0
 
         val savedItems = loadSharedDriveItems().toMutableList()
-        val savedIds = savedItems.map { it.id }.toMutableSet()
+        val savedIds = savedItems.map(::sharedDriveIdentity).toMutableSet()
         val initialSavedCount = savedItems.size
         var addedCount = 0
         var existingCount = 0
@@ -2446,7 +2449,7 @@ class MainActivity : ComponentActivity() {
                             sourceName = stableSourceName
                         )
                     }
-                    collected.distinctBy { it.id }.map { item ->
+                    collected.distinctBy(::sharedDriveIdentity).map { item ->
                         if (item.sourceName.isBlank()) item.copy(sourceName = stableSourceName) else item
                     }
                 }
