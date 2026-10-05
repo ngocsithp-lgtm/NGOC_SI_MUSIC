@@ -4184,7 +4184,6 @@ class MainActivity : ComponentActivity() {
                             onOpenDrive = {
                                 selectedSection = "Online"
                                 onlineHubTab = "Drive"
-                                errorMessage = "Google Drive: chọn File Drive hoặc Thư mục để nhập nhạc."
                             },
                             onOpenQueue = { showQueue = true },
                             onOpenPlaylists = { showPlaylists = true },
@@ -4222,36 +4221,6 @@ class MainActivity : ComponentActivity() {
                         Spacer(Modifier.height(4.dp))
 
                         when (selectedSection) {
-                        "Trang chủ" -> {
-                            LazyColumn(
-                                Modifier.weight(1f),
-                                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 12.dp),
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                item { HomeHero(currentSong) }
-                                item { HomeCollections() }
-                                item { PlayerCard(currentSong) }
-                                item { QuickActions() }
-                                item {
-                                    Row(
-                                        Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text("THƯ VIỆN", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
-                                        TextButton(onClick = { selectedSection = "Thư viện" }) { Text("XEM TẤT CẢ") }
-                                    }
-                                }
-                                itemsIndexed(
-                                    filteredSongs.take(8),
-                                    key = { _, song -> "home:" + song.uri.toString() }
-                                ) { _, song ->
-                                    val realIndex = songs.indexOfFirst { it.uri == song.uri }
-                                    SongRow(song, realIndex, realIndex == currentIndex)
-                                }
-                            }
-                        }
-
                         "Thư viện" -> {
                             Column(Modifier.weight(1f).fillMaxWidth()) {
                                 LibraryYouTubeHeader(filteredSongs.size)
@@ -4679,11 +4648,6 @@ class MainActivity : ComponentActivity() {
                     ProHomeUtilityTile("⌖", "Bản đồ", onOpenMap, Modifier.weight(1f))
                     ProHomeUtilityTile("⏱", "Hẹn giờ", onOpenSleepTimer, Modifier.weight(1f))
                 }
-                Spacer(Modifier.height(8.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ProHomeUtilityTile("▶", "Player", onOpenPlayer, Modifier.weight(1f))
-                    ProHomeUtilityTile("⚙", "Cài đặt", onOpenSettings, Modifier.weight(1f))
-                }
             }
 
             item {
@@ -4818,72 +4782,6 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun Header() {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(13.dp))
-                    .background(
-                        Brush.linearGradient(
-                            listOf(Color(0xFF8C64E8), Color(0xFF4E3A8B))
-                        )
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    "NS",
-                    color = Color.White,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Black
-                )
-            }
-
-            Spacer(Modifier.width(10.dp))
-
-            Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        "NGỌC SĨ MUSIC",
-                        color = Color.White,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 0.15.sp,
-                        maxLines = 1
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        "PRO",
-                        color = NgocSiVisuals.Primary,
-                        fontSize = 7.sp,
-                        fontWeight = FontWeight.Black,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(Color(0x3320202B))
-                            .padding(horizontal = 5.dp, vertical = 2.dp)
-                    )
-                }
-                Text(
-                    "ÂM NHẠC • RADIO • ONLINE",
-                    color = NgocSiVisuals.TextSecondary,
-                    fontSize = 8.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.2.sp,
-                    maxLines = 1
-                )
-            }
-
-            Spacer(Modifier.width(4.dp))
-
-        }
-    }
-
-    @Composable
     private fun SearchBarModern() {
         val runSearch = {
             val q = searchQuery.trim()
@@ -4936,180 +4834,6 @@ class MainActivity : ComponentActivity() {
                 focusedBorderColor = Color(0xFF8F6FE8)
             )
         )
-    }
-
-    @Composable
-    private fun HomeHero(song: Song?) {
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(26.dp),
-            color = Color.Transparent
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        Brush.linearGradient(
-                            listOf(Color(0xFF28203F), Color(0xFF121722))
-                        ),
-                        RoundedCornerShape(20.dp)
-                    )
-                    .padding(14.dp)
-            ) {
-                Column {
-                    Text(
-                        "NGHE NHẠC THEO CÁCH CỦA BẠN",
-                        color = Color(0xFFBFA9FF),
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Black,
-                        letterSpacing = 1.5.sp
-                    )
-                    Spacer(Modifier.height(5.dp))
-                    Text(
-                        song?.title ?: "Sẵn sàng phát nhạc",
-                        color = Color.White,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        song?.artist ?: "Thiết bị • Google Drive • YouTube • Radio",
-                        color = Color(0xFFA8AAB8),
-                        fontSize = 11.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-
-                    Spacer(Modifier.height(10.dp))
-
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        HeroAction(
-                            icon = "▶",
-                            label = "Đang phát",
-                            modifier = Modifier.weight(1f),
-                            onClick = {
-                                if (song != null) showNowPlaying = true
-                                else if (songs.isNotEmpty()) selectedSection = "Thư viện"
-                            }
-                        )
-                        HeroAction(
-                            icon = "🎧",
-                            label = "YouTube",
-                            modifier = Modifier.weight(1f),
-                            onClick = { selectedSection = "Online"; onlineHubTab = "YouTube" }
-                        )
-                        HeroAction(
-                            icon = "📻",
-                            label = "Radio",
-                            modifier = Modifier.weight(1f),
-                            onClick = { selectedSection = "Radio"; showVietnamRadioHub = true }
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    @Composable
-    private fun HeroAction(
-        icon: String,
-        label: String,
-        modifier: Modifier = Modifier,
-        onClick: () -> Unit
-    ) {
-        Surface(
-            modifier = modifier.clickable(onClick = onClick),
-            shape = RoundedCornerShape(16.dp),
-            color = Color(0x3320202B),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x332F3150))
-        ) {
-            Column(
-                modifier = Modifier.padding(vertical = 9.dp, horizontal = 7.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(icon, color = Color.White, fontSize = 17.sp)
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    label,
-                    color = Color(0xFFD6D5DE),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        }
-    }
-
-    @Composable
-    private fun HomeCollections() {
-        val collections = listOf(
-            Triple("♫", "Bài hát", "${songs.size}"),
-            Triple("♥", "Yêu thích", favorites.count { it.value }.toString()),
-            Triple("▣", "Playlist", playlists.size.toString()),
-            Triple("☷", "Hàng đợi", queueSongs.size.toString())
-        )
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(7.dp)
-        ) {
-            collections.forEach { (icon, title, count) ->
-                CollectionCard(icon, title, count, Modifier.weight(1f))
-            }
-        }
-    }
-
-    @Composable
-    private fun CollectionCard(
-        icon: String,
-        title: String,
-        count: String,
-        modifier: Modifier = Modifier
-    ) {
-        Surface(
-            modifier = modifier.clickable {
-                when (title) {
-                    "Bài hát" -> {
-                        selectedSection = "Thư viện"
-                        selectedLibrary = "Tất cả"
-                        libraryView = "Bài hát"
-                    }
-                    "Yêu thích" -> {
-                        selectedSection = "Thư viện"
-                        selectedLibrary = "Yêu thích"
-                        libraryView = "Bài hát"
-                    }
-                    "Playlist" -> showPlaylists = true
-                    "Hàng đợi" -> showQueue = true
-                }
-            },
-            shape = RoundedCornerShape(18.dp),
-            color = Color(0xFF15161E),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF252936))
-        ) {
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 6.dp, vertical = 8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(icon, color = Color(0xFFC8B7FF), fontSize = 16.sp)
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    title,
-                    color = Color.White,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 9.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text("$count", color = Color(0xFF888894), fontSize = 9.sp)
-            }
-        }
     }
 
     @Composable
@@ -5285,62 +5009,6 @@ class MainActivity : ComponentActivity() {
                 fontSize = 12.sp
             )
         }
-    }
-
-    @Composable
-    private fun LibraryChips() {
-        val sourceNames by remember {
-            derivedStateOf {
-                songs.asSequence()
-                    .map { it.source }
-                    .filter { it.isNotBlank() }
-                    .distinct()
-                    .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it })
-                    .toList()
-            }
-        }
-        val chips = listOf("Tất cả", "Yêu thích") + sourceNames
-
-        Column(Modifier.padding(horizontal = 16.dp)) {
-            Text(
-                "NGUỒN NHẠC",
-                color = Color(0xFF777D8D),
-                fontSize = 9.sp,
-                fontWeight = FontWeight.Black,
-                letterSpacing = 1.2.sp
-            )
-            Spacer(Modifier.height(6.dp))
-            Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(7.dp)
-            ) {
-                chips.forEach { source ->
-                    FilterChip(
-                        selected = selectedLibrary == source,
-                        onClick = { selectedLibrary = source },
-                        label = {
-                            Text(
-                                source,
-                                fontSize = 11.sp,
-                                fontWeight = if (selectedLibrary == source) FontWeight.Bold else FontWeight.Medium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        },
-                        shape = RoundedCornerShape(13.dp)
-                    )
-                }
-            }
-            if (sourceNames.size > 2) {
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    sourceNames.size.toString() + " nguồn riêng • chạm vào nguồn để mở riêng",
-                    color = Color(0xFF727786),
-                    fontSize = 9.sp
-                )
-            }
-        }
-        Spacer(Modifier.height(8.dp))
     }
 
     @Composable
@@ -5569,40 +5237,6 @@ class MainActivity : ComponentActivity() {
                         Modifier.width(if (selected) 30.dp else 0.dp).height(2.dp).clip(RoundedCornerShape(2.dp))
                             .background(Color(0xFFB99AFF))
                     )
-                }
-            }
-        }
-    }
-
-    @Composable
-    private fun QuickActions() {
-        val actions = listOf(
-            Triple("♫", "Thư viện", { selectedSection = "Thư viện" }),
-            Triple("▶", "YouTube", { selectedSection = "Online"; onlineHubTab = "YouTube" }),
-            Triple("☁", "Drive", { selectedSection = "Online"; driveSharedStatus = "Mở trung tâm Google Drive" }),
-            Triple("📻", "Radio", { selectedSection = "Radio"; showVietnamRadioHub = true }),
-            Triple("☷", "Hàng đợi", { showQueue = true })
-        )
-        Column(Modifier.fillMaxWidth()) {
-            Text("TRUY CẬP", color = Color(0xFF8F8F9D), fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.2.sp)
-            Spacer(Modifier.height(6.dp))
-            Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(7.dp)
-            ) {
-                actions.forEach { (icon, label, action) ->
-                    Surface(
-                        modifier = Modifier.width(82.dp).height(52.dp).clip(RoundedCornerShape(14.dp)).clickable(onClick = action),
-                        shape = RoundedCornerShape(14.dp),
-                        color = Color(0xFF15161E),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF252936))
-                    ) {
-                        Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                            Text(icon, color = Color(0xFFC8B7FF), fontSize = 16.sp)
-                            Spacer(Modifier.height(2.dp))
-                            Text(label, color = Color(0xFFE3E4EA), fontSize = 9.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                    }
                 }
             }
         }
@@ -9612,107 +9246,6 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 color = Color(0xFFB18CFF),
                 trackColor = Color(0xFF2B2B35)
             )
-        }
-    }
-
-    @Composable
-    private fun PlayerCard(song: Song?) {
-        // Media3 can resolve duration after playback starts (Drive/online streams).
-        // Show the live value for the active item while retaining library metadata as fallback.
-        val shownDuration = if (song != null && duration > 0L) duration else (song?.duration ?: 0L)
-        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Brush.linearGradient(listOf(Color(0xFF211A35), Color(0xFF12151D)))).padding(18.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                SongArtwork(song, Modifier.size(82.dp))
-                Spacer(Modifier.width(14.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(song?.title ?: "Chưa chọn bài hát", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Spacer(Modifier.height(4.dp))
-                    Text(song?.artist ?: "Chọn một bài trong thư viện", color = Color(0xFFAAAAB5), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-            }
-            Spacer(Modifier.height(14.dp))
-            var isSeeking by remember(song?.uri?.toString()) { mutableStateOf(false) }
-            var sliderPosition by remember(song?.uri?.toString()) {
-                mutableFloatStateOf(position.coerceIn(0L, max(1L, shownDuration)).toFloat())
-            }
-            LaunchedEffect(position, isSeeking, song?.uri?.toString()) {
-                if (!isSeeking) {
-                    sliderPosition = position.coerceIn(0L, max(1L, shownDuration)).toFloat()
-                }
-            }
-            Slider(
-                value = sliderPosition,
-                onValueChange = {
-                    isSeeking = true
-                    sliderPosition = it
-                },
-                onValueChangeFinished = {
-                    seekTo(sliderPosition.toLong())
-                    isSeeking = false
-                },
-                valueRange = 0f..max(1L, shownDuration).toFloat(),
-                enabled = song != null
-            )
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(formatTime(position), color = Color(0xFF9999A5), fontSize = 12.sp)
-                Text(formatTime(shownDuration), color = Color(0xFF9999A5), fontSize = 12.sp)
-            }
-            Spacer(Modifier.height(8.dp))
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                SmallControl(if (shuffleEnabled) "🔀" else "⇄", ::toggleShuffle, shuffleEnabled)
-                SmallControl("⏮", ::previous)
-                Button(
-                    onClick = ::togglePlayPause,
-                    enabled = song != null || songs.isNotEmpty(),
-                    modifier = Modifier.size(58.dp),
-                    shape = CircleShape,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7657D8))
-                ) {
-                    Text(if (isPlaying) "⏸" else "▶", fontSize = 23.sp)
-                }
-                SmallControl("⏭", ::next)
-                SmallControl(
-                    when (repeatMode) {
-                        Player.REPEAT_MODE_ONE -> "🔂"
-                        Player.REPEAT_MODE_ALL -> "🔁"
-                        else -> "↻"
-                    },
-                    ::cycleRepeat,
-                    repeatMode != Player.REPEAT_MODE_OFF
-                )
-            }
-            Spacer(Modifier.height(10.dp))
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedButton(
-                    onClick = { showQueue = true },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(14.dp)
-                ) {
-                    Text("☷ HÀNG ĐỢI")
-                }
-                OutlinedButton(
-                    onClick = ::stop,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(14.dp)
-                ) {
-                    Text("■ DỪNG")
-                }
-            }
-        }
-    }
-
-    @Composable
-    private fun SmallControl(label: String, action: () -> Unit, active: Boolean = false) {
-        FilledTonalButton(onClick = action, modifier = Modifier.size(48.dp), shape = CircleShape, contentPadding = PaddingValues(0.dp),
-            colors = ButtonDefaults.filledTonalButtonColors(containerColor = if (active) Color(0xFF4A396F) else Color(0xFF25252D))) {
-            Text(label, fontSize = 17.sp)
         }
     }
 
