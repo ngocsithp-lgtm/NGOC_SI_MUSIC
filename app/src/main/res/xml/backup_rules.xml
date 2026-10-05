@@ -3,5 +3,6 @@
     <include domain="sharedpref" path="ngoc_si_music.xml" />
     <include domain="sharedpref" path="ngocsi_music_drive_sources.xml" />
     <include domain="file" path="drive_imports/" />
-    <!-- Sensitive OAuth storage is intentionally omitted from the included paths. -->
+    <!-- Artwork embedded in imported Drive files is local app data and can be restored with the audio. -->
+    <include domain="file" path="drive_artwork/" />
 </full-backup-content>
