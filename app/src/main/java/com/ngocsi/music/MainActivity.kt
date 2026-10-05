@@ -4417,32 +4417,6 @@ class MainActivity : ComponentActivity() {
 
             Spacer(Modifier.width(4.dp))
 
-            /*
-                    Text(
-                        "ÂM NHẠC • RADIO • ONLINE",
-                        color = NgocSiVisuals.TextSecondary,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.6.sp
-                    )
-                    Spacer(Modifier.width(7.dp))
-                    Surface(
-                        shape = RoundedCornerShape(7.dp),
-                        color = Color(0x3320202B),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, NgocSiVisuals.Primary.copy(alpha = 0.45f))
-                    ) {
-                        Text(
-                            "PRO",
-                            color = NgocSiVisuals.Primary,
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Black,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
-                        )
-                    }
-                }
-            }
-
-            */
         }
     }
 
@@ -4543,7 +4517,7 @@ class MainActivity : ComponentActivity() {
                         overflow = TextOverflow.Ellipsis
                     )
 
-                    Spacer(Modifier.height(14.dp))
+                    Spacer(Modifier.height(10.dp))
 
                     Row(
                         Modifier.fillMaxWidth(),
