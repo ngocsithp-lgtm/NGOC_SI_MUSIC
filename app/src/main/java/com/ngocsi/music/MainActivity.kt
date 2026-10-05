@@ -3239,11 +3239,18 @@ class MainActivity : ComponentActivity() {
 
     private fun startSleepTimerUiTicker() {
         sleepTimerJob?.cancel()
+        refreshSleepTimerUiState()
+        if (sleepTimerEndAt <= System.currentTimeMillis()) return
+
         sleepTimerJob = lifecycleScope.launch {
             while (true) {
                 refreshSleepTimerUiState()
+                val endAt = sleepTimerEndAt
+                if (endAt <= System.currentTimeMillis()) break
                 delay(1_000L)
             }
+            sleepTimerJob = null
+            refreshSleepTimerUiState()
         }
     }
 
@@ -3258,7 +3265,7 @@ class MainActivity : ComponentActivity() {
 
         val endAt = System.currentTimeMillis() + cleanMinutes * 60_000L
         prefs.edit().putLong("sleep_timer_end_at", endAt).apply()
-        refreshSleepTimerUiState()
+        startSleepTimerUiTicker()
     }
 
     private fun togglePlayPause() {
