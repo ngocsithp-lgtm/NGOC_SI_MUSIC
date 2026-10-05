@@ -216,6 +216,56 @@ class MainActivity : ComponentActivity() {
     // Active playback duration reported by Media3; used by the main progress ticker.
     private var duration by mutableLongStateOf(0L)
     private var errorMessage by mutableStateOf<String?>(null)
+    private val playerListener = object : Player.Listener {
+        override fun onIsPlayingChanged(isPlayingNow: Boolean) {
+            isPlaying = isPlayingNow
+            controller?.let { c ->
+                position = c.currentPosition.coerceAtLeast(0L)
+                duration = c.duration.takeIf { it > 0L } ?: duration
+                shuffleEnabled = c.shuffleModeEnabled
+                repeatMode = c.repeatMode
+            }
+        }
+
+        override fun onMediaItemTransition(
+            mediaItem: MediaItem?,
+            reason: Int
+        ) {
+            val uri = mediaItem?.localConfiguration?.uri?.toString().orEmpty()
+            if (uri.isNotBlank()) {
+                currentIndex = songs.indexOfFirst { it.uri.toString() == uri }
+                lastSongUri = uri
+            }
+            controller?.let { c ->
+                position = c.currentPosition.coerceAtLeast(0L)
+                duration = c.duration.takeIf { it > 0L } ?: 0L
+            }
+            errorMessage = null
+        }
+
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            controller?.let { c ->
+                duration = c.duration.takeIf { it > 0L } ?: duration
+                position = c.currentPosition.coerceAtLeast(0L)
+            }
+            if (playbackState == Player.STATE_READY) {
+                errorMessage = null
+            }
+        }
+
+        override fun onPositionDiscontinuity(
+            oldPosition: Player.PositionInfo,
+            newPosition: Player.PositionInfo,
+            reason: Int
+        ) {
+            position = newPosition.positionMs.coerceAtLeast(0L)
+        }
+
+        override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+            errorMessage = "Lỗi phát nhạc: " + playbackErrorSummary(error)
+        }
+    }
+
     private var searchQuery by mutableStateOf("")
     private var jamendoQuery by mutableStateOf("")
     private val jamendoTracks = mutableStateListOf<JamendoTrack>()
