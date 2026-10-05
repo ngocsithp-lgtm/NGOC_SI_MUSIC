@@ -4,9 +4,6 @@ import android.app.PendingIntent
 import android.content.Intent
 import android.os.Handler
 import android.os.Looper
-import com.google.android.gms.auth.GoogleAuthUtil
-import com.google.android.gms.auth.api.signin.GoogleSignIn
-import com.google.android.gms.common.api.Scope
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.Player
@@ -325,24 +322,27 @@ class MusicService : MediaSessionService() {
 
     private fun refreshDriveTokenBlocking(forceRefresh: Boolean = false): String {
         val now = System.currentTimeMillis()
-        val cached = cachedDriveToken
-        if (!forceRefresh && cached.isNotBlank() && now - cachedDriveTokenAtMs < DRIVE_TOKEN_CACHE_MS) {
-            return cached
+        if (!forceRefresh &&
+            cachedDriveToken.isNotBlank() &&
+            now - cachedDriveTokenAtMs < DRIVE_TOKEN_CACHE_MS
+        ) {
+            return cachedDriveToken
         }
 
-        val account = GoogleSignIn.getLastSignedInAccount(this)?.account ?: return cached
         return runCatching {
-            GoogleAuthUtil.getToken(
-                this,
-                account,
-                "oauth2:https://www.googleapis.com/auth/drive.readonly"
-            )
-        }.getOrNull().orEmpty().also { token ->
+            val manager = DriveOAuthManager(this)
+            val token = kotlinx.coroutines.runBlocking {
+                manager.accessToken()
+            }.orEmpty()
             if (token.isNotBlank()) {
                 cachedDriveToken = token
                 cachedDriveTokenAtMs = now
+            } else if (forceRefresh) {
+                cachedDriveToken = ""
+                cachedDriveTokenAtMs = 0L
             }
-        }
+            token
+        }.getOrElse { "" }
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession {
