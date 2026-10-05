@@ -78,6 +78,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlin.math.max
 
 data class Song(val id: Long, val title: String, val artist: String, val duration: Long, val uri: Uri, val source: String = "Thiết bị", val albumId: Long = -1L, val artworkUri: Uri? = null, val folder: String = "")
@@ -272,6 +274,7 @@ class MainActivity : ComponentActivity() {
     private var audiusSearchJob: Job? = null
     private var youtubeSearchJob: Job? = null
     private var driveImportJob: Job? = null
+    private val driveSyncMutex = Mutex()
     private var lastSongUri by mutableStateOf<String?>(null)
     private var savedPosition by mutableLongStateOf(0L)
     private var shuffleEnabled by mutableStateOf(false)
@@ -1702,7 +1705,8 @@ class MainActivity : ComponentActivity() {
     private fun syncDriveSourcesToCloud() {
         if (!driveOAuthManager.isSignedIn()) return
         lifecycleScope.launch(Dispatchers.IO) {
-            runCatching {
+            driveSyncMutex.withLock {
+                runCatching {
                 val token = driveOAuthManager.accessToken() ?: return@runCatching
                 val bytes = buildDriveSourceCloudJson().toByteArray(Charsets.UTF_8)
                 val query = URLEncoder.encode(
@@ -1750,6 +1754,7 @@ class MainActivity : ComponentActivity() {
                     prefix + bytes + suffix,
                     "multipart/related; boundary=" + boundary
                 )
+                }
             }
         }
     }
