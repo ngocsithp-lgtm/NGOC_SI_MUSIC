@@ -296,7 +296,6 @@ class TvPlayerActivity : ComponentActivity() {
                 javaScriptEnabled = true
                 domStorageEnabled = true
                 loadsImagesAutomatically = true
-                databaseEnabled = true
                 mediaPlaybackRequiresUserGesture = false
                 useWideViewPort = true
                 loadWithOverviewMode = true
