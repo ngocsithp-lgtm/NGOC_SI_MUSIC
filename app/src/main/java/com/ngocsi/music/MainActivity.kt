@@ -5385,194 +5385,255 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun NowPlayingDialog(song: Song) {
-        Dialog(
+        ModalBottomSheet(
             onDismissRequest = { showNowPlaying = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false)
-        ) {
-            Surface(
-                shape = RoundedCornerShape(28.dp),
-                color = Color(0xFF101117),
-                modifier = Modifier.fillMaxWidth(0.94f)
-            ) {
-                Column(
-                    Modifier.padding(20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+            containerColor = Color(0xFF0A0C12),
+            tonalElevation = 10.dp,
+            dragHandle = {
+                Surface(
+                    modifier = Modifier.padding(top = 7.dp),
+                    shape = RoundedCornerShape(50),
+                    color = Color(0xFF3B404C)
                 ) {
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                "ĐANG PHÁT",
-                                color = Color(0xFFB18CFF),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 3.sp
-                            )
-                            Text(
-                                if (shuffleEnabled) "NGẪU NHIÊN • " + when (repeatMode) {
-                                    Player.REPEAT_MODE_ONE -> "LẶP 1"
-                                    Player.REPEAT_MODE_ALL -> "LẶP TẤT CẢ"
-                                    else -> "KHÔNG LẶP"
-                                } else "THƯ VIỆN • " + when (repeatMode) {
-                                    Player.REPEAT_MODE_ONE -> "LẶP 1"
-                                    Player.REPEAT_MODE_ALL -> "LẶP TẤT CẢ"
-                                    else -> "KHÔNG LẶP"
-                                },
-                                color = Color(0xFF777783),
-                                fontSize = 10.sp
-                            )
-                        }
-                        IconButton(onClick = { toggleFavorite(song) }) {
-                            Text(
-                                if (favorites[song.id] == true) "♥" else "♡",
-                                color = if (favorites[song.id] == true) Color(0xFFFF6B81) else Color(0xFF8A8A96),
-                                fontSize = 26.sp
-                            )
-                        }
-                    }
+                    Spacer(Modifier.width(42.dp).height(4.dp))
+                }
+            }
+        ) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.94f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 18.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Spacer(Modifier.height(4.dp))
 
-                    Spacer(Modifier.height(14.dp))
-                    SongArtwork(song, Modifier.size(250.dp))
-                    Spacer(Modifier.height(18.dp))
-
-                    Text(
-                        song.title,
-                        color = Color.White,
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        song.artist,
-                        color = Color(0xFF9999A5),
-                        fontSize = 14.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-
-                    Spacer(Modifier.height(7.dp))
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(50),
-                            color = Color(0xFF171922)
-                        ) {
-                            Text(
-                                "Nguồn: ${song.source.ifBlank { "Thiết bị" }}",
-                                color = Color(0xFFA7A9B8),
-                                fontSize = 10.sp,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                            )
-                        }
-                        Spacer(Modifier.width(7.dp))
-                        Surface(
-                            shape = RoundedCornerShape(50),
-                            color = Color(0xFF171922)
-                        ) {
-                            Text(
-                                "Hàng đợi: ${queueSongs.size}",
-                                color = Color(0xFFA7A9B8),
-                                fontSize = 10.sp,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                            )
-                        }
-                    }
-
-                    Spacer(Modifier.height(14.dp))
-                    // Media3 may discover the real duration only after prepare.
-                    // Prefer the live controller duration, with the library value
-                    // as a fallback for local files that already have metadata.
-                    val totalDuration = max(duration, song.duration).coerceAtLeast(1L)
-                    var isSeeking by remember(song.uri.toString()) { mutableStateOf(false) }
-                    var sliderPosition by remember(song.uri.toString(), totalDuration) {
-                        mutableFloatStateOf(position.coerceIn(0L, totalDuration).toFloat())
-                    }
-                    LaunchedEffect(position, isSeeking, song.uri.toString(), totalDuration) {
-                        if (!isSeeking) {
-                            sliderPosition = position.coerceIn(0L, totalDuration).toFloat()
-                        }
-                    }
-                    Slider(
-                        value = sliderPosition,
-                        onValueChange = {
-                            isSeeking = true
-                            sliderPosition = it.coerceIn(0f, totalDuration.toFloat())
-                        },
-                        onValueChangeFinished = {
-                            seekTo(sliderPosition.toLong())
-                            isSeeking = false
-                        },
-                        valueRange = 0f..totalDuration.toFloat()
-                    )
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(formatTime(position), color = Color(0xFF888894), fontSize = 12.sp)
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
                         Text(
-                            formatTime(totalDuration),
-                            color = Color(0xFF888894),
-                            fontSize = 12.sp
+                            "ĐANG PHÁT",
+                            color = Color(0xFF9B7DFF),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 1.8.sp
+                        )
+                        Text(
+                            when {
+                                shuffleEnabled -> "NGẪU NHIÊN"
+                                queueSource.isNotBlank() -> queueSource.removePrefix("Google Drive • ").removePrefix("Chia sẻ • ")
+                                else -> "NGỌC SĨ MUSIC"
+                            },
+                            color = Color(0xFF737988),
+                            fontSize = 9.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
+                    IconButton(onClick = { toggleFavorite(song) }) {
+                        Text(
+                            if (favorites[song.id] == true) "♥" else "♡",
+                            color = if (favorites[song.id] == true) Color(0xFFFF7890) else Color(0xFFB0B5C2),
+                            fontSize = 25.sp
+                        )
+                    }
+                    IconButton(onClick = { showQueue = true }) {
+                        Text("☷", color = Color(0xFF9FEFFF), fontSize = 22.sp)
+                    }
+                }
 
-                    Spacer(Modifier.height(8.dp))
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        SmallControl(if (shuffleEnabled) "🔀" else "⇄", ::toggleShuffle, shuffleEnabled)
-                        SmallControl("⏪10", { seekBy(-10_000L) })
-                        SmallControl("⏮", ::previous)
-                        Button(
-                            onClick = ::togglePlayPause,
-                            modifier = Modifier.size(64.dp),
-                            shape = CircleShape
+                Spacer(Modifier.height(10.dp))
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(1f)
+                        .padding(horizontal = 16.dp),
+                    shape = RoundedCornerShape(28.dp),
+                    color = Color(0xFF151A27),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF2B3446)),
+                    shadowElevation = 10.dp
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        SongArtwork(song, Modifier.fillMaxSize())
+                        Surface(
+                            modifier = Modifier.align(Alignment.BottomStart).padding(12.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xCC090B10)
                         ) {
-                            Text(if (isPlaying) "⏸" else "▶", fontSize = 23.sp)
+                            Text(
+                                song.source.ifBlank { "Thiết bị" },
+                                color = Color(0xFFE7EAF0),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
-                        SmallControl("⏭", ::next)
-                        SmallControl("10⏩", { seekBy(10_000L) })
-                        SmallControl("■", ::stop)
-                        SmallControl(
+                    }
+                }
+
+                Spacer(Modifier.height(18.dp))
+                Text(
+                    song.title,
+                    color = Color.White,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Black,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    song.artist,
+                    color = Color(0xFF969CAB),
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                val totalDuration = max(duration, song.duration).coerceAtLeast(1L)
+                var isSeeking by remember(song.uri.toString()) { mutableStateOf(false) }
+                var sliderPosition by remember(song.uri.toString(), totalDuration) {
+                    mutableFloatStateOf(position.coerceIn(0L, totalDuration).toFloat())
+                }
+                LaunchedEffect(position, isSeeking, song.uri.toString(), totalDuration) {
+                    if (!isSeeking) sliderPosition = position.coerceIn(0L, totalDuration).toFloat()
+                }
+
+                Spacer(Modifier.height(11.dp))
+                Slider(
+                    value = sliderPosition,
+                    onValueChange = {
+                        isSeeking = true
+                        sliderPosition = it.coerceIn(0f, totalDuration.toFloat())
+                    },
+                    onValueChangeFinished = {
+                        seekTo(sliderPosition.toLong())
+                        isSeeking = false
+                    },
+                    valueRange = 0f..totalDuration.toFloat(),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 2.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(formatTime(position), color = Color(0xFF777D8B), fontSize = 10.sp)
+                    Text(formatTime(totalDuration), color = Color(0xFF777D8B), fontSize = 10.sp)
+                }
+
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    PlayerAction("⏮", "Trước", ::previous)
+                    Surface(
+                        modifier = Modifier.size(68.dp).clickable(onClick = ::togglePlayPause),
+                        shape = CircleShape,
+                        color = Color(0xFF8DEEFF),
+                        shadowElevation = 8.dp
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(if (isPlaying) "⏸" else "▶", color = Color(0xFF061018), fontSize = 25.sp, fontWeight = FontWeight.Black)
+                        }
+                    }
+                    PlayerAction("⏭", "Tiếp", ::next)
+                }
+
+                Spacer(Modifier.height(12.dp))
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(17.dp),
+                    color = Color(0xFF10141C),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF202734))
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        SecondaryPlayerAction("🔀", "Trộn", ::toggleShuffle, shuffleEnabled)
+                        SecondaryPlayerAction("↩", "−10s", { seekBy(-10_000L) }, false)
+                        SecondaryPlayerAction("↪", "+10s", { seekBy(10_000L) }, false)
+                        SecondaryPlayerAction("■", "Dừng", ::stop, false)
+                        SecondaryPlayerAction(
                             when (repeatMode) {
-                                Player.REPEAT_MODE_ONE -> "🔂"
-                                Player.REPEAT_MODE_ALL -> "🔁"
+                                Player.REPEAT_MODE_ONE -> "1"
+                                Player.REPEAT_MODE_ALL -> "↻"
                                 else -> "↻"
                             },
+                            "Lặp",
                             ::cycleRepeat,
                             repeatMode != Player.REPEAT_MODE_OFF
                         )
                     }
+                }
 
-                    Spacer(Modifier.height(10.dp))
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = { showQueue = true },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(14.dp)
                     ) {
-                        OutlinedButton(
-                            onClick = { showQueue = true },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text(
-                                if (queueSongs.isEmpty()) "☷ Hàng đợi"
-                                else "☷ Hàng đợi • ${queueSongs.size}"
-                            )
-                        }
-                        TextButton(
-                            onClick = { showNowPlaying = false },
-                            modifier = Modifier.weight(1f)
-                        ) { Text("Đóng") }
+                        Text("☷  HÀNG ĐỢI", fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    }
+                    OutlinedButton(
+                        onClick = { showPlaylists = true },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text("♬  PLAYLIST", fontWeight = FontWeight.Bold, fontSize = 11.sp)
                     }
                 }
+
+                Spacer(Modifier.height(8.dp))
+                TextButton(onClick = { showNowPlaying = false }) {
+                    Text("Đóng trình phát", color = Color(0xFF8C93A2), fontSize = 11.sp)
+                }
+                Spacer(Modifier.height(10.dp))
             }
+        }
+    }
+
+    @Composable
+    private fun PlayerAction(icon: String, label: String, onClick: () -> Unit) {
+        Column(
+            modifier = Modifier.clickable(onClick = onClick).padding(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(icon, color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(2.dp))
+            Text(label, color = Color(0xFF787F8D), fontSize = 9.sp)
+        }
+    }
+
+    @Composable
+    private fun SecondaryPlayerAction(icon: String, label: String, onClick: () -> Unit, selected: Boolean) {
+        Column(
+            modifier = Modifier
+                .clip(RoundedCornerShape(12.dp))
+                .background(if (selected) Color(0xFF1C3040) else Color.Transparent)
+                .clickable(onClick = onClick)
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                icon,
+                color = if (selected) Color(0xFF9DEFFF) else Color(0xFFD4D7DE),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(label, color = Color(0xFF777E8E), fontSize = 8.sp)
         }
     }
 
