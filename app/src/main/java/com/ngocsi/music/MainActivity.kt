@@ -5796,20 +5796,120 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun SettingsPanel() {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("CÀI ĐẶT", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
-            SettingsRow("⏱", "Hẹn giờ tắt nhạc", if (sleepMinutes > 0) "${sleepMinutes} phút" else "Tắt") { showSleepTimer = true }
-            SettingsRow("🔀", "Phát ngẫu nhiên", if (shuffleEnabled) "Đang bật" else "Đang tắt") { toggleShuffle() }
-            SettingsRow("🔁", "Lặp lại", when (repeatMode) { Player.REPEAT_MODE_ONE -> "Một bài"; Player.REPEAT_MODE_ALL -> "Tất cả"; else -> "Tắt" }) { cycleRepeat() }
-            SettingsRow("⏩", "Tốc độ phát", "${selectedPlaybackSpeed}x") { showPlaybackSpeed = true }
-            SettingsRow("☁", "Google Drive", songs.count { it.source.startsWith("Google Drive", ignoreCase = true) }.toString() + " bài đã nhập") { selectedSection = "Online" }
-            SettingsRow("📺", "TV", (TvCatalog.builtIn.size + customTvSources.size).toString() + " nguồn TV") { selectedSection = "TV" }
-            SettingsRow("🗺️", "Bản đồ", "Bản đồ + giao thông thời gian thực") { selectedSection = "Bản đồ" }
-            SettingsRow("♫", "Playlist", playlists.size.toString() + " danh sách đã tạo") { showPlaylists = true }
-            OutlinedButton(onClick = ::clearDriveLibrary, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
-                Text("XÓA NHẠC GOOGLE DRIVE KHỎI ỨNG DỤNG")
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                "PHÁT NHẠC",
+                color = Color(0xFF858B9C),
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Black,
+                letterSpacing = 1.2.sp,
+                modifier = Modifier.padding(start = 2.dp, top = 2.dp)
+            )
+            SettingsRow(
+                "⏱",
+                "Hẹn giờ tắt nhạc",
+                if (sleepMinutes > 0) "${sleepMinutes} phút" else "Tắt"
+            ) { showSleepTimer = true }
+            SettingsRow(
+                "🔀",
+                "Phát ngẫu nhiên",
+                if (shuffleEnabled) "Đang bật" else "Đang tắt"
+            ) { toggleShuffle() }
+            SettingsRow(
+                "🔁",
+                "Lặp lại",
+                when (repeatMode) {
+                    Player.REPEAT_MODE_ONE -> "Một bài"
+                    Player.REPEAT_MODE_ALL -> "Tất cả"
+                    else -> "Tắt"
+                }
+            ) { cycleRepeat() }
+            SettingsRow(
+                "⏩",
+                "Tốc độ phát",
+                "${selectedPlaybackSpeed}x"
+            ) { showPlaybackSpeed = true }
+
+            Spacer(Modifier.height(5.dp))
+            Text(
+                "NGUỒN & TIỆN ÍCH",
+                color = Color(0xFF858B9C),
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Black,
+                letterSpacing = 1.2.sp,
+                modifier = Modifier.padding(start = 2.dp)
+            )
+            SettingsRow(
+                "☁",
+                "Google Drive",
+                songs.count { it.source.startsWith("Google Drive", ignoreCase = true) }.toString() + " bài đã nhập"
+            ) {
+                selectedSection = "Online"
+                onlineHubTab = "Drive"
+            }
+            SettingsRow(
+                "📺",
+                "TV",
+                (TvCatalog.builtIn.size + customTvSources.size).toString() + " nguồn TV"
+            ) { selectedSection = "TV" }
+            SettingsRow(
+                "🗺️",
+                "Bản đồ",
+                "Bản đồ + giao thông thời gian thực"
+            ) { selectedSection = "Bản đồ" }
+            SettingsRow(
+                "♫",
+                "Playlist",
+                playlists.size.toString() + " danh sách đã tạo"
+            ) { showPlaylists = true }
+
+            Spacer(Modifier.height(5.dp))
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                color = Color(0xFF171116),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF35222A))
+            ) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            "DỮ LIỆU GOOGLE DRIVE",
+                            color = Color(0xFFE8DDE2),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                        Text(
+                            "Xóa các bài Drive đã nhập khỏi thư viện ứng dụng.",
+                            color = Color(0xFF8E838A),
+                            fontSize = 9.sp
+                        )
+                    }
+                    TextButton(
+                        onClick = ::clearDriveLibrary,
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text(
+                            "XÓA",
+                            color = Color(0xFFFF8A9A),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                    }
+                }
             }
         }
+
         if (showPlaybackSpeed) {
             AlertDialog(
                 onDismissRequest = { showPlaybackSpeed = false },
@@ -5832,6 +5932,7 @@ class MainActivity : ComponentActivity() {
                 confirmButton = {}
             )
         }
+
         if (showSleepTimer) {
             AlertDialog(
                 onDismissRequest = { showSleepTimer = false },
@@ -5839,12 +5940,22 @@ class MainActivity : ComponentActivity() {
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf(15, 30, 45, 60, 90, 120).forEach { min ->
-                            OutlinedButton(onClick = {
-                                startSleepTimer(min)
-                                showSleepTimer = false
-                            }, modifier = Modifier.fillMaxWidth()) { Text("${min} phút") }
+                            OutlinedButton(
+                                onClick = {
+                                    startSleepTimer(min)
+                                    showSleepTimer = false
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("${min} phút")
+                            }
                         }
-                        TextButton(onClick = { startSleepTimer(0); showSleepTimer = false }) { Text("Tắt hẹn giờ") }
+                        TextButton(onClick = {
+                            startSleepTimer(0)
+                            showSleepTimer = false
+                        }) {
+                            Text("Tắt hẹn giờ")
+                        }
                     }
                 },
                 confirmButton = {}
@@ -7063,41 +7174,52 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         }
 
                         if (queueSongs.isNotEmpty()) {
-                            Row(
+                            Column(
                                 Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                verticalArrangement = Arrangement.spacedBy(7.dp)
                             ) {
-                                QueueActionChip(
-                                    icon = "▶",
-                                    label = "PHÁT TỪ ĐẦU",
-                                    emphasized = true,
-                                    modifier = Modifier.weight(1f),
-                                    onClick = { playQueueFromStart() }
-                                )
-                                QueueActionChip(
-                                    icon = if (shuffleEnabled) "🔀" else "⇄",
-                                    label = if (shuffleEnabled) "NGẪU NHIÊN" else "THỨ TỰ",
-                                    emphasized = shuffleEnabled,
-                                    modifier = Modifier.weight(1f),
-                                    onClick = { toggleShuffle() }
-                                )
-                                QueueActionChip(
-                                    icon = "＋",
-                                    label = "THÊM BÀI",
-                                    modifier = Modifier.weight(1f),
-                                    onClick = {
-                                        showQueue = false
-                                        selectedSection = "Thư viện"
-                                    }
-                                )
-                                QueueActionChip(
-                                    icon = "×",
-                                    label = "XÓA HẾT",
-                                    modifier = Modifier.weight(1f),
-                                    onClick = { clearQueue() }
-                                )
+                                Row(
+                                    Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(7.dp)
+                                ) {
+                                    QueueActionChip(
+                                        icon = "▶",
+                                        label = "PHÁT TỪ ĐẦU",
+                                        emphasized = true,
+                                        modifier = Modifier.weight(1f),
+                                        onClick = { playQueueFromStart() }
+                                    )
+                                    QueueActionChip(
+                                        icon = if (shuffleEnabled) "🔀" else "⇄",
+                                        label = if (shuffleEnabled) "NGẪU NHIÊN" else "THỨ TỰ",
+                                        emphasized = shuffleEnabled,
+                                        modifier = Modifier.weight(1f),
+                                        onClick = { toggleShuffle() }
+                                    )
+                                }
+                                Row(
+                                    Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(7.dp)
+                                ) {
+                                    QueueActionChip(
+                                        icon = "＋",
+                                        label = "THÊM BÀI",
+                                        modifier = Modifier.weight(1f),
+                                        onClick = {
+                                            showQueue = false
+                                            selectedSection = "Thư viện"
+                                            selectedLibrary = "Tất cả"
+                                            libraryView = "Bài hát"
+                                        }
+                                    )
+                                    QueueActionChip(
+                                        icon = "×",
+                                        label = "XÓA HẾT",
+                                        modifier = Modifier.weight(1f),
+                                        onClick = { clearQueue() }
+                                    )
+                                }
                             }
-
                             Spacer(Modifier.height(14.dp))
 
                             if (currentSong != null) {
