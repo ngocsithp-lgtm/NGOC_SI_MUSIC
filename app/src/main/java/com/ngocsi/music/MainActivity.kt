@@ -300,6 +300,9 @@ class MainActivity : ComponentActivity() {
     // album metadata is unavailable.
     private val artworkMemoryCache = LruCache<String, androidx.compose.ui.graphics.ImageBitmap>(96)
     private val artworkLocks = ConcurrentHashMap<String, Mutex>()
+    // Album covers are decoded off the UI thread, but cap concurrency so rapid
+    // queue scrolling cannot compete with the audio decoder for CPU/I/O.
+    private val artworkDecodeDispatcher = Dispatchers.IO.limitedParallelism(2)
     private val albumArtPathCache = ConcurrentHashMap<Long, String?>()
     private var showPlaylists by mutableStateOf(false)
     private var playlistDetailId by mutableStateOf<String?>(null)
@@ -4100,7 +4103,7 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        LaunchedEffect(isPlaying, currentIndex) {
+        LaunchedEffect(isPlaying, currentIndex, showQueue) {
             while (isPlaying) {
                 controller?.let {
                     val liveDuration = it.duration
@@ -4108,7 +4111,9 @@ class MainActivity : ComponentActivity() {
                     position = it.currentPosition.coerceAtLeast(0L)
                     if (duration > 0L && position >= duration) position = duration
                 }
-                delay(500)
+                // While the queue is being scrolled, reduce progress-state
+                // recompositions. The player continues independently in Media3.
+                delay(if (showQueue) 1_000L else 500L)
             }
         }
 
@@ -8571,7 +8576,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
         val lock = artworkLocks.computeIfAbsent(cacheKey) { Mutex() }
         return try {
-            withContext(Dispatchers.IO) {
+            withContext(artworkDecodeDispatcher) {
                 lock.withLock {
                     artworkMemoryCache.get(cacheKey)?.let { return@withLock it }
 
