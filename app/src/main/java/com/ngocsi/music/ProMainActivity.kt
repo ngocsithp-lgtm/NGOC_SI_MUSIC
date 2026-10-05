@@ -44,6 +44,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -602,9 +603,10 @@ private fun ProArtwork(artworkUri: android.net.Uri?, isPlaying: Boolean) {
         }
     }
 
-    if (bitmap != null) {
+    val currentBitmap = bitmap
+    if (currentBitmap != null) {
         Image(
-            bitmap = bitmap!!.asImageBitmap(),
+            bitmap = currentBitmap.asImageBitmap(),
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(20.dp))
