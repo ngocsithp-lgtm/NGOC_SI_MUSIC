@@ -1140,38 +1140,47 @@ class MainActivity : ComponentActivity() {
             return
         }
 
-        val c = controller ?: run { errorMessage = "Trình phát đang khởi động, thử lại sau."; return }
+        val c = controller ?: run {
+            errorMessage = "Trình phát đang khởi động, thử lại sau."
+            return
+        }
 
         if (songs[index].source != "Radio Việt Nam") {
             clearActiveRadioState()
         }
 
-        if (!isControllerQueueInSync(c)) {
-            // Rebuilding the queue must not silently reset Shuffle/Repeat.
-            syncControllerQueue()
-        }
+        val target = songs[index]
 
-        // A direct tap switches the queue to the tapped source. Never mix
-        // device/Drive/online sources into one playback queue.
-        if (queueSource != songs[index].source) {
+        // Handle a source change first. The previous implementation could sync
+        // the old queue and then immediately rebuild it for the new source,
+        // causing two prepare() operations for one tap.
+        if (queueSource != target.source) {
             queueSongs.clear()
-            queueSongs.add(songs[index])
-            queueSource = songs[index].source
+            queueSongs.add(target)
+            queueSource = target.source
             syncControllerQueue()
-        } else if (queueSongs.none { it.uri == songs[index].uri && it.source == songs[index].source }) {
-            val addedSong = songs[index]
-            queueSongs.add(addedSong)
-            appendSongToControllerQueue(addedSong)
+        } else {
+            if (!isControllerQueueInSync(c)) {
+                syncControllerQueue()
+            }
+
+            if (queueSongs.none { it.uri == target.uri && it.source == target.source }) {
+                queueSongs.add(target)
+                appendSongToControllerQueue(target)
+            }
         }
 
         currentIndex = index
         val queueIndex = queueSongs.indexOfFirst {
-            it.uri == songs[index].uri && it.source == songs[index].source
+            it.uri == target.uri && it.source == target.source
         }
         if (queueIndex < 0) {
             errorMessage = "Không thể thêm bài hát vào hàng đợi."
             return
         }
+
+        // Selecting a track already present in a prepared queue should not rebuild
+        // or prepare the queue; just move the current position and start playback.
         c.seekToDefaultPosition(queueIndex)
         c.play()
         shuffleEnabled = c.shuffleModeEnabled
@@ -3350,10 +3359,12 @@ class MainActivity : ComponentActivity() {
         }
         if (queueSource.isBlank()) queueSource = song.source
 
-        // queueSongs is the canonical logical order. Rebuild Media3 from it so
-        // Shuffle/Repeat, the current item and the playback position stay aligned.
+        if (controller != null && !isControllerQueueInSync(controller!!)) {
+            syncControllerQueue()
+        }
+
         queueSongs.add(song)
-        syncControllerQueue()
+        appendSongToControllerQueue(song)
         errorMessage = "Đã thêm vào hàng đợi: " + song.title
     }
 
