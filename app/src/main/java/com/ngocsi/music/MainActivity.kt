@@ -1341,6 +1341,9 @@ class MainActivity : ComponentActivity() {
         return "Google Drive • " + clean.ifBlank { "Chia sẻ" }
     }
 
+    private fun sharedDriveIdentity(item: SharedDriveItem): String =
+        item.id.trim() + "::" + item.sourceName.trim()
+
     private fun loadDriveSourceNames(): MutableMap<String, String> {
         val raw = driveSourcePrefs.getString("drive_source_names", null) ?: return mutableMapOf()
         return runCatching {
@@ -1511,7 +1514,7 @@ class MainActivity : ComponentActivity() {
             val uri = sharedDriveMediaUri(item, apiKey)
             val sourceName = item.sourceName.trim().ifBlank { "Chia sẻ • " + item.name }
             val songSource = driveSongSource(sourceName)
-            val existingSong = songs.firstOrNull { it.uri == uri }
+            val existingSong = songs.firstOrNull { it.uri == uri && it.source == songSource }
             if (existingSong != null) {
                 val index = songs.indexOf(existingSong)
                 if (existingSong.source != songSource || existingSong.folder != sourceName) {
@@ -1523,7 +1526,7 @@ class MainActivity : ComponentActivity() {
                 }
             } else {
                 val song = Song(
-                    id = -kotlin.math.abs(uri.toString().hashCode().toLong()),
+                    id = -kotlin.math.abs((uri.toString() + "::" + songSource).hashCode().toLong()),
                     title = item.name.substringBeforeLast(".").ifBlank { item.name },
                     artist = songSource,
                     duration = 0L,
@@ -1663,7 +1666,7 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                             val mergedItems = (loadSharedDriveItems() + cloudItems)
-                                .groupBy { it.id }
+                                .groupBy(::sharedDriveIdentity)
                                 .mapNotNull { (_, variants) ->
                                     variants.maxByOrNull { if (it.sourceName.isNotBlank()) 1 else 0 }
                                 }
@@ -1907,7 +1910,7 @@ class MainActivity : ComponentActivity() {
 
     private fun saveSharedDriveItems(items: List<SharedDriveItem>) {
         val array = org.json.JSONArray()
-        items.distinctBy { it.id }.forEach { item ->
+        items.distinctBy(::sharedDriveIdentity).forEach { item ->
             array.put(
                 org.json.JSONObject().apply {
                     put("id", item.id)
