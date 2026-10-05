@@ -53,19 +53,20 @@
             android:screenOrientation="unspecified"
             android:configChanges="orientation|screenSize|keyboardHidden" />
 
+        <!-- Stable launcher: keep the proven MainActivity as the app entry point.
+             PRO shell remains available but is not allowed to take down app startup. -->
         <activity
             android:name=".ProMainActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".MainActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <!-- Legacy feature surface is launched explicitly by the PRO shell. -->
-        <activity
-            android:name=".MainActivity"
-            android:exported="false" />
 
         <receiver
             android:name=".MusicWidgetProvider"
