@@ -1271,10 +1271,10 @@ class MainActivity : ComponentActivity() {
         errorMessage = "Đang nhập ${uniqueUris.size} file từ Google Drive…"
 
         driveImportJob = lifecycleScope.launch {
+            val localFiles = loadDriveLocalFiles()
             val result = withContext(Dispatchers.IO) {
                 val saved = (driveSourcePrefs.getStringSet("drive_uris", emptySet()) ?: emptySet()).toMutableSet()
                 val sourceNames = loadDriveSourceNames().toMutableMap()
-                val localFiles = loadDriveLocalFiles()
                 val importedSongs = mutableListOf<Song>()
 
                 uniqueUris.forEach { uri ->
