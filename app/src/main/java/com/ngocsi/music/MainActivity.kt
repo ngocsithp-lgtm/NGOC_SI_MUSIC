@@ -374,6 +374,14 @@ class MainActivity : ComponentActivity() {
     // album metadata is unavailable.
     private val artworkMemoryCache = LruCache<String, androidx.compose.ui.graphics.ImageBitmap>(96)
     private val artworkLocks = ConcurrentHashMap<String, Mutex>()
+    // Online thumbnails can be returned at much larger dimensions than the
+    // small cards actually need. Keep a bounded bitmap cache and downsample on
+    // decode to avoid repeated network work, RAM spikes, and scroll jank.
+    private val onlineArtworkCache = object : LruCache<String, android.graphics.Bitmap>(32) {
+        override fun sizeOf(key: String, value: android.graphics.Bitmap): Int =
+            (value.byteCount / 1024).coerceAtLeast(1)
+        override val size = 12 * 1024
+    }
     // Album covers are decoded off the UI thread, but cap concurrency so rapid
     // queue scrolling cannot compete with the audio decoder for CPU/I/O.
     private val artworkDecodeDispatcher = Dispatchers.IO.limitedParallelism(2)
@@ -7937,36 +7945,66 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         searchAudius(q)
     }
 
+    private suspend fun loadOnlineArtwork(url: String): android.graphics.Bitmap? {
+        if (url.isBlank()) return null
+        synchronized(onlineArtworkCache) {
+            onlineArtworkCache.get(url)?.let { return it }
+        }
+
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                val connection = (java.net.URL(url).openConnection() as java.net.HttpURLConnection).apply {
+                    connectTimeout = 6000
+                    readTimeout = 8000
+                    useCaches = true
+                    doInput = true
+                    setRequestProperty(
+                        "Accept",
+                        "image/avif,image/webp,image/apng,image/*,*/*;q=0.8"
+                    )
+                    setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.9")
+                }
+                try {
+                    if (connection.responseCode !in 200..299) return@runCatching null
+                    connection.inputStream.use { input ->
+                        val bytes = input.readBytes()
+                        val bounds = BitmapFactory.Options().apply {
+                            inJustDecodeBounds = true
+                        }
+                        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+                        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@use null
+
+                        val target = 512
+                        var sample = 1
+                        while (bounds.outWidth / sample > target ||
+                            bounds.outHeight / sample > target
+                        ) {
+                            sample *= 2
+                        }
+
+                        val options = BitmapFactory.Options().apply {
+                            inSampleSize = sample.coerceAtLeast(1)
+                            inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
+                        }
+                        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)?.also { decoded ->
+                            synchronized(onlineArtworkCache) {
+                                onlineArtworkCache.put(url, decoded)
+                            }
+                        }
+                    }
+                } finally {
+                    connection.disconnect()
+                }
+            }.getOrNull()
+        }
+    }
+
     @Composable
     private fun OnlineArtwork(url: String, modifier: Modifier = Modifier) {
         var bitmap by remember(url) { mutableStateOf<android.graphics.Bitmap?>(null) }
 
         LaunchedEffect(url) {
-            bitmap = if (url.isBlank()) {
-                null
-            } else {
-                withContext(Dispatchers.IO) {
-                    runCatching {
-                        val connection = (java.net.URL(url).openConnection() as java.net.HttpURLConnection).apply {
-                            connectTimeout = 8000
-                            readTimeout = 10000
-                            useCaches = true
-                            doInput = true
-                            setRequestProperty("Accept", "image/avif,image/webp,image/apng,image/*,*/*;q=0.8")
-                            setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.9")
-                        }
-                        try {
-                            if (connection.responseCode in 200..299) {
-                                connection.inputStream.use { BitmapFactory.decodeStream(it) }
-                            } else {
-                                null
-                            }
-                        } finally {
-                            connection.disconnect()
-                        }
-                    }.getOrNull()
-                }
-            }
+            bitmap = loadOnlineArtwork(url)
         }
 
         Box(
@@ -7976,7 +8014,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             contentAlignment = Alignment.Center
         ) {
             val image = bitmap
-            if (image != null) {
+            if (image != null && !image.isRecycled) {
                 Image(
                     bitmap = image.asImageBitmap(),
                     contentDescription = null,
@@ -7984,7 +8022,12 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     contentScale = ContentScale.Crop
                 )
             } else {
-                Text("♪", color = Color(0xFFB18CFF), fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    "♪",
+                    color = Color(0xFFB18CFF),
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
     }
