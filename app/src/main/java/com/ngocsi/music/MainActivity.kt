@@ -2456,7 +2456,6 @@ class MainActivity : ComponentActivity() {
                         folder = sourceName
                     )
                     songs.add(song)
-                    if (queueSongs.none { it.uri == uri }) queueSongs.add(song)
                     savedItems.removeAll { it.id == item.id }
                     savedItems.add(item)
                     added++
@@ -2466,7 +2465,7 @@ class MainActivity : ComponentActivity() {
                 saveDriveRecentLink(driveSharedLink)
                 syncDriveSourcesToCloud()
                 driveSharedStatus = "Đã liên kết $added tệp từ nguồn Drive chia sẻ"
-                syncControllerQueue()
+                if (queueSongs.isNotEmpty()) syncControllerQueue()
                 driveSharedLoading = false
                 driveSharedLink = ""
                 errorMessage = if (added > 0) {
