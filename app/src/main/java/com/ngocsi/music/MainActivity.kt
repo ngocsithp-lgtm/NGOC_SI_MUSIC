@@ -620,7 +620,7 @@ class MainActivity : ComponentActivity() {
         loadCustomTvSources()
         loadSavedState()
         loadDriveRecentLinks()
-        restoreSleepTimer()
+        refreshSleepTimerUiState()
 
         // Attach the Compose UI before background restoration/permission prompts.
         setContent { NgocSiMusicApp() }
@@ -1506,7 +1506,7 @@ class MainActivity : ComponentActivity() {
             readTimeout = 20000
             useCaches = false
             setRequestProperty("Accept", "application/json")
-            setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.7 (Android)")
+            setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.9 (Android)")
             accessToken?.takeIf { it.isNotBlank() }?.let { setRequestProperty("Authorization", "Bearer $it") }
             resourceKeys?.takeIf { it.isNotBlank() }?.let {
                 setRequestProperty("X-Goog-Drive-Resource-Keys", it)
@@ -2945,7 +2945,7 @@ class MainActivity : ComponentActivity() {
                     readTimeout = 20000
                     useCaches = false
                     setRequestProperty("Accept", "application/json")
-                    setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.2")
+                    setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.9")
                 }
 
                 val code = connection.responseCode
@@ -3222,63 +3222,45 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun restoreSleepTimer() {
+    private fun refreshSleepTimerUiState() {
+        if (!::prefs.isInitialized) return
         val endAt = prefs.getLong("sleep_timer_end_at", 0L).coerceAtLeast(0L)
-        sleepTimerJob?.cancel()
-        if (endAt <= System.currentTimeMillis()) {
+        val now = System.currentTimeMillis()
+        if (endAt <= now) {
             sleepTimerEndAt = 0L
             sleepMinutes = 0
-            prefs.edit().remove("sleep_timer_end_at").apply()
             return
         }
 
         sleepTimerEndAt = endAt
-        val remainingMs = endAt - System.currentTimeMillis()
+        val remainingMs = endAt - now
         sleepMinutes = kotlin.math.ceil(remainingMs / 60_000.0).toInt().coerceAtLeast(1)
+    }
+
+    private fun startSleepTimerUiTicker() {
+        sleepTimerJob?.cancel()
         sleepTimerJob = lifecycleScope.launch {
-            delay(remainingMs)
-            controller?.pause()
-            controller?.seekTo(0L)
-            position = 0L
-            savedPosition = 0L
-            sleepMinutes = 0
-            sleepTimerEndAt = 0L
-            sleepTimerJob = null
-            prefs.edit().remove("sleep_timer_end_at").apply()
-            savePlaybackState()
-            errorMessage = "Hẹn giờ đã tắt nhạc."
+            while (true) {
+                refreshSleepTimerUiState()
+                delay(1_000L)
+            }
         }
     }
 
     private fun startSleepTimer(minutes: Int) {
-        sleepTimerJob?.cancel()
-        if (minutes <= 0) {
-            sleepTimerJob = null
+        val cleanMinutes = minutes.coerceIn(0, 24 * 60)
+        if (cleanMinutes <= 0) {
             sleepTimerEndAt = 0L
             sleepMinutes = 0
             prefs.edit().remove("sleep_timer_end_at").apply()
             return
         }
 
-        val endAt = System.currentTimeMillis() + minutes * 60_000L
-        sleepTimerEndAt = endAt
-        sleepMinutes = minutes
+        val endAt = System.currentTimeMillis() + cleanMinutes * 60_000L
         prefs.edit().putLong("sleep_timer_end_at", endAt).apply()
-
-        sleepTimerJob = lifecycleScope.launch {
-            delay((endAt - System.currentTimeMillis()).coerceAtLeast(0L))
-            controller?.pause()
-            controller?.seekTo(0L)
-            position = 0L
-            savedPosition = 0L
-            sleepMinutes = 0
-            sleepTimerEndAt = 0L
-            sleepTimerJob = null
-            prefs.edit().remove("sleep_timer_end_at").apply()
-            savePlaybackState()
-            errorMessage = "Hẹn giờ đã tắt nhạc."
-        }
+        refreshSleepTimerUiState()
     }
+
     private fun togglePlayPause() {
         val c = controller ?: return
         if (queueSongs.isNotEmpty() && !isControllerQueueInSync(c)) {
@@ -3363,7 +3345,8 @@ class MainActivity : ComponentActivity() {
         }
         if (queueSource.isBlank()) queueSource = song.source
 
-        if (controller != null && !isControllerQueueInSync(controller!!)) {
+        val activeController = controller
+        if (activeController != null && !isControllerQueueInSync(activeController)) {
             syncControllerQueue()
         }
 
@@ -4033,6 +4016,8 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
 
+        startSleepTimerUiTicker()
+
         // Refresh YouTube library state after returning from the in-app player.
         // The player writes favorites/watch-later directly to SharedPreferences,
         // so the PRO/YouTube surface must reload them without requiring an app restart.
@@ -4061,8 +4046,10 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onStop() {
-        // Persist the latest position even when the Activity leaves the foreground.
-        // MusicService/MediaSession remains alive for background playback.
+        // The MusicService owns the actual sleep-timer enforcement, so the UI only
+        // needs to stop its countdown ticker when the Activity leaves the foreground.
+        sleepTimerJob?.cancel()
+        sleepTimerJob = null
         if (::prefs.isInitialized) savePlaybackState()
         super.onStop()
     }
@@ -4081,6 +4068,8 @@ class MainActivity : ComponentActivity() {
         artworkPrefetchJob = null
         speechRecognizer?.destroy()
         speechRecognizer = null
+        sleepTimerJob?.cancel()
+        sleepTimerJob = null
         savePlaybackState()
         controller?.removeListener(playerListener)
         controller?.release()
@@ -6011,7 +6000,7 @@ class MainActivity : ComponentActivity() {
                         requestMethod = "GET"
                         connectTimeout = 8000
                         readTimeout = 8000
-                        setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.3 (Android)")
+                        setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.9 (Android)")
                         setRequestProperty("Accept", "application/json")
                     }
                     try {
@@ -7386,7 +7375,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     readTimeout = 20000
                     useCaches = false
                     setRequestProperty("Accept", "application/json")
-                    setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.1")
+                    setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.9")
                 }
 
                 val code = connection.responseCode
@@ -7929,7 +7918,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             useCaches = true
                             doInput = true
                             setRequestProperty("Accept", "image/avif,image/webp,image/apng,image/*,*/*;q=0.8")
-                            setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.2")
+                            setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.9")
                         }
                         try {
                             if (connection.responseCode in 200..299) {
@@ -8493,7 +8482,10 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 Spacer(Modifier.width(10.dp))
                                 Column(Modifier.weight(1f)) {
                                     Text(meta?.title ?: parts[1], color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    val durationText = if ((meta?.duration ?: 0L) > 0L) " • " + formatTime(meta!!.duration) else ""
+                                    val durationText = meta?.duration
+                                        ?.takeIf { it > 0L }
+                                        ?.let { " • " + formatTime(it) }
+                                        .orEmpty()
                                     Text((meta?.artist ?: parts[2]) + " • " + (meta?.source ?: parts[0]) + durationText,
                                         color = Color(0xFF8F8F9A), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
@@ -9395,16 +9387,14 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 .background(Brush.linearGradient(listOf(Color(0xFF6D4CC5), Color(0xFF24283A)))),
             contentAlignment = Alignment.Center
         ) {
-            if (artwork != null) {
+            artwork?.let { bitmap ->
                 Image(
-                    bitmap = artwork!!,
+                    bitmap = bitmap,
                     contentDescription = song?.title ?: "Ảnh bìa",
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
-            } else {
-                Text("♫", color = Color(0xFFC8B7FF), fontSize = 42.sp)
-            }
+            } ?: Text("♫", color = Color(0xFFC8B7FF), fontSize = 42.sp)
         }
     }
 
