@@ -294,7 +294,7 @@ class MusicService : MediaSessionService() {
         val resumePosition = player.currentPosition.coerceAtLeast(0L)
         driveRecoveryInProgress = true
         driveRecoveryScope.launch {
-            val token = refreshDriveTokenBlocking()
+            val token = refreshDriveTokenBlocking(forceRefresh = true)
             widgetHandler.post {
                 try {
                     if (token.isBlank()) {
