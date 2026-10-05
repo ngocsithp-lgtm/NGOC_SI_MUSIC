@@ -74,6 +74,7 @@ import kotlinx.coroutines.withContext
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class ProMainActivity : ComponentActivity() {
     private var controller: MediaController? = null
+    private var controllerConnecting = false
     private var isPlaying by mutableStateOf(false)
     private var title by mutableStateOf("Chưa phát nhạc")
     private var artist by mutableStateOf("NGỌC SĨ MUSIC")
@@ -116,7 +117,9 @@ class ProMainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        connectController()
+        // Keep the PRO shell independent from Media3/service startup.
+        // The controller is connected lazily on the first playback/seek action,
+        // so a service or codec problem cannot block the launcher screen.
         setContent {
             ProShell(
                 title = title,
@@ -136,45 +139,80 @@ class ProMainActivity : ComponentActivity() {
                 onSettings = { openLegacy("settings") },
                 onFullPlayer = { openLegacy("player") },
                 onPrevious = {
-                    controller?.let {
-                        if (it.currentPosition > 3_000L) it.seekTo(0L)
-                        else it.seekToPreviousMediaItem()
-                        it.play()
+                    withController { c ->
+                        if (c.currentPosition > 3_000L) c.seekTo(0L)
+                        else c.seekToPreviousMediaItem()
+                        c.play()
                     }
                 },
                 onTogglePlayback = {
-                    controller?.let { if (it.isPlaying) it.pause() else it.play() }
+                    withController { c ->
+                        if (c.isPlaying) c.pause() else c.play()
+                    }
                 },
                 onNext = {
-                    controller?.let {
-                        it.seekToNextMediaItem()
-                        it.play()
+                    withController { c ->
+                        c.seekToNextMediaItem()
+                        c.play()
                     }
                 },
                 onSeek = { target ->
-                    controller?.seekTo(target.coerceAtLeast(0L))
-                    syncProgress()
+                    withController { c ->
+                        c.seekTo(target.coerceAtLeast(0L))
+                        syncProgress()
+                    }
                 },
                 onProgressTick = { syncProgress() }
             )
         }
     }
 
-    private fun connectController() {
+    private fun withController(action: (MediaController) -> Unit) {
+        val existing = controller
+        if (existing != null) {
+            action(existing)
+            return
+        }
+        connectController {
+            controller?.let(action)
+        }
+    }
+
+    private fun connectController(onReady: (() -> Unit)? = null) {
+        if (controller != null) {
+            onReady?.invoke()
+            return
+        }
+        if (controllerConnecting) return
+        controllerConnecting = true
+
         val token = SessionToken(this, ComponentName(this, MusicService::class.java))
-        val future = MediaController.Builder(this, token).buildAsync()
+        val future = runCatching {
+            MediaController.Builder(this, token).buildAsync()
+        }.getOrElse {
+            controllerConnecting = false
+            return
+        }
+
         future.addListener({
-            runCatching {
-                controller = future.get()
-                controller?.addListener(listener)
-                controller?.let {
-                    syncProgress()
-                    isPlaying = it.isPlaying
-                    it.currentMediaItem?.mediaMetadata?.let { md ->
-                        title = md.title?.toString().orEmpty().ifBlank { "Đang phát" }
-                        artist = md.artist?.toString().orEmpty().ifBlank { "NGỌC SĨ MUSIC" }
-                        artworkUri = md.artworkUri
+            runOnUiThread {
+                try {
+                    controller = future.get()
+                    controller?.addListener(listener)
+                    controller?.let {
+                        syncProgress()
+                        isPlaying = it.isPlaying
+                        it.currentMediaItem?.mediaMetadata?.let { md ->
+                            title = md.title?.toString().orEmpty().ifBlank { "Đang phát" }
+                            artist = md.artist?.toString().orEmpty().ifBlank { "NGỌC SĨ MUSIC" }
+                            artworkUri = md.artworkUri
+                        }
                     }
+                    onReady?.invoke()
+                } catch (_: Throwable) {
+                    controller = null
+                } finally {
+                    controllerConnecting = false
                 }
             }
         }, MoreExecutors.directExecutor())
@@ -590,11 +628,39 @@ private fun ProArtwork(artworkUri: android.net.Uri?, isPlaying: Boolean) {
     var bitmap by remember(artworkUri) { mutableStateOf<android.graphics.Bitmap?>(null) }
 
     LaunchedEffect(artworkUri) {
+        bitmap = null
         bitmap = artworkUri?.let { uri ->
             withContext(Dispatchers.IO) {
                 runCatching {
+                    // Album covers can be several thousand pixels wide. Decode a
+                    // bounded preview instead of allocating the full source image.
+                    val bounds = BitmapFactory.Options().apply {
+                        inJustDecodeBounds = true
+                    }
                     context.contentResolver.openInputStream(uri)?.use { input ->
-                        BitmapFactory.decodeStream(input)
+                        BitmapFactory.decodeStream(input, null, bounds)
+                    }
+
+                    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+                        return@runCatching null
+                    }
+
+                    val maxDimension = 512
+                    var sample = 1
+                    while (
+                        bounds.outWidth / sample > maxDimension ||
+                        bounds.outHeight / sample > maxDimension
+                    ) {
+                        sample *= 2
+                    }
+
+                    val options = BitmapFactory.Options().apply {
+                        inSampleSize = sample
+                        inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
+                    }
+
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        BitmapFactory.decodeStream(input, null, options)
                     }
                 }.getOrNull()
             }
