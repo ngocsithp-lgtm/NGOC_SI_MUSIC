@@ -239,10 +239,24 @@ class MusicService : MediaSessionService() {
         // content:// (SAF/Drive provider) and https:// (online/Drive REST) media.
         val mediaDataSourceFactory = DefaultDataSource.Factory(this, driveAwareHttpFactory)
 
-        // Playback-oriented buffering for mixed local, Drive and online audio.
+        // Tune buffering separately for local files and network streams.
+        // Local playback should stay responsive and avoid unnecessary buffering,
+        // while remote audio gets a deeper rebuffer cushion for unstable networks.
         val loadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(15_000, 60_000, 750, 2_000)
-            .setPrioritizeTimeOverSizeThresholds(true)
+            .setBufferDurationsMsForLocalPlayback(
+                5_000,
+                50_000,
+                500,
+                1_000
+            )
+            .setBufferDurationsMsForStreaming(
+                20_000,
+                90_000,
+                1_500,
+                4_000
+            )
+            .setPrioritizeTimeOverSizeThresholdsForLocalPlayback(false)
+            .setPrioritizeTimeOverSizeThresholdsForStreaming(true)
             .build()
 
         player = ExoPlayer.Builder(this)
