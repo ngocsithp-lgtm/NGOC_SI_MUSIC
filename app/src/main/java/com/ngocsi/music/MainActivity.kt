@@ -4154,6 +4154,8 @@ class MainActivity : ComponentActivity() {
         youtubeSearchJob?.cancel()
         driveImportJob?.cancel()
         driveImportJob = null
+        songsLoadJob?.cancel()
+        songsLoadJob = null
         artworkPrefetchJob?.cancel()
         artworkPrefetchJob = null
         speechRecognizer?.destroy()
