@@ -930,10 +930,14 @@ class MainActivity : ComponentActivity() {
         }
 
         val staleDriveUris = mutableSetOf<String>()
+        val savedDriveLocalFiles = loadDriveLocalFiles()
+        val staleDriveLocalFiles = mutableSetOf<String>()
         savedDriveUris.forEach { raw ->
             val uri = Uri.parse(raw)
             val savedSourceName = savedDriveSourceNames[raw].orEmpty()
-            val song = songFromUri(uri)
+            val restoredLocalUri = savedDriveLocalFiles[raw]
+                ?.let { runCatching { Uri.parse(it) }.getOrNull() }
+            val song = songFromUri(uri) ?: restoredLocalUri?.let(::songFromUri)
             if (song != null) {
                 val candidateSource = if (savedSourceName.isNotBlank()) {
                     driveSongSource(savedSourceName)
@@ -952,12 +956,18 @@ class MainActivity : ComponentActivity() {
                     }
                 } else {
                     staleDriveUris += raw
+                    staleDriveLocalFiles += raw
                 }
             }
         }
-        if (staleDriveUris.isNotEmpty()) {
+        if (staleDriveUris.isNotEmpty() || staleDriveLocalFiles.isNotEmpty()) {
             val cleanedDriveUris = savedDriveUris.toMutableSet().apply { removeAll(staleDriveUris) }
-            driveSourcePrefs.edit().putStringSet("drive_uris", cleanedDriveUris).apply()
+            val cleanedLocalFiles = savedDriveLocalFiles.toMutableMap()
+            staleDriveLocalFiles.forEach { cleanedLocalFiles.remove(it) }
+            driveSourcePrefs.edit()
+                .putStringSet("drive_uris", cleanedDriveUris)
+                .apply()
+            saveDriveLocalFiles(cleanedLocalFiles)
         }
         savedOnlineUris.forEach { raw ->
             val uri = Uri.parse(raw)
@@ -1264,6 +1274,7 @@ class MainActivity : ComponentActivity() {
             val result = withContext(Dispatchers.IO) {
                 val saved = (driveSourcePrefs.getStringSet("drive_uris", emptySet()) ?: emptySet()).toMutableSet()
                 val sourceNames = loadDriveSourceNames().toMutableMap()
+                val localFiles = loadDriveLocalFiles()
                 val importedSongs = mutableListOf<Song>()
 
                 uniqueUris.forEach { uri ->
@@ -1284,6 +1295,9 @@ class MainActivity : ComponentActivity() {
                     if (importedSong != null) {
                         saved.add(raw)
                         sourceNames[raw] = sourceName
+                        if (importedSong.uri.scheme.equals("file", ignoreCase = true)) {
+                            localFiles[raw] = importedSong.uri.toString()
+                        }
                         importedSongs += importedSong.copy(
                             source = driveSongSource(sourceName),
                             folder = sourceName
@@ -1297,6 +1311,7 @@ class MainActivity : ComponentActivity() {
             val (saved, importedSongs, sourceNames) = result
             driveSourcePrefs.edit().putStringSet("drive_uris", saved).apply()
             saveDriveSourceNames(sourceNames)
+            saveDriveLocalFiles(localFiles)
 
             importedSongs.forEach { song ->
                 if (songs.none { it.uri == song.uri }) songs.add(song)
@@ -1346,7 +1361,16 @@ class MainActivity : ComponentActivity() {
         var title = "Nhạc Google Drive"
         var displayName = "drive_audio_" + kotlin.math.abs(uri.toString().hashCode())
 
-        val metadataReadable = runCatching {
+        if (uri.scheme.equals("file", ignoreCase = true)) {
+            val file = uri.path?.let(::File) ?: return null
+            if (!file.exists() || !file.isFile || file.length() <= 0L) return null
+            displayName = file.name
+            title = displayName.substringBeforeLast(".").trim().ifBlank { "Nhạc Google Drive" }
+        }
+
+        val metadataReadable = if (uri.scheme.equals("file", ignoreCase = true)) {
+            true
+        } else runCatching {
             contentResolver.query(
                 uri,
                 arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE),
@@ -1452,6 +1476,27 @@ class MainActivity : ComponentActivity() {
             if (uri.isNotBlank() && name.isNotBlank()) json.put(uri, name)
         }
         driveSourcePrefs.edit().putString("drive_source_names", json.toString()).apply()
+    }
+
+    private fun loadDriveLocalFiles(): MutableMap<String, String> {
+        val raw = driveSourcePrefs.getString("drive_local_files", null) ?: return mutableMapOf()
+        return runCatching {
+            val json = org.json.JSONObject(raw)
+            buildMap {
+                json.keys().forEach { key ->
+                    val value = json.optString(key).trim()
+                    if (key.isNotBlank() && value.isNotBlank()) put(key, value)
+                }
+            }.toMutableMap()
+        }.getOrElse { mutableMapOf() }
+    }
+
+    private fun saveDriveLocalFiles(localFiles: Map<String, String>) {
+        val json = org.json.JSONObject()
+        localFiles.forEach { (sourceUri, localUri) ->
+            if (sourceUri.isNotBlank() && localUri.isNotBlank()) json.put(sourceUri, localUri)
+        }
+        driveSourcePrefs.edit().putString("drive_local_files", json.toString()).apply()
     }
 
     private fun formatDriveSize(bytes: Long): String {
@@ -3770,12 +3815,14 @@ class MainActivity : ComponentActivity() {
             prefs.getStringSet("drive_uris", null)?.let { editor.putStringSet("drive_uris", it) }
             prefs.getString("drive_shared_items", null)?.let { editor.putString("drive_shared_items", it) }
             prefs.getString("drive_recent_links", null)?.let { editor.putString("drive_recent_links", it) }
+            prefs.getString("drive_local_files", null)?.let { editor.putString("drive_local_files", it) }
             editor.putBoolean("migration_v1_complete", true).apply()
 
             prefs.edit()
                 .remove("drive_uris")
                 .remove("drive_shared_items")
                 .remove("drive_recent_links")
+                .remove("drive_local_files")
                 .remove("drive_access_token")
                 .apply()
         }
