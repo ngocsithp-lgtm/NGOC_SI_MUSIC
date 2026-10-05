@@ -6305,10 +6305,16 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         // so scrolling does not rebuild the visible queue on every position update.
         val queueRenderState by remember {
             derivedStateOf {
+                // currentIndex belongs to the library, so the queue position must
+                // still be resolved from Media3's active URI. Reading currentIndex here
+                // keeps this derived state refreshed when playback changes.
+                val playbackRevision = currentIndex
                 val activeUri = controller?.currentMediaItem?.localConfiguration?.uri
-                val activeQueueIndex = when {
-                    currentIndex >= 0 && currentIndex < queueSongs.size -> currentIndex
-                    else -> activeUri?.let { uri -> queueSongs.indexOfFirst { it.uri == uri } } ?: -1
+                val activeQueueIndex = activeUri?.let { uri ->
+                    queueSongs.indexOfFirst { it.uri == uri }
+                } ?: -1
+                if (playbackRevision < -1) {
+                    return@derivedStateOf QueueRenderState(-1, emptyList(), emptyList(), "", 0, null)
                 }
 
                 val nextEntries = if (activeQueueIndex >= 0) {
