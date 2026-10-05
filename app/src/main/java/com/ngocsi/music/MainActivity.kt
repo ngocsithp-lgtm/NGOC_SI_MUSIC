@@ -4740,7 +4740,6 @@ class MainActivity : ComponentActivity() {
                     ProHomeNavChip("Cài đặt", onOpenSettings, Modifier.weight(1f))
                 }
             }
-        }
     }
         }
 
