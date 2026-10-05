@@ -13,6 +13,7 @@ import android.os.Bundle
 import android.provider.MediaStore
 import android.location.LocationManager
 import android.graphics.BitmapFactory
+import android.media.MediaMetadataRetriever
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
@@ -1287,6 +1288,30 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun extractEmbeddedArtworkUri(audioUri: Uri): Uri? {
+        if (!audioUri.scheme.equals("file", ignoreCase = true)) return null
+        return runCatching {
+            val retriever = MediaMetadataRetriever()
+            try {
+                retriever.setDataSource(audioUri.path)
+                val picture = retriever.embeddedPicture ?: return@runCatching null
+                if (picture.isEmpty()) return@runCatching null
+
+                val artworkDir = File(filesDir, "drive_artwork").apply { mkdirs() }
+                val artworkFile = File(
+                    artworkDir,
+                    "cover_" + kotlin.math.abs(audioUri.toString().hashCode()) + ".jpg"
+                )
+                if (!artworkFile.exists() || artworkFile.length() != picture.size.toLong()) {
+                    artworkFile.outputStream().use { it.write(picture) }
+                }
+                Uri.fromFile(artworkFile)
+            } finally {
+                retriever.release()
+            }
+        }.getOrNull()
+    }
+
     private fun songFromUri(uri: Uri): Song? {
         var title = "Nhạc Google Drive"
         var displayName = "drive_audio_" + kotlin.math.abs(uri.toString().hashCode())
@@ -1346,6 +1371,8 @@ class MainActivity : ComponentActivity() {
 
         if (playbackUri == null) return null
 
+        val artworkUri = extractEmbeddedArtworkUri(playbackUri)
+
         return Song(
             id = -kotlin.math.abs(uri.toString().hashCode().toLong()),
             title = title,
@@ -1353,6 +1380,7 @@ class MainActivity : ComponentActivity() {
             duration = 0L,
             uri = playbackUri,
             source = "Google Drive",
+            artworkUri = artworkUri,
             folder = "Google Drive"
         )
     }
