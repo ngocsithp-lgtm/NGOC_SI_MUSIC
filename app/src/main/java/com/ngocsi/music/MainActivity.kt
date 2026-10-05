@@ -4211,7 +4211,9 @@ class MainActivity : ComponentActivity() {
                             onOpenSleepTimer = { showSleepTimer = true }
                         )
                     } else {
-                        ProSectionHeader()
+                        if (!(selectedSection == "Online" && onlineHubTab == "YouTube")) {
+                            ProSectionHeader()
+                        }
                         if (selectedSection == "Thư viện") {
                             SearchBarModern()
                         }
