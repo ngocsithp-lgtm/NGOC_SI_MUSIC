@@ -693,7 +693,18 @@ class MainActivity : ComponentActivity() {
         val future = MediaController.Builder(this, token).buildAsync()
         future.addListener({
             try {
-                controller = future.get()
+                val connectedController = future.get()
+
+                // The async MediaController connection can finish after this
+                // Activity has already been stopped/destroyed (for example when
+                // launching YouTube/TV or returning from a notification). Never
+                // attach a late controller to a dead Activity.
+                if (isFinishing || isDestroyed) {
+                    connectedController.release()
+                    return@addListener
+                }
+
+                controller = connectedController
                 controller?.addListener(playerListener)
 
                 val c = controller
