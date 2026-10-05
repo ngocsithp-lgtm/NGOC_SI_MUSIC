@@ -8455,7 +8455,32 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             song.albumId
                         )
                     } else null
-                uri?.let { contentResolver.openInputStream(it)?.use { input -> BitmapFactory.decodeStream(input)?.asImageBitmap() } }
+
+                if (uri != null) {
+                    contentResolver.openInputStream(uri)?.use { input ->
+                        BitmapFactory.decodeStream(input)?.asImageBitmap()
+                    }
+                } else if (song.source.startsWith("Google Drive") &&
+                    song.uri.scheme.equals("https", ignoreCase = true)
+                ) {
+                    // Drive songs are streamed through the REST media endpoint.
+                    // Read embedded artwork directly with the OAuth Bearer token;
+                    // this avoids requiring a local audio download just to show the cover.
+                    val token = driveOAuthManager.accessToken()
+                    if (token.isNullOrBlank()) return@withContext null
+                    val retriever = MediaMetadataRetriever()
+                    try {
+                        retriever.setDataSource(
+                            song.uri.toString(),
+                            mapOf("Authorization" to "Bearer $token")
+                        )
+                        retriever.embeddedPicture?.let { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }
+                    } finally {
+                        retriever.release()
+                    }
+                } else {
+                    null
+                }
             } catch (_: Exception) {
                 null
             }
