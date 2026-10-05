@@ -4457,7 +4457,7 @@ class MainActivity : ComponentActivity() {
         var showMore by remember { mutableStateOf(false) }
 
         LazyColumn(
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
