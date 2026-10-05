@@ -8038,16 +8038,27 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 }
                             }
                         }
-                        Spacer(Modifier.height(10.dp))
+                        Spacer(Modifier.height(12.dp))
                         Row(
-                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            listOf("Tất cả", "YouTube", "Drive", "Nhạc online", "Yêu thích").forEach { tab ->
+                            listOf("Khám phá", "Xem sau", "Yêu thích").forEach { tab ->
                                 FilterChip(
-                                    selected = onlineHubTab == tab,
-                                    onClick = { onlineHubTab = tab },
-                                    label = { Text(tab, fontSize = 11.sp) }
+                                    selected = youtubeShelf == tab,
+                                    onClick = { youtubeShelf = tab },
+                                    label = {
+                                        Text(
+                                            when (tab) {
+                                                "Xem sau" -> "🔖 Xem sau • " + youtubeWatchLater.size
+                                                "Yêu thích" -> "♥ Yêu thích • " + youtubeFavoriteTracks.size
+                                                else -> "▶ Khám phá"
+                                            },
+                                            fontSize = 10.sp,
+                                            maxLines = 1
+                                        )
+                                    },
+                                    modifier = Modifier.weight(1f)
                                 )
                             }
                         }
@@ -8445,34 +8456,6 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 )
                             }
                         }
-                    }
-                }
-            }
-
-            item {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    FilterChip(
-                        selected = youtubeShelf == "Xem sau",
-                        onClick = { youtubeShelf = "Xem sau" },
-                        label = { Text("🔖 Xem sau • " + youtubeWatchLater.size, fontSize = 10.sp) },
-                        modifier = Modifier.weight(1f)
-                    )
-                    FilterChip(
-                        selected = youtubeShelf == "Yêu thích",
-                        onClick = { youtubeShelf = "Yêu thích" },
-                        label = { Text("♥ Yêu thích • " + youtubeFavoriteTracks.size, fontSize = 10.sp) },
-                        modifier = Modifier.weight(1f)
-                    )
-                    if (youtubeShelf != "Khám phá") {
-                        FilterChip(
-                            selected = false,
-                            onClick = { youtubeShelf = "Khám phá" },
-                            label = { Text("‹ Khám phá", fontSize = 10.sp) },
-                            modifier = Modifier.weight(1f)
-                        )
                     }
                 }
             }
