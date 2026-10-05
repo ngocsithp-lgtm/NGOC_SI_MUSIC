@@ -8567,18 +8567,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     }
                                 }
                             }
-
-                                            BitmapFactory.decodeByteArray(
-                                                picture, 0, picture.size
-                                            )?.asImageBitmap()
-                                        } else {
-                                            null
-                                        }
-                                    } finally {
-                                        retriever.release()
-                                    }
-                                }
-                            }
+                        }
                         } else {
                             null
                         }
