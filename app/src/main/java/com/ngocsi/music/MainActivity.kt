@@ -4706,6 +4706,8 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+    }
+
     @Composable
     private fun ProHomeControl(icon: String, onClick: () -> Unit) {
         Surface(
