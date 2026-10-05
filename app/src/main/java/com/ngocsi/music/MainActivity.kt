@@ -377,10 +377,9 @@ class MainActivity : ComponentActivity() {
     // Online thumbnails can be returned at much larger dimensions than the
     // small cards actually need. Keep a bounded bitmap cache and downsample on
     // decode to avoid repeated network work, RAM spikes, and scroll jank.
-    private val onlineArtworkCache = object : LruCache<String, android.graphics.Bitmap>(32) {
+    private val onlineArtworkCache = object : LruCache<String, android.graphics.Bitmap>(12 * 1024) {
         override fun sizeOf(key: String, value: android.graphics.Bitmap): Int =
             (value.byteCount / 1024).coerceAtLeast(1)
-        override val size = 12 * 1024
     }
     // Album covers are decoded off the UI thread, but cap concurrency so rapid
     // queue scrolling cannot compete with the audio decoder for CPU/I/O.
