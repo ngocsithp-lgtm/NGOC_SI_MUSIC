@@ -341,7 +341,6 @@ class MusicService : MediaSessionService() {
             if (token.isNotBlank()) {
                 cachedDriveToken = token
                 cachedDriveTokenAtMs = now
-                prefs.edit().putString("drive_access_token", token).apply()
             }
         }
     }
