@@ -4159,11 +4159,67 @@ class MainActivity : ComponentActivity() {
                 color = Color(0xFF08090D)
             ) {
                 Column(Modifier.fillMaxSize()) {
-                    Header()
-                    SearchBarModern()
-                    Spacer(Modifier.height(6.dp))
+                    if (selectedSection == "Trang chủ") {
+                        ProHomeScreen(
+                            currentSong = currentSong,
+                            libraryCount = songs.size,
+                            queueCount = queueSongs.size,
+                            isPlaying = isPlaying,
+                            position = position,
+                            duration = duration,
+                            onOpenLibrary = {
+                                selectedSection = "Thư viện"
+                                selectedLibrary = "Tất cả"
+                                libraryView = "Bài hát"
+                            },
+                            onOpenYouTube = {
+                                selectedSection = "Online"
+                                onlineHubTab = "YouTube"
+                            },
+                            onOpenRadio = {
+                                selectedSection = "Radio"
+                                showVietnamRadioHub = true
+                            },
+                            onOpenTv = { selectedSection = "TV" },
+                            onOpenDrive = {
+                                selectedSection = "Online"
+                                onlineHubTab = "Tất cả"
+                                errorMessage = "Google Drive: chọn File Drive hoặc Thư mục để nhập nhạc."
+                            },
+                            onOpenQueue = { showQueue = true },
+                            onOpenPlaylists = { showPlaylists = true },
+                            onOpenMap = { selectedSection = "Bản đồ" },
+                            onOpenSettings = { selectedSection = "Cài đặt" },
+                            onOpenPlayer = {
+                                if (currentSong != null) {
+                                    showNowPlaying = true
+                                } else {
+                                    selectedSection = "Thư viện"
+                                    selectedLibrary = "Tất cả"
+                                    libraryView = "Bài hát"
+                                    errorMessage = "Chưa có bài hát đang phát. Hãy chọn một bài hát để mở trình phát."
+                                }
+                            },
+                            onPrevious = ::previous,
+                            onTogglePlayback = {
+                                val c = controller
+                                when {
+                                    c == null -> errorMessage = "Trình phát đang khởi động, thử lại sau."
+                                    c.isPlaying -> c.pause()
+                                    currentIndex in songs.indices -> play(currentIndex)
+                                    songs.isNotEmpty() -> play(0)
+                                }
+                            },
+                            onNext = ::next,
+                            onSeek = { target -> controller?.seekTo(target.coerceAtLeast(0L)) },
+                            onOpenSleepTimer = { showSleepTimer = true }
+                        )
+                    } else {
+                        Header()
+                        SearchBarModern()
+                        Spacer(Modifier.height(6.dp))
 
-                    when (selectedSection) {
+                        when (selectedSection) {
                         "Trang chủ" -> {
                             LazyColumn(
                                 Modifier.weight(1f),
@@ -4351,8 +4407,9 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    currentSong?.let { MiniPlayer(it) }
-                    BottomNav()
+                        currentSong?.let { MiniPlayer(it) }
+                        BottomNav()
+                    }
                 }
             }
         }
@@ -4371,6 +4428,431 @@ class MainActivity : ComponentActivity() {
         if (showVietnamRadioHub) VietnamRadioHubDialog()
         if (showTvSourceDialog) TvSourceDialog()
         radioWebUrl?.let { RadioWebViewDialog(it, radioWebTitle) }
+    }
+
+    @Composable
+    private fun ProHomeScreen(
+        currentSong: Song?,
+        libraryCount: Int,
+        queueCount: Int,
+        isPlaying: Boolean,
+        position: Long,
+        duration: Long,
+        onOpenLibrary: () -> Unit,
+        onOpenYouTube: () -> Unit,
+        onOpenRadio: () -> Unit,
+        onOpenTv: () -> Unit,
+        onOpenDrive: () -> Unit,
+        onOpenQueue: () -> Unit,
+        onOpenPlaylists: () -> Unit,
+        onOpenMap: () -> Unit,
+        onOpenSettings: () -> Unit,
+        onOpenPlayer: () -> Unit,
+        onPrevious: () -> Unit,
+        onTogglePlayback: () -> Unit,
+        onNext: () -> Unit,
+        onSeek: (Long) -> Unit,
+        onOpenSleepTimer: () -> Unit
+    ) {
+        var showMore by remember { mutableStateOf(false) }
+
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            "NGỌC SĨ MUSIC",
+                            color = Color.White,
+                            fontSize = 23.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                        Text(
+                            "MUSIC • VIDEO • RADIO",
+                            color = Color(0xFF858B9C),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.15.sp
+                        )
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(50),
+                        color = Color(0xFF132633),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF28586A))
+                    ) {
+                        Text(
+                            "PRO",
+                            color = Color(0xFF91ECFF),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Black,
+                            modifier = Modifier.padding(horizontal = 11.dp, vertical = 6.dp)
+                        )
+                    }
+                }
+            }
+
+            item {
+                Surface(
+                    modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenPlayer),
+                    shape = RoundedCornerShape(24.dp),
+                    color = Color.Transparent
+                ) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(
+                                        Color(0xFF17253A),
+                                        Color(0xFF15172A),
+                                        Color(0xFF231A37)
+                                    )
+                                ),
+                                RoundedCornerShape(24.dp)
+                            )
+                            .padding(16.dp)
+                    ) {
+                        Column {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Surface(
+                                    modifier = Modifier.size(78.dp),
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = Color(0xFF202E48),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF3F587D))
+                                ) {
+                                    if (currentSong != null) {
+                                        SongArtwork(currentSong, Modifier.fillMaxSize())
+                                    } else {
+                                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                            Text("♫", color = Color(0xFF9EEFFF), fontSize = 34.sp)
+                                        }
+                                    }
+                                }
+
+                                Spacer(Modifier.width(12.dp))
+
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        "ĐANG PHÁT",
+                                        color = Color(0xFF8CEBFF),
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Black,
+                                        letterSpacing = 1.4.sp
+                                    )
+                                    Spacer(Modifier.height(3.dp))
+                                    Text(
+                                        currentSong?.title ?: "Chưa phát nhạc",
+                                        color = Color.White,
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        currentSong?.artist ?: "Chạm để mở thư viện",
+                                        color = Color(0xFFA6ABBA),
+                                        fontSize = 11.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    if (currentSong != null) {
+                                        Spacer(Modifier.height(4.dp))
+                                        Text(
+                                            currentSong.source,
+                                            color = Color(0xFF777F91),
+                                            fontSize = 9.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(Modifier.height(8.dp))
+
+                            if (duration > 0L) {
+                                Slider(
+                                    value = position.coerceIn(0L, duration).toFloat(),
+                                    onValueChange = { onSeek(it.toLong()) },
+                                    valueRange = 0f..duration.toFloat(),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Row(
+                                    Modifier.fillMaxWidth().padding(horizontal = 2.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(formatTime(position), color = Color(0xFF7E8494), fontSize = 10.sp)
+                                    Text(formatTime(duration), color = Color(0xFF7E8494), fontSize = 10.sp)
+                                }
+                            }
+
+                            Spacer(Modifier.height(4.dp))
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceAround,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                ProHomeControl("⏮", onPrevious)
+                                Surface(
+                                    modifier = Modifier.size(54.dp).clickable(onClick = onTogglePlayback),
+                                    shape = CircleShape,
+                                    color = Color(0xFF8DEEFF),
+                                    shadowElevation = 7.dp
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            if (isPlaying) "⏸" else "▶",
+                                            color = Color(0xFF061018),
+                                            fontSize = 22.sp,
+                                            fontWeight = FontWeight.Black
+                                        )
+                                    }
+                                }
+                                ProHomeControl("⏭", onNext)
+                            }
+                        }
+                    }
+                }
+            }
+
+            item {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ProHomeQuickTile("♫", "Thư viện", onOpenLibrary, Modifier.weight(1f))
+                    ProHomeQuickTile("▶", "YouTube", onOpenYouTube, Modifier.weight(1f))
+                    ProHomeQuickTile("◉", "Radio", onOpenRadio, Modifier.weight(1f))
+                    ProHomeQuickTile("▣", "TV", onOpenTv, Modifier.weight(1f))
+                }
+            }
+
+            item {
+                Surface(
+                    modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenQueue),
+                    shape = RoundedCornerShape(18.dp),
+                    color = Color(0xFF0D1118),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF202632))
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("☷", color = Color(0xFFB796FF), fontSize = 19.sp)
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("HÀNG ĐỢI", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Black)
+                            Text(
+                                "$queueCount bài đang chờ • chạm để quản lý",
+                                color = Color(0xFF777E8D),
+                                fontSize = 9.sp
+                            )
+                        }
+                        Text("›", color = Color(0xFF9DEFFF), fontSize = 23.sp)
+                    }
+                }
+            }
+
+            item {
+                Text(
+                    "TRUY CẬP NHANH",
+                    color = Color(0xFF858B9C),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 1.2.sp
+                )
+                Spacer(Modifier.height(7.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ProHomeUtilityTile("☁", "Drive", onOpenDrive, Modifier.weight(1f))
+                    ProHomeUtilityTile("♬", "Playlist", onOpenPlaylists, Modifier.weight(1f))
+                    ProHomeUtilityTile("⌖", "Bản đồ", onOpenMap, Modifier.weight(1f))
+                    ProHomeUtilityTile("⏱", "Hẹn giờ", onOpenSleepTimer, Modifier.weight(1f))
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ProHomeUtilityTile("⚙", "Cài đặt", onOpenSettings, Modifier.weight(1f))
+                    ProHomeUtilityTile("▶", "Player", onOpenPlayer, Modifier.weight(1f))
+                    ProHomeUtilityTile("▣", "TV", onOpenTv, Modifier.weight(1f))
+                    ProHomeUtilityTile("♫", "$libraryCount bài", onOpenLibrary, Modifier.weight(1f))
+                }
+            }
+
+            item {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    color = Color(0xFF10131A)
+                ) {
+                    Text(
+                        "NGỌC SĨ MUSIC 5.9 PRO • Một giao diện, mọi nguồn nhạc",
+                        color = Color(0xFF777E8D),
+                        fontSize = 10.sp,
+                        modifier = Modifier.padding(horizontal = 13.dp, vertical = 11.dp)
+                    )
+                }
+            }
+        }
+
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = Color(0xFF0B0D12),
+            tonalElevation = 8.dp,
+            shadowElevation = 8.dp
+        ) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 7.dp),
+                horizontalArrangement = Arrangement.SpaceAround,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                ProHomeNavItem("⌂", "Trang chủ", true) { }
+                ProHomeNavItem("♫", "Nhạc", false, onOpenLibrary)
+                ProHomeNavItem("▶", "YouTube", false, onOpenYouTube)
+                ProHomeNavItem("◉", "Radio", false, onOpenRadio)
+                ProHomeNavItem("＋", "Thêm", showMore) { showMore = !showMore }
+            }
+        }
+
+        if (showMore) {
+            // Keep the extra actions compact and close to the navigation bar.
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = Color(0xFF10131A),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF202632))
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    ProHomeNavChip("Drive", onOpenDrive, Modifier.weight(1f))
+                    ProHomeNavChip("Queue", onOpenQueue, Modifier.weight(1f))
+                    ProHomeNavChip("Playlist", onOpenPlaylists, Modifier.weight(1f))
+                    ProHomeNavChip("Map", onOpenMap, Modifier.weight(1f))
+                    ProHomeNavChip("Cài đặt", onOpenSettings, Modifier.weight(1f))
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun ProHomeControl(icon: String, onClick: () -> Unit) {
+        Surface(
+            modifier = Modifier.size(44.dp).clickable(onClick = onClick),
+            shape = CircleShape,
+            color = Color(0xFF111721)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Text(icon, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+
+    @Composable
+    private fun ProHomeQuickTile(
+        icon: String,
+        title: String,
+        onClick: () -> Unit,
+        modifier: Modifier = Modifier
+    ) {
+        Surface(
+            modifier = modifier.clickable(onClick = onClick),
+            shape = RoundedCornerShape(15.dp),
+            color = Color(0xFF10151D),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF202938))
+        ) {
+            Column(
+                Modifier.padding(vertical = 10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(icon, color = Color(0xFF9FEFFF), fontSize = 18.sp)
+                Spacer(Modifier.height(4.dp))
+                Text(title, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+
+    @Composable
+    private fun ProHomeUtilityTile(
+        icon: String,
+        title: String,
+        onClick: () -> Unit,
+        modifier: Modifier = Modifier
+    ) {
+        Surface(
+            modifier = modifier.clickable(onClick = onClick),
+            shape = RoundedCornerShape(14.dp),
+            color = Color(0xFF0F131B),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1F2733))
+        ) {
+            Column(
+                Modifier.padding(horizontal = 6.dp, vertical = 9.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(icon, color = Color(0xFFB796FF), fontSize = 16.sp)
+                Spacer(Modifier.height(4.dp))
+                Text(title, color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            }
+        }
+    }
+
+    @Composable
+    private fun ProHomeNavItem(
+        icon: String,
+        label: String,
+        selected: Boolean,
+        onClick: () -> Unit
+    ) {
+        Column(
+            modifier = Modifier
+                .clip(RoundedCornerShape(14.dp))
+                .clickable(onClick = onClick)
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                icon,
+                color = if (selected) Color(0xFF8DEEFF) else Color(0xFF717786),
+                fontSize = 17.sp,
+                fontWeight = if (selected) FontWeight.Black else FontWeight.Normal
+            )
+            Spacer(Modifier.height(1.dp))
+            Text(
+                label,
+                color = if (selected) Color.White else Color(0xFF717786),
+                fontSize = 8.sp,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+            )
+        }
+    }
+
+    @Composable
+    private fun ProHomeNavChip(
+        title: String,
+        onClick: () -> Unit,
+        modifier: Modifier = Modifier
+    ) {
+        Surface(
+            modifier = modifier.clickable(onClick = onClick),
+            shape = RoundedCornerShape(12.dp),
+            color = Color(0xFF171B24)
+        ) {
+            Text(
+                title,
+                color = Color(0xFFD7D9E1),
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 7.dp, vertical = 8.dp),
+                maxLines = 1
+            )
+        }
     }
 
     @Composable
