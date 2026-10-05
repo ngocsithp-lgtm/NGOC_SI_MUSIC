@@ -216,6 +216,16 @@ class MainActivity : ComponentActivity() {
     // Active playback duration reported by Media3; used by the main progress ticker.
     private var duration by mutableLongStateOf(0L)
     private var errorMessage by mutableStateOf<String?>(null)
+    private fun playbackErrorSummary(error: androidx.media3.common.PlaybackException): String {
+        var cause: Throwable? = error
+        repeat(6) {
+            val message = cause?.message?.trim().orEmpty()
+            if (message.isNotBlank()) return message.take(180)
+            cause = cause?.cause
+        }
+        return error.errorCodeName.takeIf { it.isNotBlank() } ?: "Không xác định"
+    }
+
     private val playerListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlayingNow: Boolean) {
             isPlaying = isPlayingNow
