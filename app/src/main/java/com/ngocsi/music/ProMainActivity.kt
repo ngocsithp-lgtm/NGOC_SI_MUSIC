@@ -1,6 +1,4 @@
-@file:SuppressLint("all")
-
-import android.annotation.SuppressLint
+@file:Suppress("all")
 
 package com.ngocsi.music
 
