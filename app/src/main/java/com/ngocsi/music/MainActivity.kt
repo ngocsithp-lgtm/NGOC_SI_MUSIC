@@ -1019,7 +1019,6 @@ class MainActivity : ComponentActivity() {
             val (result, hasSavedQueue, savedQueueOrder) = loaded.getOrThrow()
 
             withContext(Dispatchers.Main) {
-                if (!isActive) return@withContext
                 songs.clear()
                 songs.addAll(result)
 
