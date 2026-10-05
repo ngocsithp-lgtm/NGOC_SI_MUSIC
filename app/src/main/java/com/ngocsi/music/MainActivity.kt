@@ -1452,7 +1452,7 @@ class MainActivity : ComponentActivity() {
         root.put("version", 1)
         root.put("recentLinks", org.json.JSONArray(driveRecentLinks))
         root.put("sharedItems", org.json.JSONArray().apply {
-            loadSharedDriveItems().distinctBy { it.id }.forEach { item ->
+            loadSharedDriveItems().distinctBy(::sharedDriveIdentity).forEach { item ->
                 put(org.json.JSONObject().apply {
                     put("id", item.id)
                     put("name", item.name)
@@ -2047,7 +2047,7 @@ class MainActivity : ComponentActivity() {
                         pageToken = json.optString("nextPageToken").ifBlank { null }
                     } while (!pageToken.isNullOrBlank())
 
-                    collected.distinctBy { it.id }
+                    collected.distinctBy(::sharedDriveIdentity)
                 }.getOrElse { throw it }
             }
 
@@ -2283,17 +2283,22 @@ class MainActivity : ComponentActivity() {
 
     private suspend fun addSharedDriveItemToLibrary(item: SharedDriveItem, playNow: Boolean = false) {
         val token = driveOAuthManager.accessToken() ?: run { signInGoogleDrive(); return }
-        val uri = sharedDriveMediaUri(item, "")
-        val existing = songs.firstOrNull { it.uri == uri }
+        val sourceName = item.sourceName.trim().ifBlank {
+            driveBrowserTitle.trim().ifBlank { "Chia sẻ • " + item.name }
+        }
+        val songSource = driveSongSource(sourceName)
+        val existing = songs.firstOrNull { it.uri == uri && it.source == songSource }
         val song = existing ?: Song(
-            -kotlin.math.abs(uri.toString().hashCode().toLong()),
+            -kotlin.math.abs((uri.toString() + "::" + songSource).hashCode().toLong()),
             item.name.substringBeforeLast(".").ifBlank { item.name },
-            "Google Drive", 0L, uri, "Google Drive", folder = driveBrowserTitle
+            songSource, 0L, uri, songSource, folder = sourceName
         )
         if (existing == null) {
             songs.add(song)
-            if (queueSongs.none { it.uri == song.uri }) queueSongs.add(song)
-            saveSharedDriveItems(loadSharedDriveItems().filterNot { it.id == item.id } + item)
+            saveSharedDriveItems(
+                loadSharedDriveItems()
+                    .filterNot { sharedDriveIdentity(it) == sharedDriveIdentity(item) } + item
+            )
         }
         securePrefs.edit().putString("drive_access_token", token).apply()
         syncControllerQueue()
@@ -2319,22 +2324,25 @@ class MainActivity : ComponentActivity() {
         var addedCount = 0
         var existingCount = 0
 
-        items.distinctBy { it.id }.forEach { item ->
+        items.distinctBy(::sharedDriveIdentity).forEach { item ->
             val uri = sharedDriveMediaUri(item, "")
-            if (songs.any { it.uri == uri }) {
+            val sourceName = item.sourceName.trim().ifBlank {
+                driveBrowserTitle.trim().ifBlank { "Chia sẻ • " + item.name }
+            }
+            val songSource = driveSongSource(sourceName)
+            if (songs.any { it.uri == uri && it.source == songSource }) {
                 existingCount++
             } else {
                 songs.add(
                     Song(
-                        -kotlin.math.abs(uri.toString().hashCode().toLong()),
+                        -kotlin.math.abs((uri.toString() + "::" + songSource).hashCode().toLong()),
                         item.name.substringBeforeLast(".").ifBlank { item.name },
-                        "Google Drive", 0L, uri, "Google Drive", folder = driveBrowserTitle
+                        songSource, 0L, uri, songSource, folder = sourceName
                     )
                 )
-                if (queueSongs.none { it.uri == uri }) queueSongs.add(songs.last())
                 addedCount++
             }
-            if (savedIds.add(item.id)) savedItems.add(item)
+            if (savedIds.add(sharedDriveIdentity(item))) savedItems.add(item)
         }
 
         securePrefs.edit().putString("drive_access_token", token).apply()
@@ -2440,26 +2448,28 @@ class MainActivity : ComponentActivity() {
 
             result.onSuccess { items ->
                 val sourceName = items.firstOrNull()?.sourceName.orEmpty().ifBlank { "Nguồn Drive chia sẻ" }
-                val currentUris = songs.map { it.uri.toString() }.toMutableSet()
+                val currentUris = songs.map { it.uri.toString() + "::" + it.source }.toMutableSet()
                 val savedItems = loadSharedDriveItems().toMutableList()
                 var added = 0
 
                 items.forEach { item ->
                     val uri = sharedDriveMediaUri(item, apiKey)
                     val raw = uri.toString()
-                    if (!currentUris.add(raw)) return@forEach
+                    val songSource = driveSongSource(sourceName)
+                    val songKey = raw + "::" + songSource
+                    if (!currentUris.add(songKey)) return@forEach
 
                     val song = Song(
-                        id = -kotlin.math.abs(raw.hashCode().toLong()),
+                        id = -kotlin.math.abs(songKey.hashCode().toLong()),
                         title = item.name.substringBeforeLast(".").ifBlank { item.name },
-                        artist = driveSongSource(sourceName),
+                        artist = songSource,
                         duration = 0L,
                         uri = uri,
-                        source = driveSongSource(sourceName),
+                        source = songSource,
                         folder = sourceName
                     )
                     songs.add(song)
-                    savedItems.removeAll { it.id == item.id }
+                    savedItems.removeAll { sharedDriveIdentity(it) == sharedDriveIdentity(item) }
                     savedItems.add(item)
                     added++
                 }
