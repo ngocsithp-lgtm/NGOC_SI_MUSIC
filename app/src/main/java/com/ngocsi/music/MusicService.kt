@@ -41,9 +41,6 @@ class MusicService : MediaSessionService() {
     private val prefs by lazy { getSharedPreferences("ngoc_si_music", MODE_PRIVATE) }
     private val widgetTicker = object : Runnable {
         override fun run() {
-            // Position persistence is intentionally lightweight. The old path
-            // serialized the entire queue to JSON every 2 seconds, which could
-            // stall the service when a large queue was active.
             savePlaybackPosition()
             broadcastWidget()
             if (player.isPlaying) widgetHandler.postDelayed(this, 5_000L)
@@ -66,15 +63,7 @@ class MusicService : MediaSessionService() {
                 savePlaybackState()
                 broadcastWidget()
             }
-
-            // No need to wake the main looper every second. Schedule the next
-            // check close to the actual deadline, with a 30-second idle interval.
-            val delayMs = if (endAt > System.currentTimeMillis()) {
-                (endAt - System.currentTimeMillis()).coerceIn(1_000L, 30_000L)
-            } else {
-                30_000L
-            }
-            widgetHandler.postDelayed(this, delayMs)
+            widgetHandler.postDelayed(this, 1000L)
         }
     }
 
@@ -154,9 +143,6 @@ class MusicService : MediaSessionService() {
 
     private val playerListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
-            // Player callbacks are delivered on the player's application looper.
-            // MusicService creates the player on the main looper, so avoid an
-            // extra Handler hop for every playback event.
             savePlaybackPosition()
             broadcastWidget()
             widgetHandler.removeCallbacks(widgetTicker)
@@ -169,7 +155,6 @@ class MusicService : MediaSessionService() {
         }
 
         override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
-            // Queue structure/timeline changed: persist the queue snapshot once.
             savePlaybackState()
         }
 
@@ -239,22 +224,11 @@ class MusicService : MediaSessionService() {
         // content:// (SAF/Drive provider) and https:// (online/Drive REST) media.
         val mediaDataSourceFactory = DefaultDataSource.Factory(this, driveAwareHttpFactory)
 
-        // Tune buffering separately for local files and network streams.
-        // Local playback should stay responsive and avoid unnecessary buffering,
-        // while remote audio gets a deeper rebuffer cushion for unstable networks.
+        // Separate local and streaming buffering so local/Drive files stay
+        // responsive while network audio has a deeper rebuffer cushion.
         val loadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMsForLocalPlayback(
-                5_000,
-                50_000,
-                500,
-                1_000
-            )
-            .setBufferDurationsMsForStreaming(
-                20_000,
-                90_000,
-                1_500,
-                4_000
-            )
+            .setBufferDurationsMsForLocalPlayback(5_000, 50_000, 500, 1_000)
+            .setBufferDurationsMsForStreaming(20_000, 90_000, 1_500, 4_000)
             .setPrioritizeTimeOverSizeThresholdsForLocalPlayback(false)
             .setPrioritizeTimeOverSizeThresholdsForStreaming(true)
             .build()
@@ -352,7 +326,31 @@ class MusicService : MediaSessionService() {
     private fun refreshDriveTokenBlocking(forceRefresh: Boolean = false): String {
         val now = System.currentTimeMillis()
         val cached = cachedDriveToken
-        if (!forceRefresh && cached.isNotBla    private fun savePlaybackPosition() {
+        if (!forceRefresh && cached.isNotBlank() && now - cachedDriveTokenAtMs < DRIVE_TOKEN_CACHE_MS) {
+            return cached
+        }
+
+        val account = GoogleSignIn.getLastSignedInAccount(this)?.account ?: return cached
+        return runCatching {
+            GoogleAuthUtil.getToken(
+                this,
+                account,
+                "oauth2:https://www.googleapis.com/auth/drive.readonly"
+            )
+        }.getOrNull().orEmpty().also { token ->
+            if (token.isNotBlank()) {
+                cachedDriveToken = token
+                cachedDriveTokenAtMs = now
+                prefs.edit().putString("drive_access_token", token).apply()
+            }
+        }
+    }
+
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession {
+        return mediaSession
+    }
+
+    private fun savePlaybackPosition() {
         val mediaItem = player.currentMediaItem ?: return
         val uri = mediaItem.localConfiguration?.uri?.toString() ?: return
 
@@ -364,6 +362,8 @@ class MusicService : MediaSessionService() {
             .putFloat("playback_speed", player.playbackParameters.speed)
             .apply()
     }
+
+    private var lastPersistedQueueSignature: String? = null
 
     private fun buildQueueSignature(): String {
         return buildString {
@@ -383,8 +383,6 @@ class MusicService : MediaSessionService() {
             }
         }
     }
-
-    private var lastPersistedQueueSignature: String? = null
 
     private fun saveQueueSnapshotIfChanged() {
         val signature = buildQueueSignature()
@@ -426,9 +424,6 @@ class MusicService : MediaSessionService() {
     }
 
     private fun savePlaybackState() {
-        // Full queue persistence is reserved for structural player changes.
-        // Position-only updates use savePlaybackPosition() to avoid repeated
-        // JSON serialization while audio is continuously playing.
         savePlaybackPosition()
         saveQueueSnapshotIfChanged()
     }
