@@ -69,6 +69,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.MediaItem
@@ -6108,7 +6110,6 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 settings.javaScriptEnabled = true
                                 settings.domStorageEnabled = true
                                 settings.loadsImagesAutomatically = true
-                                settings.databaseEnabled = true
                                 settings.userAgentString =
                                     "Mozilla/5.0 (Linux; Android 16; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36"
                                 settings.useWideViewPort = true
@@ -6168,7 +6169,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                                 android.view.ViewGroup.LayoutParams.MATCH_PARENT
                                             )
                                         )
-                                        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN)
+                                        WindowCompat.getInsetsController(window, decor).hide(WindowInsetsCompat.Type.systemBars())
                                     }
 
                                     override fun onHideCustomView() {
@@ -6178,7 +6179,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         customView = null
                                         customViewCallback?.onCustomViewHidden()
                                         customViewCallback = null
-                                        window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN)
+                                        WindowCompat.getInsetsController(window, window.decorView).show(WindowInsetsCompat.Type.systemBars())
                                     }
 
                                     override fun onPermissionRequest(request: android.webkit.PermissionRequest) {
@@ -8554,6 +8555,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         }
     }
 
+    @Suppress("DEPRECATION")
     private suspend fun loadArtworkBitmap(song: Song?): androidx.compose.ui.graphics.ImageBitmap? {
         if (song == null) return null
         val cacheKey = artworkCacheKey(song)
