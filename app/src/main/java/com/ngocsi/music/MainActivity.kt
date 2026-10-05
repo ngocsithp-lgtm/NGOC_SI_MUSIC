@@ -290,6 +290,7 @@ class MainActivity : ComponentActivity() {
     private var youtubeSearchJob: Job? = null
     private var driveImportJob: Job? = null
     private var artworkPrefetchJob: Job? = null
+    private var songsLoadJob: Job? = null
     private val driveSyncMutex = Mutex()
     private var lastSongUri by mutableStateOf<String?>(null)
     private var savedPosition by mutableLongStateOf(0L)
@@ -867,6 +868,7 @@ class MainActivity : ComponentActivity() {
     private fun loadSongs() {
         songsLoadJob?.cancel()
         songsLoadJob = lifecycleScope.launch {
+            val thisLoadJob = kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]
             try {
                 val (result, hasSavedQueue, savedQueueOrder) = withContext(Dispatchers.IO) {
                     val result = mutableListOf<Song>()
@@ -1095,7 +1097,12 @@ class MainActivity : ComponentActivity() {
                             if (savedPosition > 0L) c.seekTo(savedPosition)
                         }
                     } else if (c.mediaItemCount > 0) {
-                        if (!isControllerQueueInSync(c)) {
+                        // The MediaSession service is authoritative when playback
+                        // already exists. During an Activity restart, Drive/OAuth
+                        // restoration can temporarily leave queueSongs empty; never
+                        // clear an active service queue just because the local library
+                        // has not finished reconstructing it.
+                        if (queueSongs.isNotEmpty() && !isControllerQueueInSync(c)) {
                             syncControllerQueue()
                         }
 
@@ -1123,7 +1130,8 @@ class MainActivity : ComponentActivity() {
                 errorMessage = "Không thể quét thư viện nhạc: " +
                     (e.message?.take(180) ?: "lỗi không xác định")
             } finally {
-                if (songsLoadJob?.isCompleted == true) {
+                // Do not let a canceled older load clear a newer load's job handle.
+                if (songsLoadJob === thisLoadJob) {
                     songsLoadJob = null
                 }
             }
