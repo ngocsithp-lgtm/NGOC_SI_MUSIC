@@ -37,7 +37,7 @@ Android music player built with Kotlin, Jetpack Compose and AndroidX Media3.
 
 ## Google Drive / OAuth Android
 
-APK 5.8 PRO hiện được GitHub Actions ký bằng chứng thư ổn định với SHA-1:
+APK 5.9 PRO hiện được GitHub Actions ký bằng chứng thư ổn định với SHA-1:
 
 **53:3F:A1:9C:58:A4:0D:92:66:8F:96:29:6E:7D:B3:4D:69:6A:ED**
 
@@ -48,9 +48,15 @@ Trong Google Cloud Console, Android OAuth 2.0 Client phải dùng đúng cặp:
 
 Không dùng SHA-1 của debug keystore khác cho APK tải từ GitHub Release. Các chứng thư khác nhau cần Android OAuth client tương ứng.
 
-Drive API cần được bật trong cùng Google Cloud project. App sử dụng scope đọc Drive:
+Drive API cần được bật trong cùng Google Cloud project. App sử dụng hai scope Drive đúng với chức năng hiện tại:
 
 `https://www.googleapis.com/auth/drive.readonly`
+
+`https://www.googleapis.com/auth/drive.appdata`
+
+`drive.readonly` dùng để đọc/tải các tệp Drive mà tài khoản được phép truy cập; `drive.appdata` dùng để lưu cấu hình nguồn của NGỌC SĨ MUSIC trong `appDataFolder`.
+
+Trong Google Cloud Console, mục **Data Access** phải có đúng hai scope trên. Nếu project đang ở chế độ Testing, tài khoản Google dùng để thử phải nằm trong **Test users**.
 
 Sau khi OAuth client khớp package + SHA-1, màn hình đăng nhập Google Drive mới có thể hoàn tất luồng cấp quyền Drive.
 
@@ -100,7 +106,7 @@ GitHub Actions chạy tự động:
 
 Artifact chuẩn:
 
-**NGOC_SI_MUSIC_5.8_PRO_DEBUG_APK**
+**NGOC_SI_MUSIC_5.9_PRO_DEBUG_APK**
 
 ## YouTube
 
