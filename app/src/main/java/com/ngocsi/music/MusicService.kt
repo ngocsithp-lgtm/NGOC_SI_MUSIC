@@ -41,9 +41,12 @@ class MusicService : MediaSessionService() {
     private val prefs by lazy { getSharedPreferences("ngoc_si_music", MODE_PRIVATE) }
     private val widgetTicker = object : Runnable {
         override fun run() {
-            savePlaybackState()
+            // Position persistence is intentionally lightweight. The old path
+            // serialized the entire queue to JSON every 2 seconds, which could
+            // stall the service when a large queue was active.
+            savePlaybackPosition()
             broadcastWidget()
-            if (player.isPlaying) widgetHandler.postDelayed(this, 2000L)
+            if (player.isPlaying) widgetHandler.postDelayed(this, 5_000L)
         }
     }
 
@@ -143,50 +146,46 @@ class MusicService : MediaSessionService() {
 
     private val playerListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
-            widgetHandler.post {
-                savePlaybackState()
-                broadcastWidget()
-                widgetHandler.removeCallbacks(widgetTicker)
-                if (isPlaying) widgetHandler.postDelayed(widgetTicker, 2000L)
-            }
+            // Player callbacks are delivered on the player's application looper.
+            // MusicService creates the player on the main looper, so avoid an
+            // extra Handler hop for every playback event.
+            savePlaybackPosition()
+            broadcastWidget()
+            widgetHandler.removeCallbacks(widgetTicker)
+            if (isPlaying) widgetHandler.postDelayed(widgetTicker, 5_000L)
         }
 
         override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
-            widgetHandler.post {
-                savePlaybackState()
-                broadcastWidget()
-            }
+            savePlaybackState()
+            broadcastWidget()
+        }
+
+        override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
+            // Queue structure/timeline changed: persist the queue snapshot once.
+            savePlaybackState()
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
-            widgetHandler.post {
-                savePlaybackState()
-                broadcastWidget()
-            }
+            savePlaybackPosition()
+            broadcastWidget()
         }
 
         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-            widgetHandler.post {
-                if (isDriveAuthorizationError(error) && !driveRecoveryInProgress) {
-                    recoverDrivePlayback()
-                }
-                savePlaybackState()
-                broadcastWidget()
+            if (isDriveAuthorizationError(error) && !driveRecoveryInProgress) {
+                recoverDrivePlayback()
             }
+            savePlaybackPosition()
+            broadcastWidget()
         }
 
         override fun onMediaMetadataChanged(mediaMetadata: androidx.media3.common.MediaMetadata) {
-            widgetHandler.post {
-                savePlaybackState()
-                broadcastWidget()
-            }
+            savePlaybackState()
+            broadcastWidget()
         }
 
         override fun onPlaybackParametersChanged(playbackParameters: androidx.media3.common.PlaybackParameters) {
-            widgetHandler.post {
-                savePlaybackState()
-                broadcastWidget()
-            }
+            savePlaybackPosition()
+            broadcastWidget()
         }
 
         override fun onPositionDiscontinuity(
@@ -194,10 +193,8 @@ class MusicService : MediaSessionService() {
             newPosition: Player.PositionInfo,
             reason: Int
         ) {
-            widgetHandler.post {
-                savePlaybackState()
-                broadcastWidget()
-            }
+            savePlaybackPosition()
+            broadcastWidget()
         }
     }
 
@@ -320,42 +317,58 @@ class MusicService : MediaSessionService() {
         }
     }
 
-    private fun refreshDriveTokenBlocking(): String {
-        val account = GoogleSignIn.getLastSignedInAccount(this)?.account ?: return ""
-        return runCatching {
-            GoogleAuthUtil.getToken(
-                this,
-                account,
-                "oauth2:https://www.googleapis.com/auth/drive.readonly"
-            )
-        }.getOrNull().orEmpty().also { token ->
-            if (token.isNotBlank()) {
-                prefs.edit().putString("drive_access_token", token).apply()
+    @Volatile
+    private var cachedDriveToken: String = ""
+
+    @Volatile
+    private var cachedDriveTokenAtMs: Long = 0L
+
+    private companion object {
+        const val DRIVE_TOKEN_CACHE_MS = 45L * 60L * 1000L
+    }
+
+    private fun refreshDriveTokenBlocking(forceRefresh: Boolean = false): String {
+        val now = System.currentTimeMillis()
+        val cached = cachedDriveToken
+        if (!forceRefresh && cached.isNotBla    private fun savePlaybackPosition() {
+        val mediaItem = player.currentMediaItem ?: return
+        val uri = mediaItem.localConfiguration?.uri?.toString() ?: return
+
+        prefs.edit()
+            .putString("last_song_uri", uri)
+            .putLong("last_position", player.currentPosition.coerceAtLeast(0L))
+            .putBoolean("shuffle", player.shuffleModeEnabled)
+            .putInt("repeat", player.repeatMode)
+            .putFloat("playback_speed", player.playbackParameters.speed)
+            .apply()
+    }
+
+    private fun buildQueueSignature(): String {
+        return buildString {
+            for (index in 0 until player.mediaItemCount) {
+                val item = player.getMediaItemAt(index)
+                val md = item.mediaMetadata
+                append(item.mediaId)
+                append('\u0000')
+                append(item.localConfiguration?.uri?.toString().orEmpty())
+                append('\u0000')
+                append(md.title?.toString().orEmpty())
+                append('\u0000')
+                append(md.artist?.toString().orEmpty())
+                append('\u0000')
+                append(md.artworkUri?.toString().orEmpty())
+                append('\n')
             }
         }
     }
 
-    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession {
-        return mediaSession
-    }
+    private var lastPersistedQueueSignature: String? = null
 
-    private fun savePlaybackState() {
-        val mediaItem = player.currentMediaItem
-        val uri = mediaItem?.localConfiguration?.uri?.toString()
-
-        // Keep the service-side resumption snapshot authoritative as well.
-        // This matters when playback is controlled from the lock screen, headset,
-        // car controls, or after the Activity has already left the foreground.
-        val editor = prefs.edit()
-        if (uri != null) {
-            editor.putString("last_song_uri", uri)
-                .putLong("last_position", player.currentPosition.coerceAtLeast(0L))
-        }
+    private fun saveQueueSnapshotIfChanged() {
+        val signature = buildQueueSignature()
+        if (signature == lastPersistedQueueSignature) return
 
         if (player.mediaItemCount > 0) {
-            // Persist the queue only when it still contains real media items.
-            // Keeping the snapshot service-side makes screen-off/lock-screen
-            // controls recoverable even when the Activity is no longer alive.
             val queueUris = buildString {
                 for (index in 0 until player.mediaItemCount) {
                     if (index > 0) append('\n')
@@ -376,17 +389,26 @@ class MusicService : MediaSessionService() {
                     }
                 )
             }
-            editor.putString("queue_order", queueUris)
+            prefs.edit()
+                .putString("queue_order", queueUris)
                 .putString("queue_metadata", metadata.toString())
+                .apply()
         } else {
-            editor.remove("queue_order")
+            prefs.edit()
+                .remove("queue_order")
                 .remove("queue_metadata")
+                .apply()
         }
 
-        editor.putBoolean("shuffle", player.shuffleModeEnabled)
-            .putInt("repeat", player.repeatMode)
-            .putFloat("playback_speed", player.playbackParameters.speed)
-            .apply()
+        lastPersistedQueueSignature = signature
+    }
+
+    private fun savePlaybackState() {
+        // Full queue persistence is reserved for structural player changes.
+        // Position-only updates use savePlaybackPosition() to avoid repeated
+        // JSON serialization while audio is continuously playing.
+        savePlaybackPosition()
+        saveQueueSnapshotIfChanged()
     }
 
     private fun broadcastWidget() {
