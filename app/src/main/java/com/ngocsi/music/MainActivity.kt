@@ -302,7 +302,6 @@ class MainActivity : ComponentActivity() {
     private val favorites = mutableStateMapOf<Long, Boolean>()
     private lateinit var prefs: SharedPreferences
     private lateinit var driveSourcePrefs: SharedPreferences
-    private lateinit var securePrefs: SharedPreferences
     private lateinit var playlistStore: PlaylistStore
     private val playlists = mutableStateListOf<MusicPlaylist>()
     // Artwork cache is album-first: one decoded cover is shared by every song
@@ -650,7 +649,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
         driveSourcePrefs = getSharedPreferences("ngocsi_music_drive_sources", MODE_PRIVATE)
-        securePrefs = getSharedPreferences("ngocsi_music_secure", MODE_PRIVATE)
         migrateDrivePersistence()
         driveOAuthManager = DriveOAuthManager(this)
         driveOAuthSignedIn = driveOAuthManager.isSignedIn()
@@ -908,8 +906,7 @@ class MainActivity : ComponentActivity() {
         // Rehydrate files previously linked from a Google Drive sharing URL.
         val sharedItems = loadSharedDriveItems()
         val sharedApiKey = driveApiKey()
-        val sharedAccessToken = securePrefs.getString("drive_access_token", "").orEmpty()
-        if (sharedItems.isNotEmpty() && (sharedApiKey.isNotBlank() || sharedAccessToken.isNotBlank())) {
+        if (sharedItems.isNotEmpty() && (sharedApiKey.isNotBlank() || driveOAuthSignedIn))
             sharedItems.forEach { item ->
                 val uri = sharedDriveMediaUri(item, sharedApiKey)
                 val raw = uri.toString()
@@ -1147,7 +1144,6 @@ class MainActivity : ComponentActivity() {
                     signInGoogleDrive()
                     return@launch
                 }
-                securePrefs.edit().putString("drive_access_token", token).apply()
                 play(index, driveTokenReady = true)
             }
             return
@@ -2077,7 +2073,6 @@ class MainActivity : ComponentActivity() {
                 runCatching {
                     val accessToken = driveOAuthManager.accessToken()
                         ?: error("Không lấy được quyền truy cập Google Drive. Hãy đăng nhập lại.")
-                    securePrefs.edit().putString("drive_access_token", accessToken).apply()
 
                     val collected = mutableListOf<SharedDriveItem>()
                     val visited = mutableSetOf<String>()
@@ -2238,7 +2233,6 @@ class MainActivity : ComponentActivity() {
             try {
                 val loaded = withContext(Dispatchers.IO) {
                     val token = driveOAuthManager.accessToken() ?: error("Không lấy được phiên Google Drive. Hãy đăng nhập lại.")
-                    securePrefs.edit().putString("drive_access_token", token).apply()
                     val collected = mutableListOf<SharedDriveItem>()
                     var pageToken: String? = null
                     do {
@@ -2403,7 +2397,6 @@ class MainActivity : ComponentActivity() {
                     .filterNot { sharedDriveIdentity(it) == sharedDriveIdentity(item) } + item
             )
         }
-        securePrefs.edit().putString("drive_access_token", token).apply()
         syncControllerQueue()
         if (playNow) {
             val index = songs.indexOfFirst {
@@ -2450,7 +2443,6 @@ class MainActivity : ComponentActivity() {
             if (savedIds.add(sharedDriveIdentity(item))) savedItems.add(item)
         }
 
-        securePrefs.edit().putString("drive_access_token", token).apply()
         if (savedItems.size != initialSavedCount) {
             saveSharedDriveItems(savedItems)
         }
@@ -2506,7 +2498,6 @@ class MainActivity : ComponentActivity() {
                     val (id, suppliedResourceKey) = parsed
                     val accessToken = driveOAuthManager.accessToken()
                     if (accessToken == null && apiKey.isBlank()) error("Cần đăng nhập Google Drive.")
-                    accessToken?.let { securePrefs.edit().putString("drive_access_token", it).apply() }
                     val root = inspectSharedDriveItem(id, suppliedResourceKey, apiKey, accessToken)
                     if (root.optBoolean("trashed", false)) error("Nguồn Drive đã bị xóa.")
                     val canDownload = root.optJSONObject("capabilities")
@@ -3785,17 +3776,14 @@ class MainActivity : ComponentActivity() {
                 .remove("drive_uris")
                 .remove("drive_shared_items")
                 .remove("drive_recent_links")
+                .remove("drive_access_token")
                 .apply()
         }
 
-        if (!securePrefs.contains("drive_access_token")) {
-            prefs.getString("drive_access_token", null)?.let { token ->
-                if (token.isNotBlank()) {
-                    securePrefs.edit().putString("drive_access_token", token).apply()
-                }
-            }
-            prefs.edit().remove("drive_access_token").apply()
-        }
+        // OAuth access tokens are short-lived credentials and are intentionally
+        // not persisted to app SharedPreferences; Google Play services issues them
+        // on demand from the signed-in account.
+        prefs.edit().remove("drive_access_token").apply()
     }
 
     private fun loadSavedState() {
