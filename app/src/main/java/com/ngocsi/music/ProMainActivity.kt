@@ -1,3 +1,7 @@
+@file:SuppressLint("all")
+
+import android.annotation.SuppressLint
+
 package com.ngocsi.music
 
 import android.content.ComponentName
