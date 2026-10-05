@@ -8504,17 +8504,70 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 if (token.isNullOrBlank()) {
                                     null
                                 } else {
-                                    val retriever = MediaMetadataRetriever()
-                                    try {
-                                        retriever.setDataSource(
-                                            song.uri.toString(),
-                                            mapOf("Authorization" to "Bearer $token")
-                                        )
-                                        val picture = retriever.embeddedPicture
-                                        if (picture != null && picture.isNotEmpty()) {
-                                            runCatching {
-                                                artworkFile.outputStream().use { it.write(picture) }
+                                    // Fast path for Drive: fetch Google's small thumbnail instead
+                                    // of opening the full audio stream with MediaMetadataRetriever.
+                                    val fileId = song.uri.pathSegments.lastOrNull().orEmpty()
+                                    val resourceKey = song.uri.getQueryParameter("resourceKey").orEmpty()
+                                    val thumbFile = File(
+                                        artworkDir,
+                                        "thumb_" + kotlin.math.abs(song.uri.toString().hashCode()) + ".jpg"
+                                    )
+                                    val thumbnailBitmap = runCatching {
+                                        if (!thumbFile.exists() || thumbFile.length() <= 0L) {
+                                            if (fileId.isBlank()) return@runCatching null
+                                            val thumbUrl = Uri.Builder()
+                                                .scheme("https")
+                                                .authority("drive.google.com")
+                                                .appendPath("thumbnail")
+                                                .appendQueryParameter("id", fileId)
+                                                .appendQueryParameter("sz", "w512")
+                                                .apply {
+                                                    if (resourceKey.isNotBlank()) {
+                                                        appendQueryParameter("resourceKey", resourceKey)
+                                                    }
+                                                }
+                                                .build()
+                                                .toString()
+                                            val connection = (URL(thumbUrl).openConnection() as HttpURLConnection).apply {
+                                                connectTimeout = 5000
+                                                readTimeout = 8000
+                                                useCaches = true
+                                                setRequestProperty("Authorization", "Bearer " + token)
+                                                setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.9")
                                             }
+                                            try {
+                                                if (connection.responseCode !in 200..299) return@runCatching null
+                                                connection.inputStream.use { input ->
+                                                    thumbFile.outputStream().use { output -> input.copyTo(output) }
+                                                }
+                                            } finally {
+                                                connection.disconnect()
+                                            }
+                                        }
+                                        BitmapFactory.decodeFile(thumbFile.absolutePath)?.asImageBitmap()
+                                    }.getOrNull()
+
+                                    if (thumbnailBitmap != null) {
+                                        thumbnailBitmap
+                                    } else {
+                                        // Fallback only when Drive thumbnail is unavailable.
+                                        val retriever = MediaMetadataRetriever()
+                                        try {
+                                            retriever.setDataSource(
+                                                song.uri.toString(),
+                                                mapOf("Authorization" to "Bearer " + token)
+                                            )
+                                            val picture = retriever.embeddedPicture
+                                            if (picture != null && picture.isNotEmpty()) {
+                                                BitmapFactory.decodeByteArray(picture, 0, picture.size)?.asImageBitmap()
+                                            } else null
+                                        } finally {
+                                            retriever.release()
+                                        }
+                                    }
+                                }
+                            }
+
                                             BitmapFactory.decodeByteArray(
                                                 picture, 0, picture.size
                                             )?.asImageBitmap()
