@@ -460,6 +460,13 @@ class MainActivity : ComponentActivity() {
 
     private val driveAuthorizationLauncher =
         registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+            if (result.resultCode != RESULT_OK) {
+                pendingDriveAction = null
+                driveSharedStatus = "Đã hủy cấp quyền Google Drive"
+                errorMessage = "Chưa cấp quyền Google Drive. Có thể thử lại bất cứ lúc nào."
+                return@registerForActivityResult
+            }
+
             val data = result.data
             if (data == null) {
                 driveSharedStatus = "Google Drive chưa hoàn tất cấp quyền"
