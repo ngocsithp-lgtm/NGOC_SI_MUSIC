@@ -4142,7 +4142,7 @@ class MainActivity : ComponentActivity() {
                 Column(Modifier.fillMaxSize()) {
                     Header()
                     SearchBarModern()
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(6.dp))
 
                     when (selectedSection) {
                         "Trang chủ" -> {
@@ -4152,18 +4152,8 @@ class MainActivity : ComponentActivity() {
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 item { HomeHero(currentSong) }
-                                item { LibraryChips() }
                                 item { HomeCollections() }
                                 item { PlayerCard(currentSong) }
-                                item {
-                                    Text(
-                                        "TRUY CẬP NHANH",
-                                        color = Color(0xFF8F8F9D),
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        letterSpacing = 1.2.sp
-                                    )
-                                }
                                 item { QuickActions() }
                                 item {
                                     Row(
@@ -4369,13 +4359,13 @@ class MainActivity : ComponentActivity() {
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = 14.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(46.dp)
-                    .clip(RoundedCornerShape(15.dp))
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(13.dp))
                     .background(
                         Brush.linearGradient(
                             listOf(Color(0xFF8C64E8), Color(0xFF4E3A8B))
@@ -4386,22 +4376,48 @@ class MainActivity : ComponentActivity() {
                 Text(
                     "NS",
                     color = Color.White,
-                    fontSize = 16.sp,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.Black
                 )
             }
 
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(10.dp))
 
             Column(Modifier.weight(1f)) {
-                Text(
-                    "NGỌC SĨ MUSIC",
-                    color = Color.White,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = 0.2.sp
-                )
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "NGỌC SĨ MUSIC",
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 0.15.sp,
+                        maxLines = 1
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "PRO",
+                        color = NgocSiVisuals.Primary,
+                        fontSize = 7.sp,
+                        fontWeight = FontWeight.Black,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color(0x3320202B))
+                            .padding(horizontal = 5.dp, vertical = 2.dp)
+                    )
+                }
+                Text(
+                    "ÂM NHẠC • RADIO • ONLINE",
+                    color = NgocSiVisuals.TextSecondary,
+                    fontSize = 8.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.2.sp,
+                    maxLines = 1
+                )
+            }
+
+            Spacer(Modifier.width(4.dp))
+
+            /*
                     Text(
                         "ÂM NHẠC • RADIO • ONLINE",
                         color = NgocSiVisuals.TextSecondary,
@@ -4426,12 +4442,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            IconButton(onClick = { showPlaylists = true }) {
-                Text("♫", color = Color(0xFFCDBAFF), fontSize = 23.sp)
-            }
-            IconButton(onClick = { selectedSection = "Cài đặt" }) {
-                Text("⚙", color = Color(0xFFA7A9B7), fontSize = 21.sp)
-            }
+            */
         }
     }
 
@@ -4459,7 +4470,7 @@ class MainActivity : ComponentActivity() {
         OutlinedTextField(
             value = searchQuery,
             onValueChange = { searchQuery = it },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp).heightIn(min = 50.dp),
             singleLine = true,
             placeholder = { Text("Tìm bài hát, nghệ sĩ, album...", color = Color(0xFF777D8D)) },
             leadingIcon = { Text("⌕", color = Color(0xFFB18CFF), fontSize = 25.sp) },
@@ -4501,25 +4512,25 @@ class MainActivity : ComponentActivity() {
                     .fillMaxWidth()
                     .background(
                         Brush.linearGradient(
-                            listOf(Color(0xFF2A2044), Color(0xFF121722))
+                            listOf(Color(0xFF28203F), Color(0xFF121722))
                         ),
-                        RoundedCornerShape(26.dp)
+                        RoundedCornerShape(20.dp)
                     )
-                    .padding(18.dp)
+                    .padding(14.dp)
             ) {
                 Column {
                     Text(
                         "NGHE NHẠC THEO CÁCH CỦA BẠN",
                         color = Color(0xFFBFA9FF),
-                        fontSize = 10.sp,
+                        fontSize = 9.sp,
                         fontWeight = FontWeight.Black,
-                        letterSpacing = 1.8.sp
+                        letterSpacing = 1.5.sp
                     )
                     Spacer(Modifier.height(5.dp))
                     Text(
                         song?.title ?: "Sẵn sàng phát nhạc",
                         color = Color.White,
-                        fontSize = 21.sp,
+                        fontSize = 18.sp,
                         fontWeight = FontWeight.ExtraBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -4527,7 +4538,7 @@ class MainActivity : ComponentActivity() {
                     Text(
                         song?.artist ?: "Thiết bị • Google Drive • YouTube • Radio",
                         color = Color(0xFFA8AAB8),
-                        fontSize = 12.sp,
+                        fontSize = 11.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -4604,17 +4615,12 @@ class MainActivity : ComponentActivity() {
             Triple("▣", "Playlist", playlists.size.toString()),
             Triple("☷", "Hàng đợi", queueSongs.size.toString())
         )
-        Column(Modifier.fillMaxWidth()) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                collections.take(2).forEach { (icon, title, count) ->
-                    CollectionCard(icon, title, count, Modifier.weight(1f))
-                }
-            }
-            Spacer(Modifier.height(8.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                collections.drop(2).forEach { (icon, title, count) ->
-                    CollectionCard(icon, title, count, Modifier.weight(1f))
-                }
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(7.dp)
+        ) {
+            collections.forEach { (icon, title, count) ->
+                CollectionCard(icon, title, count, Modifier.weight(1f))
             }
         }
     }
@@ -4647,11 +4653,23 @@ class MainActivity : ComponentActivity() {
             color = Color(0xFF15161E),
             border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF252936))
         ) {
-            Column(Modifier.padding(horizontal = 12.dp, vertical = 12.dp)) {
-                Text(icon, color = Color(0xFFC8B7FF), fontSize = 22.sp)
-                Spacer(Modifier.height(4.dp))
-                Text(title, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                Text("$count mục", color = Color(0xFF888894), fontSize = 11.sp)
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 6.dp, vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(icon, color = Color(0xFFC8B7FF), fontSize = 16.sp)
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    title,
+                    color = Color.White,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 9.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text("$count", color = Color(0xFF888894), fontSize = 9.sp)
             }
         }
     }
@@ -4973,7 +4991,7 @@ class MainActivity : ComponentActivity() {
                             icon = if (isDrive) "☁" else "♫",
                             selected = selectedLibrary == source,
                             onClick = { selectedLibrary = source },
-                            modifier = Modifier.width(148.dp)
+                            modifier = Modifier.width(138.dp)
                         )
                     }
                 }
@@ -5003,7 +5021,7 @@ class MainActivity : ComponentActivity() {
     ) {
         Surface(
             modifier = modifier
-                .height(58.dp)
+                .height(54.dp)
                 .clip(RoundedCornerShape(15.dp))
                 .clickable(onClick = onClick),
             shape = RoundedCornerShape(15.dp),
@@ -5090,94 +5108,33 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun QuickActions() {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            FilledTonalButton(
-                onClick = { selectedSection = "Thư viện" },
-                modifier = Modifier.weight(1f).height(68.dp),
-                shape = RoundedCornerShape(18.dp)
+        val actions = listOf(
+            Triple("♫", "Thư viện", { selectedSection = "Thư viện" }),
+            Triple("▶", "YouTube", { selectedSection = "Online"; onlineHubTab = "YouTube" }),
+            Triple("☁", "Drive", { selectedSection = "Online"; driveSharedStatus = "Mở trung tâm Google Drive" }),
+            Triple("📻", "Radio", { selectedSection = "Radio"; showVietnamRadioHub = true }),
+            Triple("☷", "Hàng đợi", { showQueue = true })
+        )
+        Column(Modifier.fillMaxWidth()) {
+            Text("TRUY CẬP", color = Color(0xFF8F8F9D), fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.2.sp)
+            Spacer(Modifier.height(6.dp))
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(7.dp)
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("♫", fontSize = 20.sp)
-                    Text("Thư viện", fontWeight = FontWeight.Bold)
-                }
-            }
-            FilledTonalButton(
-                onClick = { selectedSection = "Online" },
-                modifier = Modifier.weight(1f).height(68.dp),
-                shape = RoundedCornerShape(18.dp)
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("☁", fontSize = 20.sp)
-                    Text("Online", fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-        Spacer(Modifier.height(8.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            OutlinedButton(
-                onClick = { selectedSection = "Radio"; showVietnamRadioHub = true },
-                modifier = Modifier.weight(1f).height(62.dp),
-                shape = RoundedCornerShape(18.dp)
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("📻", fontSize = 18.sp)
-                    Text("Radio", fontWeight = FontWeight.Bold)
-                }
-            }
-            OutlinedButton(
-                onClick = { showQueue = true },
-                modifier = Modifier.weight(1f).height(62.dp),
-                shape = RoundedCornerShape(18.dp)
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("☷", fontSize = 18.sp)
-                    Text("Hàng đợi", fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-        Spacer(Modifier.height(8.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            OutlinedButton(
-                onClick = { selectedSection = "TV" },
-                modifier = Modifier.weight(1f).height(62.dp),
-                shape = RoundedCornerShape(18.dp)
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("📺", fontSize = 18.sp)
-                    Text("TV", fontWeight = FontWeight.Bold)
-                }
-            }
-            OutlinedButton(
-                onClick = { selectedSection = "Bản đồ" },
-                modifier = Modifier.weight(1f).height(62.dp),
-                shape = RoundedCornerShape(18.dp)
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("🗺️", fontSize = 18.sp)
-                    Text("Bản đồ", fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-        Spacer(Modifier.height(8.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            OutlinedButton(
-                onClick = { selectedSection = "Online"; driveSharedStatus = "Mở trung tâm Google Drive" },
-                modifier = Modifier.weight(1f).height(62.dp),
-                shape = RoundedCornerShape(18.dp)
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("☁", fontSize = 18.sp)
-                    Text("Google Drive", fontWeight = FontWeight.Bold, maxLines = 1)
-                }
-            }
-            OutlinedButton(
-                onClick = { showSleepTimer = true },
-                modifier = Modifier.weight(1f).height(62.dp),
-                shape = RoundedCornerShape(18.dp)
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("🌙", fontSize = 18.sp)
-                    Text("Hẹn giờ", fontWeight = FontWeight.Bold)
+                actions.forEach { (icon, label, action) ->
+                    Surface(
+                        modifier = Modifier.width(82.dp).height(52.dp).clip(RoundedCornerShape(14.dp)).clickable(onClick = action),
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color(0xFF15161E),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF252936))
+                    ) {
+                        Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                            Text(icon, color = Color(0xFFC8B7FF), fontSize = 16.sp)
+                            Spacer(Modifier.height(2.dp))
+                            Text(label, color = Color(0xFFE3E4EA), fontSize = 9.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
                 }
             }
         }
