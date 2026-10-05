@@ -4184,7 +4184,7 @@ class MainActivity : ComponentActivity() {
                             onOpenTv = { selectedSection = "TV" },
                             onOpenDrive = {
                                 selectedSection = "Online"
-                                onlineHubTab = "Tất cả"
+                                onlineHubTab = "Drive"
                                 errorMessage = "Google Drive: chọn File Drive hoặc Thư mục để nhập nhạc."
                             },
                             onOpenQueue = { showQueue = true },
@@ -4217,7 +4217,7 @@ class MainActivity : ComponentActivity() {
                         )
                     } else {
                         ProSectionHeader()
-                        if (selectedSection == "Thư viện" || selectedSection == "Online") {
+                        if (selectedSection == "Thư viện") {
                             SearchBarModern()
                         }
                         Spacer(Modifier.height(4.dp))
@@ -4895,6 +4895,7 @@ class MainActivity : ComponentActivity() {
                 youtubeQuery = q
                 jamendoQuery = q
                 onlineSearchActive = true
+                onlineHubTab = "Tất cả"
                 jamendoTracks.clear()
                 audiusTracks.clear()
                 youtubeTracks.clear()
@@ -5630,7 +5631,7 @@ class MainActivity : ComponentActivity() {
                         ProHomeNavChip("☁ Drive", {
                             showMore = false
                             selectedSection = "Online"
-                            onlineHubTab = "Tất cả"
+                            onlineHubTab = "Drive"
                             driveSharedStatus = "Mở trung tâm Google Drive"
                         })
                         ProHomeNavChip("☷ Hàng đợi", {
@@ -8218,75 +8219,78 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 Text("YÊU THÍCH ONLINE • " + onlineFavorites.size, color = Color(0xFF8F8F9A), fontSize = 12.sp)
             }
             Text("Trung tâm nhạc online • Audius + Jamendo + YouTube + Radio Việt Nam", color = Color(0xFF8F8F9A), fontSize = 12.sp)
-            Spacer(Modifier.height(8.dp))
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("🎧 NGUỒN NHẠC VIỆT NAM", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                TextButton(onClick = { showVietnamRadioHub = true }) { Text("MỞ HUB") }
+            if (onlineHubTab == "Tất cả") {
+                        Spacer(Modifier.height(8.dp))
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text("🎧 NGUỒN NHẠC VIỆT NAM", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                            TextButton(onClick = { showVietnamRadioHub = true }) { Text("MỞ HUB") }
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                onClick = {
+                                    playVerifiedRadio(
+                                        "VOV1 • Thời sự",
+                                        verifiedRadioStreams("VOV1 • Thời sự")
+                                    )
+                                },
+                                shape = RoundedCornerShape(12.dp)
+                            ) { Text("▶ VOV1") }
+                            Button(
+                                onClick = {
+                                    playVerifiedRadio(
+                                        "VOV2 • Văn hóa",
+                                        verifiedRadioStreams("VOV2 • Văn hóa")
+                                    )
+                                },
+                                shape = RoundedCornerShape(12.dp)
+                            ) { Text("▶ VOV2") }
+                            Button(
+                                onClick = {
+                                    playVerifiedRadio(
+                                        "VOV3 • Âm nhạc",
+                                        verifiedRadioStreams("VOV3 • Âm nhạc")
+                                    )
+                                },
+                                shape = RoundedCornerShape(12.dp)
+                            ) { Text("▶ VOV3") }
+                            OutlinedButton(
+                                onClick = { openOnlineSource("https://vovmedia.vn/") },
+                                shape = RoundedCornerShape(12.dp)
+                            ) { Text("VOV • Radio Việt Nam") }
+                            OutlinedButton(
+                                onClick = { openOnlineSource("https://voh.com.vn/radios") },
+                                shape = RoundedCornerShape(12.dp)
+                            ) { Text("VOH • Radio") }
+                            OutlinedButton(
+                                onClick = { openOnlineSource("https://htv.vn/radio.htm") },
+                                shape = RoundedCornerShape(12.dp)
+                            ) { Text("HTV • Radio") }
+                            OutlinedButton(
+                                onClick = { openOnlineSource("https://vov3.vov.vn/podcast") },
+                                shape = RoundedCornerShape(12.dp)
+                            ) { Text("VOV3 • Podcast") }
+                            OutlinedButton(
+                                onClick = { openOnlineSource("https://vov3.vov.vn/lich-phat-song") },
+                                shape = RoundedCornerShape(12.dp)
+                            ) { Text("VOV3 • Lịch phát") }
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "VOV1 có luồng HLS chính thức được đưa vào Media3; các đài khác vẫn mở nguồn chính thức cho đến khi có luồng trực tiếp được xác minh.",
+                            color = Color(0xFF777D8D),
+                            fontSize = 11.sp
+                        )
+            
             }
-            Spacer(Modifier.height(6.dp))
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = {
-                        playVerifiedRadio(
-                            "VOV1 • Thời sự",
-                            verifiedRadioStreams("VOV1 • Thời sự")
-                        )
-                    },
-                    shape = RoundedCornerShape(12.dp)
-                ) { Text("▶ VOV1") }
-                Button(
-                    onClick = {
-                        playVerifiedRadio(
-                            "VOV2 • Văn hóa",
-                            verifiedRadioStreams("VOV2 • Văn hóa")
-                        )
-                    },
-                    shape = RoundedCornerShape(12.dp)
-                ) { Text("▶ VOV2") }
-                Button(
-                    onClick = {
-                        playVerifiedRadio(
-                            "VOV3 • Âm nhạc",
-                            verifiedRadioStreams("VOV3 • Âm nhạc")
-                        )
-                    },
-                    shape = RoundedCornerShape(12.dp)
-                ) { Text("▶ VOV3") }
-                OutlinedButton(
-                    onClick = { openOnlineSource("https://vovmedia.vn/") },
-                    shape = RoundedCornerShape(12.dp)
-                ) { Text("VOV • Radio Việt Nam") }
-                OutlinedButton(
-                    onClick = { openOnlineSource("https://voh.com.vn/radios") },
-                    shape = RoundedCornerShape(12.dp)
-                ) { Text("VOH • Radio") }
-                OutlinedButton(
-                    onClick = { openOnlineSource("https://htv.vn/radio.htm") },
-                    shape = RoundedCornerShape(12.dp)
-                ) { Text("HTV • Radio") }
-                OutlinedButton(
-                    onClick = { openOnlineSource("https://vov3.vov.vn/podcast") },
-                    shape = RoundedCornerShape(12.dp)
-                ) { Text("VOV3 • Podcast") }
-                OutlinedButton(
-                    onClick = { openOnlineSource("https://vov3.vov.vn/lich-phat-song") },
-                    shape = RoundedCornerShape(12.dp)
-                ) { Text("VOV3 • Lịch phát") }
-            }
-            Spacer(Modifier.height(6.dp))
-            Text(
-                "VOV1 có luồng HLS chính thức được đưa vào Media3; các đài khác vẫn mở nguồn chính thức cho đến khi có luồng trực tiếp được xác minh.",
-                color = Color(0xFF777D8D),
-                fontSize = 11.sp
-            )
             Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf("Tất cả", "Audius", "Jamendo", "Yêu thích", "YouTube").forEach { tab ->
+                listOf("Tất cả", "YouTube", "Drive", "Nhạc online", "Yêu thích").forEach { tab ->
                     FilterChip(selected = onlineHubTab == tab, onClick = { onlineHubTab = tab }, label = { Text(tab) })
                 }
             }
             Spacer(Modifier.height(10.dp))
-            if (onlineHubTab != "YouTube" && onlineHubTab != "Yêu thích") {
+            if (onlineHubTab == "Tất cả" || onlineHubTab == "Nhạc online") {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
                     value = jamendoQuery,
@@ -8379,13 +8383,13 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             }
             val onlineResults = buildList {
                 val seen = mutableSetOf<String>()
-                if (onlineHubTab == "Tất cả" || onlineHubTab == "Audius") {
+                if (onlineHubTab == "Tất cả" || onlineHubTab == "Nhạc online") {
                     audiusTracks.forEachIndexed { index, track ->
                         val key = track.title.trim().lowercase() + "|" + track.artist.trim().lowercase()
                         if (seen.add(key)) add(OnlineSearchItem("Audius", index, track.title, track.artist, track.duration))
                     }
                 }
-                if (onlineHubTab == "Tất cả" || onlineHubTab == "Jamendo") {
+                if (onlineHubTab == "Tất cả" || onlineHubTab == "Nhạc online") {
                     jamendoTracks.forEachIndexed { index, track ->
                         val key = track.title.trim().lowercase() + "|" + track.artist.trim().lowercase()
                         if (seen.add(key)) add(OnlineSearchItem("Jamendo", index, track.title, track.artist, track.duration))
@@ -8880,176 +8884,179 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             }
             }
 
-            Spacer(Modifier.height(10.dp))
-            Column(
-                Modifier.fillMaxWidth()
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(Brush.linearGradient(listOf(Color(0xFF1D1930), Color(0xFF11131A))))
-                    .padding(14.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("GOOGLE DRIVE", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 17.sp, modifier = Modifier.weight(1f))
-                Text("PRO", color = Color(0xFFC8B7FF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-            }
-            Spacer(Modifier.height(4.dp))
-            Text(
-                "Thư viện nhạc trên Google Drive • riêng tư • chia sẻ • thư mục",
-                color = Color(0xFF8F8F9A),
-                fontSize = 11.sp
-            )
-            Spacer(Modifier.height(10.dp))
-
-            // Phone-first Drive path:
-            // Android's system document picker can use the Google Drive
-            // DocumentsProvider already authenticated on the phone. This lets
-            // shared files/folders be imported without depending on this APK's
-            // Google Sign-In SHA-1. Private Drive API browsing remains optional.
-            Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
-                    .background(Color(0xFF171720)).padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("☁", fontSize = 24.sp)
-                Spacer(Modifier.width(10.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        if (driveOAuthSignedIn) "Google Drive API đã kết nối" else "Drive chọn trực tiếp • không bắt buộc đăng nhập app",
-                        color = Color.White,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 13.sp
-                    )
-                    Text(
-                        if (driveOAuthSignedIn && driveGoogleAccountEmail.isNotBlank())
-                            driveGoogleAccountEmail
-                        else
-                            "Ưu tiên CHỌN FILE / CHỌN THƯ MỤC để lấy cả nguồn được chia sẻ",
-                        color = Color(0xFF8F8F9A),
-                        fontSize = 10.sp,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                TextButton(onClick = ::signInGoogleDrive) {
-                    Text(if (driveOAuthSignedIn) "↻" else "API")
-                }
-            }
-
-            Spacer(Modifier.height(9.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = ::openDrivePicker,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(14.dp)
-                ) { Text("☁ CHỌN FILE TỪ DRIVE") }
-                Button(
-                    onClick = ::openDriveFolderPicker,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(14.dp)
-                ) { Text("📁 CHỌN THƯ MỤC DRIVE") }
-            }
-            Text(
-                "Cách này dùng bộ chọn tệp Android/Google Drive trên điện thoại, không phụ thuộc SHA-1 của APK.",
-                color = Color(0xFF8F8F9A),
-                fontSize = 10.sp,
-                modifier = Modifier.padding(top = 5.dp)
-            )
-            Spacer(Modifier.height(7.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(
-                    onClick = ::loadDriveRoot,
-                    enabled = driveOAuthSignedIn && !driveSharedLoading,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(14.dp)
-                ) { Text("☁ DRIVE CỦA TÔI") }
-                OutlinedButton(
-                    onClick = ::loadSharedWithMeDrive,
-                    enabled = driveOAuthSignedIn && !driveSharedLoading,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(14.dp)
-                ) { Text("👥 ĐƯỢC CHIA SẺ (API)") }
-            }
-
-            Spacer(Modifier.height(10.dp))
-            Text("NGUỒN CHIA SẺ", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(5.dp))
-            OutlinedTextField(
-                value = driveSharedLink,
-                onValueChange = { driveSharedLink = it },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                placeholder = { Text("Dán link file hoặc thư mục được chia sẻ") },
-                label = { Text("Link Google Drive") },
-                shape = RoundedCornerShape(14.dp)
-            )
-            Spacer(Modifier.height(6.dp))
-            Button(
-                onClick = ::importSharedDriveLink,
-                enabled = !driveSharedLoading && driveSharedLink.isNotBlank(),
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Text(if (driveSharedLoading) "ĐANG ĐỌC DRIVE…" else "THÊM NGUỒN CHIA SẺ")
-            }
-            Spacer(Modifier.height(5.dp))
-            Text(
-                driveSharedStatus,
-                color = if (driveSharedLoading) Color(0xFFC8B7FF) else Color(0xFF8F8F9A),
-                fontSize = 11.sp
-            )
-
-            if (driveRecentLinks.isNotEmpty()) {
-                Spacer(Modifier.height(8.dp))
-                Text("NGUỒN GẦN ĐÂY", color = Color(0xFFB8B3C7), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                driveRecentLinks.take(5).forEach { link ->
-                    Row(
-                        Modifier.fillMaxWidth().padding(top = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+            if (onlineHubTab == "Tất cả" || onlineHubTab == "Drive") {
+                        Spacer(Modifier.height(10.dp))
+                        Column(
+                            Modifier.fillMaxWidth()
+                                .clip(RoundedCornerShape(22.dp))
+                                .background(Brush.linearGradient(listOf(Color(0xFF1D1930), Color(0xFF11131A))))
+                                .padding(14.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("GOOGLE DRIVE", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 17.sp, modifier = Modifier.weight(1f))
+                            Text("PRO", color = Color(0xFFC8B7FF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(Modifier.height(4.dp))
                         Text(
-                            link,
-                            color = Color(0xFF9F9FAA),
-                            fontSize = 10.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f).clickable { driveSharedLink = link }
+                            "Thư viện nhạc trên Google Drive • riêng tư • chia sẻ • thư mục",
+                            color = Color(0xFF8F8F9A),
+                            fontSize = 11.sp
                         )
-                        TextButton(onClick = {
-                            driveSharedLink = link
-                            importSharedDriveLink()
-                        }) { Text("MỞ") }
+                        Spacer(Modifier.height(10.dp))
+            
+                        // Phone-first Drive path:
+                        // Android's system document picker can use the Google Drive
+                        // DocumentsProvider already authenticated on the phone. This lets
+                        // shared files/folders be imported without depending on this APK's
+                        // Google Sign-In SHA-1. Private Drive API browsing remains optional.
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                                .background(Color(0xFF171720)).padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("☁", fontSize = 24.sp)
+                            Spacer(Modifier.width(10.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    if (driveOAuthSignedIn) "Google Drive API đã kết nối" else "Drive chọn trực tiếp • không bắt buộc đăng nhập app",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 13.sp
+                                )
+                                Text(
+                                    if (driveOAuthSignedIn && driveGoogleAccountEmail.isNotBlank())
+                                        driveGoogleAccountEmail
+                                    else
+                                        "Ưu tiên CHỌN FILE / CHỌN THƯ MỤC để lấy cả nguồn được chia sẻ",
+                                    color = Color(0xFF8F8F9A),
+                                    fontSize = 10.sp,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            TextButton(onClick = ::signInGoogleDrive) {
+                                Text(if (driveOAuthSignedIn) "↻" else "API")
+                            }
+                        }
+            
+                        Spacer(Modifier.height(9.dp))
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                onClick = ::openDrivePicker,
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(14.dp)
+                            ) { Text("☁ CHỌN FILE TỪ DRIVE") }
+                            Button(
+                                onClick = ::openDriveFolderPicker,
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(14.dp)
+                            ) { Text("📁 CHỌN THƯ MỤC DRIVE") }
+                        }
+                        Text(
+                            "Cách này dùng bộ chọn tệp Android/Google Drive trên điện thoại, không phụ thuộc SHA-1 của APK.",
+                            color = Color(0xFF8F8F9A),
+                            fontSize = 10.sp,
+                            modifier = Modifier.padding(top = 5.dp)
+                        )
+                        Spacer(Modifier.height(7.dp))
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(
+                                onClick = ::loadDriveRoot,
+                                enabled = driveOAuthSignedIn && !driveSharedLoading,
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(14.dp)
+                            ) { Text("☁ DRIVE CỦA TÔI") }
+                            OutlinedButton(
+                                onClick = ::loadSharedWithMeDrive,
+                                enabled = driveOAuthSignedIn && !driveSharedLoading,
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(14.dp)
+                            ) { Text("👥 ĐƯỢC CHIA SẺ (API)") }
+                        }
+            
+                        Spacer(Modifier.height(10.dp))
+                        Text("NGUỒN CHIA SẺ", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(5.dp))
+                        OutlinedTextField(
+                            value = driveSharedLink,
+                            onValueChange = { driveSharedLink = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            placeholder = { Text("Dán link file hoặc thư mục được chia sẻ") },
+                            label = { Text("Link Google Drive") },
+                            shape = RoundedCornerShape(14.dp)
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Button(
+                            onClick = ::importSharedDriveLink,
+                            enabled = !driveSharedLoading && driveSharedLink.isNotBlank(),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Text(if (driveSharedLoading) "ĐANG ĐỌC DRIVE…" else "THÊM NGUỒN CHIA SẺ")
+                        }
+                        Spacer(Modifier.height(5.dp))
+                        Text(
+                            driveSharedStatus,
+                            color = if (driveSharedLoading) Color(0xFFC8B7FF) else Color(0xFF8F8F9A),
+                            fontSize = 11.sp
+                        )
+            
+                        if (driveRecentLinks.isNotEmpty()) {
+                            Spacer(Modifier.height(8.dp))
+                            Text("NGUỒN GẦN ĐÂY", color = Color(0xFFB8B3C7), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            driveRecentLinks.take(5).forEach { link ->
+                                Row(
+                                    Modifier.fillMaxWidth().padding(top = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        link,
+                                        color = Color(0xFF9F9FAA),
+                                        fontSize = 10.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f).clickable { driveSharedLink = link }
+                                    )
+                                    TextButton(onClick = {
+                                        driveSharedLink = link
+                                        importSharedDriveLink()
+                                    }) { Text("MỞ") }
+                                }
+                            }
+                        }
+            
+                        Spacer(Modifier.height(6.dp))
+                        OutlinedButton(
+                            onClick = {
+                                loadDriveRecentLinks()
+                                loadSongs()
+                                errorMessage = "Đã làm mới thư viện Google Drive."
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp)
+                        ) { Text("↻ LÀM MỚI THƯ VIỆN DRIVE") }
+            
+                        Spacer(Modifier.height(5.dp))
+                        OutlinedButton(
+                            onClick = ::clearSharedDriveLibrary,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp)
+                        ) { Text("XÓA NHẠC DRIVE CHIA SẺ") }
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(value = onlineUrl, onValueChange = { onlineUrl = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, placeholder = { Text("Dán URL luồng âm thanh HTTPS") }, shape = RoundedCornerShape(14.dp))
+                        Spacer(Modifier.height(6.dp))
+                        Button(onClick = ::playOnlineUrl, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text("PHÁT LUỒNG ÂM THANH") }
+                        Spacer(Modifier.height(6.dp))
+                        OutlinedButton(onClick = { onlineUrl = "https://stream.radioparadise.com/mp3-192"; playOnlineUrl() }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text("THỬ RADIO ONLINE") }
+                        Spacer(Modifier.height(6.dp))
+                        OutlinedButton(onClick = ::clearOnlineLibrary, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text("XÓA URL ONLINE ĐÃ LƯU") }
                     }
                 }
+                }
+            
+            
             }
-
-            Spacer(Modifier.height(6.dp))
-            OutlinedButton(
-                onClick = {
-                    loadDriveRecentLinks()
-                    loadSongs()
-                    errorMessage = "Đã làm mới thư viện Google Drive."
-                },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
-            ) { Text("↻ LÀM MỚI THƯ VIỆN DRIVE") }
-
-            Spacer(Modifier.height(5.dp))
-            OutlinedButton(
-                onClick = ::clearSharedDriveLibrary,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
-            ) { Text("XÓA NHẠC DRIVE CHIA SẺ") }
-            Spacer(Modifier.height(8.dp))
-            OutlinedTextField(value = onlineUrl, onValueChange = { onlineUrl = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, placeholder = { Text("Dán URL luồng âm thanh HTTPS") }, shape = RoundedCornerShape(14.dp))
-            Spacer(Modifier.height(6.dp))
-            Button(onClick = ::playOnlineUrl, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text("PHÁT LUỒNG ÂM THANH") }
-            Spacer(Modifier.height(6.dp))
-            OutlinedButton(onClick = { onlineUrl = "https://stream.radioparadise.com/mp3-192"; playOnlineUrl() }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text("THỬ RADIO ONLINE") }
-            Spacer(Modifier.height(6.dp))
-            OutlinedButton(onClick = ::clearOnlineLibrary, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text("XÓA URL ONLINE ĐÃ LƯU") }
-        }
-    }
-    }
-
     @Composable
     private fun DriveBrowserDialog() {
         if (!showDriveBrowser) return
