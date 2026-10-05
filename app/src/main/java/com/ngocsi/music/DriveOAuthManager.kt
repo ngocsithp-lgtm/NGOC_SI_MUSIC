@@ -1,71 +1,139 @@
 package com.ngocsi.music
 
 import android.app.Activity
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
-import com.google.android.gms.auth.GoogleAuthUtil
-import com.google.android.gms.auth.api.signin.GoogleSignIn
-import com.google.android.gms.auth.api.signin.GoogleSignInAccount
-import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.auth.api.identity.AuthorizationRequest
+import com.google.android.gms.auth.api.identity.AuthorizationResult
+import com.google.android.gms.auth.api.identity.ClearTokenRequest
+import com.google.android.gms.auth.api.identity.Identity
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.common.api.Scope
+import com.google.android.gms.tasks.Tasks
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * OAuth helper for Google Drive private/shared-with-me access.
+ * Modern Google Drive authorization helper.
  *
- * API keys can read public/link-shared resources, but they cannot authorize
- * access to files shared privately with the signed-in Google account.
+ * AuthorizationClient handles Drive OAuth scopes without the deprecated
+ * GoogleSignIn/GoogleAuthUtil APIs.
  */
 class DriveOAuthManager(private val context: Context) {
     companion object {
         const val DRIVE_READ_SCOPE = "https://www.googleapis.com/auth/drive.readonly"
         const val DRIVE_APPDATA_SCOPE = "https://www.googleapis.com/auth/drive.appdata"
-        const val REQUEST_CODE = 7401
+        private const val PREFS = "ngoc_si_music"
+        private const val KEY_AUTHORIZED = "drive_authorized"
     }
 
-    fun signInIntent(): Intent {
-        val options = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-            .requestEmail()
-            // Primary Drive authorization path: request the Drive scope
-            // together with Google account selection.
-            .requestScopes(Scope(DRIVE_READ_SCOPE), Scope(DRIVE_APPDATA_SCOPE))
+    private val requestedScopes = listOf(
+        Scope(DRIVE_READ_SCOPE),
+        Scope(DRIVE_APPDATA_SCOPE)
+    )
+
+    private val authorizationClient by lazy {
+        Identity.getAuthorizationClient(context)
+    }
+
+    private fun authorizationRequest() =
+        AuthorizationRequest.builder()
+            .setRequestedScopes(requestedScopes)
             .build()
-        return GoogleSignIn.getClient(context, options).signInIntent
-    }
 
-    fun lastAccount(): GoogleSignInAccount? =
-        GoogleSignIn.getLastSignedInAccount(context)
-
-    fun hasDriveScope(): Boolean {
-        val account = lastAccount() ?: return false
-        // Use Google Play services permission state instead of relying only on
-        // grantedScopes returned by the cached account object. The latter can be
-        // stale after the user changes Drive consent.
-        return GoogleSignIn.hasPermissions(account, Scope(DRIVE_READ_SCOPE), Scope(DRIVE_APPDATA_SCOPE))
-    }
-
-    fun isSignedIn(): Boolean = lastAccount() != null && hasDriveScope()
-
-    fun requestDrivePermission(activity: Activity): Boolean {
-        val account = lastAccount() ?: return false
-        return runCatching {
-            if (!hasDriveScope()) {
-                GoogleSignIn.requestPermissions(
-                    activity,
-                    REQUEST_CODE,
-                    account,
-                    Scope(DRIVE_READ_SCOPE),
-                    Scope(DRIVE_APPDATA_SCOPE)
-                )
+    fun authorize(
+        activity: Activity,
+        onSuccess: (AuthorizationResult) -> Unit,
+        onResolution: (PendingIntent) -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        Identity.getAuthorizationClient(activity)
+            .authorize(authorizationRequest())
+            .addOnSuccessListener { result ->
+                if (result.hasResolution()) {
+                    result.pendingIntent?.let(onResolution)
+                        ?: onFailure(
+                            IllegalStateException(
+                                "Google Drive yêu cầu cấp quyền nhưng không trả về PendingIntent."
+                            )
+                        )
+                } else {
+                    markAuthorized(result)
+                    onSuccess(result)
+                }
             }
-            true
-        }.getOrElse { false }
+            .addOnFailureListener { error ->
+                onFailure(error)
+            }
     }
 
+    fun handleAuthorizationResult(data: Intent?): Result<AuthorizationResult> =
+        runCatching {
+            authorizationClient.getAuthorizationResultFromIntent(data)
+        }
+
+    fun isSignedIn(): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getBoolean(KEY_AUTHORIZED, false)
+
+    fun hasDriveScope(result: AuthorizationResult? = null): Boolean {
+        if (result != null) {
+            return requestedScopes.all { it.scopeUri in result.grantedScopes }
+        }
+        return isSignedIn()
+    }
+
+    private fun markAuthorized(result: AuthorizationResult) {
+        val granted = requestedScopes.all { it.scopeUri in result.grantedScopes }
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(KEY_AUTHORIZED, granted)
+            .apply()
+    }
+
+    suspend fun accessToken(): String? = withContext(Dispatchers.IO) {
+        runCatching {
+            val result = Tasks.await(
+                Identity.getAuthorizationClient(context).authorize(authorizationRequest())
+            )
+            if (result.hasResolution()) {
+                null
+            } else {
+                markAuthorized(result)
+                result.accessToken
+            }
+        }.getOrNull()
+    }
+
+    suspend fun clearAccessToken(token: String?) = withContext(Dispatchers.IO) {
+        if (token.isNullOrBlank()) return@withContext
+        runCatching {
+            Tasks.await(
+                authorizationClient.clearToken(
+                    ClearTokenRequest.builder().setToken(token).build()
+                )
+            )
+        }
+    }
+
+    fun signInErrorMessage(error: Throwable): String {
+        val api = error as? ApiException
+        val code = api?.statusCode
+        return when (code) {
+            12501 -> "Đã hủy cấp quyền Google Drive."
+            12500 -> "Google Drive không thể hoàn tất xác thực. Kiểm tra kết nối mạng và Google Play services."
+            10 -> "Google OAuth chưa khớp với ứng dụng com.ngocsi.music. Package com.ngocsi.music; SHA-1 hiện tại: " +
+                signingCertificateSha1()
+            7 -> "Không kết nối được dịch vụ Google. Kiểm tra mạng và Google Play services."
+            8 -> "Google Drive gặp lỗi nội bộ. Hãy thử lại."
+            else ->
+                "Google Drive lỗi" + (code?.let { " (mã $it)" } ?: "") +
+                    ": " + (error.message ?: "không rõ nguyên nhân")
+        }
+    }
 
     fun signingCertificateSha1(): String {
         return runCatching {
@@ -85,47 +153,5 @@ class DriveOAuthManager(private val context: Context) {
                 .digest(signatures.first().toByteArray())
             digest.joinToString(":") { "%02X".format(it) }
         }.getOrElse { "không đọc được SHA-1" }
-    }
-
-    fun signInErrorMessage(error: Throwable): String {
-        val api = error as? ApiException
-        val code = api?.statusCode
-        return when (code) {
-            12501 -> "Đã hủy đăng nhập Google Drive."
-            12500 -> "Google Sign-In thất bại. Kiểm tra kết nối mạng và tài khoản Google."
-            10 -> "Google OAuth chưa khớp với ứng dụng com.ngocsi.music. Package com.ngocsi.music; SHA-1 hiện tại: ${signingCertificateSha1()}"
-            7 -> "Không kết nối được dịch vụ Google. Kiểm tra mạng và Google Play services."
-            8 -> "Google Sign-In gặp lỗi nội bộ. Hãy thử đăng nhập lại."
-            else ->
-                "Google Sign-In lỗi" + (code?.let { " (mã " + it + ")" } ?: "") +
-                    ": " + (error.message ?: "không rõ nguyên nhân")
-        }
-    }
-
-    suspend fun accessToken(): String? = withContext(Dispatchers.IO) {
-        val account = lastAccount() ?: return@withContext null
-        val googleAccount = account.account ?: return@withContext null
-        runCatching {
-            GoogleAuthUtil.getToken(
-                context,
-                googleAccount,
-                "oauth2:$DRIVE_READ_SCOPE $DRIVE_APPDATA_SCOPE"
-            )
-        }.getOrNull()
-    }
-
-    fun handleSignInResult(data: Intent?): Result<GoogleSignInAccount> {
-        return runCatching {
-            GoogleSignIn.getSignedInAccountFromIntent(data)
-                .getResult(ApiException::class.java)
-        }
-    }
-
-    fun clearAccount() {
-        val client = GoogleSignIn.getClient(
-            context,
-            GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN).build()
-        )
-        client.signOut()
     }
 }
