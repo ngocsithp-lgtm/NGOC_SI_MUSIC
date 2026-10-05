@@ -4163,7 +4163,6 @@ class MainActivity : ComponentActivity() {
                         ProHomeScreen(
                             modifier = Modifier.weight(1f),
                             currentSong = currentSong,
-                            libraryCount = songs.size,
                             queueCount = queueSongs.size,
                             isPlaying = isPlaying,
                             position = position,
@@ -4439,7 +4438,6 @@ class MainActivity : ComponentActivity() {
     private fun ProHomeScreen(
         modifier: Modifier = Modifier,
         currentSong: Song?,
-        libraryCount: Int,
         queueCount: Int,
         isPlaying: Boolean,
         position: Long,
@@ -4683,10 +4681,8 @@ class MainActivity : ComponentActivity() {
                 }
                 Spacer(Modifier.height(8.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ProHomeUtilityTile("⚙", "Cài đặt", onOpenSettings, Modifier.weight(1f))
                     ProHomeUtilityTile("▶", "Player", onOpenPlayer, Modifier.weight(1f))
-                    ProHomeUtilityTile("▣", "TV", onOpenTv, Modifier.weight(1f))
-                    ProHomeUtilityTile("♫", "$libraryCount bài", onOpenLibrary, Modifier.weight(1f))
+                    ProHomeUtilityTile("⚙", "Cài đặt", onOpenSettings, Modifier.weight(1f))
                 }
             }
 
