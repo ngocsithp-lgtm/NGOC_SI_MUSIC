@@ -1159,8 +1159,9 @@ class MainActivity : ComponentActivity() {
             queueSource = songs[index].source
             syncControllerQueue()
         } else if (queueSongs.none { it.uri == songs[index].uri && it.source == songs[index].source }) {
-            queueSongs.add(songs[index])
-            syncControllerQueue()
+            val addedSong = songs[index]
+            queueSongs.add(addedSong)
+            appendSongToControllerQueue(addedSong)
         }
 
         currentIndex = index
@@ -3103,6 +3104,45 @@ class MainActivity : ComponentActivity() {
         }
         syncControllerQueue()
         play(index)
+    }
+
+    private fun appendSongToControllerQueue(song: Song) {
+        val c = controller ?: return
+        val mediaItem = mediaItemFor(song)
+
+        // Appending one item should not rebuild/prepare the entire queue.
+        // Rebuilding a large queue on every tap can block the UI thread and
+        // momentarily interrupt an already playing item.
+        val expectedIndex = queueSongs.indexOfFirst {
+            it.uri == song.uri && it.source == song.source
+        }
+        val controllerIndex = c.currentMediaItemIndex
+        val wasEmpty = c.mediaItemCount == 0
+
+        if (wasEmpty) {
+            c.setMediaItems(queueSongs.map { mediaItemFor(it) })
+            c.shuffleModeEnabled = shuffleEnabled
+            c.repeatMode = repeatMode
+            c.prepare()
+            return
+        }
+
+        if (expectedIndex !in 0 until c.mediaItemCount) {
+            c.addMediaItem(mediaItem)
+        } else if (c.getMediaItemAt(expectedIndex).localConfiguration?.uri != song.uri) {
+            // Queue drift is rare; fall back to a full sync only when the
+            // expected position does not already contain this exact URI.
+            syncControllerQueue()
+            return
+        }
+
+        // Keep the active item untouched. Adding a queue item does not require
+        // prepare(), so playback continues without a decoder reset.
+        if (controllerIndex >= 0) {
+            position = c.currentPosition.coerceAtLeast(0L)
+        }
+        saveQueueOrder()
+        savePlaybackState()
     }
 
     private fun syncControllerQueue() {
