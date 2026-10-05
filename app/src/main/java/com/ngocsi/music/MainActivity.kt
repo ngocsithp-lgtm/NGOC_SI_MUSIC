@@ -906,7 +906,7 @@ class MainActivity : ComponentActivity() {
         // Rehydrate files previously linked from a Google Drive sharing URL.
         val sharedItems = loadSharedDriveItems()
         val sharedApiKey = driveApiKey()
-        if (sharedItems.isNotEmpty() && (sharedApiKey.isNotBlank() || driveOAuthSignedIn))
+        if (sharedItems.isNotEmpty() && (sharedApiKey.isNotBlank() || driveOAuthSignedIn)) {
             sharedItems.forEach { item ->
                 val uri = sharedDriveMediaUri(item, sharedApiKey)
                 val raw = uri.toString()
