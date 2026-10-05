@@ -395,328 +395,86 @@ class MainActivity : ComponentActivity() {
 
     private var pendingDriveAction: (() -> Unit)? = null
 
-    private val driveSignInLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        // Do not discard a non-OK result: Google Play services can return useful
-        // ApiException diagnostics in the returned Intent even when the chooser
-        // is canceled or the OAuth client is misconfigured.
-        val data = result.data
-        driveOAuthSignedIn = driveOAuthManager.isSignedIn()
-        driveGoogleAccountEmail = driveOAuthManager.lastAccount()?.email.orEmpty()
-
-        if (data == null) {
-            pendingDriveAction = null
-            driveSharedStatus = if (driveOAuthSignedIn) {
-                "Đã kết nối Google Drive"
-            } else {
-                "Google Sign-In không trả về dữ liệu"
+    private val driveAuthorizationLauncher =
+        registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+            val data = result.data
+            if (data == null) {
+                driveSharedStatus = "Google Drive chưa hoàn tất cấp quyền"
+                errorMessage = "Không nhận được kết quả cấp quyền Google Drive."
+                pendingDriveAction = null
+                return@registerForActivityResult
             }
-            errorMessage = if (driveOAuthSignedIn) {
-                null
-            } else {
-                "Google Sign-In chưa hoàn tất (resultCode=" + result.resultCode + "). " +
-                    "Package: " + packageName + " • SHA-1: " + driveOAuthManager.signingCertificateSha1()
-            }
-            return@registerForActivityResult
-        }
 
-        driveOAuthManager.handleSignInResult(data)
-            .onSuccess {
-                driveOAuthSignedIn = driveOAuthManager.hasDriveScope()
-                driveGoogleAccountEmail = driveOAuthManager.lastAccount()?.email.orEmpty()
-                if (driveOAuthSignedIn) {
-                    driveSharedStatus = "Đã đăng nhập Google Drive và cấp quyền Drive"
-                    errorMessage = null
-                    val action = pendingDriveAction
-                    pendingDriveAction = null
-                    restoreDriveSourcesFromCloud(action)
-                } else {
-                    driveSharedStatus = "Đã chọn tài khoản • đang xin quyền Google Drive…"
-                    errorMessage = null
-                    val requested = driveOAuthManager.requestDrivePermission(this@MainActivity)
-                    if (!requested) {
+            driveOAuthManager.handleAuthorizationResult(data)
+                .onSuccess { authorizationResult ->
+                    driveOAuthSignedIn = driveOAuthManager.hasDriveScope(authorizationResult)
+                    driveGoogleAccountEmail = ""
+                    if (driveOAuthSignedIn) {
+                        driveSharedStatus = "Đã kết nối Google Drive và cấp quyền Drive"
+                        errorMessage = null
+                        val action = pendingDriveAction
                         pendingDriveAction = null
-                        driveSharedStatus = "Không thể mở yêu cầu quyền Google Drive"
-                        errorMessage = "Tài khoản Google đã đăng nhập nhưng không mở được màn hình cấp quyền Drive. " +
-                            "Package: " + packageName + " • SHA-1: " + driveOAuthManager.signingCertificateSha1()
+                        restoreDriveSourcesFromCloud(action)
+                    } else {
+                        pendingDriveAction = null
+                        driveSharedStatus = "Google Drive chưa được cấp đủ quyền"
+                        errorMessage = "Hãy cấp quyền đọc Google Drive để duyệt file được chia sẻ."
                     }
                 }
-            }
-            .onFailure { e ->
-                pendingDriveAction = null
-                driveOAuthSignedIn = false
-                driveGoogleAccountEmail = ""
-                driveSharedStatus = "Google Drive chưa đăng nhập"
-                errorMessage = driveOAuthManager.signInErrorMessage(e)
-            }
-    }
+                .onFailure { e ->
+                    pendingDriveAction = null
+                    driveOAuthSignedIn = false
+                    driveGoogleAccountEmail = ""
+                    driveSharedStatus = "Google Drive chưa đăng nhập"
+                    errorMessage = driveOAuthManager.signInErrorMessage(e)
+                }
+        }
 
     private fun signInGoogleDrive(afterSignIn: (() -> Unit)? = null) {
         pendingDriveAction = afterSignIn
+        driveSharedStatus = "Đang kiểm tra quyền Google Drive…"
+        errorMessage = null
+
         runCatching {
-            driveSignInLauncher.launch(driveOAuthManager.signInIntent())
-            driveSharedStatus = "Đang mở Google Sign-In…"
-            errorMessage = null
+            driveOAuthManager.authorize(
+                activity = this,
+                onSuccess = { authorizationResult ->
+                    driveOAuthSignedIn = driveOAuthManager.hasDriveScope(authorizationResult)
+                    driveGoogleAccountEmail = ""
+                    if (driveOAuthSignedIn) {
+                        driveSharedStatus = "Đã kết nối Google Drive và cấp quyền Drive"
+                        errorMessage = null
+                        val action = pendingDriveAction
+                        pendingDriveAction = null
+                        restoreDriveSourcesFromCloud(action)
+                    } else {
+                        pendingDriveAction = null
+                        driveSharedStatus = "Google Drive chưa được cấp đủ quyền"
+                        errorMessage = "Hãy cấp quyền đọc Google Drive để duyệt file được chia sẻ."
+                    }
+                },
+                onResolution = { pendingIntent ->
+                    driveSharedStatus = "Đang mở màn hình cấp quyền Google Drive…"
+                    driveAuthorizationLauncher.launch(
+                        androidx.activity.result.IntentSenderRequest.Builder(
+                            pendingIntent.intentSender
+                        ).build()
+                    )
+                },
+                onFailure = { error ->
+                    pendingDriveAction = null
+                    driveOAuthSignedIn = false
+                    driveGoogleAccountEmail = ""
+                    driveSharedStatus = "Google Drive chưa đăng nhập"
+                    errorMessage = driveOAuthManager.signInErrorMessage(error)
+                }
+            )
         }.onFailure { e ->
             pendingDriveAction = null
-            driveSharedStatus = "Không thể mở Google Sign-In"
-            errorMessage = "Không mở được màn hình đăng nhập Google: " +
+            driveSharedStatus = "Không thể mở cấp quyền Google Drive"
+            errorMessage = "Không mở được màn hình cấp quyền Google Drive: " +
                 (e.message ?: "lỗi không xác định")
         }
-    }
-
-    @Deprecated("Google Play services legacy additional-scope callback")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != DriveOAuthManager.REQUEST_CODE) return
-
-        driveOAuthSignedIn = driveOAuthManager.hasDriveScope()
-        driveGoogleAccountEmail = driveOAuthManager.lastAccount()?.email.orEmpty()
-
-        if (resultCode == Activity.RESULT_OK && driveOAuthSignedIn) {
-            driveSharedStatus = "Đã cấp quyền Google Drive"
-            errorMessage = null
-            val action = pendingDriveAction
-            pendingDriveAction = null
-            action?.invoke()
-        } else {
-            driveSharedStatus = if (driveOAuthManager.lastAccount() != null)
-                "Đã đăng nhập nhưng chưa cấp quyền Google Drive"
-            else
-                "Google Drive chưa đăng nhập"
-            errorMessage = "Chưa cấp quyền Google Drive. Hãy bấm KẾT NỐI và chấp nhận quyền truy cập Drive."
-            pendingDriveAction = null
-        }
-    }
-
-
-    private val playerListener = object : Player.Listener {
-        override fun onIsPlayingChanged(playing: Boolean) {
-            isPlaying = playing
-            savePlaybackState()
-        }
-        override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-            // Media3's queue index can differ from the library index when shuffle
-            // is enabled. Resolve the active item by URI instead of assuming the
-            // two indexes are identical.
-            val activeUri = mediaItem?.localConfiguration?.uri?.toString()
-                ?: controller?.currentMediaItem?.localConfiguration?.uri?.toString()
-            val activeSource = activeUri?.let { uri ->
-                queueSongs.firstOrNull { it.uri.toString() == uri }?.source
-            } ?: queueSource
-            val libraryIndex = activeUri?.let { uri ->
-                songs.indexOfFirst { it.uri.toString() == uri &&
-                    (activeSource.isBlank() || it.source == activeSource)
-                }
-            } ?: -1
-
-            if (libraryIndex >= 0) {
-                currentIndex = libraryIndex
-                lastSongUri = activeUri
-                savedPosition = 0L
-                position = 0L
-                controller?.duration?.takeIf { it > 0L }?.let { duration = it }
-                savePlaybackState()
-            }
-        }
-        override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
-            shuffleEnabled = shuffleModeEnabled
-            savePlayerPreferences()
-        }
-
-        override fun onRepeatModeChanged(repeatMode: Int) {
-            this@MainActivity.repeatMode = repeatMode
-            savePlayerPreferences()
-        }
-
-        override fun onPlaybackStateChanged(playbackState: Int) {
-            if (activeRadioTitle != null) {
-                if (playbackState == Player.STATE_BUFFERING) {
-                    scheduleRadioRecovery()
-                } else if (playbackState == Player.STATE_READY) {
-                    cancelRadioRecovery()
-                }
-            }
-            controller?.duration?.takeIf { it > 0L }?.let { duration = it }
-            if (playbackState == Player.STATE_ENDED && repeatMode == Player.REPEAT_MODE_OFF) {
-                // A naturally finished last item must persist 00:00 as well.
-                // Otherwise on reopening the app, the old end-position from
-                // SharedPreferences could be restored unexpectedly.
-                controller?.seekTo(0L)
-                isPlaying = false
-                position = 0L
-                savedPosition = 0L
-                savePlaybackState()
-            }
-        }
-        override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-            isPlaying = false
-            cancelRadioRecovery()
-
-            // Media3 1004 is ERROR_CODE_FAILED_RUNTIME_CHECK. It is not a network
-            // error and can be triggered by a transient player/decoder state.
-            // Rebuild the active item once before surfacing the error to the user.
-            if (error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_FAILED_RUNTIME_CHECK &&
-                !runtimeRecoveryInProgress
-            ) {
-                val activeItem = controller?.currentMediaItem
-                val activeUri = activeItem?.localConfiguration?.uri
-                if (activeItem != null && activeUri != null) {
-                    runtimeRecoveryInProgress = true
-                    val resumePosition = controller?.currentPosition?.coerceAtLeast(0L) ?: 0L
-                    lifecycleScope.launch {
-                        delay(250L)
-                        runCatching {
-                            controller?.setMediaItem(activeItem, resumePosition)
-                            controller?.prepare()
-                            controller?.play()
-                        }.onFailure { recoveryError ->
-                            errorMessage = "Media3 không thể khôi phục bài đang phát: " +
-                                (recoveryError.message ?: recoveryError.javaClass.simpleName)
-                        }
-                        runtimeRecoveryInProgress = false
-                    }
-                    return
-                }
-            }
-            runtimeRecoveryInProgress = false
-
-            val radioTitle = activeRadioTitle
-            if (radioTitle != null && activeRadioStreamIndex + 1 < activeRadioStreams.size) {
-                activeRadioStreamIndex++
-                val fallbackUrl = activeRadioStreams[activeRadioStreamIndex]
-                onlineUrl = fallbackUrl
-                errorMessage = "Luồng $radioTitle lỗi, đang thử nguồn dự phòng…"
-                lifecycleScope.launch {
-                    delay(350L)
-                    playRadioFallback(radioTitle, fallbackUrl)
-                }
-                return
-            }
-
-            if (radioTitle != null && openRadioOfficialSource(radioTitle)) {
-                errorMessage = "${radioTitle} không phát được bằng luồng trực tiếp; đã chuyển sang nguồn chính thức trong ứng dụng."
-                return
-            }
-
-            val activeTitle = controller?.currentMediaItem?.mediaMetadata?.title?.toString()
-                ?.takeIf { it.isNotBlank() }
-                ?: radioTitle
-                ?: "bài hát"
-            val detail = generatePlaybackErrorDetail(error)
-            errorMessage = when (error.errorCode) {
-                androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ->
-                    "Mất kết nối mạng khi phát $activeTitle. $detail"
-                androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ->
-                    "Máy chủ từ chối phát $activeTitle. $detail"
-                androidx.media3.common.PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND ->
-                    "Không tìm thấy nguồn phát của $activeTitle. $detail"
-                androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED,
-                androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED ->
-                    "Nguồn âm thanh của $activeTitle không được hỗ trợ hoặc máy chủ trả về dữ liệu không hợp lệ. $detail"
-                else ->
-                    "Không thể phát $activeTitle. Mã Media3 ${error.errorCode}. $detail"
-            }
-
-            activeRadioTitle = null
-            activeRadioStreams = emptyList()
-            activeRadioStreamIndex = 0
-        }
-    }
-
-    private fun generatePlaybackErrorDetail(error: androidx.media3.common.PlaybackException): String {
-        var cause: Throwable? = error
-        var depth = 0
-        repeat(8) {
-            if (cause is androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException) {
-                val http = cause as androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException
-                val body = http.headerFields["Content-Type"]?.firstOrNull().orEmpty()
-                return "HTTP ${http.responseCode}" +
-                    (http.responseMessage?.takeIf { it.isNotBlank() }?.let { " ${it}" } ?: "") +
-                    (if (body.isNotBlank()) " • ${body}" else "")
-            }
-            if (depth > 0 && cause != null) {
-                val causeMessage = cause?.message?.trim().orEmpty()
-                if (causeMessage.isNotBlank()) {
-                    return cause!!.javaClass.simpleName + ": " + causeMessage.take(180)
-                }
-            }
-            cause = cause?.cause
-            depth++
-        }
-        val message = error.message?.trim().orEmpty()
-        return if (message.isNotBlank()) message.take(180) else "Không có thông tin chi tiết từ Media3."
-    }
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
-        driveSourcePrefs = getSharedPreferences("ngocsi_music_drive_sources", MODE_PRIVATE)
-        migrateDrivePersistence()
-        driveOAuthManager = DriveOAuthManager(this)
-        driveOAuthSignedIn = driveOAuthManager.isSignedIn()
-        driveGoogleAccountEmail = driveOAuthManager.lastAccount()?.email.orEmpty()
-
-        playlistStore = PlaylistStore(this)
-        playlists.addAll(playlistStore.load())
-        loadCustomTvSources()
-        loadSavedState()
-        loadDriveRecentLinks()
-        if (driveOAuthSignedIn) restoreDriveSourcesFromCloud()
-        restoreSleepTimer()
-
-        // PRO shell deep-links into the proven feature surfaces without
-        // duplicating their implementation. This keeps YouTube, Drive,
-        // Radio, TV, Map and Media3 playback on the same stable code paths.
-        handleProDestination(intent.getStringExtra("pro_destination"))
-
-        setContent { NgocSiMusicApp() }
-        requestMusicPermissionIfNeeded()
-        requestNotificationPermissionIfNeeded()
-        connectController()
-    }
-
-    private fun handleProDestination(destination: String?) {
-        when (destination) {
-            "library" -> {
-                selectedSection = "Thư viện"
-                selectedLibrary = "Tất cả"
-                libraryView = "Bài hát"
-            }
-            "youtube" -> {
-                selectedSection = "Online"
-                onlineHubTab = "YouTube"
-            }
-            "drive" -> {
-                selectedSection = "Online"
-                onlineHubTab = "Tất cả"
-                errorMessage = "Google Drive: chọn File Drive hoặc Thư mục để nhập nhạc."
-            }
-            "radio" -> {
-                selectedSection = "Radio"
-                showVietnamRadioHub = true
-            }
-            "tv" -> selectedSection = "TV"
-            "map" -> selectedSection = "Bản đồ"
-            "playlists" -> showPlaylists = true
-            "queue" -> showQueue = true
-            "player" -> {
-                if (songs.getOrNull(currentIndex) != null) {
-                    showNowPlaying = true
-                } else {
-                    selectedSection = "Thư viện"
-                    selectedLibrary = "Tất cả"
-                    libraryView = "Bài hát"
-                    errorMessage = "Chưa có bài hát đang phát. Hãy chọn một bài hát để mở trình phát."
-                }
-            }
-            "settings" -> selectedSection = "Cài đặt"
-        }
-    }
-
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        handleProDestination(intent.getStringExtra("pro_destination"))
     }
 
     private var usingOnDeviceRecognizer = false
