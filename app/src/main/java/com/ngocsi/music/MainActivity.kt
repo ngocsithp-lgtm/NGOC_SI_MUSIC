@@ -4456,8 +4456,9 @@ class MainActivity : ComponentActivity() {
     ) {
         var showMore by remember { mutableStateOf(false) }
 
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+        Column(Modifier.fillMaxSize()) {
+            LazyColumn(
+                modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -4741,6 +4742,7 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+        }
 
     @Composable
     private fun ProHomeControl(icon: String, onClick: () -> Unit) {
