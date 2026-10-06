@@ -5446,7 +5446,7 @@ class MainActivity : ComponentActivity() {
             "Online" -> "YouTube • Google Drive • nhạc trực tuyến"
             "Radio" -> if (activeRadioTitle != null) "Đang phát • $activeRadioTitle" else "Đài phát thanh Việt Nam"
             "TV" -> "${TvCatalog.builtIn.size + customTvSources.size} nguồn truyền hình"
-            "Bản đồ" -> "Bản đồ • tìm địa điểm • vị trí hiện tại"
+            "Bản đồ" -> "Tìm địa điểm • vị trí hiện tại"
             "Cài đặt" -> "Phát nhạc • giao diện • nguồn nội dung"
             else -> ""
         }
@@ -5614,7 +5614,7 @@ class MainActivity : ComponentActivity() {
             SettingsRow(
                 "🗺️",
                 "Bản đồ",
-                "Bản đồ + giao thông thời gian thực"
+                "Tìm địa điểm + vị trí hiện tại"
             ) { selectedSection = "Bản đồ" }
             SettingsRow(
                 "♫",
