@@ -630,7 +630,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             "(function(){try{return JSON.stringify({id:String(lamPlayer.getVideoData().video_id||''),p:Math.floor(lamPlayer.getCurrentTime()*1000)});}catch(e){return '{}';}})();"
         ) { value ->
             val payload = runCatching {
-                org.json.JSONObject(value.trim('"').replace("\\"", """))
+                org.json.JSONObject(value.trim('"').replace("\\\\"", "\""))
             }.getOrNull() ?: return@evaluateJavascript
             val actualId = sanitizeVideoId(payload.optString("id"))
             val positionMs = payload.optLong("p", 0L).coerceAtLeast(0L)
