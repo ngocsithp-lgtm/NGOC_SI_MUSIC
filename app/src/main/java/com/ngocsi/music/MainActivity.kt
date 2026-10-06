@@ -9707,6 +9707,18 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             Surface(Modifier.fillMaxWidth(0.95f), RoundedCornerShape(26.dp), color = Color(0xFF101117)) {
                 Column(Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(
+                            onClick = {
+                                showDriveBrowser = false
+                                driveBrowserHistory.clear()
+                                driveBrowserQuery = ""
+                                selectedSection = "Trang chủ"
+                            },
+                            enabled = !driveSharedLoading
+                        ) {
+                            Text("⌂ HOME", fontSize = 10.sp, fontWeight = FontWeight.Black)
+                        }
+                        Spacer(Modifier.width(2.dp))
                         if (driveBrowserFolderId != null || driveBrowserHistory.isNotEmpty()) {
                             TextButton(
                                 onClick = { goBackDriveFolder() },
