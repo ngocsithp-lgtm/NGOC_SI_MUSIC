@@ -6895,7 +6895,10 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 Surface(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clickable { showQueue = false },
+                                        .clickable {
+                                            showQueue = false
+                                            showNowPlaying = true
+                                        },
                                     shape = RoundedCornerShape(20.dp),
                                     color = Color(0xFF19132A),
                                     border = androidx.compose.foundation.BorderStroke(
