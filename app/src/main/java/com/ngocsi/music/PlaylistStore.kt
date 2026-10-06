@@ -70,6 +70,20 @@ class PlaylistStore(context: Context) {
         save(load().filterNot { it.id == id })
     }
 
+    fun rename(playlistId: String, name: String): MusicPlaylist? {
+        val clean = name.trim().replace(Regex("\\s+"), " ").take(80)
+        if (clean.isBlank()) return null
+        val updated = load().map { playlist ->
+            if (playlist.id != playlistId) playlist
+            else playlist.copy(
+                name = clean,
+                updatedAt = System.currentTimeMillis()
+            )
+        }
+        save(updated)
+        return updated.firstOrNull { it.id == playlistId }
+    }
+
     fun addSong(playlistId: String, uri: String): MusicPlaylist? {
         val updated = load().map { playlist ->
             if (playlist.id != playlistId) playlist
