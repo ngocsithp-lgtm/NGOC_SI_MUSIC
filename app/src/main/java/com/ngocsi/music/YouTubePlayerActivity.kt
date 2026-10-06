@@ -71,6 +71,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var pageErrorVisible = false
     private var youtubePlayerReady = false
     private var youtubePlayerState = -1
+    private var queueTransitionInFlight = false
     private val thumbnailExecutor = Executors.newFixedThreadPool(3)
     private val playbackPositionHandler = Handler(Looper.getMainLooper())
     private val playbackPositionSaver = object : Runnable {
@@ -599,49 +600,82 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun loadQueueItem() {
-        val previousVideoId = videoId
-        saveCurrentPlaybackPosition(previousVideoId)
         val selected = queue.getOrNull(queueIndex) ?: return
-        videoId = selected.videoId
-        title = selected.title
-        channel = selected.channelTitle
 
-        if (youtubePlayerReady && webView != null) {
-            // Keep one IFrame player alive while moving through the queue.
-            // This reduces WebView churn and makes next/previous transitions
-            // much less prone to blank surfaces or repeated player handshakes.
-            titleView.text = title
-            channelView.text = channel
-            updateActionState()
-            updateQueueButton()
-            saveLastPlayedState()
-            val safeId = sanitizeVideoId(videoId)
-            webView?.evaluateJavascript("loadVideoById('$safeId');", null)
-        } else {
+        if (!youtubePlayerReady || webView == null) {
+            videoId = selected.videoId
+            title = selected.title
+            channel = selected.channelTitle
             createPlayer()
+            return
+        }
+
+        if (queueTransitionInFlight) return
+        queueTransitionInFlight = true
+
+        val previousVideoId = videoId
+        // Capture the outgoing item's position before changing videoId. Waiting for
+        // the JS callback prevents a delayed position read from becoming associated
+        // with the newly selected queue item.
+        saveCurrentPlaybackPosition(previousVideoId) {
+            runOnUiThread {
+                queueTransitionInFlight = false
+                if (isFinishing || isDestroyed) return@runOnUiThread
+
+                videoId = selected.videoId
+                title = selected.title
+                channel = selected.channelTitle
+
+                // Keep one IFrame player alive while moving through the queue.
+                // This reduces WebView churn and makes next/previous transitions
+                // much less prone to blank surfaces or repeated player handshakes.
+                titleView.text = title
+                channelView.text = channel
+                updateActionState()
+                updateQueueButton()
+                saveLastPlayedState()
+
+                val safeId = sanitizeVideoId(videoId)
+                webView?.evaluateJavascript("loadVideoById('$safeId');", null)
+            }
         }
     }
 
-    private fun saveCurrentPlaybackPosition(videoIdOverride: String? = null) {
-        if (!youtubePlayerReady || webView == null) return
+    private fun saveCurrentPlaybackPosition(
+        videoIdOverride: String? = null,
+        onComplete: (() -> Unit)? = null
+    ) {
+        if (!youtubePlayerReady || webView == null) {
+            onComplete?.invoke()
+            return
+        }
         val targetId = sanitizeVideoId(videoIdOverride ?: videoId)
-        if (targetId.isBlank()) return
+        if (targetId.isBlank()) {
+            onComplete?.invoke()
+            return
+        }
+
         webView?.evaluateJavascript(
             "(function(){try{return JSON.stringify({id:String(lamPlayer.getVideoData().video_id||''),p:Math.floor(lamPlayer.getCurrentTime()*1000)});}catch(e){return '{}';}})();"
         ) { value ->
             val payload = runCatching {
                 org.json.JSONObject(value.trim('"').replace("\\\"", "\""))
-            }.getOrNull() ?: return@evaluateJavascript
-            val actualId = sanitizeVideoId(payload.optString("id"))
-            val positionMs = payload.optLong("p", 0L).coerceAtLeast(0L)
-            // Bind the saved position to the actual video reported by the player.
-            // This prevents delayed JS callbacks during rapid queue navigation from
-            // writing one video's position into another video's slot.
-            if (actualId != targetId) return@evaluateJavascript
-            getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
-                .edit()
-                .putLong("youtube_position_ms_" + targetId, positionMs)
-                .apply()
+            }.getOrNull()
+
+            if (payload != null) {
+                val actualId = sanitizeVideoId(payload.optString("id"))
+                val positionMs = payload.optLong("p", 0L).coerceAtLeast(0L)
+                // Bind the saved position to the actual video reported by the player.
+                // This prevents delayed JS callbacks from writing one video's position
+                // into another video's slot.
+                if (actualId == targetId) {
+                    getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+                        .edit()
+                        .putLong("youtube_position_ms_" + targetId, positionMs)
+                        .apply()
+                }
+            }
+            onComplete?.invoke()
         }
     }
 
