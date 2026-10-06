@@ -1757,6 +1757,13 @@ class MainActivity : ComponentActivity() {
                 runCatching {
                     val token = driveOAuthManager.accessToken()
                         ?: error("Không lấy được quyền Google Drive.")
+                    if (!driveOAuthManager.hasAppDataScope()) {
+                        // Drive read access is enough to browse/play files, but
+                        // App Data permission is required for cross-install source
+                        // restoration. Keep local Drive data intact when App Data
+                        // has not been granted.
+                        return@runCatching false
+                    }
                     val query = URLEncoder.encode(
                         "name = '" + DRIVE_SOURCE_CLOUD_FILE + "' and trashed = false",
                         "UTF-8"
@@ -1834,6 +1841,11 @@ class MainActivity : ComponentActivity() {
             driveSyncMutex.withLock {
                 runCatching {
                 val token = driveOAuthManager.accessToken() ?: return@runCatching
+                if (!driveOAuthManager.hasAppDataScope()) {
+                    // Cloud persistence is optional; do not block Drive playback
+                    // when the user granted read-only Drive access.
+                    return@runCatching
+                }
                 val bytes = buildDriveSourceCloudJson().toByteArray(Charsets.UTF_8)
                 val query = URLEncoder.encode(
                     "name = '" + DRIVE_SOURCE_CLOUD_FILE + "' and trashed = false",
