@@ -190,6 +190,30 @@ class YouTubePlayerActivity : ComponentActivity() {
             LinearLayout.LayoutParams(dp(48), dp(48))
         )
 
+        val homeButton = Button(this).apply {
+            text = "HOME"
+            isAllCaps = false
+            textSize = 11f
+            setTextColor(AndroidColor.WHITE)
+            background = roundedButtonDrawable(
+                fill = AndroidColor.rgb(18, 20, 27),
+                stroke = AndroidColor.rgb(42, 48, 60),
+                radius = dp(11)
+            )
+            backgroundTintList = null
+            contentDescription = "Về trang chủ NGỌC SĨ MUSIC"
+            setOnClickListener {
+                if (customView != null) exitFullscreen()
+                finish()
+            }
+        }
+        header.addView(
+            homeButton,
+            LinearLayout.LayoutParams(dp(58), dp(44)).apply {
+                marginEnd = dp(5)
+            }
+        )
+
         val info = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
         }
