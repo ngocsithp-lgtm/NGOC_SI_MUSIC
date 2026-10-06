@@ -1,6 +1,7 @@
 package com.ngocsi.music
 
 import android.content.Intent
+import android.net.Uri
 import android.graphics.BitmapFactory
 import android.graphics.Color as AndroidColor
 import android.content.res.ColorStateList
@@ -1372,7 +1373,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
     }
 
-    private fun showError(message: String) {
+    private fun showError(message: String, allowExternal: Boolean = false) {
         pageErrorVisible = true
         if (errorView == null) {
             errorView = LinearLayout(this).apply {
@@ -1396,11 +1397,38 @@ class YouTubePlayerActivity : ComponentActivity() {
                     }
                 }
 
+                val external = Button(this@YouTubePlayerActivity).apply {
+                    text = "MỞ TRÊN YOUTUBE"
+                    tag = "external_button"
+                    setOnClickListener {
+                        val intent = Intent(
+                            Intent.ACTION_VIEW,
+                            Uri.parse("https://www.youtube.com/watch?v=" + sanitizeVideoId(videoId))
+                        )
+                        runCatching {
+                            startActivity(intent)
+                        }.onFailure {
+                            errorMessageFallback()
+                        }
+                    }
+                }
+
                 addView(messageView, LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
                 ))
-                addView(retry)
+                addView(retry, LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    topMargin = dp(12)
+                })
+                addView(external, LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    topMargin = dp(4)
+                })
                 tag = messageView
             }
 
@@ -1415,7 +1443,16 @@ class YouTubePlayerActivity : ComponentActivity() {
 
         (errorView?.tag as? TextView)?.text = message
         errorView?.findViewWithTag<View>("retry_button")?.visibility = View.VISIBLE
+        errorView?.findViewWithTag<View>("external_button")?.visibility =
+            if (allowExternal) View.VISIBLE else View.GONE
         errorView?.visibility = View.VISIBLE
+    }
+
+    private fun errorMessageFallback() {
+        // Keep the in-app error surface visible when Android has no external
+        // handler for the YouTube URL.
+        (errorView?.tag as? TextView)?.text =
+            "Không mở được YouTube bên ngoài trên thiết bị này."
     }
 
     override fun onResume() {
