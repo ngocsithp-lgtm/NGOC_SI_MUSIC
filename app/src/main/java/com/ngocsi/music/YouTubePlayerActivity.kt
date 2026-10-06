@@ -480,6 +480,27 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
     }
 
+    private fun moveQueueItem(fromIndex: Int, toIndex: Int) {
+        if (queueTransitionInFlight) return
+        if (fromIndex !in queue.indices || toIndex !in queue.indices || fromIndex == toIndex) return
+
+        val movingCurrent = queueIndex == fromIndex
+        val targetCurrent = queueIndex == toIndex
+
+        val moving = queue.removeAt(fromIndex)
+        queue.add(toIndex, moving)
+
+        queueIndex = when {
+            movingCurrent -> toIndex
+            targetCurrent -> fromIndex
+            else -> queueIndex
+        }.coerceIn(0, queue.lastIndex.coerceAtLeast(0))
+
+        saveLastPlayedState()
+        updateQueueButton()
+        updateQueueModeButtons()
+    }
+
     private fun showQueueDialog() {
         if (queue.isEmpty()) return
 
@@ -612,40 +633,105 @@ class YouTubePlayerActivity : ComponentActivity() {
 
             row.addView(info, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
 
-            if (!isCurrent) {
-                val removeButton = Button(this).apply {
-                    text = "×"
-                    isAllCaps = false
-                    textSize = 18f
-                    setTextColor(AndroidColor.rgb(255, 138, 154))
-                    background = roundedButtonDrawable(
-                        fill = AndroidColor.rgb(30, 23, 27),
-                        stroke = AndroidColor.rgb(70, 43, 50),
-                        radius = dp(10)
-                    )
-                    backgroundTintList = null
-                    contentDescription = "Xóa " + item.title + " khỏi hàng đợi"
-                    setOnClickListener {
-                        if (queueTransitionInFlight) return@setOnClickListener
-                        queue.removeAt(index)
-                        if (index < queueIndex) {
-                            queueIndex--
-                        }
-                        queueIndex = queueIndex.coerceIn(0, (queue.lastIndex).coerceAtLeast(0))
-                        saveLastPlayedState()
-                        updateQueueButton()
-                        updateQueueModeButtons()
-                        dialog.dismiss()
-                        showQueueDialog()
-                    }
-                }
-                row.addView(
-                    removeButton,
-                    LinearLayout.LayoutParams(dp(42), dp(42)).apply {
-                        marginStart = dp(5)
-                    }
-                )
+            val queueControls = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
             }
+
+            val moveUpButton = Button(this).apply {
+                text = "↑"
+                isAllCaps = false
+                textSize = 14f
+                setTextColor(
+                    if (index > 0) AndroidColor.WHITE else AndroidColor.rgb(75, 75, 82)
+                )
+                background = roundedButtonDrawable(
+                    fill = AndroidColor.rgb(25, 27, 34),
+                    stroke = AndroidColor.rgb(48, 52, 62),
+                    radius = dp(9)
+                )
+                backgroundTintList = null
+                isEnabled = index > 0
+                contentDescription = "Đưa " + item.title + " lên"
+                setOnClickListener {
+                    if (queueTransitionInFlight) return@setOnClickListener
+                    moveQueueItem(index, index - 1)
+                    dialog.dismiss()
+                    showQueueDialog()
+                }
+            }
+
+            val moveDownButton = Button(this).apply {
+                text = "↓"
+                isAllCaps = false
+                textSize = 14f
+                setTextColor(
+                    if (index < queue.lastIndex) AndroidColor.WHITE else AndroidColor.rgb(75, 75, 82)
+                )
+                background = roundedButtonDrawable(
+                    fill = AndroidColor.rgb(25, 27, 34),
+                    stroke = AndroidColor.rgb(48, 52, 62),
+                    radius = dp(9)
+                )
+                backgroundTintList = null
+                isEnabled = index < queue.lastIndex
+                contentDescription = "Đưa " + item.title + " xuống"
+                setOnClickListener {
+                    if (queueTransitionInFlight) return@setOnClickListener
+                    moveQueueItem(index, index + 1)
+                    dialog.dismiss()
+                    showQueueDialog()
+                }
+            }
+
+            queueControls.addView(
+                moveUpButton,
+                LinearLayout.LayoutParams(dp(38), dp(30))
+            )
+            queueControls.addView(
+                moveDownButton,
+                LinearLayout.LayoutParams(dp(38), dp(30)).apply { topMargin = dp(2) }
+            )
+            row.addView(
+                queueControls,
+                LinearLayout.LayoutParams(dp(38), dp(62)).apply {
+                    marginStart = dp(4)
+                }
+            )
+
+            val removeButton = Button(this).apply {
+                text = "×"
+                isAllCaps = false
+                textSize = 18f
+                setTextColor(AndroidColor.rgb(255, 138, 154))
+                background = roundedButtonDrawable(
+                    fill = AndroidColor.rgb(30, 23, 27),
+                    stroke = AndroidColor.rgb(70, 43, 50),
+                    radius = dp(10)
+                )
+                backgroundTintList = null
+                contentDescription = "Xóa " + item.title + " khỏi hàng đợi"
+                isEnabled = !isCurrent
+                setOnClickListener {
+                    if (queueTransitionInFlight || isCurrent) return@setOnClickListener
+                    queue.removeAt(index)
+                    if (index < queueIndex) {
+                        queueIndex--
+                    }
+                    queueIndex = queueIndex.coerceIn(0, (queue.lastIndex).coerceAtLeast(0))
+                    saveLastPlayedState()
+                    updateQueueButton()
+                    updateQueueModeButtons()
+                    dialog.dismiss()
+                    showQueueDialog()
+                }
+            }
+            row.addView(
+                removeButton,
+                LinearLayout.LayoutParams(dp(42), dp(42)).apply {
+                    marginStart = dp(5)
+                }
+            )
 
             list.addView(row, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
