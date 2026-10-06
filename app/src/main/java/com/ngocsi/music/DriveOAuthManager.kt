@@ -28,6 +28,7 @@ class DriveOAuthManager(private val context: Context) {
         const val DRIVE_APPDATA_SCOPE = "https://www.googleapis.com/auth/drive.appdata"
         private const val PREFS = "ngoc_si_music"
         private const val KEY_AUTHORIZED = "drive_authorized"
+        private const val KEY_APPDATA_AUTHORIZED = "drive_appdata_authorized"
     }
 
     private val requestedScopes = listOf(
@@ -73,7 +74,7 @@ class DriveOAuthManager(private val context: Context) {
     fun handleAuthorizationResult(data: Intent?): Result<AuthorizationResult> =
         runCatching {
             authorizationClient.getAuthorizationResultFromIntent(data)
-        }
+        }.onSuccess { markAuthorized(it) }
 
     fun isSignedIn(): Boolean =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -81,16 +82,26 @@ class DriveOAuthManager(private val context: Context) {
 
     fun hasDriveScope(result: AuthorizationResult? = null): Boolean {
         if (result != null) {
-            return requestedScopes.all { it.scopeUri in result.grantedScopes }
+            return DRIVE_READ_SCOPE in result.grantedScopes
         }
         return isSignedIn()
     }
 
+    fun hasAppDataScope(result: AuthorizationResult? = null): Boolean {
+        if (result != null) {
+            return DRIVE_APPDATA_SCOPE in result.grantedScopes
+        }
+        return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getBoolean(KEY_APPDATA_AUTHORIZED, false)
+    }
+
     private fun markAuthorized(result: AuthorizationResult) {
-        val granted = requestedScopes.all { it.scopeUri in result.grantedScopes }
+        val grantedRead = DRIVE_READ_SCOPE in result.grantedScopes
+        val grantedAppData = DRIVE_APPDATA_SCOPE in result.grantedScopes
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit()
-            .putBoolean(KEY_AUTHORIZED, granted)
+            .putBoolean(KEY_AUTHORIZED, grantedRead)
+            .putBoolean(KEY_APPDATA_AUTHORIZED, grantedAppData)
             .apply()
     }
 
