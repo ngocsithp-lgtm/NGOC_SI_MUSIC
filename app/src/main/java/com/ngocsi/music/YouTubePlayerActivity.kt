@@ -141,15 +141,37 @@ class YouTubePlayerActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        videoId = sanitizeVideoId(intent.getStringExtra(EXTRA_VIDEO_ID).orEmpty())
-        title = intent.getStringExtra(EXTRA_TITLE).orEmpty().ifBlank { "YouTube" }
-        channel = intent.getStringExtra(EXTRA_CHANNEL).orEmpty().ifBlank { "YouTube" }
-        queueIndex = intent.getIntExtra(EXTRA_QUEUE_INDEX, 0).coerceAtLeast(0)
         val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
-        youtubeShuffleEnabled = prefs.getBoolean("youtube_shuffle", false)
-        youtubeRepeatMode = prefs.getInt("youtube_repeat_mode", 0).coerceIn(0, 2)
+        youtubeShuffleEnabled = savedInstanceState?.getBoolean(
+            "youtube_shuffle",
+            prefs.getBoolean("youtube_shuffle", false)
+        ) ?: prefs.getBoolean("youtube_shuffle", false)
+        youtubeRepeatMode = savedInstanceState?.getInt(
+            "youtube_repeat_mode",
+            prefs.getInt("youtube_repeat_mode", 0)
+        )?.coerceIn(0, 2) ?: prefs.getInt("youtube_repeat_mode", 0).coerceIn(0, 2)
 
-        parseQueue(intent.getStringExtra(EXTRA_QUEUE_JSON))
+        videoId = sanitizeVideoId(
+            savedInstanceState?.getString(EXTRA_VIDEO_ID)
+                ?: intent.getStringExtra(EXTRA_VIDEO_ID).orEmpty()
+        )
+        title = (
+            savedInstanceState?.getString(EXTRA_TITLE)
+                ?: intent.getStringExtra(EXTRA_TITLE)
+        ).orEmpty().ifBlank { "YouTube" }
+        channel = (
+            savedInstanceState?.getString(EXTRA_CHANNEL)
+                ?: intent.getStringExtra(EXTRA_CHANNEL)
+        ).orEmpty().ifBlank { "YouTube" }
+        queueIndex = (
+            savedInstanceState?.getInt(
+                EXTRA_QUEUE_INDEX,
+                intent.getIntExtra(EXTRA_QUEUE_INDEX, 0)
+            ) ?: intent.getIntExtra(EXTRA_QUEUE_INDEX, 0)
+        ).coerceAtLeast(0)
+
+        val restoredQueueJson = savedInstanceState?.getString(EXTRA_QUEUE_JSON)
+        parseQueue(restoredQueueJson ?: intent.getStringExtra(EXTRA_QUEUE_JSON))
         if (queue.isNotEmpty()) {
             queueIndex = queueIndex.coerceIn(0, queue.lastIndex)
             val selected = queue[queueIndex]
