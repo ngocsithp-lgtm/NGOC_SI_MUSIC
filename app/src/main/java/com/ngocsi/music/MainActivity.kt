@@ -361,6 +361,10 @@ class MainActivity : ComponentActivity() {
     private var internalMapTitle by mutableStateOf("TP. Hồ Chí Minh")
     private var internalMapLayer by mutableStateOf("standard")
     private var internalMapRouteJson by mutableStateOf("[]")
+    // Chặng đi của CHỈ ĐƯỜNG phải có điểm xuất phát độc lập với tâm bản đồ.
+    private var mapRouteOriginLat by mutableStateOf(10.8231)
+    private var mapRouteOriginLon by mutableStateOf(106.6297)
+    private var mapRouteOriginTitle by mutableStateOf("TP. Hồ Chí Minh")
     private var showNowPlaying by mutableStateOf(false)
     private var youtubeQuery by mutableStateOf("")
     private var isVoiceSearching by mutableStateOf(false)
@@ -3727,15 +3731,10 @@ class MainActivity : ComponentActivity() {
                 return
             }
 
-            val delta = 0.018
-            val left = lon - delta
-            val right = lon + delta
-            val bottom = lat - delta
-            val top = lat + delta
-
-            // Use OpenStreetMap's dedicated embed endpoint instead of the
-            // full OSM SPA/hash URL. The embed page is more reliable inside
-            // Android WebView and does not depend on the site's client router.
+            // Lưu điểm xuất phát riêng cho CHỈ ĐƯỜNG.
+            mapRouteOriginLat = lat
+            mapRouteOriginLon = lon
+            mapRouteOriginTitle = "VỊ TRÍ HIỆN TẠI"
             internalMapLat = lat
             internalMapLon = lon
             internalMapTitle = "VỊ TRÍ HIỆN TẠI"
@@ -6336,7 +6335,7 @@ class MainActivity : ComponentActivity() {
         }
         if (mapSearching) return
         mapSearching = true
-        errorMessage = "Đang tìm đường…"
+        errorMessage = "Đang tìm đường từ " + mapRouteOriginTitle + "…"
 
         lifecycleScope.launch {
             val result = withContext(Dispatchers.IO) {
@@ -6370,7 +6369,7 @@ class MainActivity : ComponentActivity() {
                     val destination = geocode(query)
                     val routeUrl =
                         "https://router.project-osrm.org/route/v1/driving/" +
-                            internalMapLon.toString() + "," + internalMapLat.toString() + ";" +
+                            mapRouteOriginLon.toString() + "," + mapRouteOriginLat.toString() + ";" +
                             destination.second.toString() + "," + destination.first.toString() +
                             "?overview=full&geometries=geojson"
                     val routeConnection = (URL(routeUrl).openConnection() as HttpURLConnection).apply {
@@ -6460,7 +6459,7 @@ class MainActivity : ComponentActivity() {
                     )
                     Spacer(Modifier.height(5.dp))
                     Text(
-                        "Bản đồ và tìm kiếm chạy trong ứng dụng. Giao thông, Vệ tinh và Chỉ đường dùng Google Maps ngay trong màn hình này; vẫn có nút mở ngoài khi cần.",
+                        "Bản đồ, tìm kiếm, Vệ tinh và Chỉ đường chạy trong ứng dụng; Giao thông dùng Google Maps trong màn hình này. Vẫn có nút mở ngoài khi cần.",
                         color = Color(0xFF9698A7),
                         fontSize = 12.sp
                     )
@@ -6599,13 +6598,13 @@ class MainActivity : ComponentActivity() {
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "Bản đồ đường phố và tìm kiếm chạy ngay trong NGỌC SĨ MUSIC; Vệ tinh, Giao thông và Chỉ đường mở Google Maps khi cần.",
+                        "Bản đồ đường phố, Vệ tinh, tìm kiếm và Chỉ đường chạy ngay trong NGỌC SĨ MUSIC; Giao thông dùng Google Maps trong màn hình này.",
                         color = Color(0xFF8F909E),
                         fontSize = 11.sp
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "• Bản đồ đường phố\n• Giao thông\n• Vệ tinh\n• Tìm địa điểm",
+                        "• Bản đồ đường phố\n• Giao thông trực tiếp\n• Vệ tinh\n• Tìm địa điểm\n• Chỉ đường",
                         color = Color(0xFFB0B2BF),
                         fontSize = 11.sp,
                         lineHeight = 18.sp
