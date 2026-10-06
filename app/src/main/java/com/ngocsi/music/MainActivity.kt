@@ -657,6 +657,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Initialize the native renderer once for the Activity lifecycle.
+        MapLibre.getInstance(this)
+
         // Initialize lightweight app state before any feature surface is opened.
         // The UI is attached early so startup never appears as a blank window while
         // library/Drive state is being restored in the background.
@@ -6918,6 +6921,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         """.trimIndent()
     }
 
+    @Suppress("DEPRECATION")
     @Composable
     private fun InternalMapDialog(
         lat: Double,
@@ -6979,7 +6983,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 if (routePoints.size >= 2) {
                     map.addPolyline(
                         PolylineOptions()
-                            .add(routePoints.toTypedArray())
+                            .add(*routePoints.toTypedArray())
                             .color(android.graphics.Color.rgb(35, 103, 255))
                             .width(6f)
                             .alpha(0.92f)
@@ -7071,7 +7075,6 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     )
                                     getMapAsync { map ->
                                         mapRef = map
-                                        map.setTileCacheEnabled(true)
                                     }
                                     mapViewRef = this
                                 }
@@ -7230,19 +7233,29 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         Lifecycle.Event.ON_RESUME -> mapView.onResume()
                         Lifecycle.Event.ON_PAUSE -> mapView.onPause()
                         Lifecycle.Event.ON_STOP -> mapView.onStop()
-                        Lifecycle.Event.ON_DESTROY -> if (!mapView.isDestroyed) mapView.onDestroy()
                         else -> Unit
                     }
                 }
                 lifecycleOwner.lifecycle.addObserver(observer)
 
+                // AndroidView can be created after the parent Activity has already
+                // reached RESUMED. Forward the current lifecycle immediately;
+                // otherwise MapView can stay created-but-not-running and render blank.
+                when {
+                    lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) -> {
+                        mapView.onStart()
+                        mapView.onResume()
+                    }
+                    lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED) -> {
+                        mapView.onStart()
+                    }
+                }
+
                 onDispose {
                     lifecycleOwner.lifecycle.removeObserver(observer)
-                    if (!mapView.isDestroyed) {
-                        runCatching { mapView.onPause() }
-                        runCatching { mapView.onStop() }
-                        runCatching { mapView.onDestroy() }
-                    }
+                    runCatching { mapView.onPause() }
+                    runCatching { mapView.onStop() }
+                    runCatching { mapView.onDestroy() }
                 }
             }
         }
