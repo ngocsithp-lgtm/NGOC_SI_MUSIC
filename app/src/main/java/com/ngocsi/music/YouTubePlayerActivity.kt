@@ -767,14 +767,30 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun playPrevious() {
-        if (queueTransitionInFlight || queue.size <= 1 || queueIndex <= 0) return
-        queueIndex--
+        if (queueTransitionInFlight || queue.size <= 1) return
+
+        queueIndex = when {
+            youtubeShuffleEnabled -> {
+                queue.indices.filter { it != queueIndex }.random()
+            }
+            queueIndex > 0 -> queueIndex - 1
+            youtubeRepeatMode == 1 -> queue.lastIndex
+            else -> return
+        }
         loadQueueItem()
     }
 
     private fun playNext() {
-        if (queueTransitionInFlight || queue.size <= 1 || queueIndex >= queue.lastIndex) return
-        queueIndex++
+        if (queueTransitionInFlight || queue.size <= 1) return
+
+        queueIndex = when {
+            youtubeShuffleEnabled -> {
+                queue.indices.filter { it != queueIndex }.random()
+            }
+            queueIndex < queue.lastIndex -> queueIndex + 1
+            youtubeRepeatMode == 1 -> 0
+            else -> return
+        }
         loadQueueItem()
     }
 
@@ -1029,8 +1045,18 @@ class YouTubePlayerActivity : ComponentActivity() {
     private fun updateActionState() {
         if (::favoriteButton.isInitialized) favoriteButton.text = if (isFavorite()) "♥ Yêu thích" else "♡ Yêu thích"
         if (::watchLaterButton.isInitialized) watchLaterButton.text = if (isWatchLater()) "✓ Xem sau" else "🔖 Xem sau"
-        if (::previousButton.isInitialized) previousButton.isEnabled = queueIndex > 0
-        if (::nextButton.isInitialized) nextButton.isEnabled = queueIndex < queue.lastIndex
+
+        val canNavigate = queue.size > 1
+        if (::previousButton.isInitialized) {
+            previousButton.isEnabled = canNavigate && (
+                youtubeShuffleEnabled || queueIndex > 0 || youtubeRepeatMode == 1
+            )
+        }
+        if (::nextButton.isInitialized) {
+            nextButton.isEnabled = canNavigate && (
+                youtubeShuffleEnabled || queueIndex < queue.lastIndex || youtubeRepeatMode == 1
+            )
+        }
         updatePlaybackButton()
     }
     private fun createPlayer() {
