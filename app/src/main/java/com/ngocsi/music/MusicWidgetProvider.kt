@@ -36,7 +36,12 @@ class MusicWidgetProvider : AppWidgetProvider() {
         when (intent.action) {
             ACTION_PLAY_PAUSE, ACTION_PREVIOUS, ACTION_NEXT -> {
                 val action = intent.action.orEmpty()
-                if (action.isNotBlank()) handlePlayerAction(context, action)
+                if (action.isNotBlank()) {
+                    val pendingResult = goAsync()
+                    handlePlayerAction(context, action) {
+                        pendingResult.finish()
+                    }
+                }
             }
             ACTION_OPEN -> {
                 val open = Intent(context, MainActivity::class.java).apply {
@@ -48,7 +53,11 @@ class MusicWidgetProvider : AppWidgetProvider() {
         }
     }
 
-    private fun handlePlayerAction(context: Context, action: String) {
+    private fun handlePlayerAction(
+        context: Context,
+        action: String,
+        onComplete: () -> Unit
+    ) {
         val token = SessionToken(context, ComponentName(context, MusicService::class.java))
         val future = MediaController.Builder(context, token).buildAsync()
         future.addListener({
@@ -75,6 +84,8 @@ class MusicWidgetProvider : AppWidgetProvider() {
                 controller.release()
             } catch (_: Exception) {
                 updateAll(context)
+            } finally {
+                onComplete()
             }
         }, MoreExecutors.directExecutor())
     }
