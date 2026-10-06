@@ -6907,11 +6907,10 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   height: 100%;
                   overflow: hidden;
                   background:
-                    linear-gradient(rgba(190, 205, 215, 0.28) 1px, transparent 1px),
-                    linear-gradient(90deg, rgba(190, 205, 215, 0.28) 1px, transparent 1px),
-                    #e7edf2;
-                  background-size: 32px 32px;
+                    radial-gradient(circle at 50% 42%, rgba(255,255,255,0.42), transparent 52%),
+                    #dfe6eb;
                   touch-action: none;
+                  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
                 }
                 #tiles {
                   position: absolute;
@@ -6928,6 +6927,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   user-select: none;
                   -webkit-user-drag: none;
                   pointer-events: none;
+                  opacity: 0;
+                  transition: opacity 180ms ease-out;
+                }
+                .map-tile.loaded {
+                  opacity: 1;
                 }
                 #route {
                   position: absolute;
@@ -6936,6 +6940,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   height: 100%;
                   pointer-events: none;
                   overflow: visible;
+                  z-index: 15;
                 }
                 #marker {
                   position: absolute;
@@ -6944,10 +6949,144 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   border-radius: 50%;
                   background: #7057d9;
                   border: 3px solid #ffffff;
-                  box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+                  box-shadow: 0 2px 10px rgba(52,38,110,0.42);
                   transform: translate(-50%, -50%);
-                  z-index: 20;
+                  z-index: 30;
                   display: none;
+                  pointer-events: none;
+                }
+                #marker::before {
+                  content: "";
+                  position: absolute;
+                  inset: -9px;
+                  border: 2px solid rgba(112,87,217,0.28);
+                  border-radius: 50%;
+                  animation: mapPulse 1.8s ease-out infinite;
+                }
+                @keyframes mapPulse {
+                  0% { transform: scale(0.55); opacity: 0.85; }
+                  100% { transform: scale(1.55); opacity: 0; }
+                }
+                .map-top-card {
+                  position: absolute;
+                  left: 12px;
+                  top: 12px;
+                  z-index: 90;
+                  min-width: 0;
+                  max-width: calc(100% - 94px);
+                  padding: 9px 12px;
+                  border-radius: 16px;
+                  background: rgba(10,14,21,0.90);
+                  color: #fff;
+                  box-shadow: 0 5px 18px rgba(0,0,0,0.24);
+                  border: 1px solid rgba(255,255,255,0.10);
+                  backdrop-filter: blur(10px);
+                  -webkit-backdrop-filter: blur(10px);
+                }
+                .map-top-brand {
+                  font-size: 8px;
+                  font-weight: 900;
+                  letter-spacing: 1.6px;
+                  color: #bba9ff;
+                  text-transform: uppercase;
+                  margin-bottom: 2px;
+                }
+                .map-top-title {
+                  font-size: 13px;
+                  font-weight: 800;
+                  white-space: nowrap;
+                  overflow: hidden;
+                  text-overflow: ellipsis;
+                }
+                .map-top-subtitle {
+                  margin-top: 2px;
+                  font-size: 9px;
+                  color: #aab0bc;
+                  white-space: nowrap;
+                  overflow: hidden;
+                  text-overflow: ellipsis;
+                }
+                .map-status {
+                  position: absolute;
+                  left: 12px;
+                  bottom: 12px;
+                  top: auto;
+                  z-index: 80;
+                  padding: 6px 9px;
+                  border-radius: 10px;
+                  font: 700 9px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                  background: rgba(10,14,21,0.84);
+                  color: #ffffff;
+                  pointer-events: none;
+                  box-shadow: 0 3px 12px rgba(0,0,0,0.18);
+                }
+                .map-bottom-card {
+                  position: absolute;
+                  left: 50%;
+                  bottom: 12px;
+                  transform: translateX(-50%);
+                  z-index: 85;
+                  width: min(430px, calc(100% - 108px));
+                  padding: 9px 11px;
+                  border-radius: 16px;
+                  background: rgba(10,14,21,0.90);
+                  border: 1px solid rgba(255,255,255,0.10);
+                  box-shadow: 0 5px 18px rgba(0,0,0,0.24);
+                  color: #fff;
+                  box-sizing: border-box;
+                  text-align: center;
+                  pointer-events: none;
+                }
+                .map-bottom-main {
+                  font-size: 10px;
+                  font-weight: 800;
+                  letter-spacing: 0.5px;
+                }
+                .map-bottom-sub {
+                  margin-top: 2px;
+                  color: #aeb4c0;
+                  font-size: 8px;
+                }
+                .map-scale {
+                  position: absolute;
+                  left: 12px;
+                  bottom: 54px;
+                  z-index: 86;
+                  height: 3px;
+                  min-width: 42px;
+                  max-width: 90px;
+                  border-left: 2px solid #202631;
+                  border-right: 2px solid #202631;
+                  border-bottom: 2px solid #202631;
+                  pointer-events: none;
+                }
+                .map-scale span {
+                  position: absolute;
+                  left: 50%;
+                  transform: translateX(-50%);
+                  top: 6px;
+                  white-space: nowrap;
+                  font-size: 8px;
+                  font-weight: 700;
+                  color: #202631;
+                  text-shadow: 0 1px 2px rgba(255,255,255,0.75);
+                }
+                .map-compass {
+                  position: absolute;
+                  right: 12px;
+                  bottom: 56px;
+                  z-index: 86;
+                  width: 32px;
+                  height: 32px;
+                  border-radius: 50%;
+                  background: rgba(255,255,255,0.94);
+                  color: #5c47b4;
+                  box-shadow: 0 3px 10px rgba(0,0,0,0.20);
+                  font-size: 13px;
+                  font-weight: 900;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
                   pointer-events: none;
                 }
                 #marker::after {
@@ -7012,17 +7151,49 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 .map-button:active {
                   transform: scale(0.95);
                 }
+                .route-point {
+                  position: absolute;
+                  width: 24px;
+                  height: 24px;
+                  margin-left: -12px;
+                  margin-top: -12px;
+                  border-radius: 50%;
+                  display: none;
+                  align-items: center;
+                  justify-content: center;
+                  z-index: 32;
+                  color: #fff;
+                  font: 900 9px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                  box-shadow: 0 3px 10px rgba(0,0,0,0.28);
+                  border: 2px solid #fff;
+                }
+                .route-start { background: #20a66a; }
+                .route-end { background: #e55268; }
               </style>
             </head>
             <body>
               <div id="map">
                 <div id="tiles"></div>
+                <div class="map-top-card">
+                  <div class="map-top-brand">NGỌC SĨ MAP • PRO</div>
+                  <div id="mapTopTitle" class="map-top-title">Bản đồ</div>
+                  <div id="mapTopSubtitle" class="map-top-subtitle">Bản đồ trực tiếp • chạm để di chuyển</div>
+                </div>
                 <svg id="route" viewBox="0 0 1 1" preserveAspectRatio="none">
-                  <polyline id="routeLine" fill="none" stroke="#2367ff" stroke-width="0.65" stroke-linecap="round" stroke-linejoin="round"></polyline>
+                  <polyline id="routeShadow" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" opacity="0.82"></polyline>
+                  <polyline id="routeLine" fill="none" stroke="#6c5ce7" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"></polyline>
                 </svg>
                 <div id="marker"></div>
+                <div id="routeStart" class="route-point route-start">A</div>
+                <div id="routeEnd" class="route-point route-end">B</div>
                 <div id="mapStatus" class="map-status">Đang tải bản đồ…</div>
                 <div id="mapError" class="map-error"></div>
+                <div class="map-scale" id="mapScale"><span>500 m</span></div>
+                <div class="map-compass">N</div>
+                <div id="mapBottomCard" class="map-bottom-card">
+                  <div id="mapBottomMain" class="map-bottom-main">Đang tải bản đồ</div>
+                  <div id="mapBottomSub" class="map-bottom-sub">NGỌC SĨ MUSIC • Bản đồ trong ứng dụng</div>
+                </div>
                 <div class="map-controls">
                   <button class="map-button" type="button" onclick="zoomIn()">＋</button>
                   <button class="map-button" type="button" onclick="zoomOut()">−</button>
@@ -7042,8 +7213,16 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   const tilesEl = document.getElementById("tiles");
                   const markerEl = document.getElementById("marker");
                   const routeLineEl = document.getElementById("routeLine");
+                  const routeShadowEl = document.getElementById("routeShadow");
+                  const routeStartEl = document.getElementById("routeStart");
+                  const routeEndEl = document.getElementById("routeEnd");
                   const statusEl = document.getElementById("mapStatus");
                   const errorEl = document.getElementById("mapError");
+                  const topTitleEl = document.getElementById("mapTopTitle");
+                  const topSubtitleEl = document.getElementById("mapTopSubtitle");
+                  const bottomMainEl = document.getElementById("mapBottomMain");
+                  const bottomSubEl = document.getElementById("mapBottomSub");
+                  const scaleEl = document.getElementById("mapScale");
 
                   let centerLat = validLat(INITIAL_LAT);
                   let centerLon = validLon(INITIAL_LON);
@@ -7143,6 +7322,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         img.style.left = (tx * 256 - world.x + size.width / 2) + "px";
                         img.style.top = (ty * 256 - world.y + size.height / 2) + "px";
                         img.onload = function () {
+                          img.classList.add("loaded");
                           tileSuccess++;
                           if (tileSuccess > 0) {
                             hideError();
@@ -7189,6 +7369,42 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     markerEl.style.display = "block";
                   }
 
+                  function renderRoutePoints() {
+                    if (!routeStartEl || !routeEndEl) return;
+                    if (!Array.isArray(route) || route.length < 2) {
+                      routeStartEl.style.display = "none";
+                      routeEndEl.style.display = "none";
+                      return;
+                    }
+                    const first = route[0];
+                    const last = route[route.length - 1];
+                    const a = screenPoint(Number(first[1]), Number(first[0]));
+                    const b = screenPoint(Number(last[1]), Number(last[0]));
+                    routeStartEl.style.left = a.x + "px";
+                    routeStartEl.style.top = a.y + "px";
+                    routeEndEl.style.left = b.x + "px";
+                    routeEndEl.style.top = b.y + "px";
+                    routeStartEl.style.display = "flex";
+                    routeEndEl.style.display = "flex";
+                  }
+
+                  function updateMapChrome() {
+                    if (topTitleEl) topTitleEl.textContent = INITIAL_TITLE || "Bản đồ";
+                    if (topSubtitleEl) {
+                      topSubtitleEl.textContent = route.length >= 2
+                        ? "Chỉ đường • tuyến đường hiển thị trực tiếp"
+                        : (activeLayer === "satellite" ? "Vệ tinh • kéo để xem khu vực" : "Bản đồ • kéo để xem khu vực");
+                    }
+                    if (bottomMainEl) {
+                      bottomMainEl.textContent = route.length >= 2
+                        ? "● TUYẾN ĐƯỜNG • " + route.length + " điểm"
+                        : (activeLayer === "satellite" ? "● VỆ TINH" : "● BẢN ĐỒ");
+                    }
+                    if (bottomSubEl) {
+                      bottomSubEl.textContent = "NGỌC SĨ MUSIC • " + (activeLayer === "satellite" ? "Esri World Imagery" : "OpenStreetMap");
+                    }
+                  }
+
                   function renderRoute() {
                     if (!routeLineEl) return;
                     const size = mapSize();
@@ -7207,6 +7423,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                       points.push(sp.x + "," + sp.y);
                     }
                     routeLineEl.setAttribute("points", points.join(" "));
+                    if (routeShadowEl) routeShadowEl.setAttribute("points", points.join(" "));
                   }
 
                   function renderAll() {
@@ -7216,6 +7433,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     renderTiles();
                     renderMarker();
                     renderRoute();
+                    renderRoutePoints();
+                    updateMapChrome();
                   }
 
                   function applyState(lat, lon, placeTitle, layerName, nextRoute) {
@@ -7273,7 +7492,10 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     });
                     centerLat = (minLat + maxLat) / 2;
                     centerLon = (minLon + maxLon) / 2;
-                    zoom = 14;
+                    const latSpan = Math.max(0.01, maxLat - minLat);
+                    const lonSpan = Math.max(0.01, maxLon - minLon);
+                    const span = Math.max(latSpan, lonSpan);
+                    zoom = clampZoom(Math.floor(Math.log2(360 / span)) - 1);
                     renderAll();
                     return true;
                   }
