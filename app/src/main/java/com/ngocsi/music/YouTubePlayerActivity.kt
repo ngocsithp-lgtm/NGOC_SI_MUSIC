@@ -910,8 +910,8 @@ class YouTubePlayerActivity : ComponentActivity() {
         playbackPositionHandler.removeCallbacks(playbackPositionSaver)
     }
 
-    private fun saveLastPlayedState() {
-        val queueJson = org.json.JSONArray().apply {
+    private fun buildQueueJson(): String =
+        org.json.JSONArray().apply {
             queue.forEach { item ->
                 put(org.json.JSONObject().apply {
                     put("videoId", item.videoId)
@@ -921,6 +921,9 @@ class YouTubePlayerActivity : ComponentActivity() {
                 })
             }
         }.toString()
+
+    private fun saveLastPlayedState() {
+        val queueJson = buildQueueJson()
 
         val thumbnail = queue.getOrNull(queueIndex)?.thumbnailUrl?.ifBlank {
             "https://i.ytimg.com/vi/" + videoId + "/hqdefault.jpg"
@@ -1375,6 +1378,9 @@ class YouTubePlayerActivity : ComponentActivity() {
         outState.putString(EXTRA_TITLE, title)
         outState.putString(EXTRA_CHANNEL, channel)
         outState.putInt(EXTRA_QUEUE_INDEX, queueIndex.coerceAtLeast(0))
+        outState.putString(EXTRA_QUEUE_JSON, buildQueueJson())
+        outState.putBoolean("youtube_shuffle", youtubeShuffleEnabled)
+        outState.putInt("youtube_repeat_mode", youtubeRepeatMode)
         super.onSaveInstanceState(outState)
     }
 
