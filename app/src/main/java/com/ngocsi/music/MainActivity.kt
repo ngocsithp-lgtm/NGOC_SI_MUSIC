@@ -8308,7 +8308,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     color = Color(0xFF17261E)
                                 ) {
                                     Text(
-                                        "ĐANG CÓ BÀI",
+                                        "CÓ BÀI GẦN NHẤT",
                                         color = Color(0xFF8FD694),
                                         fontSize = 8.sp,
                                         fontWeight = FontWeight.Black,
@@ -8709,7 +8709,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                             color = Color(0xCC0A0C11)
                                         ) {
                                             Text(
-                                                if (isCurrent) "ĐANG PHÁT" else "YOUTUBE",
+                                                if (isCurrent) "TIẾP TỤC" else "YOUTUBE",
                                                 color = if (isCurrent) Color(0xFFFF7A87) else Color.White,
                                                 fontSize = 7.sp,
                                                 fontWeight = FontWeight.Black,
@@ -8743,7 +8743,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         )
                                         if (isCurrent) {
                                             Text(
-                                                "ĐANG PHÁT",
+                                                "TIẾP TỤC",
                                                 color = Color(0xFFFF7A87),
                                                 fontSize = 8.sp,
                                                 fontWeight = FontWeight.Black
