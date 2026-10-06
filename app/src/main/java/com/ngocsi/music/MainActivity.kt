@@ -274,7 +274,17 @@ class MainActivity : ComponentActivity() {
         }
 
         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-            errorMessage = "Lỗi phát nhạc: " + playbackErrorSummary(error)
+            val radioActive = activeRadioTitle != null && activeRadioStreams.isNotEmpty()
+            if (radioActive) {
+                errorMessage = "${activeRadioTitle} gặp lỗi kết nối, đang thử luồng dự phòng…"
+                cancelRadioRecovery()
+                radioRecoveryHandler.postDelayed(
+                    { recoverBufferedRadio(force = true) },
+                    350L
+                )
+            } else {
+                errorMessage = "Lỗi phát nhạc: " + playbackErrorSummary(error)
+            }
         }
     }
 
@@ -2739,12 +2749,13 @@ class MainActivity : ComponentActivity() {
         return true
     }
 
-    private fun recoverBufferedRadio() {
+    private fun recoverBufferedRadio(force: Boolean = false) {
         val title = activeRadioTitle ?: return
         val c = controller ?: return
         val currentUri = c.currentMediaItem?.localConfiguration?.uri?.toString()
         val expectedUri = activeRadioStreams.getOrNull(activeRadioStreamIndex)
-        if (c.isPlaying || c.playbackState != Player.STATE_BUFFERING || currentUri != expectedUri) {
+        if (currentUri != expectedUri) return
+        if (!force && (c.isPlaying || c.playbackState != Player.STATE_BUFFERING)) {
             return
         }
 
@@ -2892,6 +2903,11 @@ class MainActivity : ComponentActivity() {
 
         syncControllerQueue()
         play(index)
+        if (isRadio) {
+            // Arm the watchdog for stations that remain buffering without
+            // emitting a fatal player error.
+            scheduleRadioRecovery()
+        }
         errorMessage = "Đang kết nối luồng âm thanh online…"
     }
 
