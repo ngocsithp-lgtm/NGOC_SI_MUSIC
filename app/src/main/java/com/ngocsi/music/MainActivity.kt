@@ -8254,26 +8254,37 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         }
                         Spacer(Modifier.height(12.dp))
                         Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(7.dp)
                         ) {
                             listOf("Khám phá", "Xem sau", "Yêu thích").forEach { tab ->
-                                FilterChip(
-                                    selected = youtubeShelf == tab,
-                                    onClick = { youtubeShelf = tab },
-                                    label = {
-                                        Text(
-                                            when (tab) {
-                                                "Xem sau" -> "🔖 Xem sau • " + youtubeWatchLater.size
-                                                "Yêu thích" -> "♥ Yêu thích • " + youtubeFavoriteTracks.size
-                                                else -> "▶ Khám phá"
-                                            },
-                                            fontSize = 10.sp,
-                                            maxLines = 1
-                                        )
-                                    },
-                                    modifier = Modifier.weight(1f)
-                                )
+                                val selected = youtubeShelf == tab
+                                Surface(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(11.dp))
+                                        .clickable { youtubeShelf = tab },
+                                    shape = RoundedCornerShape(11.dp),
+                                    color = if (selected) Color(0xFF3A2026) else Color(0xFF1A1C23),
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        1.dp,
+                                        if (selected) Color(0xFFFF6678) else Color(0xFF2A2D37)
+                                    )
+                                ) {
+                                    Text(
+                                        when (tab) {
+                                            "Xem sau" -> "🔖 Xem sau • " + youtubeWatchLater.size
+                                            "Yêu thích" -> "♥ Yêu thích • " + youtubeFavoriteTracks.size
+                                            else -> "▶ Khám phá"
+                                        },
+                                        color = if (selected) Color.White else Color(0xFFA8ACB8),
+                                        fontSize = 10.sp,
+                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                        maxLines = 1,
+                                        modifier = Modifier.padding(horizontal = 11.dp, vertical = 8.dp)
+                                    )
+                                }
                             }
                         }
                     }
@@ -8281,6 +8292,14 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             }
 
             item {
+                Text(
+                    "TÌM KIẾM YOUTUBE",
+                    color = Color(0xFF858B9C),
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 1.1.sp,
+                    modifier = Modifier.padding(start = 2.dp, bottom = 1.dp)
+                )
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(18.dp),
@@ -8561,6 +8580,22 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                             .clickable { playYouTube(track) }
                                     ) {
                                         OnlineArtwork(track.thumbnailUrl, Modifier.fillMaxSize())
+                                        Surface(
+                                            modifier = Modifier
+                                                .align(Alignment.Center)
+                                                .size(34.dp),
+                                            shape = CircleShape,
+                                            color = Color(0xCC0A0C11)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Text(
+                                                    "▶",
+                                                    color = Color.White,
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Black
+                                                )
+                                            }
+                                        }
                                         Surface(
                                             modifier = Modifier
                                                 .align(Alignment.BottomStart)
