@@ -7017,7 +7017,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             <body>
               <div id="map">
                 <div id="tiles"></div>
-                <svg id="route" viewBox="0 0 100 100" preserveAspectRatio="none">
+                <svg id="route" viewBox="0 0 1 1" preserveAspectRatio="none">
                   <polyline id="routeLine" fill="none" stroke="#2367ff" stroke-width="0.65" stroke-linecap="round" stroke-linejoin="round"></polyline>
                 </svg>
                 <div id="marker"></div>
@@ -7191,6 +7191,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
                   function renderRoute() {
                     if (!routeLineEl) return;
+                    const size = mapSize();
+                    const svg = document.getElementById("route");
+                    if (svg) {
+                      svg.setAttribute("viewBox", "0 0 " + size.width + " " + size.height);
+                    }
                     const points = [];
                     for (let i = 0; i < route.length; i++) {
                       const p = route[i];
