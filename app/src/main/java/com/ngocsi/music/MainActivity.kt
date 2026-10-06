@@ -2250,14 +2250,26 @@ class MainActivity : ComponentActivity() {
             } catch (e: Exception) {
                 if (e is kotlin.coroutines.cancellation.CancellationException) throw e
                 driveSharedLoading = false
-                errorMessage = when {
-                    e.message.orEmpty().contains("403") ->
-                        "Tài khoản Google không có quyền xem/tải các nguồn được chia sẻ."
-                    e.message.orEmpty().contains("401") ->
-                        "Phiên Google Drive đã hết hạn. Hãy đăng nhập lại."
-                    else ->
-                        "Không tải được “Được chia sẻ với tôi”: " +
-                            (e.message ?: "lỗi không xác định")
+                val message = e.message.orEmpty()
+                if (message.contains("401")) {
+                    // A stale cached OAuth token can make the first Drive request fail
+                    // even though the Google account is still present on the device.
+                    // Clear the cached authorization state and reopen the normal OAuth
+                    // flow instead of leaving the user on a dead-end error state.
+                    driveOAuthSignedIn = false
+                    driveGoogleAccountEmail = ""
+                    driveSharedStatus = "Phiên Google Drive đã hết hạn"
+                    errorMessage = "Phiên Google Drive đã hết hạn. Đang mở lại cấp quyền Google Drive…"
+                    driveOAuthManager.clearLocalAuthorizationState()
+                    signInGoogleDrive { loadSharedWithMeDrive() }
+                } else {
+                    errorMessage = when {
+                        message.contains("403") ->
+                            "Tài khoản Google không có quyền xem/tải các nguồn được chia sẻ."
+                        else ->
+                            "Không tải được “Được chia sẻ với tôi”: " +
+                                (e.message ?: "lỗi không xác định")
+                    }
                 }
             } finally {
                 driveImportJob = null
