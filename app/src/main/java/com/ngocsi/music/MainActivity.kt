@@ -88,6 +88,9 @@ import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
+import org.maplibre.android.maps.Style
+import okhttp3.OkHttpClient
+import org.maplibre.android.module.http.HttpRequestUtil
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -656,6 +659,21 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Initialize MapLibre networking with an identifiable app User-Agent before
+        // any MapView is created. This is required for reliable OSM tile access.
+        val mapHttpClient = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                val request = chain.request().newBuilder()
+                    .header(
+                        "User-Agent",
+                        "NGOC-SI-MUSIC/5.10 (+https://github.com/ngocsithp-lgtm/NGOC_SI_MUSIC)"
+                    )
+                    .build()
+                chain.proceed(request)
+            }
+            .build()
+        HttpRequestUtil.setOkHttpClient(mapHttpClient)
 
         // Initialize the native renderer once for the Activity lifecycle.
         MapLibre.getInstance(this)
@@ -7267,7 +7285,9 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
             runCatching {
                 map.setStyle(
-                    mapLibreRasterStyleJson(selectedLayer, lat, lon)
+                    Style.Builder().fromJson(
+                        mapLibreRasterStyleJson(selectedLayer, lat, lon)
+                    )
                 ) {
                     applyAnnotations(map, signature)
                 }
