@@ -5438,9 +5438,34 @@ class MainActivity : ComponentActivity() {
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 11.dp, vertical = 8.dp),
+                    .padding(horizontal = 7.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                if (selectedSection == "TV") {
+                    TextButton(
+                        onClick = { selectedSection = "Trang chủ" },
+                        modifier = Modifier
+                            .height(40.dp)
+                            .widthIn(min = 54.dp),
+                        contentPadding = PaddingValues(horizontal = 7.dp, vertical = 0.dp),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text("⌂", color = Color(0xFFCDBEFF), fontSize = 20.sp, lineHeight = 20.sp)
+                            Text(
+                                "HOME",
+                                color = Color(0xFF8EEBFF),
+                                fontSize = 7.sp,
+                                fontWeight = FontWeight.Black,
+                                lineHeight = 8.sp
+                            )
+                        }
+                    }
+                    Spacer(Modifier.width(3.dp))
+                }
                 Surface(
                     modifier = Modifier.size(34.dp),
                     shape = RoundedCornerShape(11.dp),
