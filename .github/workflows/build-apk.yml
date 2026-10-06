@@ -54,8 +54,6 @@ jobs:
         with:
           gradle-version: '8.11.1'
       - name: Lint Debug
-        id: lint_debug
-        continue-on-error: true
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           DRIVE_API_KEY: ${{ secrets.DRIVE_API_KEY }}
@@ -63,19 +61,7 @@ jobs:
           CI_KEYSTORE_PASSWORD: ${{ env.CI_KEYSTORE_PASSWORD }}
           CI_KEY_ALIAS: ${{ env.CI_KEY_ALIAS }}
           CI_KEY_PASSWORD: ${{ env.CI_KEY_PASSWORD }}
-        run: gradle :app:lintDebug --no-daemon --stacktrace
-      - name: Collect Lint Report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: NGOC_SI_MUSIC_5.10_LINT_REPORT
-          if-no-files-found: warn
-          path: |
-            app/build/reports/lint-results-debug.xml
-            app/build/reports/lint-results-debug.html
-      - name: Fail when Lint fails
-        if: steps.lint_debug.outcome == 'failure'
-        run: exit 1
+        run: gradle :app:lintDebug --no-daemon
       - name: Unit tests
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
