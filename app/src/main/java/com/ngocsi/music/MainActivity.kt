@@ -3720,20 +3720,13 @@ class MainActivity : ComponentActivity() {
             radioWebTitle = "NGỌC SĨ MAP • VỊ TRÍ HIỆN TẠI"
             errorMessage = null
 
-            // Prefer the native geo handler: Google Maps and other installed
-            // map apps can render the exact location more reliably than a
-            // WebView, while the OSM embed remains the fallback.
-            val geoUri = Uri.parse(
-                "geo:" + lat + "," + lon + "?q=" + lat + "," + lon + "(Vị trí hiện tại)"
-            )
-            runCatching {
-                startActivity(Intent(Intent.ACTION_VIEW, geoUri))
-            }.onFailure {
-                radioWebUrl =
-                    "https://www.openstreetmap.org/export/embed.html" +
-                        "?bbox=" + left + "," + bottom + "," + right + "," + top +
-                        "&layer=mapnik&marker=" + lat + "," + lon
-            }
+            // Keep the current-location map inside NGỌC SĨ MUSIC so the
+            // navigation shell remains consistent. Google Maps remains available
+            // through the dedicated external-map buttons in MapHub.
+            radioWebUrl =
+                "https://www.openstreetmap.org/export/embed.html" +
+                    "?bbox=" + left + "," + bottom + "," + right + "," + top +
+                    "&layer=mapnik&marker=" + lat + "," + lon
         }
 
         // Prefer a recent cached fix for instant response.
@@ -6347,13 +6340,8 @@ class MainActivity : ComponentActivity() {
                     ) {
                         Button(
                             onClick = {
-                                // Open the map with a standard geo URI first. This avoids
-                                // WebView/OSM embed rendering failures on some Android builds.
-                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("geo:10.8231,106.6297?z=13"))
-                                runCatching { startActivity(intent) }.onFailure {
-                                    radioWebTitle = "NGỌC SĨ MAP • BẢN ĐỒ"
-                                    radioWebUrl = mapUrl
-                                }
+                                radioWebTitle = "NGỌC SĨ MAP • BẢN ĐỒ"
+                                radioWebUrl = mapUrl
                             },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(14.dp)
