@@ -7752,34 +7752,6 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         }
     }
 
-    private fun queueYouTubeNext(track: YouTubeTrack) {
-        val (queueJson, selectedIndex) = buildYouTubeQueueJson(track)
-        val target = YouTubeTrack(
-            videoId = track.videoId,
-            title = track.title,
-            channelTitle = track.channelTitle,
-            thumbnailUrl = track.thumbnailUrl
-        )
-        val queueArray = runCatching { org.json.JSONArray(queueJson) }.getOrElse { org.json.JSONArray() }
-        if (queueArray.length() == 0) return
-
-        // Re-open the integrated player at the selected item; it keeps the current
-        // search result set as the queue so the "Hàng đợi" action is explicit.
-        saveYouTubeLastPlayed(target, queueJson, selectedIndex)
-        runCatching {
-            startActivity(
-                Intent(this, YouTubePlayerActivity::class.java).apply {
-                    putExtra(YouTubePlayerActivity.EXTRA_VIDEO_ID, target.videoId)
-                    putExtra(YouTubePlayerActivity.EXTRA_TITLE, target.title)
-                    putExtra(YouTubePlayerActivity.EXTRA_CHANNEL, target.channelTitle)
-                    putExtra(YouTubePlayerActivity.EXTRA_QUEUE_JSON, queueJson)
-                    putExtra(YouTubePlayerActivity.EXTRA_QUEUE_INDEX, selectedIndex)
-                }
-            )
-        }.onFailure {
-            errorMessage = "Không mở được hàng đợi YouTube trong NGỌC SĨ MUSIC."
-        }
-    }
     private fun toggleYouTubeWatchLater(track: YouTubeTrack) {
         if (youtubeWatchLater.any { it.videoId == track.videoId }) {
             youtubeWatchLater.removeAll { it.videoId == track.videoId }
@@ -8784,12 +8756,6 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                             modifier = Modifier.size(34.dp)
                                         ) {
                                             Text("▶", color = if (isCurrent) Color(0xFFFF7180) else Color.White, fontSize = 15.sp)
-                                        }
-                                        IconButton(
-                                            onClick = { queueYouTubeNext(track) },
-                                            modifier = Modifier.size(34.dp)
-                                        ) {
-                                            Text("＋Q", color = Color(0xFFB8C0D4), fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                         }
                                         IconButton(
                                             onClick = { toggleYouTubeFavorite(track) },
