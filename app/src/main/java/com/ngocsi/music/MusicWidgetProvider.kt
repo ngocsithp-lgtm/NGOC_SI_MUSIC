@@ -49,7 +49,12 @@ class MusicWidgetProvider : AppWidgetProvider() {
                 }
                 context.startActivity(open)
             }
-            ACTION_REFRESH -> updateAll(context)
+            ACTION_REFRESH -> {
+                val pendingResult = goAsync()
+                updateAll(context) {
+                    pendingResult.finish()
+                }
+            }
         }
     }
 
@@ -90,13 +95,21 @@ class MusicWidgetProvider : AppWidgetProvider() {
         }, MoreExecutors.directExecutor())
     }
 
-    private fun updateAll(context: Context, existingController: MediaController? = null) {
+    private fun updateAll(
+        context: Context,
+        existingController: MediaController? = null,
+        onComplete: (() -> Unit)? = null
+    ) {
         val manager = AppWidgetManager.getInstance(context)
         val ids = manager.getAppWidgetIds(ComponentName(context, MusicWidgetProvider::class.java))
-        if (ids.isEmpty()) return
+        if (ids.isEmpty()) {
+            onComplete?.invoke()
+            return
+        }
 
         if (existingController != null) {
             updateViews(context, manager, ids, existingController)
+            onComplete?.invoke()
             return
         }
 
@@ -109,6 +122,8 @@ class MusicWidgetProvider : AppWidgetProvider() {
                 controller.release()
             } catch (_: Exception) {
                 ids.forEach { id -> updateFallback(context, manager, id) }
+            } finally {
+                onComplete?.invoke()
             }
         }, MoreExecutors.directExecutor())
     }
