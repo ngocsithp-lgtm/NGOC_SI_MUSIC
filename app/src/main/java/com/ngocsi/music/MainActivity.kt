@@ -390,6 +390,7 @@ class MainActivity : ComponentActivity() {
     private var playlistTargetSongUri by mutableStateOf<String?>(null)
     private var showCreatePlaylist by mutableStateOf(false)
     private var newPlaylistName by mutableStateOf("")
+    private var editingPlaylistId by mutableStateOf<String?>(null)
 
     // Radio recovery watchdog. A live stream can stay in BUFFERING without
     // emitting a fatal player error, so switch to the next known stream after
@@ -3917,6 +3918,21 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun createPlaylist() {
+        val editingId = editingPlaylistId
+        if (editingId != null) {
+            val updated = playlistStore.rename(editingId, newPlaylistName)
+            if (updated == null) {
+                errorMessage = "Tên playlist không được để trống."
+                return
+            }
+            newPlaylistName = ""
+            editingPlaylistId = null
+            refreshPlaylists()
+            showCreatePlaylist = false
+            errorMessage = "Đã đổi tên playlist: " + updated.name
+            return
+        }
+
         val created = playlistStore.create(newPlaylistName)
         if (created == null) {
             errorMessage = "Tên playlist không được để trống."
@@ -9970,6 +9986,13 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         Text(playlist.songUris.size.toString() + " bài • chạm để xem", color = Color(0xFF888894), fontSize = 11.sp)
                                     }
                                     TextButton(onClick = { playPlaylist(playlist) }) { Text("▶") }
+                                    TextButton(
+                                        onClick = {
+                                            editingPlaylistId = playlist.id
+                                            newPlaylistName = playlist.name
+                                            showCreatePlaylist = true
+                                        }
+                                    ) { Text("SỬA", fontSize = 9.sp) }
                                     TextButton(onClick = { deletePlaylist(playlist) }) { Text("×", color = Color(0xFFFF8A9A)) }
                                 }
                             }
@@ -10112,12 +10135,14 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
     @Composable
     private fun CreatePlaylistDialog() {
+        val editing = editingPlaylistId != null
         AlertDialog(
             onDismissRequest = {
                 playlistTargetSongUri = null
+                editingPlaylistId = null
                 showCreatePlaylist = false
             },
-            title = { Text("Tạo playlist") },
+            title = { Text(if (editing) "Đổi tên playlist" else "Tạo playlist") },
             text = {
                 OutlinedTextField(
                     value = newPlaylistName,
@@ -10129,10 +10154,15 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     shape = RoundedCornerShape(14.dp)
                 )
             },
-            confirmButton = { Button(onClick = ::createPlaylist) { Text("TẠO") } },
+            confirmButton = {
+                Button(onClick = ::createPlaylist) {
+                    Text(if (editing) "LƯU" else "TẠO")
+                }
+            },
             dismissButton = {
                 TextButton(onClick = {
                     playlistTargetSongUri = null
+                    editingPlaylistId = null
                     showCreatePlaylist = false
                 }) { Text("HỦY") }
             }
