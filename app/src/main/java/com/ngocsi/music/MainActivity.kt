@@ -4411,9 +4411,7 @@ class MainActivity : ComponentActivity() {
                     }
 
                     }
-                    if (selectedSection != "Trang chủ") {
-                        currentSong?.let { MiniPlayer(it) }
-                    }
+                    currentSong?.let { MiniPlayer(it) }
                     BottomNav()
                 }
             }
@@ -5089,14 +5087,14 @@ class MainActivity : ComponentActivity() {
             ) {
                 Column(Modifier.weight(1f)) {
                     Text(
-                        "THƯ VIỆN THEO NGUỒN",
+                        "THƯ VIỆN",
                         color = Color.White,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Black,
                         letterSpacing = 1.2.sp
                     )
                     Text(
-                        "Mỗi nguồn mở thành một thư viện riêng",
+                        "Chọn nguồn để mở thư viện riêng",
                         color = Color(0xFF777D8D),
                         fontSize = 9.sp
                     )
@@ -5116,7 +5114,7 @@ class MainActivity : ComponentActivity() {
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(7.dp)
             ) {
-                listOf("Tất cả", "Yêu thích").forEach { filter ->
+                listOf("Tất cả", "Thiết bị", "Online", "Yêu thích").forEach { filter ->
                     FilterChip(
                         selected = selectedLibrary == filter,
                         onClick = { selectedLibrary = filter },
@@ -5135,7 +5133,7 @@ class MainActivity : ComponentActivity() {
             if (sourceNames.isNotEmpty()) {
                 Spacer(Modifier.height(9.dp))
                 Text(
-                    "NGUỒN RIÊNG",
+                    "NGUỒN ĐÃ THÊM",
                     color = Color(0xFF686F80),
                     fontSize = 9.sp,
                     fontWeight = FontWeight.Black,
@@ -5159,7 +5157,7 @@ class MainActivity : ComponentActivity() {
                             icon = if (isDrive) "☁" else "♫",
                             selected = selectedLibrary == source,
                             onClick = { selectedLibrary = source },
-                            modifier = Modifier.width(138.dp)
+                            modifier = Modifier.width(132.dp)
                         )
                     }
                 }
@@ -9789,67 +9787,148 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         val totalDuration = max(duration, song.duration).coerceAtLeast(1L)
         val progress = (position.toFloat() / totalDuration.toFloat()).coerceIn(0f, 1f)
 
-        Column(
-            Modifier
+        Surface(
+            modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 6.dp)
-                .clip(RoundedCornerShape(18.dp))
-                .background(Color(0xFF161820))
-                .clickable { showNowPlaying = true }
-                .padding(horizontal = 10.dp, vertical = 8.dp)
+                .padding(horizontal = 10.dp, vertical = 5.dp)
+                .clickable { showNowPlaying = true },
+            shape = RoundedCornerShape(18.dp),
+            color = Color(0xFF11151D),
+            tonalElevation = 5.dp,
+            shadowElevation = 5.dp,
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF242B38))
         ) {
-            Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                SongArtwork(song, Modifier.size(50.dp))
-                Spacer(Modifier.width(10.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        song.title,
-                        color = Color.White,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        song.artist,
-                        color = Color(0xFF8F8F9A),
-                        fontSize = 11.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                IconButton(
-                    onClick = ::previous,
-                    enabled = queueSongs.size > 1
+            Column {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 9.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("⏮", color = Color(0xFFB8B3C7), fontSize = 18.sp)
+                    Box(
+                        Modifier
+                            .size(52.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                    ) {
+                        SongArtwork(song, Modifier.fillMaxSize())
+                        if (isPlaying) {
+                            Box(
+                                Modifier
+                                    .fillMaxSize()
+                                    .background(Color(0x55000000)),
+                                contentAlignment = Alignment.BottomEnd
+                            ) {
+                                Text(
+                                    "●",
+                                    color = Color(0xFF8DEBFF),
+                                    fontSize = 10.sp,
+                                    modifier = Modifier.padding(4.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.width(10.dp))
+
+                    Column(
+                        Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Text(
+                            "ĐANG PHÁT",
+                            color = Color(0xFF8DEBFF),
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 0.8.sp,
+                            maxLines = 1
+                        )
+                        Text(
+                            song.title,
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                song.artist.ifBlank { "Không rõ nghệ sĩ" },
+                                color = Color(0xFF8F95A4),
+                                fontSize = 10.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
+                            )
+                            Spacer(Modifier.width(5.dp))
+                            SourceBadge(song.source)
+                        }
+                    }
+
+                    IconButton(
+                        onClick = ::previous,
+                        enabled = queueSongs.size > 1
+                    ) {
+                        Text("⏮", color = Color(0xFFB8B3C7), fontSize = 17.sp)
+                    }
+
+                    Surface(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .clickable(onClick = ::togglePlayPause),
+                        shape = CircleShape,
+                        color = Color(0xFF6D55B7)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                if (isPlaying) "⏸" else "▶",
+                                color = Color.White,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                        }
+                    }
+
+                    IconButton(
+                        onClick = ::next,
+                        enabled = queueSongs.size > 1
+                    ) {
+                        Text("⏭", color = Color(0xFFB8B3C7), fontSize = 17.sp)
+                    }
+
+                    IconButton(onClick = { showQueue = true }) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text("☷", color = Color(0xFF9EA5B4), fontSize = 18.sp)
+                            if (queueSongs.isNotEmpty()) {
+                                Surface(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .offset(x = 4.dp, y = (-2).dp),
+                                    shape = CircleShape,
+                                    color = Color(0xFF2B3342)
+                                ) {
+                                    Text(
+                                        queueSongs.size.toString(),
+                                        color = Color(0xFFD6D9E1),
+                                        fontSize = 7.sp,
+                                        fontWeight = FontWeight.Black,
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
-                IconButton(onClick = ::togglePlayPause) {
-                    Text(
-                        if (isPlaying) "⏸" else "▶",
-                        color = Color.White,
-                        fontSize = 20.sp
-                    )
-                }
-                IconButton(
-                    onClick = ::next,
-                    enabled = queueSongs.size > 1
-                ) {
-                    Text("⏭", color = Color(0xFFB8B3C7), fontSize = 18.sp)
-                }
+
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(3.dp),
+                    color = Color(0xFFB18CFF),
+                    trackColor = Color(0xFF252A34)
+                )
             }
-            Spacer(Modifier.height(4.dp))
-            LinearProgressIndicator(
-                progress = { progress },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(3.dp)
-                    .clip(RoundedCornerShape(99.dp)),
-                color = Color(0xFFB18CFF),
-                trackColor = Color(0xFF2B2B35)
-            )
         }
     }
 
