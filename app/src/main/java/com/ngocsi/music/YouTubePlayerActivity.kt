@@ -521,6 +521,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 isClickable = true
                 isFocusable = true
                 setOnClickListener {
+                    if (queueTransitionInFlight) return@setOnClickListener
                     queueIndex = index
                     loadQueueItem()
                     dialog.dismiss()
@@ -617,13 +618,13 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun playPrevious() {
-        if (queue.size <= 1 || queueIndex <= 0) return
+        if (queueTransitionInFlight || queue.size <= 1 || queueIndex <= 0) return
         queueIndex--
         loadQueueItem()
     }
 
     private fun playNext() {
-        if (queue.size <= 1 || queueIndex >= queue.lastIndex) return
+        if (queueTransitionInFlight || queue.size <= 1 || queueIndex >= queue.lastIndex) return
         queueIndex++
         loadQueueItem()
     }
