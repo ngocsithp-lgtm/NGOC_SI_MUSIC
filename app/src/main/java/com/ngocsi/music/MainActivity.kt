@@ -6945,11 +6945,16 @@ function fitRoute(){
  lat=(minLat+maxLat)/2;lon=(minLon+maxLon)/2;
  const w=mapEl.clientWidth||320,h=mapEl.clientHeight||480;
  const padW=w*0.78,padH=h*0.72;
+ function latPixel(v,z){
+   const r=v*Math.PI/180;
+   const s=TILE*Math.pow(2,z);
+   return (1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*s;
+ }
  let best=2;
  for(let z=19;z>=2;z--){
    const s=TILE*Math.pow(2,z);
    const dx=Math.abs(((maxLon-minLon)/360)*s);
-   const dy=Math.abs(latY(maxLat)-latY(minLat));
+   const dy=Math.abs(latPixel(maxLat,z)-latPixel(minLat,z));
    if(dx<=padW&&dy<=padH){best=z;break;}
  }
  zoom=best;
