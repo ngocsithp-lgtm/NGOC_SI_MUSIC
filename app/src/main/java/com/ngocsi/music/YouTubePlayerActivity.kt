@@ -599,7 +599,8 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun loadQueueItem() {
-        saveCurrentPlaybackPosition()
+        val previousVideoId = videoId
+        saveCurrentPlaybackPosition(previousVideoId)
         val selected = queue.getOrNull(queueIndex) ?: return
         videoId = selected.videoId
         title = selected.title
@@ -616,28 +617,26 @@ class YouTubePlayerActivity : ComponentActivity() {
             saveLastPlayedState()
             val safeId = sanitizeVideoId(videoId)
             webView?.evaluateJavascript("loadVideoById('$safeId');", null)
-            getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
-                .edit()
-                .remove("youtube_position_ms_" + safeId)
-                .apply()
         } else {
             createPlayer()
         }
     }
 
-    private fun saveCurrentPlaybackPosition() {
-        if (!youtubePlayerReady || videoId.isBlank() || webView == null) return
-        val safeId = sanitizeVideoId(videoId)
+    private fun saveCurrentPlaybackPosition(videoIdOverride: String? = null) {
+        if (!youtubePlayerReady || webView == null) return
+        val targetId = sanitizeVideoId(videoIdOverride ?: videoId)
+        if (targetId.isBlank()) return
         webView?.evaluateJavascript(
             "(function(){try{return String(Math.floor(lamPlayer.getCurrentTime()*1000));}catch(e){return '0';}})();"
         ) { value ->
             val positionMs = value.trim('"').toLongOrNull()?.coerceAtLeast(0L) ?: return@evaluateJavascript
-            if (safeId == sanitizeVideoId(videoId)) {
-                getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
-                    .edit()
-                    .putLong("youtube_position_ms_" + safeId, positionMs)
-                    .apply()
-            }
+            // Keep the callback tied to the video that was active when the request
+            // was issued. This prevents a delayed JS result from being written into
+            // the newly selected queue item.
+            getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+                .edit()
+                .putLong("youtube_position_ms_" + targetId, positionMs)
+                .apply()
         }
     }
 
