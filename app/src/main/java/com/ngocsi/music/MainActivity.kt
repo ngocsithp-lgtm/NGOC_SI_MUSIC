@@ -7448,11 +7448,32 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 maxLines = 2
                             )
                         }
-                        TextButton(onClick = onOpenExternal) {
-                            Text("Google Maps")
+                        Surface(
+                            modifier = Modifier.clickable(onClick = onOpenExternal),
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFFF1F3F6)
+                        ) {
+                            Text(
+                                "Google Maps",
+                                color = Color(0xFF20252D),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 11.dp, vertical = 8.dp)
+                            )
                         }
-                        TextButton(onClick = onDismiss) {
-                            Text("Đóng")
+                        Spacer(Modifier.width(6.dp))
+                        Surface(
+                            modifier = Modifier.clickable(onClick = onDismiss),
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFF6C5CE7)
+                        ) {
+                            Text(
+                                "Đóng",
+                                color = Color.White,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                            )
                         }
                     }
 
@@ -7561,16 +7582,34 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         null
                                     )
                                 },
-                                shape = RoundedCornerShape(12.dp),
-                                color = Color(0xE6101620)
+                                shape = RoundedCornerShape(14.dp),
+                                color = Color(0xF7FFFFFF),
+                                shadowElevation = 5.dp
                             ) {
-                                Text(
-                                    if (selectedLayer == "satellite") "🗺 BẢN ĐỒ" else "🛰 VỆ TINH",
-                                    color = Color.White,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp)
-                                )
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = Color(0xFF6C5CE7)
+                                    ) {
+                                        Text(
+                                            if (selectedLayer == "satellite") "Vệ tinh" else "Bản đồ",
+                                            color = Color.White,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp)
+                                        )
+                                    }
+                                    Text(
+                                        if (selectedLayer == "satellite") "  → Bản đồ" else "  → Vệ tinh",
+                                        color = Color(0xFF3C424B),
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.padding(end = 8.dp)
+                                    )
+                                }
                             }
 
                             Surface(
@@ -7601,15 +7640,16 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 modifier = Modifier.clickable {
                                     webMapRef?.evaluateJavascript("window.zoomIn && window.zoomIn();", null)
                                 },
-                                shape = RoundedCornerShape(12.dp),
-                                color = Color(0xE6101620)
+                                shape = RoundedCornerShape(14.dp),
+                                color = Color(0xF7FFFFFF),
+                                shadowElevation = 5.dp
                             ) {
                                 Text(
                                     "+",
-                                    color = Color.White,
-                                    fontSize = 23.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 13.dp, vertical = 5.dp)
+                                    color = Color(0xFF303640),
+                                    fontSize = 22.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.padding(horizontal = 13.dp, vertical = 8.dp)
                                 )
                             }
 
@@ -7617,15 +7657,16 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 modifier = Modifier.clickable {
                                     webMapRef?.evaluateJavascript("window.zoomOut && window.zoomOut();", null)
                                 },
-                                shape = RoundedCornerShape(12.dp),
-                                color = Color(0xE6101620)
+                                shape = RoundedCornerShape(14.dp),
+                                color = Color(0xF7FFFFFF),
+                                shadowElevation = 5.dp
                             ) {
                                 Text(
                                     "−",
-                                    color = Color.White,
-                                    fontSize = 23.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 13.dp, vertical = 5.dp)
+                                    color = Color(0xFF303640),
+                                    fontSize = 22.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.padding(horizontal = 13.dp, vertical = 8.dp)
                                 )
                             }
                         }
