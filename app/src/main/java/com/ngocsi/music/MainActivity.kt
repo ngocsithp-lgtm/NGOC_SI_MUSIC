@@ -8800,17 +8800,28 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         }
                     }
 
-                    if (youtubeHistory.isNotEmpty()) {
+                    if (youtubeHistory.isNotEmpty() && youtubeTracks.isEmpty()) {
                         item {
-                            TextButton(
-                                onClick = ::clearYouTubeHistory,
-                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    "XÓA LỊCH SỬ TÌM KIẾM",
-                                    fontSize = 10.sp,
-                                    color = Color(0xFF777D8D)
+                                    "Lịch sử tìm kiếm",
+                                    color = Color(0xFF777D8D),
+                                    fontSize = 9.sp,
+                                    modifier = Modifier.weight(1f)
                                 )
+                                TextButton(
+                                    onClick = ::clearYouTubeHistory,
+                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                                ) {
+                                    Text(
+                                        "XÓA",
+                                        fontSize = 9.sp,
+                                        color = Color(0xFF777D8D)
+                                    )
+                                }
                             }
                         }
                     }
