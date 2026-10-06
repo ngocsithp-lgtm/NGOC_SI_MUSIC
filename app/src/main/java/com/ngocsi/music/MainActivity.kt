@@ -6728,10 +6728,6 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 // the user explicitly opens a TV source. Some live players
                                 // otherwise remain permanently paused inside WebView.
                                 settings.mediaPlaybackRequiresUserGesture = false
-                                // Keep WebView video rendering on the hardware compositor.
-                                // Some live-TV players can continue producing audio while
-                                // a software-rendered WebView shows a black video surface.
-                                setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
                                 settings.allowFileAccess = false
                                 settings.allowContentAccess = true
                                 settings.builtInZoomControls = false
