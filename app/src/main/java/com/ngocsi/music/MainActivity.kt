@@ -2174,7 +2174,7 @@ class MainActivity : ComponentActivity() {
                                     accessToken,
                                     sourceName = sourceName
                                 )
-                            } else if (isSupportedDriveAudio(name, mime)) {
+                            } else if (canDownload && isSupportedDriveAudio(name, mime)) {
                                 collected += SharedDriveItem(
                                     id,
                                     name,
