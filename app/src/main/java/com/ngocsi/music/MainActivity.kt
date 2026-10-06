@@ -1977,7 +1977,7 @@ class MainActivity : ComponentActivity() {
                         depth + 1,
                         sourceName
                     )
-                } else if (isSupportedDriveAudio(name, mime)) {
+                } else if (canDownload && isSupportedDriveAudio(name, mime)) {
                     result += SharedDriveItem(
                         id,
                         name,
