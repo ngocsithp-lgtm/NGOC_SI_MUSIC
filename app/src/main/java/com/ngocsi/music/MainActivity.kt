@@ -6885,11 +6885,12 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         } else {
             "© OpenStreetMap contributors"
         }
+        val styleName = "NGỌC SĨ MUSIC " + safeLayer.uppercase()
 
         return """
             {
               "version": 8,
-              "name": "NGỌC SĨ MUSIC " + safeLayer.uppercase() + "",
+              "name": "$styleName",
               "center": [$safeLon, $safeLat],
               "zoom": 14,
               "bearing": 0,
