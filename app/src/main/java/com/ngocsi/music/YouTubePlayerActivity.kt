@@ -418,11 +418,13 @@ class YouTubePlayerActivity : ComponentActivity() {
         })
 
         val queueHint = TextView(this).apply {
-            text = "Trạng thái: " + (queueIndex + 1) + "/" + queue.size
+            tag = "youtube_queue_hint"
+            text = "Đang phát • " + (queueIndex + 1) + "/" + queue.size
             setTextColor(AndroidColor.rgb(145, 145, 158))
             textSize = 11f
             gravity = Gravity.CENTER
             maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
         }
         queueShareRow.addView(queueHint, LinearLayout.LayoutParams(0, dp(42), 1f))
         content.addView(queueShareRow)
@@ -1361,7 +1363,9 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun updateQueueButton() {
-        root.findViewWithTag<Button>("queue_button")?.text = "☷  HÀNG ĐỢI  •  " + (queueIndex + 1) + "/" + queue.size
+        val positionText = (queueIndex + 1).coerceAtLeast(1).toString() + "/" + queue.size.coerceAtLeast(1)
+        root.findViewWithTag<Button>("queue_button")?.text = "☷  HÀNG ĐỢI  •  " + positionText
+        root.findViewWithTag<TextView>("youtube_queue_hint")?.text = "Đang phát • " + positionText
         root.findViewWithTag<ProgressBar>("queue_progress")?.apply {
             max = queue.size.coerceAtLeast(1)
             progress = (queueIndex + 1).coerceIn(0, max)
