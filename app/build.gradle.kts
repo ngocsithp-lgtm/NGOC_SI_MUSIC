@@ -67,6 +67,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("androidx.documentfile:documentfile:1.0.1")
     implementation("androidx.webkit:webkit:1.17.1")
+    // Native in-app map rendering; replaces the fragile WebView/tile renderer.
+    implementation("org.maplibre.gl:android-sdk-opengl:13.6.1")
     implementation("androidx.media3:media3-exoplayer:1.9.4")
     implementation("androidx.media3:media3-exoplayer-hls:1.9.4")
     implementation("androidx.media3:media3-session:1.9.4")
