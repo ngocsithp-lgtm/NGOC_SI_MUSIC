@@ -10246,7 +10246,14 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         .background(Color(0xFF181922)).padding(12.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Column(Modifier.weight(1f).clickable { playlistDetailId = playlist.id }) {
+                                    Column(
+                                        Modifier
+                                            .weight(1f)
+                                            .clickable {
+                                                showPlaylists = false
+                                                playlistDetailId = playlist.id
+                                            }
+                                    ) {
                                         Text(playlist.name, color = Color.White, fontWeight = FontWeight.SemiBold)
                                         Text(playlist.songUris.size.toString() + " bài • chạm để xem", color = Color(0xFF888894), fontSize = 11.sp)
                                     }
@@ -10321,8 +10328,16 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             ) {
                 Column(Modifier.padding(18.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(
+                            onClick = {
+                                playlistDetailId = null
+                                showPlaylists = true
+                            }
+                        ) {
+                            Text("‹")
+                        }
                         Column(Modifier.weight(1f)) {
-                            Text(playlist.name, color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                            Text(playlist.name, color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(playlist.songUris.size.toString() + " bài", color = Color(0xFF888894), fontSize = 12.sp)
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
