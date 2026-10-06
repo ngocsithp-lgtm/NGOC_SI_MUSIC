@@ -6,6 +6,8 @@ import android.graphics.Color as AndroidColor
 import android.content.res.ColorStateList
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.View
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
@@ -70,6 +72,15 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var youtubePlayerReady = false
     private var youtubePlayerState = -1
     private val thumbnailExecutor = Executors.newFixedThreadPool(3)
+    private val playbackPositionHandler = Handler(Looper.getMainLooper())
+    private val playbackPositionSaver = object : Runnable {
+        override fun run() {
+            saveCurrentPlaybackPosition()
+            if (!isFinishing && !isDestroyed) {
+                playbackPositionHandler.postDelayed(this, 5000L)
+            }
+        }
+    }
 
     private inner class YoutubeJsBridge {
         @JavascriptInterface
@@ -77,6 +88,8 @@ class YouTubePlayerActivity : ComponentActivity() {
             runOnUiThread {
                 youtubePlayerReady = true
                 updatePlaybackButton()
+                restoreSavedPlaybackPosition()
+                startPlaybackPositionSaver()
             }
         }
 
@@ -577,6 +590,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun loadQueueItem() {
+        saveCurrentPlaybackPosition()
         val selected = queue.getOrNull(queueIndex) ?: return
         videoId = selected.videoId
         title = selected.title
@@ -593,9 +607,51 @@ class YouTubePlayerActivity : ComponentActivity() {
             saveLastPlayedState()
             val safeId = sanitizeVideoId(videoId)
             webView?.evaluateJavascript("loadVideoById('$safeId');", null)
+            getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+                .edit()
+                .remove("youtube_position_ms_" + safeId)
+                .apply()
         } else {
             createPlayer()
         }
+    }
+
+    private fun saveCurrentPlaybackPosition() {
+        if (!youtubePlayerReady || videoId.isBlank() || webView == null) return
+        val safeId = sanitizeVideoId(videoId)
+        webView?.evaluateJavascript(
+            "(function(){try{return String(Math.floor(lamPlayer.getCurrentTime()*1000));}catch(e){return '0';}})();"
+        ) { value ->
+            val positionMs = value.trim('"').toLongOrNull()?.coerceAtLeast(0L) ?: return@evaluateJavascript
+            if (safeId == sanitizeVideoId(videoId)) {
+                getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+                    .edit()
+                    .putLong("youtube_position_ms_" + safeId, positionMs)
+                    .apply()
+            }
+        }
+    }
+
+    private fun restoreSavedPlaybackPosition() {
+        if (!youtubePlayerReady || videoId.isBlank() || webView == null) return
+        val safeId = sanitizeVideoId(videoId)
+        val positionMs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+            .getLong("youtube_position_ms_" + safeId, 0L)
+        if (positionMs < 3000L) return
+        val seconds = positionMs / 1000.0
+        webView?.evaluateJavascript(
+            "(function(){try{lamPlayer.seekTo($seconds,true);return 'ok';}catch(e){return 'err';}})();",
+            null
+        )
+    }
+
+    private fun startPlaybackPositionSaver() {
+        playbackPositionHandler.removeCallbacks(playbackPositionSaver)
+        playbackPositionHandler.post(playbackPositionSaver)
+    }
+
+    private fun stopPlaybackPositionSaver() {
+        playbackPositionHandler.removeCallbacks(playbackPositionSaver)
     }
 
     private fun saveLastPlayedState() {
@@ -924,6 +980,19 @@ class YouTubePlayerActivity : ComponentActivity() {
                             if (lamPlayer && typeof lamPlayer.pauseVideo === 'function') lamPlayer.pauseVideo();
                         }
 
+                        function seekTo(seconds, allowSeekAhead) {
+                            if (lamPlayer && typeof lamPlayer.seekTo === 'function') {
+                                lamPlayer.seekTo(seconds, allowSeekAhead);
+                            }
+                        }
+
+                        function getCurrentTime() {
+                            if (lamPlayer && typeof lamPlayer.getCurrentTime === 'function') {
+                                return lamPlayer.getCurrentTime();
+                            }
+                            return 0;
+                        }
+
                         function loadVideoById(id) {
                             if (!lamPlayer || typeof lamPlayer.loadVideoById !== 'function') return;
                             try {
@@ -1028,13 +1097,18 @@ class YouTubePlayerActivity : ComponentActivity() {
     override fun onPause() {
         // Keep WebView media lifecycle untouched here. Calling WebView.onPause()
         // would explicitly suspend WebView media/JS and can make recovery worse.
+        saveCurrentPlaybackPosition()
         saveLastPlayedState()
+        stopPlaybackPositionSaver()
         super.onPause()
     }
 
     override fun onStop() {
-        // Keep the last queue/index durable across process pressure and relaunch.
+        // Keep the last queue/index and playback position durable across process
+        // pressure and relaunch. This does not keep YouTube playing in background.
+        saveCurrentPlaybackPosition()
         saveLastPlayedState()
+        stopPlaybackPositionSaver()
         super.onStop()
     }
 
@@ -1095,6 +1169,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         if (customView != null) exitFullscreen(notifyCallback = false)
         removePlayer()
         thumbnailExecutor.shutdownNow()
+        stopPlaybackPositionSaver()
         loadingBar = null
         super.onDestroy()
     }
