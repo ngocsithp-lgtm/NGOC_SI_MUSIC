@@ -611,6 +611,42 @@ class YouTubePlayerActivity : ComponentActivity() {
             info.addView(rowChannel)
 
             row.addView(info, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+
+            if (!isCurrent) {
+                val removeButton = Button(this).apply {
+                    text = "×"
+                    isAllCaps = false
+                    textSize = 18f
+                    setTextColor(AndroidColor.rgb(255, 138, 154))
+                    background = roundedButtonDrawable(
+                        fill = AndroidColor.rgb(30, 23, 27),
+                        stroke = AndroidColor.rgb(70, 43, 50),
+                        radius = dp(10)
+                    )
+                    backgroundTintList = null
+                    contentDescription = "Xóa " + item.title + " khỏi hàng đợi"
+                    setOnClickListener {
+                        if (queueTransitionInFlight) return@setOnClickListener
+                        queue.removeAt(index)
+                        if (index < queueIndex) {
+                            queueIndex--
+                        }
+                        queueIndex = queueIndex.coerceIn(0, (queue.lastIndex).coerceAtLeast(0))
+                        saveLastPlayedState()
+                        updateQueueButton()
+                        updateQueueModeButtons()
+                        dialog.dismiss()
+                        showQueueDialog()
+                    }
+                }
+                row.addView(
+                    removeButton,
+                    LinearLayout.LayoutParams(dp(42), dp(42)).apply {
+                        marginStart = dp(5)
+                    }
+                )
+            }
+
             list.addView(row, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
