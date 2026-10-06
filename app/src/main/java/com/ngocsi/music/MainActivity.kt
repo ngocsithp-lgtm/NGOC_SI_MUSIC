@@ -6877,6 +6877,12 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         )
     }
 
+    private fun webMapStateLat(lat: Double): String =
+        if (lat.isFinite()) lat.coerceIn(-85.0, 85.0).toString() else "10.8231"
+
+    private fun webMapStateLon(lon: Double): String =
+        if (lon.isFinite()) lon.coerceIn(-180.0, 180.0).toString()
+
     private fun mapLibreRasterStyleJson(layer: String, lat: Double, lon: Double): String {
         val safeLat = if (lat.isFinite()) lat.coerceIn(-85.0, 85.0) else 10.8231
         val safeLon = if (lon.isFinite()) lon.coerceIn(-180.0, 180.0) else 106.6297
@@ -6924,6 +6930,291 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         """.trimIndent()
     }
 
+    private fun mapWebHtml(
+        lat: Double,
+        lon: Double,
+        title: String,
+        layer: String,
+        routeJson: String
+    ): String {
+        val safeLat = if (lat.isFinite()) lat.coerceIn(-85.0, 85.0) else 10.8231
+        val safeLon = if (lon.isFinite()) lon.coerceIn(-180.0, 180.0) else 106.6297
+        val safeTitle = org.json.JSONObject.quote(title.take(240))
+        val safeLayer = org.json.JSONObject.quote(
+            if (layer == "satellite") "satellite" else "standard"
+        )
+        val safeRoute = runCatching {
+            org.json.JSONArray(routeJson).toString()
+        }.getOrElse { "[]" }
+
+        return """
+            <!doctype html>
+            <html lang="vi">
+            <head>
+              <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+              <meta charset="utf-8">
+              <link
+                rel="stylesheet"
+                href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+                integrity="sha256-p4NxAoJBhIINfQ3d2DqkQ0r1M0n8qW7Lh8M8m1i8F7k="
+                crossorigin=""
+              />
+              <style>
+                html, body, #map {
+                  width: 100%;
+                  height: 100%;
+                  margin: 0;
+                  padding: 0;
+                  background: #0d1016;
+                  overflow: hidden;
+                }
+                .leaflet-control-attribution {
+                  font-size: 9px;
+                }
+                .map-status {
+                  position: fixed;
+                  left: 10px;
+                  top: 10px;
+                  z-index: 1000;
+                  padding: 7px 10px;
+                  border-radius: 10px;
+                  font: 600 11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                  background: rgba(16, 22, 32, 0.88);
+                  color: #ffffff;
+                  pointer-events: none;
+                }
+                .map-error {
+                  position: fixed;
+                  left: 12px;
+                  right: 12px;
+                  top: 50%;
+                  transform: translateY(-50%);
+                  z-index: 2000;
+                  display: none;
+                  padding: 14px;
+                  border-radius: 14px;
+                  font: 600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                  text-align: center;
+                  background: rgba(13, 16, 22, 0.94);
+                  color: #ffffff;
+                  border: 1px solid rgba(255,255,255,0.12);
+                }
+              </style>
+            </head>
+            <body>
+              <div id="map"></div>
+              <div id="mapStatus" class="map-status">Đang tải bản đồ…</div>
+              <div id="mapError" class="map-error"></div>
+
+              <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+                      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+                      crossorigin=""></script>
+              <script>
+                (function () {
+                  const INITIAL_LAT = $safeLat;
+                  const INITIAL_LON = $safeLon;
+                  const INITIAL_TITLE = $safeTitle;
+                  const INITIAL_LAYER = $safeLayer;
+                  const INITIAL_ROUTE = $safeRoute;
+
+                  let map = null;
+                  let standardLayer = null;
+                  let satelliteLayer = null;
+                  let activeLayer = null;
+                  let pointMarker = null;
+                  let routeLine = null;
+
+                  function setStatus(text) {
+                    const el = document.getElementById("mapStatus");
+                    if (el) el.textContent = text;
+                  }
+
+                  function showError(text) {
+                    const el = document.getElementById("mapError");
+                    if (el) {
+                      el.textContent = text;
+                      el.style.display = "block";
+                    }
+                    setStatus("LỖI BẢN ĐỒ");
+                  }
+
+                  function validLat(v) {
+                    return Number.isFinite(v) ? Math.max(-85, Math.min(85, v)) : 10.8231;
+                  }
+
+                  function validLon(v) {
+                    return Number.isFinite(v) ? Math.max(-180, Math.min(180, v)) : 106.6297;
+                  }
+
+                  function makeRouteLatLngs(route) {
+                    if (!Array.isArray(route)) return [];
+                    return route
+                      .filter(p => Array.isArray(p) && p.length >= 2)
+                      .map(p => [Number(p[1]), Number(p[0])])
+                      .filter(p =>
+                        Number.isFinite(p[0]) &&
+                        Number.isFinite(p[1]) &&
+                        p[0] >= -85 && p[0] <= 85 &&
+                        p[1] >= -180 && p[1] <= 180
+                      );
+                  }
+
+                  function applyLayer(layerName) {
+                    if (!map) return;
+                    const wanted = layerName === "satellite" ? "satellite" : "standard";
+
+                    if (activeLayer && map.hasLayer(activeLayer)) {
+                      map.removeLayer(activeLayer);
+                    }
+
+                    activeLayer = wanted === "satellite" ? satelliteLayer : standardLayer;
+                    if (activeLayer) activeLayer.addTo(map);
+
+                    setStatus(wanted === "satellite" ? "VỆ TINH • NGỌC SĨ MAP" : "BẢN ĐỒ • NGỌC SĨ MAP");
+                  }
+
+                  function renderRoute(route, lat, lon, placeTitle) {
+                    if (!map) return;
+
+                    if (pointMarker) {
+                      map.removeLayer(pointMarker);
+                      pointMarker = null;
+                    }
+                    if (routeLine) {
+                      map.removeLayer(routeLine);
+                      routeLine = null;
+                    }
+
+                    const center = [validLat(lat), validLon(lon)];
+                    pointMarker = L.circleMarker(center, {
+                      radius: 8,
+                      weight: 3,
+                      color: "#ffffff",
+                      fillColor: "#7057d9",
+                      fillOpacity: 0.96
+                    }).addTo(map);
+
+                    if (placeTitle) {
+                      pointMarker.bindPopup(
+                        "<strong>" + String(placeTitle).replace(/[<>&]/g, "") + "</strong>"
+                      );
+                    }
+
+                    const latLngs = makeRouteLatLngs(route);
+                    if (latLngs.length >= 2) {
+                      routeLine = L.polyline(latLngs, {
+                        color: "#2367ff",
+                        weight: 6,
+                        opacity: 0.92,
+                        lineJoin: "round"
+                      }).addTo(map);
+
+                      const bounds = routeLine.getBounds();
+                      if (bounds.isValid()) {
+                        map.fitBounds(bounds, {
+                          padding: [48, 48],
+                          maxZoom: 16
+                        });
+                      }
+                    } else {
+                      map.setView(center, Math.max(map.getZoom(), 14));
+                    }
+                  }
+
+                  function init() {
+                    if (typeof L === "undefined") {
+                      showError("Không tải được thư viện bản đồ. Kiểm tra kết nối Internet rồi thử lại.");
+                      return;
+                    }
+
+                    map = L.map("map", {
+                      zoomControl: true,
+                      attributionControl: true,
+                      preferCanvas: true
+                    });
+
+                    standardLayer = L.tileLayer(
+                      "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                      {
+                        maxZoom: 19,
+                        minZoom: 2,
+                        attribution: "© OpenStreetMap contributors"
+                      }
+                    );
+
+                    satelliteLayer = L.tileLayer(
+                      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+                      {
+                        maxZoom: 19,
+                        minZoom: 2,
+                        attribution: "Tiles © Esri • © OpenStreetMap contributors"
+                      }
+                    );
+
+                    applyLayer(INITIAL_LAYER);
+                    renderRoute(INITIAL_ROUTE, INITIAL_LAT, INITIAL_LON, INITIAL_TITLE);
+
+                    window.setMapState = function (lat, lon, placeTitle, layerName, route) {
+                      if (!map) return false;
+                      applyLayer(layerName);
+                      renderRoute(
+                        Array.isArray(route) ? route : [],
+                        Number(lat),
+                        Number(lon),
+                        String(placeTitle || "")
+                      );
+                      map.invalidateSize(false);
+                      return true;
+                    };
+
+                    window.setMapLayer = function (layerName) {
+                      applyLayer(layerName);
+                      return true;
+                    };
+
+                    window.zoomIn = function () {
+                      if (!map) return false;
+                      map.zoomIn();
+                      return true;
+                    };
+
+                    window.zoomOut = function () {
+                      if (!map) return false;
+                      map.zoomOut();
+                      return true;
+                    };
+
+                    window.centerMap = function (lat, lon) {
+                      if (!map) return false;
+                      map.setView([validLat(Number(lat)), validLon(Number(lon))], Math.max(map.getZoom(), 14));
+                      return true;
+                    };
+
+                    window.fitRoute = function () {
+                      if (!map) return false;
+                      if (routeLine) {
+                        const bounds = routeLine.getBounds();
+                        if (bounds.isValid()) {
+                          map.fitBounds(bounds, { padding: [48, 48], maxZoom: 16 });
+                          return true;
+                        }
+                      }
+                      map.setView([INITIAL_LAT, INITIAL_LON], 14);
+                      return true;
+                    };
+
+                    window.setMapState(INITIAL_LAT, INITIAL_LON, INITIAL_TITLE, INITIAL_LAYER, INITIAL_ROUTE);
+                    setStatus(INITIAL_LAYER === "satellite" ? "VỆ TINH • NGỌC SĨ MAP" : "BẢN ĐỒ • NGỌC SĨ MAP");
+                  }
+
+                  window.addEventListener("load", init, { once: true });
+                })();
+              </script>
+            </body>
+            </html>
+        """.trimIndent()
+    }
+
     @Suppress("DEPRECATION")
     @Composable
     private fun InternalMapDialog(
@@ -6944,6 +7235,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         // Start from the Web map renderer. This keeps the map surface reliable on
         // devices whose native graphics backend is unavailable or unstable.
         var useWebFallback by remember { mutableStateOf(true) }
+        var webMapRef by remember { mutableStateOf<WebView?>(null) }
         var lastRenderSignature by remember { mutableStateOf("") }
         val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -7096,58 +7388,76 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 update = { }
                             )
                         } else {
-                            val fallbackUrl = remember(lat, lon, routeJson) {
-                                if (routePoints.size >= 2) {
-                                    val start = routePoints.first()
-                                    Uri.parse("https://www.openstreetmap.org/directions")
-                                        .buildUpon()
-                                        .appendQueryParameter("engine", "fossgis_osrm_car")
-                                        .appendQueryParameter(
-                                            "route",
-                                            start.latitude.toString() + "," +
-                                                start.longitude.toString() + ";" +
-                                                lat.toString() + "," + lon.toString()
-                                        )
-                                        .build()
-                                        .toString()
-                                } else {
-                                    Uri.parse("https://www.openstreetmap.org/")
-                                        .buildUpon()
-                                        .appendQueryParameter("mlat", lat.toString())
-                                        .appendQueryParameter("mlon", lon.toString())
-                                        .fragment(
-                                            "map=15/" +
-                                                lat.coerceIn(-85.0, 85.0).toString() + "/" +
-                                                lon.coerceIn(-180.0, 180.0).toString()
-                                        )
-                                        .build()
-                                        .toString()
-                                }
+                            val webMapRouteJson = remember(routeJson) {
+                                runCatching { org.json.JSONArray(routeJson).toString() }.getOrElse { "[]" }
+                            }
+                            val webMapHtml = remember(lat, lon, title, initialLayer, webMapRouteJson) {
+                                mapWebHtml(lat, lon, title, initialLayer, webMapRouteJson)
                             }
 
                             AndroidView(
                                 modifier = Modifier.fillMaxSize(),
                                 factory = { context ->
                                     WebView(context).apply {
+                                        webMapRef = this
                                         settings.javaScriptEnabled = true
                                         settings.domStorageEnabled = true
                                         settings.loadsImagesAutomatically = true
                                         settings.setSupportZoom(true)
-                                        settings.builtInZoomControls = true
+                                        settings.builtInZoomControls = false
                                         settings.displayZoomControls = false
+                                        settings.useWideViewPort = true
+                                        settings.loadWithOverviewMode = true
                                         settings.userAgentString =
                                             settings.userAgentString + " NGOC-SI-MUSIC/5.10"
                                         CookieManager.getInstance().setAcceptCookie(true)
-                                        webViewClient = WebViewClient()
+                                        CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                                        webViewClient = object : WebViewClient() {
+                                            override fun onPageFinished(view: WebView, url: String) {
+                                                val script =
+                                                    "window.setMapState && window.setMapState(" +
+                                                        webMapStateLat(lat) + "," +
+                                                        webMapStateLon(lon) + "," +
+                                                        org.json.JSONObject.quote(title.take(240)) + "," +
+                                                        org.json.JSONObject.quote(selectedLayer) + "," +
+                                                        webMapRouteJson +
+                                                        ");"
+                                                view.evaluateJavascript(script, null)
+                                            }
+
+                                            override fun onReceivedError(
+                                                view: WebView,
+                                                request: android.webkit.WebResourceRequest,
+                                                error: android.webkit.WebResourceError
+                                            ) {
+                                                if (request.isForMainFrame) {
+                                                    this@MainActivity.errorMessage =
+                                                        "Không tải được bản đồ trong ứng dụng. Kiểm tra kết nối Internet rồi thử lại."
+                                                }
+                                            }
+                                        }
                                         webChromeClient = WebChromeClient()
                                         setBackgroundColor(android.graphics.Color.rgb(13, 16, 22))
-                                        loadUrl(fallbackUrl)
+                                        loadDataWithBaseURL(
+                                            "https://www.openstreetmap.org/",
+                                            webMapHtml,
+                                            "text/html",
+                                            "UTF-8",
+                                            null
+                                        )
                                     }
                                 },
                                 update = { webView ->
-                                    if (webView.url != fallbackUrl) {
-                                        webView.loadUrl(fallbackUrl)
-                                    }
+                                    webMapRef = webView
+                                    val script =
+                                        "window.setMapState && window.setMapState(" +
+                                            webMapStateLat(lat) + "," +
+                                            webMapStateLon(lon) + "," +
+                                            org.json.JSONObject.quote(title.take(240)) + "," +
+                                            org.json.JSONObject.quote(selectedLayer) + "," +
+                                            webMapRouteJson +
+                                            ");"
+                                    webView.evaluateJavascript(script, null)
                                 }
                             )
                         }
@@ -7162,6 +7472,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 modifier = Modifier.clickable {
                                     selectedLayer =
                                         if (selectedLayer == "satellite") "standard" else "satellite"
+                                    webMapRef?.evaluateJavascript(
+                                        "window.setMapLayer && window.setMapLayer(" +
+                                            org.json.JSONObject.quote(selectedLayer) + ");",
+                                        null
+                                    )
                                 },
                                 shape = RoundedCornerShape(12.dp),
                                 color = Color(0xE6101620)
@@ -7177,20 +7492,32 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
                             Surface(
                                 modifier = Modifier.clickable {
-                                    mapRef?.let { map ->
-                                        val center = LatLng(
-                                            if (lat.isFinite()) lat.coerceIn(-85.0, 85.0) else 10.8231,
-                                            if (lon.isFinite()) lon.coerceIn(-180.0, 180.0) else 106.6297
+                                    if (useWebFallback) {
+                                        webMapRef?.evaluateJavascript(
+                                            if (routePoints.size >= 2) {
+                                                "window.fitRoute && window.fitRoute();"
+                                            } else {
+                                                "window.centerMap && window.centerMap(" +
+                                                    webMapStateLat(lat) + "," + webMapStateLon(lon) + ");"
+                                            },
+                                            null
                                         )
-                                        if (routePoints.size >= 2) {
-                                            val bounds = LatLngBounds.fromLatLngs(routePoints)
-                                            map.moveCamera(
-                                                CameraUpdateFactory.newLatLngBounds(bounds, 96)
+                                    } else {
+                                        mapRef?.let { map ->
+                                            val center = LatLng(
+                                                if (lat.isFinite()) lat.coerceIn(-85.0, 85.0) else 10.8231,
+                                                if (lon.isFinite()) lon.coerceIn(-180.0, 180.0) else 106.6297
                                             )
-                                        } else {
-                                            map.moveCamera(
-                                                CameraUpdateFactory.newLatLngZoom(center, 14.0)
-                                            )
+                                            if (routePoints.size >= 2) {
+                                                val bounds = LatLngBounds.fromLatLngs(routePoints)
+                                                map.moveCamera(
+                                                    CameraUpdateFactory.newLatLngBounds(bounds, 96)
+                                                )
+                                            } else {
+                                                map.moveCamera(
+                                                    CameraUpdateFactory.newLatLngZoom(center, 14.0)
+                                                )
+                                            }
                                         }
                                     }
                                 },
@@ -7208,13 +7535,17 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
                             Surface(
                                 modifier = Modifier.clickable {
-                                    mapRef?.let { map ->
-                                        val current = map.cameraPosition
-                                        map.setCameraPosition(
-                                            CameraPosition.Builder(current)
-                                                .zoom((current.zoom + 1.0).coerceAtMost(19.0))
-                                                .build()
-                                        )
+                                    if (useWebFallback) {
+                                        webMapRef?.evaluateJavascript("window.zoomIn && window.zoomIn();", null)
+                                    } else {
+                                        mapRef?.let { map ->
+                                            val current = map.cameraPosition
+                                            map.setCameraPosition(
+                                                CameraPosition.Builder(current)
+                                                    .zoom((current.zoom + 1.0).coerceAtMost(19.0))
+                                                    .build()
+                                            )
+                                        }
                                     }
                                 },
                                 shape = RoundedCornerShape(12.dp),
@@ -7231,13 +7562,17 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
                             Surface(
                                 modifier = Modifier.clickable {
-                                    mapRef?.let { map ->
-                                        val current = map.cameraPosition
-                                        map.setCameraPosition(
-                                            CameraPosition.Builder(current)
-                                                .zoom((current.zoom - 1.0).coerceAtLeast(2.0))
-                                                .build()
-                                        )
+                                    if (useWebFallback) {
+                                        webMapRef?.evaluateJavascript("window.zoomOut && window.zoomOut();", null)
+                                    } else {
+                                        mapRef?.let { map ->
+                                            val current = map.cameraPosition
+                                            map.setCameraPosition(
+                                                CameraPosition.Builder(current)
+                                                    .zoom((current.zoom - 1.0).coerceAtLeast(2.0))
+                                                    .build()
+                                            )
+                                        }
                                     }
                                 },
                                 shape = RoundedCornerShape(12.dp),
@@ -7290,6 +7625,22 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     }
                 }
             }
+        }
+
+        LaunchedEffect(webMapRef, selectedLayer, routeJson, lat, lon, title) {
+            val webView = webMapRef ?: return@LaunchedEffect
+            val routePayload = runCatching {
+                org.json.JSONArray(routeJson).toString()
+            }.getOrElse { "[]" }
+            val script =
+                "window.setMapState && window.setMapState(" +
+                    webMapStateLat(lat) + "," +
+                    webMapStateLon(lon) + "," +
+                    org.json.JSONObject.quote(title.take(240)) + "," +
+                    org.json.JSONObject.quote(selectedLayer) + "," +
+                    routePayload +
+                    ");"
+            webView.evaluateJavascript(script, null)
         }
 
         DisposableEffect(lifecycleOwner, mapViewRef) {
