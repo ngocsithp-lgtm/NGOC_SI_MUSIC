@@ -79,21 +79,6 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
-import org.maplibre.android.MapLibre
-import org.maplibre.android.annotations.MarkerOptions
-import org.maplibre.android.annotations.PolylineOptions
-import org.maplibre.android.camera.CameraPosition
-import org.maplibre.android.camera.CameraUpdateFactory
-import org.maplibre.android.geometry.LatLng
-import org.maplibre.android.geometry.LatLngBounds
-import org.maplibre.android.maps.MapLibreMap
-import org.maplibre.android.maps.MapView
-import org.maplibre.android.maps.Style
-import okhttp3.OkHttpClient
-import org.maplibre.android.module.http.HttpRequestUtil
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.common.util.concurrent.MoreExecutors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Job
@@ -6883,53 +6868,6 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
     private fun webMapStateLon(lon: Double): String =
         if (lon.isFinite()) lon.coerceIn(-180.0, 180.0).toString() else "106.6297"
 
-    private fun mapLibreRasterStyleJson(layer: String, lat: Double, lon: Double): String {
-        val safeLat = if (lat.isFinite()) lat.coerceIn(-85.0, 85.0) else 10.8231
-        val safeLon = if (lon.isFinite()) lon.coerceIn(-180.0, 180.0) else 106.6297
-        val safeLayer = if (layer == "satellite") "satellite" else "standard"
-        val tileTemplate = if (safeLayer == "satellite") {
-            "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-        } else {
-            "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-        }
-        val attribution = if (safeLayer == "satellite") {
-            "Tiles © Esri • © OpenStreetMap contributors"
-        } else {
-            "© OpenStreetMap contributors"
-        }
-        val styleName = "NGỌC SĨ MUSIC " + safeLayer.uppercase()
-
-        return """
-            {
-              "version": 8,
-              "name": "$styleName",
-              "center": [$safeLon, $safeLat],
-              "zoom": 14,
-              "bearing": 0,
-              "pitch": 0,
-              "sources": {
-                "base": {
-                  "type": "raster",
-                  "tiles": ["$tileTemplate"],
-                  "tileSize": 256,
-                  "minzoom": 2,
-                  "maxzoom": 19,
-                  "attribution": "$attribution"
-                }
-              },
-              "layers": [
-                {
-                  "id": "base-raster",
-                  "type": "raster",
-                  "source": "base",
-                  "minzoom": 0,
-                  "maxzoom": 22
-                }
-              ]
-            }
-        """.trimIndent()
-    }
-
     private fun mapWebHtml(
         lat: Double,
         lon: Double,
@@ -7229,15 +7167,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         var selectedLayer by remember(initialLayer) {
             mutableStateOf(if (initialLayer == "satellite") "satellite" else "standard")
         }
-        var mapViewRef by remember { mutableStateOf<MapView?>(null) }
-        var mapRef by remember { mutableStateOf<MapLibreMap?>(null) }
-        var nativeMapReady by remember { mutableStateOf(false) }
-        // Start from the Web map renderer. This keeps the map surface reliable on
-        // devices whose native graphics backend is unavailable or unstable.
-        var useWebFallback by remember { mutableStateOf(true) }
         var webMapRef by remember { mutableStateOf<WebView?>(null) }
-        var lastRenderSignature by remember { mutableStateOf("") }
-        val lifecycleOwner = LocalLifecycleOwner.current
 
         val routePoints = remember(routeJson) {
             runCatching {
@@ -7254,54 +7184,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             routeLon in -180.0..180.0 &&
                             routeLat in -85.0..85.0
                         ) {
-                            add(LatLng(routeLat, routeLon))
+                            add(routeLat to routeLon)
                         }
                     }
                 }
             }.getOrElse { emptyList() }
-        }
-
-        fun applyAnnotations(map: MapLibreMap, signature: String) {
-            if (lastRenderSignature == signature) return
-            lastRenderSignature = signature
-
-            runCatching {
-                map.clear()
-
-                val center = LatLng(
-                    if (lat.isFinite()) lat.coerceIn(-85.0, 85.0) else 10.8231,
-                    if (lon.isFinite()) lon.coerceIn(-180.0, 180.0) else 106.6297
-                )
-
-                map.addMarker(
-                    MarkerOptions()
-                        .position(center)
-                        .title(title)
-                )
-
-                if (routePoints.size >= 2) {
-                    map.addPolyline(
-                        PolylineOptions()
-                            .add(*routePoints.toTypedArray())
-                            .color(android.graphics.Color.rgb(35, 103, 255))
-                            .width(6f)
-                            .alpha(0.92f)
-                    )
-
-                    val bounds = LatLngBounds.fromLatLngs(routePoints)
-                    map.moveCamera(
-                        CameraUpdateFactory.newLatLngBounds(bounds, 96)
-                    )
-                } else {
-                    map.moveCamera(
-                        CameraUpdateFactory.newLatLngZoom(center, 14.0)
-                    )
-                }
-            }.onFailure { failure ->
-                this@MainActivity.errorMessage =
-                    "Không thể hiển thị lớp bản đồ: " +
-                        (failure.message?.take(120) ?: "lỗi không xác định")
-            }
         }
 
         Dialog(
@@ -7342,7 +7229,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             )
                         }
                         TextButton(onClick = onOpenExternal) {
-                            Text(if (useWebFallback) "Google Maps" else "Mở ngoài")
+                            Text("Google Maps")
                         }
                         TextButton(onClick = onDismiss) {
                             Text("Đóng")
@@ -7356,38 +7243,6 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             .fillMaxSize()
                             .clip(RoundedCornerShape(18.dp))
                     ) {
-                        if (!useWebFallback) {
-                            // Native MapLibre is currently kept as an optional path;
-                            // the default Web renderer below is the safe production path.
-                            AndroidView(
-                                modifier = Modifier.fillMaxSize(),
-                                factory = { context ->
-                                    MapLibre.getInstance(context.applicationContext)
-
-                                    MapView(context).apply {
-                                        onCreate(null)
-                                        addOnDidFinishLoadingMapListener {
-                                            nativeMapReady = true
-                                        }
-                                        addOnDidFailLoadingMapListener(
-                                            object : MapView.OnDidFailLoadingMapListener {
-                                                override fun onDidFailLoadingMap(detail: String) {
-                                                    nativeMapReady = false
-                                                    useWebFallback = true
-                                                    this@MainActivity.errorMessage =
-                                                        "Bản đồ nội bộ chuyển sang chế độ Web dự phòng."
-                                                }
-                                            }
-                                        )
-                                        getMapAsync { map ->
-                                            mapRef = map
-                                        }
-                                        mapViewRef = this
-                                    }
-                                },
-                                update = { }
-                            )
-                        } else {
                             val webMapRouteJson = remember(routeJson) {
                                 runCatching { org.json.JSONArray(routeJson).toString() }.getOrElse { "[]" }
                             }
@@ -7492,34 +7347,15 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
                             Surface(
                                 modifier = Modifier.clickable {
-                                    if (useWebFallback) {
-                                        webMapRef?.evaluateJavascript(
-                                            if (routePoints.size >= 2) {
-                                                "window.fitRoute && window.fitRoute();"
-                                            } else {
-                                                "window.centerMap && window.centerMap(" +
-                                                    webMapStateLat(lat) + "," + webMapStateLon(lon) + ");"
-                                            },
-                                            null
-                                        )
-                                    } else {
-                                        mapRef?.let { map ->
-                                            val center = LatLng(
-                                                if (lat.isFinite()) lat.coerceIn(-85.0, 85.0) else 10.8231,
-                                                if (lon.isFinite()) lon.coerceIn(-180.0, 180.0) else 106.6297
-                                            )
-                                            if (routePoints.size >= 2) {
-                                                val bounds = LatLngBounds.fromLatLngs(routePoints)
-                                                map.moveCamera(
-                                                    CameraUpdateFactory.newLatLngBounds(bounds, 96)
-                                                )
-                                            } else {
-                                                map.moveCamera(
-                                                    CameraUpdateFactory.newLatLngZoom(center, 14.0)
-                                                )
-                                            }
-                                        }
-                                    }
+                                    webMapRef?.evaluateJavascript(
+                                        if (routePoints.size >= 2) {
+                                            "window.fitRoute && window.fitRoute();"
+                                        } else {
+                                            "window.centerMap && window.centerMap(" +
+                                                webMapStateLat(lat) + "," + webMapStateLon(lon) + ");"
+                                        },
+                                        null
+                                    )
                                 },
                                 shape = RoundedCornerShape(12.dp),
                                 color = Color(0xE6101620)
@@ -7535,18 +7371,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
                             Surface(
                                 modifier = Modifier.clickable {
-                                    if (useWebFallback) {
-                                        webMapRef?.evaluateJavascript("window.zoomIn && window.zoomIn();", null)
-                                    } else {
-                                        mapRef?.let { map ->
-                                            val current = map.cameraPosition
-                                            map.setCameraPosition(
-                                                CameraPosition.Builder(current)
-                                                    .zoom((current.zoom + 1.0).coerceAtMost(19.0))
-                                                    .build()
-                                            )
-                                        }
-                                    }
+                                    webMapRef?.evaluateJavascript("window.zoomIn && window.zoomIn();", null)
                                 },
                                 shape = RoundedCornerShape(12.dp),
                                 color = Color(0xE6101620)
@@ -7562,18 +7387,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
                             Surface(
                                 modifier = Modifier.clickable {
-                                    if (useWebFallback) {
-                                        webMapRef?.evaluateJavascript("window.zoomOut && window.zoomOut();", null)
-                                    } else {
-                                        mapRef?.let { map ->
-                                            val current = map.cameraPosition
-                                            map.setCameraPosition(
-                                                CameraPosition.Builder(current)
-                                                    .zoom((current.zoom - 1.0).coerceAtLeast(2.0))
-                                                    .build()
-                                            )
-                                        }
-                                    }
+                                    webMapRef?.evaluateJavascript("window.zoomOut && window.zoomOut();", null)
                                 },
                                 shape = RoundedCornerShape(12.dp),
                                 color = Color(0xE6101620)
@@ -7642,81 +7456,6 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     ");"
             webView.evaluateJavascript(script, null)
         }
-
-        DisposableEffect(lifecycleOwner, mapViewRef) {
-            val mapView = mapViewRef
-            if (mapView == null) {
-                onDispose { }
-            } else {
-                val observer = LifecycleEventObserver { _, event ->
-                    when (event) {
-                        Lifecycle.Event.ON_START -> mapView.onStart()
-                        Lifecycle.Event.ON_RESUME -> mapView.onResume()
-                        Lifecycle.Event.ON_PAUSE -> mapView.onPause()
-                        Lifecycle.Event.ON_STOP -> mapView.onStop()
-                        else -> Unit
-                    }
-                }
-                lifecycleOwner.lifecycle.addObserver(observer)
-
-                // AndroidView can be created after the parent Activity has already
-                // reached RESUMED. Forward the current lifecycle immediately;
-                // otherwise MapView can stay created-but-not-running and render blank.
-                when {
-                    lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) -> {
-                        mapView.onStart()
-                        mapView.onResume()
-                    }
-                    lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED) -> {
-                        mapView.onStart()
-                    }
-                }
-
-                onDispose {
-                    lifecycleOwner.lifecycle.removeObserver(observer)
-                    runCatching { mapView.onPause() }
-                    runCatching { mapView.onStop() }
-                    runCatching { mapView.onDestroy() }
-                }
-            }
-        }
-
-        LaunchedEffect(mapRef, selectedLayer, routeJson, lat, lon, title, useWebFallback) {
-            val map = mapRef ?: return@LaunchedEffect
-            if (useWebFallback) return@LaunchedEffect
-
-            val signature = selectedLayer + "|" + lat + "|" + lon + "|" + routeJson.hashCode()
-            lastRenderSignature = ""
-            nativeMapReady = false
-
-            runCatching {
-                map.setStyle(
-                    Style.Builder().fromJson(
-                        mapLibreRasterStyleJson(selectedLayer, lat, lon)
-                    )
-                ) {
-                    nativeMapReady = true
-                    applyAnnotations(map, signature)
-                }
-            }.onFailure {
-                nativeMapReady = false
-                useWebFallback = true
-                this@MainActivity.errorMessage =
-                    "Bản đồ nội bộ chuyển sang chế độ Web dự phòng."
-                lastRenderSignature = ""
-            }
-        }
-
-        LaunchedEffect(mapRef, useWebFallback, nativeMapReady) {
-            if (mapRef == null || useWebFallback || nativeMapReady) return@LaunchedEffect
-            delay(12_000L)
-            if (!nativeMapReady && !useWebFallback) {
-                useWebFallback = true
-                this@MainActivity.errorMessage =
-                    "Bản đồ nội bộ phản hồi chậm; đã chuyển sang chế độ Web dự phòng."
-            }
-        }
-    }
 
     @Composable
     private fun RadioWebViewDialog(url: String, title: String) {
