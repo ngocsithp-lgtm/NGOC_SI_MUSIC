@@ -460,6 +460,10 @@ class MusicService : MediaSessionService() {
         savePlaybackState()
         widgetHandler.removeCallbacks(widgetTicker)
         widgetHandler.removeCallbacks(sleepTimerRunnable)
+        // Drive token recovery runs on a dedicated IO scope. Cancel it before
+        // releasing the service so a late OAuth refresh cannot post work back
+        // into a destroyed MediaSessionService instance.
+        driveRecoveryScope.coroutineContext[kotlinx.coroutines.Job]?.cancel()
         player.removeListener(playerListener)
         mediaSession.release()
         player.release()
