@@ -79,6 +79,18 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
+import org.maplibre.android.MapLibre
+import org.maplibre.android.annotations.MarkerOptions
+import org.maplibre.android.annotations.PolylineOptions
+import org.maplibre.android.camera.CameraPosition
+import org.maplibre.android.camera.CameraUpdateFactory
+import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.geometry.LatLngBounds
+import org.maplibre.android.maps.MapLibreMap
+import org.maplibre.android.maps.MapView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.common.util.concurrent.MoreExecutors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Job
@@ -6859,120 +6871,50 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         )
     }
 
-    private fun buildInternalMapHtml(
-        lat: Double,
-        lon: Double,
-        layer: String,
-        routeJson: String
-    ): String {
+    private fun mapLibreRasterStyleJson(layer: String, lat: Double, lon: Double): String {
         val safeLat = if (lat.isFinite()) lat.coerceIn(-85.0, 85.0) else 10.8231
         val safeLon = if (lon.isFinite()) lon.coerceIn(-180.0, 180.0) else 106.6297
         val safeLayer = if (layer == "satellite") "satellite" else "standard"
-        val safeRoute = routeJson.replace("\\", "\\\\").replace("</", "<\\/")
-        return """<!doctype html>
-<html>
-<head>
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<style>
-html,body,#map{margin:0;width:100%;height:100%;overflow:hidden;background:#dce6ee;font-family:Arial,sans-serif}
-#map{position:relative;touch-action:none}
-#tiles{position:absolute;inset:0;overflow:hidden}
-.tile{position:absolute;width:256px;height:256px;user-select:none;-webkit-user-drag:none}
-#route{position:absolute;inset:0;pointer-events:none}
-#marker{position:absolute;width:18px;height:18px;border-radius:50%;background:#3f7cff;border:3px solid white;box-shadow:0 2px 8px #0008;transform:translate(-50%,-50%);z-index:20}
-#controls{position:absolute;right:12px;top:12px;z-index:50;display:flex;flex-direction:column;gap:6px}
-.ctrl{width:42px;height:42px;border:0;border-radius:12px;background:#101620eF;color:white;font-size:23px;box-shadow:0 2px 8px #0005}
-#layer{position:absolute;left:12px;top:12px;z-index:50;padding:9px 12px;border:0;border-radius:12px;background:#101620eF;color:white;font-weight:700}
-#attrib{position:absolute;right:8px;bottom:6px;z-index:60;background:#ffffffd9;color:#263238;font-size:9px;padding:3px 5px;border-radius:4px}
-#status{position:absolute;left:12px;bottom:10px;z-index:60;max-width:75%;background:#101620dc;color:white;font-size:11px;padding:8px 10px;border-radius:10px}
-</style>
-</head>
-<body>
-<div id="map">
-  <div id="tiles"></div>
-  <svg id="route" xmlns="http://www.w3.org/2000/svg"></svg>
-  <div id="marker"></div>
-  <button id="layer" onclick="toggleLayer()">LỚP: SAT/STD</button>
-  <div id="controls">
-    <button class="ctrl" onclick="zoomBy(1)">+</button>
-    <button class="ctrl" onclick="zoomBy(-1)">−</button>
-    <button class="ctrl" onclick="recenter()">⌖</button>
-  </div>
-  <div id="status">NGỌC SĨ MAP</div>
-  <div id="attrib">© OpenStreetMap contributors</div>
-</div>
-<script>
-const TILE=256;
-const mapEl=document.getElementById("map");
-const tilesEl=document.getElementById("tiles");
-const marker=document.getElementById("marker");
-const routeSvg=document.getElementById("route");
-const statusEl=document.getElementById("status");
-const homeLat=${safeLat};
-const homeLon=${safeLon};
-let lat=homeLat;
-let lon=homeLon;
-let zoom=13;
-let layer="${safeLayer}";
-let route=${safeRoute};
-let dragging=false,lastX=0,lastY=0;
-function clampLat(v){return Math.max(-85.05112878,Math.min(85.05112878,v));}
-function scale(){return TILE*Math.pow(2,zoom);}
-function lonX(v){return (v+180)/360*scale();}
-function latY(v){const r=v*Math.PI/180;return (1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*scale();}
-function xLon(v){return v/scale()*360-180;}
-function yLat(v){const n=Math.PI-2*Math.PI*v/scale();return 180/Math.PI*Math.atan(0.5*(Math.exp(n)-Math.exp(-n)));}
-function tileUrl(z,x,y){const max=Math.pow(2,z);if(x<0)x+=max;if(x>=max)x-=max;if(y<0||y>=max)return "";return layer==="satellite" ? "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/"+z+"/"+y+"/"+x : "https://tile.openstreetmap.org/"+z+"/"+x+"/"+y+".png";}
-function setStatus(t){statusEl.textContent=t;}
-function render(){
- const w=mapEl.clientWidth,h=mapEl.clientHeight,cx=lonX(lon),cy=latY(lat),left=cx-w/2,top=cy-h/2;
- tilesEl.innerHTML="";
- const minX=Math.floor(left/TILE)-1,maxX=Math.floor((left+w)/TILE)+1,minY=Math.floor(top/TILE)-1,maxY=Math.floor((top+h)/TILE)+1;
- for(let tx=minX;tx<=maxX;tx++){for(let ty=minY;ty<=maxY;ty++){const u=tileUrl(zoom,tx,ty);if(!u)continue;const img=document.createElement("img");img.className="tile";img.draggable=false;img.src=u;img.style.left=(tx*TILE-left)+"px";img.style.top=(ty*TILE-top)+"px";tilesEl.appendChild(img);}}
- const mx=cx-left,my=cy-top;marker.style.left=mx+"px";marker.style.top=my+"px";
- routeSvg.setAttribute("width",w);routeSvg.setAttribute("height",h);routeSvg.innerHTML="";
- if(Array.isArray(route)&&route.length>1){const points=route.map(p=>(lonX(p[0])-left).toFixed(1)+","+(latY(p[1])-top).toFixed(1)).join(" ");const pl=document.createElementNS("http://www.w3.org/2000/svg","polyline");pl.setAttribute("points",points);pl.setAttribute("fill","none");pl.setAttribute("stroke","#2367ff");pl.setAttribute("stroke-width","6");pl.setAttribute("stroke-linecap","round");pl.setAttribute("stroke-linejoin","round");routeSvg.appendChild(pl);}
- document.getElementById("layer").textContent="LỚP: "+(layer==="satellite"?"VỆ TINH":"BẢN ĐỒ");
- document.getElementById("attrib").textContent=layer==="satellite"?"Powered by Esri • © OpenStreetMap contributors":"© OpenStreetMap contributors";
-}
-function panPixels(dx,dy){lon=xLon(lonX(lon)-dx);lat=clampLat(yLat(latY(lat)-dy));render();}
-function zoomBy(delta){zoom=Math.max(2,Math.min(19,zoom+delta));render();}
-function fitRoute(){
- if(!Array.isArray(route)||route.length<2){lat=homeLat;lon=homeLon;render();return;}
- let minLat=90,maxLat=-90,minLon=180,maxLon=-180;
- route.forEach(p=>{if(!Array.isArray(p)||p.length<2)return;const la=Number(p[1]),lo=Number(p[0]);if(!Number.isFinite(la)||!Number.isFinite(lo))return;minLat=Math.min(minLat,la);maxLat=Math.max(maxLat,la);minLon=Math.min(minLon,lo);maxLon=Math.max(maxLon,lo);});
- if(minLat>maxLat||minLon>maxLon){lat=homeLat;lon=homeLon;render();return;}
- lat=(minLat+maxLat)/2;lon=(minLon+maxLon)/2;
- const w=mapEl.clientWidth||320,h=mapEl.clientHeight||480;
- const padW=w*0.78,padH=h*0.72;
- function latPixel(v,z){
-   const r=v*Math.PI/180;
-   const s=TILE*Math.pow(2,z);
-   return (1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*s;
- }
- let best=2;
- for(let z=19;z>=2;z--){
-   const s=TILE*Math.pow(2,z);
-   const dx=Math.abs(((maxLon-minLon)/360)*s);
-   const dy=Math.abs(latPixel(maxLat,z)-latPixel(minLat,z));
-   if(dx<=padW&&dy<=padH){best=z;break;}
- }
- zoom=best;
- render();
-}
-function recenter(){if(Array.isArray(route)&&route.length>1)fitRoute();else{lat=homeLat;lon=homeLon;render();}}
-function toggleLayer(){layer=layer==="satellite"?"standard":"satellite";render();setStatus(layer==="satellite"?"Đang xem ảnh vệ tinh":"Đang xem bản đồ đường phố");}
-mapEl.addEventListener("pointerdown",e=>{dragging=true;lastX=e.clientX;lastY=e.clientY;mapEl.setPointerCapture(e.pointerId);});
-mapEl.addEventListener("pointermove",e=>{if(!dragging)return;const dx=e.clientX-lastX,dy=e.clientY-lastY;lastX=e.clientX;lastY=e.clientY;panPixels(dx,dy);});
-mapEl.addEventListener("pointerup",()=>dragging=false);
-mapEl.addEventListener("pointercancel",()=>dragging=false);
-mapEl.addEventListener("dblclick",e=>{e.preventDefault();zoomBy(1);});
-window.addEventListener("resize",()=>{if(Array.isArray(route)&&route.length>1)fitRoute();else render();});
-setStatus("Kéo để di chuyển • +/− để thu phóng");
-if(Array.isArray(route)&&route.length>1)fitRoute();else render();
-</script>
-</body>
-</html>"""
+        val tileTemplate = if (safeLayer == "satellite") {
+            "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+        } else {
+            "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+        }
+        val attribution = if (safeLayer == "satellite") {
+            "Tiles © Esri • © OpenStreetMap contributors"
+        } else {
+            "© OpenStreetMap contributors"
+        }
+
+        return """
+            {
+              "version": 8,
+              "name": "NGỌC SĨ MUSIC " + safeLayer.uppercase() + "",
+              "center": [$safeLon, $safeLat],
+              "zoom": 14,
+              "bearing": 0,
+              "pitch": 0,
+              "sources": {
+                "base": {
+                  "type": "raster",
+                  "tiles": ["$tileTemplate"],
+                  "tileSize": 256,
+                  "minzoom": 2,
+                  "maxzoom": 19,
+                  "attribution": "$attribution"
+                }
+              },
+              "layers": [
+                {
+                  "id": "base-raster",
+                  "type": "raster",
+                  "source": "base",
+                  "minzoom": 0,
+                  "maxzoom": 22
+                }
+              ]
+            }
+        """.trimIndent()
     }
 
     @Composable
@@ -6985,69 +6927,341 @@ if(Array.isArray(route)&&route.length>1)fitRoute();else render();
         onDismiss: () -> Unit,
         onOpenExternal: () -> Unit
     ) {
+        var selectedLayer by remember(initialLayer) {
+            mutableStateOf(if (initialLayer == "satellite") "satellite" else "standard")
+        }
+        var mapViewRef by remember { mutableStateOf<MapView?>(null) }
+        var mapRef by remember { mutableStateOf<MapLibreMap?>(null) }
+        var lastRenderSignature by remember { mutableStateOf("") }
+        val lifecycleOwner = LocalLifecycleOwner.current
+
+        val routePoints = remember(routeJson) {
+            runCatching {
+                val array = org.json.JSONArray(routeJson)
+                buildList {
+                    for (i in 0 until array.length()) {
+                        val pair = array.optJSONArray(i) ?: continue
+                        if (pair.length() < 2) continue
+                        val routeLon = pair.optDouble(0, Double.NaN)
+                        val routeLat = pair.optDouble(1, Double.NaN)
+                        if (
+                            routeLon.isFinite() &&
+                            routeLat.isFinite() &&
+                            routeLon in -180.0..180.0 &&
+                            routeLat in -85.0..85.0
+                        ) {
+                            add(LatLng(routeLat, routeLon))
+                        }
+                    }
+                }
+            }.getOrElse { emptyList() }
+        }
+
+        fun applyAnnotations(map: MapLibreMap, signature: String) {
+            if (lastRenderSignature == signature) return
+            lastRenderSignature = signature
+
+            runCatching {
+                map.clear()
+
+                val center = LatLng(
+                    if (lat.isFinite()) lat.coerceIn(-85.0, 85.0) else 10.8231,
+                    if (lon.isFinite()) lon.coerceIn(-180.0, 180.0) else 106.6297
+                )
+
+                map.addMarker(
+                    MarkerOptions()
+                        .position(center)
+                        .title(title)
+                )
+
+                if (routePoints.size >= 2) {
+                    map.addPolyline(
+                        PolylineOptions()
+                            .add(routePoints.toTypedArray())
+                            .color(android.graphics.Color.rgb(35, 103, 255))
+                            .width(6f)
+                            .alpha(0.92f)
+                    )
+
+                    val bounds = LatLngBounds.fromLatLngs(routePoints)
+                    map.moveCamera(
+                        CameraUpdateFactory.newLatLngBounds(bounds, 96)
+                    )
+                } else {
+                    map.moveCamera(
+                        CameraUpdateFactory.newLatLngZoom(center, 14.0)
+                    )
+                }
+            }.onFailure { failure ->
+                this@MainActivity.errorMessage =
+                    "Không thể hiển thị lớp bản đồ: " +
+                        (failure.message?.take(120) ?: "lỗi không xác định")
+            }
+        }
+
         Dialog(
             onDismissRequest = onDismiss,
             properties = DialogProperties(usePlatformDefaultWidth = false)
         ) {
             Surface(
-                modifier = Modifier.fillMaxWidth(0.98f).fillMaxHeight(0.92f),
+                modifier = Modifier
+                    .fillMaxWidth(0.98f)
+                    .fillMaxHeight(0.94f),
                 shape = RoundedCornerShape(22.dp),
                 color = Color(0xFF0D1016)
             ) {
                 Column(Modifier.fillMaxSize()) {
                     Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(Modifier.weight(1f)) {
-                            Text(title, color = Color.White, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(
-                                "Bản đồ chạy trực tiếp trong NGỌC SĨ MUSIC • kéo để di chuyển • +/− để thu phóng",
+                                title,
+                                color = Color.White,
+                                fontWeight = FontWeight.ExtraBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                if (routePoints.size >= 2) {
+                                    "CHỈ ĐƯỜNG • BẢN ĐỒ TRỰC TIẾP TRONG NGỌC SĨ MUSIC"
+                                } else {
+                                    "BẢN ĐỒ TRỰC TIẾP TRONG NGỌC SĨ MUSIC"
+                                },
                                 color = Color(0xFF8F909E),
                                 fontSize = 10.sp,
                                 maxLines = 2
                             )
                         }
-                        TextButton(onClick = onOpenExternal) { Text("Mở ngoài") }
-                        TextButton(onClick = onDismiss) { Text("Đóng") }
+                        TextButton(onClick = onOpenExternal) {
+                            Text("Mở ngoài")
+                        }
+                        TextButton(onClick = onDismiss) {
+                            Text("Đóng")
+                        }
                     }
+
                     BackHandler { onDismiss() }
-                    AndroidView(
-                        modifier = Modifier.fillMaxSize(),
-                        factory = { context ->
-                            WebView(context).apply {
-                                settings.javaScriptEnabled = true
-                                settings.domStorageEnabled = true
-                                settings.loadsImagesAutomatically = true
-                                settings.useWideViewPort = true
-                                settings.loadWithOverviewMode = false
-                                settings.setSupportZoom(false)
-                                settings.allowFileAccess = false
-                                settings.allowContentAccess = true
-                                settings.userAgentString = "NGOC-SI-MUSIC/5.10 (Android)"
-                                webViewClient = object : WebViewClient() {
-                                    override fun onReceivedError(
-                                        view: WebView,
-                                        request: android.webkit.WebResourceRequest,
-                                        error: android.webkit.WebResourceError
-                                    ) {
-                                        if (request.isForMainFrame) {
-                                            errorMessage = "Không tải được bản đồ. Kiểm tra kết nối Internet."
+
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(18.dp))
+                    ) {
+                        AndroidView(
+                            modifier = Modifier.fillMaxSize(),
+                            factory = { context ->
+                                MapLibre.getInstance(context.applicationContext)
+
+                                MapView(context).apply {
+                                    onCreate(null)
+                                    addOnDidFailLoadingMapListener(
+                                        object : MapView.OnDidFailLoadingMapListener {
+                                            override fun onDidFailLoadingMap(detail: String) {
+                                                this@MainActivity.errorMessage =
+                                                    "Không tải được bản đồ trong ứng dụng. " +
+                                                        detail.take(160)
+                                            }
                                         }
+                                    )
+                                    getMapAsync { map ->
+                                        mapRef = map
+                                        map.setTileCacheEnabled(true)
                                     }
+                                    mapViewRef = this
                                 }
-                                loadDataWithBaseURL(
-                                    "https://www.openstreetmap.org/",
-                                    buildInternalMapHtml(lat, lon, initialLayer, routeJson),
-                                    "text/html",
-                                    "UTF-8",
-                                    null
+                            },
+                            update = { }
+                        )
+
+                        Column(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(7.dp)
+                        ) {
+                            Surface(
+                                modifier = Modifier.clickable {
+                                    selectedLayer =
+                                        if (selectedLayer == "satellite") "standard" else "satellite"
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color(0xE6101620)
+                            ) {
+                                Text(
+                                    if (selectedLayer == "satellite") "🗺 BẢN ĐỒ" else "🛰 VỆ TINH",
+                                    color = Color.White,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp)
                                 )
                             }
-                        },
-                        update = { }
-                    )
+
+                            Surface(
+                                modifier = Modifier.clickable {
+                                    mapRef?.let { map ->
+                                        val center = LatLng(
+                                            if (lat.isFinite()) lat.coerceIn(-85.0, 85.0) else 10.8231,
+                                            if (lon.isFinite()) lon.coerceIn(-180.0, 180.0) else 106.6297
+                                        )
+                                        if (routePoints.size >= 2) {
+                                            val bounds = LatLngBounds.fromLatLngs(routePoints)
+                                            map.moveCamera(
+                                                CameraUpdateFactory.newLatLngBounds(bounds, 96)
+                                            )
+                                        } else {
+                                            map.moveCamera(
+                                                CameraUpdateFactory.newLatLngZoom(center, 14.0)
+                                            )
+                                        }
+                                    }
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color(0xE6101620)
+                            ) {
+                                Text(
+                                    "⌖",
+                                    color = Color.White,
+                                    fontSize = 22.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 13.dp, vertical = 5.dp)
+                                )
+                            }
+
+                            Surface(
+                                modifier = Modifier.clickable {
+                                    mapRef?.let { map ->
+                                        val current = map.cameraPosition
+                                        map.setCameraPosition(
+                                            CameraPosition.Builder(current)
+                                                .zoom((current.zoom + 1.0).coerceAtMost(19.0))
+                                                .build()
+                                        )
+                                    }
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color(0xE6101620)
+                            ) {
+                                Text(
+                                    "+",
+                                    color = Color.White,
+                                    fontSize = 23.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 13.dp, vertical = 5.dp)
+                                )
+                            }
+
+                            Surface(
+                                modifier = Modifier.clickable {
+                                    mapRef?.let { map ->
+                                        val current = map.cameraPosition
+                                        map.setCameraPosition(
+                                            CameraPosition.Builder(current)
+                                                .zoom((current.zoom - 1.0).coerceAtLeast(2.0))
+                                                .build()
+                                        )
+                                    }
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color(0xE6101620)
+                            ) {
+                                Text(
+                                    "−",
+                                    color = Color.White,
+                                    fontSize = 23.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 13.dp, vertical = 5.dp)
+                                )
+                            }
+                        }
+
+                        Surface(
+                            modifier = Modifier
+                                .align(Alignment.BottomStart)
+                                .padding(10.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            color = Color(0xEFFFFFFF)
+                        ) {
+                            Text(
+                                if (selectedLayer == "satellite") {
+                                    "Tiles © Esri • © OpenStreetMap contributors"
+                                } else {
+                                    "© OpenStreetMap contributors"
+                                },
+                                color = Color(0xFF263238),
+                                fontSize = 9.sp,
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp)
+                            )
+                        }
+
+                        Surface(
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(10.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xE6101620)
+                        ) {
+                            Text(
+                                if (routePoints.size >= 2) "● TUYẾN ĐƯỜNG" else "● ĐANG XEM",
+                                color = Color.White,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
                 }
+            }
+        }
+
+        DisposableEffect(lifecycleOwner, mapViewRef) {
+            val mapView = mapViewRef
+            if (mapView == null) {
+                onDispose { }
+            } else {
+                val observer = LifecycleEventObserver { _, event ->
+                    when (event) {
+                        Lifecycle.Event.ON_START -> mapView.onStart()
+                        Lifecycle.Event.ON_RESUME -> mapView.onResume()
+                        Lifecycle.Event.ON_PAUSE -> mapView.onPause()
+                        Lifecycle.Event.ON_STOP -> mapView.onStop()
+                        Lifecycle.Event.ON_DESTROY -> if (!mapView.isDestroyed) mapView.onDestroy()
+                        else -> Unit
+                    }
+                }
+                lifecycleOwner.lifecycle.addObserver(observer)
+
+                onDispose {
+                    lifecycleOwner.lifecycle.removeObserver(observer)
+                    if (!mapView.isDestroyed) {
+                        runCatching { mapView.onPause() }
+                        runCatching { mapView.onStop() }
+                        runCatching { mapView.onDestroy() }
+                    }
+                }
+            }
+        }
+
+        LaunchedEffect(mapRef, selectedLayer, routeJson, lat, lon, title) {
+            val map = mapRef ?: return@LaunchedEffect
+            val signature = selectedLayer + "|" + lat + "|" + lon + "|" + routeJson.hashCode()
+            lastRenderSignature = ""
+
+            runCatching {
+                map.setStyle(
+                    mapLibreRasterStyleJson(selectedLayer, lat, lon)
+                ) {
+                    applyAnnotations(map, signature)
+                }
+            }.onFailure { failure ->
+                this@MainActivity.errorMessage =
+                    "Không khởi tạo được bản đồ: " +
+                        (failure.message?.take(160) ?: "lỗi không xác định")
+                lastRenderSignature = ""
             }
         }
     }
