@@ -3,6 +3,8 @@ package com.ngocsi.music
 import android.content.Intent
 import android.graphics.BitmapFactory
 import android.graphics.Color as AndroidColor
+import android.content.res.ColorStateList
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.View
 import android.webkit.CookieManager
@@ -172,6 +174,12 @@ class YouTubePlayerActivity : ComponentActivity() {
             isAllCaps = false
             textSize = 28f
             setTextColor(AndroidColor.WHITE)
+            background = roundedButtonDrawable(
+                fill = AndroidColor.rgb(18, 20, 27),
+                stroke = AndroidColor.rgb(42, 48, 60),
+                radius = dp(12)
+            )
+            backgroundTintList = null
             contentDescription = "Quay lại"
             setOnClickListener {
                 if (customView != null) exitFullscreen() else finish()
@@ -245,6 +253,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         favoriteButton = actionButton("♡") { toggleFavorite() }
         watchLaterButton = actionButton("🔖") { toggleWatchLater() }
         nextButton = actionButton("⏭") { playNext() }
+        styleWideButton(playPauseButton, emphasized = true)
         previousButton.contentDescription = "Video trước"
         favoriteButton.contentDescription = "Yêu thích"
         watchLaterButton.contentDescription = "Xem sau"
@@ -258,10 +267,10 @@ class YouTubePlayerActivity : ComponentActivity() {
 
         val queueButton = Button(this).apply {
             text = "☷  HÀNG ĐỢI  •  " + (queueIndex + 1) + "/" + queue.size
-            isAllCaps = false
             tag = "queue_button"
             setOnClickListener { showQueueDialog() }
         }
+        styleWideButton(queueButton)
         content.addView(queueButton, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             dp(44)
@@ -289,8 +298,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         })
 
         val share = Button(this).apply {
-            text = "↗ CHIA SẺ"
-            isAllCaps = false
+            text = "↗  CHIA SẺ"
             setOnClickListener {
                 val shareIntent = Intent(Intent.ACTION_SEND).apply {
                     type = "text/plain"
@@ -300,6 +308,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 startActivity(Intent.createChooser(shareIntent, "Chia sẻ video"))
             }
         }
+        styleWideButton(share)
         content.addView(share, LinearLayout.LayoutParams(dp(100), dp(44)).apply {
             gravity = Gravity.START
             leftMargin = dp(8)
@@ -337,9 +346,39 @@ class YouTubePlayerActivity : ComponentActivity() {
         Button(this).apply {
             text = label
             isAllCaps = false
+            textSize = 16f
             setTextColor(AndroidColor.WHITE)
+            background = roundedButtonDrawable(
+                fill = AndroidColor.rgb(22, 25, 34),
+                stroke = AndroidColor.rgb(48, 55, 70),
+                radius = dp(12)
+            )
+            backgroundTintList = null
+            setPadding(dp(4), 0, dp(4), 0)
             setOnClickListener { onClick() }
         }
+
+    private fun roundedButtonDrawable(fill: Int, stroke: Int, radius: Int): GradientDrawable =
+        GradientDrawable().apply {
+            setColor(fill)
+            setStroke(dp(1), stroke)
+            cornerRadius = radius.toFloat()
+        }
+
+    private fun styleWideButton(button: Button, emphasized: Boolean = false) {
+        button.isAllCaps = false
+        button.setTextColor(
+            if (emphasized) AndroidColor.BLACK else AndroidColor.WHITE
+        )
+        button.background = roundedButtonDrawable(
+            fill = if (emphasized) AndroidColor.rgb(141, 238, 255) else AndroidColor.rgb(17, 20, 28),
+            stroke = if (emphasized) AndroidColor.rgb(141, 238, 255) else AndroidColor.rgb(43, 49, 62),
+            radius = dp(13)
+        )
+        button.backgroundTintList = null
+        button.minHeight = dp(44)
+        button.setPadding(dp(12), 0, dp(12), 0)
+    }
 
     private fun parseQueue(raw: String?) {
         queue.clear()
