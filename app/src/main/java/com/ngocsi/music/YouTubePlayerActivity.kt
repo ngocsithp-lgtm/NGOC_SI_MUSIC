@@ -72,6 +72,8 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var youtubePlayerReady = false
     private var youtubePlayerState = -1
     private var queueTransitionInFlight = false
+    private var youtubeShuffleEnabled = false
+    private var youtubeRepeatMode = 0 // 0=tắt, 1=lặp hàng đợi, 2=lặp một bài
     private val thumbnailExecutor = Executors.newFixedThreadPool(3)
     private val playbackPositionHandler = Handler(Looper.getMainLooper())
     private val playbackPositionSaver = object : Runnable {
@@ -99,8 +101,8 @@ class YouTubePlayerActivity : ComponentActivity() {
             runOnUiThread {
                 youtubePlayerState = state
                 updatePlaybackButton()
-                if (state == 0 && queueIndex < queue.lastIndex) {
-                    playNext()
+                if (state == 0 && queue.isNotEmpty()) {
+                    advanceAfterYoutubeEnded()
                 }
             }
         }
@@ -138,6 +140,10 @@ class YouTubePlayerActivity : ComponentActivity() {
         title = intent.getStringExtra(EXTRA_TITLE).orEmpty().ifBlank { "YouTube" }
         channel = intent.getStringExtra(EXTRA_CHANNEL).orEmpty().ifBlank { "YouTube" }
         queueIndex = intent.getIntExtra(EXTRA_QUEUE_INDEX, 0).coerceAtLeast(0)
+        val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+        youtubeShuffleEnabled = prefs.getBoolean("youtube_shuffle", false)
+        youtubeRepeatMode = prefs.getInt("youtube_repeat_mode", 0).coerceIn(0, 2)
+
         parseQueue(intent.getStringExtra(EXTRA_QUEUE_JSON))
         if (queue.isNotEmpty()) {
             queueIndex = queueIndex.coerceIn(0, queue.lastIndex)
@@ -311,6 +317,29 @@ class YouTubePlayerActivity : ComponentActivity() {
         actions.addView(watchLaterButton, LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(3) })
         actions.addView(nextButton, LinearLayout.LayoutParams(dp(44), dp(42)))
         content.addView(actions)
+
+        val queueModes = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(8), dp(2), dp(8), dp(2))
+        }
+        val shuffleButton = actionButton("") { toggleYoutubeShuffle() }.apply {
+            tag = "youtube_shuffle_button"
+            contentDescription = "Phát ngẫu nhiên hàng đợi YouTube"
+        }
+        val repeatButton = actionButton("") { toggleYoutubeRepeat() }.apply {
+            tag = "youtube_repeat_button"
+            contentDescription = "Chế độ lặp hàng đợi YouTube"
+        }
+        queueModes.addView(
+            shuffleButton,
+            LinearLayout.LayoutParams(0, dp(40), 1f).apply { marginEnd = dp(4) }
+        )
+        queueModes.addView(
+            repeatButton,
+            LinearLayout.LayoutParams(0, dp(40), 1f)
+        )
+        content.addView(queueModes)
 
         val queueButton = Button(this).apply {
             text = "☷  HÀNG ĐỢI  •  " + (queueIndex + 1) + "/" + queue.size
@@ -597,6 +626,57 @@ class YouTubePlayerActivity : ComponentActivity() {
         if (queue.size <= 1 || queueIndex >= queue.lastIndex) return
         queueIndex++
         loadQueueItem()
+    }
+
+    private fun advanceAfterYoutubeEnded() {
+        if (queue.isEmpty()) return
+        when {
+            youtubeRepeatMode == 2 -> loadQueueItem()
+            youtubeShuffleEnabled && queue.size > 1 -> {
+                val candidates = queue.indices.filter { it != queueIndex }
+                queueIndex = candidates.random()
+                loadQueueItem()
+            }
+            queueIndex < queue.lastIndex -> {
+                queueIndex++
+                loadQueueItem()
+            }
+            youtubeRepeatMode == 1 -> {
+                queueIndex = 0
+                loadQueueItem()
+            }
+        }
+    }
+
+    private fun toggleYoutubeShuffle() {
+        youtubeShuffleEnabled = !youtubeShuffleEnabled
+        getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+            .edit()
+            .putBoolean("youtube_shuffle", youtubeShuffleEnabled)
+            .apply()
+        updateQueueModeButtons()
+    }
+
+    private fun toggleYoutubeRepeat() {
+        youtubeRepeatMode = (youtubeRepeatMode + 1) % 3
+        getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+            .edit()
+            .putInt("youtube_repeat_mode", youtubeRepeatMode)
+            .apply()
+        updateQueueModeButtons()
+    }
+
+    private fun updateQueueModeButtons() {
+        root.findViewWithTag<Button>("youtube_shuffle_button")?.apply {
+            text = if (youtubeShuffleEnabled) "🔀  NGẪU NHIÊN • BẬT" else "🔀  NGẪU NHIÊN • TẮT"
+        }
+        root.findViewWithTag<Button>("youtube_repeat_button")?.apply {
+            text = when (youtubeRepeatMode) {
+                1 -> "🔁  LẶP HÀNG ĐỢI"
+                2 -> "🔂  LẶP BÀI"
+                else -> "🔁  LẶP • TẮT"
+            }
+        }
     }
 
     private fun loadQueueItem() {
@@ -1069,6 +1149,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         if (::channelView.isInitialized) channelView.text = channel
         updateActionState()
         updateQueueButton()
+        updateQueueModeButtons()
         saveLastPlayedState()
     }
 
