@@ -78,7 +78,10 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var youtubeShuffleEnabled = false
     private var youtubeRepeatMode = 0 // 0=tắt, 1=lặp hàng đợi, 2=lặp một bài
     private val thumbnailExecutor = Executors.newFixedThreadPool(3)
-    private val youtubeThumbnailCache = object : android.util.LruCache<String, Bitmap>(12) {}
+    private val youtubeThumbnailCache = object : android.util.LruCache<String, Bitmap>(4 * 1024) {
+        override fun sizeOf(key: String, value: Bitmap): Int =
+            (value.byteCount / 1024).coerceAtLeast(1)
+    }
     private val playbackPositionHandler = Handler(Looper.getMainLooper())
     private val playbackPositionSaver = object : Runnable {
         override fun run() {
