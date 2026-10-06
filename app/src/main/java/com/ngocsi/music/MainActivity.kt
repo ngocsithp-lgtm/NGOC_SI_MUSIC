@@ -355,6 +355,12 @@ class MainActivity : ComponentActivity() {
     private val customTvSources = mutableStateListOf<TvSource>()
     private var mapSearchQuery by mutableStateOf("")
     private var mapSearching by mutableStateOf(false)
+    private var showInternalMap by mutableStateOf(false)
+    private var internalMapLat by mutableStateOf(10.8231)
+    private var internalMapLon by mutableStateOf(106.6297)
+    private var internalMapTitle by mutableStateOf("TP. Hồ Chí Minh")
+    private var internalMapLayer by mutableStateOf("standard")
+    private var internalMapRouteJson by mutableStateOf("[]")
     private var showNowPlaying by mutableStateOf(false)
     private var youtubeQuery by mutableStateOf("")
     private var isVoiceSearching by mutableStateOf(false)
@@ -3730,16 +3736,13 @@ class MainActivity : ComponentActivity() {
             // Use OpenStreetMap's dedicated embed endpoint instead of the
             // full OSM SPA/hash URL. The embed page is more reliable inside
             // Android WebView and does not depend on the site's client router.
-            radioWebTitle = "NGỌC SĨ MAP • VỊ TRÍ HIỆN TẠI"
+            internalMapLat = lat
+            internalMapLon = lon
+            internalMapTitle = "VỊ TRÍ HIỆN TẠI"
+            internalMapLayer = "standard"
+            internalMapRouteJson = "[]"
+            showInternalMap = true
             errorMessage = null
-
-            // Keep the current-location map inside NGỌC SĨ MUSIC so the
-            // navigation shell remains consistent. Google Maps remains available
-            // through the dedicated external-map buttons in MapHub.
-            radioWebUrl =
-                "https://www.openstreetmap.org/export/embed.html" +
-                    "?bbox=" + left + "," + bottom + "," + right + "," + top +
-                    "&layer=mapnik&marker=" + lat + "," + lon
         }
 
         // Prefer a recent cached fix for instant response.
@@ -4505,6 +4508,26 @@ class MainActivity : ComponentActivity() {
         if (showVietnamRadioHub) VietnamRadioHubDialog()
         if (showTvSourceDialog) TvSourceDialog()
         if (showDriveOAuthDiagnostics) DriveOAuthDiagnosticsDialog()
+        if (showInternalMap) {
+            InternalMapDialog(
+                lat = internalMapLat,
+                lon = internalMapLon,
+                title = internalMapTitle,
+                initialLayer = internalMapLayer,
+                routeJson = internalMapRouteJson,
+                onDismiss = { showInternalMap = false },
+                onOpenExternal = {
+                    val query = internalMapLat.toString() + "," + internalMapLon.toString()
+                    runCatching {
+                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(
+                            "https://www.google.com/maps/search/?api=1&query=" + Uri.encode(query)
+                        )))
+                    }.onFailure {
+                        errorMessage = "Không mở được Google Maps bên ngoài."
+                    }
+                }
+            )
+        }
         radioWebUrl?.let { RadioWebViewDialog(it, radioWebTitle) }
     }
 
@@ -6293,18 +6316,112 @@ class MainActivity : ComponentActivity() {
 
             mapSearching = false
             result.onSuccess { (lat, lon, displayName) ->
-                val delta = 0.018
-                val left = lon - delta
-                val right = lon + delta
-                val bottom = lat - delta
-                val top = lat + delta
-                radioWebTitle = "NGỌC SĨ MAP • ${displayName.substringBefore(",")}"
-                radioWebUrl =
-                    "https://www.openstreetmap.org/export/embed.html" +
-                        "?bbox=" + left + "," + bottom + "," + right + "," + top +
-                        "&layer=mapnik&marker=" + lat + "," + lon
+                internalMapLat = lat
+                internalMapLon = lon
+                internalMapTitle = displayName.substringBefore(",").ifBlank { query }
+                internalMapLayer = "standard"
+                internalMapRouteJson = "[]"
+                showInternalMap = true
             }.onFailure {
                 errorMessage = "Không tìm thấy địa điểm hoặc máy chủ bản đồ đang bận. Hãy thử tên địa điểm cụ thể hơn."
+            }
+        }
+    }
+
+    private fun searchMapRoute() {
+        val query = mapSearchQuery.trim()
+        if (query.isBlank()) {
+            errorMessage = "Nhập điểm đến rồi bấm CHỈ ĐƯỜNG."
+            return
+        }
+        if (mapSearching) return
+        mapSearching = true
+        errorMessage = "Đang tìm đường…"
+
+        lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    fun geocode(place: String): Triple<Double, Double, String> {
+                        val encoded = URLEncoder.encode(place, "UTF-8")
+                        val connection = (URL(
+                            "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&accept-language=vi&q=$encoded"
+                        ).openConnection() as HttpURLConnection).apply {
+                            requestMethod = "GET"
+                            connectTimeout = 8000
+                            readTimeout = 8000
+                            setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.10 (Android)")
+                            setRequestProperty("Accept", "application/json")
+                        }
+                        try {
+                            if (connection.responseCode !in 200..299) throw IllegalStateException("HTTP ${connection.responseCode}")
+                            val first = connection.inputStream.bufferedReader().use { it.readText() }
+                                .let { JSONArray(it).optJSONObject(0) }
+                                ?: throw NoSuchElementException("Không tìm thấy địa điểm")
+                            val lat = first.optDouble("lat", Double.NaN)
+                            val lon = first.optDouble("lon", Double.NaN)
+                            val name = first.optString("display_name", place)
+                            if (!lat.isFinite() || !lon.isFinite()) throw IllegalStateException("Tọa độ không hợp lệ")
+                            Triple(lat, lon, name)
+                        } finally {
+                            connection.disconnect()
+                        }
+                    }
+
+                    val destination = geocode(query)
+                    val routeUrl =
+                        "https://router.project-osrm.org/route/v1/driving/" +
+                            internalMapLon.toString() + "," + internalMapLat.toString() + ";" +
+                            destination.second.toString() + "," + destination.first.toString() +
+                            "?overview=full&geometries=geojson"
+                    val routeConnection = (URL(routeUrl).openConnection() as HttpURLConnection).apply {
+                        requestMethod = "GET"
+                        connectTimeout = 10000
+                        readTimeout = 15000
+                        setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.10 (Android)")
+                        setRequestProperty("Accept", "application/json")
+                    }
+                    try {
+                        if (routeConnection.responseCode !in 200..299) throw IllegalStateException("HTTP ${routeConnection.responseCode}")
+                        val root = routeConnection.inputStream.bufferedReader().use { it.readText() }.let(::org.json.JSONObject)
+                        val route = root.optJSONArray("routes")?.optJSONObject(0)
+                            ?: throw NoSuchElementException("Không tìm thấy tuyến đường")
+                        val coordinates = route.optJSONObject("geometry")?.optJSONArray("coordinates")
+                            ?: throw IllegalStateException("Tuyến đường không có dữ liệu")
+                        val routeArray = org.json.JSONArray()
+                        for (i in 0 until coordinates.length()) {
+                            val pair = coordinates.optJSONArray(i) ?: continue
+                            if (pair.length() >= 2) {
+                                routeArray.put(org.json.JSONArray().put(pair.optDouble(0)).put(pair.optDouble(1)))
+                            }
+                        }
+                        val meta = org.json.JSONObject()
+                            .put("route", routeArray)
+                            .put("name", destination.third)
+                            .put("duration", route.optDouble("duration", 0.0))
+                            .put("distance", route.optDouble("distance", 0.0))
+                        Triple(destination.first, destination.second, meta.toString())
+                    } finally {
+                        routeConnection.disconnect()
+                    }
+                }
+            }
+
+            mapSearching = false
+            result.onSuccess { (lat, lon, metaJson) ->
+                val meta = org.json.JSONObject(metaJson)
+                internalMapLat = lat
+                internalMapLon = lon
+                internalMapTitle = meta.optString("name", query).substringBefore(",")
+                internalMapLayer = "standard"
+                internalMapRouteJson = meta.optJSONArray("route")?.toString() ?: "[]"
+                showInternalMap = true
+                val km = meta.optDouble("distance", 0.0) / 1000.0
+                val minutes = meta.optDouble("duration", 0.0) / 60.0
+                errorMessage = if (km > 0.0) {
+                    "Đã tìm đường: ${String.format(java.util.Locale.getDefault(), "%.1f km • %.0f phút", km, minutes)}"
+                } else null
+            }.onFailure {
+                errorMessage = "Không tìm được đường đến địa điểm này. Hãy thử tên địa điểm cụ thể hơn."
             }
         }
     }
@@ -6354,8 +6471,12 @@ class MainActivity : ComponentActivity() {
                     ) {
                         Button(
                             onClick = {
-                                radioWebTitle = "NGỌC SĨ MAP • BẢN ĐỒ"
-                                radioWebUrl = mapUrl
+                                internalMapLat = 10.8231
+                                internalMapLon = 106.6297
+                                internalMapTitle = "TP. Hồ Chí Minh"
+                                internalMapLayer = "standard"
+                                internalMapRouteJson = "[]"
+                                showInternalMap = true
                             },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(14.dp)
@@ -6383,8 +6504,12 @@ class MainActivity : ComponentActivity() {
                     ) {
                         OutlinedButton(
                             onClick = {
-                                radioWebTitle = "NGỌC SĨ MAP • VỆ TINH"
-                                radioWebUrl = satelliteUrl
+                                internalMapLat = 10.8231
+                                internalMapLon = 106.6297
+                                internalMapTitle = "TP. Hồ Chí Minh • VỆ TINH"
+                                internalMapLayer = "satellite"
+                                internalMapRouteJson = "[]"
+                                showInternalMap = true
                                 errorMessage = null
                             },
                             modifier = Modifier.weight(1f),
@@ -6393,19 +6518,7 @@ class MainActivity : ComponentActivity() {
                             Text("🛰 VỆ TINH")
                         }
                         OutlinedButton(
-                            onClick = {
-                                val q = mapSearchQuery.trim()
-                                val directionsUrl =
-                                    if (q.isBlank()) {
-                                        "https://www.google.com/maps/dir/"
-                                    } else {
-                                        "https://www.google.com/maps/dir/?api=1&destination=" +
-                                            Uri.encode(q) + "&travelmode=driving"
-                                    }
-                                radioWebTitle = "NGỌC SĨ MAP • CHỈ ĐƯỜNG"
-                                radioWebUrl = directionsUrl
-                                errorMessage = null
-                            },
+                            onClick = { searchMapRoute() },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(14.dp)
                         ) {
@@ -6744,6 +6857,174 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 }
             }
         )
+    }
+
+    private fun buildInternalMapHtml(
+        lat: Double,
+        lon: Double,
+        layer: String,
+        routeJson: String
+    ): String {
+        val safeLat = if (lat.isFinite()) lat.coerceIn(-85.0, 85.0) else 10.8231
+        val safeLon = if (lon.isFinite()) lon.coerceIn(-180.0, 180.0) else 106.6297
+        val safeLayer = if (layer == "satellite") "satellite" else "standard"
+        val safeRoute = routeJson.replace("\\", "\\\\").replace("</", "<\\/")
+        return """<!doctype html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<style>
+html,body,#map{margin:0;width:100%;height:100%;overflow:hidden;background:#dce6ee;font-family:Arial,sans-serif}
+#map{position:relative;touch-action:none}
+#tiles{position:absolute;inset:0;overflow:hidden}
+.tile{position:absolute;width:256px;height:256px;user-select:none;-webkit-user-drag:none}
+#route{position:absolute;inset:0;pointer-events:none}
+#marker{position:absolute;width:18px;height:18px;border-radius:50%;background:#3f7cff;border:3px solid white;box-shadow:0 2px 8px #0008;transform:translate(-50%,-50%);z-index:20}
+#controls{position:absolute;right:12px;top:12px;z-index:50;display:flex;flex-direction:column;gap:6px}
+.ctrl{width:42px;height:42px;border:0;border-radius:12px;background:#101620eF;color:white;font-size:23px;box-shadow:0 2px 8px #0005}
+#layer{position:absolute;left:12px;top:12px;z-index:50;padding:9px 12px;border:0;border-radius:12px;background:#101620eF;color:white;font-weight:700}
+#attrib{position:absolute;right:8px;bottom:6px;z-index:60;background:#ffffffd9;color:#263238;font-size:9px;padding:3px 5px;border-radius:4px}
+#status{position:absolute;left:12px;bottom:10px;z-index:60;max-width:75%;background:#101620dc;color:white;font-size:11px;padding:8px 10px;border-radius:10px}
+</style>
+</head>
+<body>
+<div id="map">
+  <div id="tiles"></div>
+  <svg id="route" xmlns="http://www.w3.org/2000/svg"></svg>
+  <div id="marker"></div>
+  <button id="layer" onclick="toggleLayer()">LỚP: SAT/STD</button>
+  <div id="controls">
+    <button class="ctrl" onclick="zoomBy(1)">+</button>
+    <button class="ctrl" onclick="zoomBy(-1)">−</button>
+    <button class="ctrl" onclick="recenter()">⌖</button>
+  </div>
+  <div id="status">NGỌC SĨ MAP</div>
+  <div id="attrib">© OpenStreetMap contributors</div>
+</div>
+<script>
+const TILE=256;
+const mapEl=document.getElementById("map");
+const tilesEl=document.getElementById("tiles");
+const marker=document.getElementById("marker");
+const routeSvg=document.getElementById("route");
+const statusEl=document.getElementById("status");
+let lat=${safeLat};
+let lon=${safeLon};
+let zoom=13;
+let layer="${safeLayer}";
+let route=${safeRoute};
+let dragging=false,lastX=0,lastY=0;
+function clampLat(v){return Math.max(-85.05112878,Math.min(85.05112878,v));}
+function scale(){return TILE*Math.pow(2,zoom);}
+function lonX(v){return (v+180)/360*scale();}
+function latY(v){const r=v*Math.PI/180;return (1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*scale();}
+function xLon(v){return v/scale()*360-180;}
+function yLat(v){const n=Math.PI-2*Math.PI*v/scale();return 180/Math.PI*Math.atan(0.5*(Math.exp(n)-Math.exp(-n)));}
+function tileUrl(z,x,y){const max=Math.pow(2,z);if(x<0)x+=max;if(x>=max)x-=max;if(y<0||y>=max)return "";return layer==="satellite" ? "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/"+z+"/"+y+"/"+x : "https://tile.openstreetmap.org/"+z+"/"+x+"/"+y+".png";}
+function setStatus(t){statusEl.textContent=t;}
+function render(){
+ const w=mapEl.clientWidth,h=mapEl.clientHeight,cx=lonX(lon),cy=latY(lat),left=cx-w/2,top=cy-h/2;
+ tilesEl.innerHTML="";
+ const minX=Math.floor(left/TILE)-1,maxX=Math.floor((left+w)/TILE)+1,minY=Math.floor(top/TILE)-1,maxY=Math.floor((top+h)/TILE)+1;
+ for(let tx=minX;tx<=maxX;tx++){for(let ty=minY;ty<=maxY;ty++){const u=tileUrl(zoom,tx,ty);if(!u)continue;const img=document.createElement("img");img.className="tile";img.draggable=false;img.src=u;img.style.left=(tx*TILE-left)+"px";img.style.top=(ty*TILE-top)+"px";tilesEl.appendChild(img);}}
+ const mx=cx-left,my=cy-top;marker.style.left=mx+"px";marker.style.top=my+"px";
+ routeSvg.setAttribute("width",w);routeSvg.setAttribute("height",h);routeSvg.innerHTML="";
+ if(Array.isArray(route)&&route.length>1){const points=route.map(p=>(lonX(p[0])-left).toFixed(1)+","+(latY(p[1])-top).toFixed(1)).join(" ");const pl=document.createElementNS("http://www.w3.org/2000/svg","polyline");pl.setAttribute("points",points);pl.setAttribute("fill","none");pl.setAttribute("stroke","#2367ff");pl.setAttribute("stroke-width","6");pl.setAttribute("stroke-linecap","round");pl.setAttribute("stroke-linejoin","round");routeSvg.appendChild(pl);}
+ document.getElementById("layer").textContent="LỚP: "+(layer==="satellite"?"VỆ TINH":"BẢN ĐỒ");
+ document.getElementById("attrib").textContent=layer==="satellite"?"Powered by Esri • © OpenStreetMap contributors":"© OpenStreetMap contributors";
+}
+function panPixels(dx,dy){lon=xLon(lonX(lon)-dx);lat=clampLat(yLat(latY(lat)-dy));render();}
+function zoomBy(delta){zoom=Math.max(2,Math.min(19,zoom+delta));render();}
+function recenter(){render();}
+function toggleLayer(){layer=layer==="satellite"?"standard":"satellite";render();setStatus(layer==="satellite"?"Đang xem ảnh vệ tinh":"Đang xem bản đồ đường phố");}
+mapEl.addEventListener("pointerdown",e=>{dragging=true;lastX=e.clientX;lastY=e.clientY;mapEl.setPointerCapture(e.pointerId);});
+mapEl.addEventListener("pointermove",e=>{if(!dragging)return;const dx=e.clientX-lastX,dy=e.clientY-lastY;lastX=e.clientX;lastY=e.clientY;panPixels(dx,dy);});
+mapEl.addEventListener("pointerup",()=>dragging=false);
+mapEl.addEventListener("pointercancel",()=>dragging=false);
+mapEl.addEventListener("dblclick",e=>{e.preventDefault();zoomBy(1);});
+window.addEventListener("resize",render);
+setStatus("Kéo để di chuyển • +/− để thu phóng");
+render();
+</script>
+</body>
+</html>"""
+    }
+
+    @Composable
+    private fun InternalMapDialog(
+        lat: Double,
+        lon: Double,
+        title: String,
+        initialLayer: String,
+        routeJson: String,
+        onDismiss: () -> Unit,
+        onOpenExternal: () -> Unit
+    ) {
+        Dialog(
+            onDismissRequest = onDismiss,
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(0.98f).fillMaxHeight(0.92f),
+                shape = RoundedCornerShape(22.dp),
+                color = Color(0xFF0D1016)
+            ) {
+                Column(Modifier.fillMaxSize()) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(title, color = Color.White, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(
+                                "Bản đồ chạy trực tiếp trong NGỌC SĨ MUSIC • kéo để di chuyển • +/− để thu phóng",
+                                color = Color(0xFF8F909E),
+                                fontSize = 10.sp,
+                                maxLines = 2
+                            )
+                        }
+                        TextButton(onClick = onOpenExternal) { Text("Mở ngoài") }
+                        TextButton(onClick = onDismiss) { Text("Đóng") }
+                    }
+                    BackHandler { onDismiss() }
+                    AndroidView(
+                        modifier = Modifier.fillMaxSize(),
+                        factory = { context ->
+                            WebView(context).apply {
+                                settings.javaScriptEnabled = true
+                                settings.domStorageEnabled = true
+                                settings.loadsImagesAutomatically = true
+                                settings.useWideViewPort = true
+                                settings.loadWithOverviewMode = false
+                                settings.setSupportZoom(false)
+                                settings.allowFileAccess = false
+                                settings.allowContentAccess = true
+                                settings.userAgentString = "NGOC-SI-MUSIC/5.10 (Android)"
+                                webViewClient = object : WebViewClient() {
+                                    override fun onReceivedError(
+                                        view: WebView,
+                                        request: android.webkit.WebResourceRequest,
+                                        error: android.webkit.WebResourceError
+                                    ) {
+                                        if (request.isForMainFrame) {
+                                            errorMessage = "Không tải được bản đồ. Kiểm tra kết nối Internet."
+                                        }
+                                    }
+                                }
+                                loadDataWithBaseURL(
+                                    "https://www.openstreetmap.org/",
+                                    buildInternalMapHtml(lat, lon, initialLayer, routeJson),
+                                    "text/html",
+                                    "UTF-8",
+                                    null
+                                )
+                            }
+                        },
+                        update = { }
+                    )
+                }
+            }
+        }
     }
 
     @Composable
