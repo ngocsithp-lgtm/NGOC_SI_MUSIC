@@ -627,12 +627,17 @@ class YouTubePlayerActivity : ComponentActivity() {
         val targetId = sanitizeVideoId(videoIdOverride ?: videoId)
         if (targetId.isBlank()) return
         webView?.evaluateJavascript(
-            "(function(){try{return String(Math.floor(lamPlayer.getCurrentTime()*1000));}catch(e){return '0';}})();"
+            "(function(){try{return JSON.stringify({id:String(lamPlayer.getVideoData().video_id||''),p:Math.floor(lamPlayer.getCurrentTime()*1000)});}catch(e){return '{}';}})();"
         ) { value ->
-            val positionMs = value.trim('"').toLongOrNull()?.coerceAtLeast(0L) ?: return@evaluateJavascript
-            // Keep the callback tied to the video that was active when the request
-            // was issued. This prevents a delayed JS result from being written into
-            // the newly selected queue item.
+            val payload = runCatching {
+                org.json.JSONObject(value.trim('"').replace("\\"", """))
+            }.getOrNull() ?: return@evaluateJavascript
+            val actualId = sanitizeVideoId(payload.optString("id"))
+            val positionMs = payload.optLong("p", 0L).coerceAtLeast(0L)
+            // Bind the saved position to the actual video reported by the player.
+            // This prevents delayed JS callbacks during rapid queue navigation from
+            // writing one video's position into another video's slot.
+            if (actualId != targetId) return@evaluateJavascript
             getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
                 .edit()
                 .putLong("youtube_position_ms_" + targetId, positionMs)
