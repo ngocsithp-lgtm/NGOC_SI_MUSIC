@@ -88,6 +88,10 @@ class DriveOAuthManager(private val context: Context) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .getBoolean(KEY_AUTHORIZED, false)
 
+    fun clearLocalAuthorizationState() {
+        clearAuthorizationState()
+    }
+
     fun hasDriveScope(result: AuthorizationResult? = null): Boolean {
         if (result != null) {
             return DRIVE_READ_SCOPE in result.grantedScopes
