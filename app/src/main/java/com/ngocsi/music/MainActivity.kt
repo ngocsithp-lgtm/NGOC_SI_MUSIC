@@ -6893,17 +6893,28 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
               <meta charset="utf-8">
               <link
                 rel="stylesheet"
+                href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"
+              />
+              <link
+                rel="stylesheet"
                 href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-                integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-                crossorigin=""
               />
               <style>
-                html, body, #map {
+                html, body {
                   width: 100%;
                   height: 100%;
                   margin: 0;
                   padding: 0;
                   background: #0d1016;
+                  overflow: hidden;
+                }
+                #map {
+                  position: fixed;
+                  inset: 0;
+                  width: 100%;
+                  height: 100%;
+                  min-height: 240px;
+                  background: #dfe7ee;
                   overflow: hidden;
                 }
                 .leaflet-control-attribution {
@@ -6944,9 +6955,6 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
               <div id="mapStatus" class="map-status">Đang tải bản đồ…</div>
               <div id="mapError" class="map-error"></div>
 
-              <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-                      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-                      crossorigin=""></script>
               <script>
                 (function () {
                   const INITIAL_LAT = $safeLat;
@@ -7145,7 +7153,24 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     setStatus(INITIAL_LAYER === "satellite" ? "VỆ TINH • NGỌC SĨ MAP" : "BẢN ĐỒ • NGỌC SĨ MAP");
                   }
 
-                  window.addEventListener("load", init, { once: true });
+                  function loadLeafletFallback() {
+                    if (window.L) {
+                      init();
+                      return;
+                    }
+                    const existing = document.getElementById("leafletFallback");
+                    if (existing) return;
+                    const script = document.createElement("script");
+                    script.id = "leafletFallback";
+                    script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+                    script.onload = init;
+                    script.onerror = function () {
+                      showError("Không tải được engine bản đồ. CDN bản đồ đang bị chặn hoặc kết nối Internet không ổn định.");
+                    };
+                    document.head.appendChild(script);
+                  }
+
+                  window.addEventListener("load", loadLeafletFallback, { once: true });
                 })();
               </script>
             </body>
@@ -7255,6 +7280,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 factory = { context ->
                                     WebView(context).apply {
                                         webMapRef = this
+                                        setLayerType(android.view.View.LAYER_TYPE_SOFTWARE, null)
                                         settings.javaScriptEnabled = true
                                         settings.domStorageEnabled = true
                                         settings.loadsImagesAutomatically = true
@@ -7291,8 +7317,16 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                                 }
                                             }
                                         }
-                                        webChromeClient = WebChromeClient()
-                                        setBackgroundColor(android.graphics.Color.rgb(13, 16, 22))
+                                        webChromeClient = object : WebChromeClient() {
+                                            override fun onConsoleMessage(message: android.webkit.ConsoleMessage): Boolean {
+                                                if (message.messageLevel() == android.webkit.ConsoleMessage.MessageLevel.ERROR) {
+                                                    this@MainActivity.errorMessage =
+                                                        "Bản đồ Web báo lỗi: " + message.message().take(180)
+                                                }
+                                                return true
+                                            }
+                                        }
+                                        setBackgroundColor(android.graphics.Color.rgb(223, 231, 238))
                                         loadDataWithBaseURL(
                                             "https://www.openstreetmap.org/",
                                             webMapHtml,
