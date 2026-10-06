@@ -6908,8 +6908,10 @@ const tilesEl=document.getElementById("tiles");
 const marker=document.getElementById("marker");
 const routeSvg=document.getElementById("route");
 const statusEl=document.getElementById("status");
-let lat=${safeLat};
-let lon=${safeLon};
+const homeLat=${safeLat};
+const homeLon=${safeLon};
+let lat=homeLat;
+let lon=homeLon;
 let zoom=13;
 let layer="${safeLayer}";
 let route=${safeRoute};
@@ -6935,16 +6937,34 @@ function render(){
 }
 function panPixels(dx,dy){lon=xLon(lonX(lon)-dx);lat=clampLat(yLat(latY(lat)-dy));render();}
 function zoomBy(delta){zoom=Math.max(2,Math.min(19,zoom+delta));render();}
-function recenter(){render();}
+function fitRoute(){
+ if(!Array.isArray(route)||route.length<2){lat=homeLat;lon=homeLon;render();return;}
+ let minLat=90,maxLat=-90,minLon=180,maxLon=-180;
+ route.forEach(p=>{if(!Array.isArray(p)||p.length<2)return;const la=Number(p[1]),lo=Number(p[0]);if(!Number.isFinite(la)||!Number.isFinite(lo))return;minLat=Math.min(minLat,la);maxLat=Math.max(maxLat,la);minLon=Math.min(minLon,lo);maxLon=Math.max(maxLon,lo);});
+ if(minLat>maxLat||minLon>maxLon){lat=homeLat;lon=homeLon;render();return;}
+ lat=(minLat+maxLat)/2;lon=(minLon+maxLon)/2;
+ const w=mapEl.clientWidth||320,h=mapEl.clientHeight||480;
+ const padW=w*0.78,padH=h*0.72;
+ let best=2;
+ for(let z=19;z>=2;z--){
+   const s=TILE*Math.pow(2,z);
+   const dx=Math.abs(((maxLon-minLon)/360)*s);
+   const dy=Math.abs(latY(maxLat)-latY(minLat));
+   if(dx<=padW&&dy<=padH){best=z;break;}
+ }
+ zoom=best;
+ render();
+}
+function recenter(){if(Array.isArray(route)&&route.length>1)fitRoute();else{lat=homeLat;lon=homeLon;render();}}
 function toggleLayer(){layer=layer==="satellite"?"standard":"satellite";render();setStatus(layer==="satellite"?"Đang xem ảnh vệ tinh":"Đang xem bản đồ đường phố");}
 mapEl.addEventListener("pointerdown",e=>{dragging=true;lastX=e.clientX;lastY=e.clientY;mapEl.setPointerCapture(e.pointerId);});
 mapEl.addEventListener("pointermove",e=>{if(!dragging)return;const dx=e.clientX-lastX,dy=e.clientY-lastY;lastX=e.clientX;lastY=e.clientY;panPixels(dx,dy);});
 mapEl.addEventListener("pointerup",()=>dragging=false);
 mapEl.addEventListener("pointercancel",()=>dragging=false);
 mapEl.addEventListener("dblclick",e=>{e.preventDefault();zoomBy(1);});
-window.addEventListener("resize",render);
+window.addEventListener("resize",()=>{if(Array.isArray(route)&&route.length>1)fitRoute();else render();});
 setStatus("Kéo để di chuyển • +/− để thu phóng");
-render();
+if(Array.isArray(route)&&route.length>1)fitRoute();else render();
 </script>
 </body>
 </html>"""
