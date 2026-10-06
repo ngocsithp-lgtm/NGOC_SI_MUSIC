@@ -274,15 +274,6 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
         info.addView(nowPlaying)
 
-        val integratedBadge = TextView(this).apply {
-            text = "TRÌNH PHÁT TÍCH HỢP"
-            setTextColor(AndroidColor.rgb(143, 214, 148))
-            textSize = 8f
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-            setPadding(0, dp(2), 0, 0)
-        }
-        info.addView(integratedBadge)
-
         titleView = TextView(this).apply {
             text = title
             setTextColor(AndroidColor.WHITE)
@@ -323,33 +314,33 @@ class YouTubePlayerActivity : ComponentActivity() {
             LinearLayout.LayoutParams.MATCH_PARENT,
             playerHeight.coerceAtLeast(dp(200))
         ))
-        val actions = LinearLayout(this).apply {
+        val transport = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
+            gravity = Gravity.CENTER
             setPadding(dp(8), dp(5), dp(8), dp(3))
         }
         previousButton = actionButton("⏮") { playPrevious() }
         playPauseButton = actionButton("▶") { toggleYoutubePlayback() }
-        favoriteButton = actionButton("♡") { toggleFavorite() }
-        watchLaterButton = actionButton("🔖") { toggleWatchLater() }
         nextButton = actionButton("⏭") { playNext() }
         styleWideButton(playPauseButton, emphasized = true)
         previousButton.contentDescription = "Video trước"
-        favoriteButton.contentDescription = "Yêu thích"
-        watchLaterButton.contentDescription = "Xem sau"
         nextButton.contentDescription = "Video tiếp theo"
-        actions.addView(previousButton, LinearLayout.LayoutParams(dp(44), dp(42)))
-        actions.addView(playPauseButton, LinearLayout.LayoutParams(dp(54), dp(42)).apply { marginStart = dp(3); marginEnd = dp(3) })
-        actions.addView(favoriteButton, LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(3) })
-        actions.addView(watchLaterButton, LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(3) })
-        actions.addView(nextButton, LinearLayout.LayoutParams(dp(44), dp(42)))
-        content.addView(actions)
+        transport.addView(previousButton, LinearLayout.LayoutParams(dp(50), dp(44)).apply {
+            marginEnd = dp(8)
+        })
+        transport.addView(playPauseButton, LinearLayout.LayoutParams(dp(62), dp(46)).apply {
+            marginEnd = dp(8)
+        })
+        transport.addView(nextButton, LinearLayout.LayoutParams(dp(50), dp(44)))
+        content.addView(transport)
 
-        val queueModes = LinearLayout(this).apply {
+        val utilityRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(8), dp(2), dp(8), dp(2))
         }
+        favoriteButton = actionButton("♡") { toggleFavorite() }
+        watchLaterButton = actionButton("🔖") { toggleWatchLater() }
         val shuffleButton = actionButton("") { toggleYoutubeShuffle() }.apply {
             tag = "youtube_shuffle_button"
             contentDescription = "Phát ngẫu nhiên hàng đợi YouTube"
@@ -358,15 +349,19 @@ class YouTubePlayerActivity : ComponentActivity() {
             tag = "youtube_repeat_button"
             contentDescription = "Chế độ lặp hàng đợi YouTube"
         }
-        queueModes.addView(
-            shuffleButton,
-            LinearLayout.LayoutParams(0, dp(40), 1f).apply { marginEnd = dp(4) }
-        )
-        queueModes.addView(
-            repeatButton,
-            LinearLayout.LayoutParams(0, dp(40), 1f)
-        )
-        content.addView(queueModes)
+        favoriteButton.contentDescription = "Yêu thích"
+        watchLaterButton.contentDescription = "Xem sau"
+        utilityRow.addView(favoriteButton, LinearLayout.LayoutParams(0, dp(40), 1f).apply {
+            marginEnd = dp(4)
+        })
+        utilityRow.addView(watchLaterButton, LinearLayout.LayoutParams(0, dp(40), 1f).apply {
+            marginEnd = dp(4)
+        })
+        utilityRow.addView(shuffleButton, LinearLayout.LayoutParams(0, dp(40), 1f).apply {
+            marginEnd = dp(4)
+        })
+        utilityRow.addView(repeatButton, LinearLayout.LayoutParams(0, dp(40), 1f))
+        content.addView(utilityRow)
 
         val queueButton = Button(this).apply {
             text = "☷  HÀNG ĐỢI  •  " + (queueIndex + 1) + "/" + queue.size
@@ -400,8 +395,14 @@ class YouTubePlayerActivity : ComponentActivity() {
             bottomMargin = dp(4)
         })
 
+        val queueShareRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(8), dp(1), dp(8), dp(4))
+        }
+
         val share = Button(this).apply {
-            text = "↗  CHIA SẺ"
+            text = "↗  Chia sẻ"
             setOnClickListener {
                 val shareIntent = Intent(Intent.ACTION_SEND).apply {
                     type = "text/plain"
@@ -412,10 +413,19 @@ class YouTubePlayerActivity : ComponentActivity() {
             }
         }
         styleWideButton(share)
-        content.addView(share, LinearLayout.LayoutParams(dp(100), dp(44)).apply {
-            gravity = Gravity.START
-            leftMargin = dp(8)
+        queueShareRow.addView(share, LinearLayout.LayoutParams(0, dp(42), 1f).apply {
+            marginEnd = dp(4)
         })
+
+        val queueHint = TextView(this).apply {
+            text = "Trạng thái: " + (queueIndex + 1) + "/" + queue.size
+            setTextColor(AndroidColor.rgb(145, 145, 158))
+            textSize = 11f
+            gravity = Gravity.CENTER
+            maxLines = 1
+        }
+        queueShareRow.addView(queueHint, LinearLayout.LayoutParams(0, dp(42), 1f))
+        content.addView(queueShareRow)
         val scroll = ScrollView(this).apply {
             isFillViewport = true
             setBackgroundColor(AndroidColor.BLACK)
@@ -480,7 +490,21 @@ class YouTubePlayerActivity : ComponentActivity() {
         )
         button.backgroundTintList = null
         button.minHeight = dp(44)
-        button.setPadding(dp(12), 0, dp(12), 0)
+        button.setPadding(dp(8), 0, dp(8), 0)
+    }
+
+    private fun styleModeButton(button: Button, active: Boolean) {
+        button.isAllCaps = false
+        button.setTextColor(
+            if (active) AndroidColor.rgb(143, 214, 148) else AndroidColor.WHITE
+        )
+        button.background = roundedButtonDrawable(
+            fill = if (active) AndroidColor.rgb(24, 45, 29) else AndroidColor.rgb(18, 21, 29),
+            stroke = if (active) AndroidColor.rgb(72, 120, 78) else AndroidColor.rgb(43, 49, 62),
+            radius = dp(11)
+        )
+        button.backgroundTintList = null
+        button.setPadding(dp(5), 0, dp(5), 0)
     }
 
     private fun parseQueue(raw: String?) {
@@ -834,14 +858,16 @@ class YouTubePlayerActivity : ComponentActivity() {
 
     private fun updateQueueModeButtons() {
         root.findViewWithTag<Button>("youtube_shuffle_button")?.apply {
-            text = if (youtubeShuffleEnabled) "🔀  NGẪU NHIÊN • BẬT" else "🔀  NGẪU NHIÊN • TẮT"
+            text = if (youtubeShuffleEnabled) "🔀  Ngẫu nhiên ✓" else "🔀  Ngẫu nhiên"
+            styleModeButton(this, youtubeShuffleEnabled)
         }
         root.findViewWithTag<Button>("youtube_repeat_button")?.apply {
             text = when (youtubeRepeatMode) {
-                1 -> "🔁  LẶP HÀNG ĐỢI"
-                2 -> "🔂  LẶP BÀI"
-                else -> "🔁  LẶP • TẮT"
+                1 -> "🔁  Lặp hàng đợi"
+                2 -> "🔂  Lặp bài"
+                else -> "🔁  Lặp"
             }
+            styleModeButton(this, youtubeRepeatMode != 0)
         }
     }
 
@@ -1043,8 +1069,8 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun updateActionState() {
-        if (::favoriteButton.isInitialized) favoriteButton.text = if (isFavorite()) "♥ Yêu thích" else "♡ Yêu thích"
-        if (::watchLaterButton.isInitialized) watchLaterButton.text = if (isWatchLater()) "✓ Xem sau" else "🔖 Xem sau"
+        if (::favoriteButton.isInitialized) favoriteButton.text = if (isFavorite()) "♥  Yêu thích" else "♡  Yêu thích"
+        if (::watchLaterButton.isInitialized) watchLaterButton.text = if (isWatchLater()) "✓  Xem sau" else "🔖  Xem sau"
 
         val canNavigate = queue.size > 1
         if (::previousButton.isInitialized) {
