@@ -321,6 +321,7 @@ class MainActivity : ComponentActivity() {
     private var driveSharedStatus by mutableStateOf("Chưa liên kết nguồn Drive chia sẻ")
     private var driveOAuthSignedIn by mutableStateOf(false)
     private var driveGoogleAccountEmail by mutableStateOf("")
+    private var showDriveOAuthDiagnostics by mutableStateOf(false)
     private lateinit var driveOAuthManager: DriveOAuthManager
     private var driveRecentLinks by mutableStateOf(listOf<String>())
     private val driveBrowserItems = mutableStateListOf<SharedDriveItem>()
@@ -4503,6 +4504,7 @@ class MainActivity : ComponentActivity() {
         if (showCreatePlaylist) CreatePlaylistDialog()
         if (showVietnamRadioHub) VietnamRadioHubDialog()
         if (showTvSourceDialog) TvSourceDialog()
+        if (showDriveOAuthDiagnostics) DriveOAuthDiagnosticsDialog()
         radioWebUrl?.let { RadioWebViewDialog(it, radioWebTitle) }
     }
 
@@ -6687,6 +6689,61 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 }
             }
         }
+    }
+
+    @Composable
+    private fun DriveOAuthDiagnosticsDialog() {
+        val sha1 = runCatching { driveOAuthManager.signingCertificateSha1() }
+            .getOrDefault("không đọc được SHA-1")
+
+        AlertDialog(
+            onDismissRequest = { showDriveOAuthDiagnostics = false },
+            title = { Text("GOOGLE DRIVE • OAUTH") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Text(
+                        "Thông tin phải khớp với Android OAuth Client trong Google Cloud.",
+                        color = Color(0xFF9B9BA8),
+                        fontSize = 12.sp
+                    )
+                    Text("Package", color = Color(0xFF777F8E), fontSize = 10.sp)
+                    Text(
+                        "com.ngocsi.music",
+                        color = Color.White,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text("SHA-1 APK đang chạy", color = Color(0xFF777F8E), fontSize = 10.sp)
+                    Text(
+                        sha1,
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text("Scopes yêu cầu", color = Color(0xFF777F8E), fontSize = 10.sp)
+                    Text(
+                        "drive.readonly\ndrive.appdata",
+                        color = Color.White,
+                        fontSize = 11.sp
+                    )
+                    Text(
+                        if (driveOAuthSignedIn) {
+                            "Trạng thái: đã được app xác nhận quyền Drive."
+                        } else {
+                            "Trạng thái: chưa xác nhận quyền Drive."
+                        },
+                        color = if (driveOAuthSignedIn) Color(0xFF9FE6B8) else Color(0xFFFFC857),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = { showDriveOAuthDiagnostics = false }) {
+                    Text("ĐÓNG")
+                }
+            }
+        )
     }
 
     @Composable
@@ -9577,16 +9634,24 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     overflow = TextOverflow.Ellipsis
                                 )
                             }
-                            TextButton(
-                                onClick = {
-                                    if (driveOAuthSignedIn) {
-                                        restoreDriveSourcesFromCloud()
-                                    } else {
-                                        signInGoogleDrive { restoreDriveSourcesFromCloud() }
+                            Column(horizontalAlignment = Alignment.End) {
+                                TextButton(
+                                    onClick = {
+                                        if (driveOAuthSignedIn) {
+                                            restoreDriveSourcesFromCloud()
+                                        } else {
+                                            signInGoogleDrive { restoreDriveSourcesFromCloud() }
+                                        }
                                     }
+                                ) {
+                                    Text(if (driveOAuthSignedIn) "↻ KHÔI PHỤC" else "ĐĂNG NHẬP")
                                 }
-                            ) {
-                                Text(if (driveOAuthSignedIn) "↻ KHÔI PHỤC" else "ĐĂNG NHẬP")
+                                TextButton(
+                                    onClick = { showDriveOAuthDiagnostics = true },
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                                ) {
+                                    Text("KIỂM TRA OAUTH", fontSize = 8.sp)
+                                }
                             }
                         }
             
