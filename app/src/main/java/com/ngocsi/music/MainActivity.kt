@@ -6891,40 +6891,81 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             <head>
               <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
               <meta charset="utf-8">
-              <link
-                rel="stylesheet"
-                href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"
-              />
-              <link
-                rel="stylesheet"
-                href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-              />
               <style>
                 html, body {
                   width: 100%;
                   height: 100%;
                   margin: 0;
                   padding: 0;
-                  background: #0d1016;
                   overflow: hidden;
+                  background: #e7edf2;
                 }
                 #map {
                   position: fixed;
                   inset: 0;
                   width: 100%;
                   height: 100%;
-                  min-height: 240px;
-                  background: #dfe7ee;
                   overflow: hidden;
+                  background:
+                    linear-gradient(rgba(190, 205, 215, 0.28) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(190, 205, 215, 0.28) 1px, transparent 1px),
+                    #e7edf2;
+                  background-size: 32px 32px;
+                  touch-action: none;
                 }
-                .leaflet-control-attribution {
-                  font-size: 9px;
+                #tiles {
+                  position: absolute;
+                  inset: 0;
+                  overflow: visible;
+                  pointer-events: none;
+                }
+                .map-tile {
+                  position: absolute;
+                  width: 256px;
+                  height: 256px;
+                  max-width: none;
+                  display: block;
+                  user-select: none;
+                  -webkit-user-drag: none;
+                  pointer-events: none;
+                }
+                #route {
+                  position: absolute;
+                  inset: 0;
+                  width: 100%;
+                  height: 100%;
+                  pointer-events: none;
+                  overflow: visible;
+                }
+                #marker {
+                  position: absolute;
+                  width: 18px;
+                  height: 18px;
+                  border-radius: 50%;
+                  background: #7057d9;
+                  border: 3px solid #ffffff;
+                  box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+                  transform: translate(-50%, -50%);
+                  z-index: 20;
+                  display: none;
+                  pointer-events: none;
+                }
+                #marker::after {
+                  content: "";
+                  position: absolute;
+                  left: 50%;
+                  top: 50%;
+                  width: 7px;
+                  height: 7px;
+                  border-radius: 50%;
+                  background: #ffffff;
+                  transform: translate(-50%, -50%);
                 }
                 .map-status {
-                  position: fixed;
+                  position: absolute;
                   left: 10px;
                   top: 10px;
-                  z-index: 1000;
+                  z-index: 100;
                   padding: 7px 10px;
                   border-radius: 10px;
                   font: 600 11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -6933,12 +6974,12 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   pointer-events: none;
                 }
                 .map-error {
-                  position: fixed;
+                  position: absolute;
                   left: 12px;
                   right: 12px;
                   top: 50%;
                   transform: translateY(-50%);
-                  z-index: 2000;
+                  z-index: 200;
                   display: none;
                   padding: 14px;
                   border-radius: 14px;
@@ -6946,14 +6987,48 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   text-align: center;
                   background: rgba(13, 16, 22, 0.94);
                   color: #ffffff;
-                  border: 1px solid rgba(255,255,255,0.12);
+                  border: 1px solid rgba(255,255,255,0.14);
+                }
+                .map-controls {
+                  position: absolute;
+                  right: 10px;
+                  top: 10px;
+                  z-index: 120;
+                  display: flex;
+                  flex-direction: column;
+                  gap: 6px;
+                }
+                .map-button {
+                  width: 40px;
+                  height: 40px;
+                  border: 0;
+                  border-radius: 12px;
+                  background: rgba(255,255,255,0.96);
+                  color: #1c2430;
+                  font: 700 20px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                  box-shadow: 0 2px 8px rgba(0,0,0,0.20);
+                  padding: 0;
+                }
+                .map-button:active {
+                  transform: scale(0.95);
                 }
               </style>
             </head>
             <body>
-              <div id="map"></div>
-              <div id="mapStatus" class="map-status">Đang tải bản đồ…</div>
-              <div id="mapError" class="map-error"></div>
+              <div id="map">
+                <div id="tiles"></div>
+                <svg id="route" viewBox="0 0 100 100" preserveAspectRatio="none">
+                  <polyline id="routeLine" fill="none" stroke="#2367ff" stroke-width="0.65" stroke-linecap="round" stroke-linejoin="round"></polyline>
+                </svg>
+                <div id="marker"></div>
+                <div id="mapStatus" class="map-status">Đang tải bản đồ…</div>
+                <div id="mapError" class="map-error"></div>
+                <div class="map-controls">
+                  <button class="map-button" type="button" onclick="zoomIn()">＋</button>
+                  <button class="map-button" type="button" onclick="zoomOut()">−</button>
+                  <button class="map-button" type="button" onclick="centerMap()">⌖</button>
+                </div>
+              </div>
 
               <script>
                 (function () {
@@ -6963,214 +7038,329 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   const INITIAL_LAYER = $safeLayer;
                   const INITIAL_ROUTE = $safeRoute;
 
-                  let map = null;
-                  let standardLayer = null;
-                  let satelliteLayer = null;
-                  let activeLayer = null;
-                  let pointMarker = null;
-                  let routeLine = null;
+                  const mapEl = document.getElementById("map");
+                  const tilesEl = document.getElementById("tiles");
+                  const markerEl = document.getElementById("marker");
+                  const routeLineEl = document.getElementById("routeLine");
+                  const statusEl = document.getElementById("mapStatus");
+                  const errorEl = document.getElementById("mapError");
+
+                  let centerLat = validLat(INITIAL_LAT);
+                  let centerLon = validLon(INITIAL_LON);
+                  let zoom = 14;
+                  let activeLayer = INITIAL_LAYER === "satellite" ? "satellite" : "standard";
+                  let route = Array.isArray(INITIAL_ROUTE) ? INITIAL_ROUTE : [];
+                  let renderToken = 0;
+                  let tileSuccess = 0;
+                  let tileFailure = 0;
+                  let drag = null;
+
+                  function validLat(v) {
+                    const n = Number(v);
+                    return Number.isFinite(n) ? Math.max(-85, Math.min(85, n)) : 10.8231;
+                  }
+
+                  function validLon(v) {
+                    const n = Number(v);
+                    return Number.isFinite(n) ? Math.max(-180, Math.min(180, n)) : 106.6297;
+                  }
+
+                  function clampZoom(v) {
+                    return Math.max(2, Math.min(19, Math.round(Number(v) || 14)));
+                  }
+
+                  function mapSize() {
+                    return {
+                      width: Math.max(1, mapEl.clientWidth || window.innerWidth || 1),
+                      height: Math.max(1, mapEl.clientHeight || window.innerHeight || 1)
+                    };
+                  }
+
+                  function project(lat, lon, z) {
+                    const n = Math.pow(2, z);
+                    const safe = Math.max(-85.05112878, Math.min(85.05112878, Number(lat)));
+                    const rad = safe * Math.PI / 180;
+                    return {
+                      x: (Number(lon) + 180) / 360 * 256 * n,
+                      y: (1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2 * 256 * n
+                    };
+                  }
 
                   function setStatus(text) {
-                    const el = document.getElementById("mapStatus");
-                    if (el) el.textContent = text;
+                    if (statusEl) statusEl.textContent = text;
                   }
 
                   function showError(text) {
-                    const el = document.getElementById("mapError");
-                    if (el) {
-                      el.textContent = text;
-                      el.style.display = "block";
+                    if (errorEl) {
+                      errorEl.textContent = text;
+                      errorEl.style.display = "block";
                     }
                     setStatus("LỖI BẢN ĐỒ");
                   }
 
-                  function validLat(v) {
-                    return Number.isFinite(v) ? Math.max(-85, Math.min(85, v)) : 10.8231;
+                  function hideError() {
+                    if (errorEl) errorEl.style.display = "none";
                   }
 
-                  function validLon(v) {
-                    return Number.isFinite(v) ? Math.max(-180, Math.min(180, v)) : 106.6297;
+                  function tileUrl(x, y, z) {
+                    if (activeLayer === "satellite") {
+                      return "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/" + z + "/" + y + "/" + x;
+                    }
+                    return "https://tile.openstreetmap.org/" + z + "/" + x + "/" + y + ".png";
                   }
 
-                  function makeRouteLatLngs(route) {
-                    if (!Array.isArray(route)) return [];
-                    return route
-                      .filter(p => Array.isArray(p) && p.length >= 2)
-                      .map(p => [Number(p[1]), Number(p[0])])
-                      .filter(p =>
-                        Number.isFinite(p[0]) &&
-                        Number.isFinite(p[1]) &&
-                        p[0] >= -85 && p[0] <= 85 &&
-                        p[1] >= -180 && p[1] <= 180
-                      );
+                  function wrapTileX(x, n) {
+                    return ((x % n) + n) % n;
                   }
 
-                  function applyLayer(layerName) {
-                    if (!map) return;
-                    const wanted = layerName === "satellite" ? "satellite" : "standard";
+                  function clearTiles() {
+                    while (tilesEl.firstChild) {
+                      tilesEl.removeChild(tilesEl.firstChild);
+                    }
+                  }
 
-                    if (activeLayer && map.hasLayer(activeLayer)) {
-                      map.removeLayer(activeLayer);
+                  function renderTiles() {
+                    clearTiles();
+                    tileSuccess = 0;
+                    tileFailure = 0;
+                    const size = mapSize();
+                    const world = project(centerLat, centerLon, zoom);
+                    const firstX = Math.floor((world.x - size.width / 2) / 256) - 1;
+                    const lastX = Math.floor((world.x + size.width / 2) / 256) + 1;
+                    const firstY = Math.floor((world.y - size.height / 2) / 256) - 1;
+                    const lastY = Math.floor((world.y + size.height / 2) / 256) + 1;
+                    const n = Math.pow(2, zoom);
+
+                    for (let tx = firstX; tx <= lastX; tx++) {
+                      for (let ty = firstY; ty <= lastY; ty++) {
+                        if (ty < 0 || ty >= n) continue;
+                        const img = document.createElement("img");
+                        img.className = "map-tile";
+                        const wrappedX = wrapTileX(tx, n);
+                        img.src = tileUrl(wrappedX, ty, zoom);
+                        img.alt = "";
+                        img.draggable = false;
+                        img.style.left = (tx * 256 - world.x + size.width / 2) + "px";
+                        img.style.top = (ty * 256 - world.y + size.height / 2) + "px";
+                        img.onload = function () {
+                          tileSuccess++;
+                          if (tileSuccess > 0) {
+                            hideError();
+                            setStatus(activeLayer === "satellite"
+                              ? "VỆ TINH • NGỌC SĨ MAP"
+                              : "BẢN ĐỒ • NGỌC SĨ MAP");
+                          }
+                        };
+                        img.onerror = function () {
+                          tileFailure++;
+                          if (tileSuccess === 0 && tileFailure >= 4) {
+                            showError(
+                              "Không tải được ảnh bản đồ. Hãy kiểm tra Internet hoặc thử lại. " +
+                              "Chức năng bản đồ vẫn hoạt động, nhưng máy chủ tile hiện không phản hồi."
+                            );
+                          }
+                        };
+                        tilesEl.appendChild(img);
+                      }
                     }
 
-                    activeLayer = wanted === "satellite" ? satelliteLayer : standardLayer;
-                    if (activeLayer) activeLayer.addTo(map);
-
-                    setStatus(wanted === "satellite" ? "VỆ TINH • NGỌC SĨ MAP" : "BẢN ĐỒ • NGỌC SĨ MAP");
+                    window.setTimeout(function () {
+                      if (tileSuccess === 0 && tileFailure === 0) {
+                        showError("Chưa nhận được dữ liệu bản đồ. Hãy thử kéo hoặc thu phóng để tải lại.");
+                      }
+                    }, 4500);
                   }
 
-                  function renderRoute(route, lat, lon, placeTitle) {
-                    if (!map) return;
+                  function screenPoint(lat, lon) {
+                    const size = mapSize();
+                    const centerPx = project(centerLat, centerLon, zoom);
+                    const pointPx = project(validLat(lat), validLon(lon), zoom);
+                    return {
+                      x: pointPx.x - centerPx.x + size.width / 2,
+                      y: pointPx.y - centerPx.y + size.height / 2
+                    };
+                  }
 
-                    if (pointMarker) {
-                      map.removeLayer(pointMarker);
-                      pointMarker = null;
+                  function renderMarker() {
+                    if (!markerEl) return;
+                    const p = screenPoint(centerLat, centerLon);
+                    markerEl.style.left = p.x + "px";
+                    markerEl.style.top = p.y + "px";
+                    markerEl.style.display = "block";
+                  }
+
+                  function renderRoute() {
+                    if (!routeLineEl) return;
+                    const points = [];
+                    for (let i = 0; i < route.length; i++) {
+                      const p = route[i];
+                      if (!Array.isArray(p) || p.length < 2) continue;
+                      const lon = Number(p[0]);
+                      const lat = Number(p[1]);
+                      if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+                      const sp = screenPoint(lat, lon);
+                      points.push(sp.x + "," + sp.y);
                     }
-                    if (routeLine) {
-                      map.removeLayer(routeLine);
-                      routeLine = null;
-                    }
+                    routeLineEl.setAttribute("points", points.join(" "));
+                  }
 
-                    const center = [validLat(lat), validLon(lon)];
-                    pointMarker = L.circleMarker(center, {
-                      radius: 8,
-                      weight: 3,
-                      color: "#ffffff",
-                      fillColor: "#7057d9",
-                      fillOpacity: 0.96
-                    }).addTo(map);
+                  function renderAll() {
+                    centerLat = validLat(centerLat);
+                    centerLon = validLon(centerLon);
+                    zoom = clampZoom(zoom);
+                    renderTiles();
+                    renderMarker();
+                    renderRoute();
+                  }
 
+                  function applyState(lat, lon, placeTitle, layerName, nextRoute) {
+                    centerLat = validLat(lat);
+                    centerLon = validLon(lon);
+                    activeLayer = layerName === "satellite" ? "satellite" : "standard";
+                    route = Array.isArray(nextRoute) ? nextRoute : [];
                     if (placeTitle) {
-                      pointMarker.bindPopup(
-                        "<strong>" + String(placeTitle).replace(/[<>&]/g, "") + "</strong>"
-                      );
+                      mapEl.setAttribute("aria-label", String(placeTitle));
                     }
-
-                    const latLngs = makeRouteLatLngs(route);
-                    if (latLngs.length >= 2) {
-                      routeLine = L.polyline(latLngs, {
-                        color: "#2367ff",
-                        weight: 6,
-                        opacity: 0.92,
-                        lineJoin: "round"
-                      }).addTo(map);
-
-                      const bounds = routeLine.getBounds();
-                      if (bounds.isValid()) {
-                        map.fitBounds(bounds, {
-                          padding: [48, 48],
-                          maxZoom: 16
-                        });
-                      }
-                    } else {
-                      map.setView(center, Math.max(map.getZoom(), 14));
-                    }
+                    renderAll();
                   }
 
-                  function init() {
-                    if (typeof L === "undefined") {
-                      showError("Không tải được thư viện bản đồ. Kiểm tra kết nối Internet rồi thử lại.");
-                      return;
-                    }
+                  function zoomIn() {
+                    zoom = clampZoom(zoom + 1);
+                    renderAll();
+                  }
 
-                    map = L.map("map", {
-                      zoomControl: true,
-                      attributionControl: true,
-                      preferCanvas: true
+                  function zoomOut() {
+                    zoom = clampZoom(zoom - 1);
+                    renderAll();
+                  }
+
+                  function centerMap(lat, lon) {
+                    if (lat === undefined || lon === undefined) {
+                      lat = centerLat;
+                      lon = centerLon;
+                    }
+                    centerLat = validLat(lat);
+                    centerLon = validLon(lon);
+                    renderAll();
+                  }
+
+                  function fitRoute() {
+                    const points = [];
+                    for (let i = 0; i < route.length; i++) {
+                      const p = route[i];
+                      if (!Array.isArray(p) || p.length < 2) continue;
+                      const lon = Number(p[0]);
+                      const lat = Number(p[1]);
+                      if (Number.isFinite(lat) && Number.isFinite(lon)) {
+                        points.push([validLat(lat), validLon(lon)]);
+                      }
+                    }
+                    if (points.length < 2) {
+                      centerMap();
+                      return true;
+                    }
+                    let minLat = 90, maxLat = -90, minLon = 180, maxLon = -180;
+                    points.forEach(function (p) {
+                      minLat = Math.min(minLat, p[0]);
+                      maxLat = Math.max(maxLat, p[0]);
+                      minLon = Math.min(minLon, p[1]);
+                      maxLon = Math.max(maxLon, p[1]);
                     });
-
-                    standardLayer = L.tileLayer(
-                      "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-                      {
-                        maxZoom: 19,
-                        minZoom: 2,
-                        attribution: "© OpenStreetMap contributors"
-                      }
-                    );
-
-                    satelliteLayer = L.tileLayer(
-                      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-                      {
-                        maxZoom: 19,
-                        minZoom: 2,
-                        attribution: "Tiles © Esri • © OpenStreetMap contributors"
-                      }
-                    );
-
-                    applyLayer(INITIAL_LAYER);
-                    renderRoute(INITIAL_ROUTE, INITIAL_LAT, INITIAL_LON, INITIAL_TITLE);
-
-                    window.setMapState = function (lat, lon, placeTitle, layerName, route) {
-                      if (!map) return false;
-                      applyLayer(layerName);
-                      renderRoute(
-                        Array.isArray(route) ? route : [],
-                        Number(lat),
-                        Number(lon),
-                        String(placeTitle || "")
-                      );
-                      map.invalidateSize(false);
-                      return true;
-                    };
-
-                    window.setMapLayer = function (layerName) {
-                      applyLayer(layerName);
-                      return true;
-                    };
-
-                    window.zoomIn = function () {
-                      if (!map) return false;
-                      map.zoomIn();
-                      return true;
-                    };
-
-                    window.zoomOut = function () {
-                      if (!map) return false;
-                      map.zoomOut();
-                      return true;
-                    };
-
-                    window.centerMap = function (lat, lon) {
-                      if (!map) return false;
-                      map.setView([validLat(Number(lat)), validLon(Number(lon))], Math.max(map.getZoom(), 14));
-                      return true;
-                    };
-
-                    window.fitRoute = function () {
-                      if (!map) return false;
-                      if (routeLine) {
-                        const bounds = routeLine.getBounds();
-                        if (bounds.isValid()) {
-                          map.fitBounds(bounds, { padding: [48, 48], maxZoom: 16 });
-                          return true;
-                        }
-                      }
-                      map.setView([INITIAL_LAT, INITIAL_LON], 14);
-                      return true;
-                    };
-
-                    window.setMapState(INITIAL_LAT, INITIAL_LON, INITIAL_TITLE, INITIAL_LAYER, INITIAL_ROUTE);
-                    setStatus(INITIAL_LAYER === "satellite" ? "VỆ TINH • NGỌC SĨ MAP" : "BẢN ĐỒ • NGỌC SĨ MAP");
+                    centerLat = (minLat + maxLat) / 2;
+                    centerLon = (minLon + maxLon) / 2;
+                    zoom = 14;
+                    renderAll();
+                    return true;
                   }
 
-                  function loadLeafletFallback() {
-                    if (window.L) {
-                      init();
-                      return;
-                    }
-                    const existing = document.getElementById("leafletFallback");
-                    if (existing) return;
-                    const script = document.createElement("script");
-                    script.id = "leafletFallback";
-                    script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
-                    script.onload = init;
-                    script.onerror = function () {
-                      showError("Không tải được engine bản đồ. CDN bản đồ đang bị chặn hoặc kết nối Internet không ổn định.");
-                    };
-                    document.head.appendChild(script);
-                  }
+                  window.setMapState = function (lat, lon, placeTitle, layerName, nextRoute) {
+                    applyState(lat, lon, placeTitle, layerName, nextRoute);
+                    return true;
+                  };
+                  window.setMapLayer = function (layerName) {
+                    activeLayer = layerName === "satellite" ? "satellite" : "standard";
+                    renderAll();
+                    return true;
+                  };
+                  window.zoomIn = zoomIn;
+                  window.zoomOut = zoomOut;
+                  window.centerMap = centerMap;
+                  window.fitRoute = fitRoute;
 
-                  window.addEventListener("load", loadLeafletFallback, { once: true });
+                  mapEl.addEventListener("touchstart", function (event) {
+                    if (!event.touches || !event.touches[0]) return;
+                    const t = event.touches[0];
+                    drag = {
+                      x: t.clientX,
+                      y: t.clientY,
+                      lat: centerLat,
+                      lon: centerLon
+                    };
+                  }, { passive: true });
+
+                  mapEl.addEventListener("touchmove", function (event) {
+                    if (!drag || !event.touches || !event.touches[0]) return;
+                    const t = event.touches[0];
+                    const size = mapSize();
+                    const startPx = project(drag.lat, drag.lon, zoom);
+                    const dx = drag.x - t.clientX;
+                    const dy = drag.y - t.clientY;
+                    const n = Math.pow(2, zoom);
+                    let nextX = startPx.x + dx;
+                    let nextY = startPx.y + dy;
+                    nextY = Math.max(0, Math.min(256 * n, nextY));
+                    const lon = nextX / (256 * n) * 360 - 180;
+                    const mercY = 0.5 - nextY / (256 * n);
+                    const nextLat = 360 / Math.PI * Math.atan(Math.sinh(mercY * 2 * Math.PI));
+                    centerLon = validLon(lon);
+                    centerLat = validLat(nextLat);
+                    drag.x = t.clientX;
+                    drag.y = t.clientY;
+                    renderAll();
+                  }, { passive: true });
+
+                  mapEl.addEventListener("touchend", function () {
+                    drag = null;
+                  }, { passive: true });
+
+                  mapEl.addEventListener("mousedown", function (event) {
+                    drag = {
+                      x: event.clientX,
+                      y: event.clientY,
+                      lat: centerLat,
+                      lon: centerLon
+                    };
+                  });
+                  window.addEventListener("mousemove", function (event) {
+                    if (!drag) return;
+                    const startPx = project(drag.lat, drag.lon, zoom);
+                    const dx = drag.x - event.clientX;
+                    const dy = drag.y - event.clientY;
+                    const n = Math.pow(2, zoom);
+                    const nextX = startPx.x + dx;
+                    const nextY = Math.max(0, Math.min(256 * n, startPx.y + dy));
+                    const lon = nextX / (256 * n) * 360 - 180;
+                    const mercY = 0.5 - nextY / (256 * n);
+                    const nextLat = 360 / Math.PI * Math.atan(Math.sinh(mercY * 2 * Math.PI));
+                    centerLon = validLon(lon);
+                    centerLat = validLat(nextLat);
+                    drag.x = event.clientX;
+                    drag.y = event.clientY;
+                    renderAll();
+                  });
+                  window.addEventListener("mouseup", function () {
+                    drag = null;
+                  });
+
+                  window.addEventListener("resize", function () {
+                    renderAll();
+                  });
+
+                  window.setTimeout(function () {
+                    renderAll();
+                  }, 80);
+
+                  applyState(INITIAL_LAT, INITIAL_LON, INITIAL_TITLE, INITIAL_LAYER, INITIAL_ROUTE);
                 })();
               </script>
             </body>
