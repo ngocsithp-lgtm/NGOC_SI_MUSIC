@@ -6350,11 +6350,9 @@ class MainActivity : ComponentActivity() {
                         }
                         Button(
                             onClick = {
-                                runCatching {
-                                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(trafficUrl)))
-                                }.onFailure {
-                                    errorMessage = "Không mở được Google Maps giao thông."
-                                }
+                                radioWebTitle = "NGỌC SĨ MAP • GIAO THÔNG"
+                                radioWebUrl = trafficUrl
+                                errorMessage = null
                             },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(14.dp)
@@ -6371,11 +6369,9 @@ class MainActivity : ComponentActivity() {
                     ) {
                         OutlinedButton(
                             onClick = {
-                                runCatching {
-                                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(satelliteUrl)))
-                                }.onFailure {
-                                    errorMessage = "Không mở được Google Maps vệ tinh."
-                                }
+                                radioWebTitle = "NGỌC SĨ MAP • VỆ TINH"
+                                radioWebUrl = satelliteUrl
+                                errorMessage = null
                             },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(14.dp)
@@ -6385,28 +6381,16 @@ class MainActivity : ComponentActivity() {
                         OutlinedButton(
                             onClick = {
                                 val q = mapSearchQuery.trim()
-                                if (q.isBlank()) {
-                                    // Open Google Maps navigation/search instead of silently
-                                    // doing nothing when no destination has been entered.
-                                    runCatching {
-                                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("google.navigation:q=")))
-                                    }.onFailure {
-                                        runCatching {
-                                            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps/dir/")))
-                                        }.onFailure {
-                                            errorMessage = "Không mở được Google Maps chỉ đường."
-                                        }
-                                    }
-                                } else {
-                                    val directionsUrl =
+                                val directionsUrl =
+                                    if (q.isBlank()) {
+                                        "https://www.google.com/maps/dir/"
+                                    } else {
                                         "https://www.google.com/maps/dir/?api=1&destination=" +
                                             Uri.encode(q) + "&travelmode=driving"
-                                    runCatching {
-                                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(directionsUrl)))
-                                    }.onFailure {
-                                        errorMessage = "Không mở được Google Maps chỉ đường."
                                     }
-                                }
+                                radioWebTitle = "NGỌC SĨ MAP • CHỈ ĐƯỜNG"
+                                radioWebUrl = directionsUrl
+                                errorMessage = null
                             },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(14.dp)
@@ -6834,54 +6818,22 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 // from WebView.url. Internal navigation must not be
                                 // reset on every Compose recomposition (for example,
                                 // while playback position updates are flowing).
+                                // Load the exact URL selected by the Map/TV action.
+                                // The previous implementation rewrote every NGỌC SĨ MAP URL
+                                // back to OpenStreetMap, which broke Google Maps traffic,
+                                // satellite and directions views opened from the Map hub.
                                 tag = url
-                                if (title.startsWith("NGỌC SĨ MAP") || title.startsWith("BẢN ĐỒ")) {
-                                    val parsedMapUrl = Uri.parse(url)
-                                    val query = parsedMapUrl.getQueryParameter("query")
-                                    val center = parsedMapUrl.getQueryParameter("center")?.split(",")
-                                    val latitude = center?.getOrNull(0)?.toDoubleOrNull() ?: 10.8231
-                                    val longitude = center?.getOrNull(1)?.toDoubleOrNull() ?: 106.6297
-                                    val mapPageUrl = if (!query.isNullOrBlank()) {
-                                        "https://www.openstreetmap.org/search?query=" + Uri.encode(query)
-                                    } else {
-                                        "https://www.openstreetmap.org/export/embed.html?bbox=" +
-                                            (longitude - 0.18).toString() + "," +
-                                            (latitude - 0.17).toString() + "," +
-                                            (longitude + 0.18).toString() + "," +
-                                            (latitude + 0.17).toString() +
-                                            "&layer=mapnik&marker=" + latitude + "," + longitude
-                                    }
-                                    loadUrl(mapPageUrl)
-                                } else {
-                                    // Keep TV/provider pages on their own origin.
-                                    loadUrl(url)
-                                }
+                                loadUrl(url)
                             }
                         },
                         update = { view ->
                             val requestedUrl = view.tag as? String
                             if (requestedUrl != url) {
                                 view.tag = url
-                                if (title.startsWith("NGỌC SĨ MAP") || title.startsWith("BẢN ĐỒ")) {
-                                    val parsedMapUrl = Uri.parse(url)
-                                    val query = parsedMapUrl.getQueryParameter("query")
-                                    val center = parsedMapUrl.getQueryParameter("center")?.split(",")
-                                    val latitude = center?.getOrNull(0)?.toDoubleOrNull() ?: 10.8231
-                                    val longitude = center?.getOrNull(1)?.toDoubleOrNull() ?: 106.6297
-                                    val mapPageUrl = if (!query.isNullOrBlank()) {
-                                        "https://www.openstreetmap.org/search?query=" + Uri.encode(query)
-                                    } else {
-                                        "https://www.openstreetmap.org/export/embed.html?bbox=" +
-                                            (longitude - 0.18).toString() + "," +
-                                            (latitude - 0.17).toString() + "," +
-                                            (longitude + 0.18).toString() + "," +
-                                            (latitude + 0.17).toString() +
-                                            "&layer=mapnik&marker=" + latitude + "," + longitude
-                                    }
-                                    view.loadUrl(mapPageUrl)
-                                } else {
-                                    view.loadUrl(url)
-                                }
+                                // Do not rewrite the requested Map URL. This keeps
+                                // OpenStreetMap, Google Maps traffic/satellite and
+                                // Google Maps directions on their intended destinations.
+                                view.loadUrl(url)
                             }
                         }
                     )
