@@ -3,6 +3,7 @@
     <cloud-backup>
         <include domain="sharedpref" path="ngoc_si_music.xml" />
         <include domain="sharedpref" path="ngocsi_music_drive_sources.xml" />
+        <include domain="sharedpref" path="ngoc_si_music_playlists.xml" />
         <include domain="file" path="drive_imports/" />
         <include domain="file" path="drive_artwork/" />
     </cloud-backup>
