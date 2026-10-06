@@ -56,17 +56,21 @@ class DriveOAuthManager(private val context: Context) {
             .addOnSuccessListener { result ->
                 if (result.hasResolution()) {
                     result.pendingIntent?.let(onResolution)
-                        ?: onFailure(
-                            IllegalStateException(
-                                "Google Drive yêu cầu cấp quyền nhưng không trả về PendingIntent."
+                        ?: run {
+                            clearAuthorizationState()
+                            onFailure(
+                                IllegalStateException(
+                                    "Google Drive yêu cầu cấp quyền nhưng không trả về PendingIntent."
+                                )
                             )
-                        )
+                        }
                 } else {
                     markAuthorized(result)
                     onSuccess(result)
                 }
             }
             .addOnFailureListener { error ->
+                clearAuthorizationState()
                 onFailure(error)
             }
     }
@@ -74,7 +78,11 @@ class DriveOAuthManager(private val context: Context) {
     fun handleAuthorizationResult(data: Intent?): Result<AuthorizationResult> =
         runCatching {
             authorizationClient.getAuthorizationResultFromIntent(data)
-        }.onSuccess { markAuthorized(it) }
+        }.onSuccess {
+            markAuthorized(it)
+        }.onFailure {
+            clearAuthorizationState()
+        }
 
     fun isSignedIn(): Boolean =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -105,18 +113,30 @@ class DriveOAuthManager(private val context: Context) {
             .apply()
     }
 
+    private fun clearAuthorizationState() {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(KEY_AUTHORIZED, false)
+            .putBoolean(KEY_APPDATA_AUTHORIZED, false)
+            .apply()
+    }
+
     suspend fun accessToken(): String? = withContext(Dispatchers.IO) {
         runCatching {
             val result = Tasks.await(
                 Identity.getAuthorizationClient(context).authorize(authorizationRequest())
             )
             if (result.hasResolution()) {
+                clearAuthorizationState()
                 null
             } else {
                 markAuthorized(result)
                 result.accessToken
             }
-        }.getOrNull()
+        }.getOrElse {
+            clearAuthorizationState()
+            null
+        }
     }
 
     suspend fun clearAccessToken(token: String?) = withContext(Dispatchers.IO) {
