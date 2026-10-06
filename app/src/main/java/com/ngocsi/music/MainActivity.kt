@@ -9301,18 +9301,30 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     fontSize = 13.sp
                                 )
                                 Text(
-                                    if (driveOAuthSignedIn && driveGoogleAccountEmail.isNotBlank())
-                                        driveGoogleAccountEmail
-                                    else
-                                        "Ưu tiên CHỌN FILE / CHỌN THƯ MỤC để lấy cả nguồn được chia sẻ",
+                                    when {
+                                        driveOAuthSignedIn && driveGoogleAccountEmail.isNotBlank() ->
+                                            driveGoogleAccountEmail
+                                        driveOAuthSignedIn && loadSharedDriveItems().isNotEmpty() ->
+                                            loadSharedDriveItems().size.toString() + " tệp nguồn đã lưu • có thể khôi phục"
+                                        else ->
+                                            "Nguồn đã liên kết có thể được lưu và khôi phục sau khi đăng nhập lại"
+                                    },
                                     color = Color(0xFF8F8F9A),
                                     fontSize = 10.sp,
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis
                                 )
                             }
-                            TextButton(onClick = ::signInGoogleDrive) {
-                                Text(if (driveOAuthSignedIn) "↻" else "API")
+                            TextButton(
+                                onClick = {
+                                    if (driveOAuthSignedIn) {
+                                        restoreDriveSourcesFromCloud()
+                                    } else {
+                                        signInGoogleDrive { restoreDriveSourcesFromCloud() }
+                                    }
+                                }
+                            ) {
+                                Text(if (driveOAuthSignedIn) "↻ KHÔI PHỤC" else "ĐĂNG NHẬP")
                             }
                         }
             
@@ -9381,7 +9393,26 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             
                         if (driveRecentLinks.isNotEmpty()) {
                             Spacer(Modifier.height(8.dp))
-                            Text("NGUỒN GẦN ĐÂY", color = Color(0xFFB8B3C7), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "NGUỒN GẦN ĐÂY",
+                                    color = Color(0xFFB8B3C7),
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                if (driveOAuthSignedIn) {
+                                    TextButton(
+                                        onClick = { restoreDriveSourcesFromCloud() },
+                                        enabled = !driveSharedLoading
+                                    ) {
+                                        Text("KHÔI PHỤC", fontSize = 9.sp)
+                                    }
+                                }
+                            }
                             driveRecentLinks.take(5).forEach { link ->
                                 Row(
                                     Modifier.fillMaxWidth().padding(top = 4.dp),
