@@ -81,7 +81,7 @@ Các URL livestream có thể thay đổi theo hạ tầng của đài; app gi�
 - Current location permission flow with cached-location fast path
 - Active GPS/network provider fallback and timeout recovery
 - OpenStreetMap embedded map with current-position marker
-- Bản đồ, chỉ đường và vị trí hiện tại hoạt động theo luồng riêng
+- Bản đồ OpenStreetMap và vị trí hiện tại hiển thị trong ứng dụng; Chỉ đường/Giao thông/Vệ tinh mở Google Maps chính thức
 
 ## Widget
 
