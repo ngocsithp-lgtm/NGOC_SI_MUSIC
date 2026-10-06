@@ -3,6 +3,7 @@ package com.ngocsi.music
 import android.content.Intent
 import android.net.Uri
 import android.graphics.BitmapFactory
+import android.graphics.Bitmap
 import android.graphics.Color as AndroidColor
 import android.content.res.ColorStateList
 import android.graphics.drawable.GradientDrawable
@@ -77,6 +78,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var youtubeShuffleEnabled = false
     private var youtubeRepeatMode = 0 // 0=tắt, 1=lặp hàng đợi, 2=lặp một bài
     private val thumbnailExecutor = Executors.newFixedThreadPool(3)
+    private val youtubeThumbnailCache = object : android.util.LruCache<String, Bitmap>(12) {}
     private val playbackPositionHandler = Handler(Looper.getMainLooper())
     private val playbackPositionSaver = object : Runnable {
         override fun run() {
@@ -627,28 +629,38 @@ class YouTubePlayerActivity : ComponentActivity() {
                 "https://i.ytimg.com/vi/" + item.videoId + "/hqdefault.jpg"
             }
             thumb.tag = thumbnailUrl
-            thumbnailExecutor.execute {
-                val bitmap = runCatching {
-                    (URL(thumbnailUrl).openConnection() as? HttpURLConnection)?.let { connection ->
-                        connection.connectTimeout = 5000
-                        connection.readTimeout = 5000
-                        connection.instanceFollowRedirects = true
-                        connection.useCaches = true
-                        connection.setRequestProperty("User-Agent", "Mozilla/5.0")
-                        connection.connect()
-                        if (connection.responseCode in 200..299) {
-                            connection.inputStream.use { BitmapFactory.decodeStream(it) }
-                        } else {
-                            null
-                        }.also {
-                            connection.disconnect()
+            val cachedThumbnail = youtubeThumbnailCache.get(thumbnailUrl)
+            if (cachedThumbnail != null) {
+                thumb.setImageBitmap(cachedThumbnail)
+            } else {
+                thumbnailExecutor.execute {
+                    val bitmap = runCatching {
+                        (URL(thumbnailUrl).openConnection() as? HttpURLConnection)?.let { connection ->
+                            connection.connectTimeout = 5000
+                            connection.readTimeout = 5000
+                            connection.instanceFollowRedirects = true
+                            connection.useCaches = true
+                            connection.setRequestProperty("User-Agent", "Mozilla/5.0")
+                            connection.connect()
+                            if (connection.responseCode in 200..299) {
+                                connection.inputStream.use { BitmapFactory.decodeStream(it) }
+                            } else {
+                                null
+                            }.also {
+                                connection.disconnect()
+                            }
                         }
+                    }.getOrNull()
+
+                    if (bitmap != null) {
+                        youtubeThumbnailCache.put(thumbnailUrl, bitmap)
                     }
-                }.getOrNull()
-                if (bitmap != null && !isFinishing && !isDestroyed) {
-                    runOnUiThread {
-                        if (thumb.parent != null && thumb.tag == thumbnailUrl) {
-                            thumb.setImageBitmap(bitmap)
+
+                    if (bitmap != null && !isFinishing && !isDestroyed) {
+                        runOnUiThread {
+                            if (thumb.parent != null && thumb.tag == thumbnailUrl) {
+                                thumb.setImageBitmap(bitmap)
+                            }
                         }
                     }
                 }
@@ -1548,6 +1560,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         if (customView != null) exitFullscreen(notifyCallback = false)
         removePlayer()
         thumbnailExecutor.shutdownNow()
+        youtubeThumbnailCache.evictAll()
         stopPlaybackPositionSaver()
         loadingBar = null
         super.onDestroy()
