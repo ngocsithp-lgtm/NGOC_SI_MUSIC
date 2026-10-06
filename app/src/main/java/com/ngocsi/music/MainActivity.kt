@@ -7701,20 +7701,19 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         }
     }
 
-    private fun playYouTube(track: YouTubeTrack) {
-        youtubeSelectedVideoId = track.videoId
-        youtubeQuery = youtubeQuery.ifBlank { track.title }
-        rememberYouTubeHistory(track.title)
-
-        // Always include the selected video in the player queue. This matters
-        // when opening items from Yêu thích/Xem sau after search results have cleared.
+    private fun buildYouTubeQueueJson(extraTrack: YouTubeTrack? = null): Pair<String, Int> {
         val queueTracks = youtubeTracks.toMutableList().apply {
-            if (none { it.videoId == track.videoId }) {
-                add(0, track)
+            if (extraTrack != null && none { it.videoId == extraTrack.videoId }) {
+                add(0, extraTrack)
             }
         }
+        val safeTracks = if (queueTracks.isEmpty() && extraTrack != null) {
+            mutableListOf(extraTrack)
+        } else {
+            queueTracks
+        }
         val queueJson = org.json.JSONArray().apply {
-            queueTracks.forEach { item ->
+            safeTracks.forEach { item ->
                 put(org.json.JSONObject().apply {
                     put("videoId", item.videoId)
                     put("title", item.title)
@@ -7723,11 +7722,21 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 })
             }
         }.toString()
-        val selectedIndex = queueTracks.indexOfFirst { it.videoId == track.videoId }.coerceAtLeast(0)
+        val selectedIndex = safeTracks.indexOfFirst {
+            extraTrack?.videoId == it.videoId
+        }.takeIf { it >= 0 } ?: 0
+        return queueJson to selectedIndex
+    }
+
+    private fun playYouTube(track: YouTubeTrack) {
+        youtubeSelectedVideoId = track.videoId
+        youtubeQuery = youtubeQuery.ifBlank { track.title }
+        rememberYouTubeHistory(track.title)
+
+        val (queueJson, selectedIndex) = buildYouTubeQueueJson(track)
         saveYouTubeLastPlayed(track, queueJson, selectedIndex)
 
-        // YouTube MORPHE-style chạy hoàn toàn trong NGỌC SĨ MUSIC.
-        // Truyền cả danh sách kết quả để player hỗ trợ hàng đợi/next/previous.
+        // Trình phát YouTube tích hợp trong NGỌC SĨ MUSIC.
         runCatching {
             startActivity(
                 Intent(this, YouTubePlayerActivity::class.java).apply {
@@ -7740,6 +7749,35 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             )
         }.onFailure {
             errorMessage = "Không mở được trình phát YouTube trong NGỌC SĨ MUSIC."
+        }
+    }
+
+    private fun queueYouTubeNext(track: YouTubeTrack) {
+        val (queueJson, selectedIndex) = buildYouTubeQueueJson(track)
+        val target = YouTubeTrack(
+            videoId = track.videoId,
+            title = track.title,
+            channelTitle = track.channelTitle,
+            thumbnailUrl = track.thumbnailUrl
+        )
+        val queueArray = runCatching { org.json.JSONArray(queueJson) }.getOrElse { org.json.JSONArray() }
+        if (queueArray.length() == 0) return
+
+        // Re-open the integrated player at the selected item; it keeps the current
+        // search result set as the queue so the "Hàng đợi" action is explicit.
+        saveYouTubeLastPlayed(target, queueJson, selectedIndex)
+        runCatching {
+            startActivity(
+                Intent(this, YouTubePlayerActivity::class.java).apply {
+                    putExtra(YouTubePlayerActivity.EXTRA_VIDEO_ID, target.videoId)
+                    putExtra(YouTubePlayerActivity.EXTRA_TITLE, target.title)
+                    putExtra(YouTubePlayerActivity.EXTRA_CHANNEL, target.channelTitle)
+                    putExtra(YouTubePlayerActivity.EXTRA_QUEUE_JSON, queueJson)
+                    putExtra(YouTubePlayerActivity.EXTRA_QUEUE_INDEX, selectedIndex)
+                }
+            )
+        }.onFailure {
+            errorMessage = "Không mở được hàng đợi YouTube trong NGỌC SĨ MUSIC."
         }
     }
     private fun toggleYouTubeWatchLater(track: YouTubeTrack) {
@@ -8741,6 +8779,18 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         }
                                     }
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        IconButton(
+                                            onClick = { playYouTube(track) },
+                                            modifier = Modifier.size(34.dp)
+                                        ) {
+                                            Text("▶", color = if (isCurrent) Color(0xFFFF7180) else Color.White, fontSize = 15.sp)
+                                        }
+                                        IconButton(
+                                            onClick = { queueYouTubeNext(track) },
+                                            modifier = Modifier.size(34.dp)
+                                        ) {
+                                            Text("＋Q", color = Color(0xFFB8C0D4), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
                                         IconButton(
                                             onClick = { toggleYouTubeFavorite(track) },
                                             modifier = Modifier.size(34.dp)
