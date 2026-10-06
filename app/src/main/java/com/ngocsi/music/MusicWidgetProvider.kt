@@ -28,7 +28,10 @@ class MusicWidgetProvider : AppWidgetProvider() {
     }
 
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
-        updateAll(context)
+        val pendingResult = goAsync()
+        updateAll(context) {
+            pendingResult.finish()
+        }
     }
 
     override fun onReceive(context: Context, intent: Intent) {
