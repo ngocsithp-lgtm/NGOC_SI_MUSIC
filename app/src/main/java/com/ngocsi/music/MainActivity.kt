@@ -6881,7 +6881,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         if (lat.isFinite()) lat.coerceIn(-85.0, 85.0).toString() else "10.8231"
 
     private fun webMapStateLon(lon: Double): String =
-        if (lon.isFinite()) lon.coerceIn(-180.0, 180.0).toString()
+        if (lon.isFinite()) lon.coerceIn(-180.0, 180.0).toString() else "106.6297"
 
     private fun mapLibreRasterStyleJson(layer: String, lat: Double, lon: Double): String {
         val safeLat = if (lat.isFinite()) lat.coerceIn(-85.0, 85.0) else 10.8231
