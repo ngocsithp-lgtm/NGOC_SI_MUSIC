@@ -31,6 +31,7 @@ import android.speech.SpeechRecognizer
 import kotlin.math.min
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -4158,6 +4159,27 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun NgocSiMusicApp() {
         val currentSong = songs.getOrNull(currentIndex)
+
+        // Keep Android Back/gesture navigation predictable: on any feature screen,
+        // the first Back returns to the app home instead of immediately exiting.
+        // Modal dialogs/sheets keep priority over this handler.
+        val hasModalOverlay =
+            showNowPlaying ||
+                showQueue ||
+                showPlaylists ||
+                showCreatePlaylist ||
+                showVietnamRadioHub ||
+                showTvSourceDialog ||
+                showDriveBrowser ||
+                radioWebUrl != null ||
+                playlistDetailId != null ||
+                playlistTargetSongUri != null
+
+        BackHandler(
+            enabled = selectedSection != "Trang chủ" && !hasModalOverlay
+        ) {
+            selectedSection = "Trang chủ"
+        }
         // Keep expensive library filtering/sorting out of the 500ms playback
         // recomposition loop. derivedStateOf tracks the snapshot-backed songs/favorites
         // collections and recomputes only when their relevant state actually changes.
