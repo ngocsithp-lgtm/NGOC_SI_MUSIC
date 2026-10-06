@@ -6352,10 +6352,10 @@ class MainActivity : ComponentActivity() {
                             setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.10 (Android)")
                             setRequestProperty("Accept", "application/json")
                         }
-                        try {
+                        return try {
                             if (connection.responseCode !in 200..299) throw IllegalStateException("HTTP ${connection.responseCode}")
-                            val first = connection.inputStream.bufferedReader().use { it.readText() }
-                                .let { JSONArray(it).optJSONObject(0) }
+                            val body = connection.inputStream.bufferedReader().use { it.readText() }
+                            val first = JSONArray(body).optJSONObject(0)
                                 ?: throw NoSuchElementException("Không tìm thấy địa điểm")
                             val lat = first.optDouble("lat", Double.NaN)
                             val lon = first.optDouble("lon", Double.NaN)
@@ -6382,7 +6382,8 @@ class MainActivity : ComponentActivity() {
                     }
                     try {
                         if (routeConnection.responseCode !in 200..299) throw IllegalStateException("HTTP ${routeConnection.responseCode}")
-                        val root = routeConnection.inputStream.bufferedReader().use { it.readText() }.let(::org.json.JSONObject)
+                        val body = routeConnection.inputStream.bufferedReader().use { it.readText() }
+                        val root = org.json.JSONObject(body)
                         val route = root.optJSONArray("routes")?.optJSONObject(0)
                             ?: throw NoSuchElementException("Không tìm thấy tuyến đường")
                         val coordinates = route.optJSONObject("geometry")?.optJSONArray("coordinates")
