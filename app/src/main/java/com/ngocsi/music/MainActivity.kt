@@ -5441,7 +5441,7 @@ class MainActivity : ComponentActivity() {
                     .padding(horizontal = 7.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (selectedSection == "TV") {
+                if (selectedSection != "Trang chủ") {
                     TextButton(
                         onClick = { selectedSection = "Trang chủ" },
                         modifier = Modifier
