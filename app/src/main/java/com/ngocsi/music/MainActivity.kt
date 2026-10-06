@@ -6955,6 +6955,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         }
         var mapViewRef by remember { mutableStateOf<MapView?>(null) }
         var mapRef by remember { mutableStateOf<MapLibreMap?>(null) }
+        var nativeMapReady by remember { mutableStateOf(false) }
+        var useWebFallback by remember { mutableStateOf(false) }
         var lastRenderSignature by remember { mutableStateOf("") }
         val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -7061,7 +7063,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             )
                         }
                         TextButton(onClick = onOpenExternal) {
-                            Text("Mở ngoài")
+                            Text(if (useWebFallback) "Google Maps" else "Mở ngoài")
                         }
                         TextButton(onClick = onDismiss) {
                             Text("Đóng")
@@ -7075,30 +7077,91 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             .fillMaxSize()
                             .clip(RoundedCornerShape(18.dp))
                     ) {
-                        AndroidView(
-                            modifier = Modifier.fillMaxSize(),
-                            factory = { context ->
-                                MapLibre.getInstance(context.applicationContext)
+                        if (!useWebFallback) {
+                            AndroidView(
+                                modifier = Modifier.fillMaxSize(),
+                                factory = { context ->
+                                    MapLibre.getInstance(context.applicationContext)
 
-                                MapView(context).apply {
-                                    onCreate(null)
-                                    addOnDidFailLoadingMapListener(
-                                        object : MapView.OnDidFailLoadingMapListener {
-                                            override fun onDidFailLoadingMap(detail: String) {
-                                                this@MainActivity.errorMessage =
-                                                    "Không tải được bản đồ trong ứng dụng. " +
-                                                        detail.take(160)
-                                            }
+                                    MapView(context).apply {
+                                        onCreate(null)
+                                        addOnDidFinishLoadingStyleListener {
+                                            nativeMapReady = true
                                         }
-                                    )
-                                    getMapAsync { map ->
-                                        mapRef = map
+                                        addOnDidFailLoadingMapListener(
+                                            object : MapView.OnDidFailLoadingMapListener {
+                                                override fun onDidFailLoadingMap(detail: String) {
+                                                    nativeMapReady = false
+                                                    useWebFallback = true
+                                                    this@MainActivity.errorMessage =
+                                                        "Bản đồ nội bộ chuyển sang chế độ Web dự phòng."
+                                                }
+                                            }
+                                        )
+                                        getMapAsync { map ->
+                                            mapRef = map
+                                        }
+                                        mapViewRef = this
                                     }
-                                    mapViewRef = this
+                                },
+                                update = { }
+                            )
+                        } else {
+                            val fallbackUrl = remember(lat, lon, routeJson) {
+                                if (routePoints.size >= 2) {
+                                    val start = routePoints.first()
+                                    Uri.parse("https://www.openstreetmap.org/directions")
+                                        .buildUpon()
+                                        .appendQueryParameter("engine", "fossgis_osrm_car")
+                                        .appendQueryParameter(
+                                            "route",
+                                            start.latitude.toString() + "," +
+                                                start.longitude.toString() + ";" +
+                                                lat.toString() + "," + lon.toString()
+                                        )
+                                        .build()
+                                        .toString()
+                                } else {
+                                    Uri.parse("https://www.openstreetmap.org/")
+                                        .buildUpon()
+                                        .appendQueryParameter("mlat", lat.toString())
+                                        .appendQueryParameter("mlon", lon.toString())
+                                        .fragment(
+                                            "map=15/" +
+                                                lat.coerceIn(-85.0, 85.0).toString() + "/" +
+                                                lon.coerceIn(-180.0, 180.0).toString()
+                                        )
+                                        .build()
+                                        .toString()
                                 }
-                            },
-                            update = { }
-                        )
+                            }
+
+                            AndroidView(
+                                modifier = Modifier.fillMaxSize(),
+                                factory = { context ->
+                                    WebView(context).apply {
+                                        settings.javaScriptEnabled = true
+                                        settings.domStorageEnabled = true
+                                        settings.loadsImagesAutomatically = true
+                                        settings.setSupportZoom(true)
+                                        settings.builtInZoomControls = true
+                                        settings.displayZoomControls = false
+                                        settings.userAgentString =
+                                            settings.userAgentString + " NGOC-SI-MUSIC/5.10"
+                                        CookieManager.getInstance().setAcceptCookie(true)
+                                        webViewClient = WebViewClient()
+                                        webChromeClient = WebChromeClient()
+                                        setBackgroundColor(android.graphics.Color.rgb(13, 16, 22))
+                                        loadUrl(fallbackUrl)
+                                    }
+                                },
+                                update = { webView ->
+                                    if (webView.url != fallbackUrl) {
+                                        webView.loadUrl(fallbackUrl)
+                                    }
+                                }
+                            )
+                        }
 
                         Column(
                             modifier = Modifier
@@ -7278,10 +7341,13 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             }
         }
 
-        LaunchedEffect(mapRef, selectedLayer, routeJson, lat, lon, title) {
+        LaunchedEffect(mapRef, selectedLayer, routeJson, lat, lon, title, useWebFallback) {
             val map = mapRef ?: return@LaunchedEffect
+            if (useWebFallback) return@LaunchedEffect
+
             val signature = selectedLayer + "|" + lat + "|" + lon + "|" + routeJson.hashCode()
             lastRenderSignature = ""
+            nativeMapReady = false
 
             runCatching {
                 map.setStyle(
@@ -7289,13 +7355,25 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         mapLibreRasterStyleJson(selectedLayer, lat, lon)
                     )
                 ) {
+                    nativeMapReady = true
                     applyAnnotations(map, signature)
                 }
-            }.onFailure { failure ->
+            }.onFailure {
+                nativeMapReady = false
+                useWebFallback = true
                 this@MainActivity.errorMessage =
-                    "Không khởi tạo được bản đồ: " +
-                        (failure.message?.take(160) ?: "lỗi không xác định")
+                    "Bản đồ nội bộ chuyển sang chế độ Web dự phòng."
                 lastRenderSignature = ""
+            }
+        }
+
+        LaunchedEffect(mapRef, useWebFallback, nativeMapReady) {
+            if (mapRef == null || useWebFallback || nativeMapReady) return@LaunchedEffect
+            delay(12_000L)
+            if (!nativeMapReady && !useWebFallback) {
+                useWebFallback = true
+                this@MainActivity.errorMessage =
+                    "Bản đồ nội bộ phản hồi chậm; đã chuyển sang chế độ Web dự phòng."
             }
         }
     }
