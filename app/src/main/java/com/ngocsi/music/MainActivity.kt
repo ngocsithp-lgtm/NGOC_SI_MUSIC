@@ -1544,7 +1544,7 @@ class MainActivity : ComponentActivity() {
             readTimeout = 20000
             useCaches = false
             setRequestProperty("Accept", "application/json")
-            setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.9 (Android)")
+            setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.10 (Android)")
             accessToken?.takeIf { it.isNotBlank() }?.let { setRequestProperty("Authorization", "Bearer $it") }
             resourceKeys?.takeIf { it.isNotBlank() }?.let {
                 setRequestProperty("X-Goog-Drive-Resource-Keys", it)
@@ -1607,7 +1607,7 @@ class MainActivity : ComponentActivity() {
             readTimeout = 20000
             useCaches = false
             setRequestProperty("Authorization", "Bearer " + accessToken)
-            setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.9")
+            setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.10")
             if (body != null) {
                 doOutput = true
                 setRequestProperty("Content-Type", contentType ?: "application/octet-stream")
@@ -3001,7 +3001,7 @@ class MainActivity : ComponentActivity() {
                     readTimeout = 20000
                     useCaches = false
                     setRequestProperty("Accept", "application/json")
-                    setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.9")
+                    setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.10")
                 }
 
                 val code = connection.responseCode
@@ -4753,7 +4753,7 @@ class MainActivity : ComponentActivity() {
                     color = Color(0xFF10131A)
                 ) {
                     Text(
-                        "NGỌC SĨ MUSIC 5.9 PRO • Một giao diện, mọi nguồn nhạc",
+                        "NGỌC SĨ MUSIC 5.10 PRO • Một giao diện, mọi nguồn nhạc",
                         color = Color(0xFF777E8D),
                         fontSize = 10.sp,
                         modifier = Modifier.padding(horizontal = 13.dp, vertical = 11.dp)
@@ -6259,7 +6259,7 @@ class MainActivity : ComponentActivity() {
                         requestMethod = "GET"
                         connectTimeout = 8000
                         readTimeout = 8000
-                        setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.9 (Android)")
+                        setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.10 (Android)")
                         setRequestProperty("Accept", "application/json")
                     }
                     try {
@@ -7633,7 +7633,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     readTimeout = 20000
                     useCaches = false
                     setRequestProperty("Accept", "application/json")
-                    setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.9")
+                    setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.10")
                 }
 
                 val code = connection.responseCode
@@ -8187,7 +8187,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         "Accept",
                         "image/avif,image/webp,image/apng,image/*,*/*;q=0.8"
                     )
-                    setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.9")
+                    setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.10")
                 }
                 try {
                     if (connection.responseCode !in 200..299) return@runCatching null
@@ -10061,7 +10061,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                                 readTimeout = 8000
                                                 useCaches = true
                                                 setRequestProperty("Authorization", "Bearer " + token)
-                                                setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.9")
+                                                setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.10")
                                             }
                                             try {
                                                 if (connection.responseCode !in 200..299) return@runCatching null
