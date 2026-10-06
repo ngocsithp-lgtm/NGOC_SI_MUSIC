@@ -7085,7 +7085,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
                                     MapView(context).apply {
                                         onCreate(null)
-                                        addOnDidFinishLoadingStyleListener {
+                                        addOnDidFinishLoadingMapListener {
                                             nativeMapReady = true
                                         }
                                         addOnDidFailLoadingMapListener(
