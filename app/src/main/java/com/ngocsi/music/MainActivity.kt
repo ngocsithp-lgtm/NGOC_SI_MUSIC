@@ -7315,7 +7315,6 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     webView.evaluateJavascript(script, null)
                                 }
                             )
-                        }
 
                         Column(
                             modifier = Modifier
