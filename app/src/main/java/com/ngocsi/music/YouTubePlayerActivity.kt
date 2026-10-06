@@ -72,6 +72,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var youtubePlayerReady = false
     private var youtubePlayerState = -1
     private var queueTransitionInFlight = false
+    private var lastHandledEndedVideoId: String? = null
     private var youtubeShuffleEnabled = false
     private var youtubeRepeatMode = 0 // 0=tắt, 1=lặp hàng đợi, 2=lặp một bài
     private val thumbnailExecutor = Executors.newFixedThreadPool(3)
@@ -102,7 +103,11 @@ class YouTubePlayerActivity : ComponentActivity() {
                 youtubePlayerState = state
                 updatePlaybackButton()
                 if (state == 0 && queue.isNotEmpty()) {
-                    advanceAfterYoutubeEnded()
+                    val endedId = sanitizeVideoId(videoId)
+                    if (endedId.isNotBlank() && lastHandledEndedVideoId != endedId) {
+                        lastHandledEndedVideoId = endedId
+                        advanceAfterYoutubeEnded()
+                    }
                 }
             }
         }
@@ -706,6 +711,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 videoId = selected.videoId
                 title = selected.title
                 channel = selected.channelTitle
+                lastHandledEndedVideoId = null
 
                 // Keep one IFrame player alive while moving through the queue.
                 // This reduces WebView churn and makes next/previous transitions
@@ -885,6 +891,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         pageErrorVisible = false
         youtubePlayerReady = false
         youtubePlayerState = -1
+        lastHandledEndedVideoId = null
 
         val player = WebView(this).apply {
             setBackgroundColor(AndroidColor.BLACK)
