@@ -5913,7 +5913,7 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun TvHub() {
-        val sources = TvCatalog.builtIn + customTvSources
+        val sources = (TvCatalog.builtIn + customTvSources).distinctBy { it.url.trim() }
         val categories = listOf("Tất cả", "VTV", "HTV", "VieON", "Khác")
         var category by remember { mutableStateOf("Tất cả") }
 
