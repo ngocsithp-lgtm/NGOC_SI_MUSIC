@@ -1010,18 +1010,24 @@ class YouTubePlayerActivity : ComponentActivity() {
         errorView?.visibility = View.VISIBLE
     }
 
+    override fun onResume() {
+        super.onResume()
+        // Re-arm WebView media/JS processing whenever the Activity returns to
+        // the foreground. This does not attempt to bypass YouTube background-
+        // playback restrictions; it only makes foreground recovery reliable.
+        webView?.onResume()
+    }
+
     override fun onUserLeaveHint() {
         // Persist the active YouTube item whenever the user leaves the Activity
-        // (Home, task switcher, notification shade, etc.). This makes recovery
-        // more reliable without attempting to forcibly pause the WebView player.
+        // (Home, task switcher, notification shade, etc.).
         saveLastPlayedState()
         super.onUserLeaveHint()
     }
 
     override fun onPause() {
-        // Save the current item before Android backgrounds the Activity.
-        // Do not call WebView.onPause(): doing so can pause JS/media processing
-        // and works against background-listening recovery.
+        // Keep WebView media lifecycle untouched here. Calling WebView.onPause()
+        // would explicitly suspend WebView media/JS and can make recovery worse.
         saveLastPlayedState()
         super.onPause()
     }
