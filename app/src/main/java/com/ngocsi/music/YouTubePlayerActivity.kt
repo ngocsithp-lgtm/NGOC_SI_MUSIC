@@ -232,13 +232,22 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
 
         val nowPlaying = TextView(this).apply {
-            text = "●  ĐANG PHÁT  •  YOUTUBE"
+            text = "●  NGỌC SĨ YOUTUBE MUSIC  •  ĐANG PHÁT"
             setTextColor(AndroidColor.rgb(143, 214, 148))
             textSize = 9f
             typeface = android.graphics.Typeface.DEFAULT_BOLD
             letterSpacing = 0.08f
         }
         info.addView(nowPlaying)
+
+        val integratedBadge = TextView(this).apply {
+            text = "TRÌNH PHÁT TÍCH HỢP"
+            setTextColor(AndroidColor.rgb(143, 214, 148))
+            textSize = 8f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            setPadding(0, dp(2), 0, 0)
+        }
+        info.addView(integratedBadge)
 
         titleView = TextView(this).apply {
             text = title
