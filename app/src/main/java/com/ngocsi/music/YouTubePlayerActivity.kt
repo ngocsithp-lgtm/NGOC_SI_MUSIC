@@ -187,10 +187,11 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
 
         val nowPlaying = TextView(this).apply {
-            text = "ĐANG PHÁT"
+            text = "●  ĐANG PHÁT  •  YOUTUBE"
             setTextColor(AndroidColor.rgb(143, 214, 148))
-            textSize = 10f
+            textSize = 9f
             typeface = android.graphics.Typeface.DEFAULT_BOLD
+            letterSpacing = 0.08f
         }
         info.addView(nowPlaying)
 
@@ -256,7 +257,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         content.addView(actions)
 
         val queueButton = Button(this).apply {
-            text = "☷ HÀNG ĐỢI (" + (queueIndex + 1) + "/" + queue.size + ")"
+            text = "☷  HÀNG ĐỢI  •  " + (queueIndex + 1) + "/" + queue.size
             isAllCaps = false
             tag = "queue_button"
             setOnClickListener { showQueueDialog() }
@@ -893,7 +894,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun updateQueueButton() {
-        root.findViewWithTag<Button>("queue_button")?.text = "☷ HÀNG ĐỢI (" + (queueIndex + 1) + "/" + queue.size + ")"
+        root.findViewWithTag<Button>("queue_button")?.text = "☷  HÀNG ĐỢI  •  " + (queueIndex + 1) + "/" + queue.size
         root.findViewWithTag<ProgressBar>("queue_progress")?.apply {
             max = queue.size.coerceAtLeast(1)
             progress = (queueIndex + 1).coerceIn(0, max)
@@ -944,6 +945,36 @@ class YouTubePlayerActivity : ComponentActivity() {
         (errorView?.tag as? TextView)?.text = message
         errorView?.findViewWithTag<View>("retry_button")?.visibility = View.VISIBLE
         errorView?.visibility = View.VISIBLE
+    }
+
+    override fun onUserLeaveHint() {
+        // Persist the active YouTube item whenever the user leaves the Activity
+        // (Home, task switcher, notification shade, etc.). This makes recovery
+        // more reliable without attempting to forcibly pause the WebView player.
+        saveLastPlayedState()
+        super.onUserLeaveHint()
+    }
+
+    override fun onPause() {
+        // Save the current item before Android backgrounds the Activity.
+        // Do not call WebView.onPause(): doing so can pause JS/media processing
+        // and works against background-listening recovery.
+        saveLastPlayedState()
+        super.onPause()
+    }
+
+    override fun onStop() {
+        // Keep the last queue/index durable across process pressure and relaunch.
+        saveLastPlayedState()
+        super.onStop()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString(EXTRA_VIDEO_ID, videoId)
+        outState.putString(EXTRA_TITLE, title)
+        outState.putString(EXTRA_CHANNEL, channel)
+        outState.putInt(EXTRA_QUEUE_INDEX, queueIndex.coerceAtLeast(0))
+        super.onSaveInstanceState(outState)
     }
 
     private fun removePlayer() {
