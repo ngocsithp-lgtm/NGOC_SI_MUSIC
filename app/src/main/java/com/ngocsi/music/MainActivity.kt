@@ -6606,9 +6606,13 @@ class MainActivity : ComponentActivity() {
                                 .weight(1f)
                                 .height(92.dp)
                                 .clickable {
-                                    radioWebTitle = "NGỌC SĨ MAP • GIAO THÔNG"
-                                    radioWebUrl = trafficUrl
-                                    errorMessage = null
+                                    runCatching {
+                                        startActivity(
+                                            Intent(Intent.ACTION_VIEW, Uri.parse(trafficUrl))
+                                        )
+                                    }.onFailure {
+                                        errorMessage = "Không mở được Google Maps để xem giao thông."
+                                    }
                                 },
                             shape = RoundedCornerShape(18.dp),
                             color = Color(0xFF121A1F),
@@ -6627,7 +6631,7 @@ class MainActivity : ComponentActivity() {
                                         fontWeight = FontWeight.Black
                                     )
                                     Text(
-                                        "Live • trong app",
+                                        "Google Maps • giao thông trực tiếp",
                                         color = Color(0xFF82959C),
                                         fontSize = 9.sp
                                     )
@@ -7135,8 +7139,10 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   left: 12px;
                   top: 12px;
                   z-index: 90;
-                  min-width: 0;
-                  max-width: calc(100% - 94px);
+                  width: 230px;
+                  max-width: calc(100% - 100px);
+                  height: auto;
+                  box-sizing: border-box;
                   padding: 9px 12px;
                   border-radius: 16px;
                   background: rgba(10,14,21,0.90);
@@ -7175,6 +7181,10 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   bottom: 12px;
                   top: auto;
                   z-index: 80;
+                  width: max-content;
+                  max-width: calc(100% - 24px);
+                  height: auto;
+                  box-sizing: border-box;
                   padding: 6px 9px;
                   border-radius: 10px;
                   font: 700 9px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -7189,8 +7199,9 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   bottom: 12px;
                   transform: translateX(-50%);
                   z-index: 85;
-                  width: min(430px, calc(100% - 108px));
-                  padding: 9px 11px;
+                  width: min(360px, calc(100% - 120px));
+                  max-height: 48px;
+                  padding: 8px 10px;
                   border-radius: 16px;
                   background: rgba(10,14,21,0.90);
                   border: 1px solid rgba(255,255,255,0.10);
@@ -7262,18 +7273,6 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   border-radius: 50%;
                   background: #ffffff;
                   transform: translate(-50%, -50%);
-                }
-                .map-status {
-                  position: absolute;
-                  left: 10px;
-                  top: 10px;
-                  z-index: 100;
-                  padding: 7px 10px;
-                  border-radius: 10px;
-                  font: 600 11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-                  background: rgba(16, 22, 32, 0.88);
-                  color: #ffffff;
-                  pointer-events: none;
                 }
                 .map-error {
                   position: absolute;
