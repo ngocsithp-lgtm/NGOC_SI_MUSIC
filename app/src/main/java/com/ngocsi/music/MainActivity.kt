@@ -660,24 +660,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Initialize MapLibre networking with an identifiable app User-Agent before
-        // any MapView is created. This is required for reliable OSM tile access.
-        val mapHttpClient = OkHttpClient.Builder()
-            .addInterceptor { chain ->
-                val request = chain.request().newBuilder()
-                    .header(
-                        "User-Agent",
-                        "NGOC-SI-MUSIC/5.10 (+https://github.com/ngocsithp-lgtm/NGOC_SI_MUSIC)"
-                    )
-                    .build()
-                chain.proceed(request)
-            }
-            .build()
-        HttpRequestUtil.setOkHttpClient(mapHttpClient)
-
-        // Initialize the native renderer once for the Activity lifecycle.
-        MapLibre.getInstance(this)
-
+        // Map rendering is initialized lazily by the map surface.
+        // Never load the native map engine during app startup: a graphics backend
+        // problem must not prevent the music app from opening.
         // Initialize lightweight app state before any feature surface is opened.
         // The UI is attached early so startup never appears as a blank window while
         // library/Drive state is being restored in the background.
@@ -6956,7 +6941,9 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         var mapViewRef by remember { mutableStateOf<MapView?>(null) }
         var mapRef by remember { mutableStateOf<MapLibreMap?>(null) }
         var nativeMapReady by remember { mutableStateOf(false) }
-        var useWebFallback by remember { mutableStateOf(false) }
+        // Start from the Web map renderer. This keeps the map surface reliable on
+        // devices whose native graphics backend is unavailable or unstable.
+        var useWebFallback by remember { mutableStateOf(true) }
         var lastRenderSignature by remember { mutableStateOf("") }
         val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -7078,6 +7065,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             .clip(RoundedCornerShape(18.dp))
                     ) {
                         if (!useWebFallback) {
+                            // Native MapLibre is currently kept as an optional path;
+                            // the default Web renderer below is the safe production path.
                             AndroidView(
                                 modifier = Modifier.fillMaxSize(),
                                 factory = { context ->
