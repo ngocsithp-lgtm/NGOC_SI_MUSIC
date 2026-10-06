@@ -99,6 +99,16 @@ class TvPlayerActivity : ComponentActivity() {
             setBackgroundColor(AndroidColor.rgb(18, 18, 22))
         }
 
+        val backHome = Button(this).apply {
+            text = "‹"
+            contentDescription = "Quay lại trang chủ"
+            setTextColor(AndroidColor.WHITE)
+            setTextSize(28f)
+            setBackgroundColor(AndroidColor.TRANSPARENT)
+            setPadding(0, 0, 0, 0)
+            setOnClickListener { finish() }
+        }
+
         val info = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
         }
@@ -148,6 +158,10 @@ class TvPlayerActivity : ComponentActivity() {
             setOnClickListener { finish() }
         }
 
+        header.addView(
+            backHome,
+            LinearLayout.LayoutParams(dp(52), dp(48))
+        )
         header.addView(
             info,
             LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
