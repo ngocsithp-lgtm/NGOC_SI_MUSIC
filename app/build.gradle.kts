@@ -69,6 +69,8 @@ dependencies {
     implementation("androidx.webkit:webkit:1.17.1")
     // Native in-app map rendering; replaces the fragile WebView/tile renderer.
     implementation("org.maplibre.gl:android-sdk-opengl:13.0.1")
+    // MapLibre 13.0.1 exposes okhttp-based HTTP customization; pin the compatible runtime explicitly.
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("androidx.media3:media3-exoplayer:1.9.4")
     implementation("androidx.media3:media3-exoplayer-hls:1.9.4")
     implementation("androidx.media3:media3-session:1.9.4")
