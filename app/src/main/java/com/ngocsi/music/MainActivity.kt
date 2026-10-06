@@ -4420,7 +4420,6 @@ class MainActivity : ComponentActivity() {
                         "Cài đặt" -> {
                             Column(
                                 Modifier.weight(1f).fillMaxWidth()
-                                    .verticalScroll(rememberScrollState())
                             ) {
                                 SettingsPanel()
                             }
@@ -5915,82 +5914,210 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun TvHub() {
         val sources = TvCatalog.builtIn + customTvSources
+        val categories = listOf("Tất cả", "VTV", "HTV", "VieON", "Khác")
+        var category by remember { mutableStateOf("Tất cả") }
 
-        Column(
-            Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+        val filteredSources = remember(sources, category) {
+            when (category) {
+                "VTV" -> sources.filter { it.name.contains("VTV", ignoreCase = true) }
+                "HTV" -> sources.filter { it.name.contains("HTV", ignoreCase = true) }
+                "VieON" -> sources.filter { it.name.contains("VieON", ignoreCase = true) }
+                "Khác" -> sources.filter {
+                    !it.name.contains("VTV", ignoreCase = true) &&
+                        !it.name.contains("HTV", ignoreCase = true) &&
+                        !it.name.contains("VieON", ignoreCase = true)
+                }
+                else -> sources
+            }
+        }
+
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(9.dp)
         ) {
-            Surface(
-                Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp),
-                color = Color(0xFF11131A),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF252936))
-            ) {
-                Column(Modifier.padding(18.dp)) {
-                    Text("TV TRỰC TUYẾN", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold)
-                    Spacer(Modifier.height(5.dp))
-                    Text(
-                        "Xem các nguồn TV chính thức trong NGỌC SĨ MUSIC hoặc thêm nguồn HTTPS của riêng mình.",
-                        color = Color(0xFF9698A7),
-                        fontSize = 12.sp
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    Button(
-                        onClick = { showTvSourceDialog = true },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp)
-                    ) {
-                        Text("+ THÊM NGUỒN TV")
+            item {
+                Surface(
+                    Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(22.dp),
+                    color = Color(0xFF11131A),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF252936))
+                ) {
+                    Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    "TV TRỰC TUYẾN",
+                                    color = Color.White,
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.ExtraBold
+                                )
+                                Spacer(Modifier.height(3.dp))
+                                Text(
+                                    "${sources.size} nguồn • ${filteredSources.size} đang hiển thị",
+                                    color = Color(0xFF8F92A0),
+                                    fontSize = 11.sp
+                                )
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(50),
+                                color = Color(0xFF18202A),
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp,
+                                    Color(0xFF2A3A47)
+                                )
+                            ) {
+                                Text(
+                                    "LIVE",
+                                    color = Color(0xFF9AE8F6),
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Black,
+                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp)
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(7.dp))
+                        Text(
+                            "Chọn kênh để mở trình phát TV. Nguồn web dùng trải nghiệm chính thức; HLS/MP4 trực tiếp dùng Media3.",
+                            color = Color(0xFF9698A7),
+                            fontSize = 11.sp,
+                            lineHeight = 16.sp
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        Button(
+                            onClick = { showTvSourceDialog = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(13.dp)
+                        ) {
+                            Text("+ THÊM NGUỒN TV", fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
 
-            sources.forEach { source ->
+            item {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    categories.forEach { option ->
+                        FilterChip(
+                            selected = category == option,
+                            onClick = { category = option },
+                            label = { Text(option, fontSize = 11.sp) },
+                            shape = RoundedCornerShape(11.dp)
+                        )
+                    }
+                }
+            }
+
+            items(
+                items = filteredSources,
+                key = { source -> source.url }
+            ) { source ->
+                val isCustom = customTvSources.any { it.url == source.url }
+                val isLive = source.name.contains("Live", ignoreCase = true)
+
                 Surface(
                     Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(18.dp),
+                    shape = RoundedCornerShape(16.dp),
                     color = Color(0xFF15161E),
                     border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF252936))
                 ) {
                     Row(
-                        Modifier.fillMaxWidth().padding(12.dp),
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 11.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(
-                            Modifier.size(52.dp).clip(RoundedCornerShape(14.dp))
-                                .background(Brush.linearGradient(listOf(Color(0xFF7653B8), Color(0xFF293047)))),
+                            Modifier
+                                .size(50.dp)
+                                .clip(RoundedCornerShape(13.dp))
+                                .background(
+                                    Brush.linearGradient(
+                                        listOf(Color(0xFF7653B8), Color(0xFF293047))
+                                    )
+                                ),
                             contentAlignment = Alignment.Center
-                        ) { Text("📺", fontSize = 23.sp) }
+                        ) {
+                            Text("📺", fontSize = 22.sp)
+                        }
 
-                        Spacer(Modifier.width(11.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(source.name, color = Color.White, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.width(10.dp))
+
+                        Column(
+                            Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(3.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    source.name,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                if (isLive) {
+                                    Spacer(Modifier.width(6.dp))
+                                    Surface(
+                                        shape = RoundedCornerShape(50),
+                                        color = Color(0xFF20161B)
+                                    ) {
+                                        Text(
+                                            "LIVE",
+                                            color = Color(0xFFFF8B98),
+                                            fontSize = 7.sp,
+                                            fontWeight = FontWeight.Black,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
+                                        )
+                                    }
+                                }
+                            }
                             Text(
                                 source.description,
                                 color = Color(0xFF8F909E),
-                                fontSize = 11.sp,
-                                maxLines = 2
+                                fontSize = 10.sp,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
+
+                        Spacer(Modifier.width(7.dp))
+
                         FilledTonalButton(
-                            onClick = {
-                                openTvSource(source)
-                            },
+                            onClick = { openTvSource(source) },
                             shape = CircleShape,
                             contentPadding = PaddingValues(0.dp),
-                            modifier = Modifier.size(46.dp)
-                        ) { Text("▶", fontSize = 17.sp) }
-                        if (customTvSources.any { it.url == source.url }) {
-                            TextButton(
+                            modifier = Modifier.size(44.dp)
+                        ) {
+                            Text("▶", fontSize = 16.sp)
+                        }
+
+                        if (isCustom) {
+                            IconButton(
                                 onClick = {
                                     customTvSources.removeAll { it.url == source.url }
                                     saveCustomTvSources()
-                                    errorMessage = "Đã xóa nguồn TV: " + source.name
-                                }
-                            ) { Text("×", color = Color(0xFFFF8A9A)) }
+                                    errorMessage = "Đã xóa nguồn TV: ${source.name}"
+                                },
+                                modifier = Modifier.size(38.dp)
+                            ) {
+                                Text(
+                                    "×",
+                                    color = Color(0xFFFF8A9A),
+                                    fontSize = 20.sp
+                                )
+                            }
                         }
                     }
                 }
