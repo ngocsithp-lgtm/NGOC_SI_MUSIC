@@ -8750,16 +8750,13 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                             )
                                         }
                                     }
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        IconButton(
-                                            onClick = { playYouTube(track) },
-                                            modifier = Modifier.size(34.dp)
-                                        ) {
-                                            Text("▶", color = if (isCurrent) Color(0xFFFF7180) else Color.White, fontSize = 15.sp)
-                                        }
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(1.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
                                         IconButton(
                                             onClick = { toggleYouTubeFavorite(track) },
-                                            modifier = Modifier.size(34.dp)
+                                            modifier = Modifier.size(36.dp)
                                         ) {
                                             Text(
                                                 if (isFavorite) "♥" else "♡",
@@ -8769,7 +8766,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         }
                                         IconButton(
                                             onClick = { toggleYouTubeWatchLater(track) },
-                                            modifier = Modifier.size(34.dp)
+                                            modifier = Modifier.size(36.dp)
                                         ) {
                                             Text(
                                                 if (isWatchLater) "✓" else "🔖",
@@ -8815,45 +8812,6 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     color = Color(0xFF777D8D)
                                 )
                             }
-                        }
-                    }
-                }
-            }
-
-            item {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    color = Color(0xFF12151A),
-                    border = androidx.compose.foundation.BorderStroke(
-                        1.dp,
-                        Color(0xFF242832)
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 11.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            "▶",
-                            color = Color(0xFFFF6678),
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Black
-                        )
-                        Spacer(Modifier.width(9.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                "TRÌNH PHÁT YOUTUBE TÍCH HỢP",
-                                color = Color.White,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Black
-                            )
-                            Text(
-                                "Tìm kiếm, hàng đợi và phát ngay trong NGỌC SĨ MUSIC; không cần mở ứng dụng bên ngoài.",
-                                color = Color(0xFF858A98),
-                                fontSize = 10.sp,
-                                lineHeight = 14.sp
-                            )
                         }
                     }
                 }
