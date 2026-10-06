@@ -8280,14 +8280,14 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             Spacer(Modifier.width(10.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(
-                                    "YOUTUBE",
+                                    "NGỌC SĨ YOUTUBE MUSIC",
                                     color = Color.White,
                                     fontSize = 18.sp,
                                     fontWeight = FontWeight.Black,
                                     letterSpacing = 0.6.sp
                                 )
                                 Text(
-                                    "Tìm kiếm • phát trong app • Xem sau",
+                                    "Tìm kiếm • hàng đợi • trình phát tích hợp",
                                     color = Color(0xFF8F8F9A),
                                     fontSize = 11.sp
                                 )
@@ -8341,6 +8341,46 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     )
                                 }
                             }
+                        }
+                    }
+                }
+            }
+
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(7.dp)
+                ) {
+                    listOf(
+                        "Nhạc Việt",
+                        "Bolero",
+                        "Trữ tình",
+                        "Nhạc trẻ",
+                        "Nhạc xưa"
+                    ).forEach { preset ->
+                        Surface(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable {
+                                    youtubeQuery = preset
+                                    searchYouTube()
+                                },
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFF181A22),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                Color(0xFF292D38)
+                            )
+                        ) {
+                            Text(
+                                preset,
+                                color = Color(0xFFC4C7D2),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(horizontal = 11.dp, vertical = 8.dp)
+                            )
                         }
                     }
                 }
@@ -8759,6 +8799,45 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     color = Color(0xFF777D8D)
                                 )
                             }
+                        }
+                    }
+                }
+            }
+
+            item {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color(0xFF12151A),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        Color(0xFF242832)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 11.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "▶",
+                            color = Color(0xFFFF6678),
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                        Spacer(Modifier.width(9.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                "TRÌNH PHÁT YOUTUBE TÍCH HỢP",
+                                color = Color.White,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                            Text(
+                                "Tìm kiếm, hàng đợi và phát ngay trong NGỌC SĨ MUSIC; không cần mở ứng dụng bên ngoài.",
+                                color = Color(0xFF858A98),
+                                fontSize = 10.sp,
+                                lineHeight = 14.sp
+                            )
                         }
                     }
                 }
