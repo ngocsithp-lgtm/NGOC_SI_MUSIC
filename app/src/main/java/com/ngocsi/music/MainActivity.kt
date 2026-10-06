@@ -117,6 +117,9 @@ object TvCatalog {
         TvSource("VTV2 • Live", "VTV Go — kênh VTV2 trực tiếp", "https://vtvgo.vn/channel/2"),
         TvSource("VTV3 • Live", "VTV Go — kênh VTV3 trực tiếp", "https://vtvgo.vn/channel/3"),
         TvSource("VTV5 Tây Nam Bộ • Live", "VTV Go — kênh VTV5 Tây Nam Bộ", "https://vtvgo.vn/channel/7"),
+        TvSource("VTV6 • Live", "VTV Go — kênh VTV6 trực tiếp", "https://vtvgo.vn/channel/13"),
+        TvSource("VTV7 • Live", "VTV Go — kênh VTV7 trực tiếp", "https://vtvgo.vn/channel/27"),
+        TvSource("VTV8 • Live", "VTV Go — kênh VTV8 trực tiếp", "https://vtvgo.vn/channel/36"),
         TvSource("VTV9 • Live", "VTV Go — kênh VTV9 trực tiếp", "https://vtvgo.vn/channel/9"),
         TvSource("VTVgo", "Nền tảng truyền hình số quốc gia của VTV", "https://www.vtvgo.vn/"),
         TvSource("HTVm", "Nền tảng nội dung truyền hình của HTV", "https://htvm.htv.com.vn/"),
@@ -146,7 +149,6 @@ object TvCatalog {
         TvSource("ON VFamily • Live", "VTVgo — ON VFamily trực tiếp", "https://vtvgo.vn/channel/vtvcab24"),
         TvSource("ON Info TV • Live", "VTVgo — ON Info TV trực tiếp", "https://vtvgo.vn/channel/vtvcab9"),
         TvSource("VTV3 Miền Bắc • Live", "VTVgo — VTV3 Miền Bắc trực tiếp", "https://vtvgo.vn/channel/3_nb"),
-        TvSource("VTV6 • Live", "VTVgo — VTV6 trực tiếp", "https://vtvgo.vn/channel/xem-truc-tuyen-kenh-vtv6"),
         TvSource("Truyền hình Hải Phòng 3 • Live", "VTVgo — Truyền hình Hải Phòng 3", "https://vtvgo.vn/channel/143"),
         TvSource("Truyền hình Đồng Nai 2 • Live", "VTVgo — Truyền hình Đồng Nai 2", "https://vtvgo.vn/channel/145")
     )
