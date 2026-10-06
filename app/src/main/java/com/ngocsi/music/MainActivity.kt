@@ -391,6 +391,7 @@ class MainActivity : ComponentActivity() {
     private var showCreatePlaylist by mutableStateOf(false)
     private var newPlaylistName by mutableStateOf("")
     private var editingPlaylistId by mutableStateOf<String?>(null)
+    private var playlistPendingDeleteId by mutableStateOf<String?>(null)
 
     // Radio recovery watchdog. A live stream can stay in BUFFERING without
     // emitting a fatal player error, so switch to the next known stream after
@@ -10024,7 +10025,14 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                             showCreatePlaylist = true
                                         }
                                     ) { Text("SỬA", fontSize = 9.sp) }
-                                    TextButton(onClick = { deletePlaylist(playlist) }) { Text("×", color = Color(0xFFFF8A9A)) }
+                                    if (queueSongs.isNotEmpty()) {
+                                        TextButton(
+                                            onClick = { addQueueToPlaylist(playlist) }
+                                        ) { Text("+Q", fontSize = 9.sp) }
+                                    }
+                                    TextButton(
+                                        onClick = { playlistPendingDeleteId = playlist.id }
+                                    ) { Text("×", color = Color(0xFFFF8A9A)) }
                                 }
                             }
                         }
@@ -10033,6 +10041,36 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     TextButton(onClick = { showPlaylists = false }) { Text("Đóng") }
                 }
             }
+        }
+
+        val pending = playlistPendingDeleteId?.let { id ->
+            playlists.firstOrNull { it.id == id }
+        }
+        if (pending != null) {
+            AlertDialog(
+                onDismissRequest = { playlistPendingDeleteId = null },
+                title = { Text("Xóa playlist?") },
+                text = {
+                    Text(
+                        "Playlist “" + pending.name + "” sẽ bị xóa khỏi thiết bị. Các file nhạc gốc không bị ảnh hưởng."
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            playlistPendingDeleteId = null
+                            deletePlaylist(pending)
+                        }
+                    ) {
+                        Text("XÓA")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { playlistPendingDeleteId = null }) {
+                        Text("HỦY")
+                    }
+                }
+            )
         }
     }
 
