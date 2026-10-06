@@ -6328,7 +6328,7 @@ class MainActivity : ComponentActivity() {
                     )
                     Spacer(Modifier.height(5.dp))
                     Text(
-                        "Bản đồ OpenStreetMap tương tác, tìm kiếm và vị trí hiện tại chạy trong ứng dụng; Vệ tinh, Giao thông và Chỉ đường mở Google Maps chính thức.",
+                        "Bản đồ và tìm kiếm chạy trong ứng dụng. Giao thông, Vệ tinh và Chỉ đường dùng Google Maps ngay trong màn hình này; vẫn có nút mở ngoài khi cần.",
                         color = Color(0xFF9698A7),
                         fontSize = 12.sp
                     )
@@ -6697,8 +6697,14 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             Text(title, color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(
                                 when {
+                                    title.contains("GIAO THÔNG") ->
+                                        "Google Maps • lớp giao thông trong NGỌC SĨ MUSIC"
+                                    title.contains("VỆ TINH") ->
+                                        "Google Maps • chế độ vệ tinh trong NGỌC SĨ MUSIC"
+                                    title.contains("CHỈ ĐƯỜNG") ->
+                                        "Google Maps • chỉ đường trong NGỌC SĨ MUSIC"
                                     title.startsWith("NGỌC SĨ MAP") || title.startsWith("BẢN ĐỒ") ->
-                                        "Bản đồ OpenStreetMap trong NGỌC SĨ MUSIC"
+                                        "OpenStreetMap • bản đồ đường phố trong NGỌC SĨ MUSIC"
                                     title.startsWith("TV") ->
                                         "Truyền hình trực tuyến trong NGỌC SĨ MUSIC"
                                     else ->
@@ -6767,7 +6773,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     ) {
                                         if (request.isForMainFrame) {
                                             errorMessage =
-                                                "Không tải được nguồn TV/bản đồ. Có thể nguồn đang giới hạn WebView hoặc tạm ngừng."
+                                                if (title.startsWith("NGỌC SĨ MAP") || title.startsWith("BẢN ĐỒ")) {
+                                                    "Không tải được bản đồ trong ứng dụng. Có thể nguồn đang hạn chế WebView; dùng “Mở ngoài” để mở chính thức."
+                                                } else {
+                                                    "Không tải được nguồn TV/bản đồ. Có thể nguồn đang giới hạn WebView hoặc tạm ngừng."
+                                                }
                                         }
                                     }
                                 }
