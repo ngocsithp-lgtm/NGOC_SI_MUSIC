@@ -7557,7 +7557,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             }
                         }
 
-                        if (routePoints.size >= 2) {
+                        if (routePoints.size >= 2 || (!isCurrentLocation && mapSearchQuery.isNotBlank())) {
                             Surface(
                                 modifier = Modifier
                                     .align(Alignment.BottomCenter)
@@ -7604,7 +7604,36 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         }
                                     }
 
-                                    Row(
+                                    if (routePoints.size < 2) {
+                                        Text(
+                                            "ĐIỂM ĐẾN",
+                                            color = Color(0xFF7F8795),
+                                            fontSize = 8.sp,
+                                            fontWeight = FontWeight.Black
+                                        )
+                                        Text(
+                                            title,
+                                            color = Color.White,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Spacer(Modifier.height(9.dp))
+                                        Button(
+                                            onClick = onCalculateRoute,
+                                            enabled = !mapSearching,
+                                            modifier = Modifier.fillMaxWidth(),
+                                            shape = RoundedCornerShape(11.dp),
+                                            contentPadding = PaddingValues(vertical = 8.dp)
+                                        ) {
+                                            Text(
+                                                if (mapSearching) "ĐANG TÍNH TUYẾN…" else "🧭 CHỈ ĐƯỜNG TỪ VỊ TRÍ HIỆN TẠI",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Black
+                                            )
+                                        }
+                                    } else Row(
                                         Modifier.fillMaxWidth(),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
