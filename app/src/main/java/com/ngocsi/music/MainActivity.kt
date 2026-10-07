@@ -3839,7 +3839,8 @@ class MainActivity : ComponentActivity() {
             internalMapLat = lat
             internalMapLon = lon
             internalMapTitle = "VỊ TRÍ HIỆN TẠI"
-            internalMapLayer = if (mapNavigationActive) internalMapLayer else "standard"
+            // A GPS refresh must not reset the user's selected map layer.
+            internalMapLayer = if (internalMapLayer == "satellite") "satellite" else "standard"
             if (!mapNavigationActive) {
                 internalMapRouteJson = "[]"
                 internalMapDestinationLat = lat
@@ -6926,7 +6927,8 @@ class MainActivity : ComponentActivity() {
                 internalMapDestinationLat = destinationLat
                 internalMapDestinationLon = destinationLon
                 internalMapTitle = meta.optString("name", query).substringBefore(",")
-                internalMapLayer = "standard"
+                // Keep the currently selected layer after a route calculation.
+                internalMapLayer = if (internalMapLayer == "satellite") "satellite" else "standard"
                 internalMapRouteJson = routeArray.toString()
                 internalMapRouteDistanceMeters = meta.optDouble("distance", 0.0)
                 internalMapRouteDurationSeconds = meta.optDouble("duration", 0.0)
