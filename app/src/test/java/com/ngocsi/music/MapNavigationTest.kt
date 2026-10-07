@@ -32,6 +32,18 @@ class MapNavigationTest {
     }
 
     @Test
+    fun nearestRouteDistance_usesSegmentNotOnlyVertices() {
+        val route = listOf(
+            10.8200 to 106.6200,
+            10.8400 to 106.6400
+        )
+        // Position is close to the middle of the segment while being far from
+        // both stored vertices. It should still be treated as on-route.
+        val distance = nearestRouteDistanceMeters(10.8300, 106.6302, route)
+        assertTrue(distance < 40.0)
+    }
+
+    @Test
     fun invalidCoordinateReturnsInfinity() {
         assertEquals(
             Double.POSITIVE_INFINITY,
