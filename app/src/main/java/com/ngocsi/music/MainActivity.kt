@@ -4638,6 +4638,9 @@ class MainActivity : ComponentActivity() {
                 onRefreshLocation = if (internalMapIsCurrentLocation) {
                     { showCurrentLocationOnMap() }
                 } else null,
+                onLayerChanged = { layer ->
+                    internalMapLayer = layer
+                },
                 onOpenExternal = {
                     val externalLat = if (internalMapRouteSteps.isNotEmpty()) internalMapDestinationLat else internalMapLat
                     val externalLon = if (internalMapRouteSteps.isNotEmpty()) internalMapDestinationLon else internalMapLon
@@ -7417,6 +7420,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         nextInstructionDistanceMeters: Double,
         onDismiss: () -> Unit,
         onRefreshLocation: (() -> Unit)?,
+        onLayerChanged: (String) -> Unit,
         onOpenExternal: () -> Unit,
         onCalculateRoute: () -> Unit,
         onStartNavigation: () -> Unit,
@@ -7522,6 +7526,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             Surface(
                                 modifier = Modifier.clickable {
                                     selectedLayer = if (selectedLayer == "satellite") "standard" else "satellite"
+                                    onLayerChanged(selectedLayer)
                                 },
                                 shape = RoundedCornerShape(13.dp),
                                 color = Color(0xF2FFFFFF),
