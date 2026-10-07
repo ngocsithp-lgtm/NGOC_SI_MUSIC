@@ -231,7 +231,7 @@ fun NativeOsmMapView(
                     getMapAsync { map ->
                         map.uiSettings.isCompassEnabled = true
                         map.uiSettings.isLogoEnabled = false
-                        map.uiSettings.isAttributionEnabled = false
+                        map.uiSettings.isAttributionEnabled = true
                         map.uiSettings.isZoomGesturesEnabled = true
                         map.uiSettings.isScrollGesturesEnabled = true
                         map.uiSettings.isRotateGesturesEnabled = true
