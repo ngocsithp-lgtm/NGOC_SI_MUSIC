@@ -170,7 +170,7 @@ class MusicService : MediaSessionService() {
         }
 
         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-            if (isDriveAuthorizationError(error) && !driveRecoveryInProgress) {
+            if (isDriveAuthenticationError(error) && !driveRecoveryInProgress) {
                 recoverDrivePlayback()
             }
             savePlaybackPosition()
@@ -289,13 +289,17 @@ class MusicService : MediaSessionService() {
         broadcastWidget()
     }
 
-    private fun isDriveAuthorizationError(error: androidx.media3.common.PlaybackException): Boolean {
+    private fun isDriveAuthenticationError(error: androidx.media3.common.PlaybackException): Boolean {
         var cause: Throwable? = error
         repeat(8) {
             when (cause) {
                 is HttpDataSource.InvalidResponseCodeException -> {
                     val code = (cause as HttpDataSource.InvalidResponseCodeException).responseCode
-                    return code == 401 || code == 403
+                    // 401 means the bearer credential is expired/invalid and can
+                    // be recovered by requesting a fresh Google authorization token.
+                    // 403 is a permissions/resource-key problem and must not be
+                    // mistaken for an authentication expiry.
+                    return code == 401
                 }
             }
             cause = cause?.cause
