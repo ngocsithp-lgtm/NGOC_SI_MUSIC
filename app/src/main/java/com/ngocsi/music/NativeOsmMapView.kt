@@ -30,7 +30,6 @@ import org.maplibre.android.style.layers.CircleLayer
 import org.maplibre.android.style.layers.LineLayer
 import org.maplibre.android.style.layers.PropertyFactory
 import org.maplibre.android.style.sources.GeoJsonSource
-import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
 
@@ -281,10 +280,10 @@ fun NativeOsmMapView(
         ) {
             Text(
                 when {
-                    routePoints.size >= 2 -> "CHỈ ĐƯỜNG • OSM/ESRI"
-                    selectedLayer == "satellite" -> "VỆ TINH • ESRI"
-                    isCurrentLocation -> "VỊ TRÍ HIỆN TẠI • OSM"
-                    else -> "BẢN ĐỒ • OSM"
+                    routePoints.size >= 2 -> "CHỈ ĐƯỜNG • © OSM"
+                    selectedLayer == "satellite" -> "VỆ TINH • © ESRI"
+                    isCurrentLocation -> "VỊ TRÍ HIỆN TẠI • © OSM"
+                    else -> "BẢN ĐỒ • © OSM"
                 },
                 color = ComposeColor.White,
                 fontSize = 8.sp,
@@ -372,15 +371,6 @@ private fun buildMarkerGeoJson(lat: Double, lon: Double, isCurrentLocation: Bool
         "properties":{"kind":"$kind"},
         "geometry":{"type":"Point","coordinates":[${safeLon(lon)},${safeLat(lat)}]}}]}
     """.trimIndent()
-}
-
-private fun distanceKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
-    val dLat = Math.toRadians(lat2 - lat1)
-    val dLon = Math.toRadians(lon2 - lon1)
-    val meanLat = Math.toRadians((lat1 + lat2) / 2.0)
-    val x = dLon * cos(meanLat)
-    val y = dLat
-    return 6371.0 * kotlin.math.sqrt(x * x + y * y)
 }
 
 private fun safeLat(value: Double): Double =
