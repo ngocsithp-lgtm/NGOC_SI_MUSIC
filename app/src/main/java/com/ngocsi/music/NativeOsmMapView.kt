@@ -1,6 +1,10 @@
 package com.ngocsi.music
 
+import android.content.Context
 import android.os.Bundle
+import okhttp3.Cache
+import okhttp3.OkHttpClient
+import org.maplibre.android.module.http.HttpRequestUtil
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
@@ -39,6 +43,32 @@ private const val ROUTE_SOURCE = "ngocsi-route-source"
 private const val ROUTE_LAYER = "ngocsi-route-layer"
 private const val MARKER_SOURCE = "ngocsi-marker-source"
 private const val MARKER_LAYER = "ngocsi-marker-layer"
+
+private const val MAP_CACHE_SIZE_BYTES = 50L * 1024L * 1024L
+private val mapHttpLock = Any()
+@Volatile private var mapHttpConfigured = false
+
+private fun configureMapHttp(context: Context) {
+    if (mapHttpConfigured) return
+    synchronized(mapHttpLock) {
+        if (mapHttpConfigured) return
+        val cacheDir = java.io.File(context.cacheDir, "ngocsi-map-cache").apply { mkdirs() }
+        val client = OkHttpClient.Builder()
+            .cache(Cache(cacheDir, MAP_CACHE_SIZE_BYTES))
+            .addInterceptor { chain ->
+                val request = chain.request().newBuilder()
+                    .header(
+                        "User-Agent",
+                        "NGOC-SI-MUSIC/${BuildConfig.VERSION_NAME} (+https://github.com/ngocsithp-lgtm/NGOC_SI_MUSIC)"
+                    )
+                    .build()
+                chain.proceed(request)
+            }
+            .build()
+        HttpRequestUtil.setOkHttpClient(client)
+        mapHttpConfigured = true
+    }
+}
 
 class NgocSiMapController internal constructor(
     private val mapView: MapView,
@@ -225,6 +255,7 @@ fun NativeOsmMapView(
             modifier = Modifier.matchParentSize(),
             factory = { context ->
                 MapLibre.getInstance(context.applicationContext)
+                configureMapHttp(context.applicationContext)
                 MapView(context).apply {
                     onCreate(Bundle())
                     getMapAsync { map ->
