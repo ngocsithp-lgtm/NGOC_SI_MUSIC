@@ -74,8 +74,64 @@ fun nearestRouteDistanceMeters(
     lon: Double,
     route: List<Pair<Double, Double>>
 ): Double {
-    if (route.isEmpty()) return Double.POSITIVE_INFINITY
-    return route.minOf { (pointLat, pointLon) ->
-        haversineDistanceMeters(lat, lon, pointLat, pointLon)
+    if (!lat.isFinite() || !lon.isFinite() || route.isEmpty()) {
+        return Double.POSITIVE_INFINITY
     }
+    if (route.size == 1) {
+        return haversineDistanceMeters(lat, lon, route.first().first, route.first().second)
+    }
+
+    // GPS positions should be compared with the route geometry itself, not only
+    // with its vertices. OSRM can return relatively sparse geometry on long
+    // straight sections, so vertex-only checks can falsely trigger rerouting.
+    val originLatRad = Math.toRadians(lat)
+    val metersPerLat = 111_320.0
+    val metersPerLon = (111_320.0 * cos(originLatRad)).coerceAtLeast(1.0)
+
+    fun project(point: Pair<Double, Double>): Pair<Double, Double> {
+        val pointLat = point.first
+        val pointLon = point.second
+        return (
+            (pointLon - lon) * metersPerLon
+        ) to (
+            (pointLat - lat) * metersPerLat
+        )
+    }
+
+    fun distanceToSegment(
+        point: Pair<Double, Double>,
+        start: Pair<Double, Double>,
+        end: Pair<Double, Double>
+    ): Double {
+        val p = project(point)
+        val a = project(start)
+        val b = project(end)
+        val abX = b.first - a.first
+        val abY = b.second - a.second
+        val abSquared = abX * abX + abY * abY
+        if (abSquared <= 1e-6) {
+            return kotlin.math.hypot(p.first - a.first, p.second - a.second)
+        }
+
+        val apX = p.first - a.first
+        val apY = p.second - a.second
+        val t = ((apX * abX) + (apY * abY)) / abSquared
+        val clamped = t.coerceIn(0.0, 1.0)
+        val closestX = a.first + clamped * abX
+        val closestY = a.second + clamped * abY
+        return kotlin.math.hypot(p.first - closestX, p.second - closestY)
+    }
+
+    var minimum = Double.POSITIVE_INFINITY
+    for (index in 0 until route.lastIndex) {
+        val start = route[index]
+        val end = route[index + 1]
+        if (!start.first.isFinite() || !start.second.isFinite() ||
+            !end.first.isFinite() || !end.second.isFinite()
+        ) {
+            continue
+        }
+        minimum = minOf(minimum, distanceToSegment(lat to lon, start, end))
+    }
+    return minimum
 }
