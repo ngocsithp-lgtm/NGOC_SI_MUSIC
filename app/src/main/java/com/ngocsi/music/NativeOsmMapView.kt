@@ -22,8 +22,6 @@ import androidx.compose.ui.viewinterop.AndroidView
 import java.io.File
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase
-import org.osmdroid.tileprovider.tilesource.XYTileSource
-import org.osmdroid.tileprovider.tilesource.TileSourcePolicy
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.MapTileIndex
 import org.osmdroid.util.BoundingBox
@@ -199,9 +197,9 @@ private data class NativeMapState(
 
 private fun configureOsmdroid(context: Context) {
     val appContext = context.applicationContext
-    val baseDir = File(appContext.filesDir, "osmdroid_v4").apply { mkdirs() }
+    val baseDir = File(appContext.filesDir, "osmdroid_v5").apply { mkdirs() }
     val cacheDir = File(baseDir, "tiles_v4").apply { mkdirs() }
-    val preferences = appContext.getSharedPreferences("ngocsi_osmdroid_v4", Context.MODE_PRIVATE)
+    val preferences = appContext.getSharedPreferences("ngocsi_osmdroid_v5", Context.MODE_PRIVATE)
     Configuration.getInstance().load(appContext, preferences)
     Configuration.getInstance().userAgentValue = "NGOC-SI-MUSIC/${BuildConfig.VERSION_NAME} (+https://github.com/ngocsithp-lgtm/NGOC_SI_MUSIC)"
     // Keep tile networking conservative and predictable on real devices.
