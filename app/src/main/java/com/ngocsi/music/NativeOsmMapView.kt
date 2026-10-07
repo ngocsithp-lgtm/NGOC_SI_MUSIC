@@ -22,6 +22,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import java.io.File
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase
+import org.osmdroid.tileprovider.tilesource.XYTileSource
+import org.osmdroid.tileprovider.tilesource.TileSourcePolicy
 import org.osmdroid.util.MapTileIndex
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
@@ -30,10 +32,21 @@ import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
 import org.osmdroid.views.overlay.Polygon
 
-private val NgocSiStreetSource = esriTileSource(
-    name = "NgocSi-Esri-WorldStreetMap",
-    baseUrl = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/",
-    copyright = "Esri World Street Map"
+private val NgocSiStreetSource = XYTileSource(
+    "NgocSi-OpenStreetMap",
+    0,
+    19,
+    256,
+    ".png",
+    arrayOf("https://tile.openstreetmap.org/"),
+    "© OpenStreetMap contributors",
+    TileSourcePolicy(
+        2,
+        TileSourcePolicy.FLAG_NO_BULK or
+            TileSourcePolicy.FLAG_NO_PREVENTIVE or
+            TileSourcePolicy.FLAG_USER_AGENT_MEANINGFUL or
+            TileSourcePolicy.FLAG_USER_AGENT_NORMALIZED
+    )
 )
 
 private val NgocSiSatelliteSource = esriTileSource(
@@ -57,7 +70,7 @@ private fun esriTileSource(
         copyright
     ) {
         override fun getTileURLString(mapTileIndex: Long): String {
-            // Esri REST tiles are /{z}/{y}/{x}, unlike osmdroid XYTileSource (/z/x/y).
+            // Esri REST tiles are /{z}/{y}/{x}; osmdroid XYTileSource is /{z}/{x}/{y}.
             return getBaseUrl() +
                 MapTileIndex.getZoom(mapTileIndex) + "/" +
                 MapTileIndex.getY(mapTileIndex) + "/" +
@@ -172,7 +185,7 @@ fun NativeOsmMapView(
                 .padding(horizontal = 8.dp, vertical = 5.dp)
         ) {
             Text(
-                if (selectedLayer == "satellite") "© Esri World Imagery" else "© Esri World Street Map",
+                if (selectedLayer == "satellite") "© Esri World Imagery" else "© OpenStreetMap contributors",
                 color = ComposeColor.White,
                 fontSize = 9.sp,
                 maxLines = 1
@@ -200,9 +213,9 @@ private data class NativeMapState(
 
 private fun configureOsmdroid(context: Context) {
     val appContext = context.applicationContext
-    val baseDir = File(appContext.filesDir, "osmdroid_v2").apply { mkdirs() }
-    val cacheDir = File(baseDir, "tiles_v2").apply { mkdirs() }
-    val preferences = appContext.getSharedPreferences("ngocsi_osmdroid", Context.MODE_PRIVATE)
+    val baseDir = File(appContext.filesDir, "osmdroid_v3").apply { mkdirs() }
+    val cacheDir = File(baseDir, "tiles_v3").apply { mkdirs() }
+    val preferences = appContext.getSharedPreferences("ngocsi_osmdroid_v3", Context.MODE_PRIVATE)
     Configuration.getInstance().load(appContext, preferences)
     Configuration.getInstance().userAgentValue = "com.ngocsi.music/${BuildConfig.VERSION_NAME}"
     Configuration.getInstance().osmdroidBasePath = baseDir
