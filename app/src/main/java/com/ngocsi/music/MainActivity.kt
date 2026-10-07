@@ -1962,7 +1962,7 @@ class MainActivity : ComponentActivity() {
     ): org.json.JSONObject {
         val url = "https://www.googleapis.com/drive/v3/files/" +
             Uri.encode(id) +
-            "?fields=id,name,mimeType,size,resourceKey,webContentLink,trashed,capabilities/canDownload" +
+            "?fields=id,name,mimeType,size,resourceKey,webContentLink,trashed,capabilities/canDownload,shortcutDetails(targetId,targetResourceKey)" +
             "&supportsAllDrives=true" +
             apiKey.takeIf { it.isNotBlank() }?.let {
                 "&key=" + URLEncoder.encode(it, "UTF-8")
@@ -1970,11 +1970,24 @@ class MainActivity : ComponentActivity() {
             (resourceKey?.takeIf { it.isNotBlank() }?.let {
                 "&resourceKey=" + URLEncoder.encode(it, "UTF-8")
             } ?: "")
-        return driveApiGet(
+        val root = driveApiGet(
             url,
             accessToken,
             resourceKey?.takeIf { it.isNotBlank() }?.let { "$id/$it" }
         )
+        val shortcut = root.optJSONObject("shortcutDetails")
+        val targetId = shortcut?.optString("targetId").orEmpty().trim()
+        if (targetId.isBlank()) return root
+
+        val targetKey = shortcut.optString("targetResourceKey").trim()
+            .ifBlank { root.optString("resourceKey").trim() }
+            .takeIf { it.isNotBlank() }
+
+        val target = inspectSharedDriveItem(targetId, targetKey, apiKey, accessToken)
+        if (root.optString("name").isNotBlank()) {
+            target.put("name", root.optString("name"))
+        }
+        target
     }
 
     private fun listSharedDriveFolder(
@@ -1997,7 +2010,7 @@ class MainActivity : ComponentActivity() {
             )
             val url = "https://www.googleapis.com/drive/v3/files?q=$query" +
                 "&pageSize=1000" +
-                "&fields=nextPageToken,files(id,name,mimeType,size,resourceKey,webContentLink,trashed,capabilities/canDownload)" +
+                "&fields=nextPageToken,files(id,name,mimeType,size,resourceKey,webContentLink,trashed,capabilities/canDownload,shortcutDetails(targetId,targetResourceKey))" +
                 "&supportsAllDrives=true&includeItemsFromAllDrives=true" +
                 apiKey.takeIf { it.isNotBlank() }?.let {
                     "&key=" + URLEncoder.encode(it, "UTF-8")
@@ -2013,7 +2026,8 @@ class MainActivity : ComponentActivity() {
             val json = driveApiGet(url, accessToken, resourceKeysHeader)
             val files = json.optJSONArray("files") ?: org.json.JSONArray()
             for (i in 0 until files.length()) {
-                val item = files.optJSONObject(i) ?: continue
+                val rawItem = files.optJSONObject(i) ?: continue
+                val item = resolveDriveShortcut(rawItem)
                 val id = item.optString("id").trim()
                 val name = item.optString("name").ifBlank { "Google Drive" }
                 val mime = item.optString("mimeType").trim()
@@ -2047,6 +2061,24 @@ class MainActivity : ComponentActivity() {
             }
             pageToken = json.optString("nextPageToken").ifBlank { null }
         } while (!pageToken.isNullOrBlank())
+    }
+
+    private fun resolveDriveShortcut(item: org.json.JSONObject): org.json.JSONObject {
+        val shortcut = item.optJSONObject("shortcutDetails") ?: return item
+        val targetId = shortcut.optString("targetId").trim()
+        if (targetId.isBlank()) return item
+
+        val targetKey = shortcut.optString("targetResourceKey").trim()
+        return org.json.JSONObject().apply {
+            put("id", targetId)
+            put("name", item.optString("name").ifBlank { "Google Drive" })
+            put("mimeType", item.optString("mimeType"))
+            put("size", item.optLong("size", 0L))
+            put("resourceKey", targetKey.ifBlank { item.optString("resourceKey").trim() })
+            put("webContentLink", item.optString("webContentLink").trim())
+            put("trashed", item.optBoolean("trashed", false))
+            put("capabilities", item.optJSONObject("capabilities"))
+        }
     }
 
     private fun isSupportedDriveAudio(name: String, mimeType: String): Boolean {
@@ -2193,7 +2225,7 @@ class MainActivity : ComponentActivity() {
                         val url = "https://www.googleapis.com/drive/v3/files?q=$query" +
                             "&pageSize=1000" +
                             "&orderBy=folder,name" +
-                            "&fields=nextPageToken,files(id,name,mimeType,size,resourceKey,webContentLink,trashed,capabilities/canDownload)" +
+                            "&fields=nextPageToken,files(id,name,mimeType,size,resourceKey,webContentLink,trashed,capabilities/canDownload,shortcutDetails(targetId,targetResourceKey))" +
                             "&supportsAllDrives=true&includeItemsFromAllDrives=true" +
                             (pageToken?.let {
                                 "&pageToken=" + URLEncoder.encode(it, "UTF-8")
@@ -2203,7 +2235,8 @@ class MainActivity : ComponentActivity() {
                         val files = json.optJSONArray("files") ?: org.json.JSONArray()
 
                         for (i in 0 until files.length()) {
-                            val item = files.optJSONObject(i) ?: continue
+                            val rawItem = files.optJSONObject(i) ?: continue
+                            val item = resolveDriveShortcut(rawItem)
                             val id = item.optString("id").trim()
                             val name = item.optString("name").ifBlank { "Google Drive" }
                             val mime = item.optString("mimeType").trim()
@@ -2363,7 +2396,8 @@ class MainActivity : ComponentActivity() {
                         val json = driveApiGet(url, token)
                         val files = json.optJSONArray("files") ?: JSONArray()
                         for (i in 0 until files.length()) {
-                            val item = files.optJSONObject(i) ?: continue
+                            val rawItem = files.optJSONObject(i) ?: continue
+                            val item = resolveDriveShortcut(rawItem)
                             val id = item.optString("id").trim()
                             val name = item.optString("name").ifBlank { "Google Drive" }
                             val mime = item.optString("mimeType").trim()
@@ -2450,7 +2484,8 @@ class MainActivity : ComponentActivity() {
                         val json = driveApiGet(url, token)
                         val files = json.optJSONArray("files") ?: JSONArray()
                         for (i in 0 until files.length()) {
-                            val file = files.optJSONObject(i) ?: continue
+                            val rawFile = files.optJSONObject(i) ?: continue
+                            val file = resolveDriveShortcut(rawFile)
                             val id = file.optString("id").trim()
                             val name = file.optString("name").ifBlank { "Google Drive" }
                             val mime = file.optString("mimeType").trim()
