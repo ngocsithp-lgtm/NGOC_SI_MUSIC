@@ -106,7 +106,7 @@ GitHub Actions chạy tự động:
 
 Artifact chuẩn:
 
-**NGOC_SI_MUSIC_5.10_PRO_DEBUG_APK**
+**NGOC_SI_MUSIC_5.12_PRO_DEBUG_APK**
 
 ## YouTube
 
