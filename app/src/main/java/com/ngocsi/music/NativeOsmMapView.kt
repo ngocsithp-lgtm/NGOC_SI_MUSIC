@@ -148,10 +148,9 @@ class NgocSiMapController internal constructor(
         val valid = routePoints.filter { it.first.isFinite() && it.second.isFinite() }
         if (valid.size < 2) return
         route = valid
-        val start = valid.first()
-        val end = valid.last()
-        lat = safeLat((start.first + end.first) / 2.0)
-        lon = safeLon((start.second + end.second) / 2.0)
+        // Do not overwrite the navigation/GPS coordinates while calculating
+        // the camera bounds. The blue location marker must stay on the real
+        // current location, not move to the visual center of the route.
         // Fit the whole route instead of estimating zoom from only the
         // start/end points. Curved routes can otherwise be clipped badly.
         runCatching {
@@ -166,13 +165,23 @@ class NgocSiMapController internal constructor(
                     CameraUpdateFactory.newCameraPosition(camera),
                     450
                 )
-            } ?: map.animateCamera(
-                CameraUpdateFactory.newLatLngZoom(LatLng(lat, lon), 13.0),
-                350
-            )
+            } ?: run {
+                val start = valid.first()
+                val end = valid.last()
+                val centerLat = safeLat((start.first + end.first) / 2.0)
+                val centerLon = safeLon((start.second + end.second) / 2.0)
+                map.animateCamera(
+                    CameraUpdateFactory.newLatLngZoom(LatLng(centerLat, centerLon), 13.0),
+                    350
+                )
+            }
         }.onFailure {
+            val start = valid.first()
+            val end = valid.last()
+            val centerLat = safeLat((start.first + end.first) / 2.0)
+            val centerLon = safeLon((start.second + end.second) / 2.0)
             map.animateCamera(
-                CameraUpdateFactory.newLatLngZoom(LatLng(lat, lon), 13.0),
+                CameraUpdateFactory.newLatLngZoom(LatLng(centerLat, centerLon), 13.0),
                 350
             )
         }
