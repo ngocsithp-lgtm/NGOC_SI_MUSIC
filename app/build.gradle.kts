@@ -30,8 +30,8 @@ android {
         applicationId = "com.ngocsi.music"
         minSdk = 26
         targetSdk = 36
-        versionCode = 31
-        versionName = "5.11"
+        versionCode = 32
+        versionName = "5.12"
         buildConfigField("String", "YOUTUBE_API_KEY", "\"$youtubeApiKey\"")
         buildConfigField("String", "DRIVE_API_KEY", "\"$driveApiKey\"")
     }
@@ -75,4 +75,5 @@ dependencies {
     implementation("org.maplibre.gl:android-sdk:11.8.0")
     // Google OAuth: required for Drive files/folders shared privately with the signed-in account.
     implementation("com.google.android.gms:play-services-auth:21.6.0")
+    implementation("com.google.android.gms:play-services-location:21.4.0")
 }
