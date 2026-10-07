@@ -4595,6 +4595,9 @@ class MainActivity : ComponentActivity() {
                 accuracyMeters = internalMapAccuracyMeters,
                 locationTime = internalMapLocationTime,
                 onDismiss = { showInternalMap = false },
+                onRefreshLocation = if (internalMapIsCurrentLocation) {
+                    { showCurrentLocationOnMap() }
+                } else null,
                 onOpenExternal = {
                     val query = internalMapLat.toString() + "," + internalMapLon.toString()
                     runCatching {
@@ -6796,7 +6799,11 @@ class MainActivity : ComponentActivity() {
                                 Text("📍", fontSize = 20.sp)
                                 Column {
                                     Text("VỊ TRÍ", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Black)
-                                    Text("Vị trí hiện tại", color = Color(0xFF839188), fontSize = 9.sp)
+                                    Text(
+                                        if (mapLocationLoading) "Đang xác định…" else "Vị trí hiện tại",
+                                        color = Color(0xFF839188),
+                                        fontSize = 9.sp
+                                    )
                                 }
                             }
                         }
@@ -7957,6 +7964,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         accuracyMeters: Float,
         locationTime: Long,
         onDismiss: () -> Unit,
+        onRefreshLocation: (() -> Unit)?,
         onOpenExternal: () -> Unit
     ) {
         var selectedLayer by remember(initialLayer) {
@@ -8025,6 +8033,20 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 fontSize = 10.sp,
                                 maxLines = 2
                             )
+                            if (isCurrentLocation && accuracyMeters > 0f) {
+                                Spacer(Modifier.height(2.dp))
+                                Text(
+                                    String.format(
+                                        java.util.Locale.getDefault(),
+                                        "%.6f, %.6f",
+                                        lat,
+                                        lon
+                                    ) + " • " + if (locationTime > 0L) "đã cập nhật" else "đang cập nhật",
+                                    color = Color(0xFF6F7786),
+                                    fontSize = 8.sp,
+                                    maxLines = 1
+                                )
+                            }
                         }
                         Surface(
                             modifier = Modifier.clickable(onClick = onOpenExternal),
@@ -8219,15 +8241,20 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
                             Surface(
                                 modifier = Modifier.clickable {
-                                    webMapRef?.evaluateJavascript(
-                                        if (routePoints.size >= 2) {
-                                            "window.fitRoute && window.fitRoute();"
-                                        } else {
+                                    if (routePoints.size >= 2) {
+                                        webMapRef?.evaluateJavascript(
+                                            "window.fitRoute && window.fitRoute();",
+                                            null
+                                        )
+                                    } else if (isCurrentLocation && onRefreshLocation != null) {
+                                        onRefreshLocation()
+                                    } else {
+                                        webMapRef?.evaluateJavascript(
                                             "window.centerMap && window.centerMap(" +
-                                                webMapStateLat(lat) + "," + webMapStateLon(lon) + ");"
-                                        },
-                                        null
-                                    )
+                                                webMapStateLat(lat) + "," + webMapStateLon(lon) + ");",
+                                            null
+                                        )
+                                    }
                                 },
                                 shape = RoundedCornerShape(12.dp),
                                 color = Color(0xE6101620)
