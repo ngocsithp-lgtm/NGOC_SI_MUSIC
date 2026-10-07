@@ -3761,7 +3761,6 @@ class MainActivity : ComponentActivity() {
             ) return
 
             // Do not present an old cached fix as the user's current location.
-            // The active fused-location callback is allowed to publish immediately.
             if (cachedLocation) {
                 val ageMs = if (location.time > 0L) {
                     (System.currentTimeMillis() - location.time).coerceAtLeast(0L)
@@ -3770,7 +3769,6 @@ class MainActivity : ComponentActivity() {
                 }
                 val maxAgeMs = if (fine) 2 * 60 * 1000L else 5 * 60 * 1000L
                 if (ageMs > maxAgeMs) return
-
                 if (location.hasAccuracy() && location.accuracy.isFinite()) {
                     val maxAccuracy = if (fine) 1500f else 5000f
                     if (location.accuracy <= 0f || location.accuracy > maxAccuracy) return
@@ -3858,8 +3856,6 @@ class MainActivity : ComponentActivity() {
         // Never leave the button spinning indefinitely.
         mainHandler.postDelayed({
             if (!delivered) {
-                // Give the provider a few seconds first. A second cached-location
-                // attempt is useful on devices that warm GPS/network positioning late.
                 runCatching {
                     fused.lastLocation.addOnSuccessListener { cached ->
                         if (!delivered && cached != null) publish(cached, cachedLocation = true)
@@ -6463,69 +6459,39 @@ class MainActivity : ComponentActivity() {
                     }
 
                     val destination = geocode(query)
-                    fun fetchRoute(routerBase: String): org.json.JSONObject {
-                        val routeUrl =
-                            routerBase +
-                                mapRouteOriginLon.toString() + "," + mapRouteOriginLat.toString() + ";" +
-                                destination.second.toString() + "," + destination.first.toString() +
-                                "?overview=full&geometries=geojson&steps=false"
+                    val routeUrl =
+                        "https://router.project-osrm.org/route/v1/driving/" +
+                            mapRouteOriginLon.toString() + "," + mapRouteOriginLat.toString() + ";" +
+                            destination.second.toString() + "," + destination.first.toString() +
+                            "?overview=full&geometries=geojson&steps=false"
 
-                        val routeConnection = (URL(routeUrl).openConnection() as HttpURLConnection).apply {
-                            requestMethod = "GET"
-                            connectTimeout = 10_000
-                            readTimeout = 20_000
-                            setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.12 (Android)")
-                            setRequestProperty("Accept", "application/json")
-                        }
-
-                        try {
-                            if (routeConnection.responseCode !in 200..299) {
-                                throw IllegalStateException("HTTP " + routeConnection.responseCode)
-                            }
-
-                            val body = routeConnection.inputStream.bufferedReader().use { it.readText() }
-                            val root = org.json.JSONObject(body)
-
-                            if (root.optString("code") != "Ok") {
-                                throw IllegalStateException(
-                                    root.optString("message", "Routing failed")
-                                )
-                            }
-                            return root
-                        } finally {
-                            routeConnection.disconnect()
-                        }
+                    val routeConnection = (URL(routeUrl).openConnection() as HttpURLConnection).apply {
+                        requestMethod = "GET"
+                        connectTimeout = 10_000
+                        readTimeout = 20_000
+                        setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.12 (Android)")
+                        setRequestProperty("Accept", "application/json")
                     }
 
-                    // The public OSRM demo is useful but can be rate-limited. Try
-                    // the OpenStreetMap Germany OSRM demo as a second route backend
-                    // before falling back to an external map application.
-                    var routingRoot: org.json.JSONObject? = null
-                    var routingFailure: Throwable? = null
-                    val routers = listOf(
-                        "https://router.project-osrm.org/route/v1/driving/",
-                        "https://routing.openstreetmap.de/routed-car/route/v1/driving/"
-                    )
-                    for (routerBase in routers) {
-                        try {
-                            routingRoot = fetchRoute(routerBase)
-                            break
-                        } catch (t: Throwable) {
-                            routingFailure = t
+                    try {
+                        if (routeConnection.responseCode !in 200..299) {
+                            throw IllegalStateException("HTTP " + routeConnection.responseCode)
                         }
-                    }
 
-                    val root = routingRoot
-                        ?: throw IllegalStateException(
-                            "Không kết nối được máy chủ chỉ đường" +
-                                (routingFailure?.message?.let { ": $it" } ?: "")
-                        )
+                        val body = routeConnection.inputStream.bufferedReader().use { it.readText() }
+                        val root = org.json.JSONObject(body)
 
-                    val route = root.optJSONArray("routes")?.optJSONObject(0)
-                        ?: throw NoSuchElementException("Không tìm thấy tuyến đường")
+                        if (root.optString("code") != "Ok") {
+                            throw IllegalStateException(
+                                root.optString("message", "Routing failed")
+                            )
+                        }
 
-                    val coordinates = route.optJSONObject("geometry")?.optJSONArray("coordinates")
-                        ?: throw IllegalStateException("Tuyến đường không có dữ liệu")
+                        val route = root.optJSONArray("routes")?.optJSONObject(0)
+                            ?: throw NoSuchElementException("Không tìm thấy tuyến đường")
+
+                        val coordinates = route.optJSONObject("geometry")?.optJSONArray("coordinates")
+                            ?: throw IllegalStateException("Tuyến đường không có dữ liệu")
 
                         val routeArray = org.json.JSONArray()
                         for (i in 0 until coordinates.length()) {
