@@ -7474,37 +7474,26 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         routeJson: String,
         isCurrentLocation: Boolean,
         accuracyMeters: Float,
+        bearingDegrees: Float,
         locationTime: Long,
+        routeDistanceMeters: Double,
+        routeDurationSeconds: Double,
+        routeSteps: List<MapNavigationStep>,
+        navigationActive: Boolean,
+        nextInstruction: String,
+        nextInstructionDistanceMeters: Double,
         onDismiss: () -> Unit,
         onRefreshLocation: (() -> Unit)?,
-        onOpenExternal: () -> Unit
+        onOpenExternal: () -> Unit,
+        onStartNavigation: () -> Unit,
+        onStopNavigation: () -> Unit
     ) {
         var selectedLayer by remember(initialLayer) {
             mutableStateOf(if (initialLayer == "satellite") "satellite" else "standard")
         }
         var nativeMapRef by remember { mutableStateOf<NgocSiMapController?>(null) }
 
-        val routePoints = remember(routeJson) {
-            runCatching {
-                val array = org.json.JSONArray(routeJson)
-                buildList {
-                    for (i in 0 until array.length()) {
-                        val pair = array.optJSONArray(i) ?: continue
-                        if (pair.length() < 2) continue
-                        val routeLon = pair.optDouble(0, Double.NaN)
-                        val routeLat = pair.optDouble(1, Double.NaN)
-                        if (
-                            routeLon.isFinite() &&
-                            routeLat.isFinite() &&
-                            routeLon in -180.0..180.0 &&
-                            routeLat in -85.0..85.0
-                        ) {
-                            add(routeLat to routeLon)
-                        }
-                    }
-                }
-            }.getOrElse { emptyList() }
-        }
+        val routePoints = remember(routeJson) { parseMapRoutePoints(routeJson) }
 
         Dialog(
             onDismissRequest = onDismiss,
@@ -7589,7 +7578,9 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         }
                     }
 
-                    BackHandler { onDismiss() }
+                    BackHandler {
+                        if (navigationActive) onStopNavigation() else onDismiss()
+                    }
 
                     Box(
                         Modifier
@@ -7604,6 +7595,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 routePoints = routePoints,
                                 isCurrentLocation = isCurrentLocation,
                                 accuracyMeters = accuracyMeters,
+                                bearingDegrees = bearingDegrees,
+                                followLocation = navigationActive,
                                 onMapReady = { nativeMapRef = it }
                             )
 
