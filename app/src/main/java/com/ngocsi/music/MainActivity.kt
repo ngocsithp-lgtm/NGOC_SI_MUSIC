@@ -7702,6 +7702,87 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         }
 
 
+                        if (routePoints.size >= 2) {
+                            Surface(
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .padding(start = 12.dp, end = 12.dp, bottom = 12.dp)
+                                    .fillMaxWidth(0.94f),
+                                shape = RoundedCornerShape(18.dp),
+                                color = Color(0xF20D1118),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF323B49))
+                            ) {
+                                Column(
+                                    Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Row(
+                                        Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(Modifier.weight(1f)) {
+                                            Text(
+                                                if (navigationActive) "ĐANG DẪN ĐƯỜNG" else "TUYẾN ĐƯỜNG",
+                                                color = Color.White,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Black
+                                            )
+                                            Text(
+                                                String.format(
+                                                    java.util.Locale.getDefault(),
+                                                    "%.1f km • %.0f phút",
+                                                    routeDistanceMeters / 1000.0,
+                                                    routeDurationSeconds / 60.0
+                                                ),
+                                                color = Color(0xFF9BA6B5),
+                                                fontSize = 10.sp
+                                            )
+                                        }
+                                        if (navigationActive) {
+                                            Button(
+                                                onClick = onStopNavigation,
+                                                shape = RoundedCornerShape(11.dp)
+                                            ) { Text("DỪNG", fontSize = 10.sp) }
+                                        } else {
+                                            Button(
+                                                onClick = onStartNavigation,
+                                                shape = RoundedCornerShape(11.dp)
+                                            ) { Text("BẮT ĐẦU", fontSize = 10.sp) }
+                                        }
+                                    }
+                                    if (navigationActive && nextInstruction.isNotBlank()) {
+                                        HorizontalDivider(color = Color(0xFF2A313D))
+                                        Text(
+                                            nextInstruction,
+                                            color = Color.White,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            if (nextInstructionDistanceMeters > 0.0)
+                                                String.format(
+                                                    java.util.Locale.getDefault(),
+                                                    "Còn %.0f m đến thao tác tiếp theo",
+                                                    nextInstructionDistanceMeters
+                                                )
+                                            else "Đang cập nhật vị trí…",
+                                            color = Color(0xFF9FE0B2),
+                                            fontSize = 10.sp
+                                        )
+                                    } else if (routeSteps.isNotEmpty()) {
+                                        Text(
+                                            "Có ${routeSteps.size} thao tác chỉ đường • nhấn BẮT ĐẦU để theo dõi GPS",
+                                            color = Color(0xFF7F8898),
+                                            fontSize = 10.sp,
+                                            maxLines = 2
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
                         Surface(
                             modifier = Modifier
                                 .align(Alignment.BottomEnd)
