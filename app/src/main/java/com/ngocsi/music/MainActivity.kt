@@ -4619,6 +4619,8 @@ class MainActivity : ComponentActivity() {
                         errorMessage = "Không mở được Google Maps bên ngoài."
                     }
                 }
+                onStartNavigation = { startMapNavigation() },
+                onStopNavigation = { stopMapNavigation() }
             )
         }
         radioWebUrl?.let { RadioWebViewDialog(it, radioWebTitle) }
