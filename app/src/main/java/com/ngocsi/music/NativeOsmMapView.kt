@@ -44,14 +44,18 @@ class NgocSiMapController internal constructor(
     private var layer = "standard"
     private var route = emptyList<Pair<Double, Double>>()
     private var zoom = 14
+    private var lastRenderKey: String? = null
 
     internal fun markReady() {
         ready = true
     }
 
-    private fun render() {
+    private fun render(force: Boolean = false) {
         if (!ready) return
-        webView.post { webView.loadUrl(buildMapUrl()) }
+        val key = buildMapUrl()
+        if (!force && key == lastRenderKey) return
+        lastRenderKey = key
+        webView.post { webView.loadUrl(key) }
     }
 
     private fun buildMapUrl(): String {
@@ -75,22 +79,24 @@ class NgocSiMapController internal constructor(
         lon = safeLon(newLon)
         zoom = max(zoom, 14)
         route = emptyList()
-        render()
+        render(force = true)
     }
 
     fun zoomIn() {
         zoom = min(19, zoom + 1)
-        render()
+        render(force = true)
     }
 
     fun zoomOut() {
         zoom = max(2, zoom - 1)
-        render()
+        render(force = true)
     }
 
     fun setLayer(newLayer: String) {
-        layer = if (newLayer == "satellite") "satellite" else "standard"
-        render()
+        val normalized = if (newLayer == "satellite") "satellite" else "standard"
+        if (layer == normalized) return
+        layer = normalized
+        render(force = true)
     }
 
     fun fitRoute(routePoints: List<Pair<Double, Double>>) {
@@ -115,7 +121,7 @@ class NgocSiMapController internal constructor(
             distance > 5 -> 13
             else -> 14
         }
-        render()
+        render(force = true)
     }
 
     fun updateMap(
@@ -131,10 +137,13 @@ class NgocSiMapController internal constructor(
 
         val newRoute = routePoints.filter { it.first.isFinite() && it.second.isFinite() }
         if (newRoute.size >= 2 && fitRoute) {
-            fitRoute(newRoute)
-        } else {
+            val changed = route != newRoute || lastRenderKey == null
             route = newRoute
-            render()
+            if (changed) fitRoute(newRoute) else render()
+        } else {
+            val changed = route != newRoute
+            route = newRoute
+            if (changed || lastRenderKey == null) render() else render(force = false)
         }
     }
 
