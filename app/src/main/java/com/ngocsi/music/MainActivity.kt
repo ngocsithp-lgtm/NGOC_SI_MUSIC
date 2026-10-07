@@ -6925,75 +6925,36 @@ class MainActivity : ComponentActivity() {
         val trafficUrl =
             "https://www.google.com/maps/@?api=1&map_action=map&center=10.8231%2C106.6297&zoom=12&basemap=roadmap&layer=traffic"
 
-        val openInAppMap = {
-            showCurrentLocationOnMap()
-        }
-
         Column(
             Modifier
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+                .padding(horizontal = 14.dp, vertical = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Surface(
-                Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(24.dp),
-                color = Color(0xFF0F131A),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF252D39))
+                color = Color(0xFF10141B),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF252C37))
             ) {
-                Column(Modifier.padding(15.dp)) {
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Surface(
-                            modifier = Modifier.size(46.dp),
-                            shape = RoundedCornerShape(15.dp),
-                            color = Color(0xFF28203F)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text(
-                                    "⌖",
-                                    color = Color(0xFFC7B5FF),
-                                    fontSize = 25.sp,
-                                    fontWeight = FontWeight.Black
-                                )
-                            }
-                        }
-
-                        Spacer(Modifier.width(10.dp))
-
+                Column(Modifier.padding(14.dp)) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    "NGỌC SĨ MAP",
-                                    color = Color.White,
-                                    fontSize = 19.sp,
-                                    fontWeight = FontWeight.Black,
-                                    letterSpacing = 0.7.sp
-                                )
-                                Spacer(Modifier.width(7.dp))
-                                Surface(
-                                    shape = RoundedCornerShape(50),
-                                    color = Color(0xFF181F29)
-                                ) {
-                                    Text(
-                                        "PRO",
-                                        color = Color(0xFF8EEBFF),
-                                        fontSize = 8.sp,
-                                        fontWeight = FontWeight.Black,
-                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 5.dp)
-                                    )
-                                }
-                            }
-                            Spacer(Modifier.height(3.dp))
+                            Text("NGỌC SĨ MAP", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Black)
+                            Text("Bản đồ • vị trí • chỉ đường", color = Color(0xFF7F8795), fontSize = 10.sp)
+                        }
+                        Surface(
+                            modifier = Modifier.clip(RoundedCornerShape(12.dp)).clickable { showCurrentLocationOnMap() },
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFF16271F)
+                        ) {
                             Text(
-                                "Bản đồ & tiện ích vị trí trong NGỌC SĨ MUSIC",
-                                color = Color(0xFF858D9C),
-                                fontSize = 10.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                if (mapLocationLoading) "ĐANG ĐỊNH VỊ…" else "⌖ VỊ TRÍ",
+                                color = Color(0xFF9BE8B1),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Black,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
                             )
                         }
                     }
@@ -7005,292 +6966,146 @@ class MainActivity : ComponentActivity() {
                         onValueChange = { mapSearchQuery = it },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
-                        leadingIcon = {
-                            Text(
-                                "⌕",
-                                color = Color(0xFFB79AFF),
-                                fontSize = 22.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        },
+                        leadingIcon = { Text("⌕", color = Color(0xFFB79AFF), fontSize = 23.sp) },
                         trailingIcon = {
-                            Surface(
-                                modifier = Modifier
-                                    .padding(end = 6.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .clickable { searchMapPlace() },
-                                shape = RoundedCornerShape(10.dp),
-                                color = if (mapSearching) Color(0xFF252B35) else Color(0xFF5F49A4)
-                            ) {
-                                Text(
-                                    if (mapSearching) "…" else "TÌM",
-                                    color = Color.White,
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Black,
-                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 7.dp)
-                                )
+                            IconButton(enabled = !mapSearching, onClick = { searchMapPlace() }) {
+                                Text(if (mapSearching) "…" else "→", color = Color(0xFFB9A7FF), fontSize = 22.sp)
                             }
                         },
-                        placeholder = {
-                            Text(
-                                "Tìm địa điểm, đường, quận, thành phố…",
-                                color = Color(0xFF676F7E),
-                                fontSize = 11.sp
-                            )
-                        },
-                        label = null,
+                        placeholder = { Text("Tìm địa điểm hoặc đường phố", color = Color(0xFF676F7E), fontSize = 12.sp) },
                         shape = RoundedCornerShape(16.dp),
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                         keyboardActions = KeyboardActions(onSearch = { searchMapPlace() }),
                         colors = OutlinedTextFieldDefaults.colors(
-                            unfocusedContainerColor = Color(0xFF12161E),
-                            focusedContainerColor = Color(0xFF151923),
-                            unfocusedBorderColor = Color(0xFF29313E),
+                            unfocusedContainerColor = Color(0xFF141820),
+                            focusedContainerColor = Color(0xFF171C25),
+                            unfocusedBorderColor = Color(0xFF29313D),
                             focusedBorderColor = Color(0xFF7659C4)
                         )
                     )
 
                     Spacer(Modifier.height(10.dp))
 
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Surface(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(92.dp)
-                                .clickable(onClick = openInAppMap),
-                            shape = RoundedCornerShape(18.dp),
-                            color = Color(0xFF171329),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF3B2E59))
-                        ) {
-                            Column(
-                                Modifier.padding(12.dp),
-                                verticalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("🗺", fontSize = 24.sp)
-                                Column {
-                                    Text(
-                                        "BẢN ĐỒ",
-                                        color = Color.White,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Black
-                                    )
-                                    Text(
-                                        "Đường phố • trong app",
-                                        color = Color(0xFF938DA4),
-                                        fontSize = 9.sp
-                                    )
-                                }
-                            }
-                        }
-
-                        Surface(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(92.dp)
-                                .clickable {
-                                    runCatching {
-                                        startActivity(
-                                            Intent(Intent.ACTION_VIEW, Uri.parse(trafficUrl))
-                                        )
-                                    }.onFailure {
-                                        errorMessage = "Không mở được Google Maps để xem giao thông."
-                                    }
-                                },
-                            shape = RoundedCornerShape(18.dp),
-                            color = Color(0xFF121A1F),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF293B44))
-                        ) {
-                            Column(
-                                Modifier.padding(12.dp),
-                                verticalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("🚦", fontSize = 24.sp)
-                                Column {
-                                    Text(
-                                        "GIAO THÔNG",
-                                        color = Color.White,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Black
-                                    )
-                                    Text(
-                                        "Google Maps • giao thông trực tiếp",
-                                        color = Color(0xFF82959C),
-                                        fontSize = 9.sp
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(Modifier.height(8.dp))
-
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Surface(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(78.dp)
-                                .clickable {
-                                    if (!internalMapIsCurrentLocation) {
-                                        internalMapLat = 10.8231
-                                        internalMapLon = 106.6297
-                                        internalMapTitle = "TP. Hồ Chí Minh • VỆ TINH"
-                                        internalMapRouteJson = "[]"
-                                        internalMapAccuracyMeters = 0f
-                                        internalMapLocationTime = 0L
-                                    }
-                                    internalMapLayer = "satellite"
-                                    showInternalMap = true
-                                    errorMessage = null
-                                },
-                            shape = RoundedCornerShape(17.dp),
-                            color = Color(0xFF15171E),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF292E38))
-                        ) {
-                            Column(Modifier.padding(11.dp), verticalArrangement = Arrangement.SpaceBetween) {
-                                Text("🛰", fontSize = 20.sp)
-                                Column {
-                                    Text("VỆ TINH", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Black)
-                                    Text("Ảnh vệ tinh", color = Color(0xFF7F8795), fontSize = 9.sp)
-                                }
-                            }
-                        }
-
-                        Surface(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(78.dp)
-                                .clickable {
-                                    val destination = mapSearchQuery.trim()
-                                    if (destination.isBlank()) {
-                                        // Do not silently ignore a tap: the directions action
-                                        // requires a destination and should clearly guide the user.
-                                        errorMessage = "Hãy nhập điểm đến ở ô tìm kiếm rồi bấm CHỈ ĐƯỜNG."
-                                        showInternalMap = true
-                                    } else {
-                                        searchMapRoute()
-                                    }
-                                },
-                            shape = RoundedCornerShape(17.dp),
-                            color = if (mapSearching) Color(0xFF252035) else Color(0xFF16142A),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF393254))
-                        ) {
-                            Column(Modifier.padding(11.dp), verticalArrangement = Arrangement.SpaceBetween) {
-                                Text("🧭", fontSize = 20.sp)
-                                Column {
-                                    Text(
-                                        if (mapSearching) "ĐANG TÍNH ĐƯỜNG…" else "CHỈ ĐƯỜNG",
-                                        color = Color.White,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Black
-                                    )
-                                    Text(
-                                        if (mapSearching) "Đang lấy vị trí và tuyến đường…" else "Đến điểm tìm kiếm",
-                                        color = Color(0xFF8A83A1),
-                                        fontSize = 9.sp
-                                    )
-                                }
-                            }
-                        }
-
-                        Surface(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(78.dp)
-                                .clickable { showCurrentLocationOnMap() },
-                            shape = RoundedCornerShape(17.dp),
-                            color = Color(0xFF131A17),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF294238))
-                        ) {
-                            Column(Modifier.padding(11.dp), verticalArrangement = Arrangement.SpaceBetween) {
-                                Text("📍", fontSize = 20.sp)
-                                Column {
-                                    Text("VỊ TRÍ", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Black)
-                                    Text(
-                                        if (mapLocationLoading) "Đang xác định…" else "Vị trí hiện tại",
-                                        color = Color(0xFF839188),
-                                        fontSize = 9.sp
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(Modifier.height(8.dp))
-
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    Button(
+                        onClick = { if (mapSearchQuery.isBlank()) showCurrentLocationOnMap() else searchMapPlace() },
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6C5CE7))
                     ) {
                         Text(
-                            if (mapSearching) "Đang xử lý bản đồ…" else "Tìm kiếm • Chỉ đường từ vị trí hiện tại • Vệ tinh • Vị trí",
-                            color = Color(0xFF727A89),
-                            fontSize = 9.sp
+                            if (mapSearchQuery.isBlank()) "MỞ BẢN ĐỒ" else "TÌM TRÊN BẢN ĐỒ",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Black
                         )
-                        TextButton(
-                            onClick = {
-                                runCatching {
-                                    startActivity(
-                                        Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps/"))
-                                    )
-                                }.onFailure {
-                                    errorMessage = "Không mở được Google Maps."
+                    }
+
+                    Spacer(Modifier.height(10.dp))
+
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Surface(
+                            modifier = Modifier.weight(1f).clickable {
+                                if (mapSearchQuery.isBlank()) {
+                                    errorMessage = "Nhập điểm đến trước khi chọn Chỉ đường."
+                                } else {
+                                    searchMapRoute()
                                 }
                             },
-                            contentPadding = PaddingValues(horizontal = 7.dp, vertical = 0.dp)
+                            shape = RoundedCornerShape(14.dp),
+                            color = Color(0xFF19152B),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF3A3158))
                         ) {
+                            Column(Modifier.padding(11.dp)) {
+                                Text("🧭", fontSize = 19.sp)
+                                Spacer(Modifier.height(4.dp))
+                                Text("CHỈ ĐƯỜNG", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Black)
+                                Text("Từ vị trí hiện tại", color = Color(0xFF8D869E), fontSize = 9.sp)
+                            }
+                        }
+
+                        Surface(
+                            modifier = Modifier.weight(1f).clickable {
+                                internalMapLayer = "satellite"
+                                showInternalMap = true
+                                errorMessage = null
+                            },
+                            shape = RoundedCornerShape(14.dp),
+                            color = Color(0xFF17191F),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF2B3039))
+                        ) {
+                            Column(Modifier.padding(11.dp)) {
+                                Text("🛰", fontSize = 19.sp)
+                                Spacer(Modifier.height(4.dp))
+                                Text("VỆ TINH", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Black)
+                                Text("Xem ảnh vệ tinh", color = Color(0xFF858C98), fontSize = 9.sp)
+                            }
+                        }
+
+                        Surface(
+                            modifier = Modifier.weight(1f).clickable {
+                                runCatching {
+                                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(trafficUrl)))
+                                }.onFailure {
+                                    errorMessage = "Không mở được giao thông."
+                                }
+                            },
+                            shape = RoundedCornerShape(14.dp),
+                            color = Color(0xFF141B1D),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF293B3D))
+                        ) {
+                            Column(Modifier.padding(11.dp)) {
+                                Text("🚦", fontSize = 19.sp)
+                                Spacer(Modifier.height(4.dp))
+                                Text("GIAO THÔNG", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Black)
+                                Text("Dữ liệu trực tiếp", color = Color(0xFF849294), fontSize = 9.sp)
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (internalMapIsCurrentLocation) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(17.dp),
+                    color = Color(0xFF101A15),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF294438))
+                ) {
+                    Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("●", color = Color(0xFF73E39A), fontSize = 18.sp)
+                        Spacer(Modifier.width(9.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("VỊ TRÍ HIỆN TẠI", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Black)
                             Text(
-                                "MỞ GOOGLE MAPS",
-                                color = Color(0xFF9F91D7),
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Black
+                                if (internalMapAccuracyMeters > 0f)
+                                    "Độ chính xác khoảng ±" + internalMapAccuracyMeters.toInt() + " m"
+                                else "Đã nhận vị trí GPS",
+                                color = Color(0xFF81908A),
+                                fontSize = 9.sp
                             )
+                        }
+                        TextButton(onClick = { showCurrentLocationOnMap() }) {
+                            Text("CẬP NHẬT", fontSize = 9.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
             }
 
             Surface(
-                Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(19.dp),
-                color = Color(0xFF11151C),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF232A35))
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(17.dp),
+                color = Color(0xFF0E1218),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF222A35))
             ) {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Surface(
-                        modifier = Modifier.size(34.dp),
-                        shape = RoundedCornerShape(11.dp),
-                        color = Color(0xFF1B2430)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text("ℹ", color = Color(0xFF8EEBFF), fontSize = 15.sp, fontWeight = FontWeight.Black)
-                        }
-                    }
-                    Spacer(Modifier.width(9.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            "MAP PRO",
-                            color = Color.White,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Black,
-                            letterSpacing = 1.sp
-                        )
-                        Text(
-                            "Bản đồ đường phố chạy trực tiếp trong ứng dụng bằng OpenStreetMap; giao thông trực tiếp dùng Google Maps.",
-                            color = Color(0xFF737C8B),
-                            fontSize = 9.sp,
-                            lineHeight = 13.sp
-                        )
-                    }
+                Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("ⓘ", color = Color(0xFF9DEBFF), fontSize = 17.sp)
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "Bản đồ đường phố chạy trong app bằng OpenStreetMap. Giao thông trực tiếp mở Google Maps vì dùng nguồn dữ liệu giao thông riêng.",
+                        color = Color(0xFF737C8B),
+                        fontSize = 9.sp,
+                        lineHeight = 13.sp,
+                        modifier = Modifier.weight(1f)
+                    )
                 }
             }
         }
