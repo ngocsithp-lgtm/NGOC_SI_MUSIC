@@ -7165,16 +7165,35 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier
                                 .weight(1f)
                                 .height(78.dp)
-                                .clickable { searchMapRoute() },
+                                .clickable {
+                                    val destination = mapSearchQuery.trim()
+                                    if (destination.isBlank()) {
+                                        // Do not silently ignore a tap: the directions action
+                                        // requires a destination and should clearly guide the user.
+                                        errorMessage = "Hãy nhập điểm đến ở ô tìm kiếm rồi bấm CHỈ ĐƯỜNG."
+                                        showInternalMap = true
+                                    } else {
+                                        searchMapRoute()
+                                    }
+                                },
                             shape = RoundedCornerShape(17.dp),
-                            color = Color(0xFF16142A),
+                            color = if (mapSearching) Color(0xFF252035) else Color(0xFF16142A),
                             border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF393254))
                         ) {
                             Column(Modifier.padding(11.dp), verticalArrangement = Arrangement.SpaceBetween) {
                                 Text("🧭", fontSize = 20.sp)
                                 Column {
-                                    Text("CHỈ ĐƯỜNG", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Black)
-                                    Text("Đến điểm tìm kiếm", color = Color(0xFF8A83A1), fontSize = 9.sp)
+                                    Text(
+                                        if (mapSearching) "ĐANG TÍNH ĐƯỜNG…" else "CHỈ ĐƯỜNG",
+                                        color = Color.White,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Black
+                                    )
+                                    Text(
+                                        if (mapSearching) "Đang lấy vị trí và tuyến đường…" else "Đến điểm tìm kiếm",
+                                        color = Color(0xFF8A83A1),
+                                        fontSize = 9.sp
+                                    )
                                 }
                             }
                         }
