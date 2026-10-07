@@ -43,6 +43,10 @@ private const val ROUTE_SOURCE = "ngocsi-route-source"
 private const val ROUTE_LAYER = "ngocsi-route-layer"
 private const val MARKER_SOURCE = "ngocsi-marker-source"
 private const val MARKER_LAYER = "ngocsi-marker-layer"
+private const val ROUTE_START_SOURCE = "ngocsi-route-start-source"
+private const val ROUTE_START_LAYER = "ngocsi-route-start-layer"
+private const val ROUTE_DEST_SOURCE = "ngocsi-route-dest-source"
+private const val ROUTE_DEST_LAYER = "ngocsi-route-dest-layer"
 
 private const val MAP_CACHE_SIZE_BYTES = 50L * 1024L * 1024L
 private val mapHttpLock = Any()
@@ -203,8 +207,18 @@ class NgocSiMapController internal constructor(
         val style = map.style ?: return
         val routeSource = style.getSourceAs<GeoJsonSource>(ROUTE_SOURCE) ?: return
         val markerSource = style.getSourceAs<GeoJsonSource>(MARKER_SOURCE) ?: return
+        val startSource = style.getSourceAs<GeoJsonSource>(ROUTE_START_SOURCE) ?: return
+        val destinationSource = style.getSourceAs<GeoJsonSource>(ROUTE_DEST_SOURCE) ?: return
         routeSource.setGeoJson(buildRouteGeoJson(route))
-        markerSource.setGeoJson(buildMarkerGeoJson(lat, lon, currentLocation, accuracyMeters))
+        if (route.size >= 2) {
+            markerSource.setGeoJson(EMPTY_GEO_JSON)
+            startSource.setGeoJson(buildPointGeoJson(route.first()))
+            destinationSource.setGeoJson(buildPointGeoJson(route.last()))
+        } else {
+            markerSource.setGeoJson(buildMarkerGeoJson(lat, lon, currentLocation, accuracyMeters))
+            startSource.setGeoJson(EMPTY_GEO_JSON)
+            destinationSource.setGeoJson(EMPTY_GEO_JSON)
+        }
     }
 
     fun destroy() {
@@ -217,8 +231,12 @@ class NgocSiMapController internal constructor(
 private fun addOverlayLayers(style: Style) {
     val routeSource = GeoJsonSource(ROUTE_SOURCE, EMPTY_GEO_JSON)
     val markerSource = GeoJsonSource(MARKER_SOURCE, EMPTY_GEO_JSON)
+    val startSource = GeoJsonSource(ROUTE_START_SOURCE, EMPTY_GEO_JSON)
+    val destinationSource = GeoJsonSource(ROUTE_DEST_SOURCE, EMPTY_GEO_JSON)
     style.addSource(routeSource)
     style.addSource(markerSource)
+    style.addSource(startSource)
+    style.addSource(destinationSource)
     style.addLayer(
         LineLayer(ROUTE_LAYER, ROUTE_SOURCE).withProperties(
             PropertyFactory.lineColor("#6C5CE7"),
@@ -233,6 +251,24 @@ private fun addOverlayLayers(style: Style) {
             PropertyFactory.circleStrokeColor("#FFFFFF"),
             PropertyFactory.circleStrokeWidth(3f),
             PropertyFactory.circleOpacity(0.95f)
+        )
+    )
+    style.addLayer(
+        CircleLayer(ROUTE_START_LAYER, ROUTE_START_SOURCE).withProperties(
+            PropertyFactory.circleColor("#20C997"),
+            PropertyFactory.circleRadius(7f),
+            PropertyFactory.circleStrokeColor("#FFFFFF"),
+            PropertyFactory.circleStrokeWidth(3f),
+            PropertyFactory.circleOpacity(1f)
+        )
+    )
+    style.addLayer(
+        CircleLayer(ROUTE_DEST_LAYER, ROUTE_DEST_SOURCE).withProperties(
+            PropertyFactory.circleColor("#FF5A67"),
+            PropertyFactory.circleRadius(8f),
+            PropertyFactory.circleStrokeColor("#FFFFFF"),
+            PropertyFactory.circleStrokeWidth(3f),
+            PropertyFactory.circleOpacity(1f)
         )
     )
 }
@@ -392,6 +428,15 @@ private fun buildRouteGeoJson(routePoints: List<Pair<Double, Double>>): String {
     return """
         {"type":"FeatureCollection","features":[{"type":"Feature","properties":{},
         "geometry":{"type":"LineString","coordinates":[$coordinates]}}]}
+    """.trimIndent()
+}
+
+private fun buildPointGeoJson(point: Pair<Double, Double>): String {
+    val pointLat = safeLat(point.first)
+    val pointLon = safeLon(point.second)
+    return """
+        {"type":"FeatureCollection","features":[{"type":"Feature","properties":{},
+        "geometry":{"type":"Point","coordinates":[\$pointLon,\$pointLat]}}]}
     """.trimIndent()
 }
 
