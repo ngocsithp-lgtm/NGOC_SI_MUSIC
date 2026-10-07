@@ -194,12 +194,6 @@ class NgocSiMapController internal constructor(
     ) {
         lat = safeLat(newLat)
         lon = safeLon(newLon)
-        val requestedLayer = if (selectedLayer == "satellite") "satellite" else "standard"
-        if (requestedLayer != layer) {
-            layer = requestedLayer
-            applyStyle(preserveCamera = true)
-            return
-        }
         currentLocation = isCurrentLocation
         this.accuracyMeters = accuracyMeters.coerceAtLeast(0f)
         this.bearingDegrees = if (bearingDegrees.isFinite()) {
@@ -208,32 +202,46 @@ class NgocSiMapController internal constructor(
             0f
         }
         this.hasBearing = hasBearing
+
         val valid = routePoints.filter { it.first.isFinite() && it.second.isFinite() }
+        val requestedLayer = if (selectedLayer == "satellite") "satellite" else "standard"
+
+        // Persist the complete visible state before changing style. Otherwise a
+        // layer toggle could briefly rebuild the style with stale GPS/route data.
+        if (valid.size >= 2) {
+            route = valid
+        } else {
+            route = emptyList()
+        }
+
+        if (requestedLayer != layer) {
+            layer = requestedLayer
+            applyStyle(preserveCamera = true)
+            return
+        }
 
         if (valid.size >= 2) {
             if (fitRoute && valid != route) {
                 fitRoute(valid)
-            } else {
-                route = valid
-                if (followLocation && isCurrentLocation) {
-                    zoom = max(zoom, 16.0)
-                    val camera = CameraPosition.Builder()
-                        .target(LatLng(lat, lon))
-                        .zoom(zoom)
-                        .bearing(
-                            if (hasBearing) bearingDegrees.toDouble()
-                            else map.cameraPosition.bearing
-                        )
-                        .build()
-                    map.animateCamera(
-                        CameraUpdateFactory.newCameraPosition(camera),
-                        300
+            } else if (followLocation && isCurrentLocation) {
+                zoom = max(zoom, 16.0)
+                val camera = CameraPosition.Builder()
+                    .target(LatLng(lat, lon))
+                    .zoom(zoom)
+                    .bearing(
+                        if (hasBearing) bearingDegrees.toDouble()
+                        else map.cameraPosition.bearing
                     )
-                }
+                    .build()
+                map.animateCamera(
+                    CameraUpdateFactory.newCameraPosition(camera),
+                    300
+                )
+                updateSources()
+            } else {
                 updateSources()
             }
         } else {
-            route = emptyList()
             updateSources()
             if (map.cameraPosition.zoom < 10.0) {
                 zoom = 14.0
