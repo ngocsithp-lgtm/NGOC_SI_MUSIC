@@ -6542,6 +6542,12 @@ class MainActivity : ComponentActivity() {
             return
         }
         if (mapSearching) return
+        val now = System.currentTimeMillis()
+        if (now - mapSearchLastAt < 1_100L) {
+            errorMessage = "Đang giới hạn tìm kiếm. Vui lòng thử lại sau một chút."
+            return
+        }
+        mapSearchLastAt = now
         mapSearching = true
         errorMessage = null
 
