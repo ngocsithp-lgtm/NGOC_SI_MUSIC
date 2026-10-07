@@ -4630,6 +4630,12 @@ class MainActivity : ComponentActivity() {
                         errorMessage = "Không mở được Google Maps bên ngoài."
                     }
                 },
+                onCalculateRoute = {
+                    if (mapSearchQuery.isBlank() && mapLastGeocodedName.isNotBlank()) {
+                        mapSearchQuery = mapLastGeocodedQuery
+                    }
+                    searchMapRoute()
+                },
                 onStartNavigation = { startMapNavigation() },
                 onStopNavigation = { stopMapNavigation() }
             )
@@ -7378,6 +7384,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         onDismiss: () -> Unit,
         onRefreshLocation: (() -> Unit)?,
         onOpenExternal: () -> Unit,
+        onCalculateRoute: () -> Unit,
         onStartNavigation: () -> Unit,
         onStopNavigation: () -> Unit
     ) {
@@ -7561,6 +7568,42 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF2D3745))
                             ) {
                                 Column(Modifier.padding(12.dp)) {
+                                    if (routePoints.size < 2 && !isCurrentLocation && mapSearchQuery.isNotBlank()) {
+                                        Row(
+                                            Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(Modifier.weight(1f)) {
+                                                Text(
+                                                    "ĐIỂM ĐẾN",
+                                                    color = Color(0xFF7F8795),
+                                                    fontSize = 8.sp,
+                                                    fontWeight = FontWeight.Black
+                                                )
+                                                Text(
+                                                    title,
+                                                    color = Color.White,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                            Button(
+                                                onClick = onCalculateRoute,
+                                                enabled = !mapSearching,
+                                                shape = RoundedCornerShape(10.dp),
+                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                                            ) {
+                                                Text(
+                                                    if (mapSearching) "ĐANG TÍNH…" else "CHỈ ĐƯỜNG",
+                                                    fontSize = 9.sp,
+                                                    fontWeight = FontWeight.Black
+                                                )
+                                            }
+                                        }
+                                    }
+
                                     Row(
                                         Modifier.fillMaxWidth(),
                                         verticalAlignment = Alignment.CenterVertically
