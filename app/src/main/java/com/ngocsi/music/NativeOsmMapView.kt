@@ -21,7 +21,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import java.io.File
 import org.osmdroid.config.Configuration
-import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.tileprovider.tilesource.XYTileSource
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
@@ -161,7 +160,7 @@ fun NativeOsmMapView(
                 .padding(horizontal = 8.dp, vertical = 5.dp)
         ) {
             Text(
-                if (selectedLayer == "satellite") "© Esri" else "© OpenStreetMap contributors",
+                if (selectedLayer == "satellite") "© Esri World Imagery" else "© Esri World Street Map",
                 color = ComposeColor.White,
                 fontSize = 9.sp,
                 maxLines = 1
