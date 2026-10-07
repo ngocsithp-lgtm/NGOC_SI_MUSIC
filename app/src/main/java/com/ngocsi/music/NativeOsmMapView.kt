@@ -21,7 +21,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import java.io.File
 import org.osmdroid.config.Configuration
-import org.osmdroid.tileprovider.tilesource.XYTileSource
+import org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase
+import org.osmdroid.util.MapTileIndex
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
@@ -29,29 +30,40 @@ import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
 import org.osmdroid.views.overlay.Polygon
 
-private val NgocSiStreetSource = XYTileSource(
-    "NgocSi-Esri-WorldStreetMap",
-    1,
-    19,
-    256,
-    ".jpg",
-    arrayOf(
-        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/"
-    ),
-    "Esri World Street Map"
+private val NgocSiStreetSource = esriTileSource(
+    name = "NgocSi-Esri-WorldStreetMap",
+    baseUrl = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/",
+    copyright = "Esri World Street Map"
 )
 
-private val NgocSiSatelliteSource = XYTileSource(
-    "NgocSi-Esri-WorldImagery",
-    1,
-    19,
-    256,
-    ".jpg",
-    arrayOf(
-        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/"
-    ),
-    "Esri World Imagery"
+private val NgocSiSatelliteSource = esriTileSource(
+    name = "NgocSi-Esri-WorldImagery",
+    baseUrl = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/",
+    copyright = "Esri World Imagery"
 )
+
+private fun esriTileSource(
+    name: String,
+    baseUrl: String,
+    copyright: String
+): OnlineTileSourceBase =
+    object : OnlineTileSourceBase(
+        name,
+        1,
+        19,
+        256,
+        "",
+        arrayOf(baseUrl),
+        copyright
+    ) {
+        override fun getTileURLString(mapTileIndex: Long): String {
+            // Esri REST tiles are /{z}/{y}/{x}, unlike osmdroid XYTileSource (/z/x/y).
+            return getBaseUrl() +
+                MapTileIndex.getZoom(mapTileIndex) + "/" +
+                MapTileIndex.getY(mapTileIndex) + "/" +
+                MapTileIndex.getX(mapTileIndex)
+        }
+    }
 
 @Composable
 fun NativeOsmMapView(
