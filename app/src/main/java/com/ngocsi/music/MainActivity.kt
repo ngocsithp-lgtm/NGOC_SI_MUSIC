@@ -7151,7 +7151,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         var selectedLayer by remember(initialLayer) {
             mutableStateOf(if (initialLayer == "satellite") "satellite" else "standard")
         }
-        var nativeMapRef by remember { mutableStateOf<org.osmdroid.views.MapView?>(null) }
+        var nativeMapRef by remember { mutableStateOf<NgocSiMapController?>(null) }
 
         val routePoints = remember(routeJson) {
             runCatching {
