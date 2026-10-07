@@ -361,6 +361,10 @@ class MainActivity : ComponentActivity() {
     private var internalMapTitle by mutableStateOf("TP. Hồ Chí Minh")
     private var internalMapLayer by mutableStateOf("standard")
     private var internalMapRouteJson by mutableStateOf("[]")
+    private var internalMapIsCurrentLocation by mutableStateOf(false)
+    private var internalMapAccuracyMeters by mutableFloatStateOf(0f)
+    private var internalMapLocationTime by mutableLongStateOf(0L)
+    private var mapLocationLoading by mutableStateOf(false)
     // Chặng đi của CHỈ ĐƯỜNG phải có điểm xuất phát độc lập với tâm bản đồ.
     private var mapRouteOriginLat by mutableStateOf(10.8231)
     private var mapRouteOriginLon by mutableStateOf(106.6297)
@@ -3718,88 +3722,155 @@ class MainActivity : ComponentActivity() {
         }
 
         val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
-        val enabledProviders = locationManager.getProviders(true).filter { provider ->
-            runCatching { locationManager.isProviderEnabled(provider) }.getOrDefault(false)
-        }
-        if (enabledProviders.isEmpty()) {
-            errorMessage = "Dịch vụ Vị trí đang tắt. Hãy bật Vị trí/GPS rồi thử lại."
+        val providers = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
+            .filter { provider ->
+                runCatching { locationManager.isProviderEnabled(provider) }.getOrDefault(false)
+            }
+            .distinct()
+
+        if (providers.isEmpty()) {
+            mapLocationLoading = false
+            errorMessage = "Dịch vụ Vị trí đang tắt. Hãy bật GPS/Vị trí rồi thử lại."
             return
         }
 
-        fun openLocationOnMap(location: android.location.Location) {
+        val accuracyLimit = if (hasFine) 100f else 250f
+        val requestStartedAt = System.currentTimeMillis()
+
+        fun ageOf(location: android.location.Location): Long =
+            (requestStartedAt - location.time).coerceAtLeast(0L)
+
+        fun isValid(location: android.location.Location?, requireFresh: Boolean): Boolean {
+            if (location == null) return false
             val lat = location.latitude
             val lon = location.longitude
             if (!lat.isFinite() || !lon.isFinite() || lat !in -90.0..90.0 || lon !in -180.0..180.0) {
+                return false
+            }
+            if (!location.hasAccuracy() || !location.accuracy.isFinite() || location.accuracy <= 0f) {
+                return false
+            }
+            if (location.accuracy > accuracyLimit) return false
+            if (location.time - requestStartedAt > 60_000L) return false
+            if (requireFresh && ageOf(location) > 90_000L) return false
+            return true
+        }
+
+        fun better(a: android.location.Location?, b: android.location.Location?): android.location.Location? {
+            if (!isValid(b, false)) return a
+            if (!isValid(a, false)) return b
+            val accuracyDelta = a!!.accuracy - b!!.accuracy
+            return when {
+                accuracyDelta >= 8f -> b
+                accuracyDelta <= -8f -> a
+                ageOf(b) + 10_000L < ageOf(a) -> b
+                else -> a
+            }
+        }
+
+        fun publish(location: android.location.Location, source: String) {
+            if (!isValid(location, false)) {
+                mapLocationLoading = false
                 errorMessage = "Vị trí nhận được không hợp lệ. Hãy thử lại."
                 return
             }
-
-            // Lưu điểm xuất phát riêng cho CHỈ ĐƯỜNG.
-            mapRouteOriginLat = lat
-            mapRouteOriginLon = lon
+            mapLocationLoading = false
+            mapRouteOriginLat = location.latitude
+            mapRouteOriginLon = location.longitude
             mapRouteOriginTitle = "VỊ TRÍ HIỆN TẠI"
-            internalMapLat = lat
-            internalMapLon = lon
+            internalMapLat = location.latitude
+            internalMapLon = location.longitude
             internalMapTitle = "VỊ TRÍ HIỆN TẠI"
             internalMapLayer = "standard"
             internalMapRouteJson = "[]"
+            internalMapIsCurrentLocation = true
+            internalMapAccuracyMeters = location.accuracy.coerceAtLeast(1f)
+            internalMapLocationTime = location.time
             showInternalMap = true
             errorMessage = null
         }
 
-        // Prefer a recent cached fix for instant response.
-        val cached = enabledProviders
+        mapLocationLoading = true
+        errorMessage = "Đang xác định vị trí chính xác…"
+
+        var best = providers
             .mapNotNull { provider ->
                 runCatching { locationManager.getLastKnownLocation(provider) }.getOrNull()
             }
-            .maxByOrNull { it.time }
+            .filter { isValid(it, true) }
+            .fold(null as android.location.Location?) { current, candidate ->
+                better(current, candidate)
+            }
 
-        if (cached != null && System.currentTimeMillis() - cached.time <= 5 * 60 * 1000L) {
-            openLocationOnMap(cached)
+        if (best != null && hasFine && best!!.accuracy <= 35f) {
+            publish(best!!, "recent-cache")
             return
         }
 
-        val providersToRequest = buildList {
-            if (hasFine && enabledProviders.contains(LocationManager.GPS_PROVIDER)) {
-                add(LocationManager.GPS_PROVIDER)
-            }
-            if (enabledProviders.contains(LocationManager.NETWORK_PROVIDER)) {
-                add(LocationManager.NETWORK_PROVIDER)
-            }
-            enabledProviders.firstOrNull { it !in this }?.let(::add)
-        }.distinct()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val cancellationSignals = mutableListOf<android.os.CancellationSignal>()
+            val handler = android.os.Handler(android.os.Looper.getMainLooper())
+            var finished = false
 
-        if (providersToRequest.isEmpty()) {
-            errorMessage = "Không có nguồn vị trí khả dụng. Hãy bật GPS/Vị trí rồi thử lại."
-            return
-        }
-
-        var delivered = false
-        val handler = android.os.Handler(android.os.Looper.getMainLooper())
-
-        val listener = object : android.location.LocationListener {
-            override fun onLocationChanged(location: android.location.Location) {
-                if (delivered) return
-                delivered = true
-                runCatching { locationManager.removeUpdates(this) }
+            fun finish() {
+                if (finished) return
+                finished = true
+                cancellationSignals.forEach { runCatching { it.cancel() } }
                 handler.removeCallbacksAndMessages(null)
-                openLocationOnMap(location)
-            }
-
-            override fun onProviderDisabled(providerName: String) {
-                // Another enabled provider may still produce a valid fix.
-                if (providersToRequest.all { !runCatching { locationManager.isProviderEnabled(it) }.getOrDefault(false) }) {
-                    delivered = true
-                    runCatching { locationManager.removeUpdates(this) }
-                    handler.removeCallbacksAndMessages(null)
-                    errorMessage = "Dịch vụ Vị trí đang tắt. Hãy bật GPS/Vị trí rồi thử lại."
+                val candidate = best
+                if (candidate != null && isValid(candidate, false)) {
+                    publish(candidate, "current-fix")
+                } else {
+                    mapLocationLoading = false
+                    errorMessage = "Chưa nhận được vị trí đủ chính xác. Hãy ra nơi thoáng hơn hoặc bật GPS rồi thử lại."
                 }
             }
+
+            providers.forEach { provider ->
+                val signal = android.os.CancellationSignal()
+                cancellationSignals += signal
+                runCatching {
+                    locationManager.getCurrentLocation(
+                        provider,
+                        signal,
+                        mainExecutor,
+                        java.util.function.Consumer { location ->
+                            if (finished || !isValid(location, true)) return@Consumer
+                            best = better(best, location)
+                            if (hasFine && best != null && best!!.accuracy <= 20f) {
+                                finish()
+                            }
+                        }
+                    )
+                }.onFailure {
+                    cancellationSignals.remove(signal)
+                }
+            }
+
+            handler.postDelayed({ finish() }, 8_000L)
+            return
         }
 
-        var requestedAny = false
-        for (provider in providersToRequest) {
-            val requested = runCatching {
+        var finished = false
+        val handler = android.os.Handler(android.os.Looper.getMainLooper())
+        val listener = object : android.location.LocationListener {
+            override fun onLocationChanged(location: android.location.Location) {
+                if (!isValid(location, true)) return
+                best = better(best, location)
+                if (hasFine && best != null && best!!.accuracy <= 20f) {
+                    finished = true
+                    runCatching { locationManager.removeUpdates(this) }
+                    handler.removeCallbacksAndMessages(null)
+                    publish(best!!, "updates")
+                }
+            }
+
+            override fun onProviderDisabled(providerName: String) = Unit
+        }
+
+        var requested = false
+        providers.forEach { provider ->
+            requested = runCatching {
                 locationManager.requestLocationUpdates(
                     provider,
                     1000L,
@@ -3807,36 +3878,29 @@ class MainActivity : ComponentActivity() {
                     listener,
                     android.os.Looper.getMainLooper()
                 )
-            }.isSuccess
-            requestedAny = requestedAny || requested
+                true
+            }.getOrDefault(false) || requested
         }
 
-        if (!requestedAny) {
-            delivered = true
+        if (!requested) {
+            mapLocationLoading = false
             errorMessage = "Không thể yêu cầu vị trí hiện tại. Hãy kiểm tra quyền Vị trí."
             return
         }
 
-        // Give GPS/network a short active window, then fall back to the newest cached fix.
         handler.postDelayed({
-            if (delivered) return@postDelayed
-
-            val fallback = enabledProviders
-                .mapNotNull { provider ->
-                    runCatching { locationManager.getLastKnownLocation(provider) }.getOrNull()
-                }
-                .maxByOrNull { it.time }
-
-            delivered = true
+            if (finished) return@postDelayed
+            finished = true
             runCatching { locationManager.removeUpdates(listener) }
             handler.removeCallbacksAndMessages(null)
-
-            if (fallback != null) {
-                openLocationOnMap(fallback)
+            val candidate = best
+            if (candidate != null && isValid(candidate, false)) {
+                publish(candidate, "updates")
             } else {
+                mapLocationLoading = false
                 errorMessage = "Chưa nhận được tín hiệu vị trí. Hãy bật GPS/Vị trí và thử lại."
             }
-        }, 10_000L)
+        }, 8_000L)
     }
 
     private fun migrateDrivePersistence() {
@@ -4517,6 +4581,9 @@ class MainActivity : ComponentActivity() {
                 title = internalMapTitle,
                 initialLayer = internalMapLayer,
                 routeJson = internalMapRouteJson,
+                isCurrentLocation = internalMapIsCurrentLocation,
+                accuracyMeters = internalMapAccuracyMeters,
+                locationTime = internalMapLocationTime,
                 onDismiss = { showInternalMap = false },
                 onOpenExternal = {
                     val query = internalMapLat.toString() + "," + internalMapLon.toString()
@@ -6323,6 +6390,9 @@ class MainActivity : ComponentActivity() {
                 internalMapTitle = displayName.substringBefore(",").ifBlank { query }
                 internalMapLayer = "standard"
                 internalMapRouteJson = "[]"
+                internalMapIsCurrentLocation = false
+                internalMapAccuracyMeters = 0f
+                internalMapLocationTime = 0L
                 showInternalMap = true
             }.onFailure {
                 errorMessage = "Không tìm thấy địa điểm hoặc máy chủ bản đồ đang bận. Hãy thử tên địa điểm cụ thể hơn."
@@ -6417,6 +6487,9 @@ class MainActivity : ComponentActivity() {
                 internalMapTitle = meta.optString("name", query).substringBefore(",")
                 internalMapLayer = "standard"
                 internalMapRouteJson = meta.optJSONArray("route")?.toString() ?: "[]"
+                internalMapIsCurrentLocation = false
+                internalMapAccuracyMeters = 0f
+                internalMapLocationTime = 0L
                 showInternalMap = true
                 val km = meta.optDouble("distance", 0.0) / 1000.0
                 val minutes = meta.optDouble("duration", 0.0) / 60.0
@@ -6435,13 +6508,7 @@ class MainActivity : ComponentActivity() {
             "https://www.google.com/maps/@?api=1&map_action=map&center=10.8231%2C106.6297&zoom=12&basemap=roadmap&layer=traffic"
 
         val openInAppMap = {
-            internalMapLat = 10.8231
-            internalMapLon = 106.6297
-            internalMapTitle = "TP. Hồ Chí Minh"
-            internalMapLayer = "standard"
-            internalMapRouteJson = "[]"
-            showInternalMap = true
-            errorMessage = null
+            showCurrentLocationOnMap()
         }
 
         Column(
@@ -7367,6 +7434,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
                   let centerLat = validLat(INITIAL_LAT);
                   let centerLon = validLon(INITIAL_LON);
+                  let markerLat = centerLat;
+                  let markerLon = centerLon;
                   let zoom = 14;
                   let activeLayer = INITIAL_LAYER === "satellite" ? "satellite" : "standard";
                   let route = Array.isArray(INITIAL_ROUTE) ? INITIAL_ROUTE : [];
@@ -7542,7 +7611,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
                   function renderMarker() {
                     if (!markerEl) return;
-                    const p = screenPoint(centerLat, centerLon);
+                    const p = screenPoint(markerLat, markerLon);
                     markerEl.style.left = p.x + "px";
                     markerEl.style.top = p.y + "px";
                     markerEl.style.display = "block";
@@ -7631,6 +7700,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   function applyState(lat, lon, placeTitle, layerName, nextRoute) {
                     centerLat = validLat(lat);
                     centerLon = validLon(lon);
+                    markerLat = centerLat;
+                    markerLon = centerLon;
                     activeLayer = layerName === "satellite" ? "satellite" : "standard";
                     route = Array.isArray(nextRoute) ? nextRoute : [];
                     if (placeTitle) {
@@ -7856,6 +7927,9 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         title: String,
         initialLayer: String,
         routeJson: String,
+        isCurrentLocation: Boolean,
+        accuracyMeters: Float,
+        locationTime: Long,
         onDismiss: () -> Unit,
         onOpenExternal: () -> Unit
     ) {
@@ -7913,12 +7987,15 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 overflow = TextOverflow.Ellipsis
                             )
                             Text(
-                                if (routePoints.size >= 2) {
-                                    "CHỈ ĐƯỜNG • BẢN ĐỒ TRỰC TIẾP TRONG NGỌC SĨ MUSIC"
-                                } else {
-                                    "BẢN ĐỒ TRỰC TIẾP TRONG NGỌC SĨ MUSIC"
+                                when {
+                                    routePoints.size >= 2 ->
+                                        "CHỈ ĐƯỜNG • BẢN ĐỒ TRỰC TIẾP TRONG NGỌC SĨ MUSIC"
+                                    isCurrentLocation && accuracyMeters > 0f ->
+                                        "VỊ TRÍ HIỆN TẠI • ĐỘ CHÍNH XÁC ±" + accuracyMeters.toInt() + " m"
+                                    else ->
+                                        "BẢN ĐỒ TRỰC TIẾP TRONG NGỌC SĨ MUSIC"
                                 },
-                                color = Color(0xFF8F909E),
+                                color = if (isCurrentLocation && accuracyMeters > 0f) Color(0xFF9BE8B1) else Color(0xFF8F909E),
                                 fontSize = 10.sp,
                                 maxLines = 2
                             )
