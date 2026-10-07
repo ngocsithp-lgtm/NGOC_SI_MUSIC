@@ -205,14 +205,11 @@ class NgocSiMapController internal constructor(
 
         val valid = routePoints.filter { it.first.isFinite() && it.second.isFinite() }
         val requestedLayer = if (selectedLayer == "satellite") "satellite" else "standard"
+        val routeChanged = valid != route
 
         // Persist the complete visible state before changing style. Otherwise a
         // layer toggle could briefly rebuild the style with stale GPS/route data.
-        if (valid.size >= 2) {
-            route = valid
-        } else {
-            route = emptyList()
-        }
+        route = if (valid.size >= 2) valid else emptyList()
 
         if (requestedLayer != layer) {
             layer = requestedLayer
@@ -221,7 +218,7 @@ class NgocSiMapController internal constructor(
         }
 
         if (valid.size >= 2) {
-            if (fitRoute && valid != route) {
+            if (fitRoute && routeChanged) {
                 fitRoute(valid)
             } else if (followLocation && isCurrentLocation) {
                 zoom = max(zoom, 16.0)
