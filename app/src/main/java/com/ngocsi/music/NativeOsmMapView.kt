@@ -71,6 +71,7 @@ private fun configureMapHttp(context: Context) {
                         "User-Agent",
                         "NGOC-SI-MUSIC/${BuildConfig.VERSION_NAME} (+https://github.com/ngocsithp-lgtm/NGOC_SI_MUSIC)"
                     )
+                    .header("X-Requested-With", BuildConfig.APPLICATION_ID)
                     .build()
                 chain.proceed(request)
             }
@@ -406,16 +407,19 @@ fun NativeOsmMapView(
                         map.uiSettings.isScrollGesturesEnabled = true
                         map.uiSettings.isRotateGesturesEnabled = true
                         map.uiSettings.isTiltGesturesEnabled = false
+
+                        // Register load listeners before the first style is requested.
+                        val mapController = NgocSiMapController(
+                            mapView = this,
+                            map = map,
+                            onLoadError = { message -> mapLoadError = message.take(160) },
+                            onMapLoaded = { mapLoadError = null }
+                        )
+                        controller = mapController
+                        onMapReady(mapController)
+
                         map.setStyle(Style.Builder().fromJson(buildStyleJson(selectedLayer))) { style ->
                             addOverlayLayers(style)
-                            val mapController = NgocSiMapController(
-                                mapView = this,
-                                map = map,
-                                onLoadError = { message -> mapLoadError = message.take(160) },
-                                onMapLoaded = { mapLoadError = null }
-                            )
-                            controller = mapController
-                            onMapReady(mapController)
                             mapController.updateMap(
                                 newLat = lat,
                                 newLon = lon,
