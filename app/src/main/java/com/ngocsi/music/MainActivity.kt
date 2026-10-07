@@ -3741,7 +3741,7 @@ class MainActivity : ComponentActivity() {
         internalMapLat = if (internalMapLat.isFinite()) internalMapLat else 10.8231
         internalMapLon = if (internalMapLon.isFinite()) internalMapLon else 106.6297
         internalMapTitle = "NGỌC SĨ MAP"
-        internalMapLayer = "standard"
+        internalMapLayer = if (internalMapLayer == "satellite") "satellite" else "standard"
         internalMapRouteJson = "[]"
         internalMapDestinationLat = internalMapLat
         internalMapDestinationLon = internalMapLon
@@ -6652,7 +6652,7 @@ class MainActivity : ComponentActivity() {
                 internalMapLat = lat
                 internalMapLon = lon
                 internalMapTitle = displayName.substringBefore(",").ifBlank { query }
-                internalMapLayer = "standard"
+                internalMapLayer = if (internalMapLayer == "satellite") "satellite" else "standard"
                 internalMapRouteJson = "[]"
                 internalMapIsCurrentLocation = false
                 internalMapAccuracyMeters = 0f
