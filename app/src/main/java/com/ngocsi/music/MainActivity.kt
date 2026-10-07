@@ -382,6 +382,7 @@ class MainActivity : ComponentActivity() {
     private var pendingMapNavigationStart by mutableStateOf(false)
     private var mapNavigationStepIndex by mutableIntStateOf(0)
     private var mapNavigationDestination by mutableStateOf("")
+    private var mapNavigationDestinationQuery by mutableStateOf("")
     private var mapNavigationLastRerouteAt by mutableLongStateOf(0L)
     private var mapNavigationLocationClient: com.google.android.gms.location.FusedLocationProviderClient? = null
     private var mapNavigationLocationCallback: LocationCallback? = null
@@ -3821,6 +3822,7 @@ class MainActivity : ComponentActivity() {
                 internalMapRouteDurationSeconds = 0.0
                 internalMapRouteSteps = emptyList()
                 mapNavigationDestination = ""
+                mapNavigationDestinationQuery = ""
             }
             internalMapIsCurrentLocation = true
             internalMapAccuracyMeters = accuracy
@@ -6693,7 +6695,22 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    val destination = geocode(query)
+                    val destination =
+                        if (
+                            mapNavigationActive &&
+                            mapNavigationDestinationQuery.isNotBlank() &&
+                            query.equals(mapNavigationDestinationQuery, ignoreCase = true) &&
+                            internalMapDestinationLat.isFinite() &&
+                            internalMapDestinationLon.isFinite()
+                        ) {
+                            Triple(
+                                internalMapDestinationLat,
+                                internalMapDestinationLon,
+                                mapNavigationDestination.ifBlank { query }
+                            )
+                        } else {
+                            geocode(query)
+                        }
                     val routeBases = listOf(
                         "https://router.project-osrm.org/route/v1/driving/",
                         "https://routing.openstreetmap.de/routed-car/route/v1/driving/"
@@ -6847,6 +6864,7 @@ class MainActivity : ComponentActivity() {
                 internalMapRouteDurationSeconds = meta.optDouble("duration", 0.0)
                 internalMapRouteSteps = parsedSteps
                 mapNavigationDestination = meta.optString("name", query)
+                mapNavigationDestinationQuery = query
                 internalMapIsCurrentLocation = true
                 internalMapAccuracyMeters = internalMapAccuracyMeters.coerceAtLeast(1f)
                 internalMapLocationTime = System.currentTimeMillis()
