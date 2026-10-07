@@ -441,19 +441,28 @@ private const val EMPTY_GEO_JSON =
 
 private fun buildStyleJson(selectedLayer: String): String {
     val satellite = selectedLayer == "satellite"
+
+    // Use more than one tile endpoint. On some mobile networks a single
+    // hostname can fail while another endpoint is still reachable. MapLibre
+    // supports multiple raster tile URLs for one source and will request
+    // whichever endpoint is available.
     val rasterTiles = if (satellite) {
-        // Current Esri World Imagery tile service.
-        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+        listOf(
+            "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+            "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+        )
     } else {
-        // OpenStreetMap standard tiles replace the retired Esri World Street Map raster service.
-        "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+        listOf(
+            "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+            "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
+            "https://b.tile.openstreetmap.org/{z}/{x}/{y}.png",
+            "https://c.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        )
     }
-    val attribution = if (satellite) {
-        "© Esri"
-    } else {
-        "© OpenStreetMap contributors"
-    }
+
+    val attribution = if (satellite) "© Esri" else "© OpenStreetMap contributors"
     val backgroundColor = if (satellite) "#11151B" else "#E9EDF1"
+    val tileArray = rasterTiles.joinToString(",") { "\"$it\"" }
 
     return """
         {
@@ -462,10 +471,11 @@ private fun buildStyleJson(selectedLayer: String): String {
           "sources":{
             "$BASE_SOURCE":{
               "type":"raster",
-              "tiles":["$rasterTiles"],
+              "tiles":[$tileArray],
               "tileSize":256,
               "minzoom":1,
               "maxzoom":19,
+              "scheme":"xyz",
               "bounds":[-180,-85.051129,180,85.051129],
               "attribution":"$attribution"
             }
@@ -482,13 +492,15 @@ private fun buildStyleJson(selectedLayer: String): String {
               "source":"$BASE_SOURCE",
               "minzoom":1,
               "maxzoom":19,
-              "paint":{"raster-opacity":1}
+              "paint":{
+                "raster-opacity":1,
+                "raster-fade-duration":0
+              }
             }
           ]
         }
     """.trimIndent()
 }
-
 private fun buildRouteGeoJson(routePoints: List<Pair<Double, Double>>): String {
     if (routePoints.size < 2) return EMPTY_GEO_JSON
     val coordinates = routePoints.joinToString(",") { (pointLat, pointLon) ->
