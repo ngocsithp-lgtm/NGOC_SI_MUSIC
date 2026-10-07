@@ -7986,6 +7986,17 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                                         webViewClient = object : WebViewClient() {
                                             override fun onPageFinished(view: WebView, url: String) {
+                                                val stateKey = buildString {
+                                                    append(webMapStateLat(lat))
+                                                    append("|")
+                                                    append(webMapStateLon(lon))
+                                                    append("|")
+                                                    append(title.take(240))
+                                                    append("|")
+                                                    append(selectedLayer)
+                                                    append("|")
+                                                    append(routeJson.hashCode())
+                                                }
                                                 val script =
                                                     "window.setMapState && window.setMapState(" +
                                                         webMapStateLat(lat) + "," +
@@ -7995,6 +8006,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                                         webMapRouteJson +
                                                         ");"
                                                 view.evaluateJavascript(script, null)
+                                                view.tag = "MAP_READY|$stateKey"
                                             }
 
                                             override fun onReceivedError(
@@ -8029,15 +8041,30 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 },
                                 update = { webView ->
                                     webMapRef = webView
-                                    val script =
-                                        "window.setMapState && window.setMapState(" +
-                                            webMapStateLat(lat) + "," +
-                                            webMapStateLon(lon) + "," +
-                                            org.json.JSONObject.quote(title.take(240)) + "," +
-                                            org.json.JSONObject.quote(selectedLayer) + "," +
-                                            webMapRouteJson +
-                                            ");"
-                                    webView.evaluateJavascript(script, null)
+                                    val stateKey = buildString {
+                                        append(webMapStateLat(lat))
+                                        append("|")
+                                        append(webMapStateLon(lon))
+                                        append("|")
+                                        append(title.take(240))
+                                        append("|")
+                                        append(selectedLayer)
+                                        append("|")
+                                        append(routeJson.hashCode())
+                                    }
+                                    val lastStateKey = webView.tag as? String
+                                    if (lastStateKey != "MAP_READY|$stateKey") {
+                                        val script =
+                                            "window.setMapState && window.setMapState(" +
+                                                webMapStateLat(lat) + "," +
+                                                webMapStateLon(lon) + "," +
+                                                org.json.JSONObject.quote(title.take(240)) + "," +
+                                                org.json.JSONObject.quote(selectedLayer) + "," +
+                                                webMapRouteJson +
+                                                ");"
+                                        webView.evaluateJavascript(script, null)
+                                        webView.tag = "MAP_READY|$stateKey"
+                                    }
                                 }
                             )
 
