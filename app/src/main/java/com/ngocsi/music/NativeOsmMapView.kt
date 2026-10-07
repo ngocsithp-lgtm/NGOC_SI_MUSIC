@@ -312,7 +312,7 @@ private fun buildStyleJson(selectedLayer: String): String {
               "minzoom":1,
               "maxzoom":19,
               "attribution":"$attribution"
-            },
+            }
           },
           "layers":[{
             "id":"$BASE_LAYER",
