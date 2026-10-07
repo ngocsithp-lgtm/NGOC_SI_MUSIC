@@ -78,10 +78,12 @@ Các URL livestream có thể thay đổi theo hạ tầng của đài; app gi�
 
 ## Map PRO
 
-- Current location permission flow with cached-location fast path
-- Active GPS/network provider fallback and timeout recovery
 - OpenStreetMap embedded map with current-position marker
-- Bản đồ OpenStreetMap và vị trí hiện tại hiển thị trong ứng dụng; Chỉ đường/Giao thông/Vệ tinh mở Google Maps chính thức
+- Native MapLibre street map inside the app
+- Esri World Imagery satellite layer inside the app
+- In-app route calculation with OSRM/routing.openstreetmap.de fallbacks
+- GPS following, route-step guidance, off-route detection and rerouting
+- Google Maps used only as an external traffic/directions fallback
 
 ## Widget
 
