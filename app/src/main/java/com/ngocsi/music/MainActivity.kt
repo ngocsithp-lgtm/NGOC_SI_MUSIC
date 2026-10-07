@@ -6580,8 +6580,11 @@ class MainActivity : ComponentActivity() {
         }
 
         if (internalMapRouteSteps.isNotEmpty()) {
-            val currentIndex = mapNavigationStepIndex.coerceIn(0, internalMapRouteSteps.lastIndex)
-            if (
+            // A GPS callback can jump over more than one maneuver between updates.
+            // Advance through every maneuver already passed instead of leaving the
+            // navigation banner stuck on an old instruction.
+            var currentIndex = mapNavigationStepIndex.coerceIn(0, internalMapRouteSteps.lastIndex)
+            while (
                 currentIndex < internalMapRouteSteps.lastIndex &&
                 haversineDistanceMeters(
                     lat,
@@ -6590,8 +6593,9 @@ class MainActivity : ComponentActivity() {
                     internalMapRouteSteps[currentIndex].maneuverLon
                 ) <= 65.0
             ) {
-                mapNavigationStepIndex = currentIndex + 1
+                currentIndex += 1
             }
+            mapNavigationStepIndex = currentIndex
         }
     }
 
@@ -6934,6 +6938,13 @@ class MainActivity : ComponentActivity() {
                 internalMapRouteDistanceMeters = meta.optDouble("distance", 0.0)
                 internalMapRouteDurationSeconds = meta.optDouble("duration", 0.0)
                 internalMapRouteSteps = parsedSteps
+                if (mapNavigationActive) {
+                    mapNavigationStepIndex = parsedSteps.indexOfFirst {
+                        !it.instruction.startsWith("Xuất phát", ignoreCase = true)
+                    }.let { if (it < 0) 0 else it }
+                } else {
+                    mapNavigationStepIndex = 0
+                }
                 mapNavigationDestination = meta.optString("name", query)
                 mapNavigationDestinationQuery = query
                 internalMapIsCurrentLocation = true
