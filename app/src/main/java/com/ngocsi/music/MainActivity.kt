@@ -7375,6 +7375,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   let tileFailure = 0;
                   let drag = null;
                   let pinch = null;
+                  const tileCache = Object.create(null);
+                  let renderTimer = 0;
 
                   function validLat(v) {
                     const n = Number(v);
@@ -7435,15 +7437,14 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   }
 
                   function clearTiles() {
-                    while (tilesEl.firstChild) {
-                      tilesEl.removeChild(tilesEl.firstChild);
-                    }
+                    Object.keys(tileCache).forEach(function (key) {
+                      const img = tileCache[key];
+                      if (img && img.parentNode) img.parentNode.removeChild(img);
+                      delete tileCache[key];
+                    });
                   }
 
                   function renderTiles() {
-                    clearTiles();
-                    tileSuccess = 0;
-                    tileFailure = 0;
                     const size = mapSize();
                     const world = project(centerLat, centerLon, zoom);
                     const firstX = Math.floor((world.x - size.width / 2) / 256) - 1;
@@ -7451,46 +7452,82 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     const firstY = Math.floor((world.y - size.height / 2) / 256) - 1;
                     const lastY = Math.floor((world.y + size.height / 2) / 256) + 1;
                     const n = Math.pow(2, zoom);
+                    const visible = Object.create(null);
+                    let visibleLoaded = 0;
+                    let visibleFailed = 0;
 
                     for (let tx = firstX; tx <= lastX; tx++) {
                       for (let ty = firstY; ty <= lastY; ty++) {
                         if (ty < 0 || ty >= n) continue;
-                        const img = document.createElement("img");
-                        img.className = "map-tile";
+
                         const wrappedX = wrapTileX(tx, n);
-                        img.src = tileUrl(wrappedX, ty, zoom);
-                        img.alt = "";
-                        img.draggable = false;
-                        img.style.left = (tx * 256 - world.x + size.width / 2) + "px";
-                        img.style.top = (ty * 256 - world.y + size.height / 2) + "px";
-                        img.onload = function () {
-                          img.classList.add("loaded");
-                          tileSuccess++;
-                          if (tileSuccess > 0) {
+                        const key = activeLayer + "/" + zoom + "/" + tx + "/" + ty;
+                        visible[key] = true;
+
+                        let img = tileCache[key];
+                        if (!img) {
+                          img = document.createElement("img");
+                          img.className = "map-tile";
+                          img.src = tileUrl(wrappedX, ty, zoom);
+                          img.alt = "";
+                          img.draggable = false;
+                          img.dataset.loaded = "0";
+                          img.dataset.failed = "0";
+                          img.onload = function () {
+                            img.dataset.loaded = "1";
+                            img.dataset.failed = "0";
+                            img.classList.add("loaded");
                             hideError();
                             setStatus(activeLayer === "satellite"
                               ? "VỆ TINH • NGỌC SĨ MAP"
                               : "BẢN ĐỒ • NGỌC SĨ MAP");
-                          }
-                        };
-                        img.onerror = function () {
-                          tileFailure++;
-                          if (tileSuccess === 0 && tileFailure >= 4) {
+                          };
+                          img.onerror = function () {
+                            img.dataset.failed = "1";
+                            if (Object.keys(tileCache).some(function (k) {
+                              return visible[k] && tileCache[k].dataset.loaded === "1";
+                            })) return;
                             showError(
-                              "Không tải được ảnh bản đồ. Hãy kiểm tra Internet hoặc thử lại. " +
-                              "Chức năng bản đồ vẫn hoạt động, nhưng máy chủ tile hiện không phản hồi."
+                              "Không tải được ảnh bản đồ. Hãy kiểm tra Internet hoặc thử lại."
                             );
-                          }
-                        };
-                        tilesEl.appendChild(img);
+                          };
+                          tileCache[key] = img;
+                          tilesEl.appendChild(img);
+                        }
+
+                        img.style.left = (tx * 256 - world.x + size.width / 2) + "px";
+                        img.style.top = (ty * 256 - world.y + size.height / 2) + "px";
+
+                        if (img.dataset.loaded === "1" || (img.complete && img.naturalWidth > 0)) {
+                          visibleLoaded++;
+                        } else if (img.dataset.failed === "1") {
+                          visibleFailed++;
+                        }
                       }
                     }
 
-                    window.setTimeout(function () {
-                      if (tileSuccess === 0 && tileFailure === 0) {
-                        showError("Chưa nhận được dữ liệu bản đồ. Hãy thử kéo hoặc thu phóng để tải lại.");
+                    Object.keys(tileCache).forEach(function (key) {
+                      if (!visible[key]) {
+                        const img = tileCache[key];
+                        if (img && img.parentNode) img.parentNode.removeChild(img);
+                        delete tileCache[key];
                       }
-                    }, 4500);
+                    });
+
+                    tileSuccess = visibleLoaded;
+                    tileFailure = visibleFailed;
+                    if (tileSuccess > 0) {
+                      hideError();
+                      setStatus(activeLayer === "satellite"
+                        ? "VỆ TINH • NGỌC SĨ MAP"
+                        : "BẢN ĐỒ • NGỌC SĨ MAP");
+                    } else if (tileFailure >= 4) {
+                      showError(
+                        "Không tải được ảnh bản đồ. Hãy kiểm tra Internet hoặc thử lại."
+                      );
+                    } else if (tileSuccess === 0) {
+                      setStatus("ĐANG TẢI BẢN ĐỒ…");
+                    }
                   }
 
                   function screenPoint(lat, lon) {
@@ -7572,11 +7609,23 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     centerLat = validLat(centerLat);
                     centerLon = validLon(centerLon);
                     zoom = clampZoom(zoom);
+                    if (renderTimer) {
+                      window.clearTimeout(renderTimer);
+                      renderTimer = 0;
+                    }
                     renderTiles();
                     renderMarker();
                     renderRoute();
                     renderRoutePoints();
                     updateMapChrome();
+                  }
+
+                  function scheduleRender() {
+                    if (renderTimer) return;
+                    renderTimer = window.setTimeout(function () {
+                      renderTimer = 0;
+                      renderAll();
+                    }, 28);
                   }
 
                   function applyState(lat, lon, placeTitle, layerName, nextRoute) {
@@ -7647,7 +7696,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     return true;
                   };
                   window.setMapLayer = function (layerName) {
-                    activeLayer = layerName === "satellite" ? "satellite" : "standard";
+                    const nextLayer = layerName === "satellite" ? "satellite" : "standard";
+                    if (nextLayer !== activeLayer) {
+                      activeLayer = nextLayer;
+                      clearTiles();
+                    }
                     renderAll();
                     return true;
                   };
@@ -7698,7 +7751,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                       const nextZoom = clampZoom(pinch.zoom + delta);
                       if (nextZoom !== zoom) {
                         zoom = nextZoom;
-                        renderAll();
+                        scheduleRender();
                       }
                       drag = null;
                       return;
@@ -7719,7 +7772,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     centerLat = validLat(nextLat);
                     drag.x = t.clientX;
                     drag.y = t.clientY;
-                    renderAll();
+                    scheduleRender();
                   }, { passive: true });
 
                   mapEl.addEventListener("touchend", function () {
@@ -7755,7 +7808,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     centerLat = validLat(nextLat);
                     drag.x = event.clientX;
                     drag.y = event.clientY;
-                    renderAll();
+                    scheduleRender();
                   });
                   window.addEventListener("mouseup", function () {
                     drag = null;
