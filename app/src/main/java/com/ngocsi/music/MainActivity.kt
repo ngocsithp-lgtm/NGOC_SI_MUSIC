@@ -1962,7 +1962,7 @@ class MainActivity : ComponentActivity() {
     ): org.json.JSONObject {
         val url = "https://www.googleapis.com/drive/v3/files/" +
             Uri.encode(id) +
-            "?fields=id,name,mimeType,size,resourceKey,webContentLink,trashed,capabilities/canDownload,shortcutDetails(targetId,targetResourceKey)" +
+            "?fields=id,name,mimeType,size,resourceKey,webContentLink,trashed,capabilities/canDownload,shortcutDetails(targetId,targetMimeType,targetResourceKey)" +
             "&supportsAllDrives=true" +
             apiKey.takeIf { it.isNotBlank() }?.let {
                 "&key=" + URLEncoder.encode(it, "UTF-8")
@@ -1987,7 +1987,7 @@ class MainActivity : ComponentActivity() {
         if (root.optString("name").isNotBlank()) {
             target.put("name", root.optString("name"))
         }
-        target
+        return target
     }
 
     private fun listSharedDriveFolder(
@@ -2010,7 +2010,7 @@ class MainActivity : ComponentActivity() {
             )
             val url = "https://www.googleapis.com/drive/v3/files?q=$query" +
                 "&pageSize=1000" +
-                "&fields=nextPageToken,files(id,name,mimeType,size,resourceKey,webContentLink,trashed,capabilities/canDownload,shortcutDetails(targetId,targetResourceKey))" +
+                "&fields=nextPageToken,files(id,name,mimeType,size,resourceKey,webContentLink,trashed,capabilities/canDownload,shortcutDetails(targetId,targetMimeType,targetResourceKey))" +
                 "&supportsAllDrives=true&includeItemsFromAllDrives=true" +
                 apiKey.takeIf { it.isNotBlank() }?.let {
                     "&key=" + URLEncoder.encode(it, "UTF-8")
@@ -2069,10 +2069,11 @@ class MainActivity : ComponentActivity() {
         if (targetId.isBlank()) return item
 
         val targetKey = shortcut.optString("targetResourceKey").trim()
+        val targetMimeType = shortcut.optString("targetMimeType").trim()
         return org.json.JSONObject().apply {
             put("id", targetId)
             put("name", item.optString("name").ifBlank { "Google Drive" })
-            put("mimeType", item.optString("mimeType"))
+            put("mimeType", targetMimeType.ifBlank { item.optString("mimeType") })
             put("size", item.optLong("size", 0L))
             put("resourceKey", targetKey.ifBlank { item.optString("resourceKey").trim() })
             put("webContentLink", item.optString("webContentLink").trim())
@@ -2225,7 +2226,7 @@ class MainActivity : ComponentActivity() {
                         val url = "https://www.googleapis.com/drive/v3/files?q=$query" +
                             "&pageSize=1000" +
                             "&orderBy=folder,name" +
-                            "&fields=nextPageToken,files(id,name,mimeType,size,resourceKey,webContentLink,trashed,capabilities/canDownload,shortcutDetails(targetId,targetResourceKey))" +
+                            "&fields=nextPageToken,files(id,name,mimeType,size,resourceKey,webContentLink,trashed,capabilities/canDownload,shortcutDetails(targetId,targetMimeType,targetResourceKey))" +
                             "&supportsAllDrives=true&includeItemsFromAllDrives=true" +
                             (pageToken?.let {
                                 "&pageToken=" + URLEncoder.encode(it, "UTF-8")
