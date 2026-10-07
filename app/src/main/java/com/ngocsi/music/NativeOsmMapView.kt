@@ -99,7 +99,7 @@ class NgocSiMapController internal constructor(
                 builder.include(LatLng(pointLat, pointLon))
             }
             val bounds = builder.build()
-            map.getCameraForLatLngBounds(bounds, arrayOf(96, 120, 96, 160))?.let { camera ->
+            map.getCameraForLatLngBounds(bounds, intArrayOf(96, 120, 96, 160))?.let { camera ->
                 zoom = camera.zoom
                 map.animateCamera(
                     CameraUpdateFactory.newCameraPosition(camera),
