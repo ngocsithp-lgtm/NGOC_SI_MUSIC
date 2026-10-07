@@ -16,6 +16,9 @@ import com.google.android.gms.location.CurrentLocationRequest
 import com.google.android.gms.location.Granularity
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationResult
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import java.io.File
@@ -3707,16 +3710,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showCurrentLocationOnMap() {
-        val hasFine = ContextCompat.checkSelfPermission(
-            this,
-            Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-        val hasCoarse = ContextCompat.checkSelfPermission(
-            this,
-            Manifest.permission.ACCESS_COARSE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
+        val fine = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val coarse = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
-        if (!hasFine && !hasCoarse) {
+        if (!fine && !coarse) {
+            errorMessage = "Hãy cấp quyền Vị trí cho NGỌC SĨ MUSIC."
             locationPermissionLauncher.launch(
                 arrayOf(
                     Manifest.permission.ACCESS_FINE_LOCATION,
@@ -3730,163 +3728,130 @@ class MainActivity : ComponentActivity() {
 
         val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
-            !runCatching { locationManager.isLocationEnabled }.getOrDefault(true)
+            !runCatching { locationManager.isLocationEnabled }.getOrDefault(false)
         ) {
-            mapLocationLoading = false
-            errorMessage = "Vị trí/GPS đang tắt. Hãy bật Vị trí rồi quay lại NGỌC SĨ MUSIC."
+            errorMessage = "Vị trí đang tắt. Hãy bật Vị trí/GPS rồi bấm VỊ TRÍ lại."
             return
         }
 
         mapLocationLoading = true
-        errorMessage = if (hasFine) {
-            "Đang lấy vị trí hiện tại…"
-        } else {
-            "Đang lấy vị trí gần đúng…"
-        }
+        errorMessage = "Đang xác định vị trí hiện tại…"
 
         val fused = LocationServices.getFusedLocationProviderClient(this)
-        val handler = android.os.Handler(android.os.Looper.getMainLooper())
-        val requestToken = com.google.android.gms.tasks.CancellationTokenSource()
-        var completed = false
-        var fallbackStarted = false
+        val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+        var delivered = false
+
+        lateinit var callback: LocationCallback
 
         fun cleanup() {
-            handler.removeCallbacksAndMessages(null)
-            runCatching { requestToken.cancel() }
+            runCatching { fused.removeLocationUpdates(callback) }
+            mainHandler.removeCallbacksAndMessages(null)
         }
 
-        fun isUsable(location: android.location.Location?): Boolean {
-            if (location == null) return false
+        fun publish(location: android.location.Location?) {
+            if (delivered || location == null) return
             val lat = location.latitude
             val lon = location.longitude
             if (!lat.isFinite() || !lon.isFinite() ||
                 lat !in -90.0..90.0 || lon !in -180.0..180.0
-            ) {
-                return false
-            }
+            ) return
 
-            val ageMs = (System.currentTimeMillis() - location.time).coerceAtLeast(0L)
-            val maxAgeMs = if (hasFine) 10 * 60 * 1000L else 20 * 60 * 1000L
-            if (ageMs > maxAgeMs) return false
-
-            if (location.hasAccuracy() && location.accuracy.isFinite() && location.accuracy > 0f) {
-                val maxAccuracy = if (hasFine) 500f else 5_000f
-                if (location.accuracy > maxAccuracy) return false
-            }
-
-            return true
-        }
-
-        fun publish(location: android.location.Location, source: String) {
-            if (completed || !isUsable(location)) return
-            completed = true
+            delivered = true
             cleanup()
 
-            val accuracy = if (
-                location.hasAccuracy() &&
-                location.accuracy.isFinite() &&
-                location.accuracy > 0f
-            ) {
+            val accuracy = if (location.hasAccuracy() && location.accuracy > 0f) {
                 location.accuracy
             } else {
-                if (hasFine) 50f else 1_000f
+                50f
             }
 
             mapLocationLoading = false
-            mapRouteOriginLat = location.latitude
-            mapRouteOriginLon = location.longitude
+            mapRouteOriginLat = lat
+            mapRouteOriginLon = lon
             mapRouteOriginTitle = "VỊ TRÍ HIỆN TẠI"
-            internalMapLat = location.latitude
-            internalMapLon = location.longitude
+            internalMapLat = lat
+            internalMapLon = lon
             internalMapTitle = "VỊ TRÍ HIỆN TẠI"
             internalMapLayer = "standard"
             internalMapRouteJson = "[]"
             internalMapIsCurrentLocation = true
-            internalMapAccuracyMeters = accuracy.coerceAtLeast(1f)
-            internalMapLocationTime = location.time
+            internalMapAccuracyMeters = accuracy
+            internalMapLocationTime = if (location.time > 0L) location.time else System.currentTimeMillis()
             showInternalMap = true
-            errorMessage = if (!hasFine) {
-                "Đã lấy vị trí gần đúng (quyền vị trí xấp xỉ)."
-            } else {
-                null
-            }
+            errorMessage = null
 
             pendingMapRouteQuery?.let { query ->
                 pendingMapRouteQuery = null
                 mapSearchQuery = query
                 lifecycleScope.launch {
-                    delay(180L)
+                    delay(250L)
                     searchMapRoute()
                 }
             }
         }
 
-        fun fallbackToLastKnown() {
-            if (completed || fallbackStarted) return
-            fallbackStarted = true
-
-            runCatching {
-                fused.lastLocation
-                    .addOnSuccessListener { last ->
-                        if (completed) return@addOnSuccessListener
-                        if (last != null && isUsable(last)) {
-                            publish(last, "fused-last")
-                        } else {
-                            mapLocationLoading = false
-                            errorMessage =
-                                "Chưa lấy được vị trí. Hãy bật GPS/Vị trí, bật Wi‑Fi/dữ liệu và thử lại."
-                            cleanup()
-                        }
-                    }
-                    .addOnFailureListener {
-                        if (completed) return@addOnFailureListener
-                        mapLocationLoading = false
-                        errorMessage =
-                            "Không lấy được vị trí từ thiết bị. Hãy kiểm tra GPS/Vị trí và thử lại."
-                        cleanup()
-                    }
-            }.onFailure {
-                mapLocationLoading = false
-                errorMessage = "Thiết bị chưa sẵn sàng cho dịch vụ vị trí."
-                cleanup()
+        callback = object : LocationCallback() {
+            override fun onLocationResult(result: LocationResult) {
+                result.lastLocation?.let { publish(it) }
             }
         }
 
-        val priority = if (hasFine) {
+        val priority = if (fine) {
             Priority.PRIORITY_HIGH_ACCURACY
         } else {
             Priority.PRIORITY_BALANCED_POWER_ACCURACY
         }
 
-        val request = CurrentLocationRequest.Builder()
-            .setPriority(priority)
-            .setGranularity(Granularity.GRANULARITY_PERMISSION_LEVEL)
-            .setMaxUpdateAgeMillis(if (hasFine) 2 * 60 * 1000L else 5 * 60 * 1000L)
-            .setDurationMillis(15_000L)
+        // First try the cached location for an immediate response.
+        runCatching {
+            fused.lastLocation.addOnSuccessListener { cached ->
+                if (!delivered && cached != null) publish(cached)
+            }
+        }
+
+        val request = LocationRequest.Builder(priority, 1_000L)
+            .setMinUpdateIntervalMillis(500L)
+            .setMaxUpdateDelayMillis(1_500L)
+            .setWaitForAccurateLocation(fine)
+            .setMaxUpdates(3)
             .build()
 
         runCatching {
-            fused.getCurrentLocation(request, requestToken.token)
-                .addOnSuccessListener { location ->
-                    if (location != null && isUsable(location)) {
-                        publish(location, "fused-current")
-                    } else {
-                        fallbackToLastKnown()
-                    }
+            fused.requestLocationUpdates(
+                request,
+                callback,
+                android.os.Looper.getMainLooper()
+            ).addOnFailureListener {
+                if (!delivered) {
+                    mapLocationLoading = false
+                    errorMessage = "Không thể khởi động GPS. Hãy kiểm tra quyền Vị trí và thử lại."
+                    cleanup()
                 }
-                .addOnFailureListener {
-                    fallbackToLastKnown()
-                }
+            }
         }.onFailure {
-            fallbackToLastKnown()
+            mapLocationLoading = false
+            errorMessage = "Không thể khởi động dịch vụ vị trí trên thiết bị."
+            cleanup()
         }
 
-        handler.postDelayed({
-            if (!completed) {
-                runCatching { requestToken.cancel() }
-                fallbackToLastKnown()
+        // Never leave the button spinning indefinitely.
+        mainHandler.postDelayed({
+            if (!delivered) {
+                runCatching {
+                    fused.lastLocation.addOnSuccessListener { cached ->
+                        if (!delivered && cached != null) publish(cached)
+                    }
+                }
             }
-        }, 16_000L)
+        }, 4_000L)
+
+        mainHandler.postDelayed({
+            if (!delivered) {
+                mapLocationLoading = false
+                errorMessage = "Chưa nhận được GPS. Hãy đứng nơi thoáng, bật Vị trí rồi thử lại."
+                cleanup()
+            }
+        }, 12_000L)
     }
 
     private fun migrateDrivePersistence() {
