@@ -1,13 +1,6 @@
 package com.ngocsi.music
 
-import android.graphics.Bitmap
-import android.net.Uri
-import android.view.ViewGroup
-import android.webkit.WebChromeClient
-import android.webkit.WebResourceRequest
-import android.webkit.WebSettings
-import android.webkit.WebView
-import android.webkit.WebViewClient
+import android.os.Bundle
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
@@ -25,103 +18,94 @@ import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import org.maplibre.android.MapLibre
+import org.maplibre.android.camera.CameraPosition
+import org.maplibre.android.camera.CameraUpdateFactory
+import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.maps.MapView
+import org.maplibre.android.maps.MapLibreMap
+import org.maplibre.android.maps.Style
+import org.maplibre.android.style.layers.CircleLayer
+import org.maplibre.android.style.layers.LineLayer
+import org.maplibre.android.style.layers.PropertyFactory
+import org.maplibre.android.style.sources.GeoJsonSource
 import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
 
-/**
- * Internal map surface for NGOC SI MUSIC.
- *
- * The old osmdroid layer initialized but rendered only a blank/grid surface
- * on the affected devices. This keeps the map inside the app through WebView.
- */
+private const val BASE_SOURCE = "ngocsi-base"
+private const val BASE_LAYER = "ngocsi-base-layer"
+private const val ROUTE_SOURCE = "ngocsi-route-source"
+private const val ROUTE_LAYER = "ngocsi-route-layer"
+private const val MARKER_SOURCE = "ngocsi-marker-source"
+private const val MARKER_LAYER = "ngocsi-marker-layer"
+
 class NgocSiMapController internal constructor(
-    private val webView: WebView
+    private val mapView: MapView,
+    private val map: MapLibreMap
 ) {
-    private var ready = false
     private var lat = 10.8231
     private var lon = 106.6297
     private var layer = "standard"
     private var route = emptyList<Pair<Double, Double>>()
-    private var zoom = 14
-    private var lastRenderKey: String? = null
-
-    internal fun markReady() {
-        ready = true
-    }
-
-    private fun render(force: Boolean = false) {
-        if (!ready) return
-        val key = buildMapUrl()
-        if (!force && key == lastRenderKey) return
-        lastRenderKey = key
-        webView.post { webView.loadUrl(key) }
-    }
-
-    private fun buildMapUrl(): String {
-        if (route.size >= 2) {
-            val start = route.first()
-            val end = route.last()
-            return "https://www.google.com/maps/dir/?api=1" +
-                "&origin=" + Uri.encode(start.first.toString() + "," + start.second.toString()) +
-                "&destination=" + Uri.encode(end.first.toString() + "," + end.second.toString()) +
-                "&travelmode=driving"
-        }
-
-        val query = lat.toString() + "," + lon.toString()
-        val layerArg = if (layer == "satellite") "&layer=s" else ""
-        return "https://maps.google.com/maps?q=" + Uri.encode(query) +
-            "&z=" + zoom + "&output=embed" + layerArg
-    }
+    private var currentLocation = false
+    private var accuracyMeters = 0f
+    private var zoom = 14.0
 
     fun setView(newLat: Double, newLon: Double) {
         lat = safeLat(newLat)
         lon = safeLon(newLon)
-        zoom = max(zoom, 14)
         route = emptyList()
-        render(force = true)
+        currentLocation = true
+        zoom = max(zoom, 14.0)
+        map.animateCamera(
+            CameraUpdateFactory.newLatLngZoom(LatLng(lat, lon), zoom),
+            350
+        )
+        updateSources()
     }
 
     fun zoomIn() {
-        zoom = min(19, zoom + 1)
-        render(force = true)
+        zoom = min(19.0, map.cameraPosition.zoom + 1.0)
+        map.animateCamera(CameraUpdateFactory.zoomTo(zoom), 180)
     }
 
     fun zoomOut() {
-        zoom = max(2, zoom - 1)
-        render(force = true)
+        zoom = max(2.0, map.cameraPosition.zoom - 1.0)
+        map.animateCamera(CameraUpdateFactory.zoomTo(zoom), 180)
     }
 
     fun setLayer(newLayer: String) {
         val normalized = if (newLayer == "satellite") "satellite" else "standard"
         if (layer == normalized) return
         layer = normalized
-        render(force = true)
+        applyStyle(preserveCamera = true)
     }
 
     fun fitRoute(routePoints: List<Pair<Double, Double>>) {
-        route = routePoints.filter { it.first.isFinite() && it.second.isFinite() }
-        if (route.size < 2) return
-
-        val start = route.first()
-        val end = route.last()
+        val valid = routePoints.filter { it.first.isFinite() && it.second.isFinite() }
+        if (valid.size < 2) return
+        route = valid
+        currentLocation = false
+        val start = valid.first()
+        val end = valid.last()
         lat = safeLat((start.first + end.first) / 2.0)
         lon = safeLon((start.second + end.second) / 2.0)
-
-        val distance = approximateDistanceKm(
-            start.first, start.second, end.first, end.second
-        )
+        val distance = distanceKm(start.first, start.second, end.first, end.second)
         zoom = when {
-            distance > 1000 -> 7
-            distance > 400 -> 8
-            distance > 150 -> 9
-            distance > 70 -> 10
-            distance > 30 -> 11
-            distance > 12 -> 12
-            distance > 5 -> 13
-            else -> 14
+            distance > 500 -> 8.0
+            distance > 150 -> 9.0
+            distance > 70 -> 10.0
+            distance > 30 -> 11.0
+            distance > 12 -> 12.0
+            distance > 5 -> 13.0
+            else -> 14.0
         }
-        render(force = true)
+        map.animateCamera(
+            CameraUpdateFactory.newLatLngZoom(LatLng(lat, lon), zoom),
+            400
+        )
+        updateSources()
     }
 
     fun updateMap(
@@ -129,34 +113,83 @@ class NgocSiMapController internal constructor(
         newLon: Double,
         selectedLayer: String,
         routePoints: List<Pair<Double, Double>>,
+        isCurrentLocation: Boolean,
+        accuracyMeters: Float,
         fitRoute: Boolean
     ) {
         lat = safeLat(newLat)
         lon = safeLon(newLon)
         layer = if (selectedLayer == "satellite") "satellite" else "standard"
+        currentLocation = isCurrentLocation
+        this.accuracyMeters = accuracyMeters.coerceAtLeast(0f)
+        val valid = routePoints.filter { it.first.isFinite() && it.second.isFinite() }
 
-        val newRoute = routePoints.filter { it.first.isFinite() && it.second.isFinite() }
-        if (newRoute.size >= 2 && fitRoute) {
-            val changed = route != newRoute || lastRenderKey == null
-            route = newRoute
-            if (changed) fitRoute(newRoute) else render()
+        if (valid.size >= 2) {
+            if (fitRoute && valid != route) {
+                fitRoute(valid)
+            } else {
+                route = valid
+                updateSources()
+            }
         } else {
-            val changed = route != newRoute
-            route = newRoute
-            if (changed || lastRenderKey == null) render() else render(force = false)
+            route = emptyList()
+            updateSources()
+            if (map.cameraPosition.zoom < 10.0) {
+                zoom = 14.0
+                map.moveCamera(CameraUpdateFactory.newLatLngZoom(LatLng(lat, lon), zoom))
+            }
         }
+    }
+
+    private fun applyStyle(preserveCamera: Boolean) {
+        val camera = map.cameraPosition
+        map.setStyle(Style.Builder().fromJson(buildStyleJson(layer))) {
+            addOverlayLayers(it)
+            if (preserveCamera) {
+                map.moveCamera(CameraUpdateFactory.newCameraPosition(CameraPosition.Builder(camera).build()))
+            } else {
+                map.moveCamera(CameraUpdateFactory.newLatLngZoom(LatLng(lat, lon), zoom))
+            }
+            updateSources()
+        }
+    }
+
+    private fun updateSources() {
+        val style = map.style ?: return
+        val routeSource = style.getSourceAs<GeoJsonSource>(ROUTE_SOURCE) ?: return
+        val markerSource = style.getSourceAs<GeoJsonSource>(MARKER_SOURCE) ?: return
+        routeSource.setGeoJson(buildRouteGeoJson(route))
+        markerSource.setGeoJson(buildMarkerGeoJson(lat, lon, currentLocation, accuracyMeters))
     }
 
     fun destroy() {
-        ready = false
-        runCatching {
-            webView.stopLoading()
-            webView.loadUrl("about:blank")
-            webView.removeAllViews()
-            (webView.parent as? ViewGroup)?.removeView(webView)
-            webView.destroy()
-        }
+        runCatching { mapView.onPause() }
+        runCatching { mapView.onStop() }
+        runCatching { mapView.onDestroy() }
     }
+}
+
+private fun addOverlayLayers(style: Style) {
+    val routeSource = GeoJsonSource(ROUTE_SOURCE, EMPTY_GEO_JSON)
+    val markerSource = GeoJsonSource(MARKER_SOURCE, EMPTY_GEO_JSON)
+    style.addSource(routeSource)
+    style.addSource(markerSource)
+    style.addLayer(
+        LineLayer(ROUTE_LAYER, ROUTE_SOURCE).withProperties(
+            PropertyFactory.lineColor("#6C5CE7"),
+            PropertyFactory.lineWidth(7f),
+            PropertyFactory.lineOpacity(0.95f)
+        )
+    )
+    style.addLayer(
+        CircleLayer(MARKER_LAYER, MARKER_SOURCE).withProperties(
+            PropertyFactory.circleColor("#6C5CE7"),
+            PropertyFactory.circleRadius(8f),
+            PropertyFactory.circleStrokeColor("#FFFFFF"),
+            PropertyFactory.circleStrokeWidth(3f),
+            PropertyFactory.circleOpacity(0.95f)
+        )
+    )
 }
 
 @Composable
@@ -176,50 +209,48 @@ fun NativeOsmMapView(
         AndroidView(
             modifier = Modifier.matchParentSize(),
             factory = { context ->
-                val webView = WebView(context).apply {
-                    setBackgroundColor(android.graphics.Color.rgb(14, 17, 22))
-                    settings.javaScriptEnabled = true
-                    settings.domStorageEnabled = true
-                    settings.loadsImagesAutomatically = true
-                    settings.cacheMode = WebSettings.LOAD_DEFAULT
-                    settings.userAgentString =
-                        "NGOC-SI-MUSIC/" + BuildConfig.VERSION_NAME + " Android WebView Map"
-                    webChromeClient = WebChromeClient()
-                    webViewClient = object : WebViewClient() {
-                        override fun shouldOverrideUrlLoading(
-                            view: WebView,
-                            request: WebResourceRequest
-                        ): Boolean = false
-
-                        override fun onPageStarted(
-                            view: WebView,
-                            url: String?,
-                            favicon: Bitmap?
-                        ) {
-                            controller?.markReady()
-                        }
-
-                        override fun onPageFinished(view: WebView, url: String?) {
-                            controller?.markReady()
+                MapLibre.getInstance(context.applicationContext)
+                MapView(context).apply {
+                    onCreate(Bundle())
+                    getMapAsync { map ->
+                        map.uiSettings.isCompassEnabled = true
+                        map.uiSettings.isLogoEnabled = false
+                        map.uiSettings.isAttributionEnabled = false
+                        map.uiSettings.isZoomGesturesEnabled = true
+                        map.uiSettings.isScrollGesturesEnabled = true
+                        map.uiSettings.isRotateGesturesEnabled = true
+                        map.uiSettings.isTiltGesturesEnabled = false
+                        map.setStyle(Style.Builder().fromJson(buildStyleJson(selectedLayer))) { style ->
+                            addOverlayLayers(style)
+                            val mapController = NgocSiMapController(this, map)
+                            controller = mapController
+                            onMapReady(mapController)
+                            mapController.updateMap(
+                                newLat = lat,
+                                newLon = lon,
+                                selectedLayer = selectedLayer,
+                                routePoints = routePoints,
+                                isCurrentLocation = isCurrentLocation,
+                                accuracyMeters = accuracyMeters,
+                                fitRoute = routePoints.size >= 2
+                            )
                         }
                     }
+                    onStart()
+                    onResume()
                 }
-
-                val mapController = NgocSiMapController(webView)
-                controller = mapController
-                onMapReady(mapController)
-                webView.loadUrl(buildInitialUrl(lat, lon, selectedLayer, routePoints))
-                webView
             },
             update = {
-                controller?.let { mapController ->
-                    onMapReady(mapController)
-                    mapController.updateMap(
+                controller?.let { c ->
+                    onMapReady(c)
+                    c.updateMap(
                         newLat = lat,
                         newLon = lon,
                         selectedLayer = selectedLayer,
                         routePoints = routePoints,
-                        fitRoute = routePoints.size >= 2
+                        isCurrentLocation = isCurrentLocation,
+                        accuracyMeters = accuracyMeters,
+                        fitRoute = false
                     )
                 }
             }
@@ -229,18 +260,15 @@ fun NativeOsmMapView(
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .padding(start = 10.dp, bottom = 10.dp)
-                .background(
-                    ComposeColor(0xD9000000),
-                    RoundedCornerShape(8.dp)
-                )
+                .background(ComposeColor(0xD9000000), RoundedCornerShape(8.dp))
                 .padding(horizontal = 8.dp, vertical = 5.dp)
         ) {
             Text(
                 when {
-                    routePoints.size >= 2 -> "CHỈ ĐƯỜNG • BẢN ĐỒ TRONG ỨNG DỤNG"
-                    selectedLayer == "satellite" -> "VỆ TINH • BẢN ĐỒ TRONG ỨNG DỤNG"
-                    isCurrentLocation -> "VỊ TRÍ HIỆN TẠI • BẢN ĐỒ TRONG ỨNG DỤNG"
-                    else -> "BẢN ĐỒ • TRONG ỨNG DỤNG"
+                    routePoints.size >= 2 -> "CHỈ ĐƯỜNG • MAPLIBRE NATIVE"
+                    selectedLayer == "satellite" -> "VỆ TINH • MAPLIBRE NATIVE"
+                    isCurrentLocation -> "VỊ TRÍ HIỆN TẠI • MAPLIBRE NATIVE"
+                    else -> "BẢN ĐỒ • MAPLIBRE NATIVE"
                 },
                 color = ComposeColor.White,
                 fontSize = 8.sp,
@@ -249,7 +277,7 @@ fun NativeOsmMapView(
         }
     }
 
-    DisposableEffect(controller) {
+    DisposableEffect(Unit) {
         onDispose {
             controller?.destroy()
             controller = null
@@ -257,34 +285,65 @@ fun NativeOsmMapView(
     }
 }
 
-private fun buildInitialUrl(
-    lat: Double,
-    lon: Double,
-    selectedLayer: String,
-    routePoints: List<Pair<Double, Double>>
-): String {
-    val validRoute = routePoints.filter { it.first.isFinite() && it.second.isFinite() }
-    if (validRoute.size >= 2) {
-        val start = validRoute.first()
-        val end = validRoute.last()
-        return "https://www.google.com/maps/dir/?api=1" +
-            "&origin=" + Uri.encode(start.first.toString() + "," + start.second.toString()) +
-            "&destination=" + Uri.encode(end.first.toString() + "," + end.second.toString()) +
-            "&travelmode=driving"
-    }
+private const val EMPTY_GEO_JSON =
+    "{\"type\":\"FeatureCollection\",\"features\":[]}";
 
-    val layerArg = if (selectedLayer == "satellite") "&layer=s" else ""
-    return "https://maps.google.com/maps?q=" +
-        Uri.encode(safeLat(lat).toString() + "," + safeLon(lon).toString()) +
-        "&z=14&output=embed" + layerArg
+private fun buildStyleJson(selectedLayer: String): String {
+    val rasterTiles = if (selectedLayer == "satellite") {
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+    } else {
+        "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+    }
+    val attribution = if (selectedLayer == "satellite") "Tiles © Esri" else "© OpenStreetMap contributors"
+    return """
+        {
+          "version":8,
+          "name":"NGOC SI MUSIC MAP",
+          "sources":{
+            "$BASE_SOURCE":{
+              "type":"raster",
+              "tiles":["$rasterTiles"],
+              "tileSize":256,
+              "minzoom":1,
+              "maxzoom":19,
+              "attribution":"$attribution"
+            },
+            "$ROUTE_SOURCE":{"type":"geojson","data":$EMPTY_GEO_JSON},
+            "$MARKER_SOURCE":{"type":"geojson","data":$EMPTY_GEO_JSON}
+          },
+          "layers":[{
+            "id":"$BASE_LAYER",
+            "type":"raster",
+            "source":"$BASE_SOURCE",
+            "minzoom":1,
+            "maxzoom":19,
+            "paint":{"raster-opacity":1}
+          }]
+        }
+    """.trimIndent()
 }
 
-private fun approximateDistanceKm(
-    lat1: Double,
-    lon1: Double,
-    lat2: Double,
-    lon2: Double
-): Double {
+private fun buildRouteGeoJson(routePoints: List<Pair<Double, Double>>): String {
+    if (routePoints.size < 2) return EMPTY_GEO_JSON
+    val coordinates = routePoints.joinToString(",") { (pointLat, pointLon) ->
+        "[$" + "{" + "safeLon(pointLon)" + "},{$" + "{safeLat(pointLat)}]"
+    }
+    return """
+        {"type":"FeatureCollection","features":[{"type":"Feature","properties":{},
+        "geometry":{"type":"LineString","coordinates":[$coordinates]}}]}
+    """.trimIndent()
+}
+
+private fun buildMarkerGeoJson(lat: Double, lon: Double, isCurrentLocation: Boolean, accuracyMeters: Float): String {
+    val kind = if (isCurrentLocation && accuracyMeters > 0f) "current" else "view"
+    return """
+        {"type":"FeatureCollection","features":[{"type":"Feature",
+        "properties":{"kind":"$kind"},
+        "geometry":{"type":"Point","coordinates":[${safeLon(lon)},${safeLat(lat)}]}}]}
+    """.trimIndent()
+}
+
+private fun distanceKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
     val dLat = Math.toRadians(lat2 - lat1)
     val dLon = Math.toRadians(lon2 - lon1)
     val meanLat = Math.toRadians((lat1 + lat2) / 2.0)
@@ -299,7 +358,6 @@ private fun safeLat(value: Double): Double =
 private fun safeLon(value: Double): Double =
     if (value.isFinite()) value.coerceIn(-180.0, 180.0) else 106.6297
 
-
 fun centerNativeOsmMap(map: NgocSiMapController?, lat: Double, lon: Double) {
     map?.setView(lat, lon)
 }
@@ -312,9 +370,6 @@ fun zoomOutNativeOsmMap(map: NgocSiMapController?) {
     map?.zoomOut()
 }
 
-fun fitNativeOsmMapRoute(
-    map: NgocSiMapController?,
-    routePoints: List<Pair<Double, Double>>
-) {
+fun fitNativeOsmMapRoute(map: NgocSiMapController?, routePoints: List<Pair<Double, Double>>) {
     map?.fitRoute(routePoints)
 }
