@@ -30,8 +30,8 @@ android {
         applicationId = "com.ngocsi.music"
         minSdk = 26
         targetSdk = 36
-        versionCode = 30
-        versionName = "5.10"
+        versionCode = 31
+        versionName = "5.11"
         buildConfigField("String", "YOUTUBE_API_KEY", "\"$youtubeApiKey\"")
         buildConfigField("String", "DRIVE_API_KEY", "\"$driveApiKey\"")
     }
@@ -70,6 +70,7 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer-hls:1.9.4")
     implementation("androidx.media3:media3-session:1.9.4")
     implementation("androidx.media3:media3-ui:1.9.4")
+    implementation("org.osmdroid:osmdroid-android:6.1.20")
     // Google OAuth: required for Drive files/folders shared privately with the signed-in account.
     implementation("com.google.android.gms:play-services-auth:21.6.0")
 }
