@@ -538,9 +538,11 @@ private fun buildStyleJson(selectedLayer: String): String {
     val rasterTile = if (satellite) {
         "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
     } else {
-        // Official OSM standard tile endpoint. Do not add tile prefetch/bulk
-        // downloading: OSM's public tile service is intended for interactive use.
-        "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+        // Use an OSM-derived raster endpoint that is independent from the
+        // OSMF standard tile hostname. This avoids a blank basemap when the
+        // standard endpoint is unreachable from a particular mobile network.
+        // Normal viewport-only requests are kept; no prefetch/bulk download.
+        "https://tile.openstreetmap.de/{z}/{x}/{y}.png"
     }
 
     val attribution = if (satellite) "© Esri" else "© OpenStreetMap contributors"
