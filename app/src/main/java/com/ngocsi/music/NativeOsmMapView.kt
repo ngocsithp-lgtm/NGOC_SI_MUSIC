@@ -1,66 +1,154 @@
 package com.ngocsi.music
 
-import android.content.Context
-import android.graphics.Color
-import android.graphics.drawable.GradientDrawable
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
+import android.graphics.Bitmap
+import android.net.Uri
+import android.view.ViewGroup
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import java.io.File
-import org.osmdroid.config.Configuration
-import org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase
-import org.osmdroid.tileprovider.tilesource.TileSourceFactory
-import org.osmdroid.util.MapTileIndex
-import org.osmdroid.util.BoundingBox
-import org.osmdroid.util.GeoPoint
-import org.osmdroid.views.MapView
-import org.osmdroid.views.overlay.Marker
-import org.osmdroid.views.overlay.Polyline
-import org.osmdroid.views.overlay.Polygon
+import kotlin.math.cos
+import kotlin.math.max
+import kotlin.math.min
 
-private val NgocSiStreetSource = TileSourceFactory.MAPNIK
+/**
+ * Internal map surface for NGOC SI MUSIC.
+ *
+ * The old osmdroid layer initialized but rendered only a blank/grid surface
+ * on the affected devices. This keeps the map inside the app through WebView.
+ */
+class NgocSiMapController internal constructor(
+    private val webView: WebView
+) {
+    private var ready = false
+    private var lat = 10.8231
+    private var lon = 106.6297
+    private var layer = "standard"
+    private var route = emptyList<Pair<Double, Double>>()
+    private var zoom = 14
 
-private val NgocSiSatelliteSource = esriTileSource(
-    name = "NgocSi-Esri-WorldImagery",
-    baseUrl = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/",
-    copyright = "Esri World Imagery"
-)
+    internal fun markReady() {
+        ready = true
+    }
 
-private fun esriTileSource(
-    name: String,
-    baseUrl: String,
-    copyright: String
-): OnlineTileSourceBase =
-    object : OnlineTileSourceBase(
-        name,
-        1,
-        19,
-        256,
-        "",
-        arrayOf(baseUrl),
-        copyright
+    private fun render() {
+        if (!ready) return
+        webView.post { webView.loadUrl(buildMapUrl()) }
+    }
+
+    private fun buildMapUrl(): String {
+        if (route.size >= 2) {
+            val start = route.first()
+            val end = route.last()
+            return "https://www.google.com/maps/dir/?api=1" +
+                "&origin=" + Uri.encode(start.first.toString() + "," + start.second.toString()) +
+                "&destination=" + Uri.encode(end.first.toString() + "," + end.second.toString()) +
+                "&travelmode=driving"
+        }
+
+        val query = lat.toString() + "," + lon.toString()
+        val layerArg = if (layer == "satellite") "&layer=s" else ""
+        return "https://maps.google.com/maps?q=" + Uri.encode(query) +
+            "&z=" + zoom + "&output=embed" + layerArg
+    }
+
+    fun setView(newLat: Double, newLon: Double) {
+        lat = safeLat(newLat)
+        lon = safeLon(newLon)
+        zoom = max(zoom, 14)
+        route = emptyList()
+        render()
+    }
+
+    fun zoomIn() {
+        zoom = min(19, zoom + 1)
+        render()
+    }
+
+    fun zoomOut() {
+        zoom = max(2, zoom - 1)
+        render()
+    }
+
+    fun setLayer(newLayer: String) {
+        layer = if (newLayer == "satellite") "satellite" else "standard"
+        render()
+    }
+
+    fun fitRoute(routePoints: List<Pair<Double, Double>>) {
+        route = routePoints.filter { it.first.isFinite() && it.second.isFinite() }
+        if (route.size < 2) return
+
+        val start = route.first()
+        val end = route.last()
+        lat = safeLat((start.first + end.first) / 2.0)
+        lon = safeLon((start.second + end.second) / 2.0)
+
+        val distance = approximateDistanceKm(
+            start.first, start.second, end.first, end.second
+        )
+        zoom = when {
+            distance > 1000 -> 7
+            distance > 400 -> 8
+            distance > 150 -> 9
+            distance > 70 -> 10
+            distance > 30 -> 11
+            distance > 12 -> 12
+            distance > 5 -> 13
+            else -> 14
+        }
+        render()
+    }
+
+    fun updateMap(
+        newLat: Double,
+        newLon: Double,
+        selectedLayer: String,
+        routePoints: List<Pair<Double, Double>>,
+        fitRoute: Boolean
     ) {
-        override fun getTileURLString(mapTileIndex: Long): String {
-            // Esri REST tiles are /{z}/{y}/{x}; osmdroid XYTileSource is /{z}/{x}/{y}.
-            return getBaseUrl() +
-                MapTileIndex.getZoom(mapTileIndex) + "/" +
-                MapTileIndex.getY(mapTileIndex) + "/" +
-                MapTileIndex.getX(mapTileIndex)
+        lat = safeLat(newLat)
+        lon = safeLon(newLon)
+        layer = if (selectedLayer == "satellite") "satellite" else "standard"
+
+        val newRoute = routePoints.filter { it.first.isFinite() && it.second.isFinite() }
+        if (newRoute.size >= 2 && fitRoute) {
+            fitRoute(newRoute)
+        } else {
+            route = newRoute
+            render()
         }
     }
+
+    fun destroy() {
+        ready = false
+        runCatching {
+            webView.stopLoading()
+            webView.loadUrl("about:blank")
+            webView.removeAllViews()
+            (webView.parent as? ViewGroup)?.removeView(webView)
+            webView.destroy()
+        }
+    }
+}
 
 @Composable
 fun NativeOsmMapView(
@@ -71,293 +159,129 @@ fun NativeOsmMapView(
     routePoints: List<Pair<Double, Double>>,
     isCurrentLocation: Boolean,
     accuracyMeters: Float,
-    onMapReady: (MapView) -> Unit
+    onMapReady: (NgocSiMapController) -> Unit
 ) {
-    var mapView by remember { mutableStateOf<MapView?>(null) }
+    var controller by remember { mutableStateOf<NgocSiMapController?>(null) }
 
     Box(modifier = modifier) {
         AndroidView(
             modifier = Modifier.matchParentSize(),
             factory = { context ->
-            configureOsmdroid(context)
-            MapView(context).apply {
-                setMultiTouchControls(true)
-                setBuiltInZoomControls(false)
-                setUseDataConnection(true)
-                isClickable = true
-                configureNativeMap(
-                    this,
-                    context,
-                    lat,
-                    lon,
-                    selectedLayer,
-                    routePoints,
-                    isCurrentLocation,
-                    accuracyMeters,
-                    fitRoute = routePoints.size >= 2
-                )
-                mapView = this
-                onMapReady(this)
-                onResume()
-            }
-        },
-            update = { view ->
-                mapView = view
-                onMapReady(view)
-                val previous = view.tag as? NativeMapState
-                val next = NativeMapState(
-                    lat = safeLat(lat),
-                    lon = safeLon(lon),
-                    layer = if (selectedLayer == "satellite") "satellite" else "standard",
-                    isCurrentLocation = isCurrentLocation,
-                    accuracyMeters = accuracyMeters.toInt(),
-                    routeHash = routePoints.hashCode()
-                )
-                if (previous == null) {
-                    configureNativeMap(
-                        view,
-                        view.context,
-                        lat,
-                        lon,
-                        selectedLayer,
-                        routePoints,
-                        isCurrentLocation,
-                        accuracyMeters,
+                val webView = WebView(context).apply {
+                    setBackgroundColor(android.graphics.Color.rgb(14, 17, 22))
+                    settings.javaScriptEnabled = true
+                    settings.domStorageEnabled = true
+                    settings.loadsImagesAutomatically = true
+                    settings.cacheMode = WebSettings.LOAD_DEFAULT
+                    settings.userAgentString =
+                        "NGOC-SI-MUSIC/" + BuildConfig.VERSION_NAME + " Android WebView Map"
+                    webChromeClient = WebChromeClient()
+                    webViewClient = object : WebViewClient() {
+                        override fun shouldOverrideUrlLoading(
+                            view: WebView,
+                            request: WebResourceRequest
+                        ): Boolean = false
+
+                        override fun onPageStarted(
+                            view: WebView,
+                            url: String?,
+                            favicon: Bitmap?
+                        ) {
+                            controller?.markReady()
+                        }
+
+                        override fun onPageFinished(view: WebView, url: String?) {
+                            controller?.markReady()
+                        }
+                    }
+                }
+
+                val mapController = NgocSiMapController(webView)
+                controller = mapController
+                onMapReady(mapController)
+                webView.loadUrl(buildInitialUrl(lat, lon, selectedLayer, routePoints))
+                webView
+            },
+            update = {
+                controller?.let { mapController ->
+                    onMapReady(mapController)
+                    mapController.updateMap(
+                        newLat = lat,
+                        newLon = lon,
+                        selectedLayer = selectedLayer,
+                        routePoints = routePoints,
                         fitRoute = routePoints.size >= 2
                     )
-                } else if (previous == next) {
-                    // Nothing to update.
-                } else if (
-                    previous.lat == next.lat &&
-                    previous.lon == next.lon &&
-                    previous.layer != next.layer &&
-                    previous.isCurrentLocation == next.isCurrentLocation &&
-                    previous.accuracyMeters == next.accuracyMeters &&
-                    previous.routeHash == next.routeHash
-                ) {
-                    // Layer-only change: do not reset the user's panned/zoomed camera.
-                    view.setTileSource(
-                        if (next.layer == "satellite") NgocSiSatelliteSource
-                        else NgocSiStreetSource
-                    )
-                    view.invalidate()
-                } else {
-                    configureNativeMap(
-                        view,
-                        view.context,
-                        lat,
-                        lon,
-                        selectedLayer,
-                        routePoints,
-                        isCurrentLocation,
-                        accuracyMeters,
-                        fitRoute = routePoints.size >= 2 && previous.routeHash != next.routeHash
-                    )
                 }
-                view.tag = next
             }
         )
 
-        androidx.compose.foundation.layout.Box(
+        Box(
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .padding(start = 10.dp, bottom = 10.dp)
                 .background(
                     ComposeColor(0xD9000000),
-                    androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+                    RoundedCornerShape(8.dp)
                 )
                 .padding(horizontal = 8.dp, vertical = 5.dp)
         ) {
             Text(
-                if (selectedLayer == "satellite") "© Esri World Imagery" else "© OpenStreetMap contributors • NGOC SĨ MUSIC",
+                when {
+                    routePoints.size >= 2 -> "CHỈ ĐƯỜNG • BẢN ĐỒ TRONG ỨNG DỤNG"
+                    selectedLayer == "satellite" -> "VỆ TINH • BẢN ĐỒ TRONG ỨNG DỤNG"
+                    isCurrentLocation -> "VỊ TRÍ HIỆN TẠI • BẢN ĐỒ TRONG ỨNG DỤNG"
+                    else -> "BẢN ĐỒ • TRONG ỨNG DỤNG"
+                },
                 color = ComposeColor.White,
-                fontSize = 9.sp,
+                fontSize = 8.sp,
                 maxLines = 1
             )
         }
     }
 
-    DisposableEffect(mapView) {
-        mapView?.onResume()
+    DisposableEffect(controller) {
         onDispose {
-            mapView?.onPause()
-            mapView?.onDetach()
+            controller?.destroy()
+            controller = null
         }
     }
 }
 
-private data class NativeMapState(
-    val lat: Double,
-    val lon: Double,
-    val layer: String,
-    val isCurrentLocation: Boolean,
-    val accuracyMeters: Int,
-    val routeHash: Int
-)
-
-private fun configureOsmdroid(context: Context) {
-    val appContext = context.applicationContext
-    val baseDir = File(appContext.filesDir, "osmdroid_v5").apply { mkdirs() }
-    val cacheDir = File(baseDir, "tiles_v4").apply { mkdirs() }
-    val preferences = appContext.getSharedPreferences("ngocsi_osmdroid_v5", Context.MODE_PRIVATE)
-    Configuration.getInstance().load(appContext, preferences)
-    Configuration.getInstance().userAgentValue = "NGOC-SI-MUSIC/${BuildConfig.VERSION_NAME} (+https://github.com/ngocsithp-lgtm/NGOC_SI_MUSIC)"
-    // Keep tile networking conservative and predictable on real devices.
-    Configuration.getInstance().setMapTileDownloaderFollowRedirects(true)
-    Configuration.getInstance().setTileDownloadThreads(2.toShort())
-    Configuration.getInstance().setTileFileSystemThreads(2.toShort())
-    Configuration.getInstance().setTileDownloadMaxQueueSize(40.toShort())
-    Configuration.getInstance().setTileFileSystemMaxQueueSize(40.toShort())
-    Configuration.getInstance().osmdroidBasePath = baseDir
-    Configuration.getInstance().osmdroidTileCache = cacheDir
-}
-
-private fun configureNativeMap(
-    map: MapView,
-    context: Context,
+private fun buildInitialUrl(
     lat: Double,
     lon: Double,
     selectedLayer: String,
-    routePoints: List<Pair<Double, Double>>,
-    isCurrentLocation: Boolean,
-    accuracyMeters: Float,
-    fitRoute: Boolean
-) {
-    val safeCenter = GeoPoint(safeLat(lat), safeLon(lon))
-    map.setTileSource(if (selectedLayer == "satellite") NgocSiSatelliteSource else NgocSiStreetSource)
-    map.setMultiTouchControls(true)
-    map.setBuiltInZoomControls(false)
-    map.setUseDataConnection(true)
-
-    val overlays = map.overlays
-    overlays.clear()
-
-    val safeRoute = routePoints.mapNotNull { (pointLat, pointLon) ->
-        val a = safeLat(pointLat)
-        val o = safeLon(pointLon)
-        if (a.isFinite() && o.isFinite()) GeoPoint(a, o) else null
+    routePoints: List<Pair<Double, Double>>
+): String {
+    val validRoute = routePoints.filter { it.first.isFinite() && it.second.isFinite() }
+    if (validRoute.size >= 2) {
+        val start = validRoute.first()
+        val end = validRoute.last()
+        return "https://www.google.com/maps/dir/?api=1" +
+            "&origin=" + Uri.encode(start.first.toString() + "," + start.second.toString()) +
+            "&destination=" + Uri.encode(end.first.toString() + "," + end.second.toString()) +
+            "&travelmode=driving"
     }
 
-    if (safeRoute.size >= 2) {
-        val line = Polyline(map, true).apply {
-            setColor(Color.rgb(108, 92, 231))
-            setWidth(11f * context.resources.displayMetrics.density)
-            setGeodesic(false)
-            setPoints(safeRoute)
-        }
-        overlays.add(line)
-        overlays.add(createLabelMarker(map, safeRoute.first(), "A", Color.rgb(32, 166, 106)))
-        overlays.add(createLabelMarker(map, safeRoute.last(), "B", Color.rgb(229, 82, 104)))
-
-        if (fitRoute) {
-            map.post {
-                if (safeRoute.size >= 2) {
-                    map.zoomToBoundingBox(BoundingBox.fromGeoPoints(safeRoute), true, dp(context, 72))
-                }
-            }
-        }
-    } else {
-        if (isCurrentLocation && accuracyMeters > 0f) {
-            overlays.add(createAccuracyRing(map, safeCenter, accuracyMeters.coerceIn(5f, 1000f)))
-        }
-        overlays.add(createDotMarker(map, safeCenter, context, if (isCurrentLocation) "VỊ TRÍ HIỆN TẠI" else null))
-        map.controller.setCenter(safeCenter)
-        if (map.zoomLevel < 10.0) map.controller.setZoom(14.0)
-    }
-
-    map.invalidate()
+    val layerArg = if (selectedLayer == "satellite") "&layer=s" else ""
+    return "https://maps.google.com/maps?q=" +
+        Uri.encode(safeLat(lat).toString() + "," + safeLon(lon).toString()) +
+        "&z=14&output=embed" + layerArg
 }
 
-private fun createDotMarker(
-    map: MapView,
-    point: GeoPoint,
-    context: Context,
-    title: String?
-): Marker {
-    val size = dp(context, 24)
-    val drawable = GradientDrawable().apply {
-        shape = GradientDrawable.OVAL
-        setColor(Color.rgb(108, 92, 231))
-        setStroke(dp(context, 3), Color.WHITE)
-        setSize(size, size)
-    }
-    return Marker(map).apply {
-        position = point
-        icon = drawable
-        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-        this.title = title
-    }
-}
-
-private fun createAccuracyRing(map: MapView, point: GeoPoint, accuracyMeters: Float): Polygon {
-    val polygon = Polygon(map)
-    val samples = 72
-    val radius = accuracyMeters.toDouble()
-    val earth = 6_378_137.0
-    val latRad = Math.toRadians(point.latitude)
-    val points = ArrayList<GeoPoint>(samples)
-    for (i in 0 until samples) {
-        val angle = 2.0 * Math.PI * i / samples
-        val dLat = (radius * Math.cos(angle)) / earth
-        val dLon = (radius * Math.sin(angle)) / (earth * Math.max(0.1, Math.cos(latRad)))
-        points += GeoPoint(
-            point.latitude + Math.toDegrees(dLat),
-            point.longitude + Math.toDegrees(dLon)
-        )
-    }
-    polygon.setPoints(points)
-    polygon.setFillColor(Color.argb(32, 108, 92, 231))
-    polygon.setStrokeColor(Color.argb(150, 108, 92, 231))
-    polygon.setStrokeWidth(dp(map.context, 2).toFloat())
-    return polygon
-}
-
-private fun createLabelMarker(
-    map: MapView,
-    point: GeoPoint,
-    label: String,
-    color: Int
-): Marker {
-    val density = map.context.resources.displayMetrics.density
-    val size = (32 * density).toInt().coerceAtLeast(24)
-    val drawable = GradientDrawable().apply {
-        shape = GradientDrawable.OVAL
-        setColor(color)
-        setStroke((2 * density).toInt().coerceAtLeast(2), Color.WHITE)
-        setSize(size, size)
-    }
-    return Marker(map).apply {
-        position = point
-        icon = drawable
-        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-        title = "Điểm $label"
-    }
-}
-
-fun centerNativeOsmMap(map: MapView?, lat: Double, lon: Double) {
-    map?.let {
-        it.controller.animateTo(GeoPoint(safeLat(lat), safeLon(lon)))
-        it.invalidate()
-    }
-}
-
-fun zoomInNativeOsmMap(map: MapView?) {
-    map?.controller?.zoomIn()
-    map?.invalidate()
-}
-
-fun zoomOutNativeOsmMap(map: MapView?) {
-    map?.controller?.zoomOut()
-    map?.invalidate()
-}
-
-fun fitNativeOsmMapRoute(map: MapView?, routePoints: List<Pair<Double, Double>>) {
-    val points = routePoints.map { GeoPoint(safeLat(it.first), safeLon(it.second)) }
-    if (map != null && points.size >= 2) {
-        map.post {
-            map.zoomToBoundingBox(BoundingBox.fromGeoPoints(points), true, dp(map.context, 72))
-        }
-    }
+private fun approximateDistanceKm(
+    lat1: Double,
+    lon1: Double,
+    lat2: Double,
+    lon2: Double
+): Double {
+    val dLat = Math.toRadians(lat2 - lat1)
+    val dLon = Math.toRadians(lon2 - lon1)
+    val meanLat = Math.toRadians((lat1 + lat2) / 2.0)
+    val x = dLon * cos(meanLat)
+    val y = dLat
+    return 6371.0 * kotlin.math.sqrt(x * x + y * y)
 }
 
 private fun safeLat(value: Double): Double =
@@ -365,6 +289,3 @@ private fun safeLat(value: Double): Double =
 
 private fun safeLon(value: Double): Double =
     if (value.isFinite()) value.coerceIn(-180.0, 180.0) else 106.6297
-
-private fun dp(context: Context, value: Int): Int =
-    (value * context.resources.displayMetrics.density).toInt().coerceAtLeast(1)
