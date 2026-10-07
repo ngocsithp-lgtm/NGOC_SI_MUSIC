@@ -7974,7 +7974,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         var selectedLayer by remember(initialLayer) {
             mutableStateOf(if (initialLayer == "satellite") "satellite" else "standard")
         }
-        var webMapRef by remember { mutableStateOf<WebView?>(null) }
+        var nativeMapRef by remember { mutableStateOf<org.osmdroid.views.MapView?>(null) }
 
         val routePoints = remember(routeJson) {
             runCatching {
@@ -8088,113 +8088,15 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             .fillMaxSize()
                             .clip(RoundedCornerShape(18.dp))
                     ) {
-                            val webMapRouteJson = remember(routeJson) {
-                                runCatching { org.json.JSONArray(routeJson).toString() }.getOrElse { "[]" }
-                            }
-                            val webMapHtml = remember(lat, lon, title, initialLayer, webMapRouteJson) {
-                                mapWebHtml(lat, lon, title, initialLayer, webMapRouteJson)
-                            }
-
-                            AndroidView(
+                            NativeOsmMapView(
                                 modifier = Modifier.fillMaxSize(),
-                                factory = { context ->
-                                    WebView(context).apply {
-                                        webMapRef = this
-                                        setLayerType(android.view.View.LAYER_TYPE_SOFTWARE, null)
-                                        settings.javaScriptEnabled = true
-                                        settings.domStorageEnabled = true
-                                        settings.loadsImagesAutomatically = true
-                                        settings.setSupportZoom(true)
-                                        settings.builtInZoomControls = false
-                                        settings.displayZoomControls = false
-                                        settings.useWideViewPort = true
-                                        settings.loadWithOverviewMode = true
-                                        settings.userAgentString =
-                                            settings.userAgentString + " NGOC-SI-MUSIC/5.10"
-                                        CookieManager.getInstance().setAcceptCookie(true)
-                                        CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-                                        webViewClient = object : WebViewClient() {
-                                            override fun onPageFinished(view: WebView, url: String) {
-                                                val stateKey = buildString {
-                                                    append(webMapStateLat(lat))
-                                                    append("|")
-                                                    append(webMapStateLon(lon))
-                                                    append("|")
-                                                    append(title.take(240))
-                                                    append("|")
-                                                    append(selectedLayer)
-                                                    append("|")
-                                                    append(routeJson.hashCode())
-                                                }
-                                                val script =
-                                                    "window.setMapState && window.setMapState(" +
-                                                        webMapStateLat(lat) + "," +
-                                                        webMapStateLon(lon) + "," +
-                                                        org.json.JSONObject.quote(title.take(240)) + "," +
-                                                        org.json.JSONObject.quote(selectedLayer) + "," +
-                                                        webMapRouteJson +
-                                                        ");"
-                                                view.evaluateJavascript(script, null)
-                                                view.tag = "MAP_READY|$stateKey"
-                                            }
-
-                                            override fun onReceivedError(
-                                                view: WebView,
-                                                request: android.webkit.WebResourceRequest,
-                                                error: android.webkit.WebResourceError
-                                            ) {
-                                                if (request.isForMainFrame) {
-                                                    this@MainActivity.errorMessage =
-                                                        "Không tải được bản đồ trong ứng dụng. Kiểm tra kết nối Internet rồi thử lại."
-                                                }
-                                            }
-                                        }
-                                        webChromeClient = object : WebChromeClient() {
-                                            override fun onConsoleMessage(message: android.webkit.ConsoleMessage): Boolean {
-                                                if (message.messageLevel() == android.webkit.ConsoleMessage.MessageLevel.ERROR) {
-                                                    this@MainActivity.errorMessage =
-                                                        "Bản đồ Web báo lỗi: " + message.message().take(180)
-                                                }
-                                                return true
-                                            }
-                                        }
-                                        setBackgroundColor(android.graphics.Color.rgb(223, 231, 238))
-                                        loadDataWithBaseURL(
-                                            "https://www.openstreetmap.org/",
-                                            webMapHtml,
-                                            "text/html",
-                                            "UTF-8",
-                                            null
-                                        )
-                                    }
-                                },
-                                update = { webView ->
-                                    webMapRef = webView
-                                    val stateKey = buildString {
-                                        append(webMapStateLat(lat))
-                                        append("|")
-                                        append(webMapStateLon(lon))
-                                        append("|")
-                                        append(title.take(240))
-                                        append("|")
-                                        append(selectedLayer)
-                                        append("|")
-                                        append(routeJson.hashCode())
-                                    }
-                                    val lastStateKey = webView.tag as? String
-                                    if (lastStateKey != "MAP_READY|$stateKey") {
-                                        val script =
-                                            "window.setMapState && window.setMapState(" +
-                                                webMapStateLat(lat) + "," +
-                                                webMapStateLon(lon) + "," +
-                                                org.json.JSONObject.quote(title.take(240)) + "," +
-                                                org.json.JSONObject.quote(selectedLayer) + "," +
-                                                webMapRouteJson +
-                                                ");"
-                                        webView.evaluateJavascript(script, null)
-                                        webView.tag = "MAP_READY|$stateKey"
-                                    }
-                                }
+                                lat = lat,
+                                lon = lon,
+                                selectedLayer = selectedLayer,
+                                routePoints = routePoints,
+                                isCurrentLocation = isCurrentLocation,
+                                accuracyMeters = accuracyMeters,
+                                onMapReady = { nativeMapRef = it }
                             )
 
                         Column(
@@ -8207,11 +8109,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 modifier = Modifier.clickable {
                                     selectedLayer =
                                         if (selectedLayer == "satellite") "standard" else "satellite"
-                                    webMapRef?.evaluateJavascript(
-                                        "window.setMapLayer && window.setMapLayer(" +
-                                            org.json.JSONObject.quote(selectedLayer) + ");",
-                                        null
-                                    )
+                                    
                                 },
                                 shape = RoundedCornerShape(14.dp),
                                 color = Color(0xF7FFFFFF),
@@ -8246,18 +8144,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             Surface(
                                 modifier = Modifier.clickable {
                                     if (routePoints.size >= 2) {
-                                        webMapRef?.evaluateJavascript(
-                                            "window.fitRoute && window.fitRoute();",
-                                            null
-                                        )
+                                        fitNativeOsmMapRoute(nativeMapRef, routePoints)
                                     } else if (isCurrentLocation && onRefreshLocation != null) {
                                         onRefreshLocation()
                                     } else {
-                                        webMapRef?.evaluateJavascript(
-                                            "window.centerMap && window.centerMap(" +
-                                                webMapStateLat(lat) + "," + webMapStateLon(lon) + ");",
-                                            null
-                                        )
+                                        centerNativeOsmMap(nativeMapRef, lat, lon)
                                     }
                                 },
                                 shape = RoundedCornerShape(12.dp),
@@ -8274,7 +8165,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
                             Surface(
                                 modifier = Modifier.clickable {
-                                    webMapRef?.evaluateJavascript("window.zoomIn && window.zoomIn();", null)
+                                    zoomInNativeOsmMap(nativeMapRef)
                                 },
                                 shape = RoundedCornerShape(14.dp),
                                 color = Color(0xF7FFFFFF),
@@ -8291,7 +8182,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
                             Surface(
                                 modifier = Modifier.clickable {
-                                    webMapRef?.evaluateJavascript("window.zoomOut && window.zoomOut();", null)
+                                    zoomOutNativeOsmMap(nativeMapRef)
                                 },
                                 shape = RoundedCornerShape(14.dp),
                                 color = Color(0xF7FFFFFF),
@@ -8346,8 +8237,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             }
         }
 
-        LaunchedEffect(webMapRef, selectedLayer, routeJson, lat, lon, title) {
-            val webView = webMapRef ?: return@LaunchedEffect
+        LaunchedEffect(nativeMapRef, selectedLayer, routeJson, lat, lon, title) {
+            val webView = nativeMapRef ?: return@LaunchedEffect
             val routePayload = runCatching {
                 org.json.JSONArray(routeJson).toString()
             }.getOrElse { "[]" }
