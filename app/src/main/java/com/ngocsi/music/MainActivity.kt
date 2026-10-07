@@ -6747,11 +6747,15 @@ class MainActivity : ComponentActivity() {
                                 .weight(1f)
                                 .height(78.dp)
                                 .clickable {
-                                    internalMapLat = 10.8231
-                                    internalMapLon = 106.6297
-                                    internalMapTitle = "TP. Hồ Chí Minh • VỆ TINH"
+                                    if (!internalMapIsCurrentLocation) {
+                                        internalMapLat = 10.8231
+                                        internalMapLon = 106.6297
+                                        internalMapTitle = "TP. Hồ Chí Minh • VỆ TINH"
+                                        internalMapRouteJson = "[]"
+                                        internalMapAccuracyMeters = 0f
+                                        internalMapLocationTime = 0L
+                                    }
                                     internalMapLayer = "satellite"
-                                    internalMapRouteJson = "[]"
                                     showInternalMap = true
                                     errorMessage = null
                                 },
