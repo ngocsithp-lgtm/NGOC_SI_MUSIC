@@ -22,6 +22,7 @@ import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.Style
@@ -91,20 +92,30 @@ class NgocSiMapController internal constructor(
         val end = valid.last()
         lat = safeLat((start.first + end.first) / 2.0)
         lon = safeLon((start.second + end.second) / 2.0)
-        val distance = distanceKm(start.first, start.second, end.first, end.second)
-        zoom = when {
-            distance > 500 -> 8.0
-            distance > 150 -> 9.0
-            distance > 70 -> 10.0
-            distance > 30 -> 11.0
-            distance > 12 -> 12.0
-            distance > 5 -> 13.0
-            else -> 14.0
+        // Fit the whole route instead of estimating zoom from only the
+        // start/end points. Curved routes can otherwise be clipped badly.
+        runCatching {
+            val builder = LatLngBounds.Builder()
+            valid.forEach { (pointLat, pointLon) ->
+                builder.include(LatLng(pointLat, pointLon))
+            }
+            val bounds = builder.build()
+            map.getCameraForLatLngBounds(bounds, arrayOf(96, 120, 96, 160))?.let { camera ->
+                zoom = camera.zoom
+                map.animateCamera(
+                    CameraUpdateFactory.newCameraPosition(camera),
+                    450
+                )
+            } ?: map.animateCamera(
+                CameraUpdateFactory.newLatLngZoom(LatLng(lat, lon), 13.0),
+                350
+            )
+        }.onFailure {
+            map.animateCamera(
+                CameraUpdateFactory.newLatLngZoom(LatLng(lat, lon), 13.0),
+                350
+            )
         }
-        map.animateCamera(
-            CameraUpdateFactory.newLatLngZoom(LatLng(lat, lon), zoom),
-            400
-        )
         updateSources()
     }
 
@@ -270,10 +281,10 @@ fun NativeOsmMapView(
         ) {
             Text(
                 when {
-                    routePoints.size >= 2 -> "CHỈ ĐƯỜNG • MAPLIBRE NATIVE"
-                    selectedLayer == "satellite" -> "VỆ TINH • MAPLIBRE NATIVE"
-                    isCurrentLocation -> "VỊ TRÍ HIỆN TẠI • MAPLIBRE NATIVE"
-                    else -> "BẢN ĐỒ • MAPLIBRE NATIVE"
+                    routePoints.size >= 2 -> "CHỈ ĐƯỜNG • OSM/ESRI"
+                    selectedLayer == "satellite" -> "VỆ TINH • ESRI"
+                    isCurrentLocation -> "VỊ TRÍ HIỆN TẠI • OSM"
+                    else -> "BẢN ĐỒ • OSM"
                 },
                 color = ComposeColor.White,
                 fontSize = 8.sp,
@@ -294,12 +305,21 @@ private const val EMPTY_GEO_JSON =
     "{\"type\":\"FeatureCollection\",\"features\":[]}";
 
 private fun buildStyleJson(selectedLayer: String): String {
-    val rasterTiles = if (selectedLayer == "satellite") {
-        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+    val satellite = selectedLayer == "satellite"
+    val rasterTiles = if (satellite) {
+        // Current Esri World Imagery tile service.
+        "https://wi.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
     } else {
-        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
+        // OpenStreetMap standard tiles replace the retired Esri World Street Map raster service.
+        "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
     }
-    val attribution = "Tiles © Esri"
+    val attribution = if (satellite) {
+        "© Esri"
+    } else {
+        "© OpenStreetMap contributors"
+    }
+    val backgroundColor = if (satellite) "#11151B" else "#E9EDF1"
+
     return """
         {
           "version":8,
@@ -311,17 +331,25 @@ private fun buildStyleJson(selectedLayer: String): String {
               "tileSize":256,
               "minzoom":1,
               "maxzoom":19,
+              "bounds":[-180,-85.051129,180,85.051129],
               "attribution":"$attribution"
             }
           },
-          "layers":[{
-            "id":"$BASE_LAYER",
-            "type":"raster",
-            "source":"$BASE_SOURCE",
-            "minzoom":1,
-            "maxzoom":19,
-            "paint":{"raster-opacity":1}
-          }]
+          "layers":[
+            {
+              "id":"ngocsi-background",
+              "type":"background",
+              "paint":{"background-color":"$backgroundColor"}
+            },
+            {
+              "id":"$BASE_LAYER",
+              "type":"raster",
+              "source":"$BASE_SOURCE",
+              "minzoom":1,
+              "maxzoom":19,
+              "paint":{"raster-opacity":1}
+            }
+          ]
         }
     """.trimIndent()
 }
