@@ -7288,28 +7288,13 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   color: #ffffff;
                   border: 1px solid rgba(255,255,255,0.14);
                 }
+                .map-top-card,
+                .map-status,
+                .map-bottom-card,
+                .map-scale,
+                .map-compass,
                 .map-controls {
-                  position: absolute;
-                  right: 10px;
-                  top: 10px;
-                  z-index: 120;
-                  display: flex;
-                  flex-direction: column;
-                  gap: 6px;
-                }
-                .map-button {
-                  width: 40px;
-                  height: 40px;
-                  border: 0;
-                  border-radius: 12px;
-                  background: rgba(255,255,255,0.96);
-                  color: #1c2430;
-                  font: 700 20px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-                  box-shadow: 0 2px 8px rgba(0,0,0,0.20);
-                  padding: 0;
-                }
-                .map-button:active {
-                  transform: scale(0.95);
+                  display: none !important;
                 }
                 .route-point {
                   position: absolute;
@@ -7354,11 +7339,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   <div id="mapBottomMain" class="map-bottom-main">Đang tải bản đồ</div>
                   <div id="mapBottomSub" class="map-bottom-sub">NGỌC SĨ MUSIC • Bản đồ trong ứng dụng</div>
                 </div>
-                <div class="map-controls">
-                  <button class="map-button" type="button" onclick="zoomIn()">＋</button>
-                  <button class="map-button" type="button" onclick="zoomOut()">−</button>
-                  <button class="map-button" type="button" onclick="centerMap()">⌖</button>
-                </div>
+
               </div>
 
               <script>
@@ -7393,6 +7374,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   let tileSuccess = 0;
                   let tileFailure = 0;
                   let drag = null;
+                  let pinch = null;
 
                   function validLat(v) {
                     const n = Number(v);
@@ -7675,7 +7657,20 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   window.fitRoute = fitRoute;
 
                   mapEl.addEventListener("touchstart", function (event) {
-                    if (!event.touches || !event.touches[0]) return;
+                    if (!event.touches) return;
+                    if (event.touches.length >= 2) {
+                      const a = event.touches[0];
+                      const b = event.touches[1];
+                      const dx = a.clientX - b.clientX;
+                      const dy = a.clientY - b.clientY;
+                      pinch = {
+                        distance: Math.max(1, Math.hypot(dx, dy)),
+                        zoom
+                      };
+                      drag = null;
+                      return;
+                    }
+                    if (!event.touches[0]) return;
                     const t = event.touches[0];
                     drag = {
                       x: t.clientX,
@@ -7686,16 +7681,37 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   }, { passive: true });
 
                   mapEl.addEventListener("touchmove", function (event) {
-                    if (!drag || !event.touches || !event.touches[0]) return;
+                    if (!event.touches) return;
+
+                    if (event.touches.length >= 2) {
+                      const a = event.touches[0];
+                      const b = event.touches[1];
+                      const dx = a.clientX - b.clientX;
+                      const dy = a.clientY - b.clientY;
+                      const distance = Math.max(1, Math.hypot(dx, dy));
+                      if (!pinch) {
+                        pinch = { distance, zoom };
+                        drag = null;
+                      }
+                      const ratio = distance / Math.max(1, pinch.distance);
+                      const delta = Math.log2(ratio);
+                      const nextZoom = clampZoom(pinch.zoom + delta);
+                      if (nextZoom !== zoom) {
+                        zoom = nextZoom;
+                        renderAll();
+                      }
+                      drag = null;
+                      return;
+                    }
+
+                    if (!drag || !event.touches[0]) return;
                     const t = event.touches[0];
-                    const size = mapSize();
                     const startPx = project(drag.lat, drag.lon, zoom);
                     const dx = drag.x - t.clientX;
                     const dy = drag.y - t.clientY;
                     const n = Math.pow(2, zoom);
-                    let nextX = startPx.x + dx;
-                    let nextY = startPx.y + dy;
-                    nextY = Math.max(0, Math.min(256 * n, nextY));
+                    const nextX = startPx.x + dx;
+                    const nextY = Math.max(0, Math.min(256 * n, startPx.y + dy));
                     const lon = nextX / (256 * n) * 360 - 180;
                     const mercY = 0.5 - nextY / (256 * n);
                     const nextLat = 360 / Math.PI * Math.atan(Math.sinh(mercY * 2 * Math.PI));
@@ -7708,6 +7724,12 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
                   mapEl.addEventListener("touchend", function () {
                     drag = null;
+                    pinch = null;
+                  }, { passive: true });
+
+                  mapEl.addEventListener("touchcancel", function () {
+                    drag = null;
+                    pinch = null;
                   }, { passive: true });
 
                   mapEl.addEventListener("mousedown", function (event) {
