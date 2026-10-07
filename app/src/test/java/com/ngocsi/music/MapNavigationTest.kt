@@ -7,7 +7,7 @@ import org.junit.Test
 class MapNavigationTest {
     @Test
     fun instruction_buildsUsefulVietnameseText() {
-        assertEquals("Rẽ trái vào đường Nguyễn Trãi", buildMapInstruction("turn", "left", "Nguyễn Trãi"))
+        assertEquals("Rẽ trái vào Nguyễn Trãi", buildMapInstruction("turn", "left", "Nguyễn Trãi"))
         assertEquals("Xuất phát theo đường Lê Lợi", buildMapInstruction("depart", "", "Lê Lợi"))
         assertEquals("Đã đến điểm đích", buildMapInstruction("arrive", "", ""))
     }
