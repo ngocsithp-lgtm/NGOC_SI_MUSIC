@@ -27,6 +27,7 @@ import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.geometry.LatLngBounds
+import org.maplibre.android.maps.MapLibreMapOptions
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.Style
@@ -81,7 +82,9 @@ private fun configureMapHttp(context: Context) {
 
 class NgocSiMapController internal constructor(
     private val mapView: MapView,
-    private val map: MapLibreMap
+    private val map: MapLibreMap,
+    private val onLoadError: (String) -> Unit,
+    private val onMapLoaded: () -> Unit
 ) {
     private var lat = 10.8231
     private var lon = 106.6297
@@ -92,6 +95,21 @@ class NgocSiMapController internal constructor(
     private var bearingDegrees = 0f
     private var hasBearing = false
     private var zoom = 14.0
+    private val failListener = object : MapView.OnDidFailLoadingMapListener {
+        override fun onDidFailLoadingMap(errorMessage: String) {
+            onLoadError(errorMessage.ifBlank { "Không tải được dữ liệu bản đồ" })
+        }
+    }
+    private val finishListener = object : MapView.OnDidFinishLoadingMapListener {
+        override fun onDidFinishLoadingMap() {
+            onMapLoaded()
+        }
+    }
+
+    init {
+        mapView.addOnDidFailLoadingMapListener(failListener)
+        mapView.addOnDidFinishLoadingMapListener(finishListener)
+    }
 
     fun setView(newLat: Double, newLon: Double) {
         lat = safeLat(newLat)
@@ -114,6 +132,10 @@ class NgocSiMapController internal constructor(
     fun zoomOut() {
         zoom = max(2.0, map.cameraPosition.zoom - 1.0)
         map.animateCamera(CameraUpdateFactory.zoomTo(zoom), 180)
+    }
+
+    fun reload() {
+        applyStyle(preserveCamera = true)
     }
 
     fun setLayer(newLayer: String) {
@@ -264,6 +286,8 @@ class NgocSiMapController internal constructor(
     }
 
     fun destroy() {
+        runCatching { mapView.removeOnDidFailLoadingMapListener(failListener) }
+        runCatching { mapView.removeOnDidFinishLoadingMapListener(finishListener) }
         runCatching { mapView.onPause() }
         runCatching { mapView.onStop() }
         runCatching { mapView.onDestroy() }
@@ -348,6 +372,7 @@ fun NativeOsmMapView(
     onMapReady: (NgocSiMapController) -> Unit
 ) {
     var controller by remember { mutableStateOf<NgocSiMapController?>(null) }
+    var mapLoadError by remember { mutableStateOf<String?>(null) }
 
     Box(modifier = modifier) {
         AndroidView(
@@ -355,7 +380,18 @@ fun NativeOsmMapView(
             factory = { context ->
                 MapLibre.getInstance(context.applicationContext)
                 configureMapHttp(context.applicationContext)
-                MapView(context).apply {
+                val mapOptions = MapLibreMapOptions()
+                    .textureMode(true)
+                    .logoEnabled(false)
+                    .attributionEnabled(true)
+                    .compassEnabled(true)
+                    .scrollGesturesEnabled(true)
+                    .zoomGesturesEnabled(true)
+                    .rotateGesturesEnabled(true)
+                    .tiltGesturesEnabled(false)
+                    .also { it.prefetchesTiles = true }
+
+                MapView(context, mapOptions).apply {
                     onCreate(Bundle())
                     getMapAsync { map ->
                         map.uiSettings.isCompassEnabled = true
@@ -367,7 +403,12 @@ fun NativeOsmMapView(
                         map.uiSettings.isTiltGesturesEnabled = false
                         map.setStyle(Style.Builder().fromJson(buildStyleJson(selectedLayer))) { style ->
                             addOverlayLayers(style)
-                            val mapController = NgocSiMapController(this, map)
+                            val mapController = NgocSiMapController(
+                                mapView = this,
+                                map = map,
+                                onLoadError = { message -> mapLoadError = message.take(160) },
+                                onMapLoaded = { mapLoadError = null }
+                            )
                             controller = mapController
                             onMapReady(mapController)
                             mapController.updateMap(
@@ -406,6 +447,40 @@ fun NativeOsmMapView(
                 }
             }
         )
+
+        mapLoadError?.let { message ->
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(10.dp)
+                    .background(ComposeColor(0xF20D1118), RoundedCornerShape(12.dp))
+                    .padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp)
+            ) {
+                androidx.compose.foundation.layout.Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "BẢN ĐỒ CHƯA TẢI ĐƯỢC",
+                        color = ComposeColor.White,
+                        fontSize = 9.sp
+                    )
+                    androidx.compose.material3.TextButton(
+                        onClick = {
+                            mapLoadError = null
+                            controller?.reload()
+                        }
+                    ) {
+                        Text("THỬ LẠI", fontSize = 9.sp)
+                    }
+                }
+                Text(
+                    message,
+                    color = ComposeColor(0xFFB8C0CC),
+                    fontSize = 8.sp,
+                    maxLines = 2
+                )
+            }
+        }
 
         Box(
             modifier = Modifier
