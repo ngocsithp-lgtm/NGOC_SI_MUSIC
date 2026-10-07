@@ -501,6 +501,45 @@ private fun buildPointGeoJson(point: Pair<Double, Double>): String {
     return "{\"type\":\"FeatureCollection\",\"features\":[{\"type\":\"Feature\",\"properties\":{},\"geometry\":{\"type\":\"Point\",\"coordinates\":[" + pointLon + "," + pointLat + "]}}]}"
 }
 
+private fun buildAccuracyGeoJson(lat: Double, lon: Double, accuracyMeters: Float): String {
+    val radiusMeters = accuracyMeters.coerceIn(1f, 5_000f).toDouble()
+    val latRad = Math.toRadians(safeLat(lat))
+    val metersPerLat = 111_320.0
+    val metersPerLon = (111_320.0 * kotlin.math.cos(latRad)).coerceAtLeast(10.0)
+    val dLat = radiusMeters / metersPerLat
+    val dLon = radiusMeters / metersPerLon
+    val points = (0 until 40).joinToString(",") { index ->
+        val angle = (2.0 * Math.PI * index) / 40.0
+        "[" + safeLon(lon + kotlin.math.cos(angle) * dLon) + "," +
+            safeLat(lat + kotlin.math.sin(angle) * dLat) + "]"
+    }
+    return "{\"type\":\"FeatureCollection\",\"features\":[{\"type\":\"Feature\",\"properties\":{},\"geometry\":{\"type\":\"Polygon\",\"coordinates\":[[" + points + "]]}}]}"
+}
+
+private fun buildBearingGeoJson(lat: Double, lon: Double, bearingDegrees: Float): String {
+    val bearing = Math.toRadians(bearingDegrees.toDouble())
+    val latRad = Math.toRadians(safeLat(lat))
+    val metersPerLat = 111_320.0
+    val metersPerLon = (111_320.0 * kotlin.math.cos(latRad)).coerceAtLeast(10.0)
+
+    fun offset(metersForward: Double, metersSide: Double): String {
+        val east = metersForward * kotlin.math.sin(bearing) + metersSide * kotlin.math.cos(bearing)
+        val north = metersForward * kotlin.math.cos(bearing) - metersSide * kotlin.math.sin(bearing)
+        val pointLat = safeLat(lat + north / metersPerLat)
+        val pointLon = safeLon(lon + east / metersPerLon)
+        return "[" + pointLon + "," + pointLat + "]"
+    }
+
+    val polygon = listOf(
+        offset(22.0, 0.0),
+        offset(-10.0, -7.0),
+        offset(-5.0, 0.0),
+        offset(-10.0, 7.0),
+        offset(22.0, 0.0)
+    ).joinToString(",")
+
+    return "{\"type\":\"FeatureCollection\",\"features\":[{\"type\":\"Feature\",\"properties\":{},\"geometry\":{\"type\":\"Polygon\",\"coordinates\":[[" + polygon + "]]}}]}"
+}
 private fun buildMarkerGeoJson(lat: Double, lon: Double, isCurrentLocation: Boolean, accuracyMeters: Float): String {
     val kind = if (isCurrentLocation && accuracyMeters > 0f) "current" else "view"
     return """
