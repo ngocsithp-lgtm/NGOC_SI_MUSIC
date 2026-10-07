@@ -388,6 +388,12 @@ class MainActivity : ComponentActivity() {
     private var mapNavigationLocationCallback: LocationCallback? = null
     private var mapLocationLoading by mutableStateOf(false)
     private var mapSearchLastAt by mutableLongStateOf(0L)
+    // Cache the last interactive geocoding result so TÌM → CHỈ ĐƯỜNG does not
+    // immediately issue a second Nominatim request for the same place.
+    private var mapLastGeocodedQuery by mutableStateOf("")
+    private var mapLastGeocodedLat by mutableDoubleStateOf(Double.NaN)
+    private var mapLastGeocodedLon by mutableDoubleStateOf(Double.NaN)
+    private var mapLastGeocodedName by mutableStateOf("")
     private var pendingMapRouteQuery by mutableStateOf<String?>(null)
     // Chặng đi của CHỈ ĐƯỜNG phải có điểm xuất phát độc lập với tâm bản đồ.
     private var mapRouteOriginLat by mutableStateOf(10.8231)
@@ -6595,6 +6601,11 @@ class MainActivity : ComponentActivity() {
 
             mapSearching = false
             result.onSuccess { (lat, lon, displayName) ->
+                mapLastGeocodedQuery = query
+                mapLastGeocodedLat = lat
+                mapLastGeocodedLon = lon
+                mapLastGeocodedName = displayName
+
                 internalMapLat = lat
                 internalMapLon = lon
                 internalMapTitle = displayName.substringBefore(",").ifBlank { query }
@@ -6696,20 +6707,29 @@ class MainActivity : ComponentActivity() {
                     }
 
                     val destination =
-                        if (
+                        when {
                             mapNavigationActive &&
-                            mapNavigationDestinationQuery.isNotBlank() &&
-                            query.equals(mapNavigationDestinationQuery, ignoreCase = true) &&
-                            internalMapDestinationLat.isFinite() &&
-                            internalMapDestinationLon.isFinite()
-                        ) {
-                            Triple(
-                                internalMapDestinationLat,
-                                internalMapDestinationLon,
-                                mapNavigationDestination.ifBlank { query }
-                            )
-                        } else {
-                            geocode(query)
+                                mapNavigationDestinationQuery.isNotBlank() &&
+                                query.equals(mapNavigationDestinationQuery, ignoreCase = true) &&
+                                internalMapDestinationLat.isFinite() &&
+                                internalMapDestinationLon.isFinite() ->
+                                Triple(
+                                    internalMapDestinationLat,
+                                    internalMapDestinationLon,
+                                    mapNavigationDestination.ifBlank { query }
+                                )
+
+                            mapLastGeocodedQuery.isNotBlank() &&
+                                query.equals(mapLastGeocodedQuery, ignoreCase = true) &&
+                                mapLastGeocodedLat.isFinite() &&
+                                mapLastGeocodedLon.isFinite() ->
+                                Triple(
+                                    mapLastGeocodedLat,
+                                    mapLastGeocodedLon,
+                                    mapLastGeocodedName.ifBlank { query }
+                                )
+
+                            else -> geocode(query)
                         }
                     val routeBases = listOf(
                         "https://router.project-osrm.org/route/v1/driving/",
@@ -6852,6 +6872,11 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                 }
+
+                mapLastGeocodedQuery = query
+                mapLastGeocodedLat = destinationLat
+                mapLastGeocodedLon = destinationLon
+                mapLastGeocodedName = meta.optString("name", query)
 
                 internalMapLat = mapRouteOriginLat
                 internalMapLon = mapRouteOriginLon
