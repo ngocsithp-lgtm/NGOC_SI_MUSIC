@@ -24,6 +24,7 @@ import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase
 import org.osmdroid.tileprovider.tilesource.XYTileSource
 import org.osmdroid.tileprovider.tilesource.TileSourcePolicy
+import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.MapTileIndex
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
@@ -32,26 +33,7 @@ import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
 import org.osmdroid.views.overlay.Polygon
 
-private val NgocSiStreetSource = XYTileSource(
-    "NgocSi-OSM-Resilient",
-    0,
-    19,
-    256,
-    ".png",
-    arrayOf(
-        "https://tile.openstreetmap.org/",
-        "https://tile.openstreetmap.fr/hot/",
-        "https://tile.openstreetmap.de/"
-    ),
-    "© OpenStreetMap contributors",
-    TileSourcePolicy(
-        2,
-        TileSourcePolicy.FLAG_NO_BULK or
-            TileSourcePolicy.FLAG_NO_PREVENTIVE or
-            TileSourcePolicy.FLAG_USER_AGENT_MEANINGFUL or
-            TileSourcePolicy.FLAG_USER_AGENT_NORMALIZED
-    )
-)
+private val NgocSiStreetSource = TileSourceFactory.MAPNIK
 
 private val NgocSiSatelliteSource = esriTileSource(
     name = "NgocSi-Esri-WorldImagery",
@@ -222,6 +204,12 @@ private fun configureOsmdroid(context: Context) {
     val preferences = appContext.getSharedPreferences("ngocsi_osmdroid_v4", Context.MODE_PRIVATE)
     Configuration.getInstance().load(appContext, preferences)
     Configuration.getInstance().userAgentValue = "NGOC-SI-MUSIC/${BuildConfig.VERSION_NAME} (+https://github.com/ngocsithp-lgtm/NGOC_SI_MUSIC)"
+    // Keep tile networking conservative and predictable on real devices.
+    Configuration.getInstance().setMapTileDownloaderFollowRedirects(true)
+    Configuration.getInstance().setTileDownloadThreads(2.toShort())
+    Configuration.getInstance().setTileFileSystemThreads(2.toShort())
+    Configuration.getInstance().setTileDownloadMaxQueueSize(40.toShort())
+    Configuration.getInstance().setTileFileSystemMaxQueueSize(40.toShort())
     Configuration.getInstance().osmdroidBasePath = baseDir
     Configuration.getInstance().osmdroidTileCache = cacheDir
 }
