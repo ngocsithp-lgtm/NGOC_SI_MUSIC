@@ -443,7 +443,7 @@ private fun buildStyleJson(selectedLayer: String): String {
     val satellite = selectedLayer == "satellite"
     val rasterTiles = if (satellite) {
         // Current Esri World Imagery tile service.
-        "https://wi.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
     } else {
         // OpenStreetMap standard tiles replace the retired Esri World Street Map raster service.
         "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
