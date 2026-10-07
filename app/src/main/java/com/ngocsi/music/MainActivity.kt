@@ -6754,19 +6754,44 @@ class MainActivity : ComponentActivity() {
                         throw IllegalStateException("Tuyến đường không đủ điểm hiển thị")
                     }
 
+                    val stepsArray = org.json.JSONArray()
+                    route.optJSONArray("legs")?.let { legs ->
+                        for (legIndex in 0 until legs.length()) {
+                            val leg = legs.optJSONObject(legIndex) ?: continue
+                            val steps = leg.optJSONArray("steps") ?: continue
+                            for (stepIndex in 0 until steps.length()) {
+                                val step = steps.optJSONObject(stepIndex) ?: continue
+                                val maneuver = step.optJSONObject("maneuver") ?: continue
+                                val location = maneuver.optJSONArray("location") ?: continue
+                                if (location.length() < 2) continue
+                                val maneuverLon = location.optDouble(0, Double.NaN)
+                                val maneuverLat = location.optDouble(1, Double.NaN)
+                                if (!maneuverLat.isFinite() || !maneuverLon.isFinite()) continue
+                                stepsArray.put(
+                                    org.json.JSONObject()
+                                        .put(
+                                            "instruction",
+                                            buildMapInstruction(
+                                                maneuver.optString("type"),
+                                                maneuver.optString("modifier"),
+                                                step.optString("name")
+                                            )
+                                        )
+                                        .put("distance", step.optDouble("distance", 0.0))
+                                        .put("duration", step.optDouble("duration", 0.0))
+                                        .put("lat", maneuverLat)
+                                        .put("lon", maneuverLon)
+                                )
+                            }
+                        }
+                    }
+
                     val meta = org.json.JSONObject()
                         .put("route", routeArray)
                         .put("name", destination.third)
                         .put("duration", route.optDouble("duration", 0.0))
                         .put("distance", route.optDouble("distance", 0.0))
-                        .put("stepCount", route.optJSONArray("legs")
-                            ?.let { legs ->
-                                var count = 0
-                                for (i in 0 until legs.length()) {
-                                    count += legs.optJSONObject(i)?.optJSONArray("steps")?.length() ?: 0
-                                }
-                                count
-                            } ?: 0)
+                        .put("steps", stepsArray)
 
                     Triple(destination.first, destination.second, meta.toString())
                 }
@@ -6774,18 +6799,42 @@ class MainActivity : ComponentActivity() {
 
             mapSearching = false
 
-            result.onSuccess { (lat, lon, metaJson) ->
+            result.onSuccess { (destinationLat, destinationLon, metaJson) ->
                 val meta = org.json.JSONObject(metaJson)
                 val routeArray = meta.optJSONArray("route") ?: org.json.JSONArray()
+                val stepsArray = meta.optJSONArray("steps") ?: org.json.JSONArray()
+                val parsedSteps = buildList {
+                    for (i in 0 until stepsArray.length()) {
+                        val step = stepsArray.optJSONObject(i) ?: continue
+                        val maneuverLat = step.optDouble("lat", Double.NaN)
+                        val maneuverLon = step.optDouble("lon", Double.NaN)
+                        if (!maneuverLat.isFinite() || !maneuverLon.isFinite()) continue
+                        add(
+                            MapNavigationStep(
+                                instruction = step.optString("instruction", "Tiếp tục"),
+                                distanceMeters = step.optDouble("distance", 0.0),
+                                durationSeconds = step.optDouble("duration", 0.0),
+                                maneuverLat = maneuverLat,
+                                maneuverLon = maneuverLon
+                            )
+                        )
+                    }
+                }
 
-                internalMapLat = lat
-                internalMapLon = lon
+                internalMapLat = mapRouteOriginLat
+                internalMapLon = mapRouteOriginLon
+                internalMapDestinationLat = destinationLat
+                internalMapDestinationLon = destinationLon
                 internalMapTitle = meta.optString("name", query).substringBefore(",")
                 internalMapLayer = "standard"
                 internalMapRouteJson = routeArray.toString()
-                internalMapIsCurrentLocation = false
-                internalMapAccuracyMeters = 0f
-                internalMapLocationTime = 0L
+                internalMapRouteDistanceMeters = meta.optDouble("distance", 0.0)
+                internalMapRouteDurationSeconds = meta.optDouble("duration", 0.0)
+                internalMapRouteSteps = parsedSteps
+                mapNavigationDestination = meta.optString("name", query)
+                internalMapIsCurrentLocation = true
+                internalMapAccuracyMeters = internalMapAccuracyMeters.coerceAtLeast(1f)
+                internalMapLocationTime = System.currentTimeMillis()
                 showInternalMap = true
 
                 val km = meta.optDouble("distance", 0.0) / 1000.0
@@ -6802,9 +6851,13 @@ class MainActivity : ComponentActivity() {
                     "Đã tạo tuyến đường."
                 }
             }.onFailure {
-                openExternalDirections(query)
-                errorMessage =
-                    "Máy chủ chỉ đường trong app không phản hồi; đã mở chỉ đường dự phòng."
+                if (mapNavigationActive) {
+                    errorMessage = "Không tính lại được tuyến trong app. Đang giữ tuyến hiện tại."
+                } else {
+                    openExternalDirections(query)
+                    errorMessage =
+                        "Máy chủ chỉ đường trong app không phản hồi; đã mở chỉ đường dự phòng."
+                }
             }
         }
     }
