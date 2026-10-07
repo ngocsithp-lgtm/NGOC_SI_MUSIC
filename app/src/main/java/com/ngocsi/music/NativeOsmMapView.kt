@@ -459,16 +459,27 @@ fun NativeOsmMapView(
                     .align(Alignment.TopCenter)
                     .padding(10.dp)
                     .background(ComposeColor(0xF20D1118), RoundedCornerShape(12.dp))
-                    .padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp)
+                    .padding(start = 12.dp, end = 6.dp, top = 6.dp, bottom = 6.dp)
             ) {
                 androidx.compose.foundation.layout.Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        "BẢN ĐỒ CHƯA TẢI ĐƯỢC",
-                        color = ComposeColor.White,
-                        fontSize = 9.sp
-                    )
+                    androidx.compose.foundation.layout.Column(
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            "BẢN ĐỒ CHƯA TẢI ĐƯỢC",
+                            color = ComposeColor.White,
+                            fontSize = 9.sp,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                        )
+                        Text(
+                            message,
+                            color = ComposeColor(0xFFB8C0CC),
+                            fontSize = 8.sp,
+                            maxLines = 2
+                        )
+                    }
                     androidx.compose.material3.TextButton(
                         onClick = {
                             mapLoadError = null
@@ -478,12 +489,6 @@ fun NativeOsmMapView(
                         Text("THỬ LẠI", fontSize = 9.sp)
                     }
                 }
-                Text(
-                    message,
-                    color = ComposeColor(0xFFB8C0CC),
-                    fontSize = 8.sp,
-                    maxLines = 2
-                )
             }
         }
 
@@ -496,10 +501,10 @@ fun NativeOsmMapView(
         ) {
             Text(
                 when {
-                    routePoints.size >= 2 -> "CHỈ ĐƯỜNG • © OSM"
-                    selectedLayer == "satellite" -> "VỆ TINH • © ESRI"
-                    isCurrentLocation -> "VỊ TRÍ HIỆN TẠI • © OSM"
-                    else -> "BẢN ĐỒ • © OSM"
+                    selectedLayer == "satellite" -> "© Esri • dữ liệu ảnh vệ tinh"
+                    routePoints.size >= 2 -> "© OpenStreetMap contributors"
+                    isCurrentLocation -> "© OpenStreetMap contributors"
+                    else -> "© OpenStreetMap contributors"
                 },
                 color = ComposeColor.White,
                 fontSize = 8.sp,
