@@ -7139,18 +7139,16 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   left: 12px;
                   top: 12px;
                   z-index: 90;
-                  width: 230px;
-                  max-width: calc(100% - 100px);
+                  width: 226px;
+                  max-width: calc(100% - 104px);
                   height: auto;
                   box-sizing: border-box;
                   padding: 9px 12px;
                   border-radius: 16px;
-                  background: rgba(10,14,21,0.90);
+                  background: rgba(10,14,21,0.86);
                   color: #fff;
                   box-shadow: 0 5px 18px rgba(0,0,0,0.24);
                   border: 1px solid rgba(255,255,255,0.10);
-                  backdrop-filter: blur(10px);
-                  -webkit-backdrop-filter: blur(10px);
                 }
                 .map-top-brand {
                   font-size: 8px;
@@ -7188,7 +7186,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   padding: 6px 9px;
                   border-radius: 10px;
                   font: 700 9px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-                  background: rgba(10,14,21,0.84);
+                  background: rgba(10,14,21,0.78);
                   color: #ffffff;
                   pointer-events: none;
                   box-shadow: 0 3px 12px rgba(0,0,0,0.18);
