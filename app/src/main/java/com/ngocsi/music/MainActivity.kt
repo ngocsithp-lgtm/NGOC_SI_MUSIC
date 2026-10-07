@@ -7606,10 +7606,16 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
                             Surface(
                                 modifier = Modifier.clickable {
-                                    if (routePoints.size >= 2) {
+                                    if (isCurrentLocation) {
+                                        if (navigationActive) {
+                                            centerNativeOsmMap(nativeMapRef, lat, lon)
+                                        } else if (onRefreshLocation != null) {
+                                            onRefreshLocation()
+                                        } else {
+                                            centerNativeOsmMap(nativeMapRef, lat, lon)
+                                        }
+                                    } else if (routePoints.size >= 2) {
                                         fitNativeOsmMapRoute(nativeMapRef, routePoints)
-                                    } else if (isCurrentLocation && onRefreshLocation != null) {
-                                        onRefreshLocation()
                                     } else {
                                         centerNativeOsmMap(nativeMapRef, lat, lon)
                                     }
