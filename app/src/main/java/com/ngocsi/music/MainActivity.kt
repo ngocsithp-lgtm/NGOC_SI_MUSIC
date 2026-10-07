@@ -7385,7 +7385,6 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             mutableStateOf(if (initialLayer == "satellite") "satellite" else "standard")
         }
         var nativeMapRef by remember { mutableStateOf<NgocSiMapController?>(null) }
-
         val routePoints = remember(routeJson) { parseMapRoutePoints(routeJson) }
 
         Dialog(
@@ -7393,81 +7392,61 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             properties = DialogProperties(usePlatformDefaultWidth = false)
         ) {
             Surface(
-                modifier = Modifier
-                    .fillMaxWidth(0.98f)
-                    .fillMaxHeight(0.94f),
+                modifier = Modifier.fillMaxWidth().fillMaxHeight(0.97f),
                 shape = RoundedCornerShape(22.dp),
-                color = Color(0xFF0D1016)
+                color = Color(0xFF0B0E13)
             ) {
                 Column(Modifier.fillMaxSize()) {
                     Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 9.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        Surface(
+                            modifier = Modifier.size(38.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFF211A35)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text("⌖", color = Color(0xFFB9A4FF), fontSize = 22.sp, fontWeight = FontWeight.Black)
+                            }
+                        }
+                        Spacer(Modifier.width(9.dp))
                         Column(Modifier.weight(1f)) {
                             Text(
                                 title,
                                 color = Color.White,
+                                fontSize = 14.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                             Text(
                                 when {
-                                    routePoints.size >= 2 ->
-                                        "CHỈ ĐƯỜNG • BẢN ĐỒ TRỰC TIẾP TRONG NGỌC SĨ MUSIC"
-                                    isCurrentLocation && accuracyMeters > 0f ->
-                                        "VỊ TRÍ HIỆN TẠI • ĐỘ CHÍNH XÁC ±" + accuracyMeters.toInt() + " m"
-                                    else ->
-                                        "BẢN ĐỒ TRỰC TIẾP TRONG NGỌC SĨ MUSIC"
+                                    navigationActive -> "ĐANG DẪN ĐƯỜNG"
+                                    routePoints.size >= 2 -> "Tuyến đường trong ứng dụng"
+                                    isCurrentLocation -> "Vị trí hiện tại"
+                                    else -> "Bản đồ trong ứng dụng"
                                 },
-                                color = if (isCurrentLocation && accuracyMeters > 0f) Color(0xFF9BE8B1) else Color(0xFF8F909E),
-                                fontSize = 10.sp,
-                                maxLines = 2
-                            )
-                            if (isCurrentLocation && accuracyMeters > 0f) {
-                                Spacer(Modifier.height(2.dp))
-                                Text(
-                                    String.format(
-                                        java.util.Locale.getDefault(),
-                                        "%.6f, %.6f",
-                                        lat,
-                                        lon
-                                    ) + " • " + if (locationTime > 0L) "đã cập nhật" else "đang cập nhật",
-                                    color = Color(0xFF6F7786),
-                                    fontSize = 8.sp,
-                                    maxLines = 1
-                                )
-                            }
-                        }
-                        Surface(
-                            modifier = Modifier.clickable(onClick = onOpenExternal),
-                            shape = RoundedCornerShape(12.dp),
-                            color = Color(0xFFF1F3F6)
-                        ) {
-                            Text(
-                                "Google Maps",
-                                color = Color(0xFF20252D),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 11.dp, vertical = 8.dp)
+                                color = when {
+                                    navigationActive -> Color(0xFF9BE8B1)
+                                    isCurrentLocation -> Color(0xFF8EE0A6)
+                                    else -> Color(0xFF858D9C)
+                                },
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.SemiBold
                             )
                         }
-                        Spacer(Modifier.width(6.dp))
-                        Surface(
-                            modifier = Modifier.clickable(onClick = onDismiss),
-                            shape = RoundedCornerShape(12.dp),
-                            color = Color(0xFF6C5CE7)
-                        ) {
+                        if (isCurrentLocation && accuracyMeters > 0f) {
                             Text(
-                                "Đóng",
-                                color = Color.White,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                                "±" + accuracyMeters.toInt() + "m",
+                                color = Color(0xFF8FE0A5),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
                             )
+                            Spacer(Modifier.width(6.dp))
+                        }
+                        IconButton(onClick = onDismiss) {
+                            Text("✕", color = Color(0xFFB9BFCA), fontSize = 18.sp)
                         }
                     }
 
@@ -7476,63 +7455,44 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     }
 
                     Box(
-                        Modifier
-                            .fillMaxSize()
-                            .clip(RoundedCornerShape(18.dp))
+                        Modifier.fillMaxSize().clip(RoundedCornerShape(18.dp))
                     ) {
-                            NativeOsmMapView(
-                                modifier = Modifier.fillMaxSize(),
-                                lat = lat,
-                                lon = lon,
-                                selectedLayer = selectedLayer,
-                                routePoints = routePoints,
-                                isCurrentLocation = isCurrentLocation,
-                                accuracyMeters = accuracyMeters,
-                                bearingDegrees = bearingDegrees,
-                                followLocation = navigationActive,
-                                onMapReady = { nativeMapRef = it }
-                            )
+                        NativeOsmMapView(
+                            modifier = Modifier.fillMaxSize(),
+                            lat = lat,
+                            lon = lon,
+                            selectedLayer = selectedLayer,
+                            routePoints = routePoints,
+                            isCurrentLocation = isCurrentLocation,
+                            accuracyMeters = accuracyMeters,
+                            bearingDegrees = bearingDegrees,
+                            hasBearing = hasBearing,
+                            followLocation = navigationActive,
+                            onMapReady = { nativeMapRef = it }
+                        )
 
+                        // Compact controls: only map actions stay on top of the map.
                         Column(
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
-                                .padding(12.dp),
+                                .padding(10.dp),
                             verticalArrangement = Arrangement.spacedBy(7.dp)
                         ) {
                             Surface(
                                 modifier = Modifier.clickable {
-                                    selectedLayer =
-                                        if (selectedLayer == "satellite") "standard" else "satellite"
-                                    
+                                    selectedLayer = if (selectedLayer == "satellite") "standard" else "satellite"
                                 },
-                                shape = RoundedCornerShape(14.dp),
-                                color = Color(0xF7FFFFFF),
-                                shadowElevation = 5.dp
+                                shape = RoundedCornerShape(13.dp),
+                                color = Color(0xF2FFFFFF),
+                                shadowElevation = 4.dp
                             ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 5.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Surface(
-                                        shape = RoundedCornerShape(10.dp),
-                                        color = Color(0xFF6C5CE7)
-                                    ) {
-                                        Text(
-                                            if (selectedLayer == "satellite") "Vệ tinh" else "Bản đồ",
-                                            color = Color.White,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp)
-                                        )
-                                    }
-                                    Text(
-                                        if (selectedLayer == "satellite") "  → Bản đồ" else "  → Vệ tinh",
-                                        color = Color(0xFF3C424B),
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        modifier = Modifier.padding(end = 8.dp)
-                                    )
-                                }
+                                Text(
+                                    if (selectedLayer == "satellite") "🗺 BẢN ĐỒ" else "🛰 VỆ TINH",
+                                    color = Color(0xFF262B34),
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Black,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp)
+                                )
                             }
 
                             Surface(
@@ -7545,104 +7505,113 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         centerNativeOsmMap(nativeMapRef, lat, lon)
                                     }
                                 },
-                                shape = RoundedCornerShape(12.dp),
-                                color = Color(0xE6101620)
+                                shape = CircleShape,
+                                color = Color(0xE9141922)
                             ) {
                                 Text(
                                     "⌖",
                                     color = Color.White,
-                                    fontSize = 22.sp,
+                                    fontSize = 20.sp,
                                     fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 13.dp, vertical = 5.dp)
+                                    modifier = Modifier.padding(10.dp)
                                 )
                             }
 
                             Surface(
-                                modifier = Modifier.clickable {
-                                    zoomInNativeOsmMap(nativeMapRef)
-                                },
-                                shape = RoundedCornerShape(14.dp),
-                                color = Color(0xF7FFFFFF),
-                                shadowElevation = 5.dp
+                                modifier = Modifier.clickable { zoomInNativeOsmMap(nativeMapRef) },
+                                shape = CircleShape,
+                                color = Color(0xF2FFFFFF)
                             ) {
-                                Text(
-                                    "+",
-                                    color = Color(0xFF303640),
-                                    fontSize = 22.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    modifier = Modifier.padding(horizontal = 13.dp, vertical = 8.dp)
-                                )
+                                Text("+", color = Color(0xFF303640), fontSize = 22.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp))
                             }
 
                             Surface(
-                                modifier = Modifier.clickable {
-                                    zoomOutNativeOsmMap(nativeMapRef)
-                                },
-                                shape = RoundedCornerShape(14.dp),
-                                color = Color(0xF7FFFFFF),
-                                shadowElevation = 5.dp
+                                modifier = Modifier.clickable { zoomOutNativeOsmMap(nativeMapRef) },
+                                shape = CircleShape,
+                                color = Color(0xF2FFFFFF)
                             ) {
-                                Text(
-                                    "−",
-                                    color = Color(0xFF303640),
-                                    fontSize = 22.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    modifier = Modifier.padding(horizontal = 13.dp, vertical = 8.dp)
-                                )
+                                Text("−", color = Color(0xFF303640), fontSize = 22.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp))
                             }
                         }
 
+                        if (isCurrentLocation && !navigationActive) {
+                            Surface(
+                                modifier = Modifier.align(Alignment.TopStart).padding(10.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color(0xE611171F)
+                            ) {
+                                Text(
+                                    "● GPS",
+                                    color = Color(0xFF9BE8B1),
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Black,
+                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 7.dp)
+                                )
+                            }
+                        }
 
                         if (routePoints.size >= 2) {
                             Surface(
                                 modifier = Modifier
                                     .align(Alignment.BottomCenter)
-                                    .padding(start = 12.dp, end = 12.dp, bottom = 12.dp)
-                                    .fillMaxWidth(0.94f),
-                                shape = RoundedCornerShape(18.dp),
-                                color = Color(0xF20D1118),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF323B49))
+                                    .padding(10.dp)
+                                    .fillMaxWidth(0.96f),
+                                shape = RoundedCornerShape(20.dp),
+                                color = Color(0xF50C1118),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF2D3745))
                             ) {
-                                Column(
-                                    Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
-                                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
+                                Column(Modifier.padding(12.dp)) {
                                     Row(
                                         Modifier.fillMaxWidth(),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Column(Modifier.weight(1f)) {
                                             Text(
-                                                if (navigationActive) "ĐANG DẪN ĐƯỜNG" else "TUYẾN ĐƯỜNG",
+                                                if (navigationActive) "DẪN ĐƯỜNG" else "TUYẾN ĐƯỜNG",
                                                 color = Color.White,
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Black
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Black,
+                                                letterSpacing = 0.5.sp
                                             )
                                             Text(
                                                 String.format(
                                                     java.util.Locale.getDefault(),
-                                                    "%.1f km • %.0f phút",
+                                                    "%.1f km  •  %.0f phút",
                                                     routeDistanceMeters / 1000.0,
                                                     routeDurationSeconds / 60.0
                                                 ),
-                                                color = Color(0xFF9BA6B5),
+                                                color = Color(0xFF9CA7B5),
                                                 fontSize = 10.sp
                                             )
                                         }
-                                        if (navigationActive) {
-                                            Button(
-                                                onClick = onStopNavigation,
-                                                shape = RoundedCornerShape(11.dp)
-                                            ) { Text("DỪNG", fontSize = 10.sp) }
-                                        } else {
-                                            Button(
-                                                onClick = onStartNavigation,
-                                                shape = RoundedCornerShape(11.dp)
-                                            ) { Text("BẮT ĐẦU", fontSize = 10.sp) }
+
+                                        OutlinedButton(
+                                            onClick = onOpenExternal,
+                                            shape = RoundedCornerShape(10.dp),
+                                            contentPadding = PaddingValues(horizontal = 9.dp, vertical = 0.dp)
+                                        ) {
+                                            Text("MỞ", fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                        }
+
+                                        Spacer(Modifier.width(6.dp))
+
+                                        Button(
+                                            onClick = if (navigationActive) onStopNavigation else onStartNavigation,
+                                            shape = RoundedCornerShape(10.dp),
+                                            contentPadding = PaddingValues(horizontal = 11.dp, vertical = 0.dp)
+                                        ) {
+                                            Text(
+                                                if (navigationActive) "DỪNG" else "BẮT ĐẦU",
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Black
+                                            )
                                         }
                                     }
+
                                     if (navigationActive && nextInstruction.isNotBlank()) {
-                                        HorizontalDivider(color = Color(0xFF2A313D))
+                                        Spacer(Modifier.height(8.dp))
+                                        HorizontalDivider(color = Color(0xFF29313B))
+                                        Spacer(Modifier.height(8.dp))
                                         Text(
                                             nextInstruction,
                                             color = Color.White,
@@ -7655,45 +7624,30 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                             if (nextInstructionDistanceMeters > 0.0)
                                                 String.format(
                                                     java.util.Locale.getDefault(),
-                                                    "Còn %.0f m đến thao tác tiếp theo",
+                                                    "Còn %.0f m",
                                                     nextInstructionDistanceMeters
                                                 )
                                             else "Đang cập nhật vị trí…",
-                                            color = Color(0xFF9FE0B2),
+                                            color = Color(0xFF9BE8B1),
                                             fontSize = 10.sp
                                         )
-                                    } else if (routeSteps.isNotEmpty()) {
+                                    } else if (!navigationActive && routeSteps.isNotEmpty()) {
+                                        Spacer(Modifier.height(6.dp))
                                         Text(
-                                            "Có ${routeSteps.size} thao tác chỉ đường • nhấn BẮT ĐẦU để theo dõi GPS",
-                                            color = Color(0xFF7F8898),
-                                            fontSize = 10.sp,
-                                            maxLines = 2
+                                            routeSteps.size.toString() + " thao tác chỉ đường • Bấm BẮT ĐẦU để theo dõi GPS",
+                                            color = Color(0xFF777F8E),
+                                            fontSize = 9.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                     }
                                 }
                             }
                         }
-
-                        Surface(
-                            modifier = Modifier
-                                .align(Alignment.BottomEnd)
-                                .padding(10.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            color = Color(0xE6101620)
-                        ) {
-                            Text(
-                                if (routePoints.size >= 2) "● TUYẾN ĐƯỜNG" else "● ĐANG XEM",
-                                color = Color.White,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp)
-                            )
-                        }
                     }
                 }
             }
         }
-
     }
 
     @Composable
