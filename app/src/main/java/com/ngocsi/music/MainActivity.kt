@@ -371,7 +371,21 @@ class MainActivity : ComponentActivity() {
     private var internalMapIsCurrentLocation by mutableStateOf(false)
     private var internalMapAccuracyMeters by mutableFloatStateOf(0f)
     private var internalMapLocationTime by mutableLongStateOf(0L)
+    private var internalMapBearing by mutableFloatStateOf(0f)
+    private var internalMapDestinationLat by mutableDoubleStateOf(10.8231)
+    private var internalMapDestinationLon by mutableDoubleStateOf(106.6297)
+    private var internalMapRouteDistanceMeters by mutableDoubleStateOf(0.0)
+    private var internalMapRouteDurationSeconds by mutableDoubleStateOf(0.0)
+    private var internalMapRouteSteps by mutableStateOf<List<MapNavigationStep>>(emptyList())
+    private var mapNavigationActive by mutableStateOf(false)
+    private var pendingMapNavigationStart by mutableStateOf(false)
+    private var mapNavigationStepIndex by mutableIntStateOf(0)
+    private var mapNavigationDestination by mutableStateOf("")
+    private var mapNavigationLastRerouteAt by mutableLongStateOf(0L)
+    private var mapNavigationLocationClient: com.google.android.gms.location.FusedLocationProviderClient? = null
+    private var mapNavigationLocationCallback: LocationCallback? = null
     private var mapLocationLoading by mutableStateOf(false)
+    private var mapSearchLastAt by mutableLongStateOf(0L)
     private var pendingMapRouteQuery by mutableStateOf<String?>(null)
     // Chặng đi của CHỈ ĐƯỜNG phải có điểm xuất phát độc lập với tâm bản đồ.
     private var mapRouteOriginLat by mutableStateOf(10.8231)
@@ -455,8 +469,14 @@ class MainActivity : ComponentActivity() {
             val granted = result[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
                 result[Manifest.permission.ACCESS_COARSE_LOCATION] == true
             if (granted) {
-                showCurrentLocationOnMap()
+                if (pendingMapNavigationStart) {
+                    pendingMapNavigationStart = false
+                    startMapNavigation()
+                } else {
+                    showCurrentLocationOnMap()
+                }
             } else {
+                pendingMapNavigationStart = false
                 errorMessage = "Cần cấp quyền vị trí để hiển thị vị trí hiện tại trên bản đồ."
             }
         }
@@ -3791,10 +3811,21 @@ class MainActivity : ComponentActivity() {
             internalMapLat = lat
             internalMapLon = lon
             internalMapTitle = "VỊ TRÍ HIỆN TẠI"
-            internalMapLayer = "standard"
-            internalMapRouteJson = "[]"
+            internalMapLayer = if (mapNavigationActive) internalMapLayer else "standard"
+            if (!mapNavigationActive) {
+                internalMapRouteJson = "[]"
+                internalMapDestinationLat = lat
+                internalMapDestinationLon = lon
+                internalMapRouteDistanceMeters = 0.0
+                internalMapRouteDurationSeconds = 0.0
+                internalMapRouteSteps = emptyList()
+                mapNavigationDestination = ""
+            }
             internalMapIsCurrentLocation = true
             internalMapAccuracyMeters = accuracy
+            if (location.hasBearing() && location.bearing.isFinite()) {
+                internalMapBearing = location.bearing
+            }
             internalMapLocationTime = if (location.time > 0L) location.time else System.currentTimeMillis()
             showInternalMap = true
             errorMessage = null
@@ -4180,6 +4211,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        stopMapNavigationLocationUpdates()
         cancelRadioRecovery()
         sleepTimerJob?.cancel()
         jamendoSearchJob?.cancel()
@@ -4553,13 +4585,32 @@ class MainActivity : ComponentActivity() {
                 routeJson = internalMapRouteJson,
                 isCurrentLocation = internalMapIsCurrentLocation,
                 accuracyMeters = internalMapAccuracyMeters,
+                bearingDegrees = internalMapBearing,
                 locationTime = internalMapLocationTime,
-                onDismiss = { showInternalMap = false },
+                routeDistanceMeters = internalMapRouteDistanceMeters,
+                routeDurationSeconds = internalMapRouteDurationSeconds,
+                routeSteps = internalMapRouteSteps,
+                navigationActive = mapNavigationActive,
+                nextInstruction = internalMapRouteSteps.getOrNull(mapNavigationStepIndex)?.instruction.orEmpty(),
+                nextInstructionDistanceMeters = internalMapRouteSteps.getOrNull(mapNavigationStepIndex)?.let { step ->
+                    haversineDistanceMeters(
+                        internalMapLat,
+                        internalMapLon,
+                        step.maneuverLat,
+                        step.maneuverLon
+                    )
+                } ?: 0.0,
+                onDismiss = {
+                    if (mapNavigationActive) stopMapNavigation()
+                    showInternalMap = false
+                },
                 onRefreshLocation = if (internalMapIsCurrentLocation) {
                     { showCurrentLocationOnMap() }
                 } else null,
                 onOpenExternal = {
-                    val query = internalMapLat.toString() + "," + internalMapLon.toString()
+                    val externalLat = if (internalMapRouteSteps.isNotEmpty()) internalMapDestinationLat else internalMapLat
+                    val externalLon = if (internalMapRouteSteps.isNotEmpty()) internalMapDestinationLon else internalMapLon
+                    val query = externalLat.toString() + "," + externalLon.toString()
                     runCatching {
                         startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(
                             "https://www.google.com/maps/search/?api=1&query=" + Uri.encode(query)
