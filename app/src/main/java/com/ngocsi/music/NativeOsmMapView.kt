@@ -9,7 +9,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Text
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color as ComposeColor
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import java.io.File
 import org.osmdroid.config.Configuration
@@ -47,9 +55,10 @@ fun NativeOsmMapView(
 ) {
     var mapView by remember { mutableStateOf<MapView?>(null) }
 
-    AndroidView(
-        modifier = modifier,
-        factory = { context ->
+    Box(modifier = modifier) {
+        AndroidView(
+            modifier = Modifier.matchParentSize(),
+            factory = { context ->
             configureOsmdroid(context)
             MapView(context).apply {
                 setMultiTouchControls(true)
@@ -72,38 +81,81 @@ fun NativeOsmMapView(
                 onResume()
             }
         },
-        update = { view ->
-            mapView = view
-            onMapReady(view)
-            val stateKey = buildString {
-                append(safeLat(lat))
-                append('|')
-                append(safeLon(lon))
-                append('|')
-                append(selectedLayer)
-                append('|')
-                append(isCurrentLocation)
-                append('|')
-                append(accuracyMeters.toInt())
-                append('|')
-                append(routePoints.hashCode())
-            }
-            if (view.tag != stateKey) {
-                configureNativeMap(
-                    view,
-                    view.context,
-                    lat,
-                    lon,
-                    selectedLayer,
-                    routePoints,
-                    isCurrentLocation,
-                    accuracyMeters,
-                    fitRoute = routePoints.size >= 2
+            update = { view ->
+                mapView = view
+                onMapReady(view)
+                val previous = view.tag as? NativeMapState
+                val next = NativeMapState(
+                    lat = safeLat(lat),
+                    lon = safeLon(lon),
+                    layer = if (selectedLayer == "satellite") "satellite" else "standard",
+                    isCurrentLocation = isCurrentLocation,
+                    accuracyMeters = accuracyMeters.toInt(),
+                    routeHash = routePoints.hashCode()
                 )
-                view.tag = stateKey
+                if (previous == null) {
+                    configureNativeMap(
+                        view,
+                        view.context,
+                        lat,
+                        lon,
+                        selectedLayer,
+                        routePoints,
+                        isCurrentLocation,
+                        accuracyMeters,
+                        fitRoute = routePoints.size >= 2
+                    )
+                } else if (previous == next) {
+                    // Nothing to update.
+                } else if (
+                    previous.lat == next.lat &&
+                    previous.lon == next.lon &&
+                    previous.layer != next.layer &&
+                    previous.isCurrentLocation == next.isCurrentLocation &&
+                    previous.accuracyMeters == next.accuracyMeters &&
+                    previous.routeHash == next.routeHash
+                ) {
+                    // Layer-only change: do not reset the user's panned/zoomed camera.
+                    view.setTileSource(
+                        if (next.layer == "satellite") NgocSiSatelliteSource
+                        else TileSourceFactory.MAPNIK
+                    )
+                    view.invalidate()
+                } else {
+                    configureNativeMap(
+                        view,
+                        view.context,
+                        lat,
+                        lon,
+                        selectedLayer,
+                        routePoints,
+                        isCurrentLocation,
+                        accuracyMeters,
+                        fitRoute = routePoints.size >= 2 && previous.routeHash != next.routeHash
+                    )
+                }
+                view.tag = next
             }
+        )
+
+        androidx.compose.foundation.layout.Box(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = 10.dp, bottom = 10.dp)
+                .background(
+                    ComposeColor(0xD9000000),
+                    androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+                )
+                .padding(horizontal = 8.dp, vertical = 5.dp)
+        ) {
+            Text(
+                if (selectedLayer == "satellite") "© Esri" else "© OpenStreetMap contributors",
+                color = ComposeColor.White,
+                fontSize = 9.sp,
+                maxLines = 1
+            )
         }
-    )
+    }
 
     DisposableEffect(mapView) {
         mapView?.onResume()
@@ -113,6 +165,15 @@ fun NativeOsmMapView(
         }
     }
 }
+
+private data class NativeMapState(
+    val lat: Double,
+    val lon: Double,
+    val layer: String,
+    val isCurrentLocation: Boolean,
+    val accuracyMeters: Int,
+    val routeHash: Int
+)
 
 private fun configureOsmdroid(context: Context) {
     val appContext = context.applicationContext
