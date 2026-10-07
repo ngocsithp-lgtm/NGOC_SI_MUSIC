@@ -4632,6 +4632,7 @@ class MainActivity : ComponentActivity() {
                         step.maneuverLon
                     )
                 } ?: 0.0,
+                statusMessage = errorMessage,
                 onDismiss = {
                     if (mapNavigationActive) stopMapNavigation()
                     showInternalMap = false
@@ -6937,7 +6938,7 @@ class MainActivity : ComponentActivity() {
                 mapNavigationDestinationQuery = query
                 internalMapIsCurrentLocation = true
                 internalMapAccuracyMeters = internalMapAccuracyMeters.coerceAtLeast(1f)
-                internalMapLocationTime = System.currentTimeMillis()
+                // Keep the timestamp from the GPS fix; route calculation itself is not a new location fix.
                 showInternalMap = true
 
                 val km = meta.optDouble("distance", 0.0) / 1000.0
@@ -6957,9 +6958,8 @@ class MainActivity : ComponentActivity() {
                 if (mapNavigationActive) {
                     errorMessage = "Không tính lại được tuyến trong app. Đang giữ tuyến hiện tại."
                 } else {
-                    openExternalDirections(query)
                     errorMessage =
-                        "Máy chủ chỉ đường trong app không phản hồi; đã mở chỉ đường dự phòng."
+                        "Máy chủ chỉ đường trong app chưa phản hồi. Hãy thử lại hoặc dùng MỞ để mở bản đồ ngoài."
                 }
             }
         }
@@ -7104,6 +7104,45 @@ class MainActivity : ComponentActivity() {
                                 Text("Dữ liệu trực tiếp", color = Color(0xFF849294), fontSize = 9.sp)
                             }
                         }
+                    }
+                }
+            }
+
+            if (mapLocationLoading || mapSearching || errorMessage != null) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0xFF121823),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        if (errorMessage != null) Color(0xFF343E50) else Color(0xFF2D3650)
+                    )
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 11.dp, vertical = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            when {
+                                mapLocationLoading -> "⌖"
+                                mapSearching -> "🧭"
+                                else -> "ⓘ"
+                            },
+                            color = Color(0xFFB9A7FF),
+                            fontSize = 14.sp
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            when {
+                                mapLocationLoading -> "Đang xác định vị trí hiện tại…"
+                                mapSearching -> "Đang xử lý yêu cầu bản đồ…"
+                                else -> errorMessage.orEmpty()
+                            },
+                            color = Color(0xFFD6DBE5),
+                            fontSize = 9.sp,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
             }
@@ -7417,6 +7456,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         routeDistanceMeters: Double,
         routeDurationSeconds: Double,
         routeSteps: List<MapNavigationStep>,
+        statusMessage: String?,
         navigationActive: Boolean,
         nextInstruction: String,
         nextInstructionDistanceMeters: Double,
@@ -7517,6 +7557,27 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             followLocation = navigationActive,
                             onMapReady = { nativeMapRef = it }
                         )
+
+                        statusMessage?.takeIf { it.isNotBlank() }?.let { message ->
+                            Surface(
+                                modifier = Modifier
+                                    .align(Alignment.TopStart)
+                                    .padding(10.dp)
+                                    .fillMaxWidth(0.78f),
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color(0xEA10151D),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF303948))
+                            ) {
+                                Text(
+                                    message,
+                                    color = Color(0xFFD5DBE6),
+                                    fontSize = 9.sp,
+                                    maxLines = 3,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+                                )
+                            }
+                        }
 
                         // Compact controls: only map actions stay on top of the map.
                         Column(
@@ -7625,18 +7686,30 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                             overflow = TextOverflow.Ellipsis
                                         )
                                         Spacer(Modifier.height(9.dp))
-                                        Button(
-                                            onClick = onCalculateRoute,
-                                            enabled = !mapSearching,
-                                            modifier = Modifier.fillMaxWidth(),
-                                            shape = RoundedCornerShape(11.dp),
-                                            contentPadding = PaddingValues(vertical = 8.dp)
+                                        Row(
+                                            Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(7.dp)
                                         ) {
-                                            Text(
-                                                if (mapSearching) "ĐANG TÍNH TUYẾN…" else "🧭 CHỈ ĐƯỜNG TỪ VỊ TRÍ HIỆN TẠI",
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Black
-                                            )
+                                            Button(
+                                                onClick = onCalculateRoute,
+                                                enabled = !mapSearching,
+                                                modifier = Modifier.weight(1f),
+                                                shape = RoundedCornerShape(11.dp),
+                                                contentPadding = PaddingValues(vertical = 8.dp)
+                                            ) {
+                                                Text(
+                                                    if (mapSearching) "ĐANG TÍNH…" else "🧭 CHỈ ĐƯỜNG",
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Black
+                                                )
+                                            }
+                                            OutlinedButton(
+                                                onClick = onOpenExternal,
+                                                shape = RoundedCornerShape(11.dp),
+                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
+                                            ) {
+                                                Text("MỞ MAP", fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                            }
                                         }
                                     } else Row(
                                         Modifier.fillMaxWidth(),
