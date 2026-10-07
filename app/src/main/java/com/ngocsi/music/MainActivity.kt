@@ -7490,6 +7490,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         isCurrentLocation: Boolean,
         accuracyMeters: Float,
         bearingDegrees: Float,
+        hasBearing: Boolean,
         locationTime: Long,
         routeDistanceMeters: Double,
         routeDurationSeconds: Double,
