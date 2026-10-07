@@ -3737,6 +3737,26 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun openMapHome() {
+        internalMapLat = if (internalMapLat.isFinite()) internalMapLat else 10.8231
+        internalMapLon = if (internalMapLon.isFinite()) internalMapLon else 106.6297
+        internalMapTitle = "NGỌC SĨ MAP"
+        internalMapLayer = "standard"
+        internalMapRouteJson = "[]"
+        internalMapDestinationLat = internalMapLat
+        internalMapDestinationLon = internalMapLon
+        internalMapRouteDistanceMeters = 0.0
+        internalMapRouteDurationSeconds = 0.0
+        internalMapRouteSteps = emptyList()
+        internalMapIsCurrentLocation = false
+        internalMapAccuracyMeters = 0f
+        internalMapLocationTime = 0L
+        mapNavigationDestination = ""
+        mapNavigationDestinationQuery = ""
+        showInternalMap = true
+        errorMessage = null
+    }
+
     private fun showCurrentLocationOnMap() {
         val fine = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
         val coarse = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
@@ -7007,7 +7027,7 @@ class MainActivity : ComponentActivity() {
                     Spacer(Modifier.height(10.dp))
 
                     Button(
-                        onClick = { if (mapSearchQuery.isBlank()) showCurrentLocationOnMap() else searchMapPlace() },
+                        onClick = { if (mapSearchQuery.isBlank()) openMapHome() else searchMapPlace() },
                         modifier = Modifier.fillMaxWidth().height(48.dp),
                         shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6C5CE7))
