@@ -212,10 +212,18 @@ class MusicService : MediaSessionService() {
             val uri = dataSpec.uri.toString()
             if (uri.startsWith("https://www.googleapis.com/drive/v3/files/")) {
                 val token = refreshDriveTokenBlocking()
-                if (token.isNotBlank()) {
-                    dataSpec.withRequestHeaders(
-                        mapOf("Authorization" to "Bearer $token")
-                    )
+                val headers = buildMap {
+                    if (token.isNotBlank()) {
+                        put("Authorization", "Bearer $token")
+                    }
+                    val fileId = dataSpec.uri.pathSegments.lastOrNull().orEmpty().trim()
+                    val resourceKey = dataSpec.uri.getQueryParameter("resourceKey").orEmpty().trim()
+                    if (fileId.isNotBlank() && resourceKey.isNotBlank()) {
+                        put("X-Goog-Drive-Resource-Keys", "$fileId/$resourceKey")
+                    }
+                }
+                if (headers.isNotEmpty()) {
+                    dataSpec.withRequestHeaders(headers)
                 } else {
                     dataSpec
                 }
