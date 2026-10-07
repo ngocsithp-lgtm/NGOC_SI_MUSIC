@@ -112,11 +112,9 @@ class NgocSiMapController internal constructor(
         mapView.addOnDidFinishLoadingMapListener(finishListener)
     }
 
-    fun setView(newLat: Double, newLon: Double) {
+    fun centerView(newLat: Double, newLon: Double) {
         lat = safeLat(newLat)
         lon = safeLon(newLon)
-        route = emptyList()
-        currentLocation = true
         zoom = max(zoom, 14.0)
         map.animateCamera(
             CameraUpdateFactory.newLatLngZoom(LatLng(lat, lon), zoom),
@@ -658,7 +656,7 @@ private fun safeLon(value: Double): Double =
     if (value.isFinite()) value.coerceIn(-180.0, 180.0) else 106.6297
 
 fun centerNativeOsmMap(map: NgocSiMapController?, lat: Double, lon: Double) {
-    map?.setView(lat, lon)
+    map?.centerView(lat, lon)
 }
 
 fun zoomInNativeOsmMap(map: NgocSiMapController?) {
