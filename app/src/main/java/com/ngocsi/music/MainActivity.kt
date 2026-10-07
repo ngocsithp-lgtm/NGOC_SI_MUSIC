@@ -372,6 +372,7 @@ class MainActivity : ComponentActivity() {
     private var internalMapAccuracyMeters by mutableFloatStateOf(0f)
     private var internalMapLocationTime by mutableLongStateOf(0L)
     private var internalMapBearing by mutableFloatStateOf(0f)
+    private var internalMapHasBearing by mutableStateOf(false)
     private var internalMapDestinationLat by mutableDoubleStateOf(10.8231)
     private var internalMapDestinationLon by mutableDoubleStateOf(106.6297)
     private var internalMapRouteDistanceMeters by mutableDoubleStateOf(0.0)
@@ -3825,6 +3826,7 @@ class MainActivity : ComponentActivity() {
             internalMapAccuracyMeters = accuracy
             if (location.hasBearing() && location.bearing.isFinite()) {
                 internalMapBearing = location.bearing
+                internalMapHasBearing = true
             }
             internalMapLocationTime = if (location.time > 0L) location.time else System.currentTimeMillis()
             showInternalMap = true
@@ -4586,6 +4588,7 @@ class MainActivity : ComponentActivity() {
                 isCurrentLocation = internalMapIsCurrentLocation,
                 accuracyMeters = internalMapAccuracyMeters,
                 bearingDegrees = internalMapBearing,
+                hasBearing = internalMapHasBearing,
                 locationTime = internalMapLocationTime,
                 routeDistanceMeters = internalMapRouteDistanceMeters,
                 routeDurationSeconds = internalMapRouteDurationSeconds,
@@ -6510,27 +6513,31 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        val destinationDistance = haversineDistanceMeters(
+            lat,
+            lon,
+            internalMapDestinationLat,
+            internalMapDestinationLon
+        )
+        if (destinationDistance <= 45.0) {
+            stopMapNavigation()
+            internalMapIsCurrentLocation = true
+            errorMessage = "Đã đến điểm đích."
+            return
+        }
+
         if (internalMapRouteSteps.isNotEmpty()) {
-            val candidates = internalMapRouteSteps.withIndex()
-                .drop(mapNavigationStepIndex.coerceAtLeast(0))
-            val next = candidates.minByOrNull { indexed ->
+            val currentIndex = mapNavigationStepIndex.coerceIn(0, internalMapRouteSteps.lastIndex)
+            if (
+                currentIndex < internalMapRouteSteps.lastIndex &&
                 haversineDistanceMeters(
                     lat,
                     lon,
-                    indexed.value.maneuverLat,
-                    indexed.value.maneuverLon
-                )
-            }
-            if (next != null) {
-                val distance = haversineDistanceMeters(
-                    lat,
-                    lon,
-                    next.value.maneuverLat,
-                    next.value.maneuverLon
-                )
-                if (next.index == mapNavigationStepIndex || distance <= 90.0) {
-                    mapNavigationStepIndex = next.index
-                }
+                    internalMapRouteSteps[currentIndex].maneuverLat,
+                    internalMapRouteSteps[currentIndex].maneuverLon
+                ) <= 65.0
+            ) {
+                mapNavigationStepIndex = currentIndex + 1
             }
         }
     }
