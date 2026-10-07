@@ -90,6 +90,7 @@ class NgocSiMapController internal constructor(
     private var currentLocation = false
     private var accuracyMeters = 0f
     private var bearingDegrees = 0f
+    private var hasBearing = false
     private var zoom = 14.0
 
     fun setView(newLat: Double, newLon: Double) {
@@ -165,6 +166,7 @@ class NgocSiMapController internal constructor(
         isCurrentLocation: Boolean,
         accuracyMeters: Float,
         bearingDegrees: Float,
+        hasBearing: Boolean,
         fitRoute: Boolean,
         followLocation: Boolean
     ) {
@@ -183,6 +185,7 @@ class NgocSiMapController internal constructor(
         } else {
             0f
         }
+        this.hasBearing = hasBearing
         val valid = routePoints.filter { it.first.isFinite() && it.second.isFinite() }
 
         if (valid.size >= 2) {
@@ -196,7 +199,7 @@ class NgocSiMapController internal constructor(
                         .target(LatLng(lat, lon))
                         .zoom(zoom)
                         .bearing(
-                            if (bearingDegrees > 0f) bearingDegrees.toDouble()
+                            if (hasBearing) bearingDegrees.toDouble()
                             else map.cameraPosition.bearing
                         )
                         .build()
@@ -248,7 +251,7 @@ class NgocSiMapController internal constructor(
             else EMPTY_GEO_JSON
         )
         bearingSource.setGeoJson(
-            if (currentLocation && bearingDegrees > 0f) buildBearingGeoJson(lat, lon, bearingDegrees)
+            if (currentLocation && hasBearing) buildBearingGeoJson(lat, lon, bearingDegrees)
             else EMPTY_GEO_JSON
         )
         if (route.size >= 2) {
@@ -340,6 +343,7 @@ fun NativeOsmMapView(
     isCurrentLocation: Boolean,
     accuracyMeters: Float,
     bearingDegrees: Float = 0f,
+    hasBearing: Boolean = false,
     followLocation: Boolean = false,
     onMapReady: (NgocSiMapController) -> Unit
 ) {
@@ -374,6 +378,7 @@ fun NativeOsmMapView(
                                 isCurrentLocation = isCurrentLocation,
                                 accuracyMeters = accuracyMeters,
                                 bearingDegrees = bearingDegrees,
+                                hasBearing = hasBearing,
                                 fitRoute = routePoints.size >= 2,
                                 followLocation = followLocation
                             )
@@ -394,6 +399,7 @@ fun NativeOsmMapView(
                         isCurrentLocation = isCurrentLocation,
                         accuracyMeters = accuracyMeters,
                         bearingDegrees = bearingDegrees,
+                        hasBearing = hasBearing,
                         fitRoute = false,
                         followLocation = followLocation
                     )
