@@ -6364,6 +6364,175 @@ class MainActivity : ComponentActivity() {
         )
     }
 
+    private fun parseMapRoutePoints(routeJson: String): List<Pair<Double, Double>> =
+        runCatching {
+            val array = org.json.JSONArray(routeJson)
+            buildList {
+                for (i in 0 until array.length()) {
+                    val pair = array.optJSONArray(i) ?: continue
+                    if (pair.length() < 2) continue
+                    val pointLon = pair.optDouble(0, Double.NaN)
+                    val pointLat = pair.optDouble(1, Double.NaN)
+                    if (
+                        pointLon.isFinite() &&
+                        pointLat.isFinite() &&
+                        pointLon in -180.0..180.0 &&
+                        pointLat in -85.0..85.0
+                    ) {
+                        add(pointLat to pointLon)
+                    }
+                }
+            }
+        }.getOrElse { emptyList() }
+
+    private fun stopMapNavigationLocationUpdates() {
+        mapNavigationLocationCallback?.let { callback ->
+            mapNavigationLocationClient?.removeLocationUpdates(callback)
+        }
+        mapNavigationLocationCallback = null
+        mapNavigationLocationClient = null
+    }
+
+    private fun stopMapNavigation() {
+        stopMapNavigationLocationUpdates()
+        mapNavigationActive = false
+        pendingMapNavigationStart = false
+        mapNavigationStepIndex = 0
+        mapNavigationLastRerouteAt = 0L
+        errorMessage = null
+    }
+
+    private fun startMapNavigation() {
+        val routePoints = parseMapRoutePoints(internalMapRouteJson)
+        if (routePoints.size < 2) {
+            errorMessage = "Chưa có tuyến đường để bắt đầu dẫn đường."
+            return
+        }
+
+        val fine = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        val coarse = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (!fine && !coarse) {
+            pendingMapNavigationStart = true
+            errorMessage = "Cần cấp quyền vị trí để bắt đầu dẫn đường."
+            locationPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+            return
+        }
+
+        mapNavigationActive = true
+        mapNavigationStepIndex = internalMapRouteSteps.indexOfFirst {
+            !it.instruction.startsWith("Xuất phát", ignoreCase = true)
+        }.let { if (it < 0) 0 else it }
+        internalMapIsCurrentLocation = true
+        showInternalMap = true
+        stopMapNavigationLocationUpdates()
+
+        val priority = if (fine) Priority.PRIORITY_HIGH_ACCURACY else Priority.PRIORITY_BALANCED_POWER_ACCURACY
+        val client = LocationServices.getFusedLocationProviderClient(this)
+        mapNavigationLocationClient = client
+        val request = LocationRequest.Builder(priority, 1_000L)
+            .setMinUpdateIntervalMillis(500L)
+            .setMaxUpdateDelayMillis(2_000L)
+            .setWaitForAccurateLocation(fine)
+            .build()
+
+        val callback = object : LocationCallback() {
+            override fun onLocationResult(result: LocationResult) {
+                result.lastLocation?.let(::updateMapNavigationLocation)
+            }
+        }
+        mapNavigationLocationCallback = callback
+
+        runCatching {
+            client.requestLocationUpdates(
+                request,
+                callback,
+                android.os.Looper.getMainLooper()
+            ).addOnFailureListener {
+                stopMapNavigation()
+                errorMessage = "Không thể theo dõi vị trí để dẫn đường."
+            }
+        }.onFailure {
+            stopMapNavigation()
+            errorMessage = "Không thể khởi động dẫn đường."
+        }
+    }
+
+    private fun updateMapNavigationLocation(location: android.location.Location) {
+        if (!mapNavigationActive) return
+
+        val lat = location.latitude
+        val lon = location.longitude
+        if (!lat.isFinite() || !lon.isFinite()) return
+
+        internalMapLat = lat
+        internalMapLon = lon
+        internalMapIsCurrentLocation = true
+        internalMapAccuracyMeters =
+            if (location.hasAccuracy() && location.accuracy > 0f) location.accuracy else internalMapAccuracyMeters
+        if (location.hasBearing() && location.bearing.isFinite()) {
+            internalMapBearing = location.bearing
+        }
+        internalMapLocationTime = if (location.time > 0L) location.time else System.currentTimeMillis()
+
+        mapRouteOriginLat = lat
+        mapRouteOriginLon = lon
+        mapRouteOriginTitle = "VỊ TRÍ HIỆN TẠI"
+
+        val routePoints = parseMapRoutePoints(internalMapRouteJson)
+        val offRouteMeters = nearestRouteDistanceMeters(lat, lon, routePoints)
+        val now = System.currentTimeMillis()
+
+        if (
+            offRouteMeters > 80.0 &&
+            now - mapNavigationLastRerouteAt > 15_000L &&
+            mapNavigationDestination.isNotBlank() &&
+            !mapSearching
+        ) {
+            mapNavigationLastRerouteAt = now
+            mapSearchQuery = mapNavigationDestination
+            lifecycleScope.launch {
+                delay(250L)
+                searchMapRoute()
+            }
+        }
+
+        if (internalMapRouteSteps.isNotEmpty()) {
+            val candidates = internalMapRouteSteps.withIndex()
+                .drop(mapNavigationStepIndex.coerceAtLeast(0))
+            val next = candidates.minByOrNull { indexed ->
+                haversineDistanceMeters(
+                    lat,
+                    lon,
+                    indexed.value.maneuverLat,
+                    indexed.value.maneuverLon
+                )
+            }
+            if (next != null) {
+                val distance = haversineDistanceMeters(
+                    lat,
+                    lon,
+                    next.value.maneuverLat,
+                    next.value.maneuverLon
+                )
+                if (next.index == mapNavigationStepIndex || distance <= 90.0) {
+                    mapNavigationStepIndex = next.index
+                }
+            }
+        }
+    }
+
     private fun searchMapPlace() {
         val query = mapSearchQuery.trim()
         if (query.isBlank()) {
