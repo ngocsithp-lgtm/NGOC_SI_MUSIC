@@ -33,12 +33,16 @@ import org.osmdroid.views.overlay.Polyline
 import org.osmdroid.views.overlay.Polygon
 
 private val NgocSiStreetSource = XYTileSource(
-    "NgocSi-OpenStreetMap",
+    "NgocSi-OSM-Resilient",
     0,
     19,
     256,
     ".png",
-    arrayOf("https://tile.openstreetmap.org/"),
+    arrayOf(
+        "https://tile.openstreetmap.org/",
+        "https://tile.openstreetmap.fr/hot/",
+        "https://tile.openstreetmap.de/"
+    ),
     "© OpenStreetMap contributors",
     TileSourcePolicy(
         2,
@@ -185,7 +189,7 @@ fun NativeOsmMapView(
                 .padding(horizontal = 8.dp, vertical = 5.dp)
         ) {
             Text(
-                if (selectedLayer == "satellite") "© Esri World Imagery" else "© OpenStreetMap contributors",
+                if (selectedLayer == "satellite") "© Esri World Imagery" else "© OpenStreetMap contributors • NGOC SĨ MUSIC",
                 color = ComposeColor.White,
                 fontSize = 9.sp,
                 maxLines = 1
@@ -213,11 +217,11 @@ private data class NativeMapState(
 
 private fun configureOsmdroid(context: Context) {
     val appContext = context.applicationContext
-    val baseDir = File(appContext.filesDir, "osmdroid_v3").apply { mkdirs() }
-    val cacheDir = File(baseDir, "tiles_v3").apply { mkdirs() }
-    val preferences = appContext.getSharedPreferences("ngocsi_osmdroid_v3", Context.MODE_PRIVATE)
+    val baseDir = File(appContext.filesDir, "osmdroid_v4").apply { mkdirs() }
+    val cacheDir = File(baseDir, "tiles_v4").apply { mkdirs() }
+    val preferences = appContext.getSharedPreferences("ngocsi_osmdroid_v4", Context.MODE_PRIVATE)
     Configuration.getInstance().load(appContext, preferences)
-    Configuration.getInstance().userAgentValue = "com.ngocsi.music/${BuildConfig.VERSION_NAME}"
+    Configuration.getInstance().userAgentValue = "NGOC-SI-MUSIC/${BuildConfig.VERSION_NAME} (+https://github.com/ngocsithp-lgtm/NGOC_SI_MUSIC)"
     Configuration.getInstance().osmdroidBasePath = baseDir
     Configuration.getInstance().osmdroidTileCache = cacheDir
 }
