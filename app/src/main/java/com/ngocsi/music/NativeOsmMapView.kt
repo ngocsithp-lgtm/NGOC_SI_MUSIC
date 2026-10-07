@@ -289,3 +289,23 @@ private fun safeLat(value: Double): Double =
 
 private fun safeLon(value: Double): Double =
     if (value.isFinite()) value.coerceIn(-180.0, 180.0) else 106.6297
+
+
+fun centerNativeOsmMap(map: NgocSiMapController?, lat: Double, lon: Double) {
+    map?.setView(lat, lon)
+}
+
+fun zoomInNativeOsmMap(map: NgocSiMapController?) {
+    map?.zoomIn()
+}
+
+fun zoomOutNativeOsmMap(map: NgocSiMapController?) {
+    map?.zoomOut()
+}
+
+fun fitNativeOsmMapRoute(
+    map: NgocSiMapController?,
+    routePoints: List<Pair<Double, Double>>
+) {
+    map?.fitRoute(routePoints)
+}
