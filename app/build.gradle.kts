@@ -71,6 +71,8 @@ dependencies {
     implementation("androidx.media3:media3-session:1.9.4")
     implementation("androidx.media3:media3-ui:1.9.4")
     implementation("org.osmdroid:osmdroid-android:6.1.20")
+    // Native map renderer: avoids WebView/embedded Maps rendering failures.
+    implementation("org.maplibre.gl:android-sdk:11.8.0")
     // Google OAuth: required for Drive files/folders shared privately with the signed-in account.
     implementation("com.google.android.gms:play-services-auth:21.6.0")
 }
