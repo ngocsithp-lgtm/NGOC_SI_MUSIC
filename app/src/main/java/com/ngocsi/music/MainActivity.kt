@@ -6877,7 +6877,7 @@ class MainActivity : ComponentActivity() {
                             letterSpacing = 1.sp
                         )
                         Text(
-                            "Bản đồ trong ứng dụng dùng dữ liệu OpenStreetMap; Giao thông trực tiếp mở bằng Google Maps trong màn hình nội bộ.",
+                            "Bản đồ đường phố chạy trực tiếp trong ứng dụng bằng OpenStreetMap; giao thông trực tiếp dùng Google Maps.",
                             color = Color(0xFF737C8B),
                             fontSize = 9.sp,
                             lineHeight = 13.sp
@@ -7375,24 +7375,6 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             }
                         }
 
-                        Surface(
-                            modifier = Modifier
-                                .align(Alignment.BottomStart)
-                                .padding(10.dp),
-                            shape = RoundedCornerShape(10.dp),
-                            color = Color(0xEFFFFFFF)
-                        ) {
-                            Text(
-                                if (selectedLayer == "satellite") {
-                                    "Tiles © Esri • © OpenStreetMap contributors"
-                                } else {
-                                    "© OpenStreetMap contributors"
-                                },
-                                color = Color(0xFF263238),
-                                fontSize = 9.sp,
-                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp)
-                            )
-                        }
 
                         Surface(
                             modifier = Modifier
@@ -7437,13 +7419,13 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             Text(
                                 when {
                                     title.contains("GIAO THÔNG") ->
-                                        "Google Maps • lớp giao thông trong NGỌC SĨ MUSIC"
+                                        "Google Maps • giao thông trực tiếp bên ngoài ứng dụng"
                                     title.contains("VỆ TINH") ->
-                                        "Google Maps • chế độ vệ tinh trong NGỌC SĨ MUSIC"
+                                        "NGỌC SĨ MAP • ảnh vệ tinh Esri trong ứng dụng"
                                     title.contains("CHỈ ĐƯỜNG") ->
-                                        "Google Maps • chỉ đường trong NGỌC SĨ MUSIC"
+                                        "NGỌC SĨ MAP • tuyến đường trong ứng dụng"
                                     title.startsWith("NGỌC SĨ MAP") || title.startsWith("BẢN ĐỒ") ->
-                                        "OpenStreetMap • bản đồ đường phố trong NGỌC SĨ MUSIC"
+                                        "OpenStreetMap • bản đồ đường phố trong ứng dụng"
                                     title.startsWith("TV") ->
                                         "Truyền hình trực tuyến trong NGỌC SĨ MUSIC"
                                     else ->
