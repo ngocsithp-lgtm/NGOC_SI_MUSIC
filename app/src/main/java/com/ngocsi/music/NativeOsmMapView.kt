@@ -30,6 +30,18 @@ import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
 import org.osmdroid.views.overlay.Polygon
 
+private val NgocSiStreetSource = XYTileSource(
+    "NgocSi-Esri-WorldStreetMap",
+    1,
+    19,
+    256,
+    ".jpg",
+    arrayOf(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/"
+    ),
+    "Esri World Street Map"
+)
+
 private val NgocSiSatelliteSource = XYTileSource(
     "NgocSi-Esri-WorldImagery",
     1,
@@ -118,7 +130,7 @@ fun NativeOsmMapView(
                     // Layer-only change: do not reset the user's panned/zoomed camera.
                     view.setTileSource(
                         if (next.layer == "satellite") NgocSiSatelliteSource
-                        else TileSourceFactory.MAPNIK
+                        else NgocSiStreetSource
                     )
                     view.invalidate()
                 } else {
@@ -177,8 +189,8 @@ private data class NativeMapState(
 
 private fun configureOsmdroid(context: Context) {
     val appContext = context.applicationContext
-    val baseDir = File(appContext.filesDir, "osmdroid").apply { mkdirs() }
-    val cacheDir = File(baseDir, "tiles").apply { mkdirs() }
+    val baseDir = File(appContext.filesDir, "osmdroid_v2").apply { mkdirs() }
+    val cacheDir = File(baseDir, "tiles_v2").apply { mkdirs() }
     val preferences = appContext.getSharedPreferences("ngocsi_osmdroid", Context.MODE_PRIVATE)
     Configuration.getInstance().load(appContext, preferences)
     Configuration.getInstance().userAgentValue = "com.ngocsi.music/${BuildConfig.VERSION_NAME}"
@@ -198,7 +210,7 @@ private fun configureNativeMap(
     fitRoute: Boolean
 ) {
     val safeCenter = GeoPoint(safeLat(lat), safeLon(lon))
-    map.setTileSource(if (selectedLayer == "satellite") NgocSiSatelliteSource else TileSourceFactory.MAPNIK)
+    map.setTileSource(if (selectedLayer == "satellite") NgocSiSatelliteSource else NgocSiStreetSource)
     map.setMultiTouchControls(true)
     map.setBuiltInZoomControls(false)
     map.setUseDataConnection(true)
