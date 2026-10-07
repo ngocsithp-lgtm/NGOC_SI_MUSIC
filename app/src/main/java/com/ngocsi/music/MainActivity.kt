@@ -6459,75 +6459,96 @@ class MainActivity : ComponentActivity() {
                     }
 
                     val destination = geocode(query)
-                    val routeUrl =
-                        "https://router.project-osrm.org/route/v1/driving/" +
-                            mapRouteOriginLon.toString() + "," + mapRouteOriginLat.toString() + ";" +
-                            destination.second.toString() + "," + destination.first.toString() +
-                            "?overview=full&geometries=geojson&steps=false"
+                    val routeBases = listOf(
+                        "https://router.project-osrm.org/route/v1/driving/",
+                        "https://routing.openstreetmap.de/routed-car/route/v1/driving/"
+                    )
+                    var routedRoot: org.json.JSONObject? = null
+                    var lastRouteError: Throwable? = null
 
-                    val routeConnection = (URL(routeUrl).openConnection() as HttpURLConnection).apply {
-                        requestMethod = "GET"
-                        connectTimeout = 10_000
-                        readTimeout = 20_000
-                        setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.12 (Android)")
-                        setRequestProperty("Accept", "application/json")
+                    for (baseUrl in routeBases) {
+                        val routeUrl =
+                            baseUrl +
+                                mapRouteOriginLon.toString() + "," + mapRouteOriginLat.toString() + ";" +
+                                destination.second.toString() + "," + destination.first.toString() +
+                                "?overview=full&geometries=geojson&steps=true&annotations=false"
+
+                        runCatching {
+                            val routeConnection = (URL(routeUrl).openConnection() as HttpURLConnection).apply {
+                                requestMethod = "GET"
+                                connectTimeout = 10_000
+                                readTimeout = 20_000
+                                setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.12 (Android)")
+                                setRequestProperty("Accept", "application/json")
+                            }
+                            try {
+                                if (routeConnection.responseCode !in 200..299) {
+                                    throw IllegalStateException("HTTP " + routeConnection.responseCode)
+                                }
+                                val body = routeConnection.inputStream.bufferedReader().use { it.readText() }
+                                val root = org.json.JSONObject(body)
+                                if (root.optString("code") != "Ok") {
+                                    throw IllegalStateException(root.optString("message", "Routing failed"))
+                                }
+                                routedRoot = root
+                            } finally {
+                                routeConnection.disconnect()
+                            }
+                        }.onFailure { error ->
+                            lastRouteError = error
+                        }
+
+                        if (routedRoot != null) break
                     }
 
-                    try {
-                        if (routeConnection.responseCode !in 200..299) {
-                            throw IllegalStateException("HTTP " + routeConnection.responseCode)
-                        }
+                    val root = routedRoot
+                        ?: throw (lastRouteError ?: IllegalStateException("Không có máy chủ chỉ đường hoạt động"))
+                    val route = root.optJSONArray("routes")?.optJSONObject(0)
+                        ?: throw NoSuchElementException("Không tìm thấy tuyến đường")
 
-                        val body = routeConnection.inputStream.bufferedReader().use { it.readText() }
-                        val root = org.json.JSONObject(body)
+                    val coordinates = route.optJSONObject("geometry")?.optJSONArray("coordinates")
+                        ?: throw IllegalStateException("Tuyến đường không có dữ liệu")
 
-                        if (root.optString("code") != "Ok") {
-                            throw IllegalStateException(
-                                root.optString("message", "Routing failed")
-                            )
-                        }
-
-                        val route = root.optJSONArray("routes")?.optJSONObject(0)
-                            ?: throw NoSuchElementException("Không tìm thấy tuyến đường")
-
-                        val coordinates = route.optJSONObject("geometry")?.optJSONArray("coordinates")
-                            ?: throw IllegalStateException("Tuyến đường không có dữ liệu")
-
-                        val routeArray = org.json.JSONArray()
-                        for (i in 0 until coordinates.length()) {
-                            val pair = coordinates.optJSONArray(i) ?: continue
-                            if (pair.length() >= 2) {
-                                val routeLon = pair.optDouble(0, Double.NaN)
-                                val routeLat = pair.optDouble(1, Double.NaN)
-                                if (
-                                    routeLon.isFinite() &&
-                                    routeLat.isFinite() &&
-                                    routeLon in -180.0..180.0 &&
-                                    routeLat in -85.0..85.0
-                                ) {
-                                    routeArray.put(
-                                        org.json.JSONArray()
-                                            .put(routeLon)
-                                            .put(routeLat)
-                                    )
-                                }
+                    val routeArray = org.json.JSONArray()
+                    for (i in 0 until coordinates.length()) {
+                        val pair = coordinates.optJSONArray(i) ?: continue
+                        if (pair.length() >= 2) {
+                            val routeLon = pair.optDouble(0, Double.NaN)
+                            val routeLat = pair.optDouble(1, Double.NaN)
+                            if (
+                                routeLon.isFinite() &&
+                                routeLat.isFinite() &&
+                                routeLon in -180.0..180.0 &&
+                                routeLat in -85.0..85.0
+                            ) {
+                                routeArray.put(
+                                    org.json.JSONArray()
+                                        .put(routeLon)
+                                        .put(routeLat)
+                                )
                             }
                         }
-
-                        if (routeArray.length() < 2) {
-                            throw IllegalStateException("Tuyến đường không đủ điểm hiển thị")
-                        }
-
-                        val meta = org.json.JSONObject()
-                            .put("route", routeArray)
-                            .put("name", destination.third)
-                            .put("duration", route.optDouble("duration", 0.0))
-                            .put("distance", route.optDouble("distance", 0.0))
-
-                        Triple(destination.first, destination.second, meta.toString())
-                    } finally {
-                        routeConnection.disconnect()
                     }
+
+                    if (routeArray.length() < 2) {
+                        throw IllegalStateException("Tuyến đường không đủ điểm hiển thị")
+                    }
+
+                    val meta = org.json.JSONObject()
+                        .put("route", routeArray)
+                        .put("name", destination.third)
+                        .put("duration", route.optDouble("duration", 0.0))
+                        .put("distance", route.optDouble("distance", 0.0))
+                        .put("stepCount", route.optJSONArray("legs")
+                            ?.let { legs ->
+                                var count = 0
+                                for (i in 0 until legs.length()) {
+                                    count += legs.optJSONObject(i)?.optJSONArray("steps")?.length() ?: 0
+                                }
+                                count
+                            } ?: 0)
+
+                    Triple(destination.first, destination.second, meta.toString())
                 }
             }
 
