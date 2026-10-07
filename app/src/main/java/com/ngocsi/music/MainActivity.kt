@@ -1565,7 +1565,7 @@ class MainActivity : ComponentActivity() {
             readTimeout = 20000
             useCaches = false
             setRequestProperty("Accept", "application/json")
-            setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.10 (Android)")
+            setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.11 (Android)")
             accessToken?.takeIf { it.isNotBlank() }?.let { setRequestProperty("Authorization", "Bearer $it") }
             resourceKeys?.takeIf { it.isNotBlank() }?.let {
                 setRequestProperty("X-Goog-Drive-Resource-Keys", it)
@@ -6373,7 +6373,7 @@ class MainActivity : ComponentActivity() {
                         requestMethod = "GET"
                         connectTimeout = 8000
                         readTimeout = 8000
-                        setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.10 (Android)")
+                        setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.11 (Android)")
                         setRequestProperty("Accept", "application/json")
                     }
                     try {
@@ -6450,7 +6450,7 @@ class MainActivity : ComponentActivity() {
                             requestMethod = "GET"
                             connectTimeout = 8000
                             readTimeout = 8000
-                            setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.10 (Android)")
+                            setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.11 (Android)")
                             setRequestProperty("Accept", "application/json")
                         }
                         return try {
@@ -6478,7 +6478,7 @@ class MainActivity : ComponentActivity() {
                         requestMethod = "GET"
                         connectTimeout = 10000
                         readTimeout = 15000
-                        setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.10 (Android)")
+                        setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.11 (Android)")
                         setRequestProperty("Accept", "application/json")
                     }
                     try {
