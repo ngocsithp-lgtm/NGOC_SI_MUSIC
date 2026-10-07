@@ -52,7 +52,7 @@ class PlaylistStore(context: Context) {
     }
 
     fun create(name: String): MusicPlaylist? {
-        val clean = name.trim().replace(Regex("\\s+"), " ")
+        val clean = PlaylistRules.normalizeName(name)
         if (clean.isBlank()) return null
         val now = System.currentTimeMillis()
         val playlist = MusicPlaylist(
@@ -71,7 +71,7 @@ class PlaylistStore(context: Context) {
     }
 
     fun rename(playlistId: String, name: String): MusicPlaylist? {
-        val clean = name.trim().replace(Regex("\\s+"), " ").take(80)
+        val clean = PlaylistRules.normalizeName(name)
         if (clean.isBlank()) return null
         val updated = load().map { playlist ->
             if (playlist.id != playlistId) playlist
@@ -88,7 +88,7 @@ class PlaylistStore(context: Context) {
         val updated = load().map { playlist ->
             if (playlist.id != playlistId) playlist
             else playlist.copy(
-                songUris = (playlist.songUris + uri).distinct(),
+                songUris = PlaylistRules.addSong(playlist.songUris, uri),
                 updatedAt = System.currentTimeMillis()
             )
         }
@@ -100,7 +100,7 @@ class PlaylistStore(context: Context) {
         val updated = load().map { playlist ->
             if (playlist.id != playlistId) playlist
             else playlist.copy(
-                songUris = playlist.songUris.filterNot { it == uri },
+                songUris = PlaylistRules.removeSong(playlist.songUris, uri),
                 updatedAt = System.currentTimeMillis()
             )
         }
