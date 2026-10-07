@@ -126,7 +126,6 @@ class NgocSiMapController internal constructor(
         val valid = routePoints.filter { it.first.isFinite() && it.second.isFinite() }
         if (valid.size < 2) return
         route = valid
-        currentLocation = false
         val start = valid.first()
         val end = valid.last()
         lat = safeLat((start.first + end.first) / 2.0)
