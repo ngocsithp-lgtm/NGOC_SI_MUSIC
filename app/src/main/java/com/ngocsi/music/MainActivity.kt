@@ -7681,12 +7681,30 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                       minLon = Math.min(minLon, p[1]);
                       maxLon = Math.max(maxLon, p[1]);
                     });
+
+                    // Fit the actual viewport instead of using a fixed zoom formula.
+                    // This keeps short and long routes visible on portrait phones alike.
                     centerLat = (minLat + maxLat) / 2;
                     centerLon = (minLon + maxLon) / 2;
-                    const latSpan = Math.max(0.01, maxLat - minLat);
-                    const lonSpan = Math.max(0.01, maxLon - minLon);
-                    const span = Math.max(latSpan, lonSpan);
-                    zoom = clampZoom(Math.floor(Math.log2(360 / span)) - 1);
+                    const size = mapSize();
+                    const paddingX = Math.max(32, size.width * 0.16);
+                    const paddingY = Math.max(72, size.height * 0.18);
+                    const innerWidth = Math.max(64, size.width - paddingX * 2);
+                    const innerHeight = Math.max(64, size.height - paddingY * 2);
+
+                    let fitZoom = 2;
+                    for (let candidate = 19; candidate >= 2; candidate--) {
+                      const a = project(minLat, minLon, candidate);
+                      const b = project(maxLat, maxLon, candidate);
+                      const projectedWidth = Math.abs(b.x - a.x);
+                      const projectedHeight = Math.abs(b.y - a.y);
+                      if (projectedWidth <= innerWidth && projectedHeight <= innerHeight) {
+                        fitZoom = candidate;
+                        break;
+                      }
+                    }
+
+                    zoom = clampZoom(fitZoom);
                     renderAll();
                     return true;
                   }
