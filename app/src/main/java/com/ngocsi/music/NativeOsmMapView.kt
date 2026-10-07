@@ -434,10 +434,7 @@ private fun buildRouteGeoJson(routePoints: List<Pair<Double, Double>>): String {
 private fun buildPointGeoJson(point: Pair<Double, Double>): String {
     val pointLat = safeLat(point.first)
     val pointLon = safeLon(point.second)
-    return """
-        {"type":"FeatureCollection","features":[{"type":"Feature","properties":{},
-        "geometry":{"type":"Point","coordinates":[\$pointLon,\$pointLat]}}]}
-    """.trimIndent()
+    return "{\"type\":\"FeatureCollection\",\"features\":[{\"type\":\"Feature\",\"properties\":{},\"geometry\":{\"type\":\"Point\",\"coordinates\":[" + pointLon + "," + pointLat + "]}}]}"
 }
 
 private fun buildMarkerGeoJson(lat: Double, lon: Double, isCurrentLocation: Boolean, accuracyMeters: Float): String {
