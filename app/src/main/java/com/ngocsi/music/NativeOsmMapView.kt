@@ -394,7 +394,7 @@ fun NativeOsmMapView(
                     .zoomGesturesEnabled(true)
                     .rotateGesturesEnabled(true)
                     .tiltGesturesEnabled(false)
-                    .also { it.prefetchesTiles = true }
+                    .prefetchesTiles = false
 
                 MapView(context, mapOptions).apply {
                     onCreate(Bundle())
@@ -526,23 +526,17 @@ private fun buildStyleJson(selectedLayer: String): String {
     // hostname can fail while another endpoint is still reachable. MapLibre
     // supports multiple raster tile URLs for one source and will request
     // whichever endpoint is available.
-    val rasterTiles = if (satellite) {
-        listOf(
-            "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-            "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-        )
+    val rasterTile = if (satellite) {
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
     } else {
-        listOf(
-            "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-            "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
-            "https://b.tile.openstreetmap.org/{z}/{x}/{y}.png",
-            "https://c.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        )
+        // Official OSM standard tile endpoint. Do not add tile prefetch/bulk
+        // downloading: OSM's public tile service is intended for interactive use.
+        "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
     }
 
     val attribution = if (satellite) "© Esri" else "© OpenStreetMap contributors"
     val backgroundColor = if (satellite) "#11151B" else "#E9EDF1"
-    val tileArray = rasterTiles.joinToString(",") { "\"$it\"" }
+    val tileJson = "\"" + rasterTile + "\""
 
     return """
         {
@@ -551,7 +545,7 @@ private fun buildStyleJson(selectedLayer: String): String {
           "sources":{
             "$BASE_SOURCE":{
               "type":"raster",
-              "tiles":[$tileArray],
+              "tiles":[$tileJson],
               "tileSize":256,
               "minzoom":1,
               "maxzoom":19,
