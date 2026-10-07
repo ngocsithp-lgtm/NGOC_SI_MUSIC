@@ -6978,8 +6978,12 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun MapHub() {
+        val trafficLat = if (internalMapIsCurrentLocation && internalMapLat.isFinite()) internalMapLat else 10.8231
+        val trafficLon = if (internalMapIsCurrentLocation && internalMapLon.isFinite()) internalMapLon else 106.6297
         val trafficUrl =
-            "https://www.google.com/maps/@?api=1&map_action=map&center=10.8231%2C106.6297&zoom=12&basemap=roadmap&layer=traffic"
+            "https://www.google.com/maps/@?api=1&map_action=map&center=" +
+                Uri.encode("$trafficLat,$trafficLon") +
+                "&zoom=14&basemap=roadmap&layer=traffic"
 
         Column(
             Modifier
