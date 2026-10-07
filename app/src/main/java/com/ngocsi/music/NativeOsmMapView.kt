@@ -394,7 +394,7 @@ fun NativeOsmMapView(
                     .zoomGesturesEnabled(true)
                     .rotateGesturesEnabled(true)
                     .tiltGesturesEnabled(false)
-                    .prefetchesTiles = false
+                    .also { it.prefetchesTiles = false }
 
                 MapView(context, mapOptions).apply {
                     onCreate(Bundle())
