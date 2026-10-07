@@ -4623,11 +4623,25 @@ class MainActivity : ComponentActivity() {
                     val externalLon = if (internalMapRouteSteps.isNotEmpty()) internalMapDestinationLon else internalMapLon
                     val query = externalLat.toString() + "," + externalLon.toString()
                     runCatching {
-                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(
-                            "https://www.google.com/maps/search/?api=1&query=" + Uri.encode(query)
-                        )))
+                        val navigationUri = Uri.parse(
+                            "google.navigation:q=" + Uri.encode(query) + "&mode=d"
+                        )
+                        startActivity(Intent(Intent.ACTION_VIEW, navigationUri))
                     }.onFailure {
-                        errorMessage = "Không mở được Google Maps bên ngoài."
+                        runCatching {
+                            startActivity(
+                                Intent(
+                                    Intent.ACTION_VIEW,
+                                    Uri.parse(
+                                        "https://www.google.com/maps/dir/?api=1&destination=" +
+                                            Uri.encode(query) +
+                                            "&travelmode=driving"
+                                    )
+                                )
+                            )
+                        }.onFailure {
+                            errorMessage = "Không mở được trình chỉ đường bên ngoài."
+                        }
                     }
                 },
                 onCalculateRoute = {
