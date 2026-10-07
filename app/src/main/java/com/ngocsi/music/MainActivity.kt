@@ -365,6 +365,7 @@ class MainActivity : ComponentActivity() {
     private var internalMapAccuracyMeters by mutableFloatStateOf(0f)
     private var internalMapLocationTime by mutableLongStateOf(0L)
     private var mapLocationLoading by mutableStateOf(false)
+    private var pendingMapRouteQuery by mutableStateOf<String?>(null)
     // Chặng đi của CHỈ ĐƯỜNG phải có điểm xuất phát độc lập với tâm bản đồ.
     private var mapRouteOriginLat by mutableStateOf(10.8231)
     private var mapRouteOriginLon by mutableStateOf(106.6297)
@@ -3788,6 +3789,15 @@ class MainActivity : ComponentActivity() {
             internalMapLocationTime = location.time
             showInternalMap = true
             errorMessage = null
+
+            pendingMapRouteQuery?.let { query ->
+                pendingMapRouteQuery = null
+                mapSearchQuery = query
+                lifecycleScope.launch {
+                    delay(120L)
+                    searchMapRoute()
+                }
+            }
         }
 
         mapLocationLoading = true
@@ -6406,6 +6416,22 @@ class MainActivity : ComponentActivity() {
             errorMessage = "Nhập điểm đến rồi bấm CHỈ ĐƯỜNG."
             return
         }
+
+        val originAge = if (mapRouteOriginTitle == "VỊ TRÍ HIỆN TẠI") {
+            (System.currentTimeMillis() - internalMapLocationTime).coerceAtLeast(0L)
+        } else {
+            Long.MAX_VALUE
+        }
+        if (originAge > 10 * 60 * 1000L || mapRouteOriginTitle != "VỊ TRÍ HIỆN TẠI") {
+            if (mapLocationLoading) {
+                errorMessage = "Đang xác định vị trí xuất phát…"
+                return
+            }
+            pendingMapRouteQuery = query
+            showCurrentLocationOnMap()
+            return
+        }
+
         if (mapSearching) return
         mapSearching = true
         errorMessage = "Đang tìm đường từ " + mapRouteOriginTitle + "…"
@@ -6784,7 +6810,7 @@ class MainActivity : ComponentActivity() {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            if (mapSearching) "Đang xử lý bản đồ…" else "Tìm kiếm • Chỉ đường • Vệ tinh • Vị trí",
+                            if (mapSearching) "Đang xử lý bản đồ…" else "Tìm kiếm • Chỉ đường từ vị trí hiện tại • Vệ tinh • Vị trí",
                             color = Color(0xFF727A89),
                             fontSize = 9.sp
                         )
