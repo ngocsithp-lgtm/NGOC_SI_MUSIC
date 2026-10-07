@@ -33,7 +33,7 @@ fun buildMapInstruction(type: String, modifier: String, streetName: String): Str
         else -> ""
     }
 
-    return when (type.lowercase()) {
+    val instruction = when (type.lowercase()) {
         "depart" -> "Xuất phát theo $road"
         "arrive" -> "Đã đến điểm đích"
         "roundabout", "rotary" -> {
@@ -50,6 +50,7 @@ fun buildMapInstruction(type: String, modifier: String, streetName: String): Str
         "turn" -> if (direction.isBlank()) "Rẽ vào $road" else "$direction vào $road"
         else -> if (direction.isBlank()) "Tiếp tục theo $road" else "$direction theo $road"
     }
+    return instruction.replaceFirstChar { it.titlecase() }
 }
 
 fun haversineDistanceMeters(
