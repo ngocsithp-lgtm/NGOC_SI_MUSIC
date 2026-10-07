@@ -12,6 +12,10 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.location.LocationManager
+import com.google.android.gms.location.CurrentLocationRequest
+import com.google.android.gms.location.Granularity
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import java.io.File
@@ -3722,59 +3726,72 @@ class MainActivity : ComponentActivity() {
             return
         }
 
-        val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
-        val providers = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
-            .filter { provider ->
-                runCatching { locationManager.isProviderEnabled(provider) }.getOrDefault(false)
-            }
-            .distinct()
+        if (mapLocationLoading) return
 
-        if (providers.isEmpty()) {
+        val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
+            !runCatching { locationManager.isLocationEnabled }.getOrDefault(true)
+        ) {
             mapLocationLoading = false
-            errorMessage = "Dịch vụ Vị trí đang tắt. Hãy bật GPS/Vị trí rồi thử lại."
+            errorMessage = "Vị trí/GPS đang tắt. Hãy bật Vị trí rồi quay lại NGỌC SĨ MUSIC."
             return
         }
 
-        val accuracyLimit = if (hasFine) 100f else 250f
-        val requestStartedAt = System.currentTimeMillis()
+        mapLocationLoading = true
+        errorMessage = if (hasFine) {
+            "Đang lấy vị trí hiện tại…"
+        } else {
+            "Đang lấy vị trí gần đúng…"
+        }
 
-        fun ageOf(location: android.location.Location): Long =
-            (requestStartedAt - location.time).coerceAtLeast(0L)
+        val fused = LocationServices.getFusedLocationProviderClient(this)
+        val handler = android.os.Handler(android.os.Looper.getMainLooper())
+        val requestToken = com.google.android.gms.tasks.CancellationTokenSource()
+        var completed = false
+        var fallbackStarted = false
 
-        fun isValid(location: android.location.Location?, requireFresh: Boolean): Boolean {
+        fun cleanup() {
+            handler.removeCallbacksAndMessages(null)
+            runCatching { requestToken.cancel() }
+        }
+
+        fun isUsable(location: android.location.Location?): Boolean {
             if (location == null) return false
             val lat = location.latitude
             val lon = location.longitude
-            if (!lat.isFinite() || !lon.isFinite() || lat !in -90.0..90.0 || lon !in -180.0..180.0) {
+            if (!lat.isFinite() || !lon.isFinite() ||
+                lat !in -90.0..90.0 || lon !in -180.0..180.0
+            ) {
                 return false
             }
-            if (!location.hasAccuracy() || !location.accuracy.isFinite() || location.accuracy <= 0f) {
-                return false
+
+            val ageMs = (System.currentTimeMillis() - location.time).coerceAtLeast(0L)
+            val maxAgeMs = if (hasFine) 10 * 60 * 1000L else 20 * 60 * 1000L
+            if (ageMs > maxAgeMs) return false
+
+            if (location.hasAccuracy() && location.accuracy.isFinite() && location.accuracy > 0f) {
+                val maxAccuracy = if (hasFine) 500f else 5_000f
+                if (location.accuracy > maxAccuracy) return false
             }
-            if (location.accuracy > accuracyLimit) return false
-            if (location.time - requestStartedAt > 60_000L) return false
-            if (requireFresh && ageOf(location) > 90_000L) return false
+
             return true
         }
 
-        fun better(a: android.location.Location?, b: android.location.Location?): android.location.Location? {
-            if (!isValid(b, false)) return a
-            if (!isValid(a, false)) return b
-            val accuracyDelta = a!!.accuracy - b!!.accuracy
-            return when {
-                accuracyDelta >= 8f -> b
-                accuracyDelta <= -8f -> a
-                ageOf(b) + 10_000L < ageOf(a) -> b
-                else -> a
-            }
-        }
-
         fun publish(location: android.location.Location, source: String) {
-            if (!isValid(location, false)) {
-                mapLocationLoading = false
-                errorMessage = "Vị trí nhận được không hợp lệ. Hãy thử lại."
-                return
+            if (completed || !isUsable(location)) return
+            completed = true
+            cleanup()
+
+            val accuracy = if (
+                location.hasAccuracy() &&
+                location.accuracy.isFinite() &&
+                location.accuracy > 0f
+            ) {
+                location.accuracy
+            } else {
+                if (hasFine) 50f else 1_000f
             }
+
             mapLocationLoading = false
             mapRouteOriginLat = location.latitude
             mapRouteOriginLon = location.longitude
@@ -3785,132 +3802,91 @@ class MainActivity : ComponentActivity() {
             internalMapLayer = "standard"
             internalMapRouteJson = "[]"
             internalMapIsCurrentLocation = true
-            internalMapAccuracyMeters = location.accuracy.coerceAtLeast(1f)
+            internalMapAccuracyMeters = accuracy.coerceAtLeast(1f)
             internalMapLocationTime = location.time
             showInternalMap = true
-            errorMessage = null
+            errorMessage = if (!hasFine) {
+                "Đã lấy vị trí gần đúng (quyền vị trí xấp xỉ)."
+            } else {
+                null
+            }
 
             pendingMapRouteQuery?.let { query ->
                 pendingMapRouteQuery = null
                 mapSearchQuery = query
                 lifecycleScope.launch {
-                    delay(120L)
+                    delay(180L)
                     searchMapRoute()
                 }
             }
         }
 
-        mapLocationLoading = true
-        errorMessage = "Đang xác định vị trí chính xác…"
+        fun fallbackToLastKnown() {
+            if (completed || fallbackStarted) return
+            fallbackStarted = true
 
-        var best = providers
-            .mapNotNull { provider ->
-                runCatching { locationManager.getLastKnownLocation(provider) }.getOrNull()
-            }
-            .filter { isValid(it, true) }
-            .fold(null as android.location.Location?) { current, candidate ->
-                better(current, candidate)
-            }
-
-        if (best != null && hasFine && best!!.accuracy <= 35f) {
-            publish(best!!, "recent-cache")
-            return
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val cancellationSignals = mutableListOf<android.os.CancellationSignal>()
-            val handler = android.os.Handler(android.os.Looper.getMainLooper())
-            var finished = false
-
-            fun finish() {
-                if (finished) return
-                finished = true
-                cancellationSignals.forEach { runCatching { it.cancel() } }
-                handler.removeCallbacksAndMessages(null)
-                val candidate = best
-                if (candidate != null && isValid(candidate, false)) {
-                    publish(candidate, "current-fix")
-                } else {
-                    mapLocationLoading = false
-                    errorMessage = "Chưa nhận được vị trí đủ chính xác. Hãy ra nơi thoáng hơn hoặc bật GPS rồi thử lại."
-                }
-            }
-
-            providers.forEach { provider ->
-                val signal = android.os.CancellationSignal()
-                cancellationSignals += signal
-                runCatching {
-                    locationManager.getCurrentLocation(
-                        provider,
-                        signal,
-                        mainExecutor,
-                        java.util.function.Consumer { location ->
-                            if (finished || !isValid(location, true)) return@Consumer
-                            best = better(best, location)
-                            if (hasFine && best != null && best!!.accuracy <= 20f) {
-                                finish()
-                            }
+            runCatching {
+                fused.lastLocation
+                    .addOnSuccessListener { last ->
+                        if (completed) return@addOnSuccessListener
+                        if (last != null && isUsable(last)) {
+                            publish(last, "fused-last")
+                        } else {
+                            mapLocationLoading = false
+                            errorMessage =
+                                "Chưa lấy được vị trí. Hãy bật GPS/Vị trí, bật Wi‑Fi/dữ liệu và thử lại."
+                            cleanup()
                         }
-                    )
-                }.onFailure {
-                    cancellationSignals.remove(signal)
-                }
+                    }
+                    .addOnFailureListener {
+                        if (completed) return@addOnFailureListener
+                        mapLocationLoading = false
+                        errorMessage =
+                            "Không lấy được vị trí từ thiết bị. Hãy kiểm tra GPS/Vị trí và thử lại."
+                        cleanup()
+                    }
+            }.onFailure {
+                mapLocationLoading = false
+                errorMessage = "Thiết bị chưa sẵn sàng cho dịch vụ vị trí."
+                cleanup()
             }
-
-            handler.postDelayed({ finish() }, 8_000L)
-            return
         }
 
-        var finished = false
-        val handler = android.os.Handler(android.os.Looper.getMainLooper())
-        val listener = object : android.location.LocationListener {
-            override fun onLocationChanged(location: android.location.Location) {
-                if (!isValid(location, true)) return
-                best = better(best, location)
-                if (hasFine && best != null && best!!.accuracy <= 20f) {
-                    finished = true
-                    runCatching { locationManager.removeUpdates(this) }
-                    handler.removeCallbacksAndMessages(null)
-                    publish(best!!, "updates")
+        val priority = if (hasFine) {
+            Priority.PRIORITY_HIGH_ACCURACY
+        } else {
+            Priority.PRIORITY_BALANCED_POWER_ACCURACY
+        }
+
+        val request = CurrentLocationRequest.Builder()
+            .setPriority(priority)
+            .setGranularity(Granularity.GRANULARITY_PERMISSION_LEVEL)
+            .setMaxUpdateAgeMillis(if (hasFine) 2 * 60 * 1000L else 5 * 60 * 1000L)
+            .setDurationMillis(15_000L)
+            .build()
+
+        runCatching {
+            fused.getCurrentLocation(request, requestToken.token)
+                .addOnSuccessListener { location ->
+                    if (location != null && isUsable(location)) {
+                        publish(location, "fused-current")
+                    } else {
+                        fallbackToLastKnown()
+                    }
                 }
-            }
-
-            override fun onProviderDisabled(providerName: String) = Unit
-        }
-
-        var requested = false
-        providers.forEach { provider ->
-            requested = runCatching {
-                locationManager.requestLocationUpdates(
-                    provider,
-                    1000L,
-                    1f,
-                    listener,
-                    android.os.Looper.getMainLooper()
-                )
-                true
-            }.getOrDefault(false) || requested
-        }
-
-        if (!requested) {
-            mapLocationLoading = false
-            errorMessage = "Không thể yêu cầu vị trí hiện tại. Hãy kiểm tra quyền Vị trí."
-            return
+                .addOnFailureListener {
+                    fallbackToLastKnown()
+                }
+        }.onFailure {
+            fallbackToLastKnown()
         }
 
         handler.postDelayed({
-            if (finished) return@postDelayed
-            finished = true
-            runCatching { locationManager.removeUpdates(listener) }
-            handler.removeCallbacksAndMessages(null)
-            val candidate = best
-            if (candidate != null && isValid(candidate, false)) {
-                publish(candidate, "updates")
-            } else {
-                mapLocationLoading = false
-                errorMessage = "Chưa nhận được tín hiệu vị trí. Hãy bật GPS/Vị trí và thử lại."
+            if (!completed) {
+                runCatching { requestToken.cancel() }
+                fallbackToLastKnown()
             }
-        }, 8_000L)
+        }, 16_000L)
     }
 
     private fun migrateDrivePersistence() {
@@ -6413,6 +6389,24 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun openExternalDirections(destination: String) {
+        val encoded = URLEncoder.encode(destination.trim(), "UTF-8")
+        val googleNavigation = Uri.parse("google.navigation:q=$encoded&mode=d")
+        val webDirections = Uri.parse(
+            "https://www.google.com/maps/dir/?api=1&destination=$encoded&travelmode=driving"
+        )
+
+        runCatching {
+            startActivity(Intent(Intent.ACTION_VIEW, googleNavigation))
+        }.onFailure {
+            runCatching {
+                startActivity(Intent(Intent.ACTION_VIEW, webDirections))
+            }.onFailure {
+                errorMessage = "Không mở được trình chỉ đường."
+            }
+        }
+    }
+
     private fun searchMapRoute() {
         val query = mapSearchQuery.trim()
         if (query.isBlank()) {
@@ -6420,24 +6414,27 @@ class MainActivity : ComponentActivity() {
             return
         }
 
+        if (mapSearching) return
+
         val originAge = if (mapRouteOriginTitle == "VỊ TRÍ HIỆN TẠI") {
             (System.currentTimeMillis() - internalMapLocationTime).coerceAtLeast(0L)
         } else {
             Long.MAX_VALUE
         }
-        if (originAge > 10 * 60 * 1000L || mapRouteOriginTitle != "VỊ TRÍ HIỆN TẠI") {
+
+        if (originAge > 5 * 60 * 1000L || mapRouteOriginTitle != "VỊ TRÍ HIỆN TẠI") {
             if (mapLocationLoading) {
                 errorMessage = "Đang xác định vị trí xuất phát…"
                 return
             }
+
             pendingMapRouteQuery = query
             showCurrentLocationOnMap()
             return
         }
 
-        if (mapSearching) return
         mapSearching = true
-        errorMessage = "Đang tìm đường từ " + mapRouteOriginTitle + "…"
+        errorMessage = "Đang tính đường từ vị trí hiện tại…"
 
         lifecycleScope.launch {
             val result = withContext(Dispatchers.IO) {
@@ -6448,20 +6445,29 @@ class MainActivity : ComponentActivity() {
                             "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&accept-language=vi&q=$encoded"
                         ).openConnection() as HttpURLConnection).apply {
                             requestMethod = "GET"
-                            connectTimeout = 8000
-                            readTimeout = 8000
-                            setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.11 (Android)")
+                            connectTimeout = 8_000
+                            readTimeout = 8_000
+                            setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.12 (Android)")
                             setRequestProperty("Accept", "application/json")
                         }
+
                         return try {
-                            if (connection.responseCode !in 200..299) throw IllegalStateException("HTTP ${connection.responseCode}")
+                            if (connection.responseCode !in 200..299) {
+                                throw IllegalStateException("HTTP " + connection.responseCode)
+                            }
+
                             val body = connection.inputStream.bufferedReader().use { it.readText() }
                             val first = JSONArray(body).optJSONObject(0)
                                 ?: throw NoSuchElementException("Không tìm thấy địa điểm")
+
                             val lat = first.optDouble("lat", Double.NaN)
                             val lon = first.optDouble("lon", Double.NaN)
                             val name = first.optString("display_name", place)
-                            if (!lat.isFinite() || !lon.isFinite()) throw IllegalStateException("Tọa độ không hợp lệ")
+
+                            if (!lat.isFinite() || !lon.isFinite()) {
+                                throw IllegalStateException("Tọa độ không hợp lệ")
+                            }
+
                             Triple(lat, lon, name)
                         } finally {
                             connection.disconnect()
@@ -6473,34 +6479,67 @@ class MainActivity : ComponentActivity() {
                         "https://router.project-osrm.org/route/v1/driving/" +
                             mapRouteOriginLon.toString() + "," + mapRouteOriginLat.toString() + ";" +
                             destination.second.toString() + "," + destination.first.toString() +
-                            "?overview=full&geometries=geojson"
+                            "?overview=full&geometries=geojson&steps=false"
+
                     val routeConnection = (URL(routeUrl).openConnection() as HttpURLConnection).apply {
                         requestMethod = "GET"
-                        connectTimeout = 10000
-                        readTimeout = 15000
-                        setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.11 (Android)")
+                        connectTimeout = 10_000
+                        readTimeout = 20_000
+                        setRequestProperty("User-Agent", "NGOC-SI-MUSIC/5.12 (Android)")
                         setRequestProperty("Accept", "application/json")
                     }
+
                     try {
-                        if (routeConnection.responseCode !in 200..299) throw IllegalStateException("HTTP ${routeConnection.responseCode}")
+                        if (routeConnection.responseCode !in 200..299) {
+                            throw IllegalStateException("HTTP " + routeConnection.responseCode)
+                        }
+
                         val body = routeConnection.inputStream.bufferedReader().use { it.readText() }
                         val root = org.json.JSONObject(body)
+
+                        if (root.optString("code") != "Ok") {
+                            throw IllegalStateException(
+                                root.optString("message", "Routing failed")
+                            )
+                        }
+
                         val route = root.optJSONArray("routes")?.optJSONObject(0)
                             ?: throw NoSuchElementException("Không tìm thấy tuyến đường")
+
                         val coordinates = route.optJSONObject("geometry")?.optJSONArray("coordinates")
                             ?: throw IllegalStateException("Tuyến đường không có dữ liệu")
+
                         val routeArray = org.json.JSONArray()
                         for (i in 0 until coordinates.length()) {
                             val pair = coordinates.optJSONArray(i) ?: continue
                             if (pair.length() >= 2) {
-                                routeArray.put(org.json.JSONArray().put(pair.optDouble(0)).put(pair.optDouble(1)))
+                                val routeLon = pair.optDouble(0, Double.NaN)
+                                val routeLat = pair.optDouble(1, Double.NaN)
+                                if (
+                                    routeLon.isFinite() &&
+                                    routeLat.isFinite() &&
+                                    routeLon in -180.0..180.0 &&
+                                    routeLat in -85.0..85.0
+                                ) {
+                                    routeArray.put(
+                                        org.json.JSONArray()
+                                            .put(routeLon)
+                                            .put(routeLat)
+                                    )
+                                }
                             }
                         }
+
+                        if (routeArray.length() < 2) {
+                            throw IllegalStateException("Tuyến đường không đủ điểm hiển thị")
+                        }
+
                         val meta = org.json.JSONObject()
                             .put("route", routeArray)
                             .put("name", destination.third)
                             .put("duration", route.optDouble("duration", 0.0))
                             .put("distance", route.optDouble("distance", 0.0))
+
                         Triple(destination.first, destination.second, meta.toString())
                     } finally {
                         routeConnection.disconnect()
@@ -6509,24 +6548,38 @@ class MainActivity : ComponentActivity() {
             }
 
             mapSearching = false
+
             result.onSuccess { (lat, lon, metaJson) ->
                 val meta = org.json.JSONObject(metaJson)
+                val routeArray = meta.optJSONArray("route") ?: org.json.JSONArray()
+
                 internalMapLat = lat
                 internalMapLon = lon
                 internalMapTitle = meta.optString("name", query).substringBefore(",")
                 internalMapLayer = "standard"
-                internalMapRouteJson = meta.optJSONArray("route")?.toString() ?: "[]"
+                internalMapRouteJson = routeArray.toString()
                 internalMapIsCurrentLocation = false
                 internalMapAccuracyMeters = 0f
                 internalMapLocationTime = 0L
                 showInternalMap = true
+
                 val km = meta.optDouble("distance", 0.0) / 1000.0
                 val minutes = meta.optDouble("duration", 0.0) / 60.0
                 errorMessage = if (km > 0.0) {
-                    "Đã tìm đường: ${String.format(java.util.Locale.getDefault(), "%.1f km • %.0f phút", km, minutes)}"
-                } else null
+                    val summary = String.format(
+                        java.util.Locale.getDefault(),
+                        "%.1f km • %.0f phút",
+                        km,
+                        minutes
+                    )
+                    "Đã tìm đường: " + summary
+                } else {
+                    "Đã tạo tuyến đường."
+                }
             }.onFailure {
-                errorMessage = "Không tìm được đường đến địa điểm này. Hãy thử tên địa điểm cụ thể hơn."
+                openExternalDirections(query)
+                errorMessage =
+                    "Máy chủ chỉ đường trong app không phản hồi; đã mở chỉ đường dự phòng."
             }
         }
     }
