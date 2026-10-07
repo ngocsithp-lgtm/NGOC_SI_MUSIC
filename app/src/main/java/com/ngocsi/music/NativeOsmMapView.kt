@@ -31,6 +31,7 @@ import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.Style
 import org.maplibre.android.style.layers.CircleLayer
+import org.maplibre.android.style.layers.FillLayer
 import org.maplibre.android.style.layers.LineLayer
 import org.maplibre.android.style.layers.PropertyFactory
 import org.maplibre.android.style.sources.GeoJsonSource
@@ -47,6 +48,10 @@ private const val ROUTE_START_SOURCE = "ngocsi-route-start-source"
 private const val ROUTE_START_LAYER = "ngocsi-route-start-layer"
 private const val ROUTE_DEST_SOURCE = "ngocsi-route-dest-source"
 private const val ROUTE_DEST_LAYER = "ngocsi-route-dest-layer"
+private const val ACCURACY_SOURCE = "ngocsi-accuracy-source"
+private const val ACCURACY_LAYER = "ngocsi-accuracy-layer"
+private const val BEARING_SOURCE = "ngocsi-bearing-source"
+private const val BEARING_LAYER = "ngocsi-bearing-layer"
 
 private const val MAP_CACHE_SIZE_BYTES = 50L * 1024L * 1024L
 private val mapHttpLock = Any()
@@ -84,6 +89,7 @@ class NgocSiMapController internal constructor(
     private var route = emptyList<Pair<Double, Double>>()
     private var currentLocation = false
     private var accuracyMeters = 0f
+    private var bearingDegrees = 0f
     private var zoom = 14.0
 
     fun setView(newLat: Double, newLon: Double) {
@@ -159,7 +165,9 @@ class NgocSiMapController internal constructor(
         routePoints: List<Pair<Double, Double>>,
         isCurrentLocation: Boolean,
         accuracyMeters: Float,
-        fitRoute: Boolean
+        bearingDegrees: Float,
+        fitRoute: Boolean,
+        followLocation: Boolean
     ) {
         lat = safeLat(newLat)
         lon = safeLon(newLon)
@@ -171,6 +179,11 @@ class NgocSiMapController internal constructor(
         }
         currentLocation = isCurrentLocation
         this.accuracyMeters = accuracyMeters.coerceAtLeast(0f)
+        this.bearingDegrees = if (bearingDegrees.isFinite()) {
+            ((bearingDegrees % 360f) + 360f) % 360f
+        } else {
+            0f
+        }
         val valid = routePoints.filter { it.first.isFinite() && it.second.isFinite() }
 
         if (valid.size >= 2) {
@@ -178,6 +191,21 @@ class NgocSiMapController internal constructor(
                 fitRoute(valid)
             } else {
                 route = valid
+                if (followLocation && isCurrentLocation) {
+                    zoom = max(zoom, 16.0)
+                    val camera = CameraPosition.Builder()
+                        .target(LatLng(lat, lon))
+                        .zoom(zoom)
+                        .bearing(
+                            if (bearingDegrees > 0f) bearingDegrees.toDouble()
+                            else map.cameraPosition.bearing
+                        )
+                        .build()
+                    map.animateCamera(
+                        CameraUpdateFactory.newCameraPosition(camera),
+                        300
+                    )
+                }
                 updateSources()
             }
         } else {
@@ -209,13 +237,25 @@ class NgocSiMapController internal constructor(
         val markerSource = style.getSourceAs<GeoJsonSource>(MARKER_SOURCE) ?: return
         val startSource = style.getSourceAs<GeoJsonSource>(ROUTE_START_SOURCE) ?: return
         val destinationSource = style.getSourceAs<GeoJsonSource>(ROUTE_DEST_SOURCE) ?: return
+        val accuracySource = style.getSourceAs<GeoJsonSource>(ACCURACY_SOURCE) ?: return
+        val bearingSource = style.getSourceAs<GeoJsonSource>(BEARING_SOURCE) ?: return
+
         routeSource.setGeoJson(buildRouteGeoJson(route))
+        markerSource.setGeoJson(
+            if (currentLocation) buildMarkerGeoJson(lat, lon, true, accuracyMeters) else EMPTY_GEO_JSON
+        )
+        accuracySource.setGeoJson(
+            if (currentLocation && accuracyMeters > 0f) buildAccuracyGeoJson(lat, lon, accuracyMeters)
+            else EMPTY_GEO_JSON
+        )
+        bearingSource.setGeoJson(
+            if (currentLocation && bearingDegrees > 0f) buildBearingGeoJson(lat, lon, bearingDegrees)
+            else EMPTY_GEO_JSON
+        )
         if (route.size >= 2) {
-            markerSource.setGeoJson(EMPTY_GEO_JSON)
             startSource.setGeoJson(buildPointGeoJson(route.first()))
             destinationSource.setGeoJson(buildPointGeoJson(route.last()))
         } else {
-            markerSource.setGeoJson(buildMarkerGeoJson(lat, lon, currentLocation, accuracyMeters))
             startSource.setGeoJson(EMPTY_GEO_JSON)
             destinationSource.setGeoJson(EMPTY_GEO_JSON)
         }
@@ -233,10 +273,14 @@ private fun addOverlayLayers(style: Style) {
     val markerSource = GeoJsonSource(MARKER_SOURCE, EMPTY_GEO_JSON)
     val startSource = GeoJsonSource(ROUTE_START_SOURCE, EMPTY_GEO_JSON)
     val destinationSource = GeoJsonSource(ROUTE_DEST_SOURCE, EMPTY_GEO_JSON)
+    val accuracySource = GeoJsonSource(ACCURACY_SOURCE, EMPTY_GEO_JSON)
+    val bearingSource = GeoJsonSource(BEARING_SOURCE, EMPTY_GEO_JSON)
     style.addSource(routeSource)
     style.addSource(markerSource)
     style.addSource(startSource)
     style.addSource(destinationSource)
+    style.addSource(accuracySource)
+    style.addSource(bearingSource)
     style.addLayer(
         LineLayer(ROUTE_LAYER, ROUTE_SOURCE).withProperties(
             PropertyFactory.lineColor("#6C5CE7"),
@@ -271,6 +315,20 @@ private fun addOverlayLayers(style: Style) {
             PropertyFactory.circleOpacity(1f)
         )
     )
+    style.addLayer(
+        FillLayer(ACCURACY_LAYER, ACCURACY_SOURCE).withProperties(
+            PropertyFactory.fillColor("#6C5CE7"),
+            PropertyFactory.fillOpacity(0.16f),
+            PropertyFactory.fillOutlineColor("#6C5CE7")
+        )
+    )
+    style.addLayer(
+        FillLayer(BEARING_LAYER, BEARING_SOURCE).withProperties(
+            PropertyFactory.fillColor("#FFFFFF"),
+            PropertyFactory.fillOpacity(0.95f),
+            PropertyFactory.fillOutlineColor("#6C5CE7")
+        )
+    )
 }
 
 @Composable
@@ -282,6 +340,8 @@ fun NativeOsmMapView(
     routePoints: List<Pair<Double, Double>>,
     isCurrentLocation: Boolean,
     accuracyMeters: Float,
+    bearingDegrees: Float = 0f,
+    followLocation: Boolean = false,
     onMapReady: (NgocSiMapController) -> Unit
 ) {
     var controller by remember { mutableStateOf<NgocSiMapController?>(null) }
@@ -314,7 +374,9 @@ fun NativeOsmMapView(
                                 routePoints = routePoints,
                                 isCurrentLocation = isCurrentLocation,
                                 accuracyMeters = accuracyMeters,
-                                fitRoute = routePoints.size >= 2
+                                bearingDegrees = bearingDegrees,
+                                fitRoute = routePoints.size >= 2,
+                                followLocation = followLocation
                             )
                         }
                     }
@@ -332,7 +394,9 @@ fun NativeOsmMapView(
                         routePoints = routePoints,
                         isCurrentLocation = isCurrentLocation,
                         accuracyMeters = accuracyMeters,
-                        fitRoute = false
+                        bearingDegrees = bearingDegrees,
+                        fitRoute = false,
+                        followLocation = followLocation
                     )
                 }
             }
