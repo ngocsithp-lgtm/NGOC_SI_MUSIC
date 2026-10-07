@@ -8237,21 +8237,6 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             }
         }
 
-        LaunchedEffect(nativeMapRef, selectedLayer, routeJson, lat, lon, title) {
-            val webView = nativeMapRef ?: return@LaunchedEffect
-            val routePayload = runCatching {
-                org.json.JSONArray(routeJson).toString()
-            }.getOrElse { "[]" }
-            val script =
-                "window.setMapState && window.setMapState(" +
-                    webMapStateLat(lat) + "," +
-                    webMapStateLon(lon) + "," +
-                    org.json.JSONObject.quote(title.take(240)) + "," +
-                    org.json.JSONObject.quote(selectedLayer) + "," +
-                    routePayload +
-                    ");"
-            webView.evaluateJavascript(script, null)
-        }
     }
 
     @Composable
