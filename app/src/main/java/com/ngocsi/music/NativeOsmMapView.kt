@@ -119,7 +119,12 @@ class NgocSiMapController internal constructor(
     ) {
         lat = safeLat(newLat)
         lon = safeLon(newLon)
-        layer = if (selectedLayer == "satellite") "satellite" else "standard"
+        val requestedLayer = if (selectedLayer == "satellite") "satellite" else "standard"
+        if (requestedLayer != layer) {
+            layer = requestedLayer
+            applyStyle(preserveCamera = true)
+            return
+        }
         currentLocation = isCurrentLocation
         this.accuracyMeters = accuracyMeters.coerceAtLeast(0f)
         val valid = routePoints.filter { it.first.isFinite() && it.second.isFinite() }
@@ -292,9 +297,9 @@ private fun buildStyleJson(selectedLayer: String): String {
     val rasterTiles = if (selectedLayer == "satellite") {
         "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
     } else {
-        "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
     }
-    val attribution = if (selectedLayer == "satellite") "Tiles © Esri" else "© OpenStreetMap contributors"
+    val attribution = "Tiles © Esri"
     return """
         {
           "version":8,
@@ -308,8 +313,6 @@ private fun buildStyleJson(selectedLayer: String): String {
               "maxzoom":19,
               "attribution":"$attribution"
             },
-            "$ROUTE_SOURCE":{"type":"geojson","data":$EMPTY_GEO_JSON},
-            "$MARKER_SOURCE":{"type":"geojson","data":$EMPTY_GEO_JSON}
           },
           "layers":[{
             "id":"$BASE_LAYER",
@@ -326,7 +329,7 @@ private fun buildStyleJson(selectedLayer: String): String {
 private fun buildRouteGeoJson(routePoints: List<Pair<Double, Double>>): String {
     if (routePoints.size < 2) return EMPTY_GEO_JSON
     val coordinates = routePoints.joinToString(",") { (pointLat, pointLon) ->
-        "[$" + "{" + "safeLon(pointLon)" + "},{$" + "{safeLat(pointLat)}]"
+        "[" + safeLon(pointLon) + "," + safeLat(pointLat) + "]"
     }
     return """
         {"type":"FeatureCollection","features":[{"type":"Feature","properties":{},
