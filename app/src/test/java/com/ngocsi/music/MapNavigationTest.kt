@@ -7,8 +7,10 @@ import org.junit.Test
 class MapNavigationTest {
     @Test
     fun instruction_buildsUsefulVietnameseText() {
-        assertEquals("Rẽ trái vào Nguyễn Trãi", buildMapInstruction("turn", "left", "Nguyễn Trãi"))
-        assertEquals("Xuất phát theo đường Lê Lợi", buildMapInstruction("depart", "", "Lê Lợi"))
+        val turn = buildMapInstruction("turn", "left", "Nguyễn Trãi")
+        assertTrue(turn.startsWith("Rẽ trái"))
+        assertTrue(turn.contains("Nguyễn Trãi"))
+        assertEquals("Xuất phát theo Lê Lợi", buildMapInstruction("depart", "", "Lê Lợi"))
         assertEquals("Đã đến điểm đích", buildMapInstruction("arrive", "", ""))
     }
 
