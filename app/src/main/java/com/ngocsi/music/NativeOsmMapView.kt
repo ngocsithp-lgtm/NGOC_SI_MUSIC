@@ -41,6 +41,7 @@ import kotlin.math.min
 private const val BASE_SOURCE = "ngocsi-base"
 private const val BASE_LAYER = "ngocsi-base-layer"
 private const val ROUTE_SOURCE = "ngocsi-route-source"
+private const val ROUTE_CASING_LAYER = "ngocsi-route-casing-layer"
 private const val ROUTE_LAYER = "ngocsi-route-layer"
 private const val MARKER_SOURCE = "ngocsi-marker-source"
 private const val MARKER_LAYER = "ngocsi-marker-layer"
@@ -347,11 +348,20 @@ private fun addOverlayLayers(style: Style) {
     style.addSource(destinationSource)
     style.addSource(accuracySource)
     style.addSource(bearingSource)
+    // High-contrast casing keeps the route legible over satellite imagery.
+    style.addLayer(
+        LineLayer(ROUTE_CASING_LAYER, ROUTE_SOURCE).withProperties(
+            PropertyFactory.lineColor("#FFFFFF"),
+            PropertyFactory.lineWidth(10f),
+            PropertyFactory.lineOpacity(0.86f),
+            PropertyFactory.lineBlur(0.25f)
+        )
+    )
     style.addLayer(
         LineLayer(ROUTE_LAYER, ROUTE_SOURCE).withProperties(
             PropertyFactory.lineColor("#6C5CE7"),
-            PropertyFactory.lineWidth(7f),
-            PropertyFactory.lineOpacity(0.95f)
+            PropertyFactory.lineWidth(6.5f),
+            PropertyFactory.lineOpacity(0.98f)
         )
     )
     style.addLayer(
