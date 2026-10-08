@@ -447,6 +447,10 @@ class MainActivity : ComponentActivity() {
     // queue scrolling cannot compete with the audio decoder for CPU/I/O.
     private val artworkDecodeDispatcher = Dispatchers.IO.limitedParallelism(2)
     private val albumArtPathCache = ConcurrentHashMap<Long, String>()
+    // Provider MIME lookups can be relatively expensive and mediaItemFor() is
+    // called repeatedly while syncing/restoring the queue. Cache only successful
+    // audio MIME types by stable URI so queue rebuilds stay cheap.
+    private val mediaMimeCache = ConcurrentHashMap<String, String>()
     private var showPlaylists by mutableStateOf(false)
     private var playlistDetailId by mutableStateOf<String?>(null)
     private var playlistTargetSongUri by mutableStateOf<String?>(null)
@@ -1280,10 +1284,16 @@ class MainActivity : ComponentActivity() {
             // Some local DocumentsProvider/MediaStore URIs do not expose a
             // useful filename extension. Supplying the provider MIME type
             // helps Media3 select the correct progressive audio path.
-            val providerMime = runCatching { contentResolver.getType(song.uri) }
-                .getOrNull()
-                ?.trim()
-                .orEmpty()
+            val providerMime = mediaMimeCache[song.uri.toString()]
+                ?: runCatching { contentResolver.getType(song.uri) }
+                    .getOrNull()
+                    ?.trim()
+                    .orEmpty()
+                    .also { mime ->
+                        if (mime.startsWith("audio/")) {
+                            mediaMimeCache[song.uri.toString()] = mime
+                        }
+                    }
             if (providerMime.startsWith("audio/")) {
                 builder.setMimeType(providerMime)
             }
