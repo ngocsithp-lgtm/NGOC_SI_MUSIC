@@ -90,7 +90,8 @@ class NgocSiMapController internal constructor(
     private val map: MapLibreMap,
     private val onLoadError: (String) -> Unit,
     private val onMapLoaded: () -> Unit,
-    private val onUserGesture: () -> Unit
+    private val onUserGesture: () -> Unit,
+    private val onSatelliteFallback: () -> Unit
 ) {
     private var lat = 10.8231
     private var lon = 106.6297
@@ -107,6 +108,15 @@ class NgocSiMapController internal constructor(
             if (layer == "standard" && !usingRasterFallback) {
                 usingRasterFallback = true
                 applyRasterFallbackStyle()
+                return
+            }
+            if (layer == "satellite" && !usingRasterFallback) {
+                // Keep Map usable when the imagery provider is temporarily
+                // unavailable. The user can switch back to satellite manually.
+                usingRasterFallback = true
+                layer = "standard"
+                onSatelliteFallback()
+                applyStyle(preserveCamera = true)
                 return
             }
             onLoadError(errorMessage.ifBlank { "Không tải được dữ liệu bản đồ" })
@@ -430,6 +440,7 @@ fun NativeOsmMapView(
     hasBearing: Boolean = false,
     followLocation: Boolean = false,
     onUserGesture: () -> Unit = {},
+    onSatelliteFallback: () -> Unit = {},
     onMapReady: (NgocSiMapController) -> Unit
 ) {
     var controller by remember { mutableStateOf<NgocSiMapController?>(null) }
@@ -459,7 +470,8 @@ fun NativeOsmMapView(
                             map = map,
                             onLoadError = { message -> mapLoadError = message.take(160) },
                             onMapLoaded = { mapLoadError = null },
-                            onUserGesture = onUserGesture
+                            onUserGesture = onUserGesture,
+                            onSatelliteFallback = onSatelliteFallback
                         )
                         controller = mapController
                         onMapReady(mapController)
