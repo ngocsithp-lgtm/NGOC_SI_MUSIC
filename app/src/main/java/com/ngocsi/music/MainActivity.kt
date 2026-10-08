@@ -4725,9 +4725,9 @@ class MainActivity : ComponentActivity() {
                     internalMapFollowLocation = false
                     showInternalMap = false
                 },
-                onRefreshLocation = if (internalMapIsCurrentLocation) {
-                    { showCurrentLocationOnMap() }
-                } else null,
+                onRefreshLocation = {
+                    showCurrentLocationOnMap()
+                },
                 onLayerChanged = { layer ->
                     internalMapLayer = layer
                 },
