@@ -386,6 +386,11 @@ class MainActivity : ComponentActivity() {
     private var mapNavigationLastRerouteAt by mutableLongStateOf(0L)
     private var mapNavigationLocationClient: com.google.android.gms.location.FusedLocationProviderClient? = null
     private var mapNavigationLocationCallback: LocationCallback? = null
+    // Own one-shot current-location requests at Activity scope so GPS callbacks
+    // cannot outlive the Activity during a screen transition.
+    private var mapLocationClient: com.google.android.gms.location.FusedLocationProviderClient? = null
+    private var mapLocationCallback: LocationCallback? = null
+    private var mapLocationHandler: android.os.Handler? = null
     private var mapLocationLoading by mutableStateOf(false)
     private var mapSearchLastAt by mutableLongStateOf(0L)
     // Cache the last interactive geocoding result so TÌM → CHỈ ĐƯỜNG does not
