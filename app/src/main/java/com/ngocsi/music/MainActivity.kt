@@ -7136,13 +7136,28 @@ class MainActivity : ComponentActivity() {
                     Spacer(Modifier.height(10.dp))
 
                     Button(
-                        onClick = { if (mapSearchQuery.isBlank()) openMapHome() else searchMapPlace() },
+                        onClick = {
+                            if (mapSearchQuery.isBlank()) {
+                                if (internalMapIsCurrentLocation && internalMapLat.isFinite() && internalMapLon.isFinite()) {
+                                    showInternalMap = true
+                                    errorMessage = null
+                                } else {
+                                    openMapHome()
+                                }
+                            } else {
+                                searchMapPlace()
+                            }
+                        },
                         modifier = Modifier.fillMaxWidth().height(48.dp),
                         shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6C5CE7))
                     ) {
                         Text(
-                            if (mapSearchQuery.isBlank()) "MỞ BẢN ĐỒ" else "TÌM TRÊN BẢN ĐỒ",
+                            when {
+                                mapSearchQuery.isNotBlank() -> "TÌM TRÊN BẢN ĐỒ"
+                                internalMapIsCurrentLocation -> "MỞ BẢN ĐỒ • VỊ TRÍ CỦA TÔI"
+                                else -> "MỞ BẢN ĐỒ"
+                            },
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Black
                         )
@@ -7278,6 +7293,56 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
+            if (internalMapRouteDistanceMeters > 0.0 && internalMapRouteDurationSeconds > 0.0) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    color = Color(0xFF111827),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF313B4A))
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                "TUYẾN ĐƯỜNG HIỆN TẠI",
+                                color = Color(0xFF9FEFFF),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 0.8.sp
+                            )
+                            Text(
+                                internalMapTitle.ifBlank { "Điểm đến" },
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                String.format(
+                                    java.util.Locale.getDefault(),
+                                    "%.1f km • %.0f phút • %d bước",
+                                    internalMapRouteDistanceMeters / 1000.0,
+                                    internalMapRouteDurationSeconds / 60.0,
+                                    internalMapRouteSteps.size
+                                ),
+                                color = Color(0xFF8E98A8),
+                                fontSize = 10.sp
+                            )
+                        }
+                        OutlinedButton(
+                            onClick = { showInternalMap = true; errorMessage = null },
+                            shape = RoundedCornerShape(11.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 7.dp)
+                        ) {
+                            Text("XEM TUYẾN", fontSize = 9.sp, fontWeight = FontWeight.Black)
+                        }
+                    }
+                }
+            }
+
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(17.dp),
@@ -7288,7 +7353,7 @@ class MainActivity : ComponentActivity() {
                     Text("ⓘ", color = Color(0xFF9DEBFF), fontSize = 17.sp)
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        "Bản đồ đường phố chạy trong app bằng OpenStreetMap. Giao thông trực tiếp mở Google Maps vì dùng nguồn dữ liệu giao thông riêng.",
+                        "Bản đồ đường phố chạy trong app bằng OpenStreetMap. Giao thông trực tiếp mở Google Maps vì dùng nguồn dữ liệu giao thông riêng. Vệ tinh và chỉ đường dùng trong app.",
                         color = Color(0xFF737C8B),
                         fontSize = 9.sp,
                         lineHeight = 13.sp,
