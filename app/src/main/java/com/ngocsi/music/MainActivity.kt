@@ -3991,6 +3991,21 @@ class MainActivity : ComponentActivity() {
         }, 12_000L)
     }
 
+    private fun stopMapLocationRequest() {
+        runCatching {
+            mapLocationClient?.let { client ->
+                mapLocationCallback?.let { callback ->
+                    client.removeLocationUpdates(callback)
+                }
+            }
+        }
+        mapLocationCallback = null
+        mapLocationClient = null
+        mapLocationHandler?.removeCallbacksAndMessages(null)
+        mapLocationHandler = null
+        mapLocationLoading = false
+    }
+
     private fun migrateDrivePersistence() {
         if (!driveSourcePrefs.getBoolean("migration_v1_complete", false)) {
             val editor = driveSourcePrefs.edit()
