@@ -4762,6 +4762,39 @@ class MainActivity : ComponentActivity() {
             )
         }
         radioWebUrl?.let { RadioWebViewDialog(it, radioWebTitle) }
+        if (showSleepTimer) {
+            AlertDialog(
+                onDismissRequest = { showSleepTimer = false },
+                title = { Text("Hẹn giờ tắt nhạc") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            if (sleepMinutes > 0) "Tự động dừng sau $sleepMinutes phút" else "Chọn thời gian để tự động dừng nhạc.",
+                            color = Color(0xFF8E8E99),
+                            fontSize = 13.sp
+                        )
+                        listOf(15, 30, 45, 60, 90, 120).forEach { min ->
+                            OutlinedButton(
+                                onClick = {
+                                    startSleepTimer(min)
+                                    showSleepTimer = false
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(if (sleepMinutes == min) "✓ $min phút" else "$min phút")
+                            }
+                        }
+                        TextButton(onClick = {
+                            startSleepTimer(0)
+                            showSleepTimer = false
+                        }) {
+                            Text("Tắt hẹn giờ")
+                        }
+                    }
+                },
+                confirmButton = {}
+            )
+        }
     }
 
     @Composable
@@ -5949,34 +5982,6 @@ class MainActivity : ComponentActivity() {
             )
         }
 
-        if (showSleepTimer) {
-            AlertDialog(
-                onDismissRequest = { showSleepTimer = false },
-                title = { Text("Hẹn giờ tắt nhạc") },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(15, 30, 45, 60, 90, 120).forEach { min ->
-                            OutlinedButton(
-                                onClick = {
-                                    startSleepTimer(min)
-                                    showSleepTimer = false
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("${min} phút")
-                            }
-                        }
-                        TextButton(onClick = {
-                            startSleepTimer(0)
-                            showSleepTimer = false
-                        }) {
-                            Text("Tắt hẹn giờ")
-                        }
-                    }
-                },
-                confirmButton = {}
-            )
-        }
     }
 
     @Composable
