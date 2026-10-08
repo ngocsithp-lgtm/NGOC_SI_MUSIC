@@ -372,6 +372,8 @@ class MainActivity : ComponentActivity() {
     private var internalMapLocationTime by mutableLongStateOf(0L)
     private var internalMapBearing by mutableFloatStateOf(0f)
     private var internalMapHasBearing by mutableStateOf(false)
+    // Keep the map centered on a fresh GPS fix after the user taps VỊ TRÍ.
+    private var internalMapFollowLocation by mutableStateOf(false)
     private var internalMapDestinationLat by mutableDoubleStateOf(10.8231)
     private var internalMapDestinationLon by mutableDoubleStateOf(106.6297)
     private var internalMapRouteDistanceMeters by mutableDoubleStateOf(0.0)
@@ -3801,6 +3803,7 @@ class MainActivity : ComponentActivity() {
         internalMapIsCurrentLocation = false
         internalMapAccuracyMeters = 0f
         internalMapLocationTime = 0L
+        internalMapFollowLocation = false
         mapNavigationDestination = ""
         mapNavigationDestinationQuery = ""
         showInternalMap = true
@@ -3921,6 +3924,7 @@ class MainActivity : ComponentActivity() {
                 internalMapHasBearing = true
             }
             internalMapLocationTime = if (location.time > 0L) location.time else System.currentTimeMillis()
+            internalMapFollowLocation = true
             showInternalMap = true
             errorMessage = null
 
@@ -4718,6 +4722,7 @@ class MainActivity : ComponentActivity() {
                 onDismiss = {
                     if (mapNavigationActive) stopMapNavigation()
                     stopMapLocationRequest()
+                    internalMapFollowLocation = false
                     showInternalMap = false
                 },
                 onRefreshLocation = if (internalMapIsCurrentLocation) {
@@ -6545,6 +6550,7 @@ class MainActivity : ComponentActivity() {
         pendingMapNavigationStart = false
         mapNavigationStepIndex = 0
         mapNavigationLastRerouteAt = 0L
+        internalMapFollowLocation = false
         errorMessage = null
     }
 
@@ -6578,6 +6584,7 @@ class MainActivity : ComponentActivity() {
 
         stopMapLocationRequest()
         mapNavigationActive = true
+        internalMapFollowLocation = true
         mapNavigationStepIndex = internalMapRouteSteps.indexOfFirst {
             !it.instruction.startsWith("Xuất phát", ignoreCase = true)
         }.let { if (it < 0) 0 else it }
@@ -7723,7 +7730,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             accuracyMeters = accuracyMeters,
                             bearingDegrees = bearingDegrees,
                             hasBearing = hasBearing,
-                            followLocation = navigationActive,
+                            followLocation = navigationActive || internalMapFollowLocation,
                             onMapReady = { nativeMapRef = it }
                         )
 
