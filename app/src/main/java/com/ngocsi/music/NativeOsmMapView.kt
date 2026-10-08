@@ -289,7 +289,9 @@ class NgocSiMapController internal constructor(
             addOverlayLayers(it)
             map.moveCamera(CameraUpdateFactory.newCameraPosition(CameraPosition.Builder(camera).build()))
             updateSources()
-            onMapLoaded()
+            // Wait for MapLibre's real finish/fail callback before clearing
+            // the error surface. Calling onMapLoaded() here can report a
+            // successful map while the raster tiles are still unavailable.
         }
     }
 
