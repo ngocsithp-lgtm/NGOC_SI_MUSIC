@@ -6582,6 +6582,14 @@ class MainActivity : ComponentActivity() {
             return
         }
 
+        val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
+            !runCatching { locationManager.isLocationEnabled }.getOrDefault(false)
+        ) {
+            errorMessage = "Vị trí/GPS đang tắt. Hãy bật Vị trí rồi bấm BẮT ĐẦU lại."
+            return
+        }
+
         stopMapLocationRequest()
         mapNavigationActive = true
         internalMapFollowLocation = true
