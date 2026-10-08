@@ -4706,6 +4706,7 @@ class MainActivity : ComponentActivity() {
                 statusMessage = errorMessage,
                 onDismiss = {
                     if (mapNavigationActive) stopMapNavigation()
+                    stopMapLocationRequest()
                     showInternalMap = false
                 },
                 onRefreshLocation = if (internalMapIsCurrentLocation) {
@@ -6559,6 +6560,7 @@ class MainActivity : ComponentActivity() {
             return
         }
 
+        stopMapLocationRequest()
         mapNavigationActive = true
         mapNavigationStepIndex = internalMapRouteSteps.indexOfFirst {
             !it.instruction.startsWith("Xuất phát", ignoreCase = true)
