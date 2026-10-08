@@ -27,7 +27,6 @@ import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.geometry.LatLngBounds
-import org.maplibre.android.maps.MapLibreMapOptions
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.Style
@@ -55,6 +54,10 @@ private const val BEARING_SOURCE = "ngocsi-bearing-source"
 private const val BEARING_LAYER = "ngocsi-bearing-layer"
 
 private const val MAP_CACHE_SIZE_BYTES = 50L * 1024L * 1024L
+private const val OPENFREEMAP_STANDARD_STYLE =
+    "https://tiles.openfreemap.org/styles/liberty"
+private const val OSM_RASTER_FALLBACK =
+    "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
 private val mapHttpLock = Any()
 @Volatile private var mapHttpConfigured = false
 
@@ -96,8 +99,14 @@ class NgocSiMapController internal constructor(
     private var bearingDegrees = 0f
     private var hasBearing = false
     private var zoom = 14.0
+    private var usingRasterFallback = false
     private val failListener = object : MapView.OnDidFailLoadingMapListener {
         override fun onDidFailLoadingMap(errorMessage: String) {
+            if (layer == "standard" && !usingRasterFallback) {
+                usingRasterFallback = true
+                applyRasterFallbackStyle()
+                return
+            }
             onLoadError(errorMessage.ifBlank { "Không tải được dữ liệu bản đồ" })
         }
     }
@@ -256,8 +265,14 @@ class NgocSiMapController internal constructor(
     }
 
     private fun applyStyle(preserveCamera: Boolean) {
+        usingRasterFallback = false
         val camera = map.cameraPosition
-        map.setStyle(Style.Builder().fromJson(buildStyleJson(layer))) {
+        val builder = if (layer == "satellite") {
+            Style.Builder().fromJson(buildSatelliteStyleJson())
+        } else {
+            Style.Builder().fromUri(OPENFREEMAP_STANDARD_STYLE)
+        }
+        map.setStyle(builder) {
             addOverlayLayers(it)
             if (preserveCamera) {
                 map.moveCamera(CameraUpdateFactory.newCameraPosition(CameraPosition.Builder(camera).build()))
@@ -265,6 +280,16 @@ class NgocSiMapController internal constructor(
                 map.moveCamera(CameraUpdateFactory.newLatLngZoom(LatLng(lat, lon), zoom))
             }
             updateSources()
+        }
+    }
+
+    private fun applyRasterFallbackStyle() {
+        val camera = map.cameraPosition
+        map.setStyle(Style.Builder().fromJson(buildRasterFallbackStyleJson())) {
+            addOverlayLayers(it)
+            map.moveCamera(CameraUpdateFactory.newCameraPosition(CameraPosition.Builder(camera).build()))
+            updateSources()
+            onMapLoaded()
         }
     }
 
@@ -393,18 +418,8 @@ fun NativeOsmMapView(
             factory = { context ->
                 MapLibre.getInstance(context.applicationContext)
                 configureMapHttp(context.applicationContext)
-                val mapOptions = MapLibreMapOptions()
-                    .textureMode(true)
-                    .logoEnabled(false)
-                    .attributionEnabled(true)
-                    .compassEnabled(true)
-                    .scrollGesturesEnabled(true)
-                    .zoomGesturesEnabled(true)
-                    .rotateGesturesEnabled(true)
-                    .tiltGesturesEnabled(false)
-                    .also { it.prefetchesTiles = false }
 
-                MapView(context, mapOptions).apply {
+                MapView(context).apply {
                     onCreate(Bundle())
                     getMapAsync { map ->
                         map.uiSettings.isCompassEnabled = true
@@ -425,7 +440,12 @@ fun NativeOsmMapView(
                         controller = mapController
                         onMapReady(mapController)
 
-                        map.setStyle(Style.Builder().fromJson(buildStyleJson(selectedLayer))) { style ->
+                        val initialStyle = if (selectedLayer == "satellite") {
+                            Style.Builder().fromJson(buildSatelliteStyleJson())
+                        } else {
+                            Style.Builder().fromUri(OPENFREEMAP_STANDARD_STYLE)
+                        }
+                        map.setStyle(initialStyle) { style ->
                             addOverlayLayers(style)
                             mapController.updateMap(
                                 newLat = lat,
@@ -535,35 +555,35 @@ fun NativeOsmMapView(
 private const val EMPTY_GEO_JSON =
     "{\"type\":\"FeatureCollection\",\"features\":[]}";
 
-private fun buildStyleJson(selectedLayer: String): String {
-    val satellite = selectedLayer == "satellite"
+private fun buildSatelliteStyleJson(): String {
+    return buildRasterStyleJson(
+        tileUrl = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        attribution = "© Esri",
+        backgroundColor = "#11151B"
+    )
+}
 
-    // Use more than one tile endpoint. On some mobile networks a single
-    // hostname can fail while another endpoint is still reachable. MapLibre
-    // supports multiple raster tile URLs for one source and will request
-    // whichever endpoint is available.
-    val rasterTile = if (satellite) {
-        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-    } else {
-        // Use an OSM-derived raster endpoint that is independent from the
-        // OSMF standard tile hostname. This avoids a blank basemap when the
-        // standard endpoint is unreachable from a particular mobile network.
-        // Normal viewport-only requests are kept; no prefetch/bulk download.
-        "https://tile.openstreetmap.de/{z}/{x}/{y}.png"
-    }
+private fun buildRasterFallbackStyleJson(): String {
+    return buildRasterStyleJson(
+        tileUrl = OSM_RASTER_FALLBACK,
+        attribution = "© OpenStreetMap contributors",
+        backgroundColor = "#E9EDF1"
+    )
+}
 
-    val attribution = if (satellite) "© Esri" else "© OpenStreetMap contributors"
-    val backgroundColor = if (satellite) "#11151B" else "#E9EDF1"
-    val tileJson = "\"" + rasterTile + "\""
-
+private fun buildRasterStyleJson(
+    tileUrl: String,
+    attribution: String,
+    backgroundColor: String
+): String {
     return """
         {
           "version":8,
-          "name":"NGOC SI MUSIC MAP",
+          "name":"NGOC SI MUSIC MAP RASTER",
           "sources":{
             "$BASE_SOURCE":{
               "type":"raster",
-              "tiles":[$tileJson],
+              "tiles":["$tileUrl"],
               "tileSize":256,
               "minzoom":1,
               "maxzoom":19,
@@ -593,6 +613,7 @@ private fun buildStyleJson(selectedLayer: String): String {
         }
     """.trimIndent()
 }
+
 private fun buildRouteGeoJson(routePoints: List<Pair<Double, Double>>): String {
     if (routePoints.size < 2) return EMPTY_GEO_JSON
     val coordinates = routePoints.joinToString(",") { (pointLat, pointLon) ->
