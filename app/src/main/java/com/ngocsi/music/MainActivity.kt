@@ -7744,6 +7744,10 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     internalMapFollowLocation = false
                                 }
                             },
+                            onSatelliteFallback = {
+                                internalMapLayer = "standard"
+                                errorMessage = "Ảnh vệ tinh không tải được lúc này. Đã chuyển sang bản đồ đường phố."
+                            },
                             onMapReady = { nativeMapRef = it }
                         )
 
