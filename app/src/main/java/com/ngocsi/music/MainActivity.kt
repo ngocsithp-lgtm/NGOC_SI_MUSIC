@@ -86,7 +86,6 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
-import com.google.common.util.concurrent.MoreExecutors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -849,7 +848,7 @@ class MainActivity : ComponentActivity() {
             } catch (e: Exception) {
                 errorMessage = "Không kết nối được trình phát."
             }
-        }, MoreExecutors.directExecutor())
+        }, ContextCompat.getMainExecutor(this))
     }
 
     private fun requestMusicPermissionIfNeeded() {
