@@ -3826,15 +3826,28 @@ class MainActivity : ComponentActivity() {
         mapLocationLoading = true
         errorMessage = "Đang xác định vị trí hiện tại…"
 
+        stopMapLocationRequest()
+
         val fused = LocationServices.getFusedLocationProviderClient(this)
         val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+        mapLocationClient = fused
+        mapLocationHandler = mainHandler
         var delivered = false
 
         lateinit var callback: LocationCallback
 
         fun cleanup() {
-            runCatching { fused.removeLocationUpdates(callback) }
-            mainHandler.removeCallbacksAndMessages(null)
+            runCatching {
+                mapLocationClient?.let { client ->
+                    mapLocationCallback?.let { activeCallback ->
+                        client.removeLocationUpdates(activeCallback)
+                    }
+                }
+            }
+            mapLocationCallback = null
+            mapLocationClient = null
+            mapLocationHandler?.removeCallbacksAndMessages(null)
+            mapLocationHandler = null
         }
 
         fun publish(
