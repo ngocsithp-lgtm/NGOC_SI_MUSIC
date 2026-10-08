@@ -481,7 +481,7 @@ fun NativeOsmMapView(
                         hasBearing = hasBearing,
                         // A newly calculated route should initially be framed in full.
                         // Once the route is stable, GPS follow can take over.
-                        fitRoute = routePoints.size >= 2 && !followLocation,
+                        fitRoute = routePoints.size >= 2,
                         followLocation = followLocation
                     )
                 }
