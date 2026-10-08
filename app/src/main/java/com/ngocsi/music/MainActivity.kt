@@ -3931,6 +3931,8 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        mapLocationCallback = callback
+
         val priority = if (fine) {
             Priority.PRIORITY_HIGH_ACCURACY
         } else {
