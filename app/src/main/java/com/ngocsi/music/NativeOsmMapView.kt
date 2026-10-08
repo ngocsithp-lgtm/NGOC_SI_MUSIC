@@ -89,7 +89,8 @@ class NgocSiMapController internal constructor(
     private val mapView: MapView,
     private val map: MapLibreMap,
     private val onLoadError: (String) -> Unit,
-    private val onMapLoaded: () -> Unit
+    private val onMapLoaded: () -> Unit,
+    private val onUserGesture: () -> Unit
 ) {
     private var lat = 10.8231
     private var lon = 106.6297
@@ -116,10 +117,18 @@ class NgocSiMapController internal constructor(
             onMapLoaded()
         }
     }
+    private val cameraMoveStartedListener = object : MapLibreMap.OnCameraMoveStartedListener {
+        override fun onCameraMoveStarted(reason: Int) {
+            if (reason == MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) {
+                onUserGesture()
+            }
+        }
+    }
 
     init {
         mapView.addOnDidFailLoadingMapListener(failListener)
         mapView.addOnDidFinishLoadingMapListener(finishListener)
+        map.addOnCameraMoveStartedListener(cameraMoveStartedListener)
     }
 
     fun centerView(newLat: Double, newLon: Double) {
@@ -329,6 +338,7 @@ class NgocSiMapController internal constructor(
     fun destroy() {
         runCatching { mapView.removeOnDidFailLoadingMapListener(failListener) }
         runCatching { mapView.removeOnDidFinishLoadingMapListener(finishListener) }
+        runCatching { map.removeOnCameraMoveStartedListener(cameraMoveStartedListener) }
         runCatching { mapView.onPause() }
         runCatching { mapView.onStop() }
         runCatching { mapView.onDestroy() }
@@ -419,6 +429,7 @@ fun NativeOsmMapView(
     bearingDegrees: Float = 0f,
     hasBearing: Boolean = false,
     followLocation: Boolean = false,
+    onUserGesture: () -> Unit = {},
     onMapReady: (NgocSiMapController) -> Unit
 ) {
     var controller by remember { mutableStateOf<NgocSiMapController?>(null) }
@@ -447,7 +458,8 @@ fun NativeOsmMapView(
                             mapView = this,
                             map = map,
                             onLoadError = { message -> mapLoadError = message.take(160) },
-                            onMapLoaded = { mapLoadError = null }
+                            onMapLoaded = { mapLoadError = null },
+                            onUserGesture = onUserGesture
                         )
                         controller = mapController
                         onMapReady(mapController)
