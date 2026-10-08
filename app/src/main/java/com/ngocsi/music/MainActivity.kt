@@ -7739,6 +7739,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             bearingDegrees = bearingDegrees,
                             hasBearing = hasBearing,
                             followLocation = navigationActive || internalMapFollowLocation,
+                            onUserGesture = {
+                                if (!navigationActive) {
+                                    internalMapFollowLocation = false
+                                }
+                            },
                             onMapReady = { nativeMapRef = it }
                         )
 
