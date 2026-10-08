@@ -412,6 +412,17 @@ fun NativeOsmMapView(
     var controller by remember { mutableStateOf<NgocSiMapController?>(null) }
     var mapLoadError by remember { mutableStateOf<String?>(null) }
 
+    // AndroidView removes the native MapView from the composition, but that does
+    // not automatically complete the MapLibre lifecycle. Explicitly tear down
+    // the controller when the Map screen leaves composition so repeated open/close
+    // cycles do not retain listeners, renderer resources, or the tile cache client.
+    DisposableEffect(Unit) {
+        onDispose {
+            controller?.destroy()
+            controller = null
+        }
+    }
+
     Box(modifier = modifier) {
         AndroidView(
             modifier = Modifier.matchParentSize(),
