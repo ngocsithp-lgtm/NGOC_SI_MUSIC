@@ -4313,6 +4313,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        stopMapLocationRequest()
         stopMapNavigationLocationUpdates()
         cancelRadioRecovery()
         sleepTimerJob?.cancel()
