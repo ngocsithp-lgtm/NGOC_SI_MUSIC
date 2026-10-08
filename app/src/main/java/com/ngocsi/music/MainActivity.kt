@@ -711,7 +711,7 @@ class MainActivity : ComponentActivity() {
         loadCustomTvSources()
         loadSavedState()
         loadDriveRecentLinks()
-        refreshSleepTimerUiState()
+        startSleepTimerUiTicker()
 
         // Attach the Compose UI before background restoration/permission prompts.
         setContent { NgocSiMusicApp() }
@@ -4364,7 +4364,8 @@ class MainActivity : ComponentActivity() {
                 showDriveBrowser ||
                 radioWebUrl != null ||
                 playlistDetailId != null ||
-                playlistTargetSongUri != null
+                playlistTargetSongUri != null ||
+                showSleepTimer
 
         BackHandler(
             enabled = selectedSection != "Trang chủ" && !hasModalOverlay
