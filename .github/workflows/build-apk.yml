@@ -50,7 +50,7 @@ jobs:
           distribution: temurin
           java-version: '17'
       - name: Set up Gradle 8.11.1
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: '8.11.1'
       - name: Lint Debug
@@ -130,7 +130,7 @@ jobs:
       - name: Generate APK SHA-256
         run: sha256sum app/build/outputs/apk/debug/app-debug.apk | tee app/build/outputs/apk/debug/app-debug.apk.sha256
       - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: NGOC_SI_MUSIC_5.12_PRO_DEBUG_APK
           if-no-files-found: error
