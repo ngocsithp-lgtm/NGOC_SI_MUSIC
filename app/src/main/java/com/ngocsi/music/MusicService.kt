@@ -52,11 +52,10 @@ class MusicService : MediaSessionService() {
         override fun run() {
             val endAt = prefs.getLong("sleep_timer_end_at", 0L)
             val now = System.currentTimeMillis()
-            if (endAt > 0L && now >= endAt) {
-                // The timer is wall-clock based. Expire it even if playback was
-                // paused, so a stale timer cannot survive indefinitely.
+            if (SleepTimerRules.isExpired(endAt, now)) {
+                // Stop at the current position. A sleep timer should not rewind
+                // the track when it expires, including when it expires paused.
                 player.pause()
-                player.seekTo(0L)
                 prefs.edit().remove("sleep_timer_end_at").apply()
                 savePlaybackState()
                 broadcastWidget()
