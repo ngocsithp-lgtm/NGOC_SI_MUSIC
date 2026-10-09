@@ -1610,8 +1610,12 @@ class MainActivity : ComponentActivity() {
         body: ByteArray? = null,
         contentType: String? = null
     ): String {
+        val methodPlan = AndroidHttpMethodCompat.plan(method)
         val connection = (URL(url).openConnection() as HttpURLConnection).apply {
-            requestMethod = method
+            requestMethod = methodPlan.requestMethod
+            methodPlan.overrideHeader?.let {
+                setRequestProperty("X-HTTP-Method-Override", it)
+            }
             connectTimeout = 12000
             readTimeout = 20000
             useCaches = false
