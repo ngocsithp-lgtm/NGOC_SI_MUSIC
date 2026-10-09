@@ -3417,6 +3417,7 @@ class MainActivity : ComponentActivity() {
         sleepTimerJob?.cancel()
         refreshSleepTimerUiState()
         if (sleepTimerEndAt <= System.currentTimeMillis()) return
+        val configuredDeadline = sleepTimerEndAt
 
         sleepTimerJob = lifecycleScope.launch {
             while (true) {
@@ -3425,8 +3426,14 @@ class MainActivity : ComponentActivity() {
                 if (endAt <= System.currentTimeMillis()) break
                 delay(1_000L)
             }
+            val timerExpired = configuredDeadline > 0L &&
+                System.currentTimeMillis() >= configuredDeadline &&
+                prefs.getLong("sleep_timer_end_at", 0L) <= 0L
             sleepTimerJob = null
             refreshSleepTimerUiState()
+            if (timerExpired) {
+                errorMessage = "Hẹn giờ đã kết thúc."
+            }
         }
     }
 
@@ -3438,12 +3445,14 @@ class MainActivity : ComponentActivity() {
             prefs.edit().remove("sleep_timer_end_at").apply()
             sleepTimerJob?.cancel()
             sleepTimerJob = null
+            errorMessage = "Đã tắt hẹn giờ tắt nhạc."
             return
         }
 
         sleepTimerEndAt = endAt
         prefs.edit().putLong("sleep_timer_end_at", endAt).apply()
         startSleepTimerUiTicker()
+        errorMessage = "Đã bật hẹn giờ tắt nhạc trong $minutes phút."
     }
 
     private fun togglePlayPause() {
@@ -4356,6 +4365,7 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun NgocSiMusicApp() {
         val currentSong = songs.getOrNull(currentIndex)
+        val statusSnackbarHostState = remember { SnackbarHostState() }
 
         // Keep Android Back/gesture navigation predictable: on any feature screen,
         // the first Back returns to the app home instead of immediately exiting.
@@ -4372,6 +4382,32 @@ class MainActivity : ComponentActivity() {
                 playlistDetailId != null ||
                 playlistTargetSongUri != null ||
                 showSleepTimer
+
+        LaunchedEffect(
+            errorMessage,
+            selectedSection,
+            onlineHubTab,
+            activeRadioTitle,
+            showInternalMap,
+            hasModalOverlay
+        ) {
+            val message = errorMessage ?: return@LaunchedEffect
+            val shownInline = showInternalMap ||
+                selectedSection == "Bản đồ" ||
+                (selectedSection == "Online" &&
+                    onlineHubTab == "YouTube" &&
+                    message.startsWith("YouTube")) ||
+                (selectedSection == "Radio" && activeRadioTitle != null)
+
+            if (hasModalOverlay || shownInline) return@LaunchedEffect
+
+            statusSnackbarHostState.currentSnackbarData?.dismiss()
+            statusSnackbarHostState.showSnackbar(
+                message = message,
+                duration = SnackbarDuration.Short
+            )
+            if (errorMessage == message) errorMessage = null
+        }
 
         BackHandler(
             enabled = selectedSection != "Trang chủ" && !hasModalOverlay
@@ -4674,6 +4710,39 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
+                    }
+                    SnackbarHost(
+                        hostState = statusSnackbarHostState,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp)
+                    ) { snackbarData ->
+                        Surface(
+                            shape = RoundedCornerShape(15.dp),
+                            color = Color(0xFF151B26),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF314258)),
+                            shadowElevation = 6.dp
+                        ) {
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(start = 14.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    snackbarData.visuals.message,
+                                    color = Color(0xFFE7ECF5),
+                                    fontSize = 12.sp,
+                                    maxLines = 3,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                TextButton(onClick = { snackbarData.dismiss() }) {
+                                    Text("ĐÓNG", color = Color(0xFF8DEEFF), fontSize = 9.sp)
+                                }
+                            }
+                        }
                     }
                     currentSong?.let { MiniPlayer(it) }
                     BottomNav()
@@ -5048,7 +5117,12 @@ class MainActivity : ComponentActivity() {
                     ProHomeUtilityTile("☁", "Drive", onOpenDrive, Modifier.weight(1f))
                     ProHomeUtilityTile("♬", "Playlist", onOpenPlaylists, Modifier.weight(1f))
                     ProHomeUtilityTile("⌖", "Bản đồ", onOpenMap, Modifier.weight(1f))
-                    ProHomeUtilityTile("⏱", "Hẹn giờ", onOpenSleepTimer, Modifier.weight(1f))
+                    ProHomeUtilityTile(
+                        "⏱",
+                        if (sleepMinutes > 0) "Hẹn ${sleepMinutes}p" else "Hẹn giờ",
+                        onOpenSleepTimer,
+                        Modifier.weight(1f)
+                    )
                 }
             }
 
