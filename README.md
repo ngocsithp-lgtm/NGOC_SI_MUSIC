@@ -78,6 +78,9 @@ Các URL livestream có thể thay đổi theo hạ tầng của đài; app gi�
 
 ## Thay đổi phiên bản 5.24
 
+- Sửa quy tắc thông báo hết giờ để không bị hụt khi giao diện và dịch vụ cập nhật trạng thái lệch nhịp; thêm kiểm thử đơn vị cho các trường hợp hết giờ/thay đổi hẹn giờ.
+- Pipeline build cả Debug và Release, xác minh chữ ký ổn định cho cả hai bản và tạo SHA-256 riêng.
+
 - Đã loại bỏ mục Bản đồ khỏi trang chủ, menu tiện ích và Cài đặt.
 - Đã gỡ màn hình Bản đồ khỏi luồng điều hướng trong ứng dụng; các chức năng vệ tinh, vị trí và chỉ đường không còn được cung cấp trong giao diện.
 
@@ -105,7 +108,7 @@ GitHub Actions chạy tự động:
 
 Artifact chuẩn:
 
-**NGOC_SI_MUSIC_5.24_PRO_DEBUG_APK**
+**NGOC_SI_MUSIC_5.24_PRO_APKS**
 
 Bản Release dùng chứng thư ký ổn định giống Debug:
 
