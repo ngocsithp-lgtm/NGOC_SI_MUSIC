@@ -4511,6 +4511,16 @@ class MainActivity : ComponentActivity() {
         onSeek: (Long) -> Unit,
         onOpenSleepTimer: () -> Unit
     ) {
+        var homeIsSeeking by remember(currentSong?.uri) { mutableStateOf(false) }
+        var homeSeekPosition by remember(currentSong?.uri) {
+            mutableStateOf(position.coerceAtLeast(0L).toFloat())
+        }
+        LaunchedEffect(position, duration, currentSong?.uri) {
+            if (!homeIsSeeking && duration > 0L) {
+                homeSeekPosition = position.coerceIn(0L, duration).toFloat()
+            }
+        }
+
         LazyColumn(
             modifier = modifier.fillMaxWidth(),
             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
@@ -4636,8 +4646,15 @@ class MainActivity : ComponentActivity() {
 
                             if (duration > 0L) {
                                 Slider(
-                                    value = position.coerceIn(0L, duration).toFloat(),
-                                    onValueChange = { onSeek(it.toLong()) },
+                                    value = homeSeekPosition.coerceIn(0f, duration.toFloat()),
+                                    onValueChange = {
+                                        homeIsSeeking = true
+                                        homeSeekPosition = it.coerceIn(0f, duration.toFloat())
+                                    },
+                                    onValueChangeFinished = {
+                                        onSeek(homeSeekPosition.toLong().coerceIn(0L, duration))
+                                        homeIsSeeking = false
+                                    },
                                     valueRange = 0f..duration.toFloat(),
                                     modifier = Modifier.fillMaxWidth()
                                 )
@@ -4745,7 +4762,7 @@ class MainActivity : ComponentActivity() {
                     color = Color(0xFF10131A)
                 ) {
                     Text(
-                        "NGỌC SĨ MUSIC 5.16 PRO • Một giao diện, mọi nguồn nhạc",
+                        "NGỌC SĨ MUSIC ${BuildConfig.VERSION_NAME} PRO • Một giao diện, mọi nguồn nhạc",
                         color = Color(0xFF777E8D),
                         fontSize = 10.sp,
                         modifier = Modifier.padding(horizontal = 13.dp, vertical = 11.dp)
@@ -4788,7 +4805,7 @@ class MainActivity : ComponentActivity() {
             ) {
                 Text(icon, color = Color(0xFF9FEFFF), fontSize = 18.sp)
                 Spacer(Modifier.height(4.dp))
-                Text(title, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text(title, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -4812,7 +4829,7 @@ class MainActivity : ComponentActivity() {
             ) {
                 Text(icon, color = Color(0xFFB796FF), fontSize = 16.sp)
                 Spacer(Modifier.height(4.dp))
-                Text(title, color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                Text(title, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1)
             }
         }
     }
@@ -4841,7 +4858,7 @@ class MainActivity : ComponentActivity() {
             Text(
                 label,
                 color = if (selected) Color.White else Color(0xFF717786),
-                fontSize = 8.sp,
+                fontSize = 9.sp,
                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
             )
         }
