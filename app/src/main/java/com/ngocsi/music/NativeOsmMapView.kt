@@ -114,13 +114,13 @@ class NgocSiMapController internal constructor(
                 applyRasterFallbackStyle()
                 return
             }
-            if (layer == "satellite" && !usingRasterFallback) {
-                // Keep Map usable when the imagery provider is temporarily
-                // unavailable. The user can switch back to satellite manually.
-                usingRasterFallback = true
-                layer = "standard"
-                onSatelliteFallback()
-                applyStyle(preserveCamera = true)
+            if (layer == "satellite") {
+                // Do not silently replace satellite imagery with a street map.
+                // Keep the user's selected layer visible and report the actual
+                // provider failure so they can retry or switch layers manually.
+                onLoadError(
+                    "Không tải được ảnh vệ tinh từ Esri. Hãy kiểm tra kết nối mạng hoặc thử lại."
+                )
                 return
             }
             onLoadError(errorMessage.ifBlank { "Không tải được dữ liệu bản đồ" })
@@ -297,6 +297,7 @@ class NgocSiMapController internal constructor(
         val camera = map.cameraPosition
         // Prefer direct raster tiles for the standard map. This avoids a
         // blank canvas if a remote vector style, sprite, or glyph fails to load.
+        usingRasterFallback = false
         val builder = if (layer == "satellite") {
             Style.Builder().fromJson(buildSatelliteStyleJson())
         } else {
@@ -677,8 +678,8 @@ private fun buildStandardStyleJson(): String = buildRasterStyleJson(
 
 private fun buildSatelliteStyleJson(): String {
     return buildRasterStyleJson(
-        tileUrl = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-        attribution = "© Esri",
+        tileUrl = "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        attribution = "Imagery © Esri, Maxar, Earthstar Geographics, and the GIS User Community",
         backgroundColor = "#11151B"
     )
 }
