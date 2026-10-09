@@ -79,7 +79,9 @@ Các URL livestream có thể thay đổi theo hạ tầng của đài; app gi�
 ## Thay đổi phiên bản 5.28
 
 - Sửa đồng bộ nguồn Google Drive đã có: dùng `POST` cùng `X-HTTP-Method-Override: PATCH`, tương thích với `HttpURLConnection` trên Android.
+- Đồng bộ `appDataFolder` sau khi thêm từng mục, thêm nhiều mục hoặc sửa tên nguồn Drive chia sẻ.
 - Thêm unit tests cho cách chuyển method PATCH và đảm bảo các method thông thường không bị đổi.
+- Đảm bảo widget luôn kết thúc công việc bất đồng bộ ngay cả khi giải phóng MediaController gặp lỗi.
 
 ## Thay đổi phiên bản 5.27
 
