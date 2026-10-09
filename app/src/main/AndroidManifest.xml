@@ -60,6 +60,11 @@
             android:name=".ProMainActivity"
             android:exported="false" />
 
+        <!-- Local-only NGỌC SĨ AI UI preview; no network AI calls are made. -->
+        <activity
+            android:name=".NgocSiAiActivity"
+            android:exported="false" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true">
