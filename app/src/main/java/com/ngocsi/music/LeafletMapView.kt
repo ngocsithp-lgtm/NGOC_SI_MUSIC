@@ -251,7 +251,7 @@ fun LeafletMapView(
             ) { Text(message, color = ComposeColor.White, fontSize = 11.sp) }
         }
         Text(
-            "BẢN ĐỒ TÍCH HỢP • © OpenStreetMap",
+            "BẢN ĐỒ TÍCH HỢP • © OpenStreetMap · © CARTO",
             modifier = Modifier.align(Alignment.BottomStart).padding(start = 9.dp, bottom = 8.dp)
                 .background(ComposeColor(0xD90D1118), RoundedCornerShape(8.dp))
                 .padding(horizontal = 8.dp, vertical = 5.dp),
@@ -279,7 +279,7 @@ body{font-family:Arial,sans-serif}#map{position:absolute;inset:0}
 </style></head><body><div id="map">
 <canvas id="mapCanvas" aria-label="Bản đồ tương tác"></canvas>
 <div id="mapControls"><button class="mapButton" id="zoomIn">＋</button><button class="mapButton" id="zoomOut">－</button><button class="mapButton" id="centerMap">⌖</button></div>
-<div id="tileHint">© OpenStreetMap contributors</div></div>
+<div id="tileHint">© OpenStreetMap contributors · © CARTO</div></div>
 <script>
 (function(){
 'use strict';
@@ -288,7 +288,7 @@ var layerName='${safeLayer}',centerLat=${safeLat},centerLon=${safeLon},zoom=14;
 var width=0,height=0,dpr=1,mapReady=false,hasFirstTile=false,failedTiles=0,renderPending=false;
 var tileCache=Object.create(null),state={lat:${safeLat},lon:${safeLon},layer:'${safeLayer}',route:[],currentLocation:false,accuracy:0,bearing:0,hasBearing:false,fitRoute:false,followLocation:false};
 var route=[],lastRouteKey='';
-var standardServers=['https://tile.openstreetmap.org/{z}/{x}/{y}.png','https://tile.openstreetmap.de/{z}/{x}/{y}.png'];
+var standardServers=['https://tile.openstreetmap.org/{z}/{x}/{y}.png','https://tile.openstreetmap.de/{z}/{x}/{y}.png','https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png','https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png'];
 var satelliteServers=['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'];
 function bridgeStatus(m){try{if(window.NgocSiNative)window.NgocSiNative.reportMapStatus(m);}catch(e){}}
 function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
@@ -303,7 +303,8 @@ function unproject(x,y,z){
 }
 function urlFor(layer,z,x,y,index){
  var list=layer==='satellite'?satelliteServers:standardServers;
- return(list[index]||list[0]).replace('{z}',z).replace('{x}',x).replace('{y}',y);
+ var host=(list[index]||list[0]);
+ return host.replace('{z}',z).replace('{x}',x).replace('{y}',y);
 }
 function requestTile(z,x,y){
  var n=Math.pow(2,z),wx=mod(x,n);if(y<0||y>=n)return null;
@@ -317,7 +318,7 @@ function loadTile(e,z,x,y){
   var servers=e.layer==='satellite'?satelliteServers:standardServers;
   if(e.index+1<servers.length){e.index++;img.src=urlFor(e.layer,z,x,y,e.index);return;}
   e.status='error';failedTiles++;
-  if(!hasFirstTile&&failedTiles>=3){
+  if(!hasFirstTile&&failedTiles>=Math.min(3,standardServers.length)){
    if(layerName==='satellite'){bridgeStatus('Không tải được ảnh vệ tinh; đang chuyển về bản đồ đường phố…');if(window.NgocSiNative)window.NgocSiNative.satelliteUnavailable();}
    else bridgeStatus('Không tải được dữ liệu bản đồ. Kiểm tra Internet hoặc DNS rồi mở lại BẢN ĐỒ.');
   }
@@ -358,6 +359,13 @@ function draw(){
  drawOverlay();
 }
 function queueDraw(){if(renderPending)return;renderPending=true;requestAnimationFrame(draw);}
+// AndroidView can finish loading before Compose assigns its final size. Observe
+// the actual map container as well as the browser window so a zero-size first
+// frame cannot leave the map permanently blank.
+var mapElement=document.getElementById('map');
+if(window.ResizeObserver){var mapResizeObserver=new ResizeObserver(function(){queueDraw();});mapResizeObserver.observe(mapElement);mapResizeObserver.observe(canvas);}
+window.addEventListener('load',function(){queueDraw();requestAnimationFrame(queueDraw);});
+requestAnimationFrame(function(){queueDraw();requestAnimationFrame(queueDraw);});
 function setCenter(a,b){centerLat=clamp(Number(a)||10.8231,-85,85);centerLon=clamp(Number(b)||106.6297,-180,180);queueDraw();}
 function changeZoom(d){zoom=clamp(zoom+d,2,19);queueDraw();}
 function fitRoute(points){
