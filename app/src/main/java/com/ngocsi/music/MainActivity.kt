@@ -367,6 +367,8 @@ class MainActivity : ComponentActivity() {
     private var jamendoSearchGeneration = 0L
     private var audiusSearchGeneration = 0L
     private var youtubeSearchGeneration = 0L
+    // Invalidates delayed Drive authorization callbacks when the user selects another action.
+    private var playbackIntentGeneration = 0L
     private var driveImportJob: Job? = null
     private var artworkPrefetchJob: Job? = null
     private var songsLoadJob: Job? = null
@@ -1093,6 +1095,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun playFilteredSongs(items: List<Song>) {
+        invalidatePendingPlaybackAuthorization()
         val requestedItems = items.filter { it.source.isNotBlank() }
         val first = requestedItems.firstOrNull() ?: return
         val c = controller ?: run {
@@ -1138,8 +1141,15 @@ class MainActivity : ComponentActivity() {
             errorMessage = "Đang phát " + scopedItems.size + " bài theo danh sách hiện tại."
         }
     }
+    private fun invalidatePendingPlaybackAuthorization() {
+        playbackIntentGeneration++
+    }
+
     private fun play(index: Int, driveTokenReady: Boolean = false) {
         if (index !in songs.indices) return
+        val requestGeneration = if (driveTokenReady) playbackIntentGeneration else ++playbackIntentGeneration
+        val requestedUri = songs[index].uri.toString()
+        val requestedSource = songs[index].source
 
         // Google Drive media uses a short-lived OAuth bearer token. Refresh it
         // immediately before playback, including after an app restart, so a
@@ -1150,6 +1160,16 @@ class MainActivity : ComponentActivity() {
             errorMessage = "Đang xác thực Google Drive để phát…"
             lifecycleScope.launch {
                 val token = driveOAuthManager.accessToken()
+                val currentSong = songs.getOrNull(index)
+                val stillRequested = PlaybackIntentRules.shouldResume(
+                    requestGeneration = requestGeneration,
+                    currentGeneration = playbackIntentGeneration,
+                    requestedUri = requestedUri,
+                    activeUri = currentSong?.uri?.toString().orEmpty(),
+                    requestedSource = requestedSource,
+                    activeSource = currentSong?.source.orEmpty()
+                )
+                if (!stillRequested) return@launch
                 if (token.isNullOrBlank()) {
                     errorMessage = "Phiên Google Drive đã hết hạn. Hãy đăng nhập lại."
                     signInGoogleDrive()
@@ -2885,6 +2905,7 @@ class MainActivity : ComponentActivity() {
     private fun playRadioFallback(title: String, streamUrl: String) {
         val c = controller ?: return
         val uri = runCatching { Uri.parse(streamUrl) }.getOrNull() ?: return
+        invalidatePendingPlaybackAuthorization()
 
         val song = Song(
             id = -kotlin.math.abs(streamUrl.hashCode().toLong()),
@@ -3418,6 +3439,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun togglePlayPause() {
+        invalidatePendingPlaybackAuthorization()
         val c = controller ?: return
         if (queueSongs.isNotEmpty() && !isControllerQueueInSync(c)) {
             syncControllerQueue()
@@ -3435,6 +3457,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun next() {
+        invalidatePendingPlaybackAuthorization()
         val c = controller ?: return
         if (queueSongs.isEmpty()) return
         if (!isControllerQueueInSync(c)) syncControllerQueue()
@@ -3443,6 +3466,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun previous() {
+        invalidatePendingPlaybackAuthorization()
         val c = controller ?: return
         if (queueSongs.isEmpty()) return
         if (!isControllerQueueInSync(c)) syncControllerQueue()
@@ -3556,6 +3580,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun clearQueue() {
+        invalidatePendingPlaybackAuthorization()
         if (queueSongs.isEmpty()) return
 
         // Clear the canonical queue and Media3 together. This also removes
@@ -3567,6 +3592,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun playQueueAt(queueIndex: Int) {
+        invalidatePendingPlaybackAuthorization()
         val c = controller ?: return
         if (queueIndex !in queueSongs.indices) return
 
@@ -3585,6 +3611,7 @@ class MainActivity : ComponentActivity() {
         errorMessage = "Đang phát từ vị trí " + (queueIndex + 1) + " trong hàng đợi."
     }
     private fun playQueueFromStart() {
+        invalidatePendingPlaybackAuthorization()
         val c = controller ?: return
         if (queueSongs.isEmpty()) {
             errorMessage = "Hàng đợi đang trống."
@@ -3635,6 +3662,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun stop() {
+        invalidatePendingPlaybackAuthorization()
         clearActiveRadioState()
         controller?.pause()
         controller?.seekTo(0L)
@@ -3843,6 +3871,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun clearDriveLibrary() {
+        invalidatePendingPlaybackAuthorization()
         driveImportJob?.cancel()
         driveImportJob = null
         val activeUri = controller?.currentMediaItem?.localConfiguration?.uri
@@ -3952,6 +3981,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun playPlaylistFromSong(playlist: MusicPlaylist, songIndex: Int) {
+        invalidatePendingPlaybackAuthorization()
         val orderedSongs = playlist.songUris.mapNotNull { uri -> songs.firstOrNull { it.uri.toString() == uri } }
         val requestedSong = orderedSongs.getOrNull(songIndex)
         if (requestedSong == null) return
@@ -3981,6 +4011,7 @@ class MainActivity : ComponentActivity() {
         showPlaylists = false
     }
     private fun playPlaylist(playlist: MusicPlaylist) {
+        invalidatePendingPlaybackAuthorization()
         val orderedSongs = playlist.songUris.mapNotNull { uri ->
             songs.firstOrNull { it.uri.toString() == uri }
         }
