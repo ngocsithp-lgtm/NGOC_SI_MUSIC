@@ -2861,7 +2861,16 @@ class MainActivity : ComponentActivity() {
         val currentUri = c.currentMediaItem?.localConfiguration?.uri?.toString()
         val expectedUri = activeRadioStreams.getOrNull(activeRadioStreamIndex)
         if (currentUri != expectedUri) return
-        if (!force && (c.isPlaying || c.playbackState != Player.STATE_BUFFERING)) {
+        // Never auto-resume a radio stream after the user has paused it,
+        // even when recovery was triggered by a fatal player error.
+        if (!RadioRecoveryRules.shouldAttemptFallback(
+                force = force,
+                isPlaying = c.isPlaying,
+                playWhenReady = c.playWhenReady,
+                isBuffering = c.playbackState == Player.STATE_BUFFERING
+            )
+        ) {
+            if (!c.playWhenReady) cancelRadioRecovery()
             return
         }
 
