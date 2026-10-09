@@ -474,7 +474,22 @@ class MusicService : MediaSessionService() {
     override fun onTaskRemoved(rootIntent: Intent?) {
         // Persist the latest item and position before the task is removed.
         savePlaybackState()
-        if (!player.isPlaying) {
+
+        // isPlaying is false during buffering, so it is not a reliable test
+        // for whether background playback should survive task removal. Keep
+        // the service while playback is still requested or a future sleep
+        // timer must run, including while the user has paused the player.
+        val hasPendingPlaybackIntent =
+            player.mediaItemCount > 0 &&
+                player.playWhenReady &&
+                player.playbackState != Player.STATE_ENDED
+        val sleepTimerDeadline = prefs.getLong("sleep_timer_end_at", 0L)
+        if (PlaybackServiceLifecycleRules.shouldStopWhenTaskRemoved(
+                hasPendingPlaybackIntent = hasPendingPlaybackIntent,
+                sleepTimerDeadlineMillis = sleepTimerDeadline,
+                nowMillis = System.currentTimeMillis()
+            )
+        ) {
             stopSelf()
         }
     }
