@@ -540,166 +540,23 @@ fun NativeOsmMapView(
     followLocation: Boolean = false,
     onUserGesture: () -> Unit = {},
     onSatelliteFallback: () -> Unit = {},
-    onMapReady: (NgocSiMapController) -> Unit
+    onMapReady: (AppMapController) -> Unit
 ) {
-    var controller by remember { mutableStateOf<NgocSiMapController?>(null) }
-    var mapViewLifecycle by remember { mutableStateOf<ManagedMapViewLifecycle?>(null) }
-    var mapLoadError by remember { mutableStateOf<String?>(null) }
-    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-
-    Box(modifier = modifier) {
-        AndroidView(
-            modifier = Modifier.matchParentSize(),
-            factory = { context ->
-                MapLibre.getInstance(context.applicationContext)
-                configureMapHttp(context.applicationContext)
-
-                MapView(context).apply {
-                    val lifecycleBridge = ManagedMapViewLifecycle(this)
-                    mapViewLifecycle = lifecycleBridge
-                    lifecycleBridge.create()
-                    getMapAsync { map ->
-                        map.uiSettings.isCompassEnabled = true
-                        map.uiSettings.isLogoEnabled = false
-                        map.uiSettings.isAttributionEnabled = true
-                        map.uiSettings.isZoomGesturesEnabled = true
-                        map.uiSettings.isScrollGesturesEnabled = true
-                        map.uiSettings.isRotateGesturesEnabled = true
-                        map.uiSettings.isTiltGesturesEnabled = false
-
-                        // Register load listeners before the first style is requested.
-                        val mapController = NgocSiMapController(
-                            mapView = this,
-                            map = map,
-                            onLoadError = { message -> mapLoadError = message.take(160) },
-                            onMapLoaded = { mapLoadError = null },
-                            onUserGesture = onUserGesture,
-                            onSatelliteFallback = onSatelliteFallback
-                        )
-                        controller = mapController
-                        onMapReady(mapController)
-
-                        // Start with the reliable raster style rather than waiting on
-                        // remote vector-style assets that can leave a white canvas.
-                        val initialStyle = if (selectedLayer == "satellite") {
-                            Style.Builder().fromJson(buildSatelliteStyleJson())
-                        } else {
-                            Style.Builder().fromJson(buildRasterFallbackStyleJson())
-                        }
-                        map.setStyle(initialStyle) { style ->
-                            addOverlayLayers(style)
-                            mapController.updateMap(
-                                newLat = lat,
-                                newLon = lon,
-                                selectedLayer = selectedLayer,
-                                routePoints = routePoints,
-                                isCurrentLocation = isCurrentLocation,
-                                accuracyMeters = accuracyMeters,
-                                bearingDegrees = bearingDegrees,
-                                hasBearing = hasBearing,
-                                fitRoute = routePoints.size >= 2,
-                                followLocation = followLocation
-                            )
-                        }
-                    }
-                }
-            },
-            update = {
-                controller?.let { c ->
-                    onMapReady(c)
-                    c.updateMap(
-                        newLat = lat,
-                        newLon = lon,
-                        selectedLayer = selectedLayer,
-                        routePoints = routePoints,
-                        isCurrentLocation = isCurrentLocation,
-                        accuracyMeters = accuracyMeters,
-                        bearingDegrees = bearingDegrees,
-                        hasBearing = hasBearing,
-                        // A newly calculated route should initially be framed in full.
-                        // Once the route is stable, GPS follow can take over.
-                        fitRoute = routePoints.size >= 2,
-                        followLocation = followLocation
-                    )
-                }
-            }
-        )
-
-        mapLoadError?.let { message ->
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(10.dp)
-                    .background(ComposeColor(0xF20D1118), RoundedCornerShape(12.dp))
-                    .padding(start = 12.dp, end = 6.dp, top = 6.dp, bottom = 6.dp)
-            ) {
-                androidx.compose.foundation.layout.Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    androidx.compose.foundation.layout.Column(
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(
-                            "BẢN ĐỒ CHƯA TẢI ĐƯỢC",
-                            color = ComposeColor.White,
-                            fontSize = 9.sp,
-                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                        )
-                        Text(
-                            message,
-                            color = ComposeColor(0xFFB8C0CC),
-                            fontSize = 8.sp,
-                            maxLines = 2
-                        )
-                    }
-                    androidx.compose.material3.TextButton(
-                        onClick = {
-                            mapLoadError = null
-                            controller?.reload()
-                        }
-                    ) {
-                        Text("THỬ LẠI", fontSize = 9.sp)
-                    }
-                }
-            }
-        }
-
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(start = 10.dp, bottom = 10.dp)
-                .background(ComposeColor(0xD9000000), RoundedCornerShape(8.dp))
-                .padding(horizontal = 8.dp, vertical = 5.dp)
-        ) {
-            Text(
-                when {
-                    selectedLayer == "satellite" -> "© Esri • dữ liệu ảnh vệ tinh"
-                    routePoints.size >= 2 -> "© OpenStreetMap contributors"
-                    isCurrentLocation -> "© OpenStreetMap contributors"
-                    else -> "© OpenStreetMap contributors"
-                },
-                color = ComposeColor.White,
-                fontSize = 8.sp,
-                maxLines = 1
-            )
-        }
-    }
-
-    DisposableEffect(lifecycleOwner, mapViewLifecycle) {
-        val lifecycleBridge = mapViewLifecycle
-        if (lifecycleBridge == null) {
-            onDispose { }
-        } else {
-            lifecycleOwner.lifecycle.addObserver(lifecycleBridge)
-            lifecycleBridge.syncToState(lifecycleOwner.lifecycle.currentState)
-            onDispose {
-                lifecycleOwner.lifecycle.removeObserver(lifecycleBridge)
-                controller?.destroy()
-                controller = null
-                lifecycleBridge.destroy()
-            }
-        }
-    }
+    LeafletMapView(
+        modifier = modifier,
+        lat = lat,
+        lon = lon,
+        selectedLayer = selectedLayer,
+        routePoints = routePoints,
+        isCurrentLocation = isCurrentLocation,
+        accuracyMeters = accuracyMeters,
+        bearingDegrees = bearingDegrees,
+        hasBearing = hasBearing,
+        followLocation = followLocation,
+        onUserGesture = onUserGesture,
+        onSatelliteFallback = onSatelliteFallback,
+        onMapReady = onMapReady
+    )
 }
 
 private const val EMPTY_GEO_JSON =
@@ -835,18 +692,18 @@ private fun safeLat(value: Double): Double =
 private fun safeLon(value: Double): Double =
     if (value.isFinite()) value.coerceIn(-180.0, 180.0) else 106.6297
 
-fun centerNativeOsmMap(map: NgocSiMapController?, lat: Double, lon: Double) {
+fun centerNativeOsmMap(map: AppMapController?, lat: Double, lon: Double) {
     map?.centerView(lat, lon)
 }
 
-fun zoomInNativeOsmMap(map: NgocSiMapController?) {
+fun zoomInNativeOsmMap(map: AppMapController?) {
     map?.zoomIn()
 }
 
-fun zoomOutNativeOsmMap(map: NgocSiMapController?) {
+fun zoomOutNativeOsmMap(map: AppMapController?) {
     map?.zoomOut()
 }
 
-fun fitNativeOsmMapRoute(map: NgocSiMapController?, routePoints: List<Pair<Double, Double>>) {
+fun fitNativeOsmMapRoute(map: AppMapController?, routePoints: List<Pair<Double, Double>>) {
     map?.fitRoute(routePoints)
 }
