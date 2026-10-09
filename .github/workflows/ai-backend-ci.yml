@@ -39,7 +39,7 @@ jobs:
       - name: Ensure no provider key is committed
         working-directory: .
         run: |
-          if grep -R -n -E 'sk-[A-Za-z0-9_-]{20,}' functions/src; then
+          if grep -R -n -E 'sk-[A-Za-z0-9_-]{20,}|AIza[0-9A-Za-z_-]{30,}' functions/src; then
             echo "::error::Possible provider API key found in source."
             exit 1
           fi

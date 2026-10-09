@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { dailyQuotaDocumentId, validateChatInput } from "./validation.js";
+import { dailyQuotaDocumentId, extractGeminiAnswer, toGeminiContents, validateChatInput } from "./validation.js";
 
 test("accepts and trims a short user message", () => {
   assert.deepEqual(validateChatInput({ messages: [{ role: "user", content: " Xin chào " }] }), [{ role: "user", content: "Xin chào" }]);
@@ -26,4 +26,22 @@ test("requires the last message to be from the user", () => {
 });
 test("builds a bounded per-user daily quota key", () => {
   assert.equal(dailyQuotaDocumentId("user@example.com", "2026-10-09"), "user_example_com_2026-10-09");
+});
+test("maps assistant messages to Gemini model role", () => {
+  assert.deepEqual(toGeminiContents([
+    { role: "user", content: "Xin chào" },
+    { role: "assistant", content: "Chào bạn" },
+    { role: "user", content: "Bạn giúp gì?" }
+  ]), [
+    { role: "user", parts: [{ text: "Xin chào" }] },
+    { role: "model", parts: [{ text: "Chào bạn" }] },
+    { role: "user", parts: [{ text: "Bạn giúp gì?" }] }
+  ]);
+});
+test("extracts text from Gemini response parts", () => {
+  assert.equal(extractGeminiAnswer({ candidates: [{ content: { parts: [{ text: "Xin " }, { text: "chào!" }] } }] }), "Xin chào!");
+});
+test("returns empty for missing or malformed Gemini candidates", () => {
+  assert.equal(extractGeminiAnswer({}), "");
+  assert.equal(extractGeminiAnswer({ candidates: [{ content: { parts: [{ inlineData: "x" }] } }] }), "");
 });

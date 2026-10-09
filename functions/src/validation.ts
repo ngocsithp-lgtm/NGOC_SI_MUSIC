@@ -31,3 +31,30 @@ export function dailyQuotaDocumentId(uid: string, date: string): string {
   const safeUid = uid.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 100);
   return `${safeUid}_${date}`;
 }
+
+export function toGeminiContents(messages: ChatMessage[]): Array<{
+  role: "user" | "model";
+  parts: Array<{ text: string }>;
+}> {
+  return messages.map((message) => ({
+    role: message.role === "assistant" ? "model" : "user",
+    parts: [{ text: message.content }]
+  }));
+}
+
+export function extractGeminiAnswer(value: unknown): string {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return "";
+  const candidates = (value as { candidates?: unknown }).candidates;
+  if (!Array.isArray(candidates) || candidates.length === 0) return "";
+  const first = candidates[0];
+  if (!first || typeof first !== "object") return "";
+  const content = (first as { content?: unknown }).content;
+  if (!content || typeof content !== "object") return "";
+  const parts = (content as { parts?: unknown }).parts;
+  if (!Array.isArray(parts)) return "";
+  return parts
+    .filter((part): part is { text: string } => !!part && typeof part === "object" && typeof (part as { text?: unknown }).text === "string")
+    .map((part) => part.text)
+    .join("")
+    .trim();
+}
