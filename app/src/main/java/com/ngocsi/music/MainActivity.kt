@@ -382,7 +382,19 @@ class MainActivity : ComponentActivity() {
     // Artwork cache is album-first: one decoded cover is shared by every song
     // in the same local album. Drive falls back to a stable source/file key when
     // album metadata is unavailable.
-    private val artworkMemoryCache = LruCache<String, androidx.compose.ui.graphics.ImageBitmap>(96)
+    // Bound decoded cover memory by estimated pixel bytes rather than item count.
+    // Use 4 bytes/pixel as a conservative estimate; 16 MiB keeps scrolling smooth
+    // without allowing a large library to retain dozens of oversized bitmaps.
+    private val artworkMemoryCache =
+        object : LruCache<String, androidx.compose.ui.graphics.ImageBitmap>(16 * 1024) {
+            override fun sizeOf(
+                key: String,
+                value: androidx.compose.ui.graphics.ImageBitmap
+            ): Int {
+                val estimatedKiB = value.width.toLong() * value.height.toLong() * 4L / 1024L
+                return estimatedKiB.coerceAtLeast(1L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+            }
+        }
     private val artworkLocks = ConcurrentHashMap<String, Mutex>()
     // Online thumbnails can be returned at much larger dimensions than the
     // small cards actually need. Keep a bounded bitmap cache and downsample on

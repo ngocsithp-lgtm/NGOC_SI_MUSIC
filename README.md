@@ -4,8 +4,8 @@ Android music player built with Kotlin, Jetpack Compose and AndroidX Media3.
 
 ## Bản PRO hiện tại
 
-- Version: **5.25 PRO**
-- Version code: **45**
+- Version: **5.26 PRO**
+- Version code: **46**
 - Package: **com.ngocsi.music**
 - Target/Compile SDK: **Android 16 / API 36**
 - Min SDK: **26**
@@ -37,7 +37,7 @@ Android music player built with Kotlin, Jetpack Compose and AndroidX Media3.
 
 ## Google Drive / OAuth Android
 
-APK 5.25 PRO hiện được GitHub Actions ký bằng chứng thư ổn định với SHA-1:
+APK 5.26 PRO hiện được GitHub Actions ký bằng chứng thư ổn định với SHA-1:
 
 **53:3F:A1:9C:58:A4:0D:92:66:8F:96:29:6E:7D:B3:4D:69:6A:ED**
 
@@ -76,13 +76,24 @@ Sau khi OAuth client khớp package + SHA-1, màn hình đăng nhập Google Dri
 
 Các URL livestream có thể thay đổi theo hạ tầng của đài; app giữ nhiều candidate và nguồn chính thức để giảm lỗi chết stream.
 
+## Thay đổi phiên bản 5.26
+
+- Giới hạn bộ nhớ cache ảnh bìa theo dung lượng bitmap ước tính, giảm nguy cơ giữ quá nhiều ảnh lớn cùng lúc.
+- Bổ sung kiểm thử Radio Catalog để phát hiện tên đài trùng, URL không phải HTTPS hoặc URL luồng trùng trong cùng một đài.
+
 ## Thay đổi phiên bản 5.25
 
 - Trang chủ hiển thị phiên bản tự động từ cấu hình build, tránh nhãn phiên bản cũ.
 - Thanh tua trang chủ chỉ gửi lệnh seek khi thả tay; trong khi kéo, vị trí xem trước được cập nhật cục bộ để giảm lệnh tua dồn dập.
 - Tăng nhẹ cỡ chữ nhãn điều hướng và ô tiện ích để dễ đọc hơn trên điện thoại.
-- Sửa quy tắc thông báo hết giờ để không bị hụt khi giao diện và dịch vụ cập nhật trạng thái lệch nhịp; thêm kiểm thử đơn vị cho các trường hợp hết giờ/thay đổi hẹn giờ.
+
+## Thay đổi phiên bản 5.24
+
+- Sửa quy tắc thông báo hết giờ để xử lý tình huống giao diện và dịch vụ cập nhật trạng thái lệch nhịp.
 - Pipeline build cả Debug và Release, xác minh chữ ký ổn định cho cả hai bản và tạo SHA-256 riêng.
+
+## Thay đổi phiên bản 5.23
+
 - Đã loại bỏ mục Bản đồ khỏi trang chủ, menu tiện ích và Cài đặt.
 - Đã gỡ màn hình Bản đồ khỏi luồng điều hướng trong ứng dụng; các chức năng vệ tinh, vị trí và chỉ đường không còn được cung cấp trong giao diện.
 
@@ -110,13 +121,13 @@ GitHub Actions chạy tự động:
 
 Artifact chuẩn:
 
-**NGOC_SI_MUSIC_5.25_PRO_APKS**
+**NGOC_SI_MUSIC_5.26_PRO_APKS**
 
 Bản Release dùng chứng thư ký ổn định giống Debug:
 
-[**Tải APK Release 5.25 PRO**](https://github.com/ngocsithp-lgtm/NGOC_SI_MUSIC/releases/download/ngoc-si-music-latest/app-release.apk)
+[**Tải APK Release 5.26 PRO**](https://github.com/ngocsithp-lgtm/NGOC_SI_MUSIC/releases/download/ngoc-si-music-latest/app-release.apk)
 
-[**Tải APK Debug 5.25 PRO**](https://github.com/ngocsithp-lgtm/NGOC_SI_MUSIC/releases/download/ngoc-si-music-latest/app-debug.apk)
+[**Tải APK Debug 5.26 PRO**](https://github.com/ngocsithp-lgtm/NGOC_SI_MUSIC/releases/download/ngoc-si-music-latest/app-debug.apk)
 
 ## YouTube
 
