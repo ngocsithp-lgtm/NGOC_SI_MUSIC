@@ -30,8 +30,8 @@ android {
         applicationId = "com.ngocsi.music"
         minSdk = 26
         targetSdk = 36
-        versionCode = 37
-        versionName = "5.17"
+        versionCode = 38
+        versionName = "5.18"
         buildConfigField("String", "YOUTUBE_API_KEY", "\"$youtubeApiKey\"")
         buildConfigField("String", "DRIVE_API_KEY", "\"$driveApiKey\"")
     }
@@ -75,7 +75,8 @@ dependencies {
     implementation("androidx.media3:media3-session:1.9.4")
     implementation("androidx.media3:media3-ui:1.9.4")
     // Native map renderer: avoids WebView/embedded Maps rendering failures.
-    implementation("org.maplibre.gl:android-sdk:13.6.1")
+    // Use the OpenGL ES renderer instead of the default Vulkan renderer for broader device compatibility.
+    implementation("org.maplibre.gl:android-sdk-opengl:13.6.1")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     // Google OAuth: required for Drive files/folders shared privately with the signed-in account.
     implementation("com.google.android.gms:play-services-auth:21.6.0")
