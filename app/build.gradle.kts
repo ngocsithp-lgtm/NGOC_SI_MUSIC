@@ -42,6 +42,13 @@ android {
                 signingConfig = signingConfigs.getByName("ciStable")
             }
         }
+        getByName("release") {
+            if (ciKeystorePath.isNotBlank() && ciStorePassword.isNotBlank() && ciKeyAlias.isNotBlank() && ciKeyPassword.isNotBlank()) {
+                signingConfig = signingConfigs.getByName("ciStable")
+            }
+            // Keep release behavior predictable until minification rules are verified.
+            isMinifyEnabled = false
+        }
     }
 
     compileOptions {

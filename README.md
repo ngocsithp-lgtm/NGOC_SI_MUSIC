@@ -94,17 +94,24 @@ GitHub Actions chạy tự động:
 
 1. Lint Debug
 2. Unit tests
-3. Build PRO APK
-4. Verify signing mode
-5. Verify APK
-6. Kiểm tra SHA-1 chứng thư ký
-7. Tạo SHA-256
-8. Upload artifact
-9. Publish GitHub Release
+3. Build Debug APK để chẩn đoán
+4. Build Release APK ký ổn định để dùng hằng ngày
+5. Verify signing mode
+6. Verify package/version và chữ ký cho cả hai APK
+7. Kiểm tra SHA-1 chứng thư ký
+8. Tạo SHA-256 cho cả hai APK
+9. Upload artifact
+10. Publish GitHub Release
 
 Artifact chuẩn:
 
 **NGOC_SI_MUSIC_5.24_PRO_DEBUG_APK**
+
+Bản Release dùng chứng thư ký ổn định giống Debug:
+
+[**Tải APK Release 5.24 PRO**](https://github.com/ngocsithp-lgtm/NGOC_SI_MUSIC/releases/download/ngoc-si-music-latest/app-release.apk)
+
+[**Tải APK Debug 5.24 PRO**](https://github.com/ngocsithp-lgtm/NGOC_SI_MUSIC/releases/download/ngoc-si-music-latest/app-debug.apk)
 
 ## YouTube
 
