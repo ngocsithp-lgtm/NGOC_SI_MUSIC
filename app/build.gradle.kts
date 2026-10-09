@@ -77,5 +77,4 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     // Google OAuth: required for Drive files/folders shared privately with the signed-in account.
     implementation("com.google.android.gms:play-services-auth:21.6.0")
-    implementation("com.google.android.gms:play-services-location:21.3.0")
 }
