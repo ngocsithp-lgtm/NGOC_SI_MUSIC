@@ -403,7 +403,4 @@ html,body,#map{width:100%;height:100%;margin:0;padding:0;overflow:hidden;backgro
 </body>
 </html>
 """.trimIndent()
-        .replace("${safeLat}", "$" + "{safeLat}")
-        .replace("${safeLon}", "$" + "{safeLon}")
-        .replace("${safeLayer}", "$" + "{safeLayer}")
 }
