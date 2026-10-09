@@ -1,16 +1,9 @@
 package com.ngocsi.music
 
 /**
- * Rejects stale online-search callbacks even when two consecutive searches use the same text.
+ * Rejects callbacks from an older request after a new search or query edit invalidates it.
  */
 internal object OnlineSearchRequestRules {
-    fun isCurrent(
-        requestGeneration: Long,
-        latestGeneration: Long,
-        requestedQuery: String,
-        currentQuery: String
-    ): Boolean =
-        requestGeneration == latestGeneration &&
-            requestedQuery.isNotBlank() &&
-            requestedQuery == currentQuery
+    fun isCurrent(requestGeneration: Long, latestGeneration: Long): Boolean =
+        requestGeneration == latestGeneration
 }

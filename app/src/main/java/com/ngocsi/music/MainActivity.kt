@@ -3116,7 +3116,7 @@ class MainActivity : ComponentActivity() {
 
                 runOnUiThread {
                     // Ignore stale responses when the user has already started a newer search.
-                    if (OnlineSearchRequestRules.isCurrent(requestGeneration, jamendoSearchGeneration, q, jamendoQuery.trim())) {
+                    if (OnlineSearchRequestRules.isCurrent(requestGeneration, jamendoSearchGeneration)) {
                         jamendoTracks.clear()
                         jamendoTracks.addAll(found)
                         jamendoLoading = false
@@ -3131,7 +3131,7 @@ class MainActivity : ComponentActivity() {
                 throw cancelled
             } catch (e: Exception) {
                 runOnUiThread {
-                    if (OnlineSearchRequestRules.isCurrent(requestGeneration, jamendoSearchGeneration, q, jamendoQuery.trim())) {
+                    if (OnlineSearchRequestRules.isCurrent(requestGeneration, jamendoSearchGeneration)) {
                         jamendoTracks.clear()
                         jamendoLoading = false
                         errorMessage = "Lỗi tìm nhạc online: ${e.message ?: "Không kết nối được Jamendo"}"
@@ -3209,7 +3209,7 @@ class MainActivity : ComponentActivity() {
                 }
                 runOnUiThread {
                     // Ignore stale responses when the user has already started a newer search.
-                    if (OnlineSearchRequestRules.isCurrent(requestGeneration, audiusSearchGeneration, q, jamendoQuery.trim())) {
+                    if (OnlineSearchRequestRules.isCurrent(requestGeneration, audiusSearchGeneration)) {
                         audiusTracks.clear()
                         audiusTracks.addAll(found)
                         audiusLoading = false
@@ -3220,7 +3220,7 @@ class MainActivity : ComponentActivity() {
             } catch (_: Exception) {
                 runOnUiThread {
                     // Do not let an older failed request disturb a newer search.
-                    if (OnlineSearchRequestRules.isCurrent(requestGeneration, audiusSearchGeneration, q, jamendoQuery.trim())) {
+                    if (OnlineSearchRequestRules.isCurrent(requestGeneration, audiusSearchGeneration)) {
                         audiusTracks.clear()
                         audiusLoading = false
                     }
@@ -4922,6 +4922,30 @@ class MainActivity : ComponentActivity() {
                 maxLines = 1
             )
         }
+    }
+
+    private fun updateJamendoQuery(value: String) {
+        if (jamendoQuery == value) return
+        jamendoQuery = value
+        // Editing the search text invalidates in-flight requests so an old response
+        // cannot overwrite newer intent or leave the loading indicator stuck.
+        jamendoSearchGeneration++
+        audiusSearchGeneration++
+        jamendoSearchJob?.cancel()
+        audiusSearchJob?.cancel()
+        jamendoSearchJob = null
+        audiusSearchJob = null
+        jamendoLoading = false
+        audiusLoading = false
+    }
+
+    private fun updateYouTubeQuery(value: String) {
+        if (youtubeQuery == value) return
+        youtubeQuery = value
+        youtubeSearchGeneration++
+        youtubeSearchJob?.cancel()
+        youtubeSearchJob = null
+        youtubeLoading = false
     }
 
     private fun cancelOnlineSearches() {
@@ -7441,7 +7465,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 val nextPageToken = json.optString("nextPageToken").ifBlank { null }
 
                 withContext(Dispatchers.Main) {
-                    if (OnlineSearchRequestRules.isCurrent(requestGeneration, youtubeSearchGeneration, q, youtubeQuery.trim())) {
+                    if (OnlineSearchRequestRules.isCurrent(requestGeneration, youtubeSearchGeneration)) {
                         if (loadMore) {
                             val existingIds = youtubeTracks.mapTo(mutableSetOf()) { it.videoId }
                             youtubeTracks.addAll(found.filter { existingIds.add(it.videoId) })
@@ -7460,7 +7484,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 throw cancelled
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    if (OnlineSearchRequestRules.isCurrent(requestGeneration, youtubeSearchGeneration, q, youtubeQuery.trim())) {
+                    if (OnlineSearchRequestRules.isCurrent(requestGeneration, youtubeSearchGeneration)) {
                         youtubeLoading = false
                         errorMessage = "YouTube: " + (e.message ?: "không thể tìm kiếm")
                     }
@@ -8183,7 +8207,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 ) {
                     OutlinedTextField(
                         value = youtubeQuery,
-                        onValueChange = { youtubeQuery = it },
+                        onValueChange = ::updateYouTubeQuery,
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         placeholder = {
@@ -8736,7 +8760,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
                     value = jamendoQuery,
-                    onValueChange = { jamendoQuery = it },
+                    onValueChange = ::updateJamendoQuery,
                     modifier = Modifier.weight(1f),
                     singleLine = true,
                     placeholder = { Text("Tên bài hát / nghệ sĩ") },
@@ -9008,7 +9032,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             Spacer(Modifier.height(8.dp))
             OutlinedTextField(
                 value = youtubeQuery,
-                onValueChange = { youtubeQuery = it },
+                onValueChange = ::updateYouTubeQuery,
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 placeholder = { Text("Tìm bài hát / nghệ sĩ trên YouTube") },

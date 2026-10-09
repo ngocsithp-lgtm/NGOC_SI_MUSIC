@@ -6,22 +6,22 @@ import org.junit.Test
 
 class OnlineSearchRequestRulesTest {
     @Test
-    fun acceptsOnlyCurrentRequestWithSameNonBlankQuery() {
-        assertTrue(OnlineSearchRequestRules.isCurrent(3L, 3L, "jazz", "jazz"))
+    fun acceptsTheLatestSubmittedSearch() {
+        assertTrue(OnlineSearchRequestRules.isCurrent(3L, 3L))
     }
 
     @Test
-    fun rejectsCancelledOlderRequestEvenWhenTheQueryWasRepeated() {
-        assertFalse(OnlineSearchRequestRules.isCurrent(2L, 3L, "jazz", "jazz"))
+    fun rejectsAnOlderRequestWhenTheSameQueryIsSubmittedAgain() {
+        assertFalse(OnlineSearchRequestRules.isCurrent(2L, 3L))
     }
 
     @Test
-    fun rejectsResultsForChangedQuery() {
-        assertFalse(OnlineSearchRequestRules.isCurrent(3L, 3L, "jazz", "rock"))
+    fun rejectsARequestInvalidatedByEditingTheSearchText() {
+        assertFalse(OnlineSearchRequestRules.isCurrent(3L, 4L))
     }
 
     @Test
-    fun rejectsBlankQuery() {
-        assertFalse(OnlineSearchRequestRules.isCurrent(3L, 3L, " ", " "))
+    fun rejectsARequestInvalidatedWhenTheQueryIsCleared() {
+        assertFalse(OnlineSearchRequestRules.isCurrent(7L, 8L))
     }
 }
