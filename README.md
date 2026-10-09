@@ -4,8 +4,8 @@ Android music player built with Kotlin, Jetpack Compose and AndroidX Media3.
 
 ## Bản PRO hiện tại
 
-- Version: **5.36 PRO**
-- Version code: **56**
+- Version: **5.37 PRO**
+- Version code: **57**
 - Package: **com.ngocsi.music**
 - Target/Compile SDK: **Android 16 / API 36**
 - Min SDK: **26**
@@ -75,6 +75,11 @@ Sau khi OAuth client khớp package + SHA-1, màn hình đăng nhập Google Dri
 - Nguồn chính thức trong ứng dụng khi không còn stream trực tiếp khả dụng
 
 Các URL livestream có thể thay đổi theo hạ tầng của đài; app giữ nhiều candidate và nguồn chính thức để giảm lỗi chết stream.
+
+## Thay đổi phiên bản 5.37
+
+- Sửa Radio tự theo dõi lại sau mỗi lần chuyển sang luồng dự phòng; nếu luồng mới tiếp tục kẹt ở trạng thái buffering mà không báo lỗi rõ ràng, app vẫn thử candidate kế tiếp hoặc chuyển sang nguồn chính thức.
+- Giữ nguyên quy tắc không tự phát lại Radio khi người dùng đã tạm dừng.
 
 ## Thay đổi phiên bản 5.36
 
@@ -179,13 +184,13 @@ GitHub Actions chạy tự động:
 
 Artifact chuẩn:
 
-**NGOC_SI_MUSIC_5.36_PRO_APKS**
+**NGOC_SI_MUSIC_5.37_PRO_APKS**
 
 Bản Release dùng chứng thư ký ổn định giống Debug:
 
-[**Tải APK Release 5.36 PRO**](https://github.com/ngocsithp-lgtm/NGOC_SI_MUSIC/releases/download/ngoc-si-music-latest/app-release.apk)
+[**Tải APK Release 5.37 PRO**](https://github.com/ngocsithp-lgtm/NGOC_SI_MUSIC/releases/download/ngoc-si-music-latest/app-release.apk)
 
-[**Tải APK Debug 5.36 PRO**](https://github.com/ngocsithp-lgtm/NGOC_SI_MUSIC/releases/download/ngoc-si-music-latest/app-debug.apk)
+[**Tải APK Debug 5.37 PRO**](https://github.com/ngocsithp-lgtm/NGOC_SI_MUSIC/releases/download/ngoc-si-music-latest/app-debug.apk)
 
 ## YouTube
 

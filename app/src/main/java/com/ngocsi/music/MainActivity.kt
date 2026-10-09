@@ -2948,6 +2948,10 @@ class MainActivity : ComponentActivity() {
         c.setPlaybackSpeed(selectedPlaybackSpeed)
         c.prepare()
         c.play()
+        // Each fallback stream needs its own watchdog. Some endpoints remain in
+        // BUFFERING without emitting a fatal player error, so failing to re-arm
+        // the timer here can leave Radio stuck forever on the second candidate.
+        scheduleRadioRecovery()
 
         currentIndex = songs.indexOfFirst { it.uri == uri }
         lastSongUri = uri.toString()
