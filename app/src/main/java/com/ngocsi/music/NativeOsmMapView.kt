@@ -491,6 +491,29 @@ private class ManagedMapViewLifecycle(
         }
     }
 
+    /**
+     * Lifecycle observers do not replay past events when attached. AndroidView
+     * may be created after the host Activity is already RESUMED, so synchronize
+     * MapView to the owner's current state immediately after registering.
+     */
+    fun syncToState(state: androidx.lifecycle.Lifecycle.State) {
+        if (state.isAtLeast(androidx.lifecycle.Lifecycle.State.CREATED)) create()
+        if (state.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED) && !started) {
+            create()
+            mapView.onStart()
+            started = true
+        }
+        if (state.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED) && !resumed) {
+            create()
+            if (!started) {
+                mapView.onStart()
+                started = true
+            }
+            mapView.onResume()
+            resumed = true
+        }
+    }
+
     fun destroy() {
         if (destroyed) return
         destroyed = true
@@ -668,6 +691,7 @@ fun NativeOsmMapView(
             onDispose { }
         } else {
             lifecycleOwner.lifecycle.addObserver(lifecycleBridge)
+            lifecycleBridge.syncToState(lifecycleOwner.lifecycle.currentState)
             onDispose {
                 lifecycleOwner.lifecycle.removeObserver(lifecycleBridge)
                 controller?.destroy()
