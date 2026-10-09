@@ -346,12 +346,11 @@ class NgocSiMapController internal constructor(
     }
 
     fun destroy() {
+        // Native MapView lifecycle is owned by ManagedMapViewLifecycle below.
+        // This controller only unregisters its MapLibre callbacks.
         runCatching { mapView.removeOnDidFailLoadingMapListener(failListener) }
         runCatching { mapView.removeOnDidFinishLoadingMapListener(finishListener) }
         runCatching { map.removeOnCameraMoveStartedListener(cameraMoveStartedListener) }
-        runCatching { mapView.onPause() }
-        runCatching { mapView.onStop() }
-        runCatching { mapView.onDestroy() }
     }
 }
 
@@ -427,6 +426,83 @@ private fun addOverlayLayers(style: Style) {
     )
 }
 
+/**
+ * Forwards the host lifecycle to MapView exactly once per transition.
+ * This matters when the map stays composed while the Activity is backgrounded
+ * (for example, when the screen turns off with the map dialog open).
+ */
+private class ManagedMapViewLifecycle(
+    private val mapView: MapView
+) : androidx.lifecycle.LifecycleEventObserver {
+    private var created = false
+    private var started = false
+    private var resumed = false
+    private var destroyed = false
+
+    fun create() {
+        if (created || destroyed) return
+        mapView.onCreate(Bundle())
+        created = true
+    }
+
+    override fun onStateChanged(
+        source: androidx.lifecycle.LifecycleOwner,
+        event: androidx.lifecycle.Lifecycle.Event
+    ) {
+        if (destroyed) return
+        when (event) {
+            androidx.lifecycle.Lifecycle.Event.ON_CREATE -> create()
+            androidx.lifecycle.Lifecycle.Event.ON_START -> {
+                create()
+                if (!started) {
+                    mapView.onStart()
+                    started = true
+                }
+            }
+            androidx.lifecycle.Lifecycle.Event.ON_RESUME -> {
+                create()
+                if (!started) {
+                    mapView.onStart()
+                    started = true
+                }
+                if (!resumed) {
+                    mapView.onResume()
+                    resumed = true
+                }
+            }
+            androidx.lifecycle.Lifecycle.Event.ON_PAUSE -> {
+                if (resumed) {
+                    runCatching { mapView.onPause() }
+                    resumed = false
+                }
+            }
+            androidx.lifecycle.Lifecycle.Event.ON_STOP -> {
+                if (resumed) {
+                    runCatching { mapView.onPause() }
+                    resumed = false
+                }
+                if (started) {
+                    runCatching { mapView.onStop() }
+                    started = false
+                }
+            }
+            androidx.lifecycle.Lifecycle.Event.ON_DESTROY -> destroy()
+            androidx.lifecycle.Lifecycle.Event.ON_ANY -> Unit
+        }
+    }
+
+    fun destroy() {
+        if (destroyed) return
+        destroyed = true
+        if (resumed) runCatching { mapView.onPause() }
+        resumed = false
+        if (started) runCatching { mapView.onStop() }
+        started = false
+        if (created) runCatching { mapView.onDestroy() }
+        created = false
+    }
+}
+
 @Composable
 fun NativeOsmMapView(
     modifier: Modifier = Modifier,
@@ -444,7 +520,9 @@ fun NativeOsmMapView(
     onMapReady: (NgocSiMapController) -> Unit
 ) {
     var controller by remember { mutableStateOf<NgocSiMapController?>(null) }
+    var mapViewLifecycle by remember { mutableStateOf<ManagedMapViewLifecycle?>(null) }
     var mapLoadError by remember { mutableStateOf<String?>(null) }
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
 
     Box(modifier = modifier) {
         AndroidView(
@@ -454,7 +532,9 @@ fun NativeOsmMapView(
                 configureMapHttp(context.applicationContext)
 
                 MapView(context).apply {
-                    onCreate(Bundle())
+                    val lifecycleBridge = ManagedMapViewLifecycle(this)
+                    mapViewLifecycle = lifecycleBridge
+                    lifecycleBridge.create()
                     getMapAsync { map ->
                         map.uiSettings.isCompassEnabled = true
                         map.uiSettings.isLogoEnabled = false
@@ -497,8 +577,6 @@ fun NativeOsmMapView(
                             )
                         }
                     }
-                    onStart()
-                    onResume()
                 }
             },
             update = {
@@ -582,10 +660,18 @@ fun NativeOsmMapView(
         }
     }
 
-    DisposableEffect(Unit) {
-        onDispose {
-            controller?.destroy()
-            controller = null
+    DisposableEffect(lifecycleOwner, mapViewLifecycle) {
+        val lifecycleBridge = mapViewLifecycle
+        if (lifecycleBridge == null) {
+            onDispose { }
+        } else {
+            lifecycleOwner.lifecycle.addObserver(lifecycleBridge)
+            onDispose {
+                lifecycleOwner.lifecycle.removeObserver(lifecycleBridge)
+                controller?.destroy()
+                controller = null
+                lifecycleBridge.destroy()
+            }
         }
     }
 }

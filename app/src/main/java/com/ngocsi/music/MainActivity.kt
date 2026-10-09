@@ -5133,7 +5133,7 @@ class MainActivity : ComponentActivity() {
                     color = Color(0xFF10131A)
                 ) {
                     Text(
-                        "NGỌC SĨ MUSIC 5.13 PRO • Một giao diện, mọi nguồn nhạc",
+                        "NGỌC SĨ MUSIC 5.14 PRO • Một giao diện, mọi nguồn nhạc",
                         color = Color(0xFF777E8D),
                         fontSize = 10.sp,
                         modifier = Modifier.padding(horizontal = 13.dp, vertical = 11.dp)
