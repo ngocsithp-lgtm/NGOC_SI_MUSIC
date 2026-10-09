@@ -13,12 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color as ComposeColor
@@ -189,7 +184,6 @@ fun LeafletMapView(
     val latestOnMapReady = rememberUpdatedState(onMapReady)
     val latestOnUserGesture = rememberUpdatedState(onUserGesture)
     val latestOnSatelliteFallback = rememberUpdatedState(onSatelliteFallback)
-    var activeController by remember { mutableStateOf<LeafletMapController?>(null) }
 
     Box(modifier = modifier.background(ComposeColor(0xFFE9EDF1))) {
         AndroidView(
@@ -213,7 +207,6 @@ fun LeafletMapView(
                         onSatelliteFallback = { latestOnSatelliteFallback.value() }
                     )
                     tag = mapController
-                    activeController = mapController
                     webChromeClient = WebChromeClient()
                     webViewClient = object : WebViewClient() {
                         override fun onPageFinished(view: WebView?, url: String?) {
@@ -242,6 +235,9 @@ fun LeafletMapView(
                     fitRoute = routePoints.size >= 2,
                     followLocation = followLocation
                 )
+            },
+            onRelease = { view ->
+                (view.tag as? LeafletMapController)?.destroy()
             }
         )
 
@@ -257,9 +253,6 @@ fun LeafletMapView(
         )
     }
 
-    DisposableEffect(activeController) {
-        onDispose { activeController?.destroy() }
-    }
 }
 
 private fun buildLeafletMapHtml(lat: Double, lon: Double, selectedLayer: String): String {
