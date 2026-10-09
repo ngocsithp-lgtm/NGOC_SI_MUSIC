@@ -4,7 +4,7 @@ Android music player built with Kotlin, Jetpack Compose and AndroidX Media3.
 
 ## Bản PRO hiện tại
 
-- Version: **5.23 PRO**
+- Version: **5.24 PRO**
 - Version code: **43**
 - Package: **com.ngocsi.music**
 - Target/Compile SDK: **Android 16 / API 36**
@@ -37,7 +37,7 @@ Android music player built with Kotlin, Jetpack Compose and AndroidX Media3.
 
 ## Google Drive / OAuth Android
 
-APK 5.23 PRO hiện được GitHub Actions ký bằng chứng thư ổn định với SHA-1:
+APK 5.24 PRO hiện được GitHub Actions ký bằng chứng thư ổn định với SHA-1:
 
 **53:3F:A1:9C:58:A4:0D:92:66:8F:96:29:6E:7D:B3:4D:69:6A:ED**
 
@@ -76,7 +76,7 @@ Sau khi OAuth client khớp package + SHA-1, màn hình đăng nhập Google Dri
 
 Các URL livestream có thể thay đổi theo hạ tầng của đài; app giữ nhiều candidate và nguồn chính thức để giảm lỗi chết stream.
 
-## Thay đổi phiên bản 5.23
+## Thay đổi phiên bản 5.24
 
 - Đã loại bỏ mục Bản đồ khỏi trang chủ, menu tiện ích và Cài đặt.
 - Đã gỡ màn hình Bản đồ khỏi luồng điều hướng trong ứng dụng; các chức năng vệ tinh, vị trí và chỉ đường không còn được cung cấp trong giao diện.
@@ -104,7 +104,7 @@ GitHub Actions chạy tự động:
 
 Artifact chuẩn:
 
-**NGOC_SI_MUSIC_5.23_PRO_DEBUG_APK**
+**NGOC_SI_MUSIC_5.24_PRO_DEBUG_APK**
 
 ## YouTube
 

@@ -25,4 +25,19 @@ internal object SleepTimerRules {
 
     fun isExpired(deadlineMillis: Long, nowMillis: Long): Boolean =
         deadlineMillis > 0L && nowMillis >= deadlineMillis
+    
+    /**
+     * Avoid a UI race at the deadline: the service may not have cleared the
+     * persisted timer yet. A different future deadline means the user replaced
+     * the timer, so the old countdown must not report completion.
+     */
+    fun shouldNotifyExpiration(
+        configuredDeadlineMillis: Long,
+        nowMillis: Long,
+        storedDeadlineMillis: Long
+    ): Boolean {
+        if (!isExpired(configuredDeadlineMillis, nowMillis)) return false
+        return storedDeadlineMillis <= 0L || storedDeadlineMillis == configuredDeadlineMillis
+    }
+
 }

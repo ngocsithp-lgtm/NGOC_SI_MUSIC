@@ -39,4 +39,16 @@ class SleepTimerRulesTest {
         assertFalse(SleepTimerRules.isExpired(101L, 100L))
         assertTrue(SleepTimerRules.isExpired(100L, 100L))
     }
+    @Test
+    fun expirationNotificationHandlesServiceCleanupRace() {
+        // The countdown can reach its deadline before the service clears SharedPreferences.
+        assertTrue(SleepTimerRules.shouldNotifyExpiration(60_000L, 60_000L, 60_000L))
+        // The service may already have cleared the stored deadline.
+        assertTrue(SleepTimerRules.shouldNotifyExpiration(60_000L, 60_001L, 0L))
+        // A different stored deadline means the user replaced the timer.
+        assertFalse(SleepTimerRules.shouldNotifyExpiration(60_000L, 90_000L, 120_000L))
+        // Never notify before the selected deadline.
+        assertFalse(SleepTimerRules.shouldNotifyExpiration(60_000L, 59_999L, 60_000L))
+    }
+
 }

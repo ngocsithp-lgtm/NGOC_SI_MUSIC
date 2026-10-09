@@ -624,9 +624,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Map rendering is initialized lazily by the map surface.
-        // Never load the native map engine during app startup: a graphics backend
-        // problem must not prevent the music app from opening.
         // Initialize lightweight app state before any feature surface is opened.
         // The UI is attached early so startup never appears as a blank window while
         // library/Drive state is being restored in the background.
@@ -3354,9 +3351,11 @@ class MainActivity : ComponentActivity() {
                 if (endAt <= System.currentTimeMillis()) break
                 delay(1_000L)
             }
-            val timerExpired = configuredDeadline > 0L &&
-                System.currentTimeMillis() >= configuredDeadline &&
-                prefs.getLong("sleep_timer_end_at", 0L) <= 0L
+            val timerExpired = SleepTimerRules.shouldNotifyExpiration(
+                configuredDeadlineMillis = configuredDeadline,
+                nowMillis = System.currentTimeMillis(),
+                storedDeadlineMillis = prefs.getLong("sleep_timer_end_at", 0L)
+            )
             sleepTimerJob = null
             refreshSleepTimerUiState()
             if (timerExpired) {
