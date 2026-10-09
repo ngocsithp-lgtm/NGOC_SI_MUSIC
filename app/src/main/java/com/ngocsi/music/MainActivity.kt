@@ -80,6 +80,7 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.Dispatchers
@@ -362,6 +363,10 @@ class MainActivity : ComponentActivity() {
     private var jamendoSearchJob: Job? = null
     private var audiusSearchJob: Job? = null
     private var youtubeSearchJob: Job? = null
+    // Monotonic request IDs prevent cancelled or slow responses from overwriting newer results.
+    private var jamendoSearchGeneration = 0L
+    private var audiusSearchGeneration = 0L
+    private var youtubeSearchGeneration = 0L
     private var driveImportJob: Job? = null
     private var artworkPrefetchJob: Job? = null
     private var songsLoadJob: Job? = null
@@ -3036,10 +3041,15 @@ class MainActivity : ComponentActivity() {
     private fun searchJamendo() {
         val q = jamendoQuery.trim()
         if (q.isBlank()) {
+            jamendoSearchGeneration++
+            jamendoSearchJob?.cancel()
+            jamendoSearchJob = null
+            jamendoLoading = false
             errorMessage = "Nhập tên bài hát hoặc nghệ sĩ để tìm."
             return
         }
 
+        val requestGeneration = ++jamendoSearchGeneration
         jamendoSearchJob?.cancel()
         jamendoLoading = true
         errorMessage = null
@@ -3106,7 +3116,7 @@ class MainActivity : ComponentActivity() {
 
                 runOnUiThread {
                     // Ignore stale responses when the user has already started a newer search.
-                    if (jamendoQuery.trim() == q) {
+                    if (OnlineSearchRequestRules.isCurrent(requestGeneration, jamendoSearchGeneration, q, jamendoQuery.trim())) {
                         jamendoTracks.clear()
                         jamendoTracks.addAll(found)
                         jamendoLoading = false
@@ -3117,9 +3127,11 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (e: Exception) {
                 runOnUiThread {
-                    if (jamendoQuery.trim() == q) {
+                    if (OnlineSearchRequestRules.isCurrent(requestGeneration, jamendoSearchGeneration, q, jamendoQuery.trim())) {
                         jamendoTracks.clear()
                         jamendoLoading = false
                         errorMessage = "Lỗi tìm nhạc online: ${e.message ?: "Không kết nối được Jamendo"}"
@@ -3156,6 +3168,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun searchAudius(q: String) {
+        val requestGeneration = ++audiusSearchGeneration
         audiusSearchJob?.cancel()
         audiusLoading = true
         audiusSearchJob = lifecycleScope.launch(Dispatchers.IO) {
@@ -3196,16 +3209,18 @@ class MainActivity : ComponentActivity() {
                 }
                 runOnUiThread {
                     // Ignore stale responses when the user has already started a newer search.
-                    if (jamendoQuery.trim() == q) {
+                    if (OnlineSearchRequestRules.isCurrent(requestGeneration, audiusSearchGeneration, q, jamendoQuery.trim())) {
                         audiusTracks.clear()
                         audiusTracks.addAll(found)
                         audiusLoading = false
                     }
                 }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (_: Exception) {
                 runOnUiThread {
                     // Do not let an older failed request disturb a newer search.
-                    if (jamendoQuery.trim() == q) {
+                    if (OnlineSearchRequestRules.isCurrent(requestGeneration, audiusSearchGeneration, q, jamendoQuery.trim())) {
                         audiusTracks.clear()
                         audiusLoading = false
                     }
@@ -4054,6 +4069,9 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        jamendoSearchGeneration++
+        audiusSearchGeneration++
+        youtubeSearchGeneration++
         cancelRadioRecovery()
         sleepTimerJob?.cancel()
         jamendoSearchJob?.cancel()
@@ -4906,11 +4924,28 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun cancelOnlineSearches() {
+        // Invalidate first: blocking HTTP calls may finish after cancellation was requested.
+        jamendoSearchGeneration++
+        audiusSearchGeneration++
+        youtubeSearchGeneration++
+        jamendoSearchJob?.cancel()
+        audiusSearchJob?.cancel()
+        youtubeSearchJob?.cancel()
+        jamendoSearchJob = null
+        audiusSearchJob = null
+        youtubeSearchJob = null
+        jamendoLoading = false
+        audiusLoading = false
+        youtubeLoading = false
+    }
+
     @Composable
     private fun SearchBarModern() {
         val runSearch = {
             val q = searchQuery.trim()
             if (q.isBlank()) {
+                cancelOnlineSearches()
                 selectedSection = "Thư viện"
             } else {
                 youtubeQuery = q
@@ -7316,6 +7351,10 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
     private fun searchYouTube(loadMore: Boolean = false) {
         val q = youtubeQuery.trim()
         if (q.isBlank()) {
+            youtubeSearchGeneration++
+            youtubeSearchJob?.cancel()
+            youtubeSearchJob = null
+            youtubeLoading = false
             errorMessage = "Nhập tên bài hát hoặc nghệ sĩ để tìm trên YouTube."
             return
         }
@@ -7328,6 +7367,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
         if (loadMore && youtubeNextPageToken.isNullOrBlank()) return
 
+        val requestGeneration = ++youtubeSearchGeneration
         youtubeSearchJob?.cancel()
         youtubeLoading = true
         errorMessage = null
@@ -7401,7 +7441,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 val nextPageToken = json.optString("nextPageToken").ifBlank { null }
 
                 withContext(Dispatchers.Main) {
-                    if (youtubeQuery.trim() == q) {
+                    if (OnlineSearchRequestRules.isCurrent(requestGeneration, youtubeSearchGeneration, q, youtubeQuery.trim())) {
                         if (loadMore) {
                             val existingIds = youtubeTracks.mapTo(mutableSetOf()) { it.videoId }
                             youtubeTracks.addAll(found.filter { existingIds.add(it.videoId) })
@@ -7416,10 +7456,14 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         }
                     }
                 }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    youtubeLoading = false
-                    errorMessage = "YouTube: " + (e.message ?: "không thể tìm kiếm")
+                    if (OnlineSearchRequestRules.isCurrent(requestGeneration, youtubeSearchGeneration, q, youtubeQuery.trim())) {
+                        youtubeLoading = false
+                        errorMessage = "YouTube: " + (e.message ?: "không thể tìm kiếm")
+                    }
                 }
             } finally {
                 connection?.disconnect()
