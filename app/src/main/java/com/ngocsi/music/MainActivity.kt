@@ -261,6 +261,21 @@ class MainActivity : ComponentActivity() {
             controller?.let { c ->
                 duration = c.duration.takeIf { it > 0L } ?: duration
                 position = c.currentPosition.coerceAtLeast(0L)
+
+                // Re-arm the Radio watchdog whenever a live stream enters buffering,
+                // not only when the station is first selected. A stream can work for
+                // minutes and then stall after the initial one-shot timer has fired.
+                val isRadioActive = activeRadioTitle != null && activeRadioStreams.isNotEmpty()
+                if (RadioRecoveryRules.shouldWatchdog(
+                        isRadioActive = isRadioActive,
+                        playWhenReady = c.playWhenReady,
+                        isBuffering = playbackState == Player.STATE_BUFFERING
+                    )
+                ) {
+                    scheduleRadioRecovery()
+                } else {
+                    cancelRadioRecovery()
+                }
             }
             if (playbackState == Player.STATE_READY) {
                 errorMessage = null

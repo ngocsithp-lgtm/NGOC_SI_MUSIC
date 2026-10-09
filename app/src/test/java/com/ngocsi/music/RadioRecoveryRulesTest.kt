@@ -68,4 +68,45 @@ class RadioRecoveryRulesTest {
             )
         )
     }
+
+    @Test
+    fun watchdogIsArmedWhenActiveRadioEntersBufferingWhilePlaybackIsRequested() {
+        assertTrue(
+            RadioRecoveryRules.shouldWatchdog(
+                isRadioActive = true,
+                playWhenReady = true,
+                isBuffering = true
+            )
+        )
+    }
+
+    @Test
+    fun watchdogIsNotArmedForNonRadioOrPausedPlayback() {
+        assertFalse(
+            RadioRecoveryRules.shouldWatchdog(
+                isRadioActive = false,
+                playWhenReady = true,
+                isBuffering = true
+            )
+        )
+        assertFalse(
+            RadioRecoveryRules.shouldWatchdog(
+                isRadioActive = true,
+                playWhenReady = false,
+                isBuffering = true
+            )
+        )
+    }
+
+    @Test
+    fun watchdogIsNotArmedWhenRadioIsNotBuffering() {
+        assertFalse(
+            RadioRecoveryRules.shouldWatchdog(
+                isRadioActive = true,
+                playWhenReady = true,
+                isBuffering = false
+            )
+        )
+    }
+
 }

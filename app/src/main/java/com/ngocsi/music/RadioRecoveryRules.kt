@@ -16,4 +16,12 @@ internal object RadioRecoveryRules {
         if (!playWhenReady) return false
         return force || (!isPlaying && isBuffering)
     }
+
+    /** Watch only active Radio streams that the user still wants to play. */
+    fun shouldWatchdog(
+        isRadioActive: Boolean,
+        playWhenReady: Boolean,
+        isBuffering: Boolean
+    ): Boolean =
+        isRadioActive && playWhenReady && isBuffering
 }
