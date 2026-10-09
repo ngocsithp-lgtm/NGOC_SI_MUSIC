@@ -4,8 +4,8 @@ Android music player built with Kotlin, Jetpack Compose and AndroidX Media3.
 
 ## Bản PRO hiện tại
 
-- Version: **5.33 PRO**
-- Version code: **53**
+- Version: **5.34 PRO**
+- Version code: **54**
 - Package: **com.ngocsi.music**
 - Target/Compile SDK: **Android 16 / API 36**
 - Min SDK: **26**
@@ -37,7 +37,7 @@ Android music player built with Kotlin, Jetpack Compose and AndroidX Media3.
 
 ## Google Drive / OAuth Android
 
-APK 5.30 PRO hiện được GitHub Actions ký bằng chứng thư ổn định với SHA-1:
+APK PRO hiện được GitHub Actions ký bằng chứng thư ổn định với SHA-1:
 
 **53:3F:A1:9C:58:A4:0D:92:66:8F:96:29:6E:7D:B3:4D:69:6A:ED**
 
@@ -75,6 +75,12 @@ Sau khi OAuth client khớp package + SHA-1, màn hình đăng nhập Google Dri
 - Nguồn chính thức trong ứng dụng khi không còn stream trực tiếp khả dụng
 
 Các URL livestream có thể thay đổi theo hạ tầng của đài; app giữ nhiều candidate và nguồn chính thức để giảm lỗi chết stream.
+
+## Thay đổi phiên bản 5.34
+
+- Dọn mốc hẹn giờ đã hết hạn khi trình phát đã kết nối và đang thực sự rảnh, tránh hẹn giờ cũ làm tạm dừng bài hát mới sau khi dịch vụ đã dừng.
+- Không xóa mốc hẹn nếu trình phát còn phát hoặc đang chờ phát; MusicService tiếp tục chịu trách nhiệm dừng nhạc đúng hạn.
+- Bổ sung unit tests cho trạng thái trình phát rảnh, đang phát, đang chờ phát, controller chưa kết nối và hẹn giờ chưa hết hạn.
 
 ## Thay đổi phiên bản 5.33
 
@@ -162,13 +168,13 @@ GitHub Actions chạy tự động:
 
 Artifact chuẩn:
 
-**NGOC_SI_MUSIC_5.33_PRO_APKS**
+**NGOC_SI_MUSIC_5.34_PRO_APKS**
 
 Bản Release dùng chứng thư ký ổn định giống Debug:
 
-[**Tải APK Release 5.33 PRO**](https://github.com/ngocsithp-lgtm/NGOC_SI_MUSIC/releases/download/ngoc-si-music-latest/app-release.apk)
+[**Tải APK Release 5.34 PRO**](https://github.com/ngocsithp-lgtm/NGOC_SI_MUSIC/releases/download/ngoc-si-music-latest/app-release.apk)
 
-[**Tải APK Debug 5.33 PRO**](https://github.com/ngocsithp-lgtm/NGOC_SI_MUSIC/releases/download/ngoc-si-music-latest/app-debug.apk)
+[**Tải APK Debug 5.34 PRO**](https://github.com/ngocsithp-lgtm/NGOC_SI_MUSIC/releases/download/ngoc-si-music-latest/app-debug.apk)
 
 ## YouTube
 

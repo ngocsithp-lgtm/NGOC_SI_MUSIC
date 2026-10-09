@@ -51,4 +51,60 @@ class SleepTimerRulesTest {
         assertFalse(SleepTimerRules.shouldNotifyExpiration(60_000L, 59_999L, 60_000L))
     }
 
+    @Test
+    fun clearsExpiredDeadlineOnlyWhenControllerConfirmsIdlePlayback() {
+        assertTrue(
+            SleepTimerRules.shouldClearExpiredDeadlineForIdlePlayer(
+                deadlineMillis = 60_000L,
+                nowMillis = 60_000L,
+                controllerAvailable = true,
+                isPlaying = false,
+                playWhenReady = false
+            )
+        )
+    }
+
+    @Test
+    fun preservesExpiredDeadlineWhilePlayingOrWaitingToPlay() {
+        assertFalse(
+            SleepTimerRules.shouldClearExpiredDeadlineForIdlePlayer(
+                deadlineMillis = 60_000L,
+                nowMillis = 60_000L,
+                controllerAvailable = true,
+                isPlaying = true,
+                playWhenReady = true
+            )
+        )
+        assertFalse(
+            SleepTimerRules.shouldClearExpiredDeadlineForIdlePlayer(
+                deadlineMillis = 60_000L,
+                nowMillis = 60_000L,
+                controllerAvailable = true,
+                isPlaying = false,
+                playWhenReady = true
+            )
+        )
+    }
+
+    @Test
+    fun doesNotClearWhenControllerIsUnavailableOrDeadlineIsFuture() {
+        assertFalse(
+            SleepTimerRules.shouldClearExpiredDeadlineForIdlePlayer(
+                deadlineMillis = 60_000L,
+                nowMillis = 60_000L,
+                controllerAvailable = false,
+                isPlaying = false,
+                playWhenReady = false
+            )
+        )
+        assertFalse(
+            SleepTimerRules.shouldClearExpiredDeadlineForIdlePlayer(
+                deadlineMillis = 60_001L,
+                nowMillis = 60_000L,
+                controllerAvailable = true,
+                isPlaying = false,
+                playWhenReady = false
+            )
+        )
+    }
 }

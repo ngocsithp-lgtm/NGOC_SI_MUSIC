@@ -794,6 +794,9 @@ class MainActivity : ComponentActivity() {
                     repeatMode = c.repeatMode
                     position = c.currentPosition.coerceAtLeast(0L)
                     isPlaying = c.isPlaying
+                    // Re-check expired persisted timers after the service is connected;
+                    // onCreate may have run before a controller was available.
+                    refreshSleepTimerUiState()
                 }
             } catch (e: Exception) {
                 errorMessage = "Không kết nối được trình phát."
@@ -3385,6 +3388,19 @@ class MainActivity : ComponentActivity() {
         val now = System.currentTimeMillis()
         val remainingMinutes = SleepTimerRules.remainingMinutes(endAt, now)
         if (remainingMinutes == 0) {
+            // Do not let an expired timer survive an idle service and pause a
+            // newly selected song later. When playback is active or requested,
+            // leave enforcement to MusicService instead.
+            if (SleepTimerRules.shouldClearExpiredDeadlineForIdlePlayer(
+                    deadlineMillis = endAt,
+                    nowMillis = now,
+                    controllerAvailable = controller != null,
+                    isPlaying = controller?.isPlaying == true,
+                    playWhenReady = controller?.playWhenReady == true
+                )
+            ) {
+                prefs.edit().remove("sleep_timer_end_at").apply()
+            }
             sleepTimerEndAt = 0L
             sleepMinutes = 0
             return

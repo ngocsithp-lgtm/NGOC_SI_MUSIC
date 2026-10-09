@@ -25,6 +25,23 @@ internal object SleepTimerRules {
 
     fun isExpired(deadlineMillis: Long, nowMillis: Long): Boolean =
         deadlineMillis > 0L && nowMillis >= deadlineMillis
+
+    /**
+     * An expired timer can outlive the MediaSession service if playback was idle.
+     * Clear it only after a controller is connected and confirms there is no
+     * active playback intent; otherwise the service must enforce the deadline.
+     */
+    fun shouldClearExpiredDeadlineForIdlePlayer(
+        deadlineMillis: Long,
+        nowMillis: Long,
+        controllerAvailable: Boolean,
+        isPlaying: Boolean,
+        playWhenReady: Boolean
+    ): Boolean =
+        isExpired(deadlineMillis, nowMillis) &&
+            controllerAvailable &&
+            !isPlaying &&
+            !playWhenReady
     
     /**
      * Avoid a UI race at the deadline: the service may not have cleared the
