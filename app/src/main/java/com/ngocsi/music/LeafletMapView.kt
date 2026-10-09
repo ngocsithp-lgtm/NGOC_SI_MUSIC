@@ -242,7 +242,7 @@ fun LeafletMapView(
         )
 
         Text(
-            "BẢN ĐỒ TRONG ỨNG DỤNG • © OpenStreetMap",
+            "BẢN ĐỒ TÍCH HỢP TRONG ỨNG DỤNG",
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .padding(start = 9.dp, bottom = 8.dp)
@@ -296,8 +296,8 @@ html,body,#map{width:100%;height:100%;margin:0;padding:0;overflow:hidden;backgro
   function validPoint(p){return Array.isArray(p)&&p.length>=2&&isFinite(p[0])&&isFinite(p[1]);}
   function makeBaseLayer(name){
     var layer=name==='satellite'
-      ? L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles © Esri',crossOrigin:true})
-      : L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{minZoom:1,maxZoom:19,attribution:'© OpenStreetMap contributors',crossOrigin:true});
+      ? L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles © Esri'})
+      : L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{minZoom:1,maxZoom:19,attribution:'© OpenStreetMap contributors'});
     layer.on('tileload',function(){if(layer===baseLayer){tileErrors=0;hideStatus();}});
     layer.on('tileerror',function(){
       if(layer!==baseLayer)return;
