@@ -1,4 +1,4 @@
-name: Build NGOC SI MUSIC 5.26 PRO APKs
+name: Build NGOC SI MUSIC 5.27 PRO APKs
 # CI verification trigger: build and verify the current main branch.
 # Final UI polish CI verification.
 # Runner reset after UI verification.
@@ -110,7 +110,7 @@ jobs:
           for APK in app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/release/app-release.apk; do
             test -f "$APK"
             ls -lh "$APK"
-            "$AAPT" dump badging "$APK" | grep -m1 -E "package: name='com.ngocsi.music'.*versionName='5.26'"
+            "$AAPT" dump badging "$APK" | grep -m1 -E "package: name='com.ngocsi.music'.*versionName='5.27'"
           done
 
       - name: Print APK signing certificate (OAuth diagnostic)
@@ -168,7 +168,7 @@ jobs:
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v6
         with:
-          name: NGOC_SI_MUSIC_5.26_PRO_APKS
+          name: NGOC_SI_MUSIC_5.27_PRO_APKS
           if-no-files-found: error
           path: |
             app/build/outputs/apk/debug/app-debug.apk
@@ -183,4 +183,4 @@ jobs:
         run: |
           TAG="ngoc-si-music-latest"
           gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
-          gh release create "$TAG" app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/app-release.apk.sha256 app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/app-debug.apk.sha256 --title "NGỌC SĨ MUSIC 5.26 PRO — Latest APK" --notes "Recommended for everyday use: app-release.apk. Debug APK is included for diagnostics. Both variants are verified to use the stable NGOC SI MUSIC signing certificate."
+          gh release create "$TAG" app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/app-release.apk.sha256 app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/app-debug.apk.sha256 --title "NGỌC SĨ MUSIC 5.27 PRO — Latest APK" --notes "Recommended for everyday use: app-release.apk. Debug APK is included for diagnostics. Both variants are verified to use the stable NGOC SI MUSIC signing certificate."

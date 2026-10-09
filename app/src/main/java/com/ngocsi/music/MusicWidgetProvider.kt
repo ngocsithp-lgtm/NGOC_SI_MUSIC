@@ -69,30 +69,34 @@ class MusicWidgetProvider : AppWidgetProvider() {
         val token = SessionToken(context, ComponentName(context, MusicService::class.java))
         val future = MediaController.Builder(context, token).buildAsync()
         future.addListener({
+            var actionController: MediaController? = null
             try {
-                val controller = future.get()
+                val activeController = future.get()
+                actionController = activeController
                 when (action) {
-                    ACTION_PLAY_PAUSE -> if (controller.isPlaying) controller.pause() else controller.play()
+                    ACTION_PLAY_PAUSE -> if (activeController.isPlaying) activeController.pause() else activeController.play()
                     ACTION_PREVIOUS -> {
                         // Match the main player: restart the current track when
                         // already a few seconds in; otherwise go to the previous item.
-                        if (controller.currentPosition > 3_000L) {
-                            controller.seekTo(0L)
+                        if (activeController.currentPosition > 3_000L) {
+                            activeController.seekTo(0L)
                         } else {
-                            controller.seekToPreviousMediaItem()
+                            activeController.seekToPreviousMediaItem()
                         }
-                        controller.play()
+                        activeController.play()
                     }
                     ACTION_NEXT -> {
-                        controller.seekToNextMediaItem()
-                        controller.play()
+                        activeController.seekToNextMediaItem()
+                        activeController.play()
                     }
                 }
-                updateAll(context, controller)
-                controller.release()
+                updateAll(context, activeController)
             } catch (_: Exception) {
                 updateAll(context)
             } finally {
+                // Release the MediaController even when an action or widget
+                // refresh throws; BroadcastReceiver work must not leak sessions.
+                actionController?.release()
                 onComplete()
             }
         }, MoreExecutors.directExecutor())
@@ -119,13 +123,17 @@ class MusicWidgetProvider : AppWidgetProvider() {
         val token = SessionToken(context, ComponentName(context, MusicService::class.java))
         val future = MediaController.Builder(context, token).buildAsync()
         future.addListener({
+            var updateController: MediaController? = null
             try {
-                val controller = future.get()
-                updateViews(context, manager, ids, controller)
-                controller.release()
+                val activeController = future.get()
+                updateController = activeController
+                updateViews(context, manager, ids, activeController)
             } catch (_: Exception) {
                 ids.forEach { id -> updateFallback(context, manager, id) }
             } finally {
+                // Always close the temporary controller, including when RemoteViews
+                // updates fail for a widget that has just been removed.
+                updateController?.release()
                 onComplete?.invoke()
             }
         }, MoreExecutors.directExecutor())
