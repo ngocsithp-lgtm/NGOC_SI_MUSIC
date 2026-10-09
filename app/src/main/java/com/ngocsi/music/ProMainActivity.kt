@@ -133,7 +133,6 @@ class ProMainActivity : ComponentActivity() {
                 onDrive = { openLegacy("drive") },
                 onRadio = { openLegacy("radio") },
                 onTv = { openLegacy("tv") },
-                onMap = { openLegacy("map") },
                 onPlaylists = { openLegacy("playlists") },
                 onQueue = { openLegacy("queue") },
                 onSettings = { openLegacy("settings") },
@@ -263,7 +262,6 @@ private fun ProShell(
     onDrive: () -> Unit,
     onRadio: () -> Unit,
     onTv: () -> Unit,
-    onMap: () -> Unit,
     onPlaylists: () -> Unit,
     onQueue: () -> Unit,
     onSettings: () -> Unit,
@@ -543,7 +541,6 @@ private fun ProShell(
                         ) {
                             ProUtilityTile("☁", "Drive", onDrive, Modifier.weight(1f))
                             ProUtilityTile("♬", "Playlist", onPlaylists, Modifier.weight(1f))
-                            ProUtilityTile("⌖", "Bản đồ", onMap, Modifier.weight(1f))
                             ProUtilityTile("⚙", "Cài đặt", onSettings, Modifier.weight(1f))
                         }
                         Spacer(Modifier.height(8.dp))
