@@ -95,9 +95,12 @@ class MusicWidgetProvider : AppWidgetProvider() {
                 updateAll(context)
             } finally {
                 // Release the MediaController even when an action or widget
-                // refresh throws; BroadcastReceiver work must not leak sessions.
-                actionController?.release()
-                onComplete()
+                // refresh throws; always finish goAsync() even if release itself fails.
+                try {
+                    actionController?.release()
+                } finally {
+                    onComplete()
+                }
             }
         }, MoreExecutors.directExecutor())
     }
@@ -132,9 +135,13 @@ class MusicWidgetProvider : AppWidgetProvider() {
                 ids.forEach { id -> updateFallback(context, manager, id) }
             } finally {
                 // Always close the temporary controller, including when RemoteViews
-                // updates fail for a widget that has just been removed.
-                updateController?.release()
-                onComplete?.invoke()
+                // updates fail for a widget that has just been removed; always finish
+                // the async receiver work after cleanup.
+                try {
+                    updateController?.release()
+                } finally {
+                    onComplete?.invoke()
+                }
             }
         }, MoreExecutors.directExecutor())
     }
