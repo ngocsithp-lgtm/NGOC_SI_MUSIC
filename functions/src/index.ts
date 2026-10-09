@@ -7,7 +7,8 @@ import { dailyQuotaDocumentId, validateChatInput } from "./validation.js";
 initializeApp();
 const db = getFirestore();
 const OPENAI_API_KEY = defineSecret("OPENAI_API_KEY");
-const DAILY_LIMIT = 30;
+// Low-cost starter limits. Raise only after reviewing actual usage and billing.
+const DAILY_LIMIT = 10;
 const MODEL = "gpt-4o-mini";
 const SYSTEM_INSTRUCTIONS =
   "Bạn là NGỌC SĨ AI, trợ lý tiếng Việt hữu ích, rõ ràng và trung thực. " +
@@ -19,7 +20,7 @@ export const ngocSiAiChat = onCall(
     region: "asia-southeast1",
     enforceAppCheck: true,
     secrets: [OPENAI_API_KEY],
-    timeoutSeconds: 60,
+    timeoutSeconds: 45,
     memory: "256MiB"
   },
   async (request) => {
@@ -32,19 +33,30 @@ export const ngocSiAiChat = onCall(
       throw new HttpsError("invalid-argument", reason);
     }
 
+    // Use a server-side transaction so concurrent requests cannot exceed the daily limit.
+    // The quota date is UTC; no message content is stored.
     const date = new Date().toISOString().slice(0, 10);
-    const quotaRef = db.collection("aiDailyUsage").doc(dailyQuotaDocumentId(request.auth.uid, date));
+    const uid = request.auth.uid;
+    const quotaRef = db.collection("aiDailyUsage").doc(dailyQuotaDocumentId(uid, date));
+    let usedToday: number;
     try {
-      await db.runTransaction(async (transaction) => {
+      usedToday = await db.runTransaction(async (transaction) => {
         const snapshot = await transaction.get(quotaRef);
         const used = Number(snapshot.get("count") ?? 0);
-        if (used >= DAILY_LIMIT) throw new HttpsError("resource-exhausted", "Bạn đã dùng hết 30 lượt AI hôm nay.");
+        if (!Number.isSafeInteger(used) || used < 0) {
+          throw new HttpsError("internal", "Hạn mức AI không hợp lệ.");
+        }
+        if (used >= DAILY_LIMIT) {
+          throw new HttpsError("resource-exhausted", "Bạn đã dùng hết 10 lượt AI hôm nay.");
+        }
+        const nextCount = used + 1;
         transaction.set(quotaRef, {
-          uid: request.auth!.uid,
+          uid,
           date,
-          count: used + 1,
+          count: nextCount,
           updatedAt: FieldValue.serverTimestamp()
         }, { merge: true });
+        return nextCount;
       });
     } catch (error) {
       if (error instanceof HttpsError) throw error;
@@ -61,10 +73,10 @@ export const ngocSiAiChat = onCall(
         body: JSON.stringify({
           model: MODEL,
           temperature: 0.4,
-          max_tokens: 1000,
+          max_tokens: 600,
           messages: [{ role: "system", content: SYSTEM_INSTRUCTIONS }, ...messages]
         }),
-        signal: AbortSignal.timeout(45000)
+        signal: AbortSignal.timeout(35000)
       });
     } catch {
       throw new HttpsError("unavailable", "Máy chủ AI tạm thời không kết nối được.");
@@ -83,6 +95,6 @@ export const ngocSiAiChat = onCall(
       if (typeof content === "string") answer = content.trim();
     } catch {}
     if (!answer) throw new HttpsError("unavailable", "AI chưa trả lời được. Vui lòng thử lại.");
-    return { answer, remainingToday: DAILY_LIMIT - 1 };
+    return { answer, remainingToday: Math.max(0, DAILY_LIMIT - usedToday) };
   }
 );

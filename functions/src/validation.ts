@@ -1,14 +1,16 @@
 export type ChatRole = "user" | "assistant";
 export type ChatMessage = { role: ChatRole; content: string };
 
-export const MAX_MESSAGE_CHARS = 4000;
-export const MAX_HISTORY_MESSAGES = 12;
+export const MAX_MESSAGE_CHARS = 2000;
+export const MAX_HISTORY_MESSAGES = 8;
+export const MAX_TOTAL_CHARS = 8000;
 
 export function validateChatInput(value: unknown): ChatMessage[] {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("INVALID_INPUT");
   const raw = (value as { messages?: unknown }).messages;
   if (!Array.isArray(raw) || raw.length < 1 || raw.length > MAX_HISTORY_MESSAGES) throw new Error("INVALID_HISTORY");
   const messages: ChatMessage[] = [];
+  let totalChars = 0;
   for (const item of raw) {
     if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error("INVALID_MESSAGE");
     const role = (item as { role?: unknown }).role;
@@ -17,6 +19,8 @@ export function validateChatInput(value: unknown): ChatMessage[] {
     if (typeof content !== "string") throw new Error("INVALID_CONTENT");
     const normalized = content.trim();
     if (!normalized || normalized.length > MAX_MESSAGE_CHARS) throw new Error("INVALID_LENGTH");
+    totalChars += normalized.length;
+    if (totalChars > MAX_TOTAL_CHARS) throw new Error("TOTAL_LENGTH_EXCEEDED");
     messages.push({ role, content: normalized });
   }
   if (messages[messages.length - 1]?.role !== "user") throw new Error("LAST_MESSAGE_MUST_BE_USER");
