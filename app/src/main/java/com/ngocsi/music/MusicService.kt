@@ -35,6 +35,7 @@ class MusicService : MediaSessionService() {
     private val widgetHandler = Handler(Looper.getMainLooper())
     private val driveRecoveryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var driveRecoveryInProgress = false
+    @Volatile private var serviceDestroyed = false
     private val prefs by lazy { getSharedPreferences("ngoc_si_music", MODE_PRIVATE) }
     private val widgetTicker = object : Runnable {
         override fun run() {
@@ -307,25 +308,37 @@ class MusicService : MediaSessionService() {
     }
 
     private fun recoverDrivePlayback() {
-        val current = player.currentMediaItem ?: return
-        val uri = current.localConfiguration?.uri?.toString().orEmpty()
-        if (!uri.contains("googleapis.com/drive/v3/files/")) return
+        val failedItem = player.currentMediaItem ?: return
+        val failedUri = failedItem.localConfiguration?.uri?.toString().orEmpty()
+        if (!failedUri.startsWith("https://www.googleapis.com/drive/v3/files/")) return
 
+        // Preserve the position and active item before requesting a fresh Drive token.
+        // ExoPlayer is no longer "isPlaying" after an error, but playWhenReady retains
+        // the user's play/pause intent and can be checked again after token refresh.
         val resumePosition = player.currentPosition.coerceAtLeast(0L)
         driveRecoveryInProgress = true
         driveRecoveryScope.launch {
             val token = refreshDriveTokenBlocking(forceRefresh = true)
             widgetHandler.post {
                 try {
-                    if (token.isBlank()) {
-                        driveRecoveryInProgress = false
+                    if (serviceDestroyed || token.isBlank()) return@post
+
+                    // The user may have changed tracks while OAuth was refreshing.
+                    // Never replace a different active item, and replace only the
+                    // failed queue entry instead of clearing the whole queue.
+                    val activeItem = player.currentMediaItem ?: return@post
+                    val activeUri = activeItem.localConfiguration?.uri?.toString().orEmpty()
+                    if (!DrivePlaybackRecoveryRules.shouldReplaceActiveItem(failedUri, activeUri)) {
                         return@post
                     }
-                    val wasPlaying = player.isPlaying
-                    val replacement = current.buildUpon().build()
-                    player.setMediaItem(replacement, resumePosition)
+                    val activeIndex = player.currentMediaItemIndex
+                    if (activeIndex < 0) return@post
+
+                    val shouldResume = player.playWhenReady
+                    player.replaceMediaItem(activeIndex, activeItem.buildUpon().build())
+                    player.seekTo(activeIndex, resumePosition)
                     player.prepare()
-                    if (wasPlaying) player.play()
+                    if (shouldResume) player.play() else player.pause()
                 } finally {
                     driveRecoveryInProgress = false
                 }
@@ -467,6 +480,7 @@ class MusicService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        serviceDestroyed = true
         // Persist once more before releasing Media3 resources.
         savePlaybackState()
         widgetHandler.removeCallbacks(widgetTicker)
