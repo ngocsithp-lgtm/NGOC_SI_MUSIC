@@ -7,6 +7,7 @@ import okhttp3.OkHttpClient
 import org.maplibre.android.module.http.HttpRequestUtil
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -15,13 +16,16 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
@@ -55,6 +59,8 @@ private const val BEARING_SOURCE = "ngocsi-bearing-source"
 private const val BEARING_LAYER = "ngocsi-bearing-layer"
 
 private const val MAP_CACHE_SIZE_BYTES = 50L * 1024L * 1024L
+private const val CARTO_STANDARD_TILES =
+    "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
 private const val OSM_RASTER_FALLBACK =
     "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
 private val mapHttpLock = Any()
@@ -90,10 +96,11 @@ class NgocSiMapController internal constructor(
     private val onMapLoaded: () -> Unit,
     private val onUserGesture: () -> Unit,
     private val onSatelliteFallback: () -> Unit
-) {
+) : AppMapController {
     private var lat = 10.8231
     private var lon = 106.6297
-    private var layer = "standard"
+    // Empty until the first state update, so the initial style is loaded as well.
+    private var layer = ""
     private var route = emptyList<Pair<Double, Double>>()
     private var currentLocation = false
     private var accuracyMeters = 0f
@@ -139,7 +146,7 @@ class NgocSiMapController internal constructor(
         map.addOnCameraMoveStartedListener(cameraMoveStartedListener)
     }
 
-    fun centerView(newLat: Double, newLon: Double) {
+    override fun centerView(newLat: Double, newLon: Double) {
         lat = safeLat(newLat)
         lon = safeLon(newLon)
         zoom = max(zoom, 14.0)
@@ -150,12 +157,12 @@ class NgocSiMapController internal constructor(
         updateSources()
     }
 
-    fun zoomIn() {
+    override fun zoomIn() {
         zoom = min(19.0, map.cameraPosition.zoom + 1.0)
         map.animateCamera(CameraUpdateFactory.zoomTo(zoom), 180)
     }
 
-    fun zoomOut() {
+    override fun zoomOut() {
         zoom = max(2.0, map.cameraPosition.zoom - 1.0)
         map.animateCamera(CameraUpdateFactory.zoomTo(zoom), 180)
     }
@@ -171,7 +178,7 @@ class NgocSiMapController internal constructor(
         applyStyle(preserveCamera = true)
     }
 
-    fun fitRoute(routePoints: List<Pair<Double, Double>>) {
+    override fun fitRoute(routePoints: List<Pair<Double, Double>>) {
         val valid = routePoints.filter { it.first.isFinite() && it.second.isFinite() }
         if (valid.size < 2) return
         route = valid
@@ -215,7 +222,7 @@ class NgocSiMapController internal constructor(
         updateSources()
     }
 
-    fun updateMap(
+    override fun updateMap(
         newLat: Double,
         newLon: Double,
         selectedLayer: String,
@@ -290,7 +297,7 @@ class NgocSiMapController internal constructor(
         val builder = if (layer == "satellite") {
             Style.Builder().fromJson(buildSatelliteStyleJson())
         } else {
-            Style.Builder().fromJson(buildRasterFallbackStyleJson())
+            Style.Builder().fromJson(buildStandardStyleJson())
         }
         map.setStyle(builder) {
             addOverlayLayers(it)
@@ -300,6 +307,8 @@ class NgocSiMapController internal constructor(
                 map.moveCamera(CameraUpdateFactory.newLatLngZoom(LatLng(lat, lon), zoom))
             }
             updateSources()
+            // On first display, frame the full route after the style has become available.
+            if (!preserveCamera && route.size >= 2) fitRoute(route)
         }
     }
 
@@ -345,7 +354,7 @@ class NgocSiMapController internal constructor(
         }
     }
 
-    fun destroy() {
+    override fun destroy() {
         // Native MapView lifecycle is owned by ManagedMapViewLifecycle below.
         // This controller only unregisters its MapLibre callbacks.
         runCatching { mapView.removeOnDidFailLoadingMapListener(failListener) }
@@ -542,25 +551,127 @@ fun NativeOsmMapView(
     onSatelliteFallback: () -> Unit = {},
     onMapReady: (AppMapController) -> Unit
 ) {
-    LeafletMapView(
-        modifier = modifier,
-        lat = lat,
-        lon = lon,
-        selectedLayer = selectedLayer,
-        routePoints = routePoints,
-        isCurrentLocation = isCurrentLocation,
-        accuracyMeters = accuracyMeters,
-        bearingDegrees = bearingDegrees,
-        hasBearing = hasBearing,
-        followLocation = followLocation,
-        onUserGesture = onUserGesture,
-        onSatelliteFallback = onSatelliteFallback,
-        onMapReady = onMapReady
-    )
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val latestOnMapReady = rememberUpdatedState(onMapReady)
+    val latestOnUserGesture = rememberUpdatedState(onUserGesture)
+    val latestOnSatelliteFallback = rememberUpdatedState(onSatelliteFallback)
+    var mapStatus by remember {
+        mutableStateOf<String?>("Đang khởi tạo bản đồ native…")
+    }
+
+    Box(modifier = modifier.background(ComposeColor(0xFFE9EDF1))) {
+        AndroidView(
+            modifier = Modifier.fillMaxSize(),
+            factory = { viewContext ->
+                // MapLibre must be initialized before the native MapView is created.
+                MapLibre.getInstance(viewContext.applicationContext)
+                configureMapHttp(viewContext.applicationContext)
+
+                MapView(viewContext).apply {
+                    setBackgroundColor(android.graphics.Color.rgb(233, 237, 241))
+                    val managedLifecycle = ManagedMapViewLifecycle(this)
+                    lifecycleOwner.lifecycle.addObserver(managedLifecycle)
+                    managedLifecycle.syncToState(lifecycleOwner.lifecycle.currentState)
+
+                    val host = NativeMapHost(lifecycleOwner, managedLifecycle)
+                    tag = host
+                    getMapAsync { map ->
+                        if (host.disposed) return@getMapAsync
+                        val controller = NgocSiMapController(
+                            mapView = this,
+                            map = map,
+                            onLoadError = { message ->
+                                mapStatus = message.ifBlank { "Không tải được dữ liệu bản đồ." }.take(180)
+                            },
+                            onMapLoaded = { mapStatus = null },
+                            onUserGesture = { latestOnUserGesture.value() },
+                            onSatelliteFallback = {
+                                mapStatus = "Ảnh vệ tinh không tải được; đang chuyển sang bản đồ đường phố…"
+                                latestOnSatelliteFallback.value()
+                            }
+                        )
+                        host.controller = controller
+                        controller.updateMap(
+                            newLat = lat,
+                            newLon = lon,
+                            selectedLayer = selectedLayer,
+                            routePoints = routePoints,
+                            isCurrentLocation = isCurrentLocation,
+                            accuracyMeters = accuracyMeters,
+                            bearingDegrees = bearingDegrees,
+                            hasBearing = hasBearing,
+                            fitRoute = routePoints.size >= 2,
+                            followLocation = followLocation
+                        )
+                        latestOnMapReady.value(controller)
+                    }
+                }
+            },
+            update = { view ->
+                val host = view.tag as? NativeMapHost
+                host?.controller?.updateMap(
+                    newLat = lat,
+                    newLon = lon,
+                    selectedLayer = selectedLayer,
+                    routePoints = routePoints,
+                    isCurrentLocation = isCurrentLocation,
+                    accuracyMeters = accuracyMeters,
+                    bearingDegrees = bearingDegrees,
+                    hasBearing = hasBearing,
+                    fitRoute = routePoints.size >= 2,
+                    followLocation = followLocation
+                )
+            },
+            onRelease = { view ->
+                val host = view.tag as? NativeMapHost
+                if (host != null && !host.disposed) {
+                    host.disposed = true
+                    host.controller?.destroy()
+                    host.lifecycleOwner.lifecycle.removeObserver(host.lifecycle)
+                    host.lifecycle.destroy()
+                    host.controller = null
+                }
+                view.tag = null
+            }
+        )
+
+        mapStatus?.let { message ->
+            Box(
+                modifier = Modifier.align(Alignment.TopCenter).padding(10.dp)
+                    .background(ComposeColor(0xEA10151D), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 13.dp, vertical = 10.dp)
+            ) {
+                Text(message, color = ComposeColor.White, fontSize = 11.sp)
+            }
+        }
+
+        Text(
+            "BẢN ĐỒ TRONG ỨNG DỤNG • © OpenStreetMap · © CARTO · © Esri",
+            modifier = Modifier.align(Alignment.BottomStart).padding(start = 9.dp, bottom = 8.dp)
+                .background(ComposeColor(0xD90D1118), RoundedCornerShape(8.dp))
+                .padding(horizontal = 8.dp, vertical = 5.dp),
+            color = ComposeColor.White,
+            fontSize = 8.sp
+        )
+    }
 }
+
+private class NativeMapHost(
+    val lifecycleOwner: androidx.lifecycle.LifecycleOwner,
+    val lifecycle: ManagedMapViewLifecycle,
+    var controller: NgocSiMapController? = null,
+    var disposed: Boolean = false
+)
 
 private const val EMPTY_GEO_JSON =
     "{\"type\":\"FeatureCollection\",\"features\":[]}";
+
+private fun buildStandardStyleJson(): String = buildRasterStyleJson(
+    tileUrl = CARTO_STANDARD_TILES,
+    attribution = "© OpenStreetMap contributors · © CARTO",
+    backgroundColor = "#E9EDF1"
+)
 
 private fun buildSatelliteStyleJson(): String {
     return buildRasterStyleJson(
