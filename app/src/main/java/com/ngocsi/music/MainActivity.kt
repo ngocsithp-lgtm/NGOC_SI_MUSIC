@@ -7731,7 +7731,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         var selectedLayer by remember(initialLayer) {
             mutableStateOf(if (initialLayer == "satellite") "satellite" else "standard")
         }
-        var nativeMapRef by remember { mutableStateOf<NgocSiMapController?>(null) }
+        var nativeMapRef by remember { mutableStateOf<AppMapController?>(null) }
         val routePoints = remember(routeJson) { parseMapRoutePoints(routeJson) }
 
         Dialog(
