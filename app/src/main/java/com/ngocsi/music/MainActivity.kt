@@ -1756,6 +1756,7 @@ class MainActivity : ComponentActivity() {
 
             if (updated != current) {
                 saveSharedDriveItems(updated)
+                syncDriveSourcesToCloud()
                 rebuildSongsFromSavedDriveSources()
             }
         }
@@ -2272,6 +2273,7 @@ class MainActivity : ComponentActivity() {
             }
 
             saveSharedDriveItems(savedItems)
+            syncDriveSourcesToCloud()
             driveBrowserHistory.clear()
             driveBrowserItems.clear()
             driveBrowserItems.addAll(result)
@@ -2507,6 +2509,7 @@ class MainActivity : ComponentActivity() {
                 loadSharedDriveItems()
                     .filterNot { sharedDriveIdentity(it) == sharedDriveIdentity(item) } + item
             )
+            syncDriveSourcesToCloud()
         }
         syncControllerQueue()
         if (playNow) {
@@ -2556,6 +2559,7 @@ class MainActivity : ComponentActivity() {
 
         if (savedItems.size != initialSavedCount) {
             saveSharedDriveItems(savedItems)
+            syncDriveSourcesToCloud()
         }
         if (addedCount > 0) syncControllerQueue()
         return addedCount to existingCount
