@@ -6193,6 +6193,252 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
+    private fun RadioStationCard(station: RadioStation) {
+        val playing = activeRadioTitle == station.title && isPlaying
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(18.dp),
+            color = if (playing) Color(0xFF241B38) else Color(0xFF15161E),
+            border = androidx.compose.foundation.BorderStroke(
+                1.dp,
+                if (playing) Color(0xFF6E53A8) else Color(0xFF252936)
+            )
+        ) {
+            Row(
+                Modifier.fillMaxWidth().padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(
+                            Brush.linearGradient(
+                                listOf(Color(0xFF7653B8), Color(0xFF2C243E))
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("📻", fontSize = 22.sp)
+                }
+
+                Spacer(Modifier.width(10.dp))
+
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        station.title,
+                        color = Color.White,
+                        fontWeight = if (playing) FontWeight.ExtraBold else FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        station.description,
+                        color = Color(0xFF8F909E),
+                        fontSize = 11.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (playing) {
+                        Text(
+                            "● ĐANG PHÁT",
+                            color = Color(0xFFBFA9FF),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 1.sp
+                        )
+                    }
+                }
+
+                Spacer(Modifier.width(8.dp))
+
+                FilledTonalButton(
+                    onClick = {
+                        if (playing) controller?.pause()
+                        else playVerifiedRadio(station.title, station.streamUrls)
+                    },
+                    shape = CircleShape,
+                    contentPadding = PaddingValues(0.dp),
+                    modifier = Modifier.size(46.dp)
+                ) {
+                    Text(if (playing) "⏸" else "▶", fontSize = 18.sp)
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun VietnamRadioHubDialog() {
+        val sources = RadioCatalog.stations.map {
+            Triple(it.title, it.description, it.sourceUrl)
+        } + listOf(
+            Triple("VOV • Radio Việt Nam", "Cổng các kênh phát thanh trực tuyến của VOV", "https://vovmedia.vn/"),
+            Triple("VOH • Radio", "Radio và các kênh phát thanh của VOH", "https://voh.com.vn/radios"),
+            Triple("HTV • Radio", "Các kênh radio được HTV giới thiệu", "https://htv.vn/radio.htm"),
+            Triple("VOV3 • Podcast", "Podcast văn hóa, nghệ thuật và âm nhạc", "https://vov3.vov.vn/podcast"),
+            Triple("VOV3 • Lịch phát", "Xem lịch chương trình VOV3 theo khung giờ", "https://vov3.vov.vn/lich-phat-song")
+        )
+val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrls }
+        val normalizedFilter = radioFilter.trim().lowercase()
+        val filteredSources = if (normalizedFilter.isBlank()) sources else sources.filter { source ->
+            source.first.lowercase().contains(normalizedFilter) || source.second.lowercase().contains(normalizedFilter)
+        }
+        Dialog(onDismissRequest = {
+            showVietnamRadioHub = false
+            radioFilter = ""
+        }) {
+            Surface(
+                shape = RoundedCornerShape(26.dp),
+                color = Color(0xFF101117),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(Modifier.padding(18.dp)) {
+                    Text("RADIO VIỆT NAM", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "VOV1 • VOV2 • VOV3 phát trực tiếp bằng Media3/HLS; có tự động chuyển luồng dự phòng",
+                        color = Color(0xFF8F8F9A),
+                        fontSize = 12.sp
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = radioFilter,
+                        onValueChange = { radioFilter = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("Tìm đài") },
+                        placeholder = { Text("Ví dụ: Hà Nội, VOV3, FM 96") },
+                        shape = RoundedCornerShape(14.dp)
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "${filteredSources.size}/${sources.size} nguồn",
+                        color = Color(0xFF777D8D),
+                        fontSize = 11.sp
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    LazyColumn(
+                        modifier = Modifier.heightIn(max = 520.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(filteredSources) { source ->
+                            val streamUrls = verifiedStreams[source.first]
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = Color(0xFF181922),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    Modifier.fillMaxWidth().padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(source.first, color = Color.White, fontWeight = FontWeight.SemiBold)
+                                        Spacer(Modifier.height(2.dp))
+                                        Text(
+                                            if (!streamUrls.isNullOrEmpty()) "${source.second} • HLS + tự động dùng luồng dự phòng" else source.second,
+                                            color = Color(0xFF8F8F9A),
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                    Spacer(Modifier.width(8.dp))
+                                    if (!streamUrls.isNullOrEmpty()) {
+                                        Button(
+                                            onClick = {
+                                                showVietnamRadioHub = false
+                                                radioFilter = ""
+                                                playVerifiedRadio(source.first, streamUrls)
+                                            },
+                                            shape = RoundedCornerShape(12.dp)
+                                        ) { Text("PHÁT APP") }
+                                    } else {
+                                        OutlinedButton(
+                                            onClick = {
+                                                radioWebTitle = source.first
+                                                radioWebUrl = source.third
+                                                showVietnamRadioHub = false
+                                                radioFilter = ""
+                                            },
+                                            shape = RoundedCornerShape(12.dp)
+                                        ) { Text("MỞ NGUỒN") }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        "Các luồng Media3 chỉ dùng URL HTTPS HLS đã xác minh; các đài chưa có luồng phù hợp vẫn mở nguồn chính thức.",
+                        color = Color(0xFF777D8D),
+                        fontSize = 11.sp
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    TextButton(onClick = {
+                        showVietnamRadioHub = false
+                        radioFilter = ""
+                    }) { Text("Đóng") }
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun DriveOAuthDiagnosticsDialog() {
+        val sha1 = runCatching { driveOAuthManager.signingCertificateSha1() }
+            .getOrDefault("không đọc được SHA-1")
+
+        AlertDialog(
+            onDismissRequest = { showDriveOAuthDiagnostics = false },
+            title = { Text("GOOGLE DRIVE • OAUTH") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Text(
+                        "Thông tin phải khớp với Android OAuth Client trong Google Cloud.",
+                        color = Color(0xFF9B9BA8),
+                        fontSize = 12.sp
+                    )
+                    Text("Package", color = Color(0xFF777F8E), fontSize = 10.sp)
+                    Text(
+                        "com.ngocsi.music",
+                        color = Color.White,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text("SHA-1 APK đang chạy", color = Color(0xFF777F8E), fontSize = 10.sp)
+                    Text(
+                        sha1,
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text("Scopes yêu cầu", color = Color(0xFF777F8E), fontSize = 10.sp)
+                    Text(
+                        "drive.readonly\ndrive.appdata",
+                        color = Color.White,
+                        fontSize = 11.sp
+                    )
+                    Text(
+                        if (driveOAuthSignedIn) {
+                            "Trạng thái: đã được app xác nhận quyền Drive."
+                        } else {
+                            "Trạng thái: chưa xác nhận quyền Drive."
+                        },
+                        color = if (driveOAuthSignedIn) Color(0xFF9FE6B8) else Color(0xFFFFC857),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = { showDriveOAuthDiagnostics = false }) {
+                    Text("ĐÓNG")
+                }
+            }
+        )
+    }
+
+
+    @Composable
     private fun RadioWebViewDialog(url: String, title: String) {
         Dialog(
             onDismissRequest = { radioWebUrl = null },
