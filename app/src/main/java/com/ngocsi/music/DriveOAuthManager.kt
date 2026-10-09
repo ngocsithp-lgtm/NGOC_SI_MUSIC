@@ -13,6 +13,7 @@ import com.google.android.gms.auth.api.identity.Identity
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.common.api.Scope
 import com.google.android.gms.tasks.Tasks
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -70,7 +71,10 @@ class DriveOAuthManager(private val context: Context) {
                 }
             }
             .addOnFailureListener { error ->
-                clearAuthorizationState()
+                // A failed attempt can be caused by a temporary network or
+                // Google Play services error. Preserve the last known state;
+                // a real consent/resolution requirement is handled below when
+                // an authorization result explicitly reports hasResolution().
                 onFailure(error)
             }
     }
@@ -80,8 +84,6 @@ class DriveOAuthManager(private val context: Context) {
             authorizationClient.getAuthorizationResultFromIntent(data)
         }.onSuccess {
             markAuthorized(it)
-        }.onFailure {
-            clearAuthorizationState()
         }
 
     fun isSignedIn(): Boolean =
@@ -126,19 +128,28 @@ class DriveOAuthManager(private val context: Context) {
     }
 
     suspend fun accessToken(): String? = withContext(Dispatchers.IO) {
-        runCatching {
+        try {
             val result = Tasks.await(
                 Identity.getAuthorizationClient(context).authorize(authorizationRequest())
             )
             if (result.hasResolution()) {
+                // This is an explicit requirement for user interaction, so
+                // background playback/cloud sync must not pretend authorization
+                // is still ready. The Activity can launch the resolution flow.
                 clearAuthorizationState()
                 null
             } else {
                 markAuthorized(result)
                 result.accessToken
             }
-        }.getOrElse {
-            clearAuthorizationState()
+        } catch (cancelled: CancellationException) {
+            // Preserve structured concurrency; callers that cancel an import,
+            // prefetch or cloud sync must not have cancellation swallowed.
+            throw cancelled
+        } catch (_: Exception) {
+            // A network/Play services/API failure does not prove that the
+            // user's grant was revoked. Keep the last known state so a later
+            // retry can recover without forcing a new sign-in.
             null
         }
     }
