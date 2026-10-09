@@ -203,7 +203,7 @@ class MusicService : MediaSessionService() {
         // must only be attached to Google Drive REST media requests; attaching it
         // globally would leak the Drive credential to YouTube/Radio/other hosts.
         val httpFactory = DefaultHttpDataSource.Factory()
-            .setUserAgent("NGOC-SI-MUSIC/5.12 (Android)")
+            .setUserAgent("NGOC-SI-MUSIC/${BuildConfig.VERSION_NAME} (Android)")
 
         // Resolve each request by URI so Drive gets a fresh OAuth token while all
         // other online sources remain completely unauthenticated.

@@ -1,4 +1,4 @@
-name: Build NGOC SI MUSIC 5.12 PRO Debug APK
+name: Build NGOC SI MUSIC 5.13 PRO Debug APK
 # CI verification trigger: build and verify the current main branch.
 # Final UI polish CI verification.
 # Runner reset after UI verification.
@@ -101,7 +101,7 @@ jobs:
           ls -lh "$APK"
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt -print -quit)"
           test -n "$AAPT"
-          "$AAPT" dump badging "$APK" | grep -m1 -E "package: name='com.ngocsi.music'.*versionName='5.12'"
+          "$AAPT" dump badging "$APK" | grep -m1 -E "package: name='com.ngocsi.music'.*versionName='5.13'"
 
       - name: Print APK signing certificate (OAuth diagnostic)
         run: |
@@ -132,7 +132,7 @@ jobs:
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v6
         with:
-          name: NGOC_SI_MUSIC_5.12_PRO_DEBUG_APK
+          name: NGOC_SI_MUSIC_5.13_PRO_DEBUG_APK
           if-no-files-found: error
           path: |
             app/build/outputs/apk/debug/app-debug.apk
@@ -144,4 +144,4 @@ jobs:
         run: |
           TAG="ngoc-si-music-latest"
           gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
-          gh release create "$TAG" app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/app-debug.apk.sha256 --title "NGỌC SĨ MUSIC 5.12 PRO — Latest APK" --notes "Latest successful APK built from commit ${{ github.sha }}."
+          gh release create "$TAG" app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/app-debug.apk.sha256 --title "NGỌC SĨ MUSIC 5.13 PRO — Latest APK" --notes "Latest successful APK built from commit ${{ github.sha }}."
