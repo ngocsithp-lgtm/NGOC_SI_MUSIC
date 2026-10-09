@@ -55,8 +55,6 @@ private const val BEARING_SOURCE = "ngocsi-bearing-source"
 private const val BEARING_LAYER = "ngocsi-bearing-layer"
 
 private const val MAP_CACHE_SIZE_BYTES = 50L * 1024L * 1024L
-private const val OPENFREEMAP_STANDARD_STYLE =
-    "https://tiles.openfreemap.org/styles/liberty"
 private const val OSM_RASTER_FALLBACK =
     "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
 private val mapHttpLock = Any()
@@ -287,10 +285,12 @@ class NgocSiMapController internal constructor(
     private fun applyStyle(preserveCamera: Boolean) {
         usingRasterFallback = false
         val camera = map.cameraPosition
+        // Prefer direct raster tiles for the standard map. This avoids a
+        // blank canvas if a remote vector style, sprite, or glyph fails to load.
         val builder = if (layer == "satellite") {
             Style.Builder().fromJson(buildSatelliteStyleJson())
         } else {
-            Style.Builder().fromUri(OPENFREEMAP_STANDARD_STYLE)
+            Style.Builder().fromJson(buildRasterFallbackStyleJson())
         }
         map.setStyle(builder) {
             addOverlayLayers(it)
@@ -556,10 +556,12 @@ fun NativeOsmMapView(
                         controller = mapController
                         onMapReady(mapController)
 
+                        // Start with the reliable raster style rather than waiting on
+                        // remote vector-style assets that can leave a white canvas.
                         val initialStyle = if (selectedLayer == "satellite") {
                             Style.Builder().fromJson(buildSatelliteStyleJson())
                         } else {
-                            Style.Builder().fromUri(OPENFREEMAP_STANDARD_STYLE)
+                            Style.Builder().fromJson(buildRasterFallbackStyleJson())
                         }
                         map.setStyle(initialStyle) { style ->
                             addOverlayLayers(style)
