@@ -4,8 +4,8 @@ Android music player built with Kotlin, Jetpack Compose and AndroidX Media3.
 
 ## Bản PRO hiện tại
 
-- Version: **5.21 PRO**
-- Version code: **41**
+- Version: **5.22 PRO**
+- Version code: **42**
 - Package: **com.ngocsi.music**
 - Target/Compile SDK: **Android 16 / API 36**
 - Min SDK: **26**
@@ -37,7 +37,7 @@ Android music player built with Kotlin, Jetpack Compose and AndroidX Media3.
 
 ## Google Drive / OAuth Android
 
-APK 5.21 PRO hiện được GitHub Actions ký bằng chứng thư ổn định với SHA-1:
+APK 5.22 PRO hiện được GitHub Actions ký bằng chứng thư ổn định với SHA-1:
 
 **53:3F:A1:9C:58:A4:0D:92:66:8F:96:29:6E:7D:B3:4D:69:6A:ED**
 
@@ -81,7 +81,7 @@ Các URL livestream có thể thay đổi theo hạ tầng của đài; app gi�
 - OpenStreetMap embedded map with current-position marker
 - Native MapLibre street map with CARTO tiles and OpenStreetMap fallback
 - Native MapLibre rendering with visible loading/error diagnostics; WebView is no longer the map renderer
-- Esri World Imagery satellite layer inside the app
+- Esri World Imagery satellite layer inside the app, with corrected tile endpoint and explicit load-error reporting
 - In-app route calculation with OSRM/routing.openstreetmap.de fallbacks
 - GPS following, route-step guidance, off-route detection and rerouting
 - Google Maps used only as an external traffic/directions fallback
@@ -109,7 +109,7 @@ GitHub Actions chạy tự động:
 
 Artifact chuẩn:
 
-**NGOC_SI_MUSIC_5.21_PRO_DEBUG_APK**
+**NGOC_SI_MUSIC_5.22_PRO_DEBUG_APK**
 
 ## YouTube
 
