@@ -5,7 +5,7 @@ Android music player built with Kotlin, Jetpack Compose and AndroidX Media3.
 ## Bản PRO hiện tại
 
 - Version: **5.25 PRO**
-- Version code: **43**
+- Version code: **45**
 - Package: **com.ngocsi.music**
 - Target/Compile SDK: **Android 16 / API 36**
 - Min SDK: **26**
@@ -81,10 +81,8 @@ Các URL livestream có thể thay đổi theo hạ tầng của đài; app gi�
 - Trang chủ hiển thị phiên bản tự động từ cấu hình build, tránh nhãn phiên bản cũ.
 - Thanh tua trang chủ chỉ gửi lệnh seek khi thả tay; trong khi kéo, vị trí xem trước được cập nhật cục bộ để giảm lệnh tua dồn dập.
 - Tăng nhẹ cỡ chữ nhãn điều hướng và ô tiện ích để dễ đọc hơn trên điện thoại.
-
 - Sửa quy tắc thông báo hết giờ để không bị hụt khi giao diện và dịch vụ cập nhật trạng thái lệch nhịp; thêm kiểm thử đơn vị cho các trường hợp hết giờ/thay đổi hẹn giờ.
 - Pipeline build cả Debug và Release, xác minh chữ ký ổn định cho cả hai bản và tạo SHA-256 riêng.
-
 - Đã loại bỏ mục Bản đồ khỏi trang chủ, menu tiện ích và Cài đặt.
 - Đã gỡ màn hình Bản đồ khỏi luồng điều hướng trong ứng dụng; các chức năng vệ tinh, vị trí và chỉ đường không còn được cung cấp trong giao diện.
 
