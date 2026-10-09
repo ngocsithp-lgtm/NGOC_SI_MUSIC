@@ -20,7 +20,6 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -174,8 +173,9 @@ class NgocSiMapController internal constructor(
     fun setLayer(newLayer: String) {
         val normalized = if (newLayer == "satellite") "satellite" else "standard"
         if (layer == normalized) return
+        val preserveCamera = map.style != null
         layer = normalized
-        applyStyle(preserveCamera = true)
+        applyStyle(preserveCamera = preserveCamera)
     }
 
     override fun fitRoute(routePoints: List<Pair<Double, Double>>) {
@@ -254,8 +254,11 @@ class NgocSiMapController internal constructor(
         route = if (valid.size >= 2) valid else emptyList()
 
         if (requestedLayer != layer) {
+            // The very first style has no camera state to preserve. Center it
+            // on the requested location instead of leaving MapLibre at zoom 0.
+            val preserveCamera = map.style != null
             layer = requestedLayer
-            applyStyle(preserveCamera = true)
+            applyStyle(preserveCamera = preserveCamera)
             return
         }
 
@@ -551,7 +554,6 @@ fun NativeOsmMapView(
     onSatelliteFallback: () -> Unit = {},
     onMapReady: (AppMapController) -> Unit
 ) {
-    val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val latestOnMapReady = rememberUpdatedState(onMapReady)
     val latestOnUserGesture = rememberUpdatedState(onUserGesture)
