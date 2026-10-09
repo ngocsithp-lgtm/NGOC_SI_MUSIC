@@ -1,0 +1,19 @@
+{
+  "name": "ngoc-si-ai-functions",
+  "private": true,
+  "description": "Secure server-side AI gateway for NGỌC SĨ MUSIC",
+  "engines": { "node": "22" },
+  "main": "lib/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test lib/validation.test.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.5.0",
+    "firebase-functions": "^6.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.30",
+    "typescript": "^5.8.3"
+  }
+}
