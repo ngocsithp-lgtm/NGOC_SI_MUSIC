@@ -4,7 +4,7 @@ Android music player built with Kotlin, Jetpack Compose and AndroidX Media3.
 
 ## Bản PRO hiện tại
 
-- Version: **5.17 PRO**
+- Version: **5.18 PRO**
 - Version code: **36**
 - Package: **com.ngocsi.music**
 - Target/Compile SDK: **Android 16 / API 36**
@@ -37,7 +37,7 @@ Android music player built with Kotlin, Jetpack Compose and AndroidX Media3.
 
 ## Google Drive / OAuth Android
 
-APK 5.17 PRO hiện được GitHub Actions ký bằng chứng thư ổn định với SHA-1:
+APK 5.18 PRO hiện được GitHub Actions ký bằng chứng thư ổn định với SHA-1:
 
 **53:3F:A1:9C:58:A4:0D:92:66:8F:96:29:6E:7D:B3:4D:69:6A:ED**
 
@@ -108,7 +108,7 @@ GitHub Actions chạy tự động:
 
 Artifact chuẩn:
 
-**NGOC_SI_MUSIC_5.17_PRO_DEBUG_APK**
+**NGOC_SI_MUSIC_5.18_PRO_DEBUG_APK**
 
 ## YouTube
 
