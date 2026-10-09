@@ -3402,15 +3402,15 @@ class MainActivity : ComponentActivity() {
         if (!::prefs.isInitialized) return
         val endAt = prefs.getLong("sleep_timer_end_at", 0L).coerceAtLeast(0L)
         val now = System.currentTimeMillis()
-        if (endAt <= now) {
+        val remainingMinutes = SleepTimerRules.remainingMinutes(endAt, now)
+        if (remainingMinutes == 0) {
             sleepTimerEndAt = 0L
             sleepMinutes = 0
             return
         }
 
         sleepTimerEndAt = endAt
-        val remainingMs = endAt - now
-        sleepMinutes = kotlin.math.ceil(remainingMs / 60_000.0).toInt().coerceAtLeast(1)
+        sleepMinutes = remainingMinutes
     }
 
     private fun startSleepTimerUiTicker() {
@@ -3431,15 +3431,17 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startSleepTimer(minutes: Int) {
-        val cleanMinutes = minutes.coerceIn(0, 24 * 60)
-        if (cleanMinutes <= 0) {
+        val endAt = SleepTimerRules.deadline(System.currentTimeMillis(), minutes)
+        if (endAt == null) {
             sleepTimerEndAt = 0L
             sleepMinutes = 0
             prefs.edit().remove("sleep_timer_end_at").apply()
+            sleepTimerJob?.cancel()
+            sleepTimerJob = null
             return
         }
 
-        val endAt = System.currentTimeMillis() + cleanMinutes * 60_000L
+        sleepTimerEndAt = endAt
         prefs.edit().putLong("sleep_timer_end_at", endAt).apply()
         startSleepTimerUiTicker()
     }
