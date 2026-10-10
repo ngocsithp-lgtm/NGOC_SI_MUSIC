@@ -26,8 +26,8 @@ The server currently targets `gemini-2.5-flash-lite`, a lightweight model listed
 Use Chrome on your phone. If a page is difficult to navigate, open Chrome's menu (⋮) and enable **Desktop site**.
 
 1. Open https://console.firebase.google.com/ and sign in to Google. Never share your password or verification codes.
-2. Tap **Create a project**. Use a name such as `NGOC-SI-MUSIC-AI`. Google Analytics is not required for this MVP.
-3. In Project settings, copy the **Project ID**. This is an identifier, not a password.
+2. Select the existing Firebase project with Project ID `ngoc-si-music-ai` if it is still available in your account. Do not create a duplicate project. Only create a new project if that existing project is missing and you have verified which project contains the Android app registration and Firestore database. Google Analytics is not required for this MVP.
+3. In Project settings, verify the **Project ID** is `ngoc-si-music-ai`. A project ID is an identifier, not a password. Stop here if the ID differs; do not deploy the backend into an unverified project.
 4. Choose **Add app → Android** and enter package name exactly: `com.ngocsi.music`. Download `google-services.json` and keep it private until we provide a safe way to add it to the private repository or configure CI.
 5. Open **Build → Authentication → Get started → Sign-in method → Anonymous → Enable → Save**.
 6. Open **Build → App Check**, register the Android app, and select **Play Integrity**. Do not enforce production App Check until the actual app signing configuration is verified.
