@@ -137,6 +137,7 @@ private fun NgocSiAiPreviewScreen(
             input = listOf(input.trim(), recognizedSpeech.trim())
                 .filter { it.isNotBlank() }
                 .joinToString(" ")
+                .take(2_000)
             onSpeechConsumed()
         }
     }
