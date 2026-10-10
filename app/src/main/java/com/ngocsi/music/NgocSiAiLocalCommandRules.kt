@@ -20,6 +20,22 @@ internal enum class NgocSiAiLocalCommand {
  * Recognizes only short, explicit playback commands. A normal question such as
  * "Làm thế nào để phát nhạc?" is intentionally not treated as an action.
  */
+/**
+ * Accepts a playback command only when the recognized utterance starts with the
+ * explicit wake phrase "Ngọc Sĩ". This prevents background speech from triggering actions.
+ */
+internal fun classifyNgocSiAiWakePhrase(input: String): NgocSiAiLocalCommand? {
+    val normalized = Normalizer.normalize(input.trim().lowercase(Locale.ROOT), Normalizer.Form.NFD)
+        .replace("\\p{Mn}+".toRegex(), "")
+        .replace('đ', 'd')
+        .replace("[^a-z0-9]+".toRegex(), " ")
+        .trim()
+    if (!normalized.startsWith("ngoc si ")) return null
+    val commandPhrase = normalized.removePrefix("ngoc si ").trim()
+    if (commandPhrase.isBlank()) return null
+    return classifyNgocSiAiLocalCommand(commandPhrase)
+}
+
 internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? {
     var phrase = Normalizer.normalize(input.trim().lowercase(Locale.ROOT), Normalizer.Form.NFD)
         .replace("\\p{Mn}+".toRegex(), "")
