@@ -20,9 +20,11 @@ import android.os.Bundle
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 
+@UnstableApi
 /**
  * Experimental on-device wake-phrase listener. It intentionally refuses online recognition.
  * Start it only from a visible activity after RECORD_AUDIO permission has been granted.
