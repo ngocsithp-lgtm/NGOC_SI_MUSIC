@@ -1,6 +1,6 @@
 # NGỌC SĨ AI — Android integration branch
 
-**Status: experimental, unmerged, and not deployed.** This branch builds on the locally tested chat UI, adds a Firebase callable client, and keeps the current production app untouched. The main UI Preview PR and the backend PR remain separate.
+**Status: experimental, unmerged, and not deployed.** This isolated preview is based on the current `main` baseline, includes the chat UI, Firebase callable client, and backend source, and keeps the production package and APK workflow separate.
 
 ## Behaviour and safety boundaries
 
@@ -48,11 +48,11 @@ Create these secrets:
 
 These are Firebase **client configuration values**, not the Gemini API key. Client values are included in the compiled app, so restrict the Firebase API key to the APIs the app needs and rely on Authentication, App Check, and server-side quota checks for access control.
 
-After saving the secrets, run the workflow manually from branch `feature/ngoc-si-ai-android-integration` in GitHub Actions. The absence of these secrets is deliberately tolerated by the Gradle configuration: the APK remains in local preview mode.
+After saving the secrets, open the `NGOC SI AI Android Integration CI` workflow for branch `feature/ngoc-si-ai-complete-preview` in GitHub Actions. A push to the preview branch also runs the validation workflow. The absence of Firebase client secrets is deliberately tolerated by Gradle: the APK remains in local preview mode.
 
 ## Backend deployment and costs
 
-The backend implementation is maintained separately in PR #6: https://github.com/ngocsithp-lgtm/NGOC_SI_MUSIC/pull/6. It must pass review before it is merged or deployed. No cloud function is deployed by this Android workflow.
+The backend source is included in the isolated preview branch and is independently type-checked by `ai-backend-ci.yml`. It must still pass review before deployment. No cloud function is deployed by either CI workflow.
 
 Before a real online test, the backend must be deployed to the confirmed Firebase project and the Gemini key must be stored using a trusted Firebase CLI prompt:
 
