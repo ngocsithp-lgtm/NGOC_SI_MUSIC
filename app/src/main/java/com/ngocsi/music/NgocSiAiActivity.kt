@@ -251,6 +251,7 @@ private fun NgocSiAiPreviewScreen(
                     "Đã nhận nội dung trong bản xem trước. Firebase/Gemini chưa được cấu hình cho bản này, nên tin nhắn chưa được gửi lên máy chủ và không phát sinh phí AI."
                 )
             )
+            if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
             persistChatState()
             return
         }
@@ -261,7 +262,9 @@ private fun NgocSiAiPreviewScreen(
             conversation.removeAt(0)
             if (conversation.firstOrNull()?.role == "assistant") conversation.removeAt(0)
         }
-        persistChatState()
+        // Persist the visible user message immediately, but only persist API context
+        // after a successful reply so interrupted requests cannot create broken turns.
+        saveAiPreviewMessages(chatPreferences, messages)
         var history = conversation.takeLast(NGOC_SI_AI_MAX_HISTORY_MESSAGES)
         if (history.firstOrNull()?.role == "assistant") history = history.drop(1)
         isSending = true
