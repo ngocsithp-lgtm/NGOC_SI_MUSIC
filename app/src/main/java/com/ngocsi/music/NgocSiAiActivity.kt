@@ -157,6 +157,7 @@ private fun saveAiApiConversation(
 @UnstableApi
 class NgocSiAiActivity : ComponentActivity() {
     private var recognizedSpeech by mutableStateOf("")
+    private var recognizedSpeechShouldSend by mutableStateOf(false)
     private var wakeWordListening by mutableStateOf(false)
     private var musicController: MediaController? = null
     private var responseTts: TextToSpeech? = null
@@ -172,11 +173,13 @@ class NgocSiAiActivity : ComponentActivity() {
                 .trim()
             val command = phrase.takeIf { it.isNotBlank() }?.let(::classifyNgocSiAiLocalCommand)
             if (command != null) {
+                recognizedSpeechShouldSend = false
                 val reply = runLocalCommand(command)
                 speakVoiceReply(reply)
                 Toast.makeText(this, reply, Toast.LENGTH_LONG).show()
-            } else {
+            } else if (phrase.isNotBlank()) {
                 recognizedSpeech = phrase
+                recognizedSpeechShouldSend = true
             }
         }
 
@@ -226,7 +229,11 @@ class NgocSiAiActivity : ComponentActivity() {
                 voiceRepliesEnabled = voiceRepliesEnabled,
                 onToggleVoiceReplies = { toggleVoiceReplies() },
                 recognizedSpeech = recognizedSpeech,
-                onSpeechConsumed = { recognizedSpeech = "" },
+                recognizedSpeechShouldSend = recognizedSpeechShouldSend,
+                onSpeechConsumed = {
+                    recognizedSpeech = ""
+                    recognizedSpeechShouldSend = false
+                },
                 onBack = { finish() },
                 onVoice = { startVoiceInput() },
                 isWakeWordListening = wakeWordListening,
@@ -401,6 +408,7 @@ private fun NgocSiAiPreviewScreen(
     voiceRepliesEnabled: Boolean,
     onToggleVoiceReplies: () -> Unit,
     recognizedSpeech: String,
+    recognizedSpeechShouldSend: Boolean,
     onSpeechConsumed: () -> Unit,
     onBack: () -> Unit,
     onVoice: () -> Unit,
@@ -432,16 +440,6 @@ private fun NgocSiAiPreviewScreen(
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
             messageListState.animateScrollToItem(messages.lastIndex)
-        }
-    }
-
-    LaunchedEffect(recognizedSpeech) {
-        if (recognizedSpeech.isNotBlank()) {
-            input = listOf(input.trim(), recognizedSpeech.trim())
-                .filter { it.isNotBlank() }
-                .joinToString(" ")
-                .take(2_000)
-            onSpeechConsumed()
         }
     }
 
@@ -517,6 +515,22 @@ private fun NgocSiAiPreviewScreen(
                 onVoiceReply(errorReply)
             } finally {
                 isSending = false
+            }
+        }
+    }
+
+    LaunchedEffect(recognizedSpeech, recognizedSpeechShouldSend) {
+        if (recognizedSpeech.isNotBlank()) {
+            val phrase = recognizedSpeech.trim()
+            val shouldSubmitToOnlineAi = recognizedSpeechShouldSend && isOnlineConfigured
+            onSpeechConsumed()
+            if (shouldSubmitToOnlineAi) {
+                sendMessage(phrase)
+            } else {
+                input = listOf(input.trim(), phrase)
+                    .filter { it.isNotBlank() }
+                    .joinToString(" ")
+                    .take(2_000)
             }
         }
     }
@@ -696,7 +710,7 @@ private fun NgocSiAiPreviewScreen(
                 Spacer(Modifier.width(9.dp))
                 Text(
                     if (isOnlineConfigured) {
-                        "Chế độ kiểm thử trực tuyến • Tin nhắn gửi tới máy chủ AI. Không nhập thông tin nhạy cảm."
+                        "Chế độ trực tuyến • Câu nói qua micro sẽ gửi tới máy chủ AI sau khi nhận dạng. Không đọc thông tin nhạy cảm."
                     } else {
                         "Bản xem trước • Chưa cấu hình Firebase • Không phát sinh phí AI"
                     },
@@ -802,7 +816,14 @@ private fun NgocSiAiPreviewScreen(
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(7.dp)
             ) {
-                listOf("Phát nhạc", "Tạm dừng nhạc", "Bài tiếp theo", "Bài trước", "Đang phát bài gì?", "Phát ngẫu nhiên", "Tắt phát ngẫu nhiên", "Lặp hàng đợi", "Lặp một bài", "Tắt chế độ lặp").forEach { suggestion ->
+                val suggestions = (if (isOnlineConfigured) {
+                    listOf("Bạn có thể giúp gì?", "Giải thích bằng tiếng Việt dễ hiểu", "Tóm tắt nội dung này", "Lên kế hoạch cho tôi", "Viết nội dung giúp tôi")
+                } else emptyList()) + listOf(
+                    "Phát nhạc", "Tạm dừng nhạc", "Bài tiếp theo", "Bài trước",
+                    "Đang phát bài gì?", "Phát ngẫu nhiên", "Tắt phát ngẫu nhiên",
+                    "Lặp hàng đợi", "Lặp một bài", "Tắt chế độ lặp"
+                )
+                suggestions.forEach { suggestion ->
                     Surface(
                         modifier = Modifier.clickable { input = suggestion },
                         shape = RoundedCornerShape(50),
@@ -884,7 +905,7 @@ private fun NgocSiAiPreviewScreen(
             Text(
                 when {
                     isSending -> "Đang gửi yêu cầu đến máy chủ NGỌC SĨ AI…"
-                    isOnlineConfigured -> quotaNote.ifBlank { "Tin nhắn chỉ được gửi khi bạn nhấn nút gửi." }
+                    isOnlineConfigured -> quotaNote.ifBlank { "Nhấn GỬI để hỏi, hoặc dùng micro để gửi câu hỏi tự động sau khi nhận dạng." }
                     else -> "Bản xem trước chạy cục bộ; lịch sử được lưu trên điện thoại."
                 },
                 color = Color(0xFF666D7D),
