@@ -38,7 +38,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -64,8 +67,11 @@ class NgocSiAiActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val aiClient = NgocSiAiRemoteClient(applicationContext)
         setContent {
             NgocSiAiPreviewScreen(
+                isOnlineConfigured = aiClient.isConfigured,
+                onSendOnline = { history -> aiClient.send(history) },
                 recognizedSpeech = recognizedSpeech,
                 onSpeechConsumed = { recognizedSpeech = "" },
                 onBack = { finish() },
@@ -86,6 +92,8 @@ class NgocSiAiActivity : ComponentActivity() {
 
 @Composable
 private fun NgocSiAiPreviewScreen(
+    isOnlineConfigured: Boolean,
+    onSendOnline: suspend (List<NgocSiAiMessage>) -> NgocSiAiReply,
     recognizedSpeech: String,
     onSpeechConsumed: () -> Unit,
     onBack: () -> Unit,
@@ -95,11 +103,19 @@ private fun NgocSiAiPreviewScreen(
         mutableStateListOf(
             AiPreviewMessage(
                 false,
-                "Xin chào! Tôi là NGỌC SĨ AI. Đây là bản xem trước giao diện; AI trực tuyến chưa được kết nối."
+                if (isOnlineConfigured) {
+                    "Xin chào! NGỌC SĨ AI đang ở chế độ kiểm thử trực tuyến. Chỉ gửi câu hỏi khi bạn nhấn nút gửi."
+                } else {
+                    "Xin chào! Tôi là NGỌC SĨ AI. Đây là bản xem trước giao diện; AI trực tuyến chưa được cấu hình."
+                }
             )
         )
     }
     var input by remember { mutableStateOf("") }
+    val conversation = remember { mutableStateListOf<NgocSiAiMessage>() }
+    val coroutineScope = rememberCoroutineScope()
+    var isSending by remember { mutableStateOf(false) }
+    var quotaNote by remember { mutableStateOf("") }
     val messageListState = androidx.compose.foundation.lazy.rememberLazyListState()
 
     LaunchedEffect(messages.size) {
@@ -119,15 +135,56 @@ private fun NgocSiAiPreviewScreen(
 
     fun sendMessage(text: String) {
         val clean = text.trim()
-        if (clean.isBlank()) return
+        if (clean.isBlank() || isSending) return
         messages.add(AiPreviewMessage(true, clean))
-        messages.add(
-            AiPreviewMessage(
-                false,
-                "Đã nhận nội dung trong bản xem trước. Chức năng trả lời AI trực tuyến chưa được bật, nên tin nhắn này chưa được gửi tới Gemini và chưa phát sinh phí AI."
-            )
-        )
         input = ""
+
+        if (!isOnlineConfigured) {
+            messages.add(
+                AiPreviewMessage(
+                    false,
+                    "Đã nhận nội dung trong bản xem trước. Firebase/Gemini chưa được cấu hình cho bản này, nên tin nhắn chưa được gửi lên máy chủ và không phát sinh phí AI."
+                )
+            )
+            return
+        }
+
+        val userTurn = NgocSiAiMessage(role = "user", content = clean)
+        conversation.add(userTurn)
+        var history = conversation.takeLast(8)
+        if (history.firstOrNull()?.role == "assistant") history = history.drop(1)
+        isSending = true
+        coroutineScope.launch {
+            try {
+                val reply = onSendOnline(history.toList())
+                conversation.add(NgocSiAiMessage(role = "assistant", content = reply.answer))
+                messages.add(AiPreviewMessage(false, reply.answer))
+                val userRemaining = reply.remainingToday?.let { "Còn $it lượt/tài khoản hôm nay" }
+                val globalRemaining = reply.remainingGlobalToday?.let { "Còn $it lượt toàn hệ thống hôm nay" }
+                quotaNote = listOfNotNull(userRemaining, globalRemaining).joinToString(" • ")
+            } catch (cancelled: CancellationException) {
+                conversation.remove(userTurn)
+                throw cancelled
+            } catch (error: NgocSiAiRemoteException) {
+                conversation.remove(userTurn)
+                messages.add(
+                    AiPreviewMessage(
+                        false,
+                        error.message ?: "Không thể kết nối NGỌC SĨ AI. Vui lòng thử lại."
+                    )
+                )
+            } catch (_: Exception) {
+                conversation.remove(userTurn)
+                messages.add(
+                    AiPreviewMessage(
+                        false,
+                        "Có lỗi khi gửi yêu cầu AI. Hãy kiểm tra kết nối và cấu hình Firebase."
+                    )
+                )
+            } finally {
+                isSending = false
+            }
+        }
     }
 
     Column(
@@ -175,7 +232,7 @@ private fun NgocSiAiPreviewScreen(
                 color = Color(0xFF242033)
             ) {
                 Text(
-                    "PREVIEW",
+                    if (isOnlineConfigured) "AI TEST" else "PREVIEW",
                     color = Color(0xFFC7B5FF),
                     fontSize = 9.sp,
                     fontWeight = FontWeight.Black,
@@ -199,7 +256,11 @@ private fun NgocSiAiPreviewScreen(
                 Text("✦", color = Color(0xFFB99AFF), fontSize = 19.sp)
                 Spacer(Modifier.width(9.dp))
                 Text(
-                    "Bản thử giao diện • Chưa kết nối AI • Không phát sinh phí AI",
+                    if (isOnlineConfigured) {
+                        "Chế độ kiểm thử trực tuyến • Tin nhắn gửi tới máy chủ AI. Không nhập thông tin nhạy cảm."
+                    } else {
+                        "Bản xem trước • Chưa cấu hình Firebase • Không phát sinh phí AI"
+                    },
                     color = Color(0xFFC7C1D8),
                     fontSize = 10.sp,
                     lineHeight = 15.sp
@@ -348,18 +409,22 @@ private fun NgocSiAiPreviewScreen(
                 Surface(
                     modifier = Modifier
                         .size(40.dp)
-                        .clickable { sendMessage(input) },
+                        .clickable(enabled = !isSending) { sendMessage(input) },
                     shape = CircleShape,
-                    color = Color(0xFF8DEEFF)
+                    color = if (isSending) Color(0xFF515661) else Color(0xFF8DEEFF)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Text("↑", color = Color(0xFF061018), fontSize = 22.sp, fontWeight = FontWeight.Black)
+                        Text(if (isSending) "…" else "↑", color = Color(0xFF061018), fontSize = 22.sp, fontWeight = FontWeight.Black)
                     }
                 }
             }
             Spacer(Modifier.height(5.dp))
             Text(
-                "Bản xem trước chỉ giữ tin nhắn trong màn hình hiện tại.",
+                when {
+                    isSending -> "Đang gửi yêu cầu đến máy chủ NGỌC SĨ AI…"
+                    isOnlineConfigured -> quotaNote.ifBlank { "Tin nhắn chỉ được gửi khi bạn nhấn nút gửi." }
+                    else -> "Bản xem trước chỉ giữ tin nhắn trong màn hình hiện tại."
+                },
                 color = Color(0xFF666D7D),
                 fontSize = 9.sp
             )
