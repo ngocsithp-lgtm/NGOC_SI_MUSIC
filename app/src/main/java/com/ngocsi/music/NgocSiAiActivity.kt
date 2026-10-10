@@ -71,6 +71,7 @@ private data class AiPreviewMessage(val isUser: Boolean, val text: String)
 private const val AI_CHAT_PREFS_NAME = "ngoc_si_ai_chat_history"
 private const val AI_CHAT_MESSAGES_KEY = "chat_messages_v1"
 private const val AI_CHAT_CONVERSATION_KEY = "api_conversation_v1"
+private const val AI_VOICE_REPLY_KEY = "voice_replies_enabled_v1"
 private const val MAX_SAVED_AI_UI_MESSAGES = 60
 private const val MAX_SAVED_AI_MESSAGE_CHARS = 4_000
 
@@ -160,6 +161,7 @@ class NgocSiAiActivity : ComponentActivity() {
     private var musicController: MediaController? = null
     private var responseTts: TextToSpeech? = null
     private var responseTtsReady = false
+    private var voiceRepliesEnabled by mutableStateOf(true)
 
     private val speechLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -210,6 +212,8 @@ class NgocSiAiActivity : ComponentActivity() {
         val aiChatPreferences = getSharedPreferences(AI_CHAT_PREFS_NAME, MODE_PRIVATE)
         wakeWordListening = getSharedPreferences(NgocSiWakeWordService.PREFS_NAME, MODE_PRIVATE)
             .getBoolean(NgocSiWakeWordService.KEY_ENABLED, false)
+        voiceRepliesEnabled = getSharedPreferences(AI_CHAT_PREFS_NAME, MODE_PRIVATE)
+            .getBoolean(AI_VOICE_REPLY_KEY, true)
         connectMusicController()
         setContent {
             NgocSiAiPreviewScreen(
@@ -217,6 +221,10 @@ class NgocSiAiActivity : ComponentActivity() {
                 chatPreferences = aiChatPreferences,
                 onSendOnline = { history -> aiClient.send(history) },
                 onLocalCommand = { command -> runLocalCommand(command) },
+                onVoiceReply = { message -> speakVoiceReply(message) },
+                onSpeakMessage = { message -> speakVoiceReply(message, force = true) },
+                voiceRepliesEnabled = voiceRepliesEnabled,
+                onToggleVoiceReplies = { toggleVoiceReplies() },
                 recognizedSpeech = recognizedSpeech,
                 onSpeechConsumed = { recognizedSpeech = "" },
                 onBack = { finish() },
@@ -311,7 +319,8 @@ class NgocSiAiActivity : ComponentActivity() {
         }
     }
 
-    private fun speakVoiceReply(message: String) {
+    private fun speakVoiceReply(message: String, force: Boolean = false) {
+        if (!force && !voiceRepliesEnabled) return
         val tts = responseTts
         if (responseTtsReady && tts != null) {
             tts.speak(message, TextToSpeech.QUEUE_FLUSH, null, "ngoc_si_activity_reply")
@@ -328,6 +337,19 @@ class NgocSiAiActivity : ComponentActivity() {
         responseTts = null
         responseTtsReady = false
         super.onDestroy()
+    }
+
+    private fun toggleVoiceReplies() {
+        voiceRepliesEnabled = !voiceRepliesEnabled
+        getSharedPreferences(AI_CHAT_PREFS_NAME, MODE_PRIVATE).edit()
+            .putBoolean(AI_VOICE_REPLY_KEY, voiceRepliesEnabled)
+            .apply()
+        if (voiceRepliesEnabled) {
+            speakVoiceReply("Đã bật đọc câu trả lời bằng giọng nói.")
+        } else {
+            runCatching { responseTts?.stop() }
+            Toast.makeText(this, "Đã tắt đọc câu trả lời bằng giọng nói.", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun toggleWakeWordListening() {
@@ -374,6 +396,10 @@ private fun NgocSiAiPreviewScreen(
     chatPreferences: SharedPreferences,
     onSendOnline: suspend (List<NgocSiAiMessage>) -> NgocSiAiReply,
     onLocalCommand: (NgocSiAiLocalCommand) -> String,
+    onVoiceReply: (String) -> Unit,
+    onSpeakMessage: (String) -> Unit,
+    voiceRepliesEnabled: Boolean,
+    onToggleVoiceReplies: () -> Unit,
     recognizedSpeech: String,
     onSpeechConsumed: () -> Unit,
     onBack: () -> Unit,
@@ -428,9 +454,11 @@ private fun NgocSiAiPreviewScreen(
 
         val localCommand = classifyNgocSiAiLocalCommand(clean)
         if (localCommand != null) {
-            messages.add(AiPreviewMessage(false, onLocalCommand(localCommand)))
+            val commandReply = onLocalCommand(localCommand)
+            messages.add(AiPreviewMessage(false, commandReply))
             if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
             persistChatState()
+            onVoiceReply(commandReply)
             return
         }
 
@@ -465,6 +493,7 @@ private fun NgocSiAiPreviewScreen(
                 messages.add(AiPreviewMessage(false, reply.answer))
                 if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
                 persistChatState()
+                onVoiceReply(reply.answer)
                 val userRemaining = reply.remainingToday?.let { "Còn $it lượt/tài khoản hôm nay" }
                 val globalRemaining = reply.remainingGlobalToday?.let { "Còn $it lượt toàn hệ thống hôm nay" }
                 quotaNote = listOfNotNull(userRemaining, globalRemaining).joinToString(" • ")
@@ -474,24 +503,18 @@ private fun NgocSiAiPreviewScreen(
                 throw cancelled
             } catch (error: NgocSiAiRemoteException) {
                 if (conversation.lastOrNull() == userTurn) conversation.removeAt(conversation.lastIndex)
-                messages.add(
-                    AiPreviewMessage(
-                        false,
-                        error.message ?: "Không thể kết nối NGỌC SĨ AI. Vui lòng thử lại."
-                    )
-                )
+                val errorReply = error.message ?: "Không thể kết nối NGỌC SĨ AI. Vui lòng thử lại."
+                messages.add(AiPreviewMessage(false, errorReply))
                 if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
                 persistChatState()
+                onVoiceReply(errorReply)
             } catch (_: Exception) {
                 if (conversation.lastOrNull() == userTurn) conversation.removeAt(conversation.lastIndex)
-                messages.add(
-                    AiPreviewMessage(
-                        false,
-                        "Có lỗi khi gửi yêu cầu AI. Hãy kiểm tra kết nối và cấu hình Firebase."
-                    )
-                )
+                val errorReply = "Có lỗi khi gửi yêu cầu AI. Hãy kiểm tra kết nối và cấu hình Firebase."
+                messages.add(AiPreviewMessage(false, errorReply))
                 if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
                 persistChatState()
+                onVoiceReply(errorReply)
             } finally {
                 isSending = false
             }
@@ -587,6 +610,24 @@ private fun NgocSiAiPreviewScreen(
                     fontSize = 9.sp,
                     fontWeight = FontWeight.Black,
                     modifier = Modifier.padding(horizontal = 9.dp, vertical = 7.dp)
+                )
+            }
+            Spacer(Modifier.width(5.dp))
+            Surface(
+                modifier = Modifier.clickable(onClick = onToggleVoiceReplies),
+                shape = RoundedCornerShape(50),
+                color = if (voiceRepliesEnabled) Color(0xFF123329) else Color(0xFF242033),
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    if (voiceRepliesEnabled) Color(0xFF39C98A) else Color(0xFF3A334A)
+                )
+            ) {
+                Text(
+                    if (voiceRepliesEnabled) "🔊" else "🔇",
+                    color = if (voiceRepliesEnabled) Color(0xFF71E6B2) else Color(0xFFB9C4D6),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Black,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp)
                 )
             }
             Spacer(Modifier.width(5.dp))
@@ -691,29 +732,52 @@ private fun NgocSiAiPreviewScreen(
                         }
                         Spacer(Modifier.width(8.dp))
                     }
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(0.84f),
-                        shape = RoundedCornerShape(
-                            topStart = 18.dp,
-                            topEnd = 18.dp,
-                            bottomStart = if (message.isUser) 18.dp else 5.dp,
-                            bottomEnd = if (message.isUser) 5.dp else 18.dp
-                        ),
-                        color = if (message.isUser) Color(0xFF25213A) else Color(0xFF141821),
-                        border = androidx.compose.foundation.BorderStroke(
-                            1.dp,
-                            if (message.isUser) Color(0xFF44376B) else Color(0xFF252B37)
-                        )
-                    ) {
-                        Text(
-                            message.text,
-                            modifier = Modifier.padding(horizontal = 13.dp, vertical = 12.dp),
-                            color = if (message.isUser) Color(0xFFF0ECFF) else Color(0xFFD9DCE5),
-                            fontSize = 13.sp,
-                            lineHeight = 19.sp
-                        )
+                    Column(modifier = Modifier.fillMaxWidth(0.84f)) {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(
+                                topStart = 18.dp,
+                                topEnd = 18.dp,
+                                bottomStart = if (message.isUser) 18.dp else 5.dp,
+                                bottomEnd = if (message.isUser) 5.dp else 18.dp
+                            ),
+                            color = if (message.isUser) Color(0xFF25213A) else Color(0xFF141821),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                if (message.isUser) Color(0xFF44376B) else Color(0xFF252B37)
+                            )
+                        ) {
+                            Text(
+                                message.text,
+                                modifier = Modifier.padding(horizontal = 13.dp, vertical = 12.dp),
+                                color = if (message.isUser) Color(0xFFF0ECFF) else Color(0xFFD9DCE5),
+                                fontSize = 13.sp,
+                                lineHeight = 19.sp
+                            )
+                        }
+                        if (!message.isUser) {
+                            Spacer(Modifier.height(4.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End
+                            ) {
+                                Surface(
+                                    modifier = Modifier.clickable { onSpeakMessage(message.text) },
+                                    shape = RoundedCornerShape(50),
+                                    color = Color(0xFF171B25),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF2B3040))
+                                ) {
+                                    Text(
+                                        "🔊 ĐỌC",
+                                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                                        color = Color(0xFFB9C4D6),
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
                     }
-                    if (message.isUser) Spacer(Modifier.width(2.dp))
                 }
             }
         }
