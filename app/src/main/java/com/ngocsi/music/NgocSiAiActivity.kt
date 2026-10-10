@@ -15,6 +15,8 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
 import android.speech.RecognizerIntent
+import android.speech.RecognitionListener
+import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.widget.Toast
@@ -170,6 +172,8 @@ class NgocSiAiActivity : ComponentActivity() {
     private var recognizedSpeech by mutableStateOf("")
     private var recognizedSpeechShouldSend by mutableStateOf(false)
     private var wakeWordListening by mutableStateOf(false)
+    private var voiceRecognizer: SpeechRecognizer? = null
+    private var voiceRecognitionInProgress = false
     private var musicController: MediaController? = null
     private var deviceQueueLoadStarted = false
     // Preserve the explicit "play" request if the device library is still loading.
@@ -200,8 +204,84 @@ class NgocSiAiActivity : ComponentActivity() {
         }
     }
 
+    private val inAppSpeechListener = object : RecognitionListener {
+        override fun onReadyForSpeech(params: Bundle?) {
+            runOnUiThread {
+                if (!isFinishing && !isDestroyed) {
+                    Toast.makeText(this@NgocSiAiActivity, "Micro đang nghe tiếng Việt. Hãy nói lệnh ngay bây giờ.", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        override fun onBeginningOfSpeech() = Unit
+        override fun onRmsChanged(rmsdB: Float) = Unit
+        override fun onBufferReceived(buffer: ByteArray?) = Unit
+        override fun onEndOfSpeech() = Unit
+
+        override fun onError(error: Int) {
+            runOnUiThread {
+                voiceRecognitionInProgress = false
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                val message = when (error) {
+                    SpeechRecognizer.ERROR_AUDIO ->
+                        "Không thu được âm thanh. Hãy kiểm tra micro và thử lại."
+                    SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS ->
+                        "Ứng dụng chưa được cấp quyền micro. Hãy cho phép quyền Micro trong Cài đặt."
+                    SpeechRecognizer.ERROR_NETWORK,
+                    SpeechRecognizer.ERROR_NETWORK_TIMEOUT,
+                    SpeechRecognizer.ERROR_SERVER ->
+                        "Dịch vụ nhận dạng tiếng Việt không kết nối được. Hãy kiểm tra Internet hoặc thử lại."
+                    SpeechRecognizer.ERROR_NO_MATCH ->
+                        "Chưa nghe rõ câu lệnh. Hãy nói gần micro, rõ ràng rồi nhấn micro thử lại."
+                    SpeechRecognizer.ERROR_SPEECH_TIMEOUT ->
+                        "Chưa phát hiện tiếng nói. Hãy nhấn micro rồi bắt đầu nói ngay."
+                    SpeechRecognizer.ERROR_RECOGNIZER_BUSY ->
+                        "Dịch vụ nhận dạng đang bận. Đợi một chút rồi thử lại."
+                    SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED,
+                    SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE ->
+                        "Dịch vụ nhận dạng trên máy chưa hỗ trợ tiếng Việt. Hãy cập nhật ứng dụng Google hoặc Speech Services."
+                    else ->
+                        "Nhận dạng giọng nói gặp lỗi (mã $error). Hãy thử lại hoặc cập nhật dịch vụ Google."
+                }
+                Toast.makeText(this@NgocSiAiActivity, message, Toast.LENGTH_LONG).show()
+            }
+        }
+
+        override fun onResults(results: Bundle?) {
+            val phrase = results
+                ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                ?.firstOrNull()
+                .orEmpty()
+                .trim()
+            runOnUiThread {
+                voiceRecognitionInProgress = false
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (phrase.isBlank()) {
+                    Toast.makeText(
+                        this@NgocSiAiActivity,
+                        "Chưa nhận được câu lệnh. Hãy nhấn micro và nói lại.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                } else {
+                    Toast.makeText(
+                        this@NgocSiAiActivity,
+                        "Đã nhận giọng nói: ${phrase.take(100)}",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    // Use the same allowlisted command/chat path as typed input.
+                    recognizedSpeech = phrase
+                    recognizedSpeechShouldSend = true
+                }
+            }
+        }
+
+        override fun onPartialResults(partialResults: Bundle?) = Unit
+        override fun onEvent(eventType: Int, params: Bundle?) = Unit
+    }
+
     private val speechLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            voiceRecognitionInProgress = false
             val phrase = result.data
                 ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
                 ?.firstOrNull()
@@ -671,6 +751,10 @@ class NgocSiAiActivity : ComponentActivity() {
         musicController?.release()
         musicController = null
         runCatching { responseTts?.stop() }
+        runCatching { voiceRecognizer?.cancel() }
+        runCatching { voiceRecognizer?.destroy() }
+        voiceRecognizer = null
+        voiceRecognitionInProgress = false
         runCatching { responseTts?.shutdown() }
         responseTts = null
         responseTtsInitialized = false
@@ -735,18 +819,41 @@ class NgocSiAiActivity : ComponentActivity() {
                 "Nói tiếng Việt, ví dụ: Phát nhạc, tạm dừng, chuyển bài hoặc hỏi một câu"
             )
         }
+        if (voiceRecognitionInProgress) {
+            Toast.makeText(this, "Micro đang nghe. Hãy nói lệnh hoặc đợi kết thúc.", Toast.LENGTH_SHORT).show()
+            return
+        }
         try {
-            speechLauncher.launch(intent)
-        } catch (_: ActivityNotFoundException) {
-            Toast.makeText(
-                this,
-                "Điện thoại chưa có dịch vụ nhận dạng giọng nói. Hãy cập nhật ứng dụng Google hoặc Speech Services by Google rồi thử lại.",
-                Toast.LENGTH_LONG
-            ).show()
+            if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+                // Keep the Android/Google speech activity as a fallback on devices
+                // that do not expose a RecognitionService directly to the app.
+                speechLauncher.launch(intent)
+                return
+            }
+            val recognizer = voiceRecognizer ?: SpeechRecognizer.createSpeechRecognizer(this).also {
+                it.setRecognitionListener(inAppSpeechListener)
+                voiceRecognizer = it
+            }
+            voiceRecognitionInProgress = true
+            Toast.makeText(this, "Đang khởi động micro…", Toast.LENGTH_SHORT).show()
+            recognizer.startListening(intent)
         } catch (_: SecurityException) {
+            voiceRecognitionInProgress = false
             Toast.makeText(this, "Thiếu quyền micro. Hãy cấp quyền micro cho NGỌC SĨ AI Preview.", Toast.LENGTH_LONG).show()
         } catch (_: Exception) {
-            Toast.makeText(this, "Không thể mở nhận dạng giọng nói. Hãy kiểm tra quyền micro và cập nhật dịch vụ Google.", Toast.LENGTH_LONG).show()
+            voiceRecognitionInProgress = false
+            // If the direct service cannot start, fall back to Android's speech UI.
+            runCatching {
+                runCatching { voiceRecognizer?.destroy() }
+                voiceRecognizer = null
+                speechLauncher.launch(intent)
+            }.onFailure {
+                Toast.makeText(
+                    this,
+                    "Không mở được dịch vụ nhận dạng giọng nói. Hãy cập nhật ứng dụng Google hoặc Speech Services by Google.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
         }
     }
 }
