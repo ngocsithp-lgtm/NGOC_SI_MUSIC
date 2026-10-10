@@ -5,6 +5,31 @@ internal const val NGOC_SI_AI_MAX_MESSAGE_CHARS = 2_000
 internal const val NGOC_SI_AI_MAX_TOTAL_CHARS = 8_000
 
 /**
+ * Restores only completed user/assistant turns from persisted chat context.
+ * A trailing user message means a request was interrupted before its answer was saved.
+ */
+internal fun restoreCompletedNgocSiAiConversation(
+    messages: List<NgocSiAiMessage>
+): List<NgocSiAiMessage> {
+    var bounded = messages.takeLast(NGOC_SI_AI_MAX_HISTORY_MESSAGES)
+        .dropWhile { it.role == "assistant" }
+    if (bounded.lastOrNull()?.role == "user") bounded = bounded.dropLast(1)
+
+    val rolesAlternate = bounded.zipWithNext().all { (first, second) ->
+        first.role != second.role
+    }
+    val contentValid = bounded.all {
+        (it.role == "user" || it.role == "assistant") && it.content.isNotBlank()
+    }
+    return if (
+        contentValid &&
+        rolesAlternate &&
+        bounded.firstOrNull()?.role == "user" &&
+        bounded.lastOrNull()?.role == "assistant"
+    ) bounded else emptyList()
+}
+
+/**
  * Validates the messages for a Gemini request and trims the oldest complete turns
  * until the payload fits the server's total-character budget.
  *
