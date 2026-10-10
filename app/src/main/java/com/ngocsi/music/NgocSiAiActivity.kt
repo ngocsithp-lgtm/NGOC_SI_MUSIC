@@ -10,6 +10,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.speech.RecognizerIntent
+import android.speech.tts.TextToSpeech
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -54,6 +55,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import java.util.Locale
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -156,13 +158,24 @@ class NgocSiAiActivity : ComponentActivity() {
     private var recognizedSpeech by mutableStateOf("")
     private var wakeWordListening by mutableStateOf(false)
     private var musicController: MediaController? = null
+    private var responseTts: TextToSpeech? = null
+    private var responseTtsReady = false
 
     private val speechLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            recognizedSpeech = result.data
+            val phrase = result.data
                 ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
                 ?.firstOrNull()
                 .orEmpty()
+                .trim()
+            val command = phrase.takeIf { it.isNotBlank() }?.let(::classifyNgocSiAiLocalCommand)
+            if (command != null) {
+                val reply = runLocalCommand(command)
+                speakVoiceReply(reply)
+                Toast.makeText(this, reply, Toast.LENGTH_LONG).show()
+            } else {
+                recognizedSpeech = phrase
+            }
         }
 
     private val wakeWordPermissionLauncher =
@@ -187,6 +200,12 @@ class NgocSiAiActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        responseTts = TextToSpeech(this) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                val result = responseTts?.setLanguage(Locale("vi", "VN"))
+                responseTtsReady = result != null && result != TextToSpeech.LANG_MISSING_DATA && result != TextToSpeech.LANG_NOT_SUPPORTED
+            }
+        }
         val aiClient = NgocSiAiRemoteClient(applicationContext)
         val aiChatPreferences = getSharedPreferences(AI_CHAT_PREFS_NAME, MODE_PRIVATE)
         wakeWordListening = getSharedPreferences(NgocSiWakeWordService.PREFS_NAME, MODE_PRIVATE)
@@ -292,9 +311,22 @@ class NgocSiAiActivity : ComponentActivity() {
         }
     }
 
+    private fun speakVoiceReply(message: String) {
+        val tts = responseTts
+        if (responseTtsReady && tts != null) {
+            tts.speak(message, TextToSpeech.QUEUE_FLUSH, null, "ngoc_si_activity_reply")
+        } else {
+            Toast.makeText(this, "Đã nhận lệnh nhưng giọng đọc tiếng Việt chưa sẵn sàng trên máy.", Toast.LENGTH_LONG).show()
+        }
+    }
+
     override fun onDestroy() {
         musicController?.release()
         musicController = null
+        runCatching { responseTts?.stop() }
+        runCatching { responseTts?.shutdown() }
+        responseTts = null
+        responseTtsReady = false
         super.onDestroy()
     }
 
