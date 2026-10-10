@@ -1,9 +1,10 @@
 name: NGOC SI AI Android Integration CI
 
-# Push and pull_request can fire for the same commit; share a branch group to avoid duplicate Gradle builds.
+# Keep the current verification run alive; repeated phone-side edits should queue a new run
+# instead of cancelling Gradle lint/tests midway through execution.
 concurrency:
   group: ngoc-si-ai-${{ github.head_ref || github.ref_name }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 on:
   push:
