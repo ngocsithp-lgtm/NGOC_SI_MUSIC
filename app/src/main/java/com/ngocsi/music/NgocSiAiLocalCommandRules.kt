@@ -53,7 +53,20 @@ internal fun classifyNgocSiAiWakePhrase(input: String): NgocSiAiLocalCommand? {
     if (!normalized.startsWith("ngoc si ")) return null
     val commandPhrase = normalized.removePrefix("ngoc si ").trim()
     if (commandPhrase.isBlank()) return null
-    return classifyNgocSiAiLocalCommand(commandPhrase)
+    return classifyNgocSiAiLocalCommand(commandPhrase)?.takeIf { command ->
+        command in setOf(
+            NgocSiAiLocalCommand.PLAY,
+            NgocSiAiLocalCommand.PAUSE,
+            NgocSiAiLocalCommand.NEXT,
+            NgocSiAiLocalCommand.PREVIOUS,
+            NgocSiAiLocalCommand.CURRENT_TRACK,
+            NgocSiAiLocalCommand.SHUFFLE_ON,
+            NgocSiAiLocalCommand.SHUFFLE_OFF,
+            NgocSiAiLocalCommand.REPEAT_OFF,
+            NgocSiAiLocalCommand.REPEAT_ALL,
+            NgocSiAiLocalCommand.REPEAT_ONE
+        )
+    }
 }
 
 internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? {

@@ -172,4 +172,13 @@ class NgocSiAiLocalCommandRulesTest {
         assertNull(extractNgocSiAiYoutubeQuery("Tìm YouTube"))
     }
 
+
+    @Test
+    fun wakeWordModeCannotTriggerNavigationOrTimerActions() {
+        assertNull(classifyNgocSiAiWakePhrase("Ngọc Sĩ, mở YouTube"))
+        assertNull(classifyNgocSiAiWakePhrase("Ngọc Sĩ, mở Google Drive"))
+        assertNull(classifyNgocSiAiWakePhrase("Ngọc Sĩ, hẹn giờ 30 phút"))
+        assertEquals(NgocSiAiLocalCommand.NEXT, classifyNgocSiAiWakePhrase("Ngọc Sĩ, chuyển bài"))
+    }
+
 }

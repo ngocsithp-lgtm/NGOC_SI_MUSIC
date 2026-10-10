@@ -304,6 +304,7 @@ class NgocSiWakeWordService : Service() {
                     player.repeatMode = Player.REPEAT_MODE_ONE
                     "Lặp bài hiện tại"
                 }
+                else -> "Lệnh này cần mở NGỌC SĨ AI để điều hướng hoặc đặt hẹn giờ"
             }
         }.getOrElse { "Không thể thực hiện lệnh này" }
     }
