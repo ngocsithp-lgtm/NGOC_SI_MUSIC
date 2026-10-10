@@ -287,6 +287,7 @@ private fun NgocSiAiPreviewScreen(
                         error.message ?: "Không thể kết nối NGỌC SĨ AI. Vui lòng thử lại."
                     )
                 )
+                if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
                 persistChatState()
             } catch (_: Exception) {
                 if (conversation.lastOrNull() == userTurn) conversation.removeAt(conversation.lastIndex)
@@ -296,6 +297,7 @@ private fun NgocSiAiPreviewScreen(
                         "Có lỗi khi gửi yêu cầu AI. Hãy kiểm tra kết nối và cấu hình Firebase."
                     )
                 )
+                if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
                 persistChatState()
             } finally {
                 isSending = false
