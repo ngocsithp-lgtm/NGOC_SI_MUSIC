@@ -413,6 +413,7 @@ private fun NgocSiAiPreviewScreen(
         }
     }
     var input by remember { mutableStateOf("") }
+    var pendingVoiceRequest by remember { mutableStateOf<String?>(null) }
     val conversation = remember {
         mutableStateListOf<NgocSiAiMessage>().apply {
             addAll(loadAiApiConversation(chatPreferences))
@@ -439,10 +440,7 @@ private fun NgocSiAiPreviewScreen(
         val spokenRequest = recognizedSpeech.trim()
         if (spokenRequest.isNotBlank()) {
             onSpeechConsumed()
-            // Voice input should behave like pressing Send, not merely filling the text box.
-            // Local player commands are handled before reaching this screen; other requests
-            // are submitted to the configured AI backend through the same chat pipeline.
-            sendMessage(spokenRequest)
+            pendingVoiceRequest = spokenRequest
         }
     }
 
@@ -520,6 +518,15 @@ private fun NgocSiAiPreviewScreen(
             } finally {
                 isSending = false
             }
+        }
+    }
+
+    LaunchedEffect(pendingVoiceRequest) {
+        val spokenRequest = pendingVoiceRequest
+        if (!spokenRequest.isNullOrBlank()) {
+            pendingVoiceRequest = null
+            // Keep this effect after sendMessage is declared so Kotlin can resolve the local function.
+            sendMessage(spokenRequest)
         }
     }
 
