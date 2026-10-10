@@ -12,8 +12,8 @@ The server currently targets `gemini-2.5-flash-lite`, a lightweight model listed
 - Firebase App Check enforcement is enabled on the AI callable. Android must obtain valid App Check tokens before the feature can work.
 - Gemini API key loaded from Secret Manager using `defineSecret("GEMINI_API_KEY")`; never commit it or put it in Android BuildConfig.
 - Maximum 8 conversation messages, 2,000 characters per message, 8,000 total characters, only user/assistant roles, and last message must be from the user.
-- Per-user daily limit: 10 calls; maximum output: 600 tokens.
-- Quota reservation uses a Firestore transaction to stop concurrent requests from exceeding the per-UID limit. A failed provider call still consumes one slot to avoid retry abuse.
+- Per-user daily limit: 10 calls; server-wide daily limit: 50 calls across all users; maximum output: 600 tokens.
+- Both quotas are reserved in one Firestore transaction so concurrent calls cannot exceed either limit. A provider failure after reservation still consumes a slot to discourage retry abuse; missing server configuration is checked before quota reservation.
 - Usage records contain UID/date/count only; chat content is not stored by this function.
 - Quota day resets at 00:00 UTC (07:00 in Vietnam).
 - Anonymous users can create a new UID after clearing app data/reinstalling, so UID quotas are not a complete anti-abuse boundary. App Check and provider monitoring remain necessary.
