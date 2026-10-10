@@ -3,7 +3,7 @@ name: NGOC SI AI Android Integration CI
 # Keep the current verification run alive; repeated phone-side edits should queue a new run
 # instead of cancelling Gradle lint/tests midway through execution.
 concurrency:
-  group: ngoc-si-ai-${{ github.head_ref || github.ref_name }}
+  group: ngoc-si-ai-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: false
 
 on:
