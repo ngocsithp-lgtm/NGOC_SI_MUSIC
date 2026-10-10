@@ -620,7 +620,7 @@ private fun NgocSiAiPreviewScreen(
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(7.dp)
             ) {
-                listOf("Phát nhạc", "Tạm dừng nhạc", "Bài tiếp theo", "Bài trước", "Đang phát bài gì?").forEach { suggestion ->
+                listOf("Phát nhạc", "Tạm dừng nhạc", "Bài tiếp theo", "Bài trước", "Đang phát bài gì?", "Phát ngẫu nhiên", "Tắt phát ngẫu nhiên", "Lặp hàng đợi", "Lặp một bài", "Tắt chế độ lặp").forEach { suggestion ->
                     Surface(
                         modifier = Modifier.clickable { input = suggestion },
                         shape = RoundedCornerShape(50),
