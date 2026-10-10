@@ -10,6 +10,12 @@ android {
 
     val youtubeApiKey = System.getenv("YOUTUBE_API_KEY").orEmpty()
     val driveApiKey = System.getenv("DRIVE_API_KEY").orEmpty()
+    // Firebase client settings are build-time configuration; Gemini keys stay server-side.
+    val firebaseApiKey = System.getenv("FIREBASE_API_KEY").orEmpty()
+    val firebaseProjectId = System.getenv("FIREBASE_PROJECT_ID").orEmpty()
+    val firebaseSenderId = System.getenv("FIREBASE_SENDER_ID").orEmpty()
+    val firebaseProdAppId = System.getenv("FIREBASE_APP_ID").orEmpty()
+    val firebaseDebugAppId = System.getenv("FIREBASE_DEBUG_APP_ID").orEmpty()
     val ciKeystorePath = System.getenv("CI_KEYSTORE_PATH").orEmpty()
     val ciStorePassword = System.getenv("CI_KEYSTORE_PASSWORD").orEmpty()
     val ciKeyAlias = System.getenv("CI_KEY_ALIAS").orEmpty()
@@ -30,19 +36,27 @@ android {
         applicationId = "com.ngocsi.music"
         minSdk = 26
         targetSdk = 36
-        versionCode = 58
-        versionName = "5.38"
+        versionCode = 61
+        versionName = "5.41"
         buildConfigField("String", "YOUTUBE_API_KEY", "\"$youtubeApiKey\"")
         buildConfigField("String", "DRIVE_API_KEY", "\"$driveApiKey\"")
+        buildConfigField("String", "FIREBASE_API_KEY", "\"$firebaseApiKey\"")
+        buildConfigField("String", "FIREBASE_PROJECT_ID", "\"$firebaseProjectId\"")
+        buildConfigField("String", "FIREBASE_SENDER_ID", "\"$firebaseSenderId\"")
+        buildConfigField("String", "FIREBASE_APP_ID", "\"$firebaseProdAppId\"")
     }
 
     buildTypes {
         getByName("debug") {
+            // Never let an AI preview overwrite the installed production app.
+            applicationIdSuffix = ".aipreview"
+            buildConfigField("String", "FIREBASE_APP_ID", "\"$firebaseDebugAppId\"")
             if (ciKeystorePath.isNotBlank() && ciStorePassword.isNotBlank() && ciKeyAlias.isNotBlank() && ciKeyPassword.isNotBlank()) {
                 signingConfig = signingConfigs.getByName("ciStable")
             }
         }
         getByName("release") {
+            applicationIdSuffix = ".aipreview"
             if (ciKeystorePath.isNotBlank() && ciStorePassword.isNotBlank() && ciKeyAlias.isNotBlank() && ciKeyPassword.isNotBlank()) {
                 signingConfig = signingConfigs.getByName("ciStable")
             }
@@ -68,6 +82,12 @@ android {
 }
 
 dependencies {
+    // Optional cloud AI client; absence of configuration deliberately leaves preview offline.
+    implementation(platform("com.google.firebase:firebase-bom:34.19.0"))
+    implementation("com.google.firebase:firebase-auth")
+    implementation("com.google.firebase:firebase-functions")
+    implementation("com.google.firebase:firebase-appcheck-playintegrity")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2")
     testImplementation("junit:junit:4.13.2")
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-compose:1.10.0")
