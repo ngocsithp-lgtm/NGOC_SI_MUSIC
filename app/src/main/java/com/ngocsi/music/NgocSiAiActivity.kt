@@ -1,6 +1,7 @@
 package com.ngocsi.music
 
 import android.content.ActivityNotFoundException
+import android.content.ComponentName
 import android.content.SharedPreferences
 import org.json.JSONArray
 import org.json.JSONObject
@@ -11,6 +12,10 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -144,8 +149,10 @@ private fun saveAiApiConversation(
     preferences.edit().putString(AI_CHAT_CONVERSATION_KEY, array.toString()).apply()
 }
 
+@UnstableApi
 class NgocSiAiActivity : ComponentActivity() {
     private var recognizedSpeech by mutableStateOf("")
+    private var musicController: MediaController? = null
 
     private val speechLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -159,17 +166,75 @@ class NgocSiAiActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val aiClient = NgocSiAiRemoteClient(applicationContext)
         val aiChatPreferences = getSharedPreferences(AI_CHAT_PREFS_NAME, MODE_PRIVATE)
+        connectMusicController()
         setContent {
             NgocSiAiPreviewScreen(
                 isOnlineConfigured = aiClient.isConfigured,
                 chatPreferences = aiChatPreferences,
                 onSendOnline = { history -> aiClient.send(history) },
+                onLocalCommand = { command -> runLocalCommand(command) },
                 recognizedSpeech = recognizedSpeech,
                 onSpeechConsumed = { recognizedSpeech = "" },
                 onBack = { finish() },
                 onVoice = { startVoiceInput() }
             )
         }
+    }
+
+    private fun connectMusicController() {
+        val token = SessionToken(this, ComponentName(this, MusicService::class.java))
+        val future = MediaController.Builder(this, token).buildAsync()
+        future.addListener({
+            runCatching { future.get() }
+                .onSuccess { connectedController ->
+                    if (isFinishing || isDestroyed) {
+                        connectedController.release()
+                    } else {
+                        musicController = connectedController
+                    }
+                }
+        }, ContextCompat.getMainExecutor(this))
+    }
+
+    private fun runLocalCommand(command: NgocSiAiLocalCommand): String {
+        val player = musicController
+            ?: return "Trình phát đang khởi động hoặc chưa kết nối. Hãy thử lại sau một lát."
+        if (player.mediaItemCount == 0 || player.currentMediaItem == null) {
+            return "Chưa có bài nhạc trong hàng đợi. Hãy chọn một bài trong NGỌC SĨ MUSIC trước."
+        }
+
+        return when (command) {
+            NgocSiAiLocalCommand.PLAY -> {
+                player.play()
+                "Đã gửi lệnh phát nhạc đến trình phát."
+            }
+            NgocSiAiLocalCommand.PAUSE -> {
+                player.pause()
+                "Đã gửi lệnh tạm dừng nhạc."
+            }
+            NgocSiAiLocalCommand.NEXT -> {
+                if (player.hasNextMediaItem()) {
+                    player.seekToNextMediaItem()
+                    "Đang chuyển sang bài tiếp theo."
+                } else {
+                    "Không có bài tiếp theo trong hàng đợi hiện tại."
+                }
+            }
+            NgocSiAiLocalCommand.PREVIOUS -> {
+                if (player.hasPreviousMediaItem()) {
+                    player.seekToPreviousMediaItem()
+                    "Đang chuyển về bài trước."
+                } else {
+                    "Không có bài trước trong hàng đợi hiện tại."
+                }
+            }
+        }
+    }
+
+    override fun onDestroy() {
+        musicController?.release()
+        musicController = null
+        super.onDestroy()
     }
 
     private fun startVoiceInput() {
@@ -193,6 +258,7 @@ private fun NgocSiAiPreviewScreen(
     isOnlineConfigured: Boolean,
     chatPreferences: SharedPreferences,
     onSendOnline: suspend (List<NgocSiAiMessage>) -> NgocSiAiReply,
+    onLocalCommand: (NgocSiAiLocalCommand) -> String,
     recognizedSpeech: String,
     onSpeechConsumed: () -> Unit,
     onBack: () -> Unit,
@@ -242,6 +308,14 @@ private fun NgocSiAiPreviewScreen(
         messages.add(AiPreviewMessage(true, clean))
         if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
         input = ""
+
+        val localCommand = classifyNgocSiAiLocalCommand(clean)
+        if (localCommand != null) {
+            messages.add(AiPreviewMessage(false, onLocalCommand(localCommand)))
+            if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
+            persistChatState()
+            return
+        }
 
         if (!isOnlineConfigured) {
             messages.add(
@@ -512,7 +586,7 @@ private fun NgocSiAiPreviewScreen(
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(7.dp)
             ) {
-                listOf("Xin chào NGỌC SĨ AI", "Giúp tôi tìm nhạc", "Điều khiển bằng giọng nói").forEach { suggestion ->
+                listOf("Phát nhạc", "Tạm dừng nhạc", "Bài tiếp theo", "Bài trước").forEach { suggestion ->
                     Surface(
                         modifier = Modifier.clickable { input = suggestion },
                         shape = RoundedCornerShape(50),
