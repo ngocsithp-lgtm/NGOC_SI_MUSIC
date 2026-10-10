@@ -60,7 +60,7 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
         isAnyOf("tam dung", "tam dung nhac", "pause", "pause music", "dung nhac") ->
             NgocSiAiLocalCommand.PAUSE
 
-        startsWithAny("bai tiep theo", "nhac tiep theo", "chuyen bai", "sang bai tiep theo",
+        startsWithAny("bai tiep theo", "nhac tiep theo", "chuyen bai", "chuyen sang bai tiep theo", "sang bai tiep theo",
             "next", "next song") -> NgocSiAiLocalCommand.NEXT
 
         startsWithAny("bai truoc", "nhac truoc", "quay lai bai truoc", "tro ve bai truoc",
