@@ -16,6 +16,7 @@ import android.os.Looper
 import android.provider.MediaStore
 import android.speech.RecognizerIntent
 import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -290,6 +291,37 @@ class NgocSiAiActivity : ComponentActivity() {
             if (status == TextToSpeech.SUCCESS) {
                 val tts = responseTts
                 if (tts != null) {
+                    // TTS errors can arrive asynchronously after speak() returned SUCCESS.
+                    // Surface them to the user instead of silently dropping spoken replies.
+                    tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                        override fun onStart(utteranceId: String?) = Unit
+                        override fun onDone(utteranceId: String?) = Unit
+
+                        @Deprecated("Deprecated in Java")
+                        override fun onError(utteranceId: String?) {
+                            runOnUiThread {
+                                if (!isFinishing && !isDestroyed) {
+                                    Toast.makeText(
+                                        this@NgocSiAiActivity,
+                                        "Điện thoại không phát được giọng đọc. Hãy kiểm tra cài đặt Văn bản thành giọng nói và âm lượng.",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                            }
+                        }
+
+                        override fun onError(utteranceId: String?, errorCode: Int) {
+                            runOnUiThread {
+                                if (!isFinishing && !isDestroyed) {
+                                    Toast.makeText(
+                                        this@NgocSiAiActivity,
+                                        "Lỗi giọng đọc (mã $errorCode). Hãy kiểm tra dữ liệu tiếng Việt trong cài đặt Văn bản thành giọng nói.",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                            }
+                        }
+                    })
                     val vietnameseResult = runCatching {
                         tts.setLanguage(Locale("vi", "VN"))
                     }.getOrDefault(TextToSpeech.LANG_MISSING_DATA)
