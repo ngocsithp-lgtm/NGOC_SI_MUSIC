@@ -95,14 +95,18 @@ jobs:
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner -print -quit)"
           test -n "$APKSIGNER"
           "$APKSIGNER" verify --verbose --print-certs "$APK" 2>&1 | tee "$RUNNER_TEMP/ai-preview-signing.txt"
+          SHA1="$(grep -E "certificate SHA-1 digest:" "$RUNNER_TEMP/ai-preview-signing.txt" | head -n1 | sed 's/.*certificate SHA-1 digest:[[:space:]]*//' | tr -d '\r')"
           SHA256="$(grep -E "certificate SHA-256 digest:" "$RUNNER_TEMP/ai-preview-signing.txt" | head -n1 | sed 's/.*certificate SHA-256 digest:[[:space:]]*//' | tr -d '\r')"
+          test -n "$SHA1"
           test -n "$SHA256"
           {
-            echo "## Firebase App Check — preview build"
+            echo "## OAuth and Firebase App Check — preview build"
             echo ""
             echo "- Android package: `com.ngocsi.music.aipreview`"
-            echo "- Signing certificate SHA-256: `$SHA256`"
-            echo "- Register this package and SHA-256 in the existing Firebase project before enabling online AI."
+            echo "- Android OAuth SHA-1: `$SHA1`"
+            echo "- Firebase App Check SHA-256: `$SHA256`"
+            echo "- Register the package and SHA-1 in Google Cloud Android OAuth client for Drive."
+            echo "- Register the package and SHA-256 in Firebase App Check before enabling online AI."
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload preview APK artifact
         uses: actions/upload-artifact@v6
