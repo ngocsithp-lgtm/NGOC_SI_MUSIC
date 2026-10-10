@@ -173,8 +173,9 @@ class NgocSiWakeWordService : Service() {
         override fun onResults(results: Bundle?) {
             listening = false
             val phrases = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
-            // Trust only the best recognition hypothesis to reduce accidental playback actions.
-            val recognized = phrases.firstOrNull().orEmpty()
+            // Prefer a hypothesis that both heard the wake phrase and matches an explicit action.
+            // Keep the strict wake phrase check so background speech cannot control playback.
+            val recognized = selectNgocSiAiWakePhraseCandidate(phrases).orEmpty()
             val command = recognized.takeIf { it.isNotBlank() }?.let(::classifyNgocSiAiWakePhrase)
             if (command != null) {
                 if (musicController == null) {
