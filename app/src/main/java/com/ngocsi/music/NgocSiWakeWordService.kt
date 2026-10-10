@@ -59,7 +59,7 @@ class NgocSiWakeWordService : Service() {
             failAndStop("Máy chưa hỗ trợ nhận dạng giọng nói offline trên thiết bị này.")
             return START_NOT_STICKY
         }
-        if (speechRecognizer != null) return START_STICKY
+        if (speechRecognizer != null) return START_NOT_STICKY
 
         connectMusicController()
         try {
@@ -70,7 +70,7 @@ class NgocSiWakeWordService : Service() {
         } catch (_: Exception) {
             failAndStop("Không thể khởi động nhận dạng tiếng Việt offline.")
         }
-        return START_STICKY
+        return START_NOT_STICKY
     }
 
     private fun connectMusicController() {
