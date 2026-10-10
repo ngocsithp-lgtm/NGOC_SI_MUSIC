@@ -38,6 +38,8 @@ android {
 
     buildTypes {
         getByName("debug") {
+            // Keep preview builds installable alongside the production NGỌC SĨ MUSIC app.
+            applicationIdSuffix = ".aipreview"
             if (ciKeystorePath.isNotBlank() && ciStorePassword.isNotBlank() && ciKeyAlias.isNotBlank() && ciKeyPassword.isNotBlank()) {
                 signingConfig = signingConfigs.getByName("ciStable")
             }
