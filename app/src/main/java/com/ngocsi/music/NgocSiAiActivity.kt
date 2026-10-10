@@ -324,11 +324,10 @@ class NgocSiAiActivity : ComponentActivity() {
     private val speechLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             voiceRecognitionInProgress = false
-            val phrase = result.data
+            val candidates = result.data
                 ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-                ?.firstOrNull()
                 .orEmpty()
-                .trim()
+            val phrase = selectNgocSiAiLocalCommandCandidate(candidates).orEmpty()
             if (result.resultCode == RESULT_OK && phrase.isNotBlank()) {
                 // Confirm recognition immediately so a user can distinguish microphone/
                 // speech-service problems from command-routing or AI-backend problems.
