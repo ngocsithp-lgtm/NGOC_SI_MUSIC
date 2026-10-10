@@ -227,6 +227,15 @@ class NgocSiAiActivity : ComponentActivity() {
             }
         }
 
+    private val voiceInputPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) startVoiceInput() else Toast.makeText(
+                this,
+                "Cần quyền micro để nhận lệnh giọng nói. Hãy cấp quyền rồi nhấn micro lần nữa.",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+
     private val musicPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (granted) {
@@ -652,7 +661,7 @@ class NgocSiAiActivity : ComponentActivity() {
                 Manifest.permission.RECORD_AUDIO
             ) != PackageManager.PERMISSION_GRANTED
         ) {
-            wakeWordPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            voiceInputPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
             return
         }
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
