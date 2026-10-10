@@ -57,6 +57,8 @@ android {
         }
         getByName("release") {
             applicationIdSuffix = ".aipreview"
+            // Every variant on this branch is the preview package, never the production package.
+            buildConfigField("String", "FIREBASE_APP_ID", "\"$firebaseDebugAppId\"")
             if (ciKeystorePath.isNotBlank() && ciStorePassword.isNotBlank() && ciKeyAlias.isNotBlank() && ciKeyPassword.isNotBlank()) {
                 signingConfig = signingConfigs.getByName("ciStable")
             }
