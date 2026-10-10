@@ -460,6 +460,7 @@ class NgocSiAiActivity : ComponentActivity() {
                 throw cancelled
             } catch (_: SecurityException) {
                 deviceQueueLoadStarted = false
+                pendingPlayAfterQueueLoad = false
                 Toast.makeText(
                     this@NgocSiAiActivity,
                     "Android chưa cho phép đọc thư viện nhạc. Hãy cấp quyền rồi mở lại NGỌC SĨ AI.",
@@ -467,6 +468,7 @@ class NgocSiAiActivity : ComponentActivity() {
                 ).show()
             } catch (_: Exception) {
                 deviceQueueLoadStarted = false
+                pendingPlayAfterQueueLoad = false
                 Toast.makeText(
                     this@NgocSiAiActivity,
                     "Không tải được thư viện nhạc trên máy. Hãy thử lại.",
@@ -551,10 +553,8 @@ class NgocSiAiActivity : ComponentActivity() {
             if (ContextCompat.checkSelfPermission(this, audioPermission) != PackageManager.PERMISSION_GRANTED) {
                 return "Chưa có quyền đọc nhạc. Hãy cấp quyền Âm nhạc và âm thanh cho NGỌC SĨ AI Preview trong Cài đặt ứng dụng."
             }
-            if (command == NgocSiAiLocalCommand.PLAY) {
-                // If loading started during screen initialization, remember the user's intent.
-                pendingPlayAfterQueueLoad = true
-            }
+            // Keep the latest explicit command intent; a later Pause cancels pending playback.
+            pendingPlayAfterQueueLoad = command == NgocSiAiLocalCommand.PLAY
             if (!deviceQueueLoadStarted) {
                 loadDeviceMusicIntoQueue()
                 return if (command == NgocSiAiLocalCommand.PLAY) {
