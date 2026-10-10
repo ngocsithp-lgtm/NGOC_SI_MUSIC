@@ -508,8 +508,8 @@ class MainActivity : ComponentActivity() {
         registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
             if (result.resultCode != RESULT_OK) {
                 pendingDriveAction = null
-                driveSharedStatus = "Đã hủy cấp quyền Google Drive"
-                errorMessage = "Chưa cấp quyền Google Drive. Có thể thử lại bất cứ lúc nào."
+                driveSharedStatus = "Google Drive chưa hoàn tất cấp quyền"
+                errorMessage = "Google Drive chưa được cấp quyền. Bạn có thể thử lại. Nếu vừa bấm Cho phép mà vẫn gặp lỗi, kiểm tra Android OAuth client trong Google Cloud Console: package ${packageName}; SHA-1 ${driveOAuthManager.signingCertificateSha1()}."
                 return@registerForActivityResult
             }
 
