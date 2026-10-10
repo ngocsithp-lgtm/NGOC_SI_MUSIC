@@ -8,7 +8,7 @@ on:
       - "docs/NGOC_SI_AI_BACKEND_SETUP.md"
   push:
     branches:
-      - "feature/ngoc-si-ai-backend-foundation"
+      - "feature/ngoc-si-ai-complete-preview"
     paths:
       - "functions/**"
       - ".github/workflows/ai-backend-ci.yml"
