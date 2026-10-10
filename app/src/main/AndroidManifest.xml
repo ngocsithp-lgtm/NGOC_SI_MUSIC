@@ -21,6 +21,8 @@
     <!-- Phát nhạc nền -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <!-- Required only for the user-started experimental microphone foreground service. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
 
     <queries>
         <intent>
@@ -31,7 +33,7 @@
     <application
         android:hardwareAccelerated="true"
         android:theme="@style/Theme.NgocSiMusic"
-        android:label="NGỌC SĨ MUSIC"
+        android:label="NGỌC SĨ AI Preview"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:allowBackup="true"
@@ -59,6 +61,18 @@
         <activity
             android:name=".ProMainActivity"
             android:exported="false" />
+
+        <!-- Isolated assistant preview; the production app entry point stays unchanged. -->
+        <activity
+            android:name=".NgocSiAiActivity"
+            android:exported="false" />
+
+        <!-- Experimental listening starts only after the user explicitly enables it. -->
+        <service
+            android:name=".NgocSiWakeWordService"
+            android:exported="false"
+            android:stopWithTask="false"
+            android:foregroundServiceType="microphone" />
 
         <activity
             android:name=".MainActivity"
