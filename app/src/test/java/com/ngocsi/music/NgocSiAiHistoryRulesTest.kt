@@ -7,6 +7,43 @@ import org.junit.Test
 
 class NgocSiAiHistoryRulesTest {
     @Test
+    fun restoreDropsAnInterruptedTrailingUserTurn() {
+        val restored = restoreCompletedNgocSiAiConversation(
+            listOf(
+                NgocSiAiMessage("user", "Câu hỏi 1"),
+                NgocSiAiMessage("assistant", "Trả lời 1"),
+                NgocSiAiMessage("user", "Câu hỏi đang dở")
+            )
+        )
+
+        assertEquals(
+            listOf(
+                NgocSiAiMessage("user", "Câu hỏi 1"),
+                NgocSiAiMessage("assistant", "Trả lời 1")
+            ),
+            restored
+        )
+    }
+
+    @Test
+    fun restoreRejectsIncompleteOrMalformedStoredHistory() {
+        assertTrue(
+            restoreCompletedNgocSiAiConversation(
+                listOf(NgocSiAiMessage("user", "Câu hỏi chưa được trả lời"))
+            ).isEmpty()
+        )
+        assertTrue(
+            restoreCompletedNgocSiAiConversation(
+                listOf(
+                    NgocSiAiMessage("user", "Câu hỏi 1"),
+                    NgocSiAiMessage("user", "Câu hỏi 2"),
+                    NgocSiAiMessage("assistant", "Trả lời")
+                )
+            ).isEmpty()
+        )
+    }
+
+    @Test
     fun trimsWhitespaceAndKeepsTheNewestUserMessage() {
         val history = normalizeNgocSiAiHistory(
             listOf(NgocSiAiMessage(role = "user", content = "  Xin chào  "))
