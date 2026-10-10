@@ -123,8 +123,17 @@ private fun loadAiApiConversation(preferences: SharedPreferences): List<NgocSiAi
             }
         }.takeLast(NGOC_SI_AI_MAX_HISTORY_MESSAGES)
     }.getOrDefault(emptyList())
-    val bounded = decoded.dropWhile { it.role == "assistant" }
-    return if (bounded.firstOrNull()?.role == "user") bounded else emptyList()
+    var bounded = decoded.dropWhile { it.role == "assistant" }
+    // Recover safely from older builds that may have saved an in-flight user turn.
+    if (bounded.lastOrNull()?.role == "user") bounded = bounded.dropLast(1)
+    val rolesAlternate = bounded.zipWithNext().all { (first, second) ->
+        first.role != second.role
+    }
+    return if (
+        bounded.firstOrNull()?.role == "user" &&
+        bounded.lastOrNull()?.role == "assistant" &&
+        rolesAlternate
+    ) bounded else emptyList()
 }
 
 private fun saveAiApiConversation(
