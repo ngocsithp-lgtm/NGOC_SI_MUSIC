@@ -32,7 +32,7 @@ Use Chrome on your phone. If a page is difficult to navigate, open Chrome's menu
 5. Open **Build → Authentication → Get started → Sign-in method → Anonymous → Enable → Save**.
 6. Open **Build → App Check**, register the Android app, and select **Play Integrity**. Do not enforce production App Check until the actual app signing configuration is verified.
 7. Create Firestore only when prompted. The function uses `asia-southeast1`. Before deploying any Firestore rules, review existing rules/collections; rules apply project-wide.
-8. Review Firebase billing requirements. Cloud Functions may require the Blaze plan. Add budget alerts; alerts are not hard spending caps.
+8. Review Firebase billing requirements. Cloud Functions may require the Blaze plan. Configure budget alerts, but do not treat alert emails as a hard cap: Firebase documents separate spend-cap budgets for selected services, including Cloud Functions for Firebase. Where the option is available, set a small Cloud Functions spend cap too. This does not guarantee a cap on Gemini Developer API charges or every other project service. Keep the server-wide 50-request/day limit enabled; it limits AI requests but is not a financial guarantee. See https://firebase.google.com/docs/projects/billing/budget-alerts.
 9. Open https://aistudio.google.com/ to create a Gemini API key for the correct Google Cloud project. Do not send it to this chat, put it in Android, or commit it to GitHub. Check the model's free-tier limits and data-use terms first.
 10. Deploy from a trusted environment or reviewed CI using short-lived identity. Do not store long-lived service-account JSON in the repository.
 
