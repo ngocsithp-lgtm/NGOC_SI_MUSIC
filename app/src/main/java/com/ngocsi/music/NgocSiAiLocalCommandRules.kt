@@ -7,7 +7,8 @@ internal enum class NgocSiAiLocalCommand {
     PLAY,
     PAUSE,
     NEXT,
-    PREVIOUS
+    PREVIOUS,
+    CURRENT_TRACK
 }
 
 /**
@@ -39,6 +40,10 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
 
         "bai truoc", "nhac truoc", "quay lai bai truoc", "previous", "previous song" ->
             NgocSiAiLocalCommand.PREVIOUS
+
+        "dang phat bai gi", "bai gi dang phat", "ten bai hat hien tai",
+        "bai dang phat la gi", "what is playing", "current song" ->
+            NgocSiAiLocalCommand.CURRENT_TRACK
 
         else -> null
     }
