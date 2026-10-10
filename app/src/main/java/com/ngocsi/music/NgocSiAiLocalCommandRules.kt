@@ -8,7 +8,12 @@ internal enum class NgocSiAiLocalCommand {
     PAUSE,
     NEXT,
     PREVIOUS,
-    CURRENT_TRACK
+    CURRENT_TRACK,
+    SHUFFLE_ON,
+    SHUFFLE_OFF,
+    REPEAT_OFF,
+    REPEAT_ALL,
+    REPEAT_ONE
 }
 
 /**
@@ -44,6 +49,26 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
         "dang phat bai gi", "bai gi dang phat", "ten bai hat hien tai",
         "bai dang phat la gi", "what is playing", "current song" ->
             NgocSiAiLocalCommand.CURRENT_TRACK
+
+        "bat phat ngau nhien", "bat ngau nhien", "phat ngau nhien",
+        "enable shuffle", "turn shuffle on", "shuffle on" ->
+            NgocSiAiLocalCommand.SHUFFLE_ON
+
+        "tat phat ngau nhien", "tat ngau nhien", "tat phat tron",
+        "disable shuffle", "turn shuffle off", "shuffle off" ->
+            NgocSiAiLocalCommand.SHUFFLE_OFF
+
+        "tat lap", "tat che do lap", "khong lap",
+        "repeat off", "disable repeat" ->
+            NgocSiAiLocalCommand.REPEAT_OFF
+
+        "lap hang doi", "lap danh sach", "lap tat ca",
+        "repeat all", "loop playlist" ->
+            NgocSiAiLocalCommand.REPEAT_ALL
+
+        "lap bai", "lap mot bai", "lap mot bai hat",
+        "repeat one", "loop current song" ->
+            NgocSiAiLocalCommand.REPEAT_ONE
 
         else -> null
     }
