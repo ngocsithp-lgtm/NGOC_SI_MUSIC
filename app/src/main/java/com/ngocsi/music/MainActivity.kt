@@ -534,7 +534,7 @@ class MainActivity : ComponentActivity() {
                     } else {
                         pendingDriveAction = null
                         driveSharedStatus = "Google Drive chưa được cấp đủ quyền"
-                        errorMessage = "Hãy cấp quyền đọc Google Drive để duyệt file được chia sẻ."
+                        errorMessage = driveAuthorizationHelpMessage()
                     }
                 }
                 .onFailure { e ->
@@ -545,6 +545,11 @@ class MainActivity : ComponentActivity() {
                     errorMessage = driveOAuthManager.signInErrorMessage(e)
                 }
         }
+
+    private fun driveAuthorizationHelpMessage(): String {
+        val sha1 = driveOAuthManager.signingCertificateSha1()
+        return "Google Drive chưa cấp quyền đọc. Kiểm tra Google Drive API đã bật; mục Data Access có hai scope drive.readonly và drive.appdata; nếu OAuth đang ở chế độ Testing, thêm đúng tài khoản Google vào Test users. Android OAuth client phải khớp package $packageName và SHA-1 $sha1."
+    }
 
     private fun signInGoogleDrive(afterSignIn: (() -> Unit)? = null) {
         pendingDriveAction = afterSignIn
@@ -566,7 +571,7 @@ class MainActivity : ComponentActivity() {
                     } else {
                         pendingDriveAction = null
                         driveSharedStatus = "Google Drive chưa được cấp đủ quyền"
-                        errorMessage = "Hãy cấp quyền đọc Google Drive để duyệt file được chia sẻ."
+                        errorMessage = driveAuthorizationHelpMessage()
                     }
                 },
                 onResolution = { pendingIntent ->
