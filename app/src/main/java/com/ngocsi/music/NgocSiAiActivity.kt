@@ -204,12 +204,26 @@ class NgocSiAiActivity : ComponentActivity() {
                 ?.firstOrNull()
                 .orEmpty()
                 .trim()
-            if (phrase.isNotBlank()) {
+            if (result.resultCode == RESULT_OK && phrase.isNotBlank()) {
                 // Route all recognized speech through the same allowlisted command/chat handler.
                 // Local playback commands work without Firebase; other speech gets an explicit
                 // explanation if online AI has not been configured.
                 recognizedSpeech = phrase
                 recognizedSpeechShouldSend = true
+            } else {
+                val audioPermissionGranted = ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.RECORD_AUDIO
+                ) == PackageManager.PERMISSION_GRANTED
+                val message = when {
+                    !audioPermissionGranted ->
+                        "Chưa có quyền micro. Hãy vào Cài đặt > Ứng dụng > NGỌC SĨ AI Preview > Quyền > Micro và chọn Cho phép."
+                    result.resultCode == RESULT_CANCELED ->
+                        "Chưa nhận được câu nói. Hãy nhấn micro, nói rõ sau tiếng bíp và thử lại. Nếu không mở được nhận dạng giọng nói, hãy cập nhật ứng dụng Google và dịch vụ Speech Services."
+                    else ->
+                        "Không nhận dạng được giọng nói. Hãy kiểm tra quyền micro, kết nối mạng và thử lại."
+                }
+                Toast.makeText(this, message, Toast.LENGTH_LONG).show()
             }
         }
 
@@ -633,6 +647,14 @@ class NgocSiAiActivity : ComponentActivity() {
     }
 
     private fun startVoiceInput() {
+        if (ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.RECORD_AUDIO
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            wakeWordPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            return
+        }
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "vi-VN")
@@ -641,9 +663,15 @@ class NgocSiAiActivity : ComponentActivity() {
         try {
             speechLauncher.launch(intent)
         } catch (_: ActivityNotFoundException) {
-            Toast.makeText(this, "Thiết bị chưa hỗ trợ nhập giọng nói.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                this,
+                "Điện thoại chưa có dịch vụ nhận dạng giọng nói. Hãy cập nhật ứng dụng Google hoặc Speech Services by Google rồi thử lại.",
+                Toast.LENGTH_LONG
+            ).show()
+        } catch (_: SecurityException) {
+            Toast.makeText(this, "Thiếu quyền micro. Hãy cấp quyền micro cho NGỌC SĨ AI Preview.", Toast.LENGTH_LONG).show()
         } catch (_: Exception) {
-            Toast.makeText(this, "Không thể mở nhập giọng nói. Hãy thử lại.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Không thể mở nhận dạng giọng nói. Hãy kiểm tra quyền micro và cập nhật dịch vụ Google.", Toast.LENGTH_LONG).show()
         }
     }
 }

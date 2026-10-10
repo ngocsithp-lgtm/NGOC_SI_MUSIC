@@ -37,8 +37,8 @@ android {
         applicationId = "com.ngocsi.music"
         minSdk = 26
         targetSdk = 36
-        versionCode = 60
-        versionName = "5.40"
+        versionCode = 59
+        versionName = "5.39"
         buildConfigField("String", "YOUTUBE_API_KEY", "\"$youtubeApiKey\"")
         buildConfigField("String", "DRIVE_API_KEY", "\"$driveApiKey\"")
         buildConfigField("String", "FIREBASE_API_KEY", "\"$firebaseApiKey\"")
