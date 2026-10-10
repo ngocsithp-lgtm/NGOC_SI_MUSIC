@@ -10,6 +10,7 @@ on:
     branches:
       - "feature/ngoc-si-ai-ui-preview"
       - "feature/ngoc-si-ai-android-integration"
+      - "feature/ngoc-si-ai-fullstack-preview"
     paths:
       - "app/src/main/**"
       - "app/src/test/**"
