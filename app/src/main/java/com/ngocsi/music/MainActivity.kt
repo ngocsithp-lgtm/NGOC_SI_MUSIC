@@ -4865,6 +4865,12 @@ class MainActivity : ComponentActivity() {
                         onOpenSleepTimer,
                         Modifier.weight(1f)
                     )
+                    ProHomeUtilityTile(
+                        "✦",
+                        "NGỌC SĨ AI",
+                        { startActivity(Intent(this@MainActivity, NgocSiAiActivity::class.java)) },
+                        Modifier.weight(1f)
+                    )
                 }
             }
 
