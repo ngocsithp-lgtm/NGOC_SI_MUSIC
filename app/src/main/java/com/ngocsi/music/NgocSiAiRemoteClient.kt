@@ -40,7 +40,13 @@ internal class NgocSiAiRemoteClient(context: Context) {
         val app = firebaseApp
             ?: throw NgocSiAiRemoteException("Firebase chưa được cấu hình cho bản thử này.")
 
-        val history = normalizeHistory(messages)
+        val history = try {
+            normalizeNgocSiAiHistory(messages)
+        } catch (error: IllegalArgumentException) {
+            throw NgocSiAiRemoteException(
+                error.message ?: "Lịch sử trò chuyện không hợp lệ. Hãy thử một câu hỏi ngắn hơn."
+            )
+        }
         val auth = FirebaseAuth.getInstance(app)
         try {
             if (auth.currentUser == null) {
@@ -103,31 +109,6 @@ internal class NgocSiAiRemoteClient(context: Context) {
         )
     }
 
-    private fun normalizeHistory(messages: List<NgocSiAiMessage>): List<NgocSiAiMessage> {
-        var history = messages.takeLast(MAX_HISTORY_MESSAGES)
-        if (history.firstOrNull()?.role == "assistant") {
-            history = history.drop(1)
-        }
-        if (history.isEmpty() || history.last().role != "user") {
-            throw NgocSiAiRemoteException("Tin nhắn chưa hợp lệ. Hãy gửi một câu hỏi mới.")
-        }
-        var totalChars = 0
-        history.forEach { message ->
-            if (message.role != "user" && message.role != "assistant") {
-                throw NgocSiAiRemoteException("Loại tin nhắn không được hỗ trợ.")
-            }
-            val length = message.content.trim().length
-            if (length !in 1..MAX_MESSAGE_CHARS) {
-                throw NgocSiAiRemoteException("Mỗi tin nhắn phải có từ 1 đến 2.000 ký tự.")
-            }
-            totalChars += length
-        }
-        if (totalChars > MAX_TOTAL_CHARS) {
-            throw NgocSiAiRemoteException("Lịch sử trò chuyện quá dài. Hãy bắt đầu câu hỏi ngắn hơn.")
-        }
-        return history.map { it.copy(content = it.content.trim()) }
-    }
-
     private fun createFirebaseApp(context: Context): FirebaseApp? {
         val apiKey = BuildConfig.FIREBASE_API_KEY
         val projectId = BuildConfig.FIREBASE_PROJECT_ID
@@ -161,9 +142,6 @@ internal class NgocSiAiRemoteClient(context: Context) {
     companion object {
         private const val FIREBASE_APP_NAME = "ngocSiAi"
         private const val EXPECTED_FIREBASE_PROJECT_ID = "ngoc-si-music-ai"
-        private const val MAX_HISTORY_MESSAGES = 8
-        private const val MAX_MESSAGE_CHARS = 2_000
-        private const val MAX_TOTAL_CHARS = 8_000
     }
 }
 
