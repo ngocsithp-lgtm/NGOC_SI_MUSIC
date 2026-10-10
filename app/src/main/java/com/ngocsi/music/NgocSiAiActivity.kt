@@ -1,8 +1,10 @@
 package com.ngocsi.music
 
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.os.Bundle
 import android.speech.RecognizerIntent
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -86,7 +88,13 @@ class NgocSiAiActivity : ComponentActivity() {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "vi-VN")
             putExtra(RecognizerIntent.EXTRA_PROMPT, "Nói nội dung bạn muốn nhập")
         }
-        runCatching { speechLauncher.launch(intent) }
+        try {
+            speechLauncher.launch(intent)
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(this, "Thiết bị chưa hỗ trợ nhập giọng nói.", Toast.LENGTH_SHORT).show()
+        } catch (_: Exception) {
+            Toast.makeText(this, "Không thể mở nhập giọng nói. Hãy thử lại.", Toast.LENGTH_SHORT).show()
+        }
     }
 }
 
@@ -369,7 +377,7 @@ private fun NgocSiAiPreviewScreen(
             ) {
                 BasicTextField(
                     value = input,
-                    onValueChange = { input = it },
+                    onValueChange = { input = it.take(2_000) },
                     modifier = Modifier
                         .weight(1f)
                         .padding(vertical = 10.dp),
@@ -396,7 +404,7 @@ private fun NgocSiAiPreviewScreen(
                 )
                 Surface(
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(48.dp)
                         .clickable(onClick = onVoice),
                     shape = CircleShape,
                     color = Color(0xFF242033)
@@ -408,7 +416,7 @@ private fun NgocSiAiPreviewScreen(
                 Spacer(Modifier.width(6.dp))
                 Surface(
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(48.dp)
                         .clickable(enabled = !isSending) { sendMessage(input) },
                     shape = CircleShape,
                     color = if (isSending) Color(0xFF515661) else Color(0xFF8DEEFF)

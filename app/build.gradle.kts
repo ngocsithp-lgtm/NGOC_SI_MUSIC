@@ -58,6 +58,8 @@ android {
             }
         }
         getByName("release") {
+            // Keep every preview artifact separate from the production package.
+            applicationIdSuffix = ".aipreview"
             if (ciKeystorePath.isNotBlank() && ciStorePassword.isNotBlank() && ciKeyAlias.isNotBlank() && ciKeyPassword.isNotBlank()) {
                 signingConfig = signingConfigs.getByName("ciStable")
             }
