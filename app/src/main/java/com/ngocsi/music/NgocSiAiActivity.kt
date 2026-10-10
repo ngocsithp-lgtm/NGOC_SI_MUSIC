@@ -436,12 +436,13 @@ private fun NgocSiAiPreviewScreen(
     }
 
     LaunchedEffect(recognizedSpeech) {
-        if (recognizedSpeech.isNotBlank()) {
-            input = listOf(input.trim(), recognizedSpeech.trim())
-                .filter { it.isNotBlank() }
-                .joinToString(" ")
-                .take(2_000)
+        val spokenRequest = recognizedSpeech.trim()
+        if (spokenRequest.isNotBlank()) {
             onSpeechConsumed()
+            // Voice input should behave like pressing Send, not merely filling the text box.
+            // Local player commands are handled before reaching this screen; other requests
+            // are submitted to the configured AI backend through the same chat pipeline.
+            sendMessage(spokenRequest)
         }
     }
 
@@ -471,6 +472,7 @@ private fun NgocSiAiPreviewScreen(
             )
             if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
             persistChatState()
+            onVoiceReply("Đã nhận yêu cầu. Tuy nhiên AI trực tuyến chưa được cấu hình nên tôi chưa thể xử lý câu hỏi này.")
             return
         }
 
