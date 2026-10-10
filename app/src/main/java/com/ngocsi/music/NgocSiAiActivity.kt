@@ -204,6 +204,13 @@ class NgocSiAiActivity : ComponentActivity() {
         }
 
         return when (command) {
+            NgocSiAiLocalCommand.CURRENT_TRACK -> {
+                val item = player.currentMediaItem
+                val title = item?.mediaMetadata?.title?.toString()?.takeIf { it.isNotBlank() }
+                    ?: "Chưa rõ tên bài hát"
+                val artist = item?.mediaMetadata?.artist?.toString()?.takeIf { it.isNotBlank() }
+                if (artist == null) "Đang phát: $title" else "Đang phát: $title — $artist"
+            }
             NgocSiAiLocalCommand.PLAY -> {
                 player.play()
                 "Đã gửi lệnh phát nhạc đến trình phát."
@@ -586,7 +593,7 @@ private fun NgocSiAiPreviewScreen(
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(7.dp)
             ) {
-                listOf("Phát nhạc", "Tạm dừng nhạc", "Bài tiếp theo", "Bài trước").forEach { suggestion ->
+                listOf("Phát nhạc", "Tạm dừng nhạc", "Bài tiếp theo", "Bài trước", "Đang phát bài gì?").forEach { suggestion ->
                     Surface(
                         modifier = Modifier.clickable { input = suggestion },
                         shape = RoundedCornerShape(50),
