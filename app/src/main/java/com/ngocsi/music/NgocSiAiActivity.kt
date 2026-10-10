@@ -209,7 +209,14 @@ class NgocSiAiActivity : ComponentActivity() {
                 val title = item?.mediaMetadata?.title?.toString()?.takeIf { it.isNotBlank() }
                     ?: "Chưa rõ tên bài hát"
                 val artist = item?.mediaMetadata?.artist?.toString()?.takeIf { it.isNotBlank() }
-                if (artist == null) "Đang phát: $title" else "Đang phát: $title — $artist"
+                val status = when {
+                    player.isPlaying -> "Đang phát"
+                    player.playbackState == androidx.media3.common.Player.STATE_BUFFERING &&
+                        player.playWhenReady -> "Đang tải"
+                    player.playbackState == androidx.media3.common.Player.STATE_ENDED -> "Đã phát hết"
+                    else -> "Đang tạm dừng"
+                }
+                if (artist == null) "$status: $title" else "$status: $title — $artist"
             }
             NgocSiAiLocalCommand.PLAY -> {
                 player.play()
@@ -234,6 +241,26 @@ class NgocSiAiActivity : ComponentActivity() {
                 } else {
                     "Không có bài trước trong hàng đợi hiện tại."
                 }
+            }
+            NgocSiAiLocalCommand.SHUFFLE_ON -> {
+                player.shuffleModeEnabled = true
+                "Đã bật phát ngẫu nhiên cho hàng đợi hiện tại."
+            }
+            NgocSiAiLocalCommand.SHUFFLE_OFF -> {
+                player.shuffleModeEnabled = false
+                "Đã tắt phát ngẫu nhiên."
+            }
+            NgocSiAiLocalCommand.REPEAT_OFF -> {
+                player.repeatMode = androidx.media3.common.Player.REPEAT_MODE_OFF
+                "Đã tắt chế độ lặp."
+            }
+            NgocSiAiLocalCommand.REPEAT_ALL -> {
+                player.repeatMode = androidx.media3.common.Player.REPEAT_MODE_ALL
+                "Đã bật lặp toàn bộ hàng đợi."
+            }
+            NgocSiAiLocalCommand.REPEAT_ONE -> {
+                player.repeatMode = androidx.media3.common.Player.REPEAT_MODE_ONE
+                "Đã bật lặp bài hiện tại."
             }
         }
     }
