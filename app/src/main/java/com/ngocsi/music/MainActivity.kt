@@ -534,7 +534,7 @@ class MainActivity : ComponentActivity() {
                     } else {
                         pendingDriveAction = null
                         driveSharedStatus = "Google Drive chưa được cấp đủ quyền"
-                        errorMessage = driveAuthorizationHelpMessage()
+                        errorMessage = driveAuthorizationHelpMessage(authorizationResult.grantedScopes)
                     }
                 }
                 .onFailure { e ->
@@ -546,9 +546,14 @@ class MainActivity : ComponentActivity() {
                 }
         }
 
-    private fun driveAuthorizationHelpMessage(): String {
+    private fun driveAuthorizationHelpMessage(grantedScopes: Collection<String>? = null): String {
         val sha1 = driveOAuthManager.signingCertificateSha1()
-        return "Google Drive chưa cấp quyền đọc. Kiểm tra Google Drive API đã bật; mục Data Access có hai scope drive.readonly và drive.appdata; nếu OAuth đang ở chế độ Testing, thêm đúng tài khoản Google vào Test users. Android OAuth client phải khớp package $packageName và SHA-1 $sha1."
+        val scopeStatus = when {
+            grantedScopes == null -> "Chưa nhận được danh sách scope từ Google."
+            grantedScopes.isEmpty() -> "Google chưa trả về scope nào được cấp."
+            else -> "Scope Google đã cấp: " + grantedScopes.joinToString(", ")
+        }
+        return "Google Drive chưa cấp quyền đọc. $scopeStatus Kiểm tra Google Drive API đã bật; mục Data Access có hai scope drive.readonly và drive.appdata; nếu OAuth đang ở chế độ Testing, thêm đúng tài khoản Google vào Test users. Android OAuth client phải khớp package $packageName và SHA-1 $sha1."
     }
 
     private fun signInGoogleDrive(afterSignIn: (() -> Unit)? = null) {
@@ -571,7 +576,7 @@ class MainActivity : ComponentActivity() {
                     } else {
                         pendingDriveAction = null
                         driveSharedStatus = "Google Drive chưa được cấp đủ quyền"
-                        errorMessage = driveAuthorizationHelpMessage()
+                        errorMessage = driveAuthorizationHelpMessage(authorizationResult.grantedScopes)
                     }
                 },
                 onResolution = { pendingIntent ->
