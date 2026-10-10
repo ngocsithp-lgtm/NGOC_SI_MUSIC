@@ -508,8 +508,8 @@ class MainActivity : ComponentActivity() {
         registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
             if (result.resultCode != RESULT_OK) {
                 pendingDriveAction = null
-                driveSharedStatus = "Đã hủy cấp quyền Google Drive"
-                errorMessage = "Chưa cấp quyền Google Drive. Có thể thử lại bất cứ lúc nào."
+                driveSharedStatus = "Google Drive chưa hoàn tất cấp quyền"
+                errorMessage = "Google Drive chưa được cấp quyền. Bạn có thể thử lại. Nếu vừa bấm Cho phép mà vẫn gặp lỗi, kiểm tra Android OAuth client trong Google Cloud Console: package ${packageName}; SHA-1 ${driveOAuthManager.signingCertificateSha1()}."
                 return@registerForActivityResult
             }
 
@@ -534,7 +534,7 @@ class MainActivity : ComponentActivity() {
                     } else {
                         pendingDriveAction = null
                         driveSharedStatus = "Google Drive chưa được cấp đủ quyền"
-                        errorMessage = "Hãy cấp quyền đọc Google Drive để duyệt file được chia sẻ."
+                        errorMessage = driveAuthorizationHelpMessage(authorizationResult.grantedScopes)
                     }
                 }
                 .onFailure { e ->
@@ -545,6 +545,16 @@ class MainActivity : ComponentActivity() {
                     errorMessage = driveOAuthManager.signInErrorMessage(e)
                 }
         }
+
+    private fun driveAuthorizationHelpMessage(grantedScopes: Collection<String>? = null): String {
+        val sha1 = driveOAuthManager.signingCertificateSha1()
+        val scopeStatus = when {
+            grantedScopes == null -> "Chưa nhận được danh sách scope từ Google."
+            grantedScopes.isEmpty() -> "Google chưa trả về scope nào được cấp."
+            else -> "Scope Google đã cấp: " + grantedScopes.joinToString(", ")
+        }
+        return "Google Drive chưa cấp quyền đọc. $scopeStatus Kiểm tra Google Drive API đã bật; mục Data Access có hai scope drive.readonly và drive.appdata; nếu OAuth đang ở chế độ Testing, thêm đúng tài khoản Google vào Test users. Android OAuth client phải khớp package $packageName và SHA-1 $sha1."
+    }
 
     private fun signInGoogleDrive(afterSignIn: (() -> Unit)? = null) {
         pendingDriveAction = afterSignIn
@@ -566,7 +576,7 @@ class MainActivity : ComponentActivity() {
                     } else {
                         pendingDriveAction = null
                         driveSharedStatus = "Google Drive chưa được cấp đủ quyền"
-                        errorMessage = "Hãy cấp quyền đọc Google Drive để duyệt file được chia sẻ."
+                        errorMessage = driveAuthorizationHelpMessage(authorizationResult.grantedScopes)
                     }
                 },
                 onResolution = { pendingIntent ->

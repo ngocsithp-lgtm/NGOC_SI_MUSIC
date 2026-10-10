@@ -39,12 +39,12 @@ Android music player built with Kotlin, Jetpack Compose and AndroidX Media3.
 
 APK PRO hiện được GitHub Actions ký bằng chứng thư ổn định với SHA-1:
 
-**53:3F:A1:9C:58:A4:0D:92:66:8F:96:29:6E:7D:B3:4D:69:6A:ED**
+**53:3F:A1:9C:58:A4:0D:92:66:68:F9:62:96:E7:DB:D3:4D:69:6A:ED**
 
 Trong Google Cloud Console, Android OAuth 2.0 Client phải dùng đúng cặp:
 
 - Package name: **com.ngocsi.music**
-- SHA-1: **53:3F:A1:9C:58:A4:0D:92:66:8F:96:29:6E:7D:B3:4D:69:6A:ED**
+- SHA-1: **53:3F:A1:9C:58:A4:0D:92:66:68:F9:62:96:E7:DB:D3:4D:69:6A:ED**
 
 Không dùng SHA-1 của debug keystore khác cho APK tải từ GitHub Release. Các chứng thư khác nhau cần Android OAuth client tương ứng.
 
@@ -59,6 +59,17 @@ Drive API cần được bật trong cùng Google Cloud project. App sử dụng
 Trong Google Cloud Console, mục **Data Access** phải có đúng hai scope trên. Nếu project đang ở chế độ Testing, tài khoản Google dùng để thử phải nằm trong **Test users**.
 
 Sau khi OAuth client khớp package + SHA-1, màn hình đăng nhập Google Drive mới có thể hoàn tất luồng cấp quyền Drive.
+
+
+
+### OAuth cho bản preview NGỌC SĨ AI
+
+Bản preview dùng package riêng **com.ngocsi.music.aipreview** để không ghi đè NGỌC SĨ MUSIC chính thức. Vì Android OAuth phân biệt package name, cần thêm một **Android OAuth 2.0 Client ID** trong cùng Google Cloud project với:
+
+- Package name: **com.ngocsi.music.aipreview**
+- SHA-1: **53:3F:A1:9C:58:A4:0D:92:66:68:F9:62:96:E7:DB:D3:4D:69:6A:ED**
+
+Chứng thư SHA-1 đã được kiểm tra trực tiếp từ APK preview ký bởi GitHub Actions. Giữ nguyên OAuth client sản xuất **com.ngocsi.music**; không đổi package của APK MUSIC chính thức. Trong project đó, bảo đảm Google Drive API được bật và tài khoản kiểm thử nằm trong Test users nếu màn hình OAuth consent còn ở trạng thái Testing.
 
 ## TV PRO
 
