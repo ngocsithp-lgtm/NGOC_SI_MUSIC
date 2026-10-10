@@ -15,14 +15,14 @@ internal fun normalizeNgocSiAiHistory(
     messages: List<NgocSiAiMessage>
 ): List<NgocSiAiMessage> {
     val selected = messages.takeLast(NGOC_SI_AI_MAX_HISTORY_MESSAGES)
+    if (selected.any { it.role != "user" && it.role != "assistant" }) {
+        throw IllegalArgumentException("Loại tin nhắn không được hỗ trợ.")
+    }
     if (selected.isEmpty() || selected.last().role != "user") {
         throw IllegalArgumentException("Tin nhắn chưa hợp lệ. Hãy gửi một câu hỏi mới.")
     }
 
     var history = selected.mapIndexed { index, message ->
-        if (message.role != "user" && message.role != "assistant") {
-            throw IllegalArgumentException("Loại tin nhắn không được hỗ trợ.")
-        }
         val content = message.content.trim()
         if (content.isBlank()) {
             throw IllegalArgumentException("Tin nhắn không được để trống.")
