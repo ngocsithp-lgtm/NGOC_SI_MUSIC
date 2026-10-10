@@ -136,6 +136,8 @@ internal class NgocSiAiRemoteClient(context: Context) {
         if (apiKey.isBlank() || projectId.isBlank() || senderId.isBlank() || appId.isBlank()) {
             return null
         }
+        // Fail closed if Actions secrets accidentally point to a different Firebase project.
+        if (projectId != EXPECTED_FIREBASE_PROJECT_ID) return null
 
         return runCatching {
             val existing = FirebaseApp.getApps(context).firstOrNull { it.name == FIREBASE_APP_NAME }
@@ -158,6 +160,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
 
     companion object {
         private const val FIREBASE_APP_NAME = "ngocSiAi"
+        private const val EXPECTED_FIREBASE_PROJECT_ID = "ngoc-si-music-ai"
         private const val MAX_HISTORY_MESSAGES = 8
         private const val MAX_MESSAGE_CHARS = 2_000
         private const val MAX_TOTAL_CHARS = 8_000
