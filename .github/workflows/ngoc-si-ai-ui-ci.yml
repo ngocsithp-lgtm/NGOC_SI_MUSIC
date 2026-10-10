@@ -40,6 +40,14 @@ jobs:
         run: gradle :app:testDebugUnitTest --no-daemon
       - name: Build debug APK (no release/publish)
         run: gradle :app:assembleDebug --no-daemon
+      - name: Verify preview package is isolated from production
+        run: |
+          set -euo pipefail
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt -print -quit)"
+          test -n "$AAPT"
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          test -f "$APK"
+          "$AAPT" dump badging "$APK" | grep -m1 -E "package: name='com.ngocsi.music.aipreview'.*versionName='5.38'"
       - name: Upload preview APK artifact
         uses: actions/upload-artifact@v6
         with:
