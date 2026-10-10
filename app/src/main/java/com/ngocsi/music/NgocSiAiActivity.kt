@@ -172,6 +172,8 @@ class NgocSiAiActivity : ComponentActivity() {
     private var wakeWordListening by mutableStateOf(false)
     private var musicController: MediaController? = null
     private var deviceQueueLoadStarted = false
+    // Preserve the explicit "play" request if the device library is still loading.
+    private var pendingPlayAfterQueueLoad = false
     private var responseTts: TextToSpeech? = null
     private var responseTtsInitialized = false
     private var responseTtsReady = false
@@ -429,6 +431,7 @@ class NgocSiAiActivity : ComponentActivity() {
                 }
                 if (localItems.isEmpty()) {
                     deviceQueueLoadStarted = false
+                    pendingPlayAfterQueueLoad = false
                     Toast.makeText(
                         this@NgocSiAiActivity,
                         "Không tìm thấy tệp nhạc cục bộ. Bạn vẫn có thể dùng chat nếu AI trực tuyến đã cấu hình.",
@@ -440,9 +443,16 @@ class NgocSiAiActivity : ComponentActivity() {
                 activeController.setMediaItems(localItems)
                 activeController.prepare()
                 deviceQueueLoadStarted = false
+                val shouldStartPlayback = pendingPlayAfterQueueLoad
+                pendingPlayAfterQueueLoad = false
+                if (shouldStartPlayback) activeController.play()
                 Toast.makeText(
                     this@NgocSiAiActivity,
-                    "Đã nạp ${localItems.size} bài nhạc trên điện thoại. Hãy nói “Phát nhạc” để bắt đầu.",
+                    if (shouldStartPlayback) {
+                        "Đã nạp ${localItems.size} bài và bắt đầu phát nhạc."
+                    } else {
+                        "Đã nạp ${localItems.size} bài nhạc trên điện thoại."
+                    },
                     Toast.LENGTH_LONG
                 ).show()
             } catch (cancelled: CancellationException) {
@@ -541,11 +551,23 @@ class NgocSiAiActivity : ComponentActivity() {
             if (ContextCompat.checkSelfPermission(this, audioPermission) != PackageManager.PERMISSION_GRANTED) {
                 return "Chưa có quyền đọc nhạc. Hãy cấp quyền Âm nhạc và âm thanh cho NGỌC SĨ AI Preview trong Cài đặt ứng dụng."
             }
+            if (command == NgocSiAiLocalCommand.PLAY) {
+                // If loading started during screen initialization, remember the user's intent.
+                pendingPlayAfterQueueLoad = true
+            }
             if (!deviceQueueLoadStarted) {
                 loadDeviceMusicIntoQueue()
-                return "Đang kiểm tra thư viện nhạc trên điện thoại. Hãy thử lại sau khi thông báo nạp nhạc xuất hiện."
+                return if (command == NgocSiAiLocalCommand.PLAY) {
+                    "Đang nạp thư viện nhạc; tôi sẽ tự phát ngay khi nạp xong."
+                } else {
+                    "Đang kiểm tra thư viện nhạc trên điện thoại. Hãy thử lại sau khi nạp xong."
+                }
             }
-            return "Thư viện nhạc đang được nạp. Hãy đợi một chút rồi thử lại."
+            return if (command == NgocSiAiLocalCommand.PLAY) {
+                "Thư viện đang nạp; tôi sẽ tự phát nhạc ngay khi sẵn sàng."
+            } else {
+                "Thư viện nhạc đang được nạp. Hãy đợi một chút rồi thử lại."
+            }
         }
 
         return when (command) {
