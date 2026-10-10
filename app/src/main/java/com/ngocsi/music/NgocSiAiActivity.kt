@@ -205,6 +205,13 @@ class NgocSiAiActivity : ComponentActivity() {
                 .orEmpty()
                 .trim()
             if (result.resultCode == RESULT_OK && phrase.isNotBlank()) {
+                // Confirm recognition immediately so a user can distinguish microphone/
+                // speech-service problems from command-routing or AI-backend problems.
+                Toast.makeText(
+                    this,
+                    "Đã nhận giọng nói: ${phrase.take(100)}",
+                    Toast.LENGTH_SHORT
+                ).show()
                 // Route all recognized speech through the same allowlisted command/chat handler.
                 // Local playback commands work without Firebase; other speech gets an explicit
                 // explanation if online AI has not been configured.
@@ -667,7 +674,12 @@ class NgocSiAiActivity : ComponentActivity() {
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "vi-VN")
-            putExtra(RecognizerIntent.EXTRA_PROMPT, "Nói nội dung bạn muốn nhập")
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "vi-VN")
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+            putExtra(
+                RecognizerIntent.EXTRA_PROMPT,
+                "Nói tiếng Việt, ví dụ: Phát nhạc, tạm dừng, chuyển bài hoặc hỏi một câu"
+            )
         }
         try {
             speechLauncher.launch(intent)
