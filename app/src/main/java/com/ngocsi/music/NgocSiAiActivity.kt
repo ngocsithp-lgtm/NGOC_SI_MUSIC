@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -27,10 +28,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Surface
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Text
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -44,7 +45,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -99,6 +100,13 @@ private fun NgocSiAiPreviewScreen(
         )
     }
     var input by remember { mutableStateOf("") }
+    val messageListState = androidx.compose.foundation.lazy.rememberLazyListState()
+
+    LaunchedEffect(messages.size) {
+        if (messages.isNotEmpty()) {
+            messageListState.animateScrollToItem(messages.lastIndex)
+        }
+    }
 
     LaunchedEffect(recognizedSpeech) {
         if (recognizedSpeech.isNotBlank()) {
@@ -126,6 +134,7 @@ private fun NgocSiAiPreviewScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF08090D))
+            .imePadding()
     ) {
         Row(
             modifier = Modifier
@@ -199,6 +208,7 @@ private fun NgocSiAiPreviewScreen(
         }
 
         LazyColumn(
+            state = messageListState,
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth(),
@@ -307,6 +317,8 @@ private fun NgocSiAiPreviewScreen(
                         fontSize = 13.sp
                     ),
                     cursorBrush = androidx.compose.ui.graphics.SolidColor(Color(0xFF8DEEFF)),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                    keyboardActions = KeyboardActions(onSend = { sendMessage(input) }),
                     singleLine = false,
                     decorationBox = { innerTextField ->
                         Box {
