@@ -32,7 +32,10 @@ test("rejects histories that do not alternate user and assistant turns", () => {
   ] }), /INVALID_ROLE_SEQUENCE/);
 });
 test("requires the last message to be from the user", () => {
-  assert.throws(() => validateChatInput({ messages: [{ role: "assistant", content: "hello" }] }), /LAST_MESSAGE_MUST_BE_USER/);
+  assert.throws(() => validateChatInput({ messages: [
+    { role: "user", content: "hello" },
+    { role: "assistant", content: "hello back" }
+  ] }), /LAST_MESSAGE_MUST_BE_USER/);
 });
 test("builds a bounded per-user daily quota key", () => {
   assert.equal(dailyQuotaDocumentId("user@example.com", "2026-10-09"), "user_example_com_2026-10-09");
