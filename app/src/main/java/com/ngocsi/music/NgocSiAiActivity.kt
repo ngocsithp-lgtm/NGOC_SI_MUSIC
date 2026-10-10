@@ -351,7 +351,7 @@ private fun NgocSiAiPreviewScreen(
             ) {
                 listOf("Xin chào NGỌC SĨ AI", "Giúp tôi tìm nhạc", "Điều khiển bằng giọng nói").forEach { suggestion ->
                     Surface(
-                        modifier = Modifier.clickable { sendMessage(suggestion) },
+                        modifier = Modifier.clickable { input = suggestion },
                         shape = RoundedCornerShape(50),
                         color = Color(0xFF171B25),
                         border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF2B3040))
