@@ -163,10 +163,10 @@ private fun NgocSiAiPreviewScreen(
                 val globalRemaining = reply.remainingGlobalToday?.let { "Còn $it lượt toàn hệ thống hôm nay" }
                 quotaNote = listOfNotNull(userRemaining, globalRemaining).joinToString(" • ")
             } catch (cancelled: CancellationException) {
-                conversation.remove(userTurn)
+                if (conversation.lastOrNull() == userTurn) conversation.removeAt(conversation.lastIndex)
                 throw cancelled
             } catch (error: NgocSiAiRemoteException) {
-                conversation.remove(userTurn)
+                if (conversation.lastOrNull() == userTurn) conversation.removeAt(conversation.lastIndex)
                 messages.add(
                     AiPreviewMessage(
                         false,
@@ -174,7 +174,7 @@ private fun NgocSiAiPreviewScreen(
                     )
                 )
             } catch (_: Exception) {
-                conversation.remove(userTurn)
+                if (conversation.lastOrNull() == userTurn) conversation.removeAt(conversation.lastIndex)
                 messages.add(
                     AiPreviewMessage(
                         false,
