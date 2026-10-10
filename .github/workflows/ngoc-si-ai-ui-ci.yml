@@ -6,17 +6,6 @@ concurrency:
   cancel-in-progress: true
 
 on:
-  pull_request:
-    paths:
-      - "app/src/main/**"
-      - "app/src/test/**"
-      - "app/build.gradle.kts"
-      - "build.gradle.kts"
-      - "settings.gradle.kts"
-      - "gradle/**"
-      - ".github/workflows/ngoc-si-ai-ui-ci.yml"
-      - "docs/NGOC_SI_AI_UI_PREVIEW.md"
-      - "docs/NGOC_SI_AI_ANDROID_INTEGRATION.md"
   push:
     branches:
       - "feature/ngoc-si-ai-ui-preview"
