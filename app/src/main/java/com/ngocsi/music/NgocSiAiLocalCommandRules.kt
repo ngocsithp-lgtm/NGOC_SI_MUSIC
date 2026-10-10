@@ -13,7 +13,26 @@ internal enum class NgocSiAiLocalCommand {
     SHUFFLE_OFF,
     REPEAT_OFF,
     REPEAT_ALL,
-    REPEAT_ONE
+    REPEAT_ONE,
+    OPEN_HOME,
+    OPEN_LIBRARY,
+    OPEN_YOUTUBE,
+    OPEN_DRIVE,
+    OPEN_RADIO,
+    OPEN_TV,
+    OPEN_PLAYLISTS,
+    OPEN_QUEUE,
+    OPEN_PLAYER,
+    OPEN_SETTINGS,
+    OPEN_SLEEP_TIMER,
+    SLEEP_TIMER_15,
+    SLEEP_TIMER_30,
+    SLEEP_TIMER_45,
+    SLEEP_TIMER_60,
+    SLEEP_TIMER_90,
+    SLEEP_TIMER_120,
+    CANCEL_SLEEP_TIMER,
+    HELP
 }
 
 /**
@@ -107,6 +126,65 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
 
         startsWithAny("lap bai", "lap mot bai", "lap mot bai hat", "repeat one", "loop current song") ->
             NgocSiAiLocalCommand.REPEAT_ONE
+
+        // Timer phrases require an explicit duration; vague mentions only open the timer dialog.
+        startsWithAny("huy hen gio", "bo hen gio", "tat hen gio", "xoa hen gio", "cancel sleep timer") ->
+            NgocSiAiLocalCommand.CANCEL_SLEEP_TIMER
+
+        phrase.contains("hen gio") && phrase.contains("15 phut") ||
+            startsWithAny("tat nhac sau 15 phut", "dung nhac sau 15 phut") ->
+            NgocSiAiLocalCommand.SLEEP_TIMER_15
+        phrase.contains("hen gio") && phrase.contains("30 phut") ||
+            startsWithAny("tat nhac sau 30 phut", "dung nhac sau 30 phut") ->
+            NgocSiAiLocalCommand.SLEEP_TIMER_30
+        phrase.contains("hen gio") && phrase.contains("45 phut") ||
+            startsWithAny("tat nhac sau 45 phut", "dung nhac sau 45 phut") ->
+            NgocSiAiLocalCommand.SLEEP_TIMER_45
+        phrase.contains("hen gio") && phrase.contains("60 phut") ||
+            startsWithAny("tat nhac sau 60 phut", "dung nhac sau 60 phut") ->
+            NgocSiAiLocalCommand.SLEEP_TIMER_60
+        phrase.contains("hen gio") && phrase.contains("90 phut") ||
+            startsWithAny("tat nhac sau 90 phut", "dung nhac sau 90 phut") ->
+            NgocSiAiLocalCommand.SLEEP_TIMER_90
+        phrase.contains("hen gio") && phrase.contains("120 phut") ||
+            startsWithAny("tat nhac sau 120 phut", "dung nhac sau 120 phut") ->
+            NgocSiAiLocalCommand.SLEEP_TIMER_120
+
+        isAnyOf("ban lam duoc gi", "toi co the ra lenh gi", "ai lam duoc gi", "tro giup", "huong dan su dung", "cac chuc nang cua ai") ->
+            NgocSiAiLocalCommand.HELP
+
+        isAnyOf("ve trang chu", "mo trang chu", "mo home", "home", "trang chu") ->
+            NgocSiAiLocalCommand.OPEN_HOME
+
+        startsWithAny("mo thu vien", "vao thu vien", "mo muc thu vien", "mo nhac trong thu vien") ->
+            NgocSiAiLocalCommand.OPEN_LIBRARY
+
+        startsWithAny("mo youtube", "vao youtube", "mo video youtube", "mo muc youtube") ->
+            NgocSiAiLocalCommand.OPEN_YOUTUBE
+
+        startsWithAny("mo drive", "vao drive", "mo google drive", "vao google drive", "mo muc drive") ->
+            NgocSiAiLocalCommand.OPEN_DRIVE
+
+        startsWithAny("mo radio", "vao radio", "mo dai phat thanh", "vao dai phat thanh") ->
+            NgocSiAiLocalCommand.OPEN_RADIO
+
+        startsWithAny("mo tv", "vao tv", "mo truyen hinh", "vao truyen hinh", "mo tivi") ->
+            NgocSiAiLocalCommand.OPEN_TV
+
+        startsWithAny("mo danh sach phat", "mo playlist", "mo cac playlist", "vao playlist") ->
+            NgocSiAiLocalCommand.OPEN_PLAYLISTS
+
+        startsWithAny("mo hang doi", "mo danh sach cho phat", "mo queue", "xem hang doi") ->
+            NgocSiAiLocalCommand.OPEN_QUEUE
+
+        startsWithAny("mo trinh phat", "mo man hinh dang phat", "mo player", "xem bai dang phat") ->
+            NgocSiAiLocalCommand.OPEN_PLAYER
+
+        startsWithAny("mo cai dat", "vao cai dat", "mo phan cai dat") ->
+            NgocSiAiLocalCommand.OPEN_SETTINGS
+
+        startsWithAny("hen gio", "mo hen gio", "dat hen gio", "hen gio tat nhac", "mo bo dem gio") ->
+            NgocSiAiLocalCommand.OPEN_SLEEP_TIMER
 
         else -> null
     }

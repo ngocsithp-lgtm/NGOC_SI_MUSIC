@@ -128,4 +128,38 @@ class NgocSiAiLocalCommandRulesTest {
         assertEquals("chuyển bài", selectNgocSiAiWakePhraseCandidate(listOf("chuyển bài", "qua bài")))
     }
 
+
+    @Test
+    fun recognizesExplicitAppNavigationCommands() {
+        assertEquals(NgocSiAiLocalCommand.OPEN_HOME, classifyNgocSiAiLocalCommand("Về trang chủ"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_LIBRARY, classifyNgocSiAiLocalCommand("Mở thư viện"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_YOUTUBE, classifyNgocSiAiLocalCommand("Mở YouTube"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_DRIVE, classifyNgocSiAiLocalCommand("Mở Google Drive"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_RADIO, classifyNgocSiAiLocalCommand("Vào Radio"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_TV, classifyNgocSiAiLocalCommand("Mở truyền hình"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_PLAYLISTS, classifyNgocSiAiLocalCommand("Mở danh sách phát"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_QUEUE, classifyNgocSiAiLocalCommand("Mở hàng đợi"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_SETTINGS, classifyNgocSiAiLocalCommand("Mở cài đặt"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_PLAYER, classifyNgocSiAiLocalCommand("Mở trình phát"))
+    }
+
+    @Test
+    fun recognizesSleepTimerDurationsAndCancellation() {
+        assertEquals(NgocSiAiLocalCommand.SLEEP_TIMER_15, classifyNgocSiAiLocalCommand("Hẹn giờ tắt nhạc sau 15 phút"))
+        assertEquals(NgocSiAiLocalCommand.SLEEP_TIMER_30, classifyNgocSiAiLocalCommand("Hẹn giờ 30 phút"))
+        assertEquals(NgocSiAiLocalCommand.SLEEP_TIMER_45, classifyNgocSiAiLocalCommand("Đặt hẹn giờ 45 phút"))
+        assertEquals(NgocSiAiLocalCommand.SLEEP_TIMER_60, classifyNgocSiAiLocalCommand("Tắt nhạc sau 60 phút"))
+        assertEquals(NgocSiAiLocalCommand.SLEEP_TIMER_90, classifyNgocSiAiLocalCommand("Hẹn giờ sau 90 phút"))
+        assertEquals(NgocSiAiLocalCommand.SLEEP_TIMER_120, classifyNgocSiAiLocalCommand("Hẹn giờ 120 phút"))
+        assertEquals(NgocSiAiLocalCommand.CANCEL_SLEEP_TIMER, classifyNgocSiAiLocalCommand("Hủy hẹn giờ"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_SLEEP_TIMER, classifyNgocSiAiLocalCommand("Mở hẹn giờ"))
+    }
+
+    @Test
+    fun helpIntentDoesNotConfuseQuestionsWithActions() {
+        assertEquals(NgocSiAiLocalCommand.HELP, classifyNgocSiAiLocalCommand("Bạn làm được gì?"))
+        assertNull(classifyNgocSiAiLocalCommand("Tôi muốn biết cách mở YouTube"))
+        assertNull(classifyNgocSiAiLocalCommand("Tôi thích Radio"))
+    }
+
 }

@@ -663,6 +663,29 @@ class NgocSiAiActivity : ComponentActivity() {
     }
 
     private fun runLocalCommand(command: NgocSiAiLocalCommand): String {
+        when (command) {
+            NgocSiAiLocalCommand.HELP -> return "Tôi có thể điều khiển nhạc, mở Thư viện, YouTube, Google Drive, Radio, TV, Playlist, Hàng đợi, Cài đặt và đặt hẹn giờ 15, 30, 45, 60, 90 hoặc 120 phút. Hãy nói ví dụ: “Mở YouTube” hoặc “Hẹn giờ 30 phút”."
+            NgocSiAiLocalCommand.OPEN_HOME -> return openAppDestination("home", "Đang mở trang chủ.")
+            NgocSiAiLocalCommand.OPEN_LIBRARY -> return openAppDestination("library", "Đang mở Thư viện nhạc.")
+            NgocSiAiLocalCommand.OPEN_YOUTUBE -> return openAppDestination("youtube", "Đang mở YouTube.")
+            NgocSiAiLocalCommand.OPEN_DRIVE -> return openAppDestination("drive", "Đang mở Google Drive.")
+            NgocSiAiLocalCommand.OPEN_RADIO -> return openAppDestination("radio", "Đang mở Radio.")
+            NgocSiAiLocalCommand.OPEN_TV -> return openAppDestination("tv", "Đang mở Truyền hình.")
+            NgocSiAiLocalCommand.OPEN_PLAYLISTS -> return openAppDestination("playlists", "Đang mở danh sách phát.")
+            NgocSiAiLocalCommand.OPEN_QUEUE -> return openAppDestination("queue", "Đang mở hàng đợi phát.")
+            NgocSiAiLocalCommand.OPEN_PLAYER -> return openAppDestination("player", "Đang mở trình phát.")
+            NgocSiAiLocalCommand.OPEN_SETTINGS -> return openAppDestination("settings", "Đang mở Cài đặt.")
+            NgocSiAiLocalCommand.OPEN_SLEEP_TIMER -> return openAppDestination("sleep_timer", "Đang mở hẹn giờ tắt nhạc.")
+            NgocSiAiLocalCommand.SLEEP_TIMER_15 -> return openAppDestination("sleep_timer_15", "Đã đặt hẹn giờ tắt nhạc sau 15 phút.")
+            NgocSiAiLocalCommand.SLEEP_TIMER_30 -> return openAppDestination("sleep_timer_30", "Đã đặt hẹn giờ tắt nhạc sau 30 phút.")
+            NgocSiAiLocalCommand.SLEEP_TIMER_45 -> return openAppDestination("sleep_timer_45", "Đã đặt hẹn giờ tắt nhạc sau 45 phút.")
+            NgocSiAiLocalCommand.SLEEP_TIMER_60 -> return openAppDestination("sleep_timer_60", "Đã đặt hẹn giờ tắt nhạc sau 60 phút.")
+            NgocSiAiLocalCommand.SLEEP_TIMER_90 -> return openAppDestination("sleep_timer_90", "Đã đặt hẹn giờ tắt nhạc sau 90 phút.")
+            NgocSiAiLocalCommand.SLEEP_TIMER_120 -> return openAppDestination("sleep_timer_120", "Đã đặt hẹn giờ tắt nhạc sau 120 phút.")
+            NgocSiAiLocalCommand.CANCEL_SLEEP_TIMER -> return openAppDestination("sleep_timer_off", "Đã yêu cầu tắt hẹn giờ.")
+            else -> Unit
+        }
+
         val player = musicController
             ?: return "Trình phát đang khởi động hoặc chưa kết nối. Hãy thử lại sau một lát."
         if (player.mediaItemCount == 0 || player.currentMediaItem == null) {
@@ -750,6 +773,22 @@ class NgocSiAiActivity : ComponentActivity() {
                 player.repeatMode = androidx.media3.common.Player.REPEAT_MODE_ONE
                 "Đã bật lặp bài hiện tại."
             }
+            else -> "Yêu cầu này cần mở mục chức năng tương ứng trong ứng dụng."
+        }
+    }
+
+    private fun openAppDestination(destination: String, response: String): String {
+        return runCatching {
+            startActivity(
+                Intent(this, MainActivity::class.java).apply {
+                    putExtra("pro_destination", destination)
+                    // Bring the existing main app to the front and deliver its navigation event.
+                    addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                }
+            )
+            response
+        }.getOrElse {
+            "Chưa mở được chức năng trong ứng dụng. Hãy mở chức năng đó từ trang chủ."
         }
     }
 
@@ -973,7 +1012,7 @@ private fun NgocSiAiPreviewScreen(
 
         if (!isOnlineConfigured) {
             val offlineReply =
-                "Tôi đã nhận lệnh. Bản này hiện chỉ thực hiện được các lệnh điều khiển nhạc đã hỗ trợ; AI trả lời tự do chưa kết nối máy chủ Firebase/Gemini. Tin nhắn không được gửi ra ngoài và không phát sinh phí AI."
+                "Tôi đã nhận tin nhắn. Khi chưa kết nối máy chủ AI, tôi vẫn có thể điều khiển nhạc, mở các mục chính của ứng dụng và đặt hẹn giờ bằng lệnh được hỗ trợ. Chatbot trả lời tự do chưa bật; tin nhắn này không được gửi ra ngoài và không phát sinh phí AI."
             messages.add(AiPreviewMessage(false, offlineReply))
             if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
             persistChatState()
@@ -1332,7 +1371,10 @@ private fun NgocSiAiPreviewScreen(
                 } else emptyList()) + listOf(
                     "Phát nhạc", "Tạm dừng nhạc", "Bài tiếp theo", "Bài trước",
                     "Đang phát bài gì?", "Phát ngẫu nhiên", "Tắt phát ngẫu nhiên",
-                    "Lặp hàng đợi", "Lặp một bài", "Tắt chế độ lặp"
+                    "Lặp hàng đợi", "Lặp một bài", "Tắt chế độ lặp",
+                    "Mở thư viện", "Mở YouTube", "Mở Drive", "Mở Radio", "Mở TV",
+                    "Mở danh sách phát", "Mở hàng đợi", "Mở Cài đặt",
+                    "Hẹn giờ 30 phút", "Tắt hẹn giờ", "Bạn làm được gì?"
                 )
                 suggestions.forEach { suggestion ->
                     Surface(

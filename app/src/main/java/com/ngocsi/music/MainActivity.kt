@@ -692,6 +692,7 @@ class MainActivity : ComponentActivity() {
 
     private fun handleProDestination(destination: String?) {
         when (destination) {
+            "home" -> selectedSection = "Trang chủ"
             "library" -> {
                 selectedSection = "Thư viện"
                 selectedLibrary = "Tất cả"
@@ -703,8 +704,7 @@ class MainActivity : ComponentActivity() {
             }
             "drive" -> {
                 selectedSection = "Online"
-                onlineHubTab = "Tất cả"
-                errorMessage = "Google Drive: chọn File Drive hoặc Thư mục để nhập nhạc."
+                onlineHubTab = "Drive"
             }
             "radio" -> {
                 selectedSection = "Radio"
@@ -724,6 +724,14 @@ class MainActivity : ComponentActivity() {
                 }
             }
             "settings" -> selectedSection = "Cài đặt"
+            "sleep_timer" -> showSleepTimer = true
+            "sleep_timer_15" -> startSleepTimer(15)
+            "sleep_timer_30" -> startSleepTimer(30)
+            "sleep_timer_45" -> startSleepTimer(45)
+            "sleep_timer_60" -> startSleepTimer(60)
+            "sleep_timer_90" -> startSleepTimer(90)
+            "sleep_timer_120" -> startSleepTimer(120)
+            "sleep_timer_off" -> startSleepTimer(0)
         }
     }
 
