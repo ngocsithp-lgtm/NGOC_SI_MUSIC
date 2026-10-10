@@ -50,40 +50,39 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
         phrase = phrase.removePrefix(prefix).trim()
     }
 
-    return when (phrase) {
-        "phat nhac", "bat nhac", "tiep tuc phat", "tiep tuc nghe nhac",
-        "play", "play music", "resume" -> NgocSiAiLocalCommand.PLAY
+    fun isAnyOf(vararg options: String) = phrase in options.toSet()
+    fun startsWithAny(vararg options: String) = options.any { phrase == it || phrase.startsWith("$it ") }
 
-        "tam dung", "tam dung nhac", "pause", "pause music" -> NgocSiAiLocalCommand.PAUSE
+    return when {
+        isAnyOf("phat nhac", "bat nhac", "tiep tuc phat", "tiep tuc nghe nhac",
+            "play", "play music", "resume", "mo nhac") -> NgocSiAiLocalCommand.PLAY
 
-        "bai tiep theo", "nhac tiep theo", "chuyen bai", "next", "next song" ->
-            NgocSiAiLocalCommand.NEXT
+        isAnyOf("tam dung", "tam dung nhac", "pause", "pause music", "dung nhac") ->
+            NgocSiAiLocalCommand.PAUSE
 
-        "bai truoc", "nhac truoc", "quay lai bai truoc", "previous", "previous song" ->
-            NgocSiAiLocalCommand.PREVIOUS
+        startsWithAny("bai tiep theo", "nhac tiep theo", "chuyen bai", "sang bai tiep theo",
+            "next", "next song") -> NgocSiAiLocalCommand.NEXT
 
-        "dang phat bai gi", "bai gi dang phat", "ten bai hat hien tai",
-        "bai dang phat la gi", "what is playing", "current song" ->
+        startsWithAny("bai truoc", "nhac truoc", "quay lai bai truoc", "tro ve bai truoc",
+            "previous", "previous song") -> NgocSiAiLocalCommand.PREVIOUS
+
+        isAnyOf("dang phat bai gi", "bai gi dang phat", "ten bai hat hien tai",
+            "bai dang phat la gi", "what is playing", "current song") ->
             NgocSiAiLocalCommand.CURRENT_TRACK
 
-        "bat phat ngau nhien", "bat ngau nhien", "phat ngau nhien",
-        "enable shuffle", "turn shuffle on", "shuffle on" ->
-            NgocSiAiLocalCommand.SHUFFLE_ON
+        startsWithAny("bat phat ngau nhien", "bat ngau nhien", "phat ngau nhien",
+            "enable shuffle", "turn shuffle on", "shuffle on") -> NgocSiAiLocalCommand.SHUFFLE_ON
 
-        "tat phat ngau nhien", "tat ngau nhien", "tat phat tron",
-        "disable shuffle", "turn shuffle off", "shuffle off" ->
-            NgocSiAiLocalCommand.SHUFFLE_OFF
+        startsWithAny("tat phat ngau nhien", "tat ngau nhien", "tat phat tron",
+            "disable shuffle", "turn shuffle off", "shuffle off") -> NgocSiAiLocalCommand.SHUFFLE_OFF
 
-        "tat lap", "tat che do lap", "khong lap",
-        "repeat off", "disable repeat" ->
+        startsWithAny("tat lap", "tat che do lap", "khong lap", "repeat off", "disable repeat") ->
             NgocSiAiLocalCommand.REPEAT_OFF
 
-        "lap hang doi", "lap danh sach", "lap tat ca",
-        "repeat all", "loop playlist" ->
+        startsWithAny("lap hang doi", "lap danh sach", "lap tat ca", "repeat all", "loop playlist") ->
             NgocSiAiLocalCommand.REPEAT_ALL
 
-        "lap bai", "lap mot bai", "lap mot bai hat",
-        "repeat one", "loop current song" ->
+        startsWithAny("lap bai", "lap mot bai", "lap mot bai hat", "repeat one", "loop current song") ->
             NgocSiAiLocalCommand.REPEAT_ONE
 
         else -> null
