@@ -121,12 +121,24 @@ class NgocSiWakeWordService : Service() {
             listening = false
             val phrases = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
             // Trust only the best recognition hypothesis to reduce accidental playback actions.
-            val command = phrases.firstOrNull()?.let(::classifyNgocSiAiWakePhrase)
+            val recognized = phrases.firstOrNull().orEmpty()
+            val command = recognized.takeIf { it.isNotBlank() }?.let(::classifyNgocSiAiWakePhrase)
             if (command != null) {
-                val reply = runPlaybackCommand(command)
-                updateNotification("Đã nhận lệnh · $reply")
+                if (musicController == null) {
+                    updateNotification("Đã nhận “$recognized” · đang kết nối trình phát")
+                    connectMusicController()
+                    mainHandler.postDelayed({
+                        if (!stopping) updateNotification("Lệnh nhận được · " + runPlaybackCommand(command))
+                    }, 900L)
+                } else {
+                    updateNotification("Đã nghe “$recognized” · " + runPlaybackCommand(command))
+                }
+            } else if (recognized.isNotBlank()) {
+                // Expose the actual speech-recognition result in the persistent notification
+                // so the user can tell whether the problem is recognition or command matching.
+                updateNotification("Đã nghe: “${recognized.take(55)}” · cần mở đầu bằng “Ngọc Sĩ”")
             }
-            scheduleListenRetry(450L)
+            scheduleListenRetry(650L)
         }
 
         override fun onPartialResults(partialResults: Bundle?) = Unit
