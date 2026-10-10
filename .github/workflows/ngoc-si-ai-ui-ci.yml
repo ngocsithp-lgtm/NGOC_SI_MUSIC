@@ -1,4 +1,4 @@
-name: NGOC SI AI UI Preview CI
+name: NGOC SI AI Android Integration CI
 
 on:
   pull_request:
@@ -99,7 +99,7 @@ jobs:
       - name: Upload preview APK artifact
         uses: actions/upload-artifact@v6
         with:
-          name: NGOC_SI_AI_UI_PREVIEW_DEBUG_APK
+          name: NGOC_SI_AI_ANDROID_INTEGRATION_PREVIEW_DEBUG_APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
