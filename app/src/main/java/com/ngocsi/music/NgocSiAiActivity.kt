@@ -3,14 +3,17 @@ package com.ngocsi.music
 import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.ComponentName
+import android.content.ContentUris
 import android.content.SharedPreferences
 import org.json.JSONArray
 import org.json.JSONObject
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.MediaStore
 import android.speech.RecognizerIntent
 import android.speech.tts.TextToSpeech
 import android.widget.Toast
@@ -18,6 +21,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
@@ -56,7 +62,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.Locale
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -162,6 +170,7 @@ class NgocSiAiActivity : ComponentActivity() {
     private var recognizedSpeechShouldSend by mutableStateOf(false)
     private var wakeWordListening by mutableStateOf(false)
     private var musicController: MediaController? = null
+    private var deviceQueueLoadStarted = false
     private var responseTts: TextToSpeech? = null
     private var responseTtsInitialized = false
     private var responseTtsReady = false
@@ -201,6 +210,19 @@ class NgocSiAiActivity : ComponentActivity() {
                 // explanation if online AI has not been configured.
                 recognizedSpeech = phrase
                 recognizedSpeechShouldSend = true
+            }
+        }
+
+    private val musicPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) {
+                loadDeviceMusicIntoQueue()
+            } else {
+                Toast.makeText(
+                    this,
+                    "Chưa cấp quyền đọc nhạc trên thiết bị. Chat AI vẫn dùng được; lệnh phát nhạc cần quyền này.",
+                    Toast.LENGTH_LONG
+                ).show()
             }
         }
 
@@ -295,6 +317,131 @@ class NgocSiAiActivity : ComponentActivity() {
                 onToggleWakeWord = { toggleWakeWordListening() }
             )
         }
+        requestMusicPermissionIfNeeded()
+    }
+
+    private fun requestMusicPermissionIfNeeded() {
+        val permission = if (Build.VERSION.SDK_INT >= 33) {
+            Manifest.permission.READ_MEDIA_AUDIO
+        } else {
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        }
+        if (ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED) {
+            loadDeviceMusicIntoQueue()
+        } else {
+            musicPermissionLauncher.launch(permission)
+        }
+    }
+
+    /**
+     * Loads a queue only into this isolated Preview app's own Media3 service.
+     * It never modifies or controls the production NGỌC SĨ MUSIC package.
+     */
+    private fun loadDeviceMusicIntoQueue() {
+        if (deviceQueueLoadStarted) return
+        val controller = musicController ?: return
+        if (controller.mediaItemCount > 0) return
+
+        val permission = if (Build.VERSION.SDK_INT >= 33) {
+            Manifest.permission.READ_MEDIA_AUDIO
+        } else {
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        }
+        if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+            return
+        }
+
+        deviceQueueLoadStarted = true
+        lifecycleScope.launch {
+            try {
+                val localItems = withContext(Dispatchers.IO) { queryDeviceMusicItems() }
+                if (isFinishing || isDestroyed) return@launch
+
+                val activeController = musicController
+                if (activeController == null || activeController.mediaItemCount > 0) {
+                    deviceQueueLoadStarted = false
+                    return@launch
+                }
+                if (localItems.isEmpty()) {
+                    deviceQueueLoadStarted = false
+                    Toast.makeText(
+                        this@NgocSiAiActivity,
+                        "Không tìm thấy tệp nhạc cục bộ. Bạn vẫn có thể dùng chat nếu AI trực tuyến đã cấu hình.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    return@launch
+                }
+
+                activeController.setMediaItems(localItems)
+                activeController.prepare()
+                Toast.makeText(
+                    this@NgocSiAiActivity,
+                    "Đã nạp ${localItems.size} bài nhạc trên điện thoại. Hãy nói “Phát nhạc” để bắt đầu.",
+                    Toast.LENGTH_LONG
+                ).show()
+            } catch (_: SecurityException) {
+                deviceQueueLoadStarted = false
+                Toast.makeText(
+                    this@NgocSiAiActivity,
+                    "Android chưa cho phép đọc thư viện nhạc. Hãy cấp quyền rồi mở lại NGỌC SĨ AI.",
+                    Toast.LENGTH_LONG
+                ).show()
+            } catch (_: Exception) {
+                deviceQueueLoadStarted = false
+                Toast.makeText(
+                    this@NgocSiAiActivity,
+                    "Không tải được thư viện nhạc trên máy. Hãy thử lại.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
+
+    private fun queryDeviceMusicItems(): List<MediaItem> {
+        val collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+        val projection = arrayOf(
+            MediaStore.Audio.Media._ID,
+            MediaStore.Audio.Media.TITLE,
+            MediaStore.Audio.Media.ARTIST,
+            MediaStore.Audio.Media.ALBUM
+        )
+        val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0"
+        val sortOrder = "${MediaStore.Audio.Media.TITLE} COLLATE NOCASE ASC"
+        val items = mutableListOf<MediaItem>()
+
+        contentResolver.query(collection, projection, selection, null, sortOrder)?.use { cursor ->
+            val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+            val titleColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
+            val artistColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
+            val albumColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
+            while (cursor.moveToNext()) {
+                val id = cursor.getLong(idColumn)
+                val title = cursor.getString(titleColumn)
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() && !it.equals("<unknown>", ignoreCase = true) }
+                    ?: "Không có tên"
+                val artist = cursor.getString(artistColumn)
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() && !it.equals("<unknown>", ignoreCase = true) }
+                    ?: "Nghệ sĩ không rõ"
+                val album = cursor.getString(albumColumn)
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() && !it.equals("<unknown>", ignoreCase = true) }
+                    .orEmpty()
+                val uri = ContentUris.withAppendedId(collection, id)
+                val metadata = MediaMetadata.Builder()
+                    .setTitle(title)
+                    .setArtist(artist)
+                    .setAlbumTitle(album)
+                    .build()
+                items += MediaItem.Builder()
+                    .setMediaId(uri.toString())
+                    .setUri(uri)
+                    .setMediaMetadata(metadata)
+                    .build()
+            }
+        }
+        return items
     }
 
     private fun connectMusicController() {
@@ -307,6 +454,7 @@ class NgocSiAiActivity : ComponentActivity() {
                         connectedController.release()
                     } else {
                         musicController = connectedController
+                        loadDeviceMusicIntoQueue()
                     }
                 }
         }, ContextCompat.getMainExecutor(this))
