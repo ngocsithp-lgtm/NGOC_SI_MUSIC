@@ -6,6 +6,7 @@
 
 - If Firebase client settings are absent, the app stays in local preview mode. It does not call Firebase or Gemini.
 - The recent chat transcript is stored only in this app's private local preferences on the device (up to 60 visible messages); the user can clear it through the confirmed **XÓA** action. The app does not sync the transcript to cloud storage.
+- Four explicit playback commands — **Phát nhạc**, **Tạm dừng nhạc**, **Bài tiếp theo**, and **Bài trước** — are handled locally through the Media3 session. They do not call Firebase/Gemini or consume AI quota. Only short, recognized command phrases trigger playback; general questions are not interpreted as actions.
 - When online mode is configured, a request sends only the recent conversation context (up to 8 messages and 8,000 total characters) to the callable backend. Do not enter passwords, verification codes, or other sensitive data.
 - If Firebase settings are present, sending a message signs in anonymously and calls the `ngocSiAiChat` Firebase callable in `asia-southeast1`. The microphone only fills the text box; it does not submit or send by itself.
 - Android uses Firebase Authentication, Firebase Functions, and App Check with Play Integrity. It does not include a Gemini API key.
