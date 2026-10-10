@@ -108,4 +108,24 @@ class NgocSiAiLocalCommandRulesTest {
         assertEquals(NgocSiAiLocalCommand.PREVIOUS, classifyNgocSiAiLocalCommand("Bài trước đó"))
     }
 
+
+    @Test
+    fun prefersARecognizedPlaybackCommandAmongSpeechHypotheses() {
+        assertEquals(
+            "phát nhạc",
+            selectNgocSiAiLocalCommandCandidate(listOf("pháp nhạc", "phát nhạc", "phát nhanh"))
+        )
+        assertEquals("câu không rõ", selectNgocSiAiLocalCommandCandidate(listOf("câu không rõ", "lời khác")))
+        assertEquals(null, selectNgocSiAiLocalCommandCandidate(listOf("", "   ")))
+    }
+
+    @Test
+    fun wakeWordCandidateSelectionStillRequiresTheWakePhrase() {
+        assertEquals(
+            "Ngọc Sĩ, chuyển bài",
+            selectNgocSiAiWakePhraseCandidate(listOf("chuyển bài", "Ngọc Sĩ, chuyển bài", "Ngọc Sĩ"))
+        )
+        assertEquals("chuyển bài", selectNgocSiAiWakePhraseCandidate(listOf("chuyển bài", "qua bài")))
+    }
+
 }
