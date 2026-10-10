@@ -24,11 +24,11 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 
-@UnstableApi
 /**
  * Experimental on-device wake-phrase listener. It intentionally refuses online recognition.
  * Start it only from a visible activity after RECORD_AUDIO permission has been granted.
  */
+@UnstableApi
 class NgocSiWakeWordService : Service() {
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -120,7 +120,8 @@ class NgocSiWakeWordService : Service() {
         override fun onResults(results: Bundle?) {
             listening = false
             val phrases = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
-            val command = phrases.firstNotNullOfOrNull(::classifyNgocSiAiWakePhrase)
+            // Trust only the best recognition hypothesis to reduce accidental playback actions.
+            val command = phrases.firstOrNull()?.let(::classifyNgocSiAiWakePhrase)
             if (command != null) {
                 val reply = runPlaybackCommand(command)
                 updateNotification("Đã nhận lệnh · $reply")
