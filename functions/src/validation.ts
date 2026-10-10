@@ -23,6 +23,11 @@ export function validateChatInput(value: unknown): ChatMessage[] {
     if (totalChars > MAX_TOTAL_CHARS) throw new Error("TOTAL_LENGTH_EXCEEDED");
     messages.push({ role, content: normalized });
   }
+  if (messages[0]?.role !== "user") throw new Error("FIRST_MESSAGE_MUST_BE_USER");
+  for (let index = 1; index < messages.length; index += 1) {
+    const expectedRole: ChatRole = index % 2 === 0 ? "user" : "assistant";
+    if (messages[index].role !== expectedRole) throw new Error("INVALID_ROLE_SEQUENCE");
+  }
   if (messages[messages.length - 1]?.role !== "user") throw new Error("LAST_MESSAGE_MUST_BE_USER");
   return messages;
 }

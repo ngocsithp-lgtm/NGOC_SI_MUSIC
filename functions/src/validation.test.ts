@@ -14,12 +14,22 @@ test("rejects oversized message and excessive history", () => {
 });
 test("rejects total input larger than the request budget", () => {
   assert.throws(() => validateChatInput({ messages: [
+    { role: "user", content: "x".repeat(2000) },
     { role: "assistant", content: "x".repeat(2000) },
-    { role: "assistant", content: "x".repeat(2000) },
-    { role: "assistant", content: "x".repeat(2000) },
+    { role: "user", content: "x".repeat(2000) },
     { role: "assistant", content: "x".repeat(2000) },
     { role: "user", content: "y" }
   ] }), /TOTAL_LENGTH_EXCEEDED/);
+});
+test("rejects histories that do not alternate user and assistant turns", () => {
+  assert.throws(() => validateChatInput({ messages: [
+    { role: "assistant", content: "Xin chào" },
+    { role: "user", content: "Câu hỏi" }
+  ] }), /FIRST_MESSAGE_MUST_BE_USER/);
+  assert.throws(() => validateChatInput({ messages: [
+    { role: "user", content: "Câu đầu" },
+    { role: "user", content: "Câu kế" }
+  ] }), /INVALID_ROLE_SEQUENCE/);
 });
 test("requires the last message to be from the user", () => {
   assert.throws(() => validateChatInput({ messages: [{ role: "assistant", content: "hello" }] }), /LAST_MESSAGE_MUST_BE_USER/);
