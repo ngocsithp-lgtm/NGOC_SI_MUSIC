@@ -8,6 +8,7 @@ import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderF
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.functions.FirebaseFunctions
 import com.google.firebase.functions.FirebaseFunctionsException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.tasks.await
 
 internal data class NgocSiAiMessage(
@@ -45,6 +46,8 @@ internal class NgocSiAiRemoteClient(context: Context) {
             if (auth.currentUser == null) {
                 auth.signInAnonymously().await()
             }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (_: Exception) {
             throw NgocSiAiRemoteException(
                 "Không thể xác thực tài khoản thử nghiệm. Hãy kiểm tra Anonymous Authentication trong Firebase."
@@ -81,6 +84,8 @@ internal class NgocSiAiRemoteClient(context: Context) {
                     "Không thể hoàn tất yêu cầu AI. Hãy kiểm tra cấu hình rồi thử lại."
             }
             throw NgocSiAiRemoteException(safeMessage)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (_: Exception) {
             throw NgocSiAiRemoteException("Không kết nối được máy chủ AI. Hãy kiểm tra Internet.")
         }
