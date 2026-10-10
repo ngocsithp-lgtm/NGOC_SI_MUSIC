@@ -174,6 +174,9 @@ class NgocSiAiActivity : ComponentActivity() {
     private var wakeWordListening by mutableStateOf(false)
     private var voiceRecognizer: SpeechRecognizer? = null
     private var voiceRecognitionInProgress = false
+    private var voiceRetryCount = 0
+    private var activeVoiceIntent: Intent? = null
+    private val voiceRetryHandler = Handler(Looper.getMainLooper())
     private var musicController: MediaController? = null
     private var deviceQueueLoadStarted = false
     // Preserve the explicit "play" request if the device library is still loading.
@@ -220,8 +223,38 @@ class NgocSiAiActivity : ComponentActivity() {
 
         override fun onError(error: Int) {
             runOnUiThread {
+                if (isFinishing || isDestroyed) {
+                    voiceRecognitionInProgress = false
+                    return@runOnUiThread
+                }
+                val canRetry = error == SpeechRecognizer.ERROR_NO_MATCH ||
+                    error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
+                if (canRetry && voiceRetryCount < 1 && activeVoiceIntent != null) {
+                    voiceRetryCount += 1
+                    voiceRetryHandler.postDelayed({
+                        if (isFinishing || isDestroyed) {
+                            voiceRecognitionInProgress = false
+                            return@postDelayed
+                        }
+                        val recognizer = voiceRecognizer
+                        val retryIntent = activeVoiceIntent
+                        if (recognizer != null && retryIntent != null) {
+                            runCatching { recognizer.startListening(retryIntent) }
+                                .onFailure {
+                                    voiceRecognitionInProgress = false
+                                    Toast.makeText(
+                                        this@NgocSiAiActivity,
+                                        "Chưa nghe rõ. Hãy nhấn micro và nói gần điện thoại hơn.",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                        } else {
+                            voiceRecognitionInProgress = false
+                        }
+                    }, 250L)
+                    return@runOnUiThread
+                }
                 voiceRecognitionInProgress = false
-                if (isFinishing || isDestroyed) return@runOnUiThread
                 val message = when (error) {
                     SpeechRecognizer.ERROR_AUDIO ->
                         "Không thu được âm thanh. Hãy kiểm tra micro và thử lại."
@@ -248,13 +281,18 @@ class NgocSiAiActivity : ComponentActivity() {
         }
 
         override fun onResults(results: Bundle?) {
-            val phrase = results
+            val candidates = results
                 ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                ?.firstOrNull()
                 .orEmpty()
-                .trim()
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+            // Prefer a recognized candidate that matches an implemented music command;
+            // otherwise keep Android's highest-confidence candidate.
+            val phrase = candidates.firstOrNull { classifyNgocSiAiLocalCommand(it) != null }
+                ?: candidates.firstOrNull().orEmpty()
             runOnUiThread {
                 voiceRecognitionInProgress = false
+                voiceRetryCount = 0
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 if (phrase.isBlank()) {
                     Toast.makeText(
@@ -275,7 +313,11 @@ class NgocSiAiActivity : ComponentActivity() {
             }
         }
 
-        override fun onPartialResults(partialResults: Bundle?) = Unit
+        override fun onPartialResults(partialResults: Bundle?) {
+            // Receiving partial hypotheses keeps the recognition service engaged while
+            // the user is still speaking; do not execute a command until final results.
+            partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+        }
         override fun onEvent(eventType: Int, params: Bundle?) = Unit
     }
 
@@ -755,6 +797,8 @@ class NgocSiAiActivity : ComponentActivity() {
         runCatching { voiceRecognizer?.destroy() }
         voiceRecognizer = null
         voiceRecognitionInProgress = false
+        voiceRetryHandler.removeCallbacksAndMessages(null)
+        activeVoiceIntent = null
         runCatching { responseTts?.shutdown() }
         responseTts = null
         responseTtsInitialized = false
@@ -813,7 +857,12 @@ class NgocSiAiActivity : ComponentActivity() {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "vi-VN")
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "vi-VN")
-            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 1_000L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1_200L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1_800L)
             putExtra(
                 RecognizerIntent.EXTRA_PROMPT,
                 "Nói tiếng Việt, ví dụ: Phát nhạc, tạm dừng, chuyển bài hoặc hỏi một câu"
@@ -835,7 +884,9 @@ class NgocSiAiActivity : ComponentActivity() {
                 voiceRecognizer = it
             }
             voiceRecognitionInProgress = true
-            Toast.makeText(this, "Đang khởi động micro…", Toast.LENGTH_SHORT).show()
+            voiceRetryCount = 0
+            activeVoiceIntent = intent
+            Toast.makeText(this, "Đang nghe… hãy nói rõ câu lệnh, không cần nói quá nhanh.", Toast.LENGTH_SHORT).show()
             recognizer.startListening(intent)
         } catch (_: SecurityException) {
             voiceRecognitionInProgress = false
