@@ -41,6 +41,7 @@ class NgocSiWakeWordService : Service() {
     private var stopping = false
     private var textToSpeech: TextToSpeech? = null
     private var ttsReady = false
+    private var pendingVoiceReply: String? = null
     private var speaking = false
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -50,10 +51,19 @@ class NgocSiWakeWordService : Service() {
         createNotificationChannel()
         textToSpeech = TextToSpeech(this) { status ->
             if (status == TextToSpeech.SUCCESS) {
-                val languageResult = textToSpeech?.setLanguage(Locale("vi", "VN"))
-                ttsReady = languageResult != null &&
-                    languageResult != TextToSpeech.LANG_MISSING_DATA &&
-                    languageResult != TextToSpeech.LANG_NOT_SUPPORTED
+                val tts = textToSpeech
+                if (tts != null) {
+                    val vietnameseResult = runCatching {
+                        tts.setLanguage(Locale("vi", "VN"))
+                    }.getOrDefault(TextToSpeech.LANG_MISSING_DATA)
+                    ttsReady = vietnameseResult >= TextToSpeech.LANG_AVAILABLE
+                    if (!ttsReady) {
+                        val fallbackResult = runCatching {
+                            tts.setLanguage(Locale.getDefault())
+                        }.getOrDefault(TextToSpeech.LANG_MISSING_DATA)
+                        ttsReady = fallbackResult >= TextToSpeech.LANG_AVAILABLE
+                    }
+                }
                 textToSpeech?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                     override fun onStart(utteranceId: String?) {
                         mainHandler.post { speaking = true }
@@ -72,6 +82,17 @@ class NgocSiWakeWordService : Service() {
                         }
                     }
                 })
+            }
+
+            val queuedReply = pendingVoiceReply
+            if (queuedReply != null) {
+                pendingVoiceReply = null
+                if (ttsReady) {
+                    speakReply(queuedReply)
+                } else {
+                    updateNotification("Đã xử lý lệnh · không có giọng đọc khả dụng trên máy")
+                    scheduleListenRetry(650L)
+                }
             }
         }
     }
@@ -214,8 +235,9 @@ class NgocSiWakeWordService : Service() {
         if (stopping || message.isBlank()) return
         val tts = textToSpeech
         if (!ttsReady || tts == null) {
-            updateNotification("$message · giọng đọc tiếng Việt chưa sẵn sàng")
-            scheduleListenRetry(650L)
+            // Keep the result until asynchronous TextToSpeech initialization finishes.
+            pendingVoiceReply = message
+            updateNotification("$message · đang chuẩn bị giọng đọc")
             return
         }
         speaking = true
@@ -231,6 +253,9 @@ class NgocSiWakeWordService : Service() {
 
     private fun runPlaybackCommand(command: NgocSiAiLocalCommand): String {
         val player = musicController ?: return "Trình phát chưa kết nối"
+        if (player.mediaItemCount == 0 || player.currentMediaItem == null) {
+            return "Chưa có bài nhạc trong hàng đợi. Hãy chọn bài trong NGỌC SĨ MUSIC trước."
+        }
         return runCatching {
             when (command) {
                 NgocSiAiLocalCommand.PLAY -> {
@@ -365,6 +390,7 @@ class NgocSiWakeWordService : Service() {
         runCatching { textToSpeech?.shutdown() }
         textToSpeech = null
         ttsReady = false
+        pendingVoiceReply = null
         getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit().putBoolean(KEY_ENABLED, false).apply()
         super.onDestroy()

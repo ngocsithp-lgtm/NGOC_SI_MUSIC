@@ -54,20 +54,38 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
     fun startsWithAny(vararg options: String) = options.any { phrase == it || phrase.startsWith("$it ") }
 
     return when {
-        isAnyOf("phat nhac", "bat nhac", "tiep tuc phat", "tiep tuc nghe nhac",
-            "play", "play music", "resume", "mo nhac") -> NgocSiAiLocalCommand.PLAY
+        isAnyOf(
+            "phat nhac", "phat nhac di", "phat nhac len",
+            "bat nhac", "bat nhac len",
+            "tiep tuc phat", "tiep tuc phat nhac", "tiep tuc nghe nhac",
+            "bat dau phat nhac", "bat dau nghe nhac", "nghe nhac",
+            "play", "play music", "resume", "resume music",
+            "mo nhac", "mo nhac di", "mo nhac len"
+        ) -> NgocSiAiLocalCommand.PLAY
 
-        isAnyOf("tam dung", "tam dung nhac", "pause", "pause music", "dung nhac") ->
-            NgocSiAiLocalCommand.PAUSE
+        isAnyOf(
+            "tam dung", "tam dung nhac", "tam dung lai",
+            "dung", "dung lai", "dung nhac", "dung nhac lai", "dung phat nhac",
+            "ngung phat nhac", "tat nhac", "tat nhac di",
+            "pause", "pause music", "stop", "stop music"
+        ) -> NgocSiAiLocalCommand.PAUSE
 
-        startsWithAny("bai tiep theo", "nhac tiep theo", "chuyen bai", "chuyen sang bai tiep theo", "sang bai tiep theo",
-            "next", "next song") -> NgocSiAiLocalCommand.NEXT
+        startsWithAny(
+            "tiep theo", "bai tiep theo", "nhac tiep theo", "bai ke tiep", "nhac ke tiep",
+            "chuyen bai", "chuyen sang bai tiep theo", "chuyen sang bai ke tiep", "sang bai tiep theo",
+            "qua bai", "bo qua bai nay", "skip", "skip song", "next", "next song"
+        ) -> NgocSiAiLocalCommand.NEXT
 
-        startsWithAny("bai truoc", "nhac truoc", "quay lai bai truoc", "tro ve bai truoc",
-            "previous", "previous song") -> NgocSiAiLocalCommand.PREVIOUS
+        startsWithAny(
+            "bai truoc", "nhac truoc", "quay lai bai truoc", "tro ve bai truoc", "bai truoc do",
+            "quay lai", "previous", "previous song", "previous track"
+        ) -> NgocSiAiLocalCommand.PREVIOUS
 
-        isAnyOf("dang phat bai gi", "bai gi dang phat", "ten bai hat hien tai",
-            "bai dang phat la gi", "what is playing", "current song") ->
+        isAnyOf(
+            "dang phat bai gi", "bai gi dang phat", "ten bai hat hien tai",
+            "bai dang phat la gi", "bai nao dang phat", "ten bai dang phat",
+            "bai hat nao dang phat", "what is playing", "current song", "what song is playing"
+        ) ->
             NgocSiAiLocalCommand.CURRENT_TRACK
 
         startsWithAny("bat phat ngau nhien", "bat ngau nhien", "phat ngau nhien",

@@ -9,6 +9,8 @@ import org.json.JSONObject
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.speech.RecognizerIntent
 import android.speech.tts.TextToSpeech
 import android.widget.Toast
@@ -161,8 +163,30 @@ class NgocSiAiActivity : ComponentActivity() {
     private var wakeWordListening by mutableStateOf(false)
     private var musicController: MediaController? = null
     private var responseTts: TextToSpeech? = null
+    private var responseTtsInitialized = false
     private var responseTtsReady = false
+    private var pendingVoiceReply: String? = null
+    private var pendingVoiceReplyForce = false
     private var voiceRepliesEnabled by mutableStateOf(true)
+    private val wakeWordStatusHandler = Handler(Looper.getMainLooper())
+    private val wakeWordStatusChecker = object : Runnable {
+        override fun run() {
+            if (isFinishing || isDestroyed) return
+            val enabled = getSharedPreferences(NgocSiWakeWordService.PREFS_NAME, MODE_PRIVATE)
+                .getBoolean(NgocSiWakeWordService.KEY_ENABLED, false)
+            val wasListening = wakeWordListening
+            wakeWordListening = enabled
+            if (enabled) {
+                wakeWordStatusHandler.postDelayed(this, 1_000L)
+            } else if (wasListening) {
+                Toast.makeText(
+                    this@NgocSiAiActivity,
+                    "Nghe từ khóa đã tự tắt. Máy có thể chưa có gói nhận dạng tiếng Việt offline; hãy dùng nút micro để ra lệnh.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
 
     private val speechLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -171,13 +195,10 @@ class NgocSiAiActivity : ComponentActivity() {
                 ?.firstOrNull()
                 .orEmpty()
                 .trim()
-            val command = phrase.takeIf { it.isNotBlank() }?.let(::classifyNgocSiAiLocalCommand)
-            if (command != null) {
-                recognizedSpeechShouldSend = false
-                val reply = runLocalCommand(command)
-                speakVoiceReply(reply)
-                Toast.makeText(this, reply, Toast.LENGTH_LONG).show()
-            } else if (phrase.isNotBlank()) {
+            if (phrase.isNotBlank()) {
+                // Route all recognized speech through the same allowlisted command/chat handler.
+                // Local playback commands work without Firebase; other speech gets an explicit
+                // explanation if online AI has not been configured.
                 recognizedSpeech = phrase
                 recognizedSpeechShouldSend = true
             }
@@ -189,6 +210,7 @@ class NgocSiAiActivity : ComponentActivity() {
                 try {
                     NgocSiWakeWordService.start(this)
                     wakeWordListening = true
+                    monitorWakeWordStatus()
                 } catch (_: Exception) {
                     Toast.makeText(this, "Không thể bật nghe từ khóa. Hãy thử lại.", Toast.LENGTH_LONG).show()
                 }
@@ -201,14 +223,47 @@ class NgocSiAiActivity : ComponentActivity() {
         super.onResume()
         wakeWordListening = getSharedPreferences(NgocSiWakeWordService.PREFS_NAME, MODE_PRIVATE)
             .getBoolean(NgocSiWakeWordService.KEY_ENABLED, false)
+        if (wakeWordListening) monitorWakeWordStatus()
+    }
+
+    private fun monitorWakeWordStatus() {
+        wakeWordStatusHandler.removeCallbacks(wakeWordStatusChecker)
+        wakeWordStatusHandler.postDelayed(wakeWordStatusChecker, 1_000L)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         responseTts = TextToSpeech(this) { status ->
+            responseTtsInitialized = true
             if (status == TextToSpeech.SUCCESS) {
-                val result = responseTts?.setLanguage(Locale("vi", "VN"))
-                responseTtsReady = result != null && result != TextToSpeech.LANG_MISSING_DATA && result != TextToSpeech.LANG_NOT_SUPPORTED
+                val tts = responseTts
+                if (tts != null) {
+                    val vietnameseResult = runCatching {
+                        tts.setLanguage(Locale("vi", "VN"))
+                    }.getOrDefault(TextToSpeech.LANG_MISSING_DATA)
+                    responseTtsReady = vietnameseResult >= TextToSpeech.LANG_AVAILABLE
+                    if (!responseTtsReady) {
+                        val fallbackResult = runCatching {
+                            tts.setLanguage(Locale.getDefault())
+                        }.getOrDefault(TextToSpeech.LANG_MISSING_DATA)
+                        responseTtsReady = fallbackResult >= TextToSpeech.LANG_AVAILABLE
+                    }
+                }
+            }
+            val queuedReply = pendingVoiceReply
+            if (queuedReply != null) {
+                val forceQueuedReply = pendingVoiceReplyForce
+                pendingVoiceReply = null
+                pendingVoiceReplyForce = false
+                if (responseTtsReady) {
+                    speakVoiceReply(queuedReply, force = forceQueuedReply)
+                } else {
+                    Toast.makeText(
+                        this,
+                        "Chưa có giọng đọc khả dụng. Hãy vào cài đặt Văn bản thành giọng nói và tải dữ liệu tiếng Việt.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
             }
         }
         val aiClient = NgocSiAiRemoteClient(applicationContext)
@@ -328,21 +383,48 @@ class NgocSiAiActivity : ComponentActivity() {
 
     private fun speakVoiceReply(message: String, force: Boolean = false) {
         if (!force && !voiceRepliesEnabled) return
+        val cleanMessage = message.trim()
+        if (cleanMessage.isEmpty()) return
+
         val tts = responseTts
-        if (responseTtsReady && tts != null) {
-            tts.speak(message, TextToSpeech.QUEUE_FLUSH, null, "ngoc_si_activity_reply")
-        } else {
-            Toast.makeText(this, "Đã nhận lệnh nhưng giọng đọc tiếng Việt chưa sẵn sàng trên máy.", Toast.LENGTH_LONG).show()
+        if (!responseTtsInitialized || tts == null) {
+            // TextToSpeech initializes asynchronously. Queue the response instead of losing it.
+            pendingVoiceReply = cleanMessage
+            pendingVoiceReplyForce = force
+            return
+        }
+        if (!responseTtsReady) {
+            Toast.makeText(
+                this,
+                "Chưa có giọng đọc khả dụng. Hãy vào cài đặt Văn bản thành giọng nói và tải dữ liệu tiếng Việt.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
+        val result = runCatching {
+            tts.speak(
+                cleanMessage,
+                TextToSpeech.QUEUE_FLUSH,
+                null,
+                "ngoc_si_activity_reply_${System.currentTimeMillis()}"
+            )
+        }.getOrDefault(TextToSpeech.ERROR)
+        if (result == TextToSpeech.ERROR) {
+            Toast.makeText(this, "Không phát được giọng nói. Hãy kiểm tra cài đặt Văn bản thành giọng nói.", Toast.LENGTH_LONG).show()
         }
     }
 
     override fun onDestroy() {
+        wakeWordStatusHandler.removeCallbacksAndMessages(null)
         musicController?.release()
         musicController = null
         runCatching { responseTts?.stop() }
         runCatching { responseTts?.shutdown() }
         responseTts = null
+        responseTtsInitialized = false
         responseTtsReady = false
+        pendingVoiceReply = null
         super.onDestroy()
     }
 
@@ -363,6 +445,7 @@ class NgocSiAiActivity : ComponentActivity() {
         if (wakeWordListening) {
             NgocSiWakeWordService.stop(this)
             wakeWordListening = false
+            wakeWordStatusHandler.removeCallbacks(wakeWordStatusChecker)
             return
         }
         if (androidx.core.content.ContextCompat.checkSelfPermission(
@@ -373,6 +456,7 @@ class NgocSiAiActivity : ComponentActivity() {
             try {
                 NgocSiWakeWordService.start(this)
                 wakeWordListening = true
+                monitorWakeWordStatus()
             } catch (_: Exception) {
                 Toast.makeText(this, "Không thể bật nghe từ khóa. Hãy thử lại.", Toast.LENGTH_LONG).show()
             }
@@ -461,14 +545,12 @@ private fun NgocSiAiPreviewScreen(
         }
 
         if (!isOnlineConfigured) {
-            messages.add(
-                AiPreviewMessage(
-                    false,
-                    "Đã nhận nội dung trong bản xem trước. Firebase/Gemini chưa được cấu hình cho bản này, nên tin nhắn chưa được gửi lên máy chủ và không phát sinh phí AI."
-                )
-            )
+            val offlineReply =
+                "Tôi đã nhận lệnh. Bản này hiện chỉ thực hiện được các lệnh điều khiển nhạc đã hỗ trợ; AI trả lời tự do chưa kết nối máy chủ Firebase/Gemini. Tin nhắn không được gửi ra ngoài và không phát sinh phí AI."
+            messages.add(AiPreviewMessage(false, offlineReply))
             if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
             persistChatState()
+            onVoiceReply(offlineReply)
             return
         }
 
@@ -522,9 +604,11 @@ private fun NgocSiAiPreviewScreen(
     LaunchedEffect(recognizedSpeech, recognizedSpeechShouldSend) {
         if (recognizedSpeech.isNotBlank()) {
             val phrase = recognizedSpeech.trim()
-            val shouldSubmitToOnlineAi = recognizedSpeechShouldSend && isOnlineConfigured
+            val shouldSubmitRecognizedSpeech = recognizedSpeechShouldSend
             onSpeechConsumed()
-            if (shouldSubmitToOnlineAi) {
+            if (shouldSubmitRecognizedSpeech) {
+                // Tap-to-talk is an explicit user action: execute only allowlisted local
+                // playback commands, or send the question online when configured.
                 sendMessage(phrase)
             } else {
                 input = listOf(input.trim(), phrase)
