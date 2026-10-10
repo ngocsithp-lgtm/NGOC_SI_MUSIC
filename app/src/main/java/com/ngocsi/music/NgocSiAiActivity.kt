@@ -121,6 +121,7 @@ private fun loadAiApiConversation(preferences: SharedPreferences): List<NgocSiAi
                     add(NgocSiAiMessage(role, content.take(MAX_SAVED_AI_MESSAGE_CHARS)))
                 }
             }
+        }
     }.getOrDefault(emptyList())
     return restoreCompletedNgocSiAiConversation(decoded)
 }
