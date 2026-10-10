@@ -162,4 +162,14 @@ class NgocSiAiLocalCommandRulesTest {
         assertNull(classifyNgocSiAiLocalCommand("Tôi thích Radio"))
     }
 
+
+    @Test
+    fun recognizesYouTubeSearchRequestsWithoutTreatingThemAsNavigationOnly() {
+        assertEquals(NgocSiAiLocalCommand.SEARCH_YOUTUBE, classifyNgocSiAiLocalCommand("Tìm YouTube nhạc Trịnh Công Sơn"))
+        assertEquals(NgocSiAiLocalCommand.SEARCH_YOUTUBE, classifyNgocSiAiLocalCommand("Tìm nhạc Trịnh Công Sơn trên YouTube"))
+        assertEquals("nhạc Trịnh Công Sơn", extractNgocSiAiYoutubeQuery("Tìm YouTube nhạc Trịnh Công Sơn"))
+        assertEquals("Trịnh Công Sơn", extractNgocSiAiYoutubeQuery("Tìm nhạc Trịnh Công Sơn trên YouTube"))
+        assertNull(extractNgocSiAiYoutubeQuery("Tìm YouTube"))
+    }
+
 }

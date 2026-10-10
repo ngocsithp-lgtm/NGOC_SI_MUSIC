@@ -690,7 +690,7 @@ class MainActivity : ComponentActivity() {
         connectController()
     }
 
-    private fun handleProDestination(destination: String?) {
+    private fun handleProDestination(destination: String?, youtubeSearchQuery: String? = null) {
         when (destination) {
             "home" -> selectedSection = "Trang chủ"
             "library" -> {
@@ -701,6 +701,10 @@ class MainActivity : ComponentActivity() {
             "youtube" -> {
                 selectedSection = "Online"
                 onlineHubTab = "YouTube"
+                youtubeSearchQuery?.trim()?.takeIf { it.isNotEmpty() }?.let { query ->
+                    youtubeQuery = query.take(120)
+                    searchYouTube()
+                }
             }
             "drive" -> {
                 selectedSection = "Online"
@@ -738,7 +742,10 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        handleProDestination(intent.getStringExtra("pro_destination"))
+        handleProDestination(
+            intent.getStringExtra("pro_destination"),
+            intent.getStringExtra("ai_youtube_query")
+        )
     }
 
     private fun connectController() {

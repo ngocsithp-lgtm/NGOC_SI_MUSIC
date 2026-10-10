@@ -16,6 +16,7 @@ internal enum class NgocSiAiLocalCommand {
     REPEAT_ONE,
     OPEN_HOME,
     OPEN_LIBRARY,
+    SEARCH_YOUTUBE,
     OPEN_YOUTUBE,
     OPEN_DRIVE,
     OPEN_RADIO,
@@ -159,6 +160,12 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
         startsWithAny("mo thu vien", "vao thu vien", "mo muc thu vien", "mo nhac trong thu vien") ->
             NgocSiAiLocalCommand.OPEN_LIBRARY
 
+        (phrase == "tim youtube" || phrase.startsWith("tim youtube ") ||
+            phrase.startsWith("kiem youtube ") ||
+            ((phrase.startsWith("tim nhac ") || phrase.startsWith("tim bai hat ") ||
+                phrase.startsWith("tim video ")) && phrase.contains("youtube"))) ->
+            NgocSiAiLocalCommand.SEARCH_YOUTUBE
+
         startsWithAny("mo youtube", "vao youtube", "mo video youtube", "mo muc youtube") ->
             NgocSiAiLocalCommand.OPEN_YOUTUBE
 
@@ -205,4 +212,26 @@ internal fun selectNgocSiAiWakePhraseCandidate(candidates: List<String>): String
     val cleaned = candidates.map { it.trim() }.filter { it.isNotBlank() }
     return cleaned.firstOrNull { classifyNgocSiAiWakePhrase(it) != null }
         ?: cleaned.firstOrNull()
+}
+
+
+/**
+ * Extract a user-supplied YouTube search phrase while preserving Vietnamese spelling.
+ * The caller sends it only to the app's existing YouTube search UI after an explicit request.
+ */
+internal fun extractNgocSiAiYoutubeQuery(input: String): String? {
+    var query = input.trim()
+    val prefixes = listOf(
+        Regex("""^(?:ngọc sĩ[\s,:]+)?(?:hãy\s+)?(?:tìm|kiếm)\s+(?:video|bài hát|nhạc)\s+(?:trên\s+)?youtube\s*[:,\-]?\s*""", RegexOption.IGNORE_CASE),
+        Regex("""^(?:ngọc sĩ[\s,:]+)?(?:hãy\s+)?(?:tìm|kiếm)\s+youtube\s*[:,\-]?\s*""", RegexOption.IGNORE_CASE),
+        Regex("""^(?:ngọc sĩ[\s,:]+)?(?:hãy\s+)?(?:tìm|kiếm)\s+(?:video|bài hát|nhạc)\s+""", RegexOption.IGNORE_CASE),
+        Regex("""^(?:ngọc sĩ[\s,:]+)?(?:hãy\s+)?(?:phát|mở)\s+youtube\s*[:,\-]?\s*""", RegexOption.IGNORE_CASE)
+    )
+    val prefix = prefixes.firstOrNull { it.containsMatchIn(query) } ?: return null
+    query = prefix.replaceFirst(query, "")
+    query = query.replace(
+        Regex("""\s+(?:trên\s+)?youtube\s*[?!.,]*$""", RegexOption.IGNORE_CASE),
+        ""
+    ).trim().trim(',', ':', '-', '.', '?', '!')
+    return query.take(120).takeIf { it.length >= 2 }
 }
