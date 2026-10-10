@@ -16,7 +16,7 @@ const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
 const DAILY_LIMIT = 10;
 // A server-wide daily ceiling limits provider usage even if many UIDs are created.
 const GLOBAL_DAILY_LIMIT = 50;
-const MODEL = "gemini-2.5-flash-lite";
+const MODEL = "gemini-3.5-flash-lite";
 const SYSTEM_INSTRUCTIONS =
   "Bạn là NGỌC SĨ AI, trợ lý tiếng Việt hữu ích, rõ ràng và trung thực. " +
   "Trả lời câu hỏi tổng quát. Nếu không chắc, hãy nói rõ giới hạn. " +
