@@ -14,6 +14,8 @@ const db = getFirestore();
 const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
 // Keep a conservative app-side limit even when the provider has a free tier.
 const DAILY_LIMIT = 10;
+// A server-wide daily ceiling limits provider usage even if many UIDs are created.
+const GLOBAL_DAILY_LIMIT = 50;
 const MODEL = "gemini-2.5-flash-lite";
 const SYSTEM_INSTRUCTIONS =
   "Bạn là NGỌC SĨ AI, trợ lý tiếng Việt hữu ích, rõ ràng và trung thực. " +
@@ -40,39 +42,57 @@ export const ngocSiAiChat = onCall(
       throw new HttpsError("invalid-argument", reason);
     }
 
-    // Reserve quota transactionally to stop concurrent requests exceeding the per-UID limit.
-    // Only UID/date/count metadata is stored; the chat content is not stored in Firestore.
+    const apiKey = GEMINI_API_KEY.value();
+    if (!apiKey) {
+      throw new HttpsError("failed-precondition", "Máy chủ AI chưa được cấu hình khóa Gemini.");
+    }
+
+    // Reserve per-user and global quotas atomically to cap provider requests per UTC day.
+    // Store only UID/date/count metadata, never conversation text.
     const date = new Date().toISOString().slice(0, 10);
     const uid = request.auth.uid;
     const quotaRef = db.collection("aiDailyUsage").doc(dailyQuotaDocumentId(uid, date));
+    const globalRef = db.collection("aiGlobalUsage").doc(date);
     let usedToday: number;
+    let globalUsedToday: number;
     try {
-      usedToday = await db.runTransaction(async (transaction) => {
-        const snapshot = await transaction.get(quotaRef);
+      const reserved = await db.runTransaction(async (transaction) => {
+        const [snapshot, globalSnapshot] = await Promise.all([
+          transaction.get(quotaRef),
+          transaction.get(globalRef)
+        ]);
         const used = Number(snapshot.get("count") ?? 0);
-        if (!Number.isSafeInteger(used) || used < 0) {
+        const globalUsed = Number(globalSnapshot.get("count") ?? 0);
+        if (!Number.isSafeInteger(used) || used < 0 ||
+            !Number.isSafeInteger(globalUsed) || globalUsed < 0) {
           throw new HttpsError("internal", "Hạn mức AI không hợp lệ.");
+        }
+        if (globalUsed >= GLOBAL_DAILY_LIMIT) {
+          throw new HttpsError("resource-exhausted", "NGỌC SĨ AI đã đạt giới hạn tổng lượt hôm nay. Vui lòng thử lại ngày mai.");
         }
         if (used >= DAILY_LIMIT) {
           throw new HttpsError("resource-exhausted", "Bạn đã dùng hết 10 lượt AI hôm nay.");
         }
         const nextCount = used + 1;
+        const nextGlobalCount = globalUsed + 1;
         transaction.set(quotaRef, {
           uid,
           date,
           count: nextCount,
           updatedAt: FieldValue.serverTimestamp()
         }, { merge: true });
-        return nextCount;
+        transaction.set(globalRef, {
+          date,
+          count: nextGlobalCount,
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+        return { usedToday: nextCount, globalUsedToday: nextGlobalCount };
       });
+      usedToday = reserved.usedToday;
+      globalUsedToday = reserved.globalUsedToday;
     } catch (error) {
       if (error instanceof HttpsError) throw error;
       throw new HttpsError("unavailable", "Không thể kiểm tra hạn mức AI. Vui lòng thử lại.");
-    }
-
-    const apiKey = GEMINI_API_KEY.value();
-    if (!apiKey) {
-      throw new HttpsError("failed-precondition", "Máy chủ AI chưa được cấu hình khóa Gemini.");
     }
 
     let upstream: Response;
@@ -119,6 +139,10 @@ export const ngocSiAiChat = onCall(
     if (!answer) {
       throw new HttpsError("unavailable", "AI chưa trả lời được. Vui lòng thử lại.");
     }
-    return { answer, remainingToday: Math.max(0, DAILY_LIMIT - usedToday) };
+    return {
+    answer,
+    remainingToday: Math.max(0, DAILY_LIMIT - usedToday),
+    remainingGlobalToday: Math.max(0, GLOBAL_DAILY_LIMIT - globalUsedToday)
+  };
   }
 );
