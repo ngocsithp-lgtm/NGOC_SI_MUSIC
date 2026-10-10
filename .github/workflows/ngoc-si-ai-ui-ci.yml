@@ -96,9 +96,9 @@ jobs:
           {
             echo "## OAuth and Firebase App Check — preview build"
             echo ""
-            echo "- Android package: `com.ngocsi.music.aipreview`"
-            echo "- Android OAuth SHA-1: `$SHA1`"
-            echo "- Firebase App Check SHA-256: `$SHA256`"
+            echo "- Android package: com.ngocsi.music.aipreview"
+            echo "- Android OAuth SHA-1: $SHA1"
+            echo "- Firebase App Check SHA-256: $SHA256"
             echo "- Register the package and SHA-1 in Google Cloud Android OAuth client for Drive."
             echo "- Register the package and SHA-256 in Firebase App Check before enabling online AI."
           } >> "$GITHUB_STEP_SUMMARY"
