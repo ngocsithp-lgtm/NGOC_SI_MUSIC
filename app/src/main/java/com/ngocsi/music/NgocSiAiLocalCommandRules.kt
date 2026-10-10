@@ -111,3 +111,20 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
         else -> null
     }
 }
+
+/**
+ * Speech services can return several hypotheses. Prefer one that maps to a
+ * supported explicit command rather than blindly using the first transcript.
+ */
+internal fun selectNgocSiAiLocalCommandCandidate(candidates: List<String>): String? {
+    val cleaned = candidates.map { it.trim() }.filter { it.isNotBlank() }
+    return cleaned.firstOrNull { classifyNgocSiAiLocalCommand(it) != null }
+        ?: cleaned.firstOrNull()
+}
+
+/** Wake-word mode must keep its stricter explicit “Ngọc Sĩ” requirement. */
+internal fun selectNgocSiAiWakePhraseCandidate(candidates: List<String>): String? {
+    val cleaned = candidates.map { it.trim() }.filter { it.isNotBlank() }
+    return cleaned.firstOrNull { classifyNgocSiAiWakePhrase(it) != null }
+        ?: cleaned.firstOrNull()
+}
