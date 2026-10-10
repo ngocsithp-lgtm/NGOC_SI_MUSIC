@@ -21,6 +21,7 @@
     <!-- Phát nhạc nền -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
 
     <queries>
         <intent>
@@ -84,6 +85,13 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/music_widget_info" />
         </receiver>
+
+        <!-- Experimental offline wake-phrase listener. Started only by an explicit user action. -->
+        <service
+            android:name=".NgocSiWakeWordService"
+            android:exported="false"
+            android:stopWithTask="false"
+            android:foregroundServiceType="microphone" />
 
         <!-- Media3 Music Service -->
         <receiver
