@@ -1,6 +1,9 @@
 package com.ngocsi.music
 
 import android.content.ActivityNotFoundException
+import android.content.SharedPreferences
+import org.json.JSONArray
+import org.json.JSONObject
 import android.content.Intent
 import android.os.Bundle
 import android.speech.RecognizerIntent
@@ -56,6 +59,92 @@ import androidx.compose.ui.unit.sp
 
 private data class AiPreviewMessage(val isUser: Boolean, val text: String)
 
+private const val AI_CHAT_PREFS_NAME = "ngoc_si_ai_chat_history"
+private const val AI_CHAT_MESSAGES_KEY = "chat_messages_v1"
+private const val AI_CHAT_CONVERSATION_KEY = "api_conversation_v1"
+private const val MAX_SAVED_AI_UI_MESSAGES = 60
+private const val MAX_SAVED_AI_MESSAGE_CHARS = 4_000
+
+private fun defaultAiGreeting(isOnlineConfigured: Boolean) = AiPreviewMessage(
+    false,
+    if (isOnlineConfigured) {
+        "Xin chào! NGỌC SĨ AI đang ở chế độ kiểm thử trực tuyến. Chỉ gửi câu hỏi khi bạn nhấn nút gửi."
+    } else {
+        "Xin chào! Tôi là NGỌC SĨ AI. Đây là bản xem trước giao diện; AI trực tuyến chưa được cấu hình."
+    }
+)
+
+private fun loadAiPreviewMessages(
+    preferences: SharedPreferences,
+    isOnlineConfigured: Boolean
+): List<AiPreviewMessage> {
+    val stored = preferences.getString(AI_CHAT_MESSAGES_KEY, null)
+        ?: return listOf(defaultAiGreeting(isOnlineConfigured))
+    val decoded = runCatching {
+        val array = JSONArray(stored)
+        buildList {
+            for (index in 0 until array.length()) {
+                val item = array.optJSONObject(index) ?: continue
+                val text = item.optString("text").take(MAX_SAVED_AI_MESSAGE_CHARS)
+                if (text.isNotBlank()) add(AiPreviewMessage(item.optBoolean("isUser"), text))
+            }
+        }.takeLast(MAX_SAVED_AI_UI_MESSAGES)
+    }.getOrDefault(emptyList())
+    return decoded.ifEmpty { listOf(defaultAiGreeting(isOnlineConfigured)) }
+}
+
+private fun saveAiPreviewMessages(
+    preferences: SharedPreferences,
+    messages: List<AiPreviewMessage>
+) {
+    val array = JSONArray()
+    messages.takeLast(MAX_SAVED_AI_UI_MESSAGES).forEach { message ->
+        array.put(
+            JSONObject()
+                .put("isUser", message.isUser)
+                .put("text", message.text.take(MAX_SAVED_AI_MESSAGE_CHARS))
+        )
+    }
+    preferences.edit().putString(AI_CHAT_MESSAGES_KEY, array.toString()).apply()
+}
+
+private fun loadAiApiConversation(preferences: SharedPreferences): List<NgocSiAiMessage> {
+    val stored = preferences.getString(AI_CHAT_CONVERSATION_KEY, null) ?: return emptyList()
+    val decoded = runCatching {
+        val array = JSONArray(stored)
+        buildList {
+            for (index in 0 until array.length()) {
+                val item = array.optJSONObject(index) ?: continue
+                val role = item.optString("role")
+                val content = item.optString("content").trim()
+                if ((role == "user" || role == "assistant") && content.isNotBlank()) {
+                    add(NgocSiAiMessage(role, content.take(MAX_SAVED_AI_MESSAGE_CHARS)))
+                }
+            }
+        }.takeLast(NGOC_SI_AI_MAX_HISTORY_MESSAGES)
+    }.getOrDefault(emptyList())
+    val bounded = decoded.dropWhile { it.role == "assistant" }
+    return if (bounded.firstOrNull()?.role == "user") bounded else emptyList()
+}
+
+private fun saveAiApiConversation(
+    preferences: SharedPreferences,
+    messages: List<NgocSiAiMessage>
+) {
+    val bounded = messages
+        .takeLast(NGOC_SI_AI_MAX_HISTORY_MESSAGES)
+        .dropWhile { it.role == "assistant" }
+    val array = JSONArray()
+    bounded.forEach { message ->
+        array.put(
+            JSONObject()
+                .put("role", message.role)
+                .put("content", message.content.take(MAX_SAVED_AI_MESSAGE_CHARS))
+        )
+    }
+    preferences.edit().putString(AI_CHAT_CONVERSATION_KEY, array.toString()).apply()
+}
+
 class NgocSiAiActivity : ComponentActivity() {
     private var recognizedSpeech by mutableStateOf("")
 
@@ -70,9 +159,11 @@ class NgocSiAiActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val aiClient = NgocSiAiRemoteClient(applicationContext)
+        val aiChatPreferences = getSharedPreferences(AI_CHAT_PREFS_NAME, MODE_PRIVATE)
         setContent {
             NgocSiAiPreviewScreen(
                 isOnlineConfigured = aiClient.isConfigured,
+                chatPreferences = aiChatPreferences,
                 onSendOnline = { history -> aiClient.send(history) },
                 recognizedSpeech = recognizedSpeech,
                 onSpeechConsumed = { recognizedSpeech = "" },
@@ -101,6 +192,7 @@ class NgocSiAiActivity : ComponentActivity() {
 @Composable
 private fun NgocSiAiPreviewScreen(
     isOnlineConfigured: Boolean,
+    chatPreferences: SharedPreferences,
     onSendOnline: suspend (List<NgocSiAiMessage>) -> NgocSiAiReply,
     recognizedSpeech: String,
     onSpeechConsumed: () -> Unit,
@@ -108,23 +200,26 @@ private fun NgocSiAiPreviewScreen(
     onVoice: () -> Unit
 ) {
     val messages = remember {
-        mutableStateListOf(
-            AiPreviewMessage(
-                false,
-                if (isOnlineConfigured) {
-                    "Xin chào! NGỌC SĨ AI đang ở chế độ kiểm thử trực tuyến. Chỉ gửi câu hỏi khi bạn nhấn nút gửi."
-                } else {
-                    "Xin chào! Tôi là NGỌC SĨ AI. Đây là bản xem trước giao diện; AI trực tuyến chưa được cấu hình."
-                }
-            )
-        )
+        mutableStateListOf<AiPreviewMessage>().apply {
+            addAll(loadAiPreviewMessages(chatPreferences, isOnlineConfigured))
+        }
     }
     var input by remember { mutableStateOf("") }
-    val conversation = remember { mutableStateListOf<NgocSiAiMessage>() }
+    val conversation = remember {
+        mutableStateListOf<NgocSiAiMessage>().apply {
+            addAll(loadAiApiConversation(chatPreferences))
+        }
+    }
     val coroutineScope = rememberCoroutineScope()
     var isSending by remember { mutableStateOf(false) }
     var quotaNote by remember { mutableStateOf("") }
+    var showClearConfirm by remember { mutableStateOf(false) }
     val messageListState = androidx.compose.foundation.lazy.rememberLazyListState()
+
+    fun persistChatState() {
+        saveAiPreviewMessages(chatPreferences, messages)
+        saveAiApiConversation(chatPreferences, conversation)
+    }
 
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
@@ -146,6 +241,7 @@ private fun NgocSiAiPreviewScreen(
         val clean = text.trim()
         if (clean.isBlank() || isSending) return
         messages.add(AiPreviewMessage(true, clean))
+        if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
         input = ""
 
         if (!isOnlineConfigured) {
@@ -155,12 +251,18 @@ private fun NgocSiAiPreviewScreen(
                     "Đã nhận nội dung trong bản xem trước. Firebase/Gemini chưa được cấu hình cho bản này, nên tin nhắn chưa được gửi lên máy chủ và không phát sinh phí AI."
                 )
             )
+            persistChatState()
             return
         }
 
         val userTurn = NgocSiAiMessage(role = "user", content = clean)
         conversation.add(userTurn)
-        var history = conversation.takeLast(8)
+        while (conversation.size > NGOC_SI_AI_MAX_HISTORY_MESSAGES) {
+            conversation.removeAt(0)
+            if (conversation.firstOrNull()?.role == "assistant") conversation.removeAt(0)
+        }
+        persistChatState()
+        var history = conversation.takeLast(NGOC_SI_AI_MAX_HISTORY_MESSAGES)
         if (history.firstOrNull()?.role == "assistant") history = history.drop(1)
         isSending = true
         coroutineScope.launch {
@@ -168,11 +270,14 @@ private fun NgocSiAiPreviewScreen(
                 val reply = onSendOnline(history.toList())
                 conversation.add(NgocSiAiMessage(role = "assistant", content = reply.answer))
                 messages.add(AiPreviewMessage(false, reply.answer))
+                if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
+                persistChatState()
                 val userRemaining = reply.remainingToday?.let { "Còn $it lượt/tài khoản hôm nay" }
                 val globalRemaining = reply.remainingGlobalToday?.let { "Còn $it lượt toàn hệ thống hôm nay" }
                 quotaNote = listOfNotNull(userRemaining, globalRemaining).joinToString(" • ")
             } catch (cancelled: CancellationException) {
                 if (conversation.lastOrNull() == userTurn) conversation.removeAt(conversation.lastIndex)
+                persistChatState()
                 throw cancelled
             } catch (error: NgocSiAiRemoteException) {
                 if (conversation.lastOrNull() == userTurn) conversation.removeAt(conversation.lastIndex)
@@ -182,6 +287,7 @@ private fun NgocSiAiPreviewScreen(
                         error.message ?: "Không thể kết nối NGỌC SĨ AI. Vui lòng thử lại."
                     )
                 )
+                persistChatState()
             } catch (_: Exception) {
                 if (conversation.lastOrNull() == userTurn) conversation.removeAt(conversation.lastIndex)
                 messages.add(
@@ -190,10 +296,46 @@ private fun NgocSiAiPreviewScreen(
                         "Có lỗi khi gửi yêu cầu AI. Hãy kiểm tra kết nối và cấu hình Firebase."
                     )
                 )
+                persistChatState()
             } finally {
                 isSending = false
             }
         }
+    }
+
+    if (showClearConfirm) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showClearConfirm = false },
+            title = { Text("Xóa lịch sử chat?") },
+            text = {
+                Text(
+                    "Lịch sử chat được lưu trên điện thoại này. Xóa sẽ gỡ các tin nhắn đã lưu và bắt đầu cuộc trò chuyện mới."
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = {
+                        messages.clear()
+                        messages.add(defaultAiGreeting(isOnlineConfigured))
+                        conversation.clear()
+                        input = ""
+                        quotaNote = ""
+                        persistChatState()
+                        showClearConfirm = false
+                    }
+                ) {
+                    Text("Xóa", color = Color(0xFFFFA0A0))
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { showClearConfirm = false }) {
+                    Text("Hủy", color = Color(0xFFD9DCE5))
+                }
+            },
+            containerColor = Color(0xFF171B24),
+            titleContentColor = Color.White,
+            textContentColor = Color(0xFFD9DCE5)
+        )
     }
 
     Column(
@@ -236,6 +378,23 @@ private fun NgocSiAiPreviewScreen(
                     letterSpacing = 1.3.sp
                 )
             }
+            Surface(
+                modifier = Modifier.clickable(enabled = !isSending) {
+                    showClearConfirm = true
+                },
+                shape = RoundedCornerShape(50),
+                color = Color(0xFF242033),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF3A334A))
+            ) {
+                Text(
+                    "XÓA",
+                    color = Color(0xFFFFB0B0),
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Black,
+                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 7.dp)
+                )
+            }
+            Spacer(Modifier.width(5.dp))
             Surface(
                 shape = RoundedCornerShape(50),
                 color = Color(0xFF242033)
@@ -432,7 +591,7 @@ private fun NgocSiAiPreviewScreen(
                 when {
                     isSending -> "Đang gửi yêu cầu đến máy chủ NGỌC SĨ AI…"
                     isOnlineConfigured -> quotaNote.ifBlank { "Tin nhắn chỉ được gửi khi bạn nhấn nút gửi." }
-                    else -> "Bản xem trước chỉ giữ tin nhắn trong màn hình hiện tại."
+                    else -> "Bản xem trước chạy cục bộ; lịch sử được lưu trên điện thoại."
                 },
                 color = Color(0xFF666D7D),
                 fontSize = 9.sp
