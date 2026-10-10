@@ -16,6 +16,8 @@ import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.os.Bundle
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
@@ -23,6 +25,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
+import java.util.Locale
 
 /**
  * Experimental on-device wake-phrase listener. It intentionally refuses online recognition.
@@ -36,12 +39,41 @@ class NgocSiWakeWordService : Service() {
     private var musicController: MediaController? = null
     private var listening = false
     private var stopping = false
+    private var textToSpeech: TextToSpeech? = null
+    private var ttsReady = false
+    private var speaking = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        textToSpeech = TextToSpeech(this) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                val languageResult = textToSpeech?.setLanguage(Locale("vi", "VN"))
+                ttsReady = languageResult != null &&
+                    languageResult != TextToSpeech.LANG_MISSING_DATA &&
+                    languageResult != TextToSpeech.LANG_NOT_SUPPORTED
+                textToSpeech?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                    override fun onStart(utteranceId: String?) {
+                        mainHandler.post { speaking = true }
+                    }
+                    override fun onDone(utteranceId: String?) {
+                        mainHandler.post {
+                            speaking = false
+                            if (!stopping) scheduleListenRetry(350L)
+                        }
+                    }
+                    @Deprecated("Deprecated in Java")
+                    override fun onError(utteranceId: String?) {
+                        mainHandler.post {
+                            speaking = false
+                            if (!stopping) scheduleListenRetry(350L)
+                        }
+                    }
+                })
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -128,17 +160,23 @@ class NgocSiWakeWordService : Service() {
                     updateNotification("Đã nhận “$recognized” · đang kết nối trình phát")
                     connectMusicController()
                     mainHandler.postDelayed({
-                        if (!stopping) updateNotification("Lệnh nhận được · " + runPlaybackCommand(command))
+                        if (!stopping) {
+                            val reply = runPlaybackCommand(command)
+                            updateNotification("Đã nghe “$recognized” · $reply")
+                            speakReply(reply)
+                        }
                     }, 900L)
                 } else {
-                    updateNotification("Đã nghe “$recognized” · " + runPlaybackCommand(command))
+                    val reply = runPlaybackCommand(command)
+                    updateNotification("Đã nghe “$recognized” · $reply")
+                    speakReply(reply)
                 }
             } else if (recognized.isNotBlank()) {
                 // Expose the actual speech-recognition result in the persistent notification
                 // so the user can tell whether the problem is recognition or command matching.
                 updateNotification("Đã nghe: “${recognized.take(55)}” · cần mở đầu bằng “Ngọc Sĩ”")
             }
-            scheduleListenRetry(650L)
+            if (command == null) scheduleListenRetry(650L)
         }
 
         override fun onPartialResults(partialResults: Bundle?) = Unit
@@ -146,7 +184,7 @@ class NgocSiWakeWordService : Service() {
     }
 
     private fun beginListening() {
-        if (stopping || speechRecognizer == null || listening) return
+        if (stopping || speechRecognizer == null || listening || speaking) return
         try {
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
@@ -171,6 +209,25 @@ class NgocSiWakeWordService : Service() {
     }
 
     private val restartListening = Runnable { beginListening() }
+
+    private fun speakReply(message: String) {
+        if (stopping || message.isBlank()) return
+        val tts = textToSpeech
+        if (!ttsReady || tts == null) {
+            updateNotification("$message · giọng đọc tiếng Việt chưa sẵn sàng")
+            scheduleListenRetry(650L)
+            return
+        }
+        speaking = true
+        val result = runCatching {
+            tts.speak(message, TextToSpeech.QUEUE_FLUSH, null, "ngoc_si_reply_" + System.currentTimeMillis())
+        }.getOrDefault(TextToSpeech.ERROR)
+        if (result == TextToSpeech.ERROR) {
+            speaking = false
+            updateNotification("$message · không phát được giọng nói")
+            scheduleListenRetry(650L)
+        }
+    }
 
     private fun runPlaybackCommand(command: NgocSiAiLocalCommand): String {
         val player = musicController ?: return "Trình phát chưa kết nối"
@@ -286,6 +343,10 @@ class NgocSiWakeWordService : Service() {
         speechRecognizer = null
         musicController?.release()
         musicController = null
+        runCatching { textToSpeech?.stop() }
+        runCatching { textToSpeech?.shutdown() }
+        textToSpeech = null
+        ttsReady = false
         getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit().putBoolean(KEY_ENABLED, false).apply()
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -300,6 +361,10 @@ class NgocSiWakeWordService : Service() {
         speechRecognizer = null
         musicController?.release()
         musicController = null
+        runCatching { textToSpeech?.stop() }
+        runCatching { textToSpeech?.shutdown() }
+        textToSpeech = null
+        ttsReady = false
         getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit().putBoolean(KEY_ENABLED, false).apply()
         super.onDestroy()
