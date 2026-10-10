@@ -56,6 +56,8 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
     return when {
         isAnyOf(
             "phat nhac", "phat nhac di", "phat nhac len",
+            "phat bai hat", "phat bai hat di", "nghe bai hat", "nghe bai hat di",
+            "nghe nhac di", "mo bai hat", "mo bai hat len", "cho toi nghe nhac",
             "bat nhac", "bat nhac len",
             "tiep tuc phat", "tiep tuc phat nhac", "tiep tuc nghe nhac",
             "bat dau phat nhac", "bat dau nghe nhac", "nghe nhac",
@@ -64,8 +66,9 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
         ) -> NgocSiAiLocalCommand.PLAY
 
         isAnyOf(
-            "tam dung", "tam dung nhac", "tam dung lai",
-            "dung", "dung lai", "dung nhac", "dung nhac lai", "dung phat nhac",
+            "tam dung", "tam dung nhac", "tam dung lai", "tam dung bai hat",
+            "dung", "dung lai", "dung lai di", "dung nhac", "dung nhac lai",
+            "dung phat", "dung phat di", "dung phat nhac", "dung phat nhac di",
             "ngung phat nhac", "tat nhac", "tat nhac di",
             "pause", "pause music", "stop", "stop music"
         ) -> NgocSiAiLocalCommand.PAUSE
@@ -73,11 +76,13 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
         startsWithAny(
             "tiep theo", "bai tiep theo", "nhac tiep theo", "bai ke tiep", "nhac ke tiep",
             "chuyen bai", "chuyen sang bai tiep theo", "chuyen sang bai ke tiep", "sang bai tiep theo",
-            "qua bai", "bo qua bai nay", "skip", "skip song", "next", "next song"
+            "chuyen qua bai sau", "bai sau", "nhac tiep",
+            "qua bai", "bo qua bai nay", "skip", "skip song", "skip to next song", "next", "next song"
         ) -> NgocSiAiLocalCommand.NEXT
 
         startsWithAny(
             "bai truoc", "nhac truoc", "quay lai bai truoc", "tro ve bai truoc", "bai truoc do",
+            "quay ve bai truoc", "lui lai bai truoc",
             "quay lai", "previous", "previous song", "previous track"
         ) -> NgocSiAiLocalCommand.PREVIOUS
 
