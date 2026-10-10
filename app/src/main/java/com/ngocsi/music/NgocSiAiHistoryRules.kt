@@ -14,15 +14,25 @@ internal const val NGOC_SI_AI_MAX_TOTAL_CHARS = 8_000
 internal fun normalizeNgocSiAiHistory(
     messages: List<NgocSiAiMessage>
 ): List<NgocSiAiMessage> {
-    var history = messages.takeLast(NGOC_SI_AI_MAX_HISTORY_MESSAGES).map { message ->
+    val selected = messages.takeLast(NGOC_SI_AI_MAX_HISTORY_MESSAGES)
+    if (selected.isEmpty() || selected.last().role != "user") {
+        throw IllegalArgumentException("Tin nhắn chưa hợp lệ. Hãy gửi một câu hỏi mới.")
+    }
+
+    var history = selected.mapIndexed { index, message ->
         if (message.role != "user" && message.role != "assistant") {
             throw IllegalArgumentException("Loại tin nhắn không được hỗ trợ.")
         }
         val content = message.content.trim()
-        if (content.length !in 1..NGOC_SI_AI_MAX_MESSAGE_CHARS) {
-            throw IllegalArgumentException("Mỗi tin nhắn phải có từ 1 đến 2.000 ký tự.")
+        if (content.isBlank()) {
+            throw IllegalArgumentException("Tin nhắn không được để trống.")
         }
-        message.copy(content = content)
+        if (index == selected.lastIndex && content.length > NGOC_SI_AI_MAX_MESSAGE_CHARS) {
+            throw IllegalArgumentException("Mỗi tin nhắn phải có tối đa 2.000 ký tự.")
+        }
+        // Earlier assistant answers can be longer than the server's input limit.
+        // Clip historical context, never the newest user message.
+        message.copy(content = content.take(NGOC_SI_AI_MAX_MESSAGE_CHARS))
     }
 
     if (history.firstOrNull()?.role == "assistant") {

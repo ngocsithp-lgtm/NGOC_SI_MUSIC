@@ -36,6 +36,21 @@ class NgocSiAiHistoryRulesTest {
     }
 
     @Test
+    fun truncatesOversizedHistoricalAssistantAnswerButPreservesNewestUserMessage() {
+        val history = normalizeNgocSiAiHistory(
+            listOf(
+                NgocSiAiMessage(role = "user", content = "Câu hỏi trước"),
+                NgocSiAiMessage(role = "assistant", content = "a".repeat(2_500)),
+                NgocSiAiMessage(role = "user", content = "Câu hỏi mới")
+            )
+        )
+
+        assertEquals(2_000, history[1].content.length)
+        assertEquals("Câu hỏi mới", history.last().content)
+        assertEquals("user", history.last().role)
+    }
+
+    @Test
     fun limitsHistoryToLatestEightMessages() {
         val messages = buildList {
             repeat(5) { index ->
