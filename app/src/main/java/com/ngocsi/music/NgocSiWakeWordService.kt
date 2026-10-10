@@ -254,7 +254,7 @@ class NgocSiWakeWordService : Service() {
     private fun runPlaybackCommand(command: NgocSiAiLocalCommand): String {
         val player = musicController ?: return "Trình phát chưa kết nối"
         if (player.mediaItemCount == 0 || player.currentMediaItem == null) {
-            return "Chưa có bài nhạc trong hàng đợi. Hãy chọn bài trong NGỌC SĨ MUSIC trước."
+            return "Hàng đợi riêng của NGỌC SĨ AI Preview đang trống. Hãy mở Preview, cấp quyền đọc nhạc trên điện thoại và chờ thư viện được nạp rồi thử lại."
         }
         return runCatching {
             when (command) {

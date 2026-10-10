@@ -355,7 +355,10 @@ class NgocSiAiActivity : ComponentActivity() {
         lifecycleScope.launch {
             try {
                 val localItems = withContext(Dispatchers.IO) { queryDeviceMusicItems() }
-                if (isFinishing || isDestroyed) return@launch
+                if (isFinishing || isDestroyed) {
+                    deviceQueueLoadStarted = false
+                    return@launch
+                }
 
                 val activeController = musicController
                 if (activeController == null || activeController.mediaItemCount > 0) {
@@ -374,11 +377,15 @@ class NgocSiAiActivity : ComponentActivity() {
 
                 activeController.setMediaItems(localItems)
                 activeController.prepare()
+                deviceQueueLoadStarted = false
                 Toast.makeText(
                     this@NgocSiAiActivity,
                     "Đã nạp ${localItems.size} bài nhạc trên điện thoại. Hãy nói “Phát nhạc” để bắt đầu.",
                     Toast.LENGTH_LONG
                 ).show()
+            } catch (cancelled: CancellationException) {
+                deviceQueueLoadStarted = false
+                throw cancelled
             } catch (_: SecurityException) {
                 deviceQueueLoadStarted = false
                 Toast.makeText(
@@ -464,7 +471,19 @@ class NgocSiAiActivity : ComponentActivity() {
         val player = musicController
             ?: return "Trình phát đang khởi động hoặc chưa kết nối. Hãy thử lại sau một lát."
         if (player.mediaItemCount == 0 || player.currentMediaItem == null) {
-            return "Chưa có bài nhạc trong hàng đợi. Hãy chọn một bài trong NGỌC SĨ MUSIC trước."
+            val audioPermission = if (Build.VERSION.SDK_INT >= 33) {
+                Manifest.permission.READ_MEDIA_AUDIO
+            } else {
+                Manifest.permission.READ_EXTERNAL_STORAGE
+            }
+            if (ContextCompat.checkSelfPermission(this, audioPermission) != PackageManager.PERMISSION_GRANTED) {
+                return "Chưa có quyền đọc nhạc. Hãy cấp quyền Âm nhạc và âm thanh cho NGỌC SĨ AI Preview trong Cài đặt ứng dụng."
+            }
+            if (!deviceQueueLoadStarted) {
+                loadDeviceMusicIntoQueue()
+                return "Đang kiểm tra thư viện nhạc trên điện thoại. Hãy thử lại sau khi thông báo nạp nhạc xuất hiện."
+            }
+            return "Thư viện nhạc đang được nạp. Hãy đợi một chút rồi thử lại."
         }
 
         return when (command) {
