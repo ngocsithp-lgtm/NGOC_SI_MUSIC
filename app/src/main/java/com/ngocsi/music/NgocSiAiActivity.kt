@@ -521,9 +521,10 @@ private fun NgocSiAiPreviewScreen(
         }
     }
 
-    LaunchedEffect(pendingVoiceRequest) {
+    LaunchedEffect(pendingVoiceRequest, isSending) {
         val spokenRequest = pendingVoiceRequest
-        if (!spokenRequest.isNullOrBlank()) {
+        // Retain speech received while an AI request is in flight; process it when ready.
+        if (!spokenRequest.isNullOrBlank() && !isSending) {
             pendingVoiceRequest = null
             // Keep this effect after sendMessage is declared so Kotlin can resolve the local function.
             sendMessage(spokenRequest)
