@@ -1,6 +1,6 @@
 # NGỌC SĨ AI — UI preview only
 
-This branch adds a first-pass, local-only chat screen for the Android app.
+This document describes `feature/ngoc-si-ai-ui-preview`, the branch and APK that were device-tested as a local-only preview. The separate `feature/ngoc-si-ai-android-integration` branch builds on that UI with an optional Firebase client; it is still unmerged and must pass CI and separate device tests.
 
 ## What is included
 
