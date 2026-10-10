@@ -22,6 +22,13 @@ class NgocSiAiLocalCommandRulesTest {
     }
 
     @Test
+    fun recognizesCurrentTrackStatusQuestions() {
+        assertEquals(NgocSiAiLocalCommand.CURRENT_TRACK, classifyNgocSiAiLocalCommand("Đang phát bài gì?"))
+        assertEquals(NgocSiAiLocalCommand.CURRENT_TRACK, classifyNgocSiAiLocalCommand("Ngọc Sĩ, bài gì đang phát"))
+        assertEquals(NgocSiAiLocalCommand.CURRENT_TRACK, classifyNgocSiAiLocalCommand("What is playing"))
+    }
+
+    @Test
     fun doesNotTreatGeneralQuestionsOrUnrelatedTextAsCommands() {
         assertNull(classifyNgocSiAiLocalCommand("Làm thế nào để phát nhạc?"))
         assertNull(classifyNgocSiAiLocalCommand("Giúp tôi tìm nhạc vui"))
