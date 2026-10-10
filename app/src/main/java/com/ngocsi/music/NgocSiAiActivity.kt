@@ -1,11 +1,13 @@
 package com.ngocsi.music
 
+import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.SharedPreferences
 import org.json.JSONArray
 import org.json.JSONObject
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.speech.RecognizerIntent
 import android.widget.Toast
@@ -152,6 +154,7 @@ private fun saveAiApiConversation(
 @UnstableApi
 class NgocSiAiActivity : ComponentActivity() {
     private var recognizedSpeech by mutableStateOf("")
+    private var wakeWordListening by mutableStateOf(false)
     private var musicController: MediaController? = null
 
     private val speechLauncher =
@@ -162,10 +165,32 @@ class NgocSiAiActivity : ComponentActivity() {
                 .orEmpty()
         }
 
+    private val wakeWordPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) {
+                try {
+                    NgocSiWakeWordService.start(this)
+                    wakeWordListening = true
+                } catch (_: Exception) {
+                    Toast.makeText(this, "Không thể bật nghe từ khóa. Hãy thử lại.", Toast.LENGTH_LONG).show()
+                }
+            } else {
+                Toast.makeText(this, "Cần quyền micro để nghe từ khóa Ngọc Sĩ.", Toast.LENGTH_LONG).show()
+            }
+        }
+
+    override fun onResume() {
+        super.onResume()
+        wakeWordListening = getSharedPreferences(NgocSiWakeWordService.PREFS_NAME, MODE_PRIVATE)
+            .getBoolean(NgocSiWakeWordService.KEY_ENABLED, false)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val aiClient = NgocSiAiRemoteClient(applicationContext)
         val aiChatPreferences = getSharedPreferences(AI_CHAT_PREFS_NAME, MODE_PRIVATE)
+        wakeWordListening = getSharedPreferences(NgocSiWakeWordService.PREFS_NAME, MODE_PRIVATE)
+            .getBoolean(NgocSiWakeWordService.KEY_ENABLED, false)
         connectMusicController()
         setContent {
             NgocSiAiPreviewScreen(
@@ -176,7 +201,9 @@ class NgocSiAiActivity : ComponentActivity() {
                 recognizedSpeech = recognizedSpeech,
                 onSpeechConsumed = { recognizedSpeech = "" },
                 onBack = { finish() },
-                onVoice = { startVoiceInput() }
+                onVoice = { startVoiceInput() },
+                isWakeWordListening = wakeWordListening,
+                onToggleWakeWord = { toggleWakeWordListening() }
             )
         }
     }
@@ -271,6 +298,28 @@ class NgocSiAiActivity : ComponentActivity() {
         super.onDestroy()
     }
 
+    private fun toggleWakeWordListening() {
+        if (wakeWordListening) {
+            NgocSiWakeWordService.stop(this)
+            wakeWordListening = false
+            return
+        }
+        if (androidx.core.content.ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.RECORD_AUDIO
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            try {
+                NgocSiWakeWordService.start(this)
+                wakeWordListening = true
+            } catch (_: Exception) {
+                Toast.makeText(this, "Không thể bật nghe từ khóa. Hãy thử lại.", Toast.LENGTH_LONG).show()
+            }
+        } else {
+            wakeWordPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
     private fun startVoiceInput() {
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
@@ -296,7 +345,9 @@ private fun NgocSiAiPreviewScreen(
     recognizedSpeech: String,
     onSpeechConsumed: () -> Unit,
     onBack: () -> Unit,
-    onVoice: () -> Unit
+    onVoice: () -> Unit,
+    isWakeWordListening: Boolean,
+    onToggleWakeWord: () -> Unit
 ) {
     val messages = remember {
         mutableStateListOf<AiPreviewMessage>().apply {
@@ -518,6 +569,41 @@ private fun NgocSiAiPreviewScreen(
                     fontWeight = FontWeight.Black,
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp)
                 )
+            }
+        }
+
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp)
+                .clickable(onClick = onToggleWakeWord),
+            shape = RoundedCornerShape(14.dp),
+            color = if (isWakeWordListening) Color(0xFF123329) else Color(0xFF171421),
+            border = androidx.compose.foundation.BorderStroke(
+                1.dp,
+                if (isWakeWordListening) Color(0xFF39C98A) else Color(0xFF39304F)
+            )
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(if (isWakeWordListening) "🎙" else "🎤", fontSize = 18.sp)
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        if (isWakeWordListening) "ĐANG NGHE: “NGỌC SĨ”" else "BẬT NGHE TỪ KHÓA “NGỌC SĨ”",
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        if (isWakeWordListening) "Nhận lệnh offline · tắt bằng cách chạm vào đây hoặc thông báo" else "Bật một lần, sau đó nói “Ngọc Sĩ, chuyển bài”",
+                        color = Color(0xFFB9C4D6),
+                        fontSize = 10.sp
+                    )
+                }
+                Text(if (isWakeWordListening) "TẮT" else "BẬT", color = if (isWakeWordListening) Color(0xFF71E6B2) else Color(0xFF8DEEFF), fontWeight = FontWeight.Black, fontSize = 10.sp)
             }
         }
 
