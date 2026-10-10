@@ -19,6 +19,7 @@ on:
       - ".github/workflows/ngoc-si-ai-ui-ci.yml"
       - "docs/NGOC_SI_AI_UI_PREVIEW.md"
       - "docs/NGOC_SI_AI_ANDROID_INTEGRATION.md"
+      - "docs/NGOC_SI_AI_BACKEND_SETUP.md"
       - "functions/**"
       - "firebase.json"
       - "firestore.rules"
