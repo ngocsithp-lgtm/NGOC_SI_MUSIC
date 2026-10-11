@@ -177,7 +177,7 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
             startsWithAny("tat nhac sau 120 phut", "dung nhac sau 120 phut") ->
             NgocSiAiLocalCommand.SLEEP_TIMER_120
 
-        isAnyOf("ban lam duoc gi", "toi co the ra lenh gi", "ai lam duoc gi", "tro giup", "huong dan su dung", "cac chuc nang cua ai") ->
+        isAnyOf("ban lam duoc gi", "ban co the giup gi", "ban co the giup toi nhung gi", "toi co the hoi gi", "ai lam duoc gi", "tro giup", "huong dan su dung", "cac chuc nang cua ai") ->
             NgocSiAiLocalCommand.HELP
 
         isAnyOf(
