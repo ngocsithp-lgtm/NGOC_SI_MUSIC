@@ -1,13 +1,24 @@
 package com.ngocsi.music
 
+import android.Manifest
 import android.content.ActivityNotFoundException
+import android.content.ComponentName
+import android.content.SharedPreferences
+import org.json.JSONArray
+import org.json.JSONObject
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.speech.RecognizerIntent
+import android.speech.tts.TextToSpeech
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -34,13 +45,18 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Text
 import androidx.compose.material3.Surface
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
+import java.util.Locale
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,26 +69,406 @@ import androidx.compose.ui.unit.sp
 
 private data class AiPreviewMessage(val isUser: Boolean, val text: String)
 
+private const val AI_CHAT_PREFS_NAME = "ngoc_si_ai_chat_history"
+private const val AI_CHAT_MESSAGES_KEY = "chat_messages_v1"
+private const val AI_CHAT_CONVERSATION_KEY = "api_conversation_v1"
+private const val AI_VOICE_REPLY_KEY = "voice_replies_enabled_v1"
+private const val MAX_SAVED_AI_UI_MESSAGES = 60
+private const val MAX_SAVED_AI_MESSAGE_CHARS = 4_000
+
+private fun defaultAiGreeting(isOnlineConfigured: Boolean) = AiPreviewMessage(
+    false,
+    if (isOnlineConfigured) {
+        "Xin chào! NGỌC SĨ AI đang ở chế độ kiểm thử trực tuyến. Chỉ gửi câu hỏi khi bạn nhấn nút gửi."
+    } else {
+        "Xin chào! Tôi là NGỌC SĨ AI. Đây là bản xem trước giao diện; AI trực tuyến chưa được cấu hình."
+    }
+)
+
+private fun loadAiPreviewMessages(
+    preferences: SharedPreferences,
+    isOnlineConfigured: Boolean
+): List<AiPreviewMessage> {
+    val stored = preferences.getString(AI_CHAT_MESSAGES_KEY, null)
+        ?: return listOf(defaultAiGreeting(isOnlineConfigured))
+    val decoded = runCatching {
+        val array = JSONArray(stored)
+        buildList {
+            for (index in 0 until array.length()) {
+                val item = array.optJSONObject(index) ?: continue
+                val text = item.optString("text").take(MAX_SAVED_AI_MESSAGE_CHARS)
+                if (text.isNotBlank()) add(AiPreviewMessage(item.optBoolean("isUser"), text))
+            }
+        }.takeLast(MAX_SAVED_AI_UI_MESSAGES)
+    }.getOrDefault(emptyList())
+    return decoded.ifEmpty { listOf(defaultAiGreeting(isOnlineConfigured)) }
+}
+
+private fun saveAiPreviewMessages(
+    preferences: SharedPreferences,
+    messages: List<AiPreviewMessage>
+) {
+    val array = JSONArray()
+    messages.takeLast(MAX_SAVED_AI_UI_MESSAGES).forEach { message ->
+        array.put(
+            JSONObject()
+                .put("isUser", message.isUser)
+                .put("text", message.text.take(MAX_SAVED_AI_MESSAGE_CHARS))
+        )
+    }
+    preferences.edit().putString(AI_CHAT_MESSAGES_KEY, array.toString()).apply()
+}
+
+private fun loadAiApiConversation(preferences: SharedPreferences): List<NgocSiAiMessage> {
+    val stored = preferences.getString(AI_CHAT_CONVERSATION_KEY, null) ?: return emptyList()
+    val decoded = runCatching {
+        val array = JSONArray(stored)
+        buildList {
+            for (index in 0 until array.length()) {
+                val item = array.optJSONObject(index) ?: continue
+                val role = item.optString("role")
+                val content = item.optString("content").trim()
+                if ((role == "user" || role == "assistant") && content.isNotBlank()) {
+                    add(NgocSiAiMessage(role, content.take(MAX_SAVED_AI_MESSAGE_CHARS)))
+                }
+            }
+        }
+    }.getOrDefault(emptyList())
+    return restoreCompletedNgocSiAiConversation(decoded)
+}
+
+private fun saveAiApiConversation(
+    preferences: SharedPreferences,
+    messages: List<NgocSiAiMessage>
+) {
+    val bounded = messages
+        .takeLast(NGOC_SI_AI_MAX_HISTORY_MESSAGES)
+        .dropWhile { it.role == "assistant" }
+    val array = JSONArray()
+    bounded.forEach { message ->
+        array.put(
+            JSONObject()
+                .put("role", message.role)
+                .put("content", message.content.take(MAX_SAVED_AI_MESSAGE_CHARS))
+        )
+    }
+    preferences.edit().putString(AI_CHAT_CONVERSATION_KEY, array.toString()).apply()
+}
+
+@UnstableApi
 class NgocSiAiActivity : ComponentActivity() {
     private var recognizedSpeech by mutableStateOf("")
+    private var wakeWordListening by mutableStateOf(false)
+    private var musicController: MediaController? = null
+    private var responseTts: TextToSpeech? = null
+    private var responseTtsReady = false
+    // Hold a few replies while Android initializes the Vietnamese TTS engine.
+    private val pendingVoiceReplies = java.util.ArrayDeque<String>()
+    private var voiceRepliesEnabled by mutableStateOf(true)
 
     private val speechLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            recognizedSpeech = result.data
+            if (result.resultCode != android.app.Activity.RESULT_OK) {
+                return@registerForActivityResult
+            }
+            val candidates = result.data
                 ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-                ?.firstOrNull()
                 .orEmpty()
+                .map(String::trim)
+                .filter(String::isNotBlank)
+            // Speech services may return several hypotheses. Prefer a recognized,
+            // explicitly allowlisted command if one of the alternatives matches.
+            val phrase = candidates.firstOrNull {
+                classifyNgocSiAiLocalCommand(it) != null
+            } ?: candidates.firstOrNull().orEmpty()
+            if (phrase.isBlank()) {
+                val reply = "Tôi chưa nghe rõ. Hãy nói chậm, gần micro hơn rồi thử lại."
+                speakVoiceReply(reply)
+                Toast.makeText(this, reply, Toast.LENGTH_LONG).show()
+                return@registerForActivityResult
+            }
+            val command = classifyNgocSiAiLocalCommand(phrase)
+            if (command != null) {
+                val reply = runLocalCommand(command, phrase)
+                speakVoiceReply(reply)
+                Toast.makeText(this, reply, Toast.LENGTH_LONG).show()
+            } else {
+                recognizedSpeech = phrase
+            }
         }
+
+    private val wakeWordPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) {
+                try {
+                    NgocSiWakeWordService.start(this)
+                    wakeWordListening = true
+                } catch (_: Exception) {
+                    Toast.makeText(this, "Không thể bật nghe từ khóa. Hãy thử lại.", Toast.LENGTH_LONG).show()
+                }
+            } else {
+                Toast.makeText(this, "Cần quyền micro để nghe từ khóa Ngọc Sĩ.", Toast.LENGTH_LONG).show()
+            }
+        }
+
+    override fun onResume() {
+        super.onResume()
+        wakeWordListening = getSharedPreferences(NgocSiWakeWordService.PREFS_NAME, MODE_PRIVATE)
+            .getBoolean(NgocSiWakeWordService.KEY_ENABLED, false)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        responseTts = TextToSpeech(this) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                val result = responseTts?.setLanguage(Locale("vi", "VN"))
+                responseTtsReady = result != null &&
+                    result != TextToSpeech.LANG_MISSING_DATA &&
+                    result != TextToSpeech.LANG_NOT_SUPPORTED
+                if (responseTtsReady && voiceRepliesEnabled) {
+                    while (pendingVoiceReplies.isNotEmpty()) {
+                        responseTts?.speak(
+                            pendingVoiceReplies.removeFirst(),
+                            TextToSpeech.QUEUE_ADD,
+                            null,
+                            "ngoc_si_activity_reply"
+                        )
+                    }
+                } else {
+                    pendingVoiceReplies.clear()
+                    if (!responseTtsReady) {
+                        Toast.makeText(
+                            this,
+                            "Chưa có dữ liệu giọng đọc tiếng Việt. Hãy kiểm tra Text-to-Speech trên điện thoại.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+            } else {
+                responseTtsReady = false
+                pendingVoiceReplies.clear()
+                Toast.makeText(
+                    this,
+                    "Không khởi tạo được giọng đọc. Hãy kiểm tra Text-to-Speech trên điện thoại.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+        val aiClient = NgocSiAiRemoteClient(applicationContext)
+        val aiChatPreferences = getSharedPreferences(AI_CHAT_PREFS_NAME, MODE_PRIVATE)
+        wakeWordListening = getSharedPreferences(NgocSiWakeWordService.PREFS_NAME, MODE_PRIVATE)
+            .getBoolean(NgocSiWakeWordService.KEY_ENABLED, false)
+        voiceRepliesEnabled = getSharedPreferences(AI_CHAT_PREFS_NAME, MODE_PRIVATE)
+            .getBoolean(AI_VOICE_REPLY_KEY, true)
+        connectMusicController()
         setContent {
             NgocSiAiPreviewScreen(
+                isOnlineConfigured = aiClient.isConfigured,
+                chatPreferences = aiChatPreferences,
+                onSendOnline = { history -> aiClient.send(history) },
+                onLocalCommand = { command, sourceText -> runLocalCommand(command, sourceText) },
+                onVoiceReply = { message -> speakVoiceReply(message) },
+                onSpeakMessage = { message -> speakVoiceReply(message, force = true) },
+                voiceRepliesEnabled = voiceRepliesEnabled,
+                onToggleVoiceReplies = { toggleVoiceReplies() },
                 recognizedSpeech = recognizedSpeech,
                 onSpeechConsumed = { recognizedSpeech = "" },
                 onBack = { finish() },
-                onVoice = { startVoiceInput() }
+                onVoice = { startVoiceInput() },
+                isWakeWordListening = wakeWordListening,
+                onToggleWakeWord = { toggleWakeWordListening() }
             )
+        }
+    }
+
+    private fun connectMusicController() {
+        val token = SessionToken(this, ComponentName(this, MusicService::class.java))
+        val future = MediaController.Builder(this, token).buildAsync()
+        future.addListener({
+            runCatching { future.get() }
+                .onSuccess { connectedController ->
+                    if (isFinishing || isDestroyed) {
+                        connectedController.release()
+                    } else {
+                        musicController = connectedController
+                    }
+                }
+        }, ContextCompat.getMainExecutor(this))
+    }
+
+    private fun runLocalCommand(command: NgocSiAiLocalCommand, sourceText: String = ""): String {
+        val requestedSleepMinutes = if (command == NgocSiAiLocalCommand.OPEN_SLEEP_TIMER) {
+            parseNgocSiAiSleepTimerMinutes(sourceText)
+        } else {
+            null
+        }
+        val route = when (command) {
+            NgocSiAiLocalCommand.OPEN_HOME -> "home" to "Trang chủ"
+            NgocSiAiLocalCommand.OPEN_ONLINE -> "online" to "Online"
+            NgocSiAiLocalCommand.OPEN_SLEEP_TIMER -> "sleep_timer" to "Hẹn giờ tắt nhạc"
+            NgocSiAiLocalCommand.CANCEL_SLEEP_TIMER -> "cancel_sleep_timer" to "Tắt hẹn giờ"
+            NgocSiAiLocalCommand.OPEN_LIBRARY -> "library" to "Thư viện"
+            NgocSiAiLocalCommand.OPEN_YOUTUBE -> "youtube" to "YouTube"
+            NgocSiAiLocalCommand.OPEN_DRIVE -> "drive" to "Google Drive"
+            NgocSiAiLocalCommand.OPEN_RADIO -> "radio" to "Radio"
+            NgocSiAiLocalCommand.OPEN_TV -> "tv" to "TV"
+            NgocSiAiLocalCommand.OPEN_QUEUE -> "queue" to "Hàng đợi"
+            NgocSiAiLocalCommand.OPEN_PLAYLISTS -> "playlists" to "Playlist"
+            NgocSiAiLocalCommand.OPEN_PLAYER -> "player" to "Trình phát"
+            NgocSiAiLocalCommand.OPEN_SETTINGS -> "settings" to "Cài đặt"
+            else -> null
+        }
+        if (route != null) {
+            val (destination, label) = route
+            return runCatching {
+                startActivity(
+                    Intent(this, MainActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                        putExtra("pro_destination", destination)
+                        if (requestedSleepMinutes != null) {
+                            putExtra("pro_sleep_minutes", requestedSleepMinutes)
+                        }
+                    }
+                )
+                when {
+                    command == NgocSiAiLocalCommand.OPEN_SLEEP_TIMER && requestedSleepMinutes != null ->
+                        "Đã đặt hẹn giờ tắt nhạc trong $requestedSleepMinutes phút."
+                    command == NgocSiAiLocalCommand.OPEN_SLEEP_TIMER ->
+                        "Đang mở hẹn giờ tắt nhạc để chọn thời gian."
+                    command == NgocSiAiLocalCommand.CANCEL_SLEEP_TIMER ->
+                        "Đã tắt hẹn giờ tắt nhạc."
+                    else -> "Đang mở $label."
+                }
+            }.getOrElse {
+                "Không thể mở $label. Hãy thử mở mục đó từ menu chính."
+            }
+        }
+
+        val player = musicController
+            ?: return "Trình phát đang khởi động hoặc chưa kết nối. Hãy thử lại sau một lát."
+        if (player.mediaItemCount == 0 || player.currentMediaItem == null) {
+            return "Chưa có bài nhạc trong hàng đợi. Hãy chọn một bài trong NGỌC SĨ MUSIC trước."
+        }
+
+        return when (command) {
+            NgocSiAiLocalCommand.CURRENT_TRACK -> {
+                val item = player.currentMediaItem
+                val title = item?.mediaMetadata?.title?.toString()?.takeIf { it.isNotBlank() }
+                    ?: "Chưa rõ tên bài hát"
+                val artist = item?.mediaMetadata?.artist?.toString()?.takeIf { it.isNotBlank() }
+                val status = when {
+                    player.isPlaying -> "Đang phát"
+                    player.playbackState == androidx.media3.common.Player.STATE_BUFFERING &&
+                        player.playWhenReady -> "Đang tải"
+                    player.playbackState == androidx.media3.common.Player.STATE_ENDED -> "Đã phát hết"
+                    else -> "Đang tạm dừng"
+                }
+                if (artist == null) "$status: $title" else "$status: $title — $artist"
+            }
+            NgocSiAiLocalCommand.PLAY -> {
+                player.play()
+                "Đã gửi lệnh phát nhạc đến trình phát."
+            }
+            NgocSiAiLocalCommand.PAUSE -> {
+                player.pause()
+                "Đã gửi lệnh tạm dừng nhạc."
+            }
+            NgocSiAiLocalCommand.NEXT -> {
+                if (player.hasNextMediaItem()) {
+                    player.seekToNextMediaItem()
+                    "Đang chuyển sang bài tiếp theo."
+                } else {
+                    "Không có bài tiếp theo trong hàng đợi hiện tại."
+                }
+            }
+            NgocSiAiLocalCommand.PREVIOUS -> {
+                if (player.hasPreviousMediaItem()) {
+                    player.seekToPreviousMediaItem()
+                    "Đang chuyển về bài trước."
+                } else {
+                    "Không có bài trước trong hàng đợi hiện tại."
+                }
+            }
+            NgocSiAiLocalCommand.SHUFFLE_ON -> {
+                player.shuffleModeEnabled = true
+                "Đã bật phát ngẫu nhiên cho hàng đợi hiện tại."
+            }
+            NgocSiAiLocalCommand.SHUFFLE_OFF -> {
+                player.shuffleModeEnabled = false
+                "Đã tắt phát ngẫu nhiên."
+            }
+            NgocSiAiLocalCommand.REPEAT_OFF -> {
+                player.repeatMode = androidx.media3.common.Player.REPEAT_MODE_OFF
+                "Đã tắt chế độ lặp."
+            }
+            NgocSiAiLocalCommand.REPEAT_ALL -> {
+                player.repeatMode = androidx.media3.common.Player.REPEAT_MODE_ALL
+                "Đã bật lặp toàn bộ hàng đợi."
+            }
+            NgocSiAiLocalCommand.REPEAT_ONE -> {
+                player.repeatMode = androidx.media3.common.Player.REPEAT_MODE_ONE
+                "Đã bật lặp bài hiện tại."
+            }
+            else -> "Lệnh này cần được thực hiện từ giao diện phù hợp."
+        }
+    }
+
+    private fun speakVoiceReply(message: String, force: Boolean = false) {
+        if (!force && !voiceRepliesEnabled) return
+        val tts = responseTts
+        if (responseTtsReady && tts != null) {
+            tts.speak(message, TextToSpeech.QUEUE_FLUSH, null, "ngoc_si_activity_reply")
+        } else {
+            // Do not drop the first reply merely because TextToSpeech initializes asynchronously.
+            while (pendingVoiceReplies.size >= 4) pendingVoiceReplies.removeFirst()
+            pendingVoiceReplies.addLast(message)
+        }
+    }
+
+    override fun onDestroy() {
+        musicController?.release()
+        musicController = null
+        pendingVoiceReplies.clear()
+        runCatching { responseTts?.stop() }
+        runCatching { responseTts?.shutdown() }
+        responseTts = null
+        responseTtsReady = false
+        super.onDestroy()
+    }
+
+    private fun toggleVoiceReplies() {
+        voiceRepliesEnabled = !voiceRepliesEnabled
+        getSharedPreferences(AI_CHAT_PREFS_NAME, MODE_PRIVATE).edit()
+            .putBoolean(AI_VOICE_REPLY_KEY, voiceRepliesEnabled)
+            .apply()
+        if (voiceRepliesEnabled) {
+            speakVoiceReply("Đã bật đọc câu trả lời bằng giọng nói.")
+        } else {
+            pendingVoiceReplies.clear()
+            runCatching { responseTts?.stop() }
+            Toast.makeText(this, "Đã tắt đọc câu trả lời bằng giọng nói.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun toggleWakeWordListening() {
+        if (wakeWordListening) {
+            NgocSiWakeWordService.stop(this)
+            wakeWordListening = false
+            return
+        }
+        if (androidx.core.content.ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.RECORD_AUDIO
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            try {
+                NgocSiWakeWordService.start(this)
+                wakeWordListening = true
+            } catch (_: Exception) {
+                Toast.makeText(this, "Không thể bật nghe từ khóa. Hãy thử lại.", Toast.LENGTH_LONG).show()
+            }
+        } else {
+            wakeWordPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
         }
     }
 
@@ -80,7 +476,10 @@ class NgocSiAiActivity : ComponentActivity() {
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "vi-VN")
-            putExtra(RecognizerIntent.EXTRA_PROMPT, "Nói nội dung bạn muốn nhập")
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "vi-VN")
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "Nói lệnh hoặc câu hỏi bằng tiếng Việt")
         }
         try {
             speechLauncher.launch(intent)
@@ -94,21 +493,44 @@ class NgocSiAiActivity : ComponentActivity() {
 
 @Composable
 private fun NgocSiAiPreviewScreen(
+    isOnlineConfigured: Boolean,
+    chatPreferences: SharedPreferences,
+    onSendOnline: suspend (List<NgocSiAiMessage>) -> NgocSiAiReply,
+    onLocalCommand: (NgocSiAiLocalCommand, String) -> String,
+    onVoiceReply: (String) -> Unit,
+    onSpeakMessage: (String) -> Unit,
+    voiceRepliesEnabled: Boolean,
+    onToggleVoiceReplies: () -> Unit,
     recognizedSpeech: String,
     onSpeechConsumed: () -> Unit,
     onBack: () -> Unit,
-    onVoice: () -> Unit
+    onVoice: () -> Unit,
+    isWakeWordListening: Boolean,
+    onToggleWakeWord: () -> Unit
 ) {
     val messages = remember {
-        mutableStateListOf(
-            AiPreviewMessage(
-                false,
-                "Xin chào! Tôi là NGỌC SĨ AI. Đây là bản xem trước giao diện; AI trực tuyến chưa được kết nối."
-            )
-        )
+        mutableStateListOf<AiPreviewMessage>().apply {
+            addAll(loadAiPreviewMessages(chatPreferences, isOnlineConfigured))
+        }
     }
     var input by remember { mutableStateOf("") }
+    val pendingVoiceRequests = remember { mutableStateListOf<String>() }
+    val conversation = remember {
+        mutableStateListOf<NgocSiAiMessage>().apply {
+            addAll(loadAiApiConversation(chatPreferences))
+        }
+    }
+    val coroutineScope = rememberCoroutineScope()
+    var isSending by remember { mutableStateOf(false) }
+    var retryText by remember { mutableStateOf<String?>(null) }
+    var quotaNote by remember { mutableStateOf("") }
+    var showClearConfirm by remember { mutableStateOf(false) }
     val messageListState = androidx.compose.foundation.lazy.rememberLazyListState()
+
+    fun persistChatState() {
+        saveAiPreviewMessages(chatPreferences, messages)
+        saveAiApiConversation(chatPreferences, conversation)
+    }
 
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
@@ -117,25 +539,145 @@ private fun NgocSiAiPreviewScreen(
     }
 
     LaunchedEffect(recognizedSpeech) {
-        if (recognizedSpeech.isNotBlank()) {
-            input = listOf(input.trim(), recognizedSpeech.trim())
-                .filter { it.isNotBlank() }
-                .joinToString(" ")
+        val spokenRequest = recognizedSpeech.trim()
+        if (spokenRequest.isNotBlank()) {
             onSpeechConsumed()
+            if (pendingVoiceRequests.size < 4) {
+                // Queue multiple recognized utterances instead of overwriting a request
+                // while the previous AI response is still in flight.
+                pendingVoiceRequests.add(spokenRequest)
+            } else {
+                val queueNotice = "Đang xử lý các yêu cầu trước đó. Vui lòng đợi rồi nói tiếp."
+                messages.add(AiPreviewMessage(false, queueNotice))
+                if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
+                persistChatState()
+                onVoiceReply(queueNotice)
+            }
         }
     }
 
     fun sendMessage(text: String) {
         val clean = text.trim()
-        if (clean.isBlank()) return
+        if (clean.isBlank() || isSending) return
+        retryText = null
         messages.add(AiPreviewMessage(true, clean))
-        messages.add(
-            AiPreviewMessage(
-                false,
-                "Đã nhận nội dung trong bản xem trước. Chức năng trả lời AI trực tuyến chưa được bật, nên tin nhắn này chưa được gửi tới Gemini và chưa phát sinh phí AI."
-            )
-        )
+        if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
         input = ""
+
+        val localCommand = classifyNgocSiAiLocalCommand(clean)
+        if (localCommand != null) {
+            val commandReply = onLocalCommand(localCommand, clean)
+            messages.add(AiPreviewMessage(false, commandReply))
+            if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
+            persistChatState()
+            onVoiceReply(commandReply)
+            return
+        }
+
+        if (!isOnlineConfigured) {
+            messages.add(
+                AiPreviewMessage(
+                    false,
+                    "Đã nhận nội dung trong bản xem trước. Firebase/Gemini chưa được cấu hình cho bản này, nên tin nhắn chưa được gửi lên máy chủ và không phát sinh phí AI."
+                )
+            )
+            if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
+            persistChatState()
+            onVoiceReply("Đã nhận yêu cầu. Tuy nhiên AI trực tuyến chưa được cấu hình nên tôi chưa thể xử lý câu hỏi này.")
+            return
+        }
+
+        val userTurn = NgocSiAiMessage(role = "user", content = clean)
+        conversation.add(userTurn)
+        while (conversation.size > NGOC_SI_AI_MAX_HISTORY_MESSAGES) {
+            conversation.removeAt(0)
+            if (conversation.firstOrNull()?.role == "assistant") conversation.removeAt(0)
+        }
+        // Persist the visible user message immediately, but only persist API context
+        // after a successful reply so interrupted requests cannot create broken turns.
+        saveAiPreviewMessages(chatPreferences, messages)
+        var history = conversation.takeLast(NGOC_SI_AI_MAX_HISTORY_MESSAGES)
+        if (history.firstOrNull()?.role == "assistant") history = history.drop(1)
+        isSending = true
+        coroutineScope.launch {
+            try {
+                val reply = onSendOnline(history.toList())
+                conversation.add(NgocSiAiMessage(role = "assistant", content = reply.answer))
+                messages.add(AiPreviewMessage(false, reply.answer))
+                if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
+                persistChatState()
+                onVoiceReply(reply.answer)
+                val userRemaining = reply.remainingToday?.let { "Còn $it lượt/tài khoản hôm nay" }
+                val globalRemaining = reply.remainingGlobalToday?.let { "Còn $it lượt toàn hệ thống hôm nay" }
+                quotaNote = listOfNotNull(userRemaining, globalRemaining).joinToString(" • ")
+            } catch (cancelled: CancellationException) {
+                if (conversation.lastOrNull() == userTurn) conversation.removeAt(conversation.lastIndex)
+                persistChatState()
+                throw cancelled
+            } catch (error: NgocSiAiRemoteException) {
+                if (conversation.lastOrNull() == userTurn) conversation.removeAt(conversation.lastIndex)
+                retryText = clean
+                val errorReply = error.message ?: "Không thể kết nối NGỌC SĨ AI. Vui lòng thử lại."
+                messages.add(AiPreviewMessage(false, errorReply))
+                if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
+                persistChatState()
+                onVoiceReply(errorReply)
+            } catch (_: Exception) {
+                if (conversation.lastOrNull() == userTurn) conversation.removeAt(conversation.lastIndex)
+                retryText = clean
+                val errorReply = "Có lỗi khi gửi yêu cầu AI. Hãy kiểm tra kết nối và cấu hình Firebase."
+                messages.add(AiPreviewMessage(false, errorReply))
+                if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
+                persistChatState()
+                onVoiceReply(errorReply)
+            } finally {
+                isSending = false
+            }
+        }
+    }
+
+    LaunchedEffect(pendingVoiceRequests.size, pendingVoiceRequests.firstOrNull(), isSending) {
+        // Keep speech in a bounded FIFO queue while an online response is in flight.
+        // Processing one item at a time preserves the original order of spoken requests.
+        if (pendingVoiceRequests.isNotEmpty() && !isSending) {
+            val nextRequest = pendingVoiceRequests.removeAt(0)
+            sendMessage(nextRequest)
+        }
+    }
+
+    if (showClearConfirm) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showClearConfirm = false },
+            title = { Text("Xóa lịch sử chat?") },
+            text = {
+                Text(
+                    "Lịch sử chat được lưu trên điện thoại này. Xóa sẽ gỡ các tin nhắn đã lưu và bắt đầu cuộc trò chuyện mới."
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = {
+                        messages.clear()
+                        messages.add(defaultAiGreeting(isOnlineConfigured))
+                        conversation.clear()
+                        input = ""
+                        quotaNote = ""
+                        persistChatState()
+                        showClearConfirm = false
+                    }
+                ) {
+                    Text("Xóa", color = Color(0xFFFFA0A0))
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { showClearConfirm = false }) {
+                    Text("Hủy", color = Color(0xFFD9DCE5))
+                }
+            },
+            containerColor = Color(0xFF171B24),
+            titleContentColor = Color.White,
+            textContentColor = Color(0xFFD9DCE5)
+        )
     }
 
     Column(
@@ -153,7 +695,7 @@ private fun NgocSiAiPreviewScreen(
         ) {
             Surface(
                 modifier = Modifier
-                    .size(48.dp)
+                    .size(42.dp)
                     .clickable(onClick = onBack),
                 shape = RoundedCornerShape(14.dp),
                 color = Color(0xFF1A1E2A)
@@ -179,16 +721,86 @@ private fun NgocSiAiPreviewScreen(
                 )
             }
             Surface(
+                modifier = Modifier.clickable(enabled = !isSending) {
+                    showClearConfirm = true
+                },
+                shape = RoundedCornerShape(50),
+                color = Color(0xFF242033),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF3A334A))
+            ) {
+                Text(
+                    "XÓA",
+                    color = Color(0xFFFFB0B0),
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Black,
+                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 7.dp)
+                )
+            }
+            Spacer(Modifier.width(5.dp))
+            Surface(
+                modifier = Modifier.clickable(onClick = onToggleVoiceReplies),
+                shape = RoundedCornerShape(50),
+                color = if (voiceRepliesEnabled) Color(0xFF123329) else Color(0xFF242033),
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    if (voiceRepliesEnabled) Color(0xFF39C98A) else Color(0xFF3A334A)
+                )
+            ) {
+                Text(
+                    if (voiceRepliesEnabled) "🔊" else "🔇",
+                    color = if (voiceRepliesEnabled) Color(0xFF71E6B2) else Color(0xFFB9C4D6),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Black,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp)
+                )
+            }
+            Spacer(Modifier.width(5.dp))
+            Surface(
                 shape = RoundedCornerShape(50),
                 color = Color(0xFF242033)
             ) {
                 Text(
-                    "PREVIEW",
+                    if (isOnlineConfigured) "AI TEST" else "PREVIEW",
                     color = Color(0xFFC7B5FF),
                     fontSize = 9.sp,
                     fontWeight = FontWeight.Black,
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp)
                 )
+            }
+        }
+
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp)
+                .clickable(onClick = onToggleWakeWord),
+            shape = RoundedCornerShape(14.dp),
+            color = if (isWakeWordListening) Color(0xFF123329) else Color(0xFF171421),
+            border = androidx.compose.foundation.BorderStroke(
+                1.dp,
+                if (isWakeWordListening) Color(0xFF39C98A) else Color(0xFF39304F)
+            )
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(if (isWakeWordListening) "🎙" else "🎤", fontSize = 18.sp)
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        if (isWakeWordListening) "ĐANG NGHE: “NGỌC SĨ”" else "BẬT NGHE TỪ KHÓA “NGỌC SĨ”",
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        if (isWakeWordListening) "Nhận lệnh offline · tắt bằng cách chạm vào đây hoặc thông báo" else "Bật một lần, sau đó nói “Ngọc Sĩ, chuyển bài”",
+                        color = Color(0xFFB9C4D6),
+                        fontSize = 10.sp
+                    )
+                }
+                Text(if (isWakeWordListening) "TẮT" else "BẬT", color = if (isWakeWordListening) Color(0xFF71E6B2) else Color(0xFF8DEEFF), fontWeight = FontWeight.Black, fontSize = 10.sp)
             }
         }
 
@@ -207,7 +819,11 @@ private fun NgocSiAiPreviewScreen(
                 Text("✦", color = Color(0xFFB99AFF), fontSize = 19.sp)
                 Spacer(Modifier.width(9.dp))
                 Text(
-                    "Bản thử giao diện • Chưa kết nối AI • Không phát sinh phí AI",
+                    if (isOnlineConfigured) {
+                        "Chế độ kiểm thử trực tuyến • Tin nhắn gửi tới máy chủ AI. Không nhập thông tin nhạy cảm."
+                    } else {
+                        "Bản xem trước • Chưa cấu hình Firebase • Không phát sinh phí AI"
+                    },
                     color = Color(0xFFC7C1D8),
                     fontSize = 10.sp,
                     lineHeight = 15.sp
@@ -240,29 +856,52 @@ private fun NgocSiAiPreviewScreen(
                         }
                         Spacer(Modifier.width(8.dp))
                     }
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(0.84f),
-                        shape = RoundedCornerShape(
-                            topStart = 18.dp,
-                            topEnd = 18.dp,
-                            bottomStart = if (message.isUser) 18.dp else 5.dp,
-                            bottomEnd = if (message.isUser) 5.dp else 18.dp
-                        ),
-                        color = if (message.isUser) Color(0xFF25213A) else Color(0xFF141821),
-                        border = androidx.compose.foundation.BorderStroke(
-                            1.dp,
-                            if (message.isUser) Color(0xFF44376B) else Color(0xFF252B37)
-                        )
-                    ) {
-                        Text(
-                            message.text,
-                            modifier = Modifier.padding(horizontal = 13.dp, vertical = 12.dp),
-                            color = if (message.isUser) Color(0xFFF0ECFF) else Color(0xFFD9DCE5),
-                            fontSize = 13.sp,
-                            lineHeight = 19.sp
-                        )
+                    Column(modifier = Modifier.fillMaxWidth(0.84f)) {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(
+                                topStart = 18.dp,
+                                topEnd = 18.dp,
+                                bottomStart = if (message.isUser) 18.dp else 5.dp,
+                                bottomEnd = if (message.isUser) 5.dp else 18.dp
+                            ),
+                            color = if (message.isUser) Color(0xFF25213A) else Color(0xFF141821),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                if (message.isUser) Color(0xFF44376B) else Color(0xFF252B37)
+                            )
+                        ) {
+                            Text(
+                                message.text,
+                                modifier = Modifier.padding(horizontal = 13.dp, vertical = 12.dp),
+                                color = if (message.isUser) Color(0xFFF0ECFF) else Color(0xFFD9DCE5),
+                                fontSize = 13.sp,
+                                lineHeight = 19.sp
+                            )
+                        }
+                        if (!message.isUser) {
+                            Spacer(Modifier.height(4.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End
+                            ) {
+                                Surface(
+                                    modifier = Modifier.clickable { onSpeakMessage(message.text) },
+                                    shape = RoundedCornerShape(50),
+                                    color = Color(0xFF171B25),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF2B3040))
+                                ) {
+                                    Text(
+                                        "🔊 ĐỌC",
+                                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                                        color = Color(0xFFB9C4D6),
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
                     }
-                    if (message.isUser) Spacer(Modifier.width(2.dp))
                 }
             }
         }
@@ -287,7 +926,7 @@ private fun NgocSiAiPreviewScreen(
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(7.dp)
             ) {
-                listOf("Xin chào NGỌC SĨ AI", "Giúp tôi tìm nhạc", "Điều khiển bằng giọng nói").forEach { suggestion ->
+                listOf("Phát nhạc", "Tạm dừng nhạc", "Bài tiếp theo", "Bài trước", "Đang phát bài gì?", "Phát ngẫu nhiên", "Tắt phát ngẫu nhiên", "Lặp hàng đợi", "Lặp một bài", "Tắt chế độ lặp").forEach { suggestion ->
                     Surface(
                         modifier = Modifier.clickable { input = suggestion },
                         shape = RoundedCornerShape(50),
@@ -316,7 +955,7 @@ private fun NgocSiAiPreviewScreen(
             ) {
                 BasicTextField(
                     value = input,
-                    onValueChange = { input = it },
+                    onValueChange = { input = it.take(2_000) },
                     modifier = Modifier
                         .weight(1f)
                         .padding(vertical = 10.dp),
@@ -356,18 +995,35 @@ private fun NgocSiAiPreviewScreen(
                 Surface(
                     modifier = Modifier
                         .size(48.dp)
-                        .clickable { sendMessage(input) },
+                        .clickable(enabled = !isSending) { sendMessage(input) },
                     shape = CircleShape,
-                    color = Color(0xFF8DEEFF)
+                    color = if (isSending) Color(0xFF515661) else Color(0xFF8DEEFF)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Text("↑", color = Color(0xFF061018), fontSize = 22.sp, fontWeight = FontWeight.Black)
+                        Text(if (isSending) "…" else "↑", color = Color(0xFF061018), fontSize = 22.sp, fontWeight = FontWeight.Black)
                     }
+                }
+            }
+            if (!isSending && isOnlineConfigured && !retryText.isNullOrBlank()) {
+                TextButton(
+                    onClick = { retryText?.let(::sendMessage) },
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text(
+                        "↻ GỬI LẠI CÂU HỎI",
+                        color = Color(0xFF8DEEFF),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
             Spacer(Modifier.height(5.dp))
             Text(
-                "Bản xem trước chỉ giữ tin nhắn trong màn hình hiện tại.",
+                when {
+                    isSending -> "Đang gửi yêu cầu đến máy chủ NGỌC SĨ AI…"
+                    isOnlineConfigured -> quotaNote.ifBlank { "Tin nhắn chỉ được gửi khi bạn nhấn nút gửi." }
+                    else -> "Bản xem trước chạy cục bộ; lịch sử được lưu trên điện thoại."
+                },
                 color = Color(0xFF666D7D),
                 fontSize = 9.sp
             )

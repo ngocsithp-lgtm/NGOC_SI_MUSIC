@@ -508,8 +508,8 @@ class MainActivity : ComponentActivity() {
         registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
             if (result.resultCode != RESULT_OK) {
                 pendingDriveAction = null
-                driveSharedStatus = "Đã hủy cấp quyền Google Drive"
-                errorMessage = "Chưa cấp quyền Google Drive. Có thể thử lại bất cứ lúc nào."
+                driveSharedStatus = "Google Drive chưa hoàn tất cấp quyền"
+                errorMessage = "Google Drive chưa được cấp quyền. Bạn có thể thử lại. Nếu vừa bấm Cho phép mà vẫn gặp lỗi, kiểm tra Android OAuth client trong Google Cloud Console: package ${packageName}; SHA-1 ${driveOAuthManager.signingCertificateSha1()}."
                 return@registerForActivityResult
             }
 
@@ -534,7 +534,7 @@ class MainActivity : ComponentActivity() {
                     } else {
                         pendingDriveAction = null
                         driveSharedStatus = "Google Drive chưa được cấp đủ quyền"
-                        errorMessage = "Hãy cấp quyền đọc Google Drive để duyệt file được chia sẻ."
+                        errorMessage = driveAuthorizationHelpMessage(authorizationResult.grantedScopes)
                     }
                 }
                 .onFailure { e ->
@@ -545,6 +545,16 @@ class MainActivity : ComponentActivity() {
                     errorMessage = driveOAuthManager.signInErrorMessage(e)
                 }
         }
+
+    private fun driveAuthorizationHelpMessage(grantedScopes: Collection<String>? = null): String {
+        val sha1 = driveOAuthManager.signingCertificateSha1()
+        val scopeStatus = when {
+            grantedScopes == null -> "Chưa nhận được danh sách scope từ Google."
+            grantedScopes.isEmpty() -> "Google chưa trả về scope nào được cấp."
+            else -> "Scope Google đã cấp: " + grantedScopes.joinToString(", ")
+        }
+        return "Google Drive chưa cấp quyền đọc. $scopeStatus Kiểm tra Google Drive API đã bật; mục Data Access có hai scope drive.readonly và drive.appdata; nếu OAuth đang ở chế độ Testing, thêm đúng tài khoản Google vào Test users. Android OAuth client phải khớp package $packageName và SHA-1 $sha1."
+    }
 
     private fun signInGoogleDrive(afterSignIn: (() -> Unit)? = null) {
         pendingDriveAction = afterSignIn
@@ -566,7 +576,7 @@ class MainActivity : ComponentActivity() {
                     } else {
                         pendingDriveAction = null
                         driveSharedStatus = "Google Drive chưa được cấp đủ quyền"
-                        errorMessage = "Hãy cấp quyền đọc Google Drive để duyệt file được chia sẻ."
+                        errorMessage = driveAuthorizationHelpMessage(authorizationResult.grantedScopes)
                     }
                 },
                 onResolution = { pendingIntent ->
@@ -658,6 +668,16 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // A voice command can launch a fresh MainActivity after Android has reclaimed
+        // the previous instance. Capture and consume the route so it is applied once.
+        val initialProDestination = intent.getStringExtra("pro_destination")
+        val initialProSleepMinutes = intent.getIntExtra("pro_sleep_minutes", -1)
+            .takeIf { it in setOf(15, 30, 45, 60, 90, 120) }
+        if (!initialProDestination.isNullOrBlank()) {
+            intent.removeExtra("pro_destination")
+            intent.removeExtra("pro_sleep_minutes")
+        }
+
         // Initialize lightweight app state before any feature surface is opened.
         // The UI is attached early so startup never appears as a blank window while
         // library/Drive state is being restored in the background.
@@ -678,6 +698,15 @@ class MainActivity : ComponentActivity() {
         // Attach the Compose UI before background restoration/permission prompts.
         setContent { NgocSiMusicApp() }
 
+        // Apply explicit voice navigation after the first UI frame is attached.
+        initialProDestination?.takeIf { it.isNotBlank() }?.let { destination ->
+            window.decorView.post {
+                if (!isFinishing && !isDestroyed) {
+                    handleProDestination(destination, initialProSleepMinutes)
+                }
+            }
+        }
+
         // Restore persisted Drive sources only after the first frame can render.
         if (driveOAuthSignedIn) {
             window.decorView.post { restoreDriveSourcesFromCloud() }
@@ -690,8 +719,32 @@ class MainActivity : ComponentActivity() {
         connectController()
     }
 
-    private fun handleProDestination(destination: String?) {
+    private fun handleProDestination(destination: String?, requestedSleepMinutes: Int? = null) {
         when (destination) {
+            "home" -> {
+                selectedSection = "Trang chủ"
+                showQueue = false
+                showPlaylists = false
+                showNowPlaying = false
+                showVietnamRadioHub = false
+            }
+            "online" -> {
+                selectedSection = "Online"
+                onlineHubTab = "Tất cả"
+            }
+            "sleep_timer" -> {
+                val safeMinutes = requestedSleepMinutes?.takeIf { it in setOf(15, 30, 45, 60, 90, 120) }
+                if (safeMinutes != null) {
+                    startSleepTimer(safeMinutes)
+                    showSleepTimer = false
+                } else {
+                    showSleepTimer = true
+                }
+            }
+            "cancel_sleep_timer" -> {
+                startSleepTimer(0)
+                showSleepTimer = false
+            }
             "library" -> {
                 selectedSection = "Thư viện"
                 selectedLibrary = "Tất cả"
@@ -703,8 +756,8 @@ class MainActivity : ComponentActivity() {
             }
             "drive" -> {
                 selectedSection = "Online"
-                onlineHubTab = "Tất cả"
-                errorMessage = "Google Drive: chọn File Drive hoặc Thư mục để nhập nhạc."
+                // Match the actual Drive navigation tile; don't send voice users to "All".
+                onlineHubTab = "Drive"
             }
             "radio" -> {
                 selectedSection = "Radio"
@@ -729,8 +782,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        val destination = intent.getStringExtra("pro_destination")
+        val requestedSleepMinutes = intent.getIntExtra("pro_sleep_minutes", -1)
+            .takeIf { it in setOf(15, 30, 45, 60, 90, 120) }
+        // Consume route extras so a later Activity recreation doesn't repeat the command.
+        intent.removeExtra("pro_destination")
+        intent.removeExtra("pro_sleep_minutes")
         setIntent(intent)
-        handleProDestination(intent.getStringExtra("pro_destination"))
+        handleProDestination(destination, requestedSleepMinutes)
     }
 
     private fun connectController() {

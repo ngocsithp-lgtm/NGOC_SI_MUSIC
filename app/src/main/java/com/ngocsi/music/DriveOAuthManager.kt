@@ -171,8 +171,7 @@ class DriveOAuthManager(private val context: Context) {
         return when (code) {
             12501 -> "Đã hủy cấp quyền Google Drive."
             12500 -> "Google Drive không thể hoàn tất xác thực. Kiểm tra kết nối mạng và Google Play services."
-            10 -> "Google OAuth chưa khớp với ứng dụng com.ngocsi.music. Package com.ngocsi.music; SHA-1 hiện tại: " +
-                signingCertificateSha1()
+            10 -> "Google OAuth chưa khớp. Package: ${context.packageName}; SHA-1 hiện tại: ${signingCertificateSha1()}. Kiểm tra Android OAuth client trong Google Cloud Console."
             7 -> "Không kết nối được dịch vụ Google. Kiểm tra mạng và Google Play services."
             8 -> "Google Drive gặp lỗi nội bộ. Hãy thử lại."
             else ->
