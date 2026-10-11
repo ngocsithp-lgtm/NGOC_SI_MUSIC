@@ -260,6 +260,7 @@ class NgocSiAiActivity : ComponentActivity() {
             NgocSiAiLocalCommand.OPEN_HOME -> "home" to "Trang chủ"
             NgocSiAiLocalCommand.OPEN_ONLINE -> "online" to "Online"
             NgocSiAiLocalCommand.OPEN_SLEEP_TIMER -> "sleep_timer" to "Hẹn giờ tắt nhạc"
+            NgocSiAiLocalCommand.CANCEL_SLEEP_TIMER -> "cancel_sleep_timer" to "Tắt hẹn giờ"
             NgocSiAiLocalCommand.OPEN_LIBRARY -> "library" to "Thư viện"
             NgocSiAiLocalCommand.OPEN_YOUTUBE -> "youtube" to "YouTube"
             NgocSiAiLocalCommand.OPEN_DRIVE -> "drive" to "Google Drive"

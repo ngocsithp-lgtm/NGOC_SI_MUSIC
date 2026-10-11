@@ -722,6 +722,10 @@ class MainActivity : ComponentActivity() {
                     showSleepTimer = true
                 }
             }
+            "cancel_sleep_timer" -> {
+                startSleepTimer(0)
+                showSleepTimer = false
+            }
             "library" -> {
                 selectedSection = "Thư viện"
                 selectedLibrary = "Tất cả"

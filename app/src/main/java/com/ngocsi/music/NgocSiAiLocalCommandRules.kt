@@ -17,6 +17,7 @@ internal enum class NgocSiAiLocalCommand {
     OPEN_HOME,
     OPEN_ONLINE,
     OPEN_SLEEP_TIMER,
+    CANCEL_SLEEP_TIMER,
     OPEN_LIBRARY,
     OPEN_YOUTUBE,
     OPEN_DRIVE,
@@ -54,6 +55,7 @@ internal fun isNgocSiAiNavigationCommand(command: NgocSiAiLocalCommand): Boolean
         NgocSiAiLocalCommand.OPEN_HOME,
         NgocSiAiLocalCommand.OPEN_ONLINE,
         NgocSiAiLocalCommand.OPEN_SLEEP_TIMER,
+        NgocSiAiLocalCommand.CANCEL_SLEEP_TIMER,
         NgocSiAiLocalCommand.OPEN_LIBRARY,
         NgocSiAiLocalCommand.OPEN_YOUTUBE,
         NgocSiAiLocalCommand.OPEN_DRIVE,
@@ -125,6 +127,9 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
 
         startsWithAny("mo online", "vao online", "open online") ->
             NgocSiAiLocalCommand.OPEN_ONLINE
+
+        startsWithAny("tat hen gio", "huy hen gio", "huy hen gio tat nhac", "cancel sleep timer", "turn off sleep timer") ->
+            NgocSiAiLocalCommand.CANCEL_SLEEP_TIMER
 
         startsWithAny("mo hen gio", "hen gio", "tat nhac sau", "dung nhac sau", "open sleep timer", "set sleep timer") ->
             NgocSiAiLocalCommand.OPEN_SLEEP_TIMER

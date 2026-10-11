@@ -10,6 +10,8 @@ class NgocSiAiLocalCommandRulesTest {
         assertEquals(NgocSiAiLocalCommand.OPEN_HOME, classifyNgocSiAiLocalCommand("Mở trang chủ"))
         assertEquals(NgocSiAiLocalCommand.OPEN_ONLINE, classifyNgocSiAiLocalCommand("Mở Online"))
         assertEquals(NgocSiAiLocalCommand.OPEN_SLEEP_TIMER, classifyNgocSiAiLocalCommand("Mở hẹn giờ"))
+        assertEquals(NgocSiAiLocalCommand.CANCEL_SLEEP_TIMER, classifyNgocSiAiLocalCommand("Tắt hẹn giờ"))
+        assertEquals(NgocSiAiLocalCommand.CANCEL_SLEEP_TIMER, classifyNgocSiAiLocalCommand("Hủy hẹn giờ tắt nhạc"))
         assertEquals(NgocSiAiLocalCommand.OPEN_SLEEP_TIMER, classifyNgocSiAiLocalCommand("Hẹn giờ tắt nhạc 30 phút"))
         assertEquals(NgocSiAiLocalCommand.OPEN_LIBRARY, classifyNgocSiAiLocalCommand("Mở thư viện"))
         assertEquals(NgocSiAiLocalCommand.OPEN_YOUTUBE, classifyNgocSiAiLocalCommand("Ngọc Sĩ, mở YouTube"))
@@ -36,6 +38,7 @@ class NgocSiAiLocalCommandRulesTest {
     fun backgroundWakePhraseDoesNotLaunchNavigationScreens() {
         assertEquals(null, classifyNgocSiAiWakePhrase("Ngọc Sĩ, mở thư viện"))
         assertEquals(null, classifyNgocSiAiWakePhrase("Ngọc Sĩ, hẹn giờ 30 phút"))
+        assertEquals(null, classifyNgocSiAiWakePhrase("Ngọc Sĩ, tắt hẹn giờ"))
         assertEquals(true, hasNgocSiAiWakePhrase("Ngọc Sĩ, mở YouTube"))
         assertEquals(false, hasNgocSiAiWakePhrase("Mở YouTube"))
     }
