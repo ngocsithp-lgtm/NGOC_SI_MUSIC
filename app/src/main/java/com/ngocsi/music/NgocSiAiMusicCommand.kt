@@ -12,6 +12,11 @@ enum class NgocSiAiMusicCommand {
     PAUSE,
     NEXT,
     PREVIOUS,
+    SHUFFLE_ON,
+    SHUFFLE_OFF,
+    REPEAT_ONE,
+    REPEAT_ALL,
+    REPEAT_OFF,
     OPEN_LIBRARY,
     OPEN_YOUTUBE,
     OPEN_RADIO,
@@ -42,6 +47,21 @@ internal object NgocSiAiMusicCommandParser {
         }
 
         return when {
+            startsWithAny(text, "tat xao tron", "tat phat ngau nhien", "shuffle off", "stop shuffle") ->
+                NgocSiAiMusicCommand.SHUFFLE_OFF
+
+            startsWithAny(text, "bat xao tron", "xao tron", "phat ngau nhien", "bat phat ngau nhien", "shuffle on", "shuffle", "random play") ->
+                NgocSiAiMusicCommand.SHUFFLE_ON
+
+            startsWithAny(text, "lap lai mot bai", "lap lai bai nay", "lap bai hien tai", "repeat one", "repeat current") ->
+                NgocSiAiMusicCommand.REPEAT_ONE
+
+            startsWithAny(text, "lap lai tat ca", "lap lai toan bo", "lap lai playlist", "bat lap lai", "repeat all") ->
+                NgocSiAiMusicCommand.REPEAT_ALL
+
+            startsWithAny(text, "tat lap lai", "huy lap lai", "khong lap lai", "repeat off", "no repeat") ->
+                NgocSiAiMusicCommand.REPEAT_OFF
+
             startsWithAny(text, "mo thu vien", "vao thu vien", "mo danh sach bai hat") ->
                 NgocSiAiMusicCommand.OPEN_LIBRARY
 
