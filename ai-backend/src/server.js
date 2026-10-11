@@ -33,6 +33,14 @@ function requireRuntimeConfig() {
 }
 
 async function requireFirebaseUser(req, res, next) {
+  try {
+    if (getApps().length === 0) {
+      initializeApp({ credential: applicationDefault() });
+    }
+  } catch {
+    return res.status(503).json({ error: "Dịch vụ xác thực chưa được cấu hình." });
+  }
+
   const header = req.get("authorization") || "";
   const match = header.match(/^Bearer\s+(.+)$/i);
   if (!match) {
