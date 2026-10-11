@@ -289,6 +289,8 @@ class NgocSiAiActivity : ComponentActivity() {
                         "Đã đặt hẹn giờ tắt nhạc trong $requestedSleepMinutes phút."
                     command == NgocSiAiLocalCommand.OPEN_SLEEP_TIMER ->
                         "Đang mở hẹn giờ tắt nhạc để chọn thời gian."
+                    command == NgocSiAiLocalCommand.CANCEL_SLEEP_TIMER ->
+                        "Đã tắt hẹn giờ tắt nhạc."
                     else -> "Đang mở $label."
                 }
             }.getOrElse {
