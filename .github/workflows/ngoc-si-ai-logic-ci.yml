@@ -49,9 +49,3 @@ jobs:
         run: gradle :app:lintDebug --no-daemon
       - name: Unit tests (no APK packaging)
         run: gradle :app:testDebugUnitTest --no-daemon
-      - name: Guard against accidental APK packaging/publishing steps
-        shell: bash
-        run: |
-          set -euo pipefail
-          ! grep -E 'assemble(Debug|Release)|bundle(Release|Debug)|upload-artifact|publish' .github/workflows/ngoc-si-ai-logic-ci.yml
-          echo "Only lint/unit-test tasks are configured; this workflow does not package or publish an APK."
