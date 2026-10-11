@@ -168,11 +168,16 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
         isAnyOf("ban lam duoc gi", "toi co the ra lenh gi", "ai lam duoc gi", "tro giup", "huong dan su dung", "cac chuc nang cua ai") ->
             NgocSiAiLocalCommand.HELP
 
-        isAnyOf("ve trang chu", "mo trang chu", "mo home", "home", "trang chu") ->
-            NgocSiAiLocalCommand.OPEN_HOME
+        isAnyOf(
+            "ve trang chu", "mo trang chu", "mo home", "home", "trang chu",
+            "quay lai trang chu", "tro ve trang chu", "mo man hinh chinh", "ve man hinh chinh"
+        ) -> NgocSiAiLocalCommand.OPEN_HOME
 
-        startsWithAny("mo thu vien", "vao thu vien", "mo muc thu vien", "mo nhac trong thu vien") ->
-            NgocSiAiLocalCommand.OPEN_LIBRARY
+        startsWithAny(
+            "mo thu vien", "vao thu vien", "mo muc thu vien", "mo nhac trong thu vien",
+            "mo thu vien nhac", "vao muc thu vien", "chuyen den thu vien",
+            "chuyen sang thu vien", "mo ung dung thu vien"
+        ) -> NgocSiAiLocalCommand.OPEN_LIBRARY
 
         (phrase == "tim youtube" || phrase.startsWith("tim youtube ") ||
             phrase.startsWith("kiem youtube ") ||
@@ -187,26 +192,48 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
         ) ->
             NgocSiAiLocalCommand.OPEN_YOUTUBE
 
-        startsWithAny("mo drive", "vao drive", "mo google drive", "vao google drive", "mo muc drive") ->
-            NgocSiAiLocalCommand.OPEN_DRIVE
+        startsWithAny(
+            "mo drive", "vao drive", "mo google drive", "vao google drive", "mo muc drive",
+            "chuyen den drive", "chuyen sang drive", "chuyen den google drive",
+            "chuyen sang google drive", "vao muc google drive", "mo ung dung google drive",
+            "mo google drive cua toi", "mo drive cua toi"
+        ) -> NgocSiAiLocalCommand.OPEN_DRIVE
 
-        startsWithAny("mo radio", "vao radio", "mo dai phat thanh", "vao dai phat thanh") ->
-            NgocSiAiLocalCommand.OPEN_RADIO
+        startsWithAny(
+            "mo radio", "vao radio", "mo dai phat thanh", "vao dai phat thanh",
+            "vao muc radio", "chuyen den radio", "chuyen sang radio", "mo ung dung radio",
+            "chuyen den dai phat thanh", "chuyen sang dai phat thanh", "vao muc dai phat thanh"
+        ) -> NgocSiAiLocalCommand.OPEN_RADIO
 
-        startsWithAny("mo tv", "vao tv", "mo truyen hinh", "vao truyen hinh", "mo tivi") ->
-            NgocSiAiLocalCommand.OPEN_TV
+        startsWithAny(
+            "mo tv", "vao tv", "mo truyen hinh", "vao truyen hinh", "mo tivi",
+            "vao muc tv", "chuyen den tv", "chuyen sang tv", "mo ung dung tv",
+            "vao muc truyen hinh", "chuyen den truyen hinh", "chuyen sang truyen hinh",
+            "vao tivi", "chuyen den tivi", "chuyen sang tivi"
+        ) -> NgocSiAiLocalCommand.OPEN_TV
 
-        startsWithAny("mo danh sach phat", "mo playlist", "mo cac playlist", "vao playlist") ->
-            NgocSiAiLocalCommand.OPEN_PLAYLISTS
+        startsWithAny(
+            "mo danh sach phat", "mo playlist", "mo cac playlist", "vao playlist",
+            "vao muc playlist", "chuyen den playlist", "chuyen sang playlist",
+            "chuyen den danh sach phat", "chuyen sang danh sach phat", "mo muc danh sach phat"
+        ) -> NgocSiAiLocalCommand.OPEN_PLAYLISTS
 
-        startsWithAny("mo hang doi", "mo danh sach cho phat", "mo queue", "xem hang doi") ->
-            NgocSiAiLocalCommand.OPEN_QUEUE
+        startsWithAny(
+            "mo hang doi", "mo danh sach cho phat", "mo queue", "xem hang doi",
+            "vao hang doi", "chuyen den hang doi", "chuyen sang hang doi",
+            "mo muc hang doi", "xem danh sach cho", "mo hang cho phat"
+        ) -> NgocSiAiLocalCommand.OPEN_QUEUE
 
-        startsWithAny("mo trinh phat", "mo man hinh dang phat", "mo player", "xem bai dang phat") ->
-            NgocSiAiLocalCommand.OPEN_PLAYER
+        startsWithAny(
+            "mo trinh phat", "mo man hinh dang phat", "mo player", "xem bai dang phat",
+            "mo man hinh phat nhac", "vao man hinh dang phat", "chuyen den trinh phat",
+            "chuyen sang trinh phat"
+        ) -> NgocSiAiLocalCommand.OPEN_PLAYER
 
-        startsWithAny("mo cai dat", "vao cai dat", "mo phan cai dat") ->
-            NgocSiAiLocalCommand.OPEN_SETTINGS
+        startsWithAny(
+            "mo cai dat", "vao cai dat", "mo phan cai dat", "vao phan cai dat",
+            "chuyen den cai dat", "chuyen sang cai dat", "mo thiet lap"
+        ) -> NgocSiAiLocalCommand.OPEN_SETTINGS
 
         startsWithAny("hen gio", "mo hen gio", "dat hen gio", "hen gio tat nhac", "mo bo dem gio") ->
             NgocSiAiLocalCommand.OPEN_SLEEP_TIMER
