@@ -68,6 +68,7 @@ fun NgocSiAiScreen(
     var prompt by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var errorText by remember { mutableStateOf<String?>(null) }
+    var aiQuotaStatus by remember { mutableStateOf<String?>(null) }
     var ttsReady by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     var playerController by remember { mutableStateOf<MediaController?>(null) }
@@ -226,6 +227,7 @@ fun NgocSiAiScreen(
         if (question.isNotEmpty() && !isLoading) {
             if (clearPrompt) prompt = ""
             errorText = null
+            aiQuotaStatus = null
             messages.add(NgocSiAiMessage(true, question))
             isLoading = true
             scope.launch {
@@ -241,7 +243,11 @@ fun NgocSiAiScreen(
                                 content = message.text
                             )
                         }
-                        secureBackendClient.send(history).answer
+                        val backendReply = secureBackendClient.send(history)
+                        aiQuotaStatus = backendReply.remainingToday?.let { remaining ->
+                            "Lượt AI còn lại hôm nay: $remaining"
+                        }
+                        backendReply.answer
                     } else {
                         // Transitional direct-client mode. Server-side daily quotas do not apply here.
                         chat.sendMessage(question).text
@@ -257,6 +263,13 @@ fun NgocSiAiScreen(
                 } catch (e: Exception) {
                     val callableCode = (e as? FirebaseFunctionsException)?.code
                     errorText = when {
+                        BuildConfig.NGOC_SI_AI_BACKEND_ENABLED &&
+                            (e.message.orEmpty().contains("ERROR_OPERATION_NOT_ALLOWED", true) ||
+                                e.message.orEmpty().contains("operation not allowed", true)) ->
+                            "Anonymous Authentication chưa được bật trong Firebase Console. Hãy bật trước khi dùng backend AI."
+                        BuildConfig.NGOC_SI_AI_BACKEND_ENABLED &&
+                            callableCode == FirebaseFunctionsException.Code.NOT_FOUND ->
+                            "Chưa tìm thấy Cloud Function ngocSiAiChat. Backend cần được triển khai đúng vùng asia-southeast1."
                         BuildConfig.NGOC_SI_AI_BACKEND_ENABLED &&
                             callableCode == FirebaseFunctionsException.Code.UNAUTHENTICATED ->
                             "Chưa đăng nhập ẩn danh được. Hãy bật Anonymous Authentication trong Firebase Console."
@@ -366,6 +379,9 @@ fun NgocSiAiScreen(
 
         errorText?.let {
             Text(it, color = Color(0xFFFFB4AB), fontSize = 12.sp)
+        }
+        aiQuotaStatus?.let {
+            Text(it, color = Color(0xFF9B9DB0), fontSize = 11.sp)
         }
 
         Row(
