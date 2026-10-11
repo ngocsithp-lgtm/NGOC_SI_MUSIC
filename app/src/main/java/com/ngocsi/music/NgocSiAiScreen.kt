@@ -50,7 +50,10 @@ import kotlinx.coroutines.launch
 private data class NgocSiAiMessage(val fromUser: Boolean, val text: String)
 
 @Composable
-fun NgocSiAiScreen(modifier: Modifier = Modifier) {
+fun NgocSiAiScreen(
+    modifier: Modifier = Modifier,
+    onNavigateCommand: (NgocSiAiMusicCommand) -> String? = { null }
+) {
     val context = LocalContext.current
     val messages = remember {
         mutableStateListOf(
@@ -125,59 +128,74 @@ fun NgocSiAiScreen(modifier: Modifier = Modifier) {
     }
 
     val executeMusicCommand: (NgocSiAiMusicCommand) -> String = { command ->
-        val player = playerController
-        if (player == null) {
-            if (controllerConnectError) {
-                "Chưa kết nối được trình phát. Hãy quay lại màn hình chính, đợi vài giây rồi thử lệnh lại."
-            } else {
-                "Trình phát đang kết nối. Hãy đợi vài giây rồi thử lệnh lại."
-            }
-        } else {
-            when (command) {
-                NgocSiAiMusicCommand.PLAY -> {
-                    if (player.mediaItemCount == 0) {
-                        "Hàng đợi đang trống. Hãy chọn một bài trong Thư viện trước."
+        when (command) {
+            NgocSiAiMusicCommand.OPEN_LIBRARY,
+            NgocSiAiMusicCommand.OPEN_YOUTUBE,
+            NgocSiAiMusicCommand.OPEN_RADIO,
+            NgocSiAiMusicCommand.OPEN_QUEUE,
+            NgocSiAiMusicCommand.OPEN_PLAYER,
+            NgocSiAiMusicCommand.OPEN_TV,
+            NgocSiAiMusicCommand.OPEN_DRIVE,
+            NgocSiAiMusicCommand.OPEN_SETTINGS -> onNavigateCommand(command)
+                ?: "Lệnh mở mục này chưa được kết nối. Hãy thử lại sau."
+
+            else -> {
+                val player = playerController
+                if (player == null) {
+                    if (controllerConnectError) {
+                        "Chưa kết nối được trình phát. Hãy quay lại màn hình chính, đợi vài giây rồi thử lệnh lại."
                     } else {
-                        player.play()
-                        "Đã gửi lệnh phát nhạc."
+                        "Trình phát đang kết nối. Hãy đợi vài giây rồi thử lệnh lại."
                     }
-                }
-                NgocSiAiMusicCommand.PAUSE -> {
-                    if (player.mediaItemCount == 0) {
-                        "Hiện chưa có bài nhạc nào trong trình phát để tạm dừng."
-                    } else {
-                        player.pause()
-                        "Đã gửi lệnh tạm dừng nhạc."
-                    }
-                }
-                NgocSiAiMusicCommand.NEXT -> {
-                    if (player.mediaItemCount == 0) {
-                        "Hàng đợi đang trống, chưa có bài tiếp theo."
-                    } else if (player.hasNextMediaItem()) {
-                        player.seekToNextMediaItem()
-                        player.play()
-                        "Đang chuyển sang bài tiếp theo."
-                    } else {
-                        "Không có bài tiếp theo trong hàng đợi."
-                    }
-                }
-                NgocSiAiMusicCommand.PREVIOUS -> {
-                    if (player.mediaItemCount == 0) {
-                        "Hàng đợi đang trống, chưa có bài trước đó."
-                    } else {
-                        if (player.currentPosition > 3_000L) {
-                            player.seekTo(0L)
-                            player.play()
-                            "Đã phát lại bài hiện tại từ đầu."
-                        } else if (player.hasPreviousMediaItem()) {
-                            player.seekToPreviousMediaItem()
-                            player.play()
-                            "Đang quay lại bài trước."
-                        } else {
-                            player.seekTo(0L)
-                            player.play()
-                            "Đang phát lại bài đầu tiên trong hàng đợi."
+                } else {
+                    when (command) {
+                        NgocSiAiMusicCommand.PLAY -> {
+                            if (player.mediaItemCount == 0) {
+                                "Hàng đợi đang trống. Hãy chọn một bài trong Thư viện trước."
+                            } else {
+                                player.play()
+                                "Đã gửi lệnh phát nhạc."
+                            }
                         }
+                        NgocSiAiMusicCommand.PAUSE -> {
+                            if (player.mediaItemCount == 0) {
+                                "Hiện chưa có bài nhạc nào trong trình phát để tạm dừng."
+                            } else {
+                                player.pause()
+                                "Đã gửi lệnh tạm dừng nhạc."
+                            }
+                        }
+                        NgocSiAiMusicCommand.NEXT -> {
+                            if (player.mediaItemCount == 0) {
+                                "Hàng đợi đang trống, chưa có bài tiếp theo."
+                            } else if (player.hasNextMediaItem()) {
+                                player.seekToNextMediaItem()
+                                player.play()
+                                "Đang chuyển sang bài tiếp theo."
+                            } else {
+                                "Không có bài tiếp theo trong hàng đợi."
+                            }
+                        }
+                        NgocSiAiMusicCommand.PREVIOUS -> {
+                            if (player.mediaItemCount == 0) {
+                                "Hàng đợi đang trống, chưa có bài trước đó."
+                            } else {
+                                if (player.currentPosition > 3_000L) {
+                                    player.seekTo(0L)
+                                    player.play()
+                                    "Đã phát lại bài hiện tại từ đầu."
+                                } else if (player.hasPreviousMediaItem()) {
+                                    player.seekToPreviousMediaItem()
+                                    player.play()
+                                    "Đang quay lại bài trước."
+                                } else {
+                                    player.seekTo(0L)
+                                    player.play()
+                                    "Đang phát lại bài đầu tiên trong hàng đợi."
+                                }
+                            }
+                        }
+                        else -> "Lệnh này chưa được hỗ trợ."
                     }
                 }
             }
