@@ -52,6 +52,18 @@ class NgocSiAiLocalCommandRulesTest {
     }
 
     @Test
+    fun recognizesMoreNaturalVietnamesePlaybackPhrases() {
+        assertEquals(NgocSiAiLocalCommand.PLAY, classifyNgocSiAiLocalCommand("Bật nhạc lên"))
+        assertEquals(NgocSiAiLocalCommand.PLAY, classifyNgocSiAiLocalCommand("Mở nhạc lên"))
+        assertEquals(NgocSiAiLocalCommand.PAUSE, classifyNgocSiAiLocalCommand("Dừng lại"))
+        assertEquals(NgocSiAiLocalCommand.PAUSE, classifyNgocSiAiLocalCommand("Ngừng lại"))
+        assertEquals(NgocSiAiLocalCommand.NEXT, classifyNgocSiAiLocalCommand("Qua bài"))
+        assertEquals(NgocSiAiLocalCommand.NEXT, classifyNgocSiAiLocalCommand("Bỏ qua bài này"))
+        assertEquals(NgocSiAiLocalCommand.NEXT, classifyNgocSiAiLocalCommand("Phát bài tiếp theo"))
+        assertNull(classifyNgocSiAiLocalCommand("Tôi đang nghĩ đến bài tiếp theo"))
+    }
+
+    @Test
     fun recognizesShortEnglishPlaybackCommands() {
         assertEquals(NgocSiAiLocalCommand.PLAY, classifyNgocSiAiLocalCommand("Resume"))
         assertEquals(NgocSiAiLocalCommand.PAUSE, classifyNgocSiAiLocalCommand("Pause music"))
