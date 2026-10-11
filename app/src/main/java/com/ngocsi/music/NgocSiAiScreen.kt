@@ -124,7 +124,17 @@ fun NgocSiAiScreen(
             NgocSiAiMusicCommand.OPEN_PLAYER,
             NgocSiAiMusicCommand.OPEN_TV,
             NgocSiAiMusicCommand.OPEN_DRIVE,
-            NgocSiAiMusicCommand.OPEN_SETTINGS -> onNavigateCommand(command)
+            NgocSiAiMusicCommand.OPEN_SETTINGS,
+            NgocSiAiMusicCommand.OPEN_SLEEP_TIMER,
+            NgocSiAiMusicCommand.CANCEL_SLEEP_TIMER,
+            NgocSiAiMusicCommand.SET_SLEEP_TIMER_5,
+            NgocSiAiMusicCommand.SET_SLEEP_TIMER_10,
+            NgocSiAiMusicCommand.SET_SLEEP_TIMER_15,
+            NgocSiAiMusicCommand.SET_SLEEP_TIMER_20,
+            NgocSiAiMusicCommand.SET_SLEEP_TIMER_30,
+            NgocSiAiMusicCommand.SET_SLEEP_TIMER_45,
+            NgocSiAiMusicCommand.SET_SLEEP_TIMER_60,
+            NgocSiAiMusicCommand.SET_SLEEP_TIMER_90 -> onNavigateCommand(command)
                 ?: "Lệnh mở mục này chưa được kết nối. Hãy thử lại sau."
 
             else -> {
@@ -282,7 +292,7 @@ fun NgocSiAiScreen(
                 Text("✦ NGỌC SĨ AI", color = Color(0xFFCDBEFF), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
                 Text("Trợ lý AI trực tuyến • cần Internet", color = Color(0xFFB9BBC8), fontSize = 12.sp)
                 Text("Giọng nói dùng dịch vụ nhận dạng/đọc có sẵn trên điện thoại. Không gửi mật khẩu hoặc thông tin riêng tư.", color = Color(0xFF85899A), fontSize = 11.sp)
-                Text("Có thể ra lệnh: phát/tạm dừng, bài tiếp/bài trước, ngẫu nhiên, lặp lại một bài/toàn bộ, hoặc mở Thư viện, YouTube, Radio, TV, Drive, hàng đợi, Cài đặt.", color = Color(0xFFB9BBC8), fontSize = 11.sp)
+                Text("Có thể ra lệnh: phát/tạm dừng, bài tiếp/bài trước, ngẫu nhiên, lặp lại, hẹn giờ 5–90 phút, hủy hẹn giờ hoặc mở Thư viện, YouTube, Radio, TV, Drive, hàng đợi, Cài đặt.", color = Color(0xFFB9BBC8), fontSize = 11.sp)
             }
         }
 
