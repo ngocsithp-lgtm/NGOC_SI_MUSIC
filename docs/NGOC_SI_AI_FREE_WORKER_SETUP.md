@@ -29,17 +29,19 @@ Use Chrome. If the desktop console is hard to use, open the ⋮ menu and turn on
    - `CLOUDFLARE_API_TOKEN` = the Cloudflare API token
    - `CLOUDFLARE_ACCOUNT_ID` = the Cloudflare account ID
 5. On the same page, choose **Variables** (not Secrets) → **New repository variable**:
+   - Name: `ENABLE_NGOC_SI_AI_WORKER_DEPLOY`
+   - Value: `true`
+6. Create another repository variable:
    - Name: `NGOC_SI_AI_WORKER_URL`
    - Value: leave it blank until deployment gives you the workers.dev URL.
 
 ### C. Deploy the Worker from GitHub Actions
 
-1. Open the repository's **Actions** tab.
-2. Select **Deploy NGOC SI AI Free Worker**.
-3. Tap **Run workflow** and choose branch `feature/ngoc-si-ai-android-integration`.
-4. Wait for the run to succeed. The deployment log/summary shows the Worker URL, normally `https://ngoc-si-ai-free-worker.<your-subdomain>.workers.dev`.
-5. Open Cloudflare → **Workers & Pages** → `ngoc-si-ai-free-worker` → **Settings → Variables and Secrets**. Add a secret named exactly `GEMINI_API_KEY`, paste the Gemini key, and save. Never add the key as a plain variable or to the Android app.
-6. Test the Worker URL by opening `<worker-url>/health`. It should return JSON with `"ok":true`. A chat request will not work until `GEMINI_API_KEY` is saved.
+1. The deploy workflow is deliberately gated; it runs only on the experimental branch and only when `ENABLE_NGOC_SI_AI_WORKER_DEPLOY=true`.
+2. After adding the two Cloudflare secrets and the enable variable, make a small harmless edit to a file under `worker/ngoc-si-ai-free-worker/` in GitHub's web editor and commit it to `feature/ngoc-si-ai-android-integration`. This push triggers the deploy workflow. (The workflow's manual button may not appear until its definition is on the repository's default branch.)
+3. Open **Actions** → **Deploy NGOC SI AI Free Worker** and inspect the run. The deployment log shows the Worker URL, normally `https://ngoc-si-ai-free-worker.<your-subdomain>.workers.dev`.
+4. Open Cloudflare → **Workers & Pages** → `ngoc-si-ai-free-worker` → **Settings → Variables and Secrets**. Add a secret named exactly `GEMINI_API_KEY`, paste the Gemini key, and save. Never add the key as a plain variable or to the Android app.
+5. Test the Worker URL by opening `<worker-url>/health`. It should return JSON with `"ok":true`. A chat request will not work until `GEMINI_API_KEY` is saved.
 
 ### D. Connect the Android preview build
 
