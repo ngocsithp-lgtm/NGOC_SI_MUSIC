@@ -45,6 +45,32 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: "8.11.1"
+      - name: Validate Firebase configuration (no secret values printed)
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in FIREBASE_API_KEY FIREBASE_PROJECT_ID FIREBASE_SENDER_ID FIREBASE_APP_ID FIREBASE_DEBUG_APP_ID; do
+            if [[ -z "${!name//[[:space:]]/}" ]]; then
+              echo "::error::Required GitHub Actions secret is missing or empty: $name"
+              exit 1
+            fi
+          done
+          if [[ "$FIREBASE_PROJECT_ID" != "ngoc-si-music-ai" ]]; then
+            echo "::error::FIREBASE_PROJECT_ID does not match the expected preview Firebase project."
+            exit 1
+          fi
+          if [[ ! "$FIREBASE_SENDER_ID" =~ ^[0-9]+$ ]]; then
+            echo "::error::FIREBASE_SENDER_ID must be the numeric Firebase project number."
+            exit 1
+          fi
+          for name in FIREBASE_APP_ID FIREBASE_DEBUG_APP_ID; do
+            value="${!name}"
+            if [[ ! "$value" =~ ^1:[0-9]+:android:.+$ ]]; then
+              echo "::error::$name does not look like a Firebase Android App ID."
+              exit 1
+            fi
+          done
+          echo "Firebase preview configuration is present and has the expected format."
       - name: Android lint (no APK packaging)
         run: gradle :app:lintDebug --no-daemon
       - name: Unit tests (no APK packaging)
