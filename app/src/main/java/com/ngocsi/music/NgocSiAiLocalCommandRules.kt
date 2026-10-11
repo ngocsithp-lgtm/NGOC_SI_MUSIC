@@ -114,10 +114,14 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
             "qua bai", "bo qua bai nay", "skip", "skip song", "skip to next song", "next", "next song"
         ) -> NgocSiAiLocalCommand.NEXT
 
+        // Treat a standalone "quay lại" as Previous, but let "quay lại trang chủ"
+        // continue to the more specific home-navigation rule below.
+        isAnyOf("quay lai") -> NgocSiAiLocalCommand.PREVIOUS
+
         startsWithAny(
             "bai truoc", "nhac truoc", "quay lai bai truoc", "tro ve bai truoc", "bai truoc do",
             "quay ve bai truoc", "lui lai bai truoc",
-            "quay lai", "previous", "previous song", "previous track"
+            "previous", "previous song", "previous track"
         ) -> NgocSiAiLocalCommand.PREVIOUS
 
         isAnyOf(
