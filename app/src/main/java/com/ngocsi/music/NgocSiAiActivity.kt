@@ -181,6 +181,7 @@ class NgocSiAiActivity : ComponentActivity() {
     private var deviceQueueLoadStarted = false
     // Preserve the explicit "play" request if the device library is still loading.
     private var pendingPlayAfterQueueLoad = false
+    private var pendingQueueStartIndexAfterLoad: Int? = null
     private var responseTts: TextToSpeech? = null
     private var responseTtsInitialized = false
     private var responseTtsReady = false
@@ -703,7 +704,8 @@ class NgocSiAiActivity : ComponentActivity() {
                 return "Chưa có quyền đọc nhạc. Hãy cấp quyền Âm nhạc và âm thanh cho NGỌC SĨ AI Preview trong Cài đặt ứng dụng."
             }
             // Keep the latest explicit command intent; a later Pause cancels pending playback.
-            pendingPlayAfterQueueLoad = command == NgocSiAiLocalCommand.PLAY
+            pendingPlayAfterQueueLoad = command == NgocSiAiLocalCommand.PLAY || command == NgocSiAiLocalCommand.PLAY_SECOND
+            pendingQueueStartIndexAfterLoad = if (command == NgocSiAiLocalCommand.PLAY_SECOND) 1 else if (command == NgocSiAiLocalCommand.PLAY) 0 else null
             if (!deviceQueueLoadStarted) {
                 loadDeviceMusicIntoQueue()
                 return if (command == NgocSiAiLocalCommand.PLAY) {
@@ -733,6 +735,15 @@ class NgocSiAiActivity : ComponentActivity() {
                     else -> "Đang tạm dừng"
                 }
                 if (artist == null) "$status: $title" else "$status: $title — $artist"
+            }
+            NgocSiAiLocalCommand.PLAY_SECOND -> {
+                if (player.mediaItemCount > 1) {
+                    player.seekTo(1, 0L)
+                    player.play()
+                    "Đang phát bài thứ hai trong hàng đợi."
+                } else {
+                    "Hàng đợi hiện tại chưa có bài thứ hai."
+                }
             }
             NgocSiAiLocalCommand.PLAY -> {
                 player.play()
