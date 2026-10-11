@@ -1,0 +1,38 @@
+name: NGOC SI AI Free Worker CI
+
+on:
+  push:
+    branches:
+      - "feature/ngoc-si-ai-android-integration"
+    paths:
+      - "worker/ngoc-si-ai-free-worker/**"
+      - ".github/workflows/ngoc-si-ai-free-worker-ci.yml"
+  pull_request:
+    paths:
+      - "worker/ngoc-si-ai-free-worker/**"
+      - ".github/workflows/ngoc-si-ai-free-worker-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: worker/ngoc-si-ai-free-worker
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Test request validation and response parsing
+        run: npm test
+      - name: Check no provider key is committed
+        run: |
+          if grep -R -n -E 'AIza[0-9A-Za-z_-]{30,}|GEMINI_API_KEY=[^$]' src; then
+            echo "::error::Possible provider API key found in Worker source."
+            exit 1
+          fi
