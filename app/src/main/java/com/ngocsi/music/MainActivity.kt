@@ -4457,7 +4457,12 @@ class MainActivity : ComponentActivity() {
                                     NgocSiAiMusicCommand.PLAY,
                                     NgocSiAiMusicCommand.PAUSE,
                                     NgocSiAiMusicCommand.NEXT,
-                                    NgocSiAiMusicCommand.PREVIOUS -> null
+                                    NgocSiAiMusicCommand.PREVIOUS,
+                                    NgocSiAiMusicCommand.SHUFFLE_ON,
+                                    NgocSiAiMusicCommand.SHUFFLE_OFF,
+                                    NgocSiAiMusicCommand.REPEAT_ONE,
+                                    NgocSiAiMusicCommand.REPEAT_ALL,
+                                    NgocSiAiMusicCommand.REPEAT_OFF -> null
                                 }
                             }
                         }
