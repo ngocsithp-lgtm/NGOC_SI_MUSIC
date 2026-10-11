@@ -180,7 +180,11 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
                 phrase.startsWith("tim video ")) && phrase.contains("youtube"))) ->
             NgocSiAiLocalCommand.SEARCH_YOUTUBE
 
-        startsWithAny("mo youtube", "vao youtube", "mo video youtube", "mo muc youtube") ->
+        startsWithAny(
+            "mo youtube", "vao youtube", "mo video youtube", "mo muc youtube",
+            "chuyen den youtube", "chuyen den mot youtube", "vao muc youtube",
+            "chuyen sang youtube", "mo ung dung youtube"
+        ) ->
             NgocSiAiLocalCommand.OPEN_YOUTUBE
 
         startsWithAny("mo drive", "vao drive", "mo google drive", "vao google drive", "mo muc drive") ->
