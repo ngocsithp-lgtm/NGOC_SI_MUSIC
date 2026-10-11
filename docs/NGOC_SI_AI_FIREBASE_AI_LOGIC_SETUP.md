@@ -21,7 +21,7 @@ Official guide: https://firebase.google.com/docs/ai-logic/get-started?platform=a
 ## 3. Configure App Check
 
 1. Open **Security → App Check → Apps** and select the `com.ngocsi.music.aipreview` app.
-2. Register **Play Integrity** and enter the SHA-256 from the stable preview signing certificate when a preview build is intentionally made.
+2. Register **Play Integrity** and use the stable preview SHA-256 verified in the prior preview CI run: `75:82:A1:F9:00:4E:B8:3A:24:84:FC:E5:B1:EC:13:9E:D2:57:14:3F:AA:E5:8C:DA:D1:B7:C2:9F:A2:04:E6:5E`. Reconfirm it against the signing fingerprint printed by the next intentionally built preview.
 3. Because this preview is expected to be sideloaded during testing, review Google's settings for apps distributed outside Google Play.
 4. Open **Security → App Check → APIs** and make sure Firebase AI Logic is enforced. Do not disable enforcement to make a failed request work.
 
