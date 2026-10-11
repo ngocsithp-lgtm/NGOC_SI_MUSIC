@@ -25,7 +25,17 @@ function safeError(status, message) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (request.method === "OPTIONS") return json({}, 204);
+    if (request.method === "OPTIONS") {
+      return new Response(null, {
+        status: 204,
+        headers: {
+          "access-control-allow-origin": "*",
+          "access-control-allow-methods": "POST, GET, OPTIONS",
+          "access-control-allow-headers": "content-type",
+          "cache-control": "no-store"
+        }
+      });
+    }
     if (url.pathname === "/health" && request.method === "GET") {
       return json({ ok: true, service: "ngoc-si-ai-free-worker", model: "gemini-2.5-flash-lite" });
     }
