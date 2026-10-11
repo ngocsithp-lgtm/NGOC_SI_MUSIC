@@ -123,26 +123,41 @@ internal class NgocSiAiRemoteClient(context: Context) {
     }
 
     private fun toSafeMessage(error: Exception): String {
+        // Keep diagnostics useful without exposing API keys, tokens, URLs, or raw server text.
         val details = generateSequence<Throwable>(error) { it.cause }
             .take(6)
             .joinToString(" ") { it.message.orEmpty() }
             .lowercase(Locale.ROOT)
+        val errorCode = Regex("\\b(400|401|403|404|429|500|502|503)\\b")
+            .find(details)
+            ?.value
 
         return when {
             "429" in details || "resource_exhausted" in details ||
                 "quota" in details || "rate limit" in details ->
-                "NGỌC SĨ AI đã chạm hạn mức tạm thời. Vui lòng đợi rồi thử lại."
-            "app check" in details || "attestation" in details ||
-                "permission denied" in details || "403" in details ->
-                "Firebase AI Logic từ chối kết nối. Hãy kiểm tra App Check, SHA-256 và cấu hình ứng dụng thử."
+                "NGỌC SĨ AI đang chạm hạn mức. Mã chẩn đoán: AI_QUOTA_429. Hãy đợi rồi thử lại."
+            "app check" in details || "attestation" in details ->
+                "App Check chưa xác minh được ứng dụng thử. Mã chẩn đoán: APP_CHECK_TOKEN. Cần kiểm tra debug token của đúng APK."
+            errorCode == "403" || "permission denied" in details ->
+                "Firebase từ chối quyền truy cập. Mã chẩn đoán: ACCESS_DENIED_403. Cần kiểm tra App Check và quyền dịch vụ."
+            errorCode == "401" || "unauthenticated" in details ->
+                "Firebase không xác thực được yêu cầu. Mã chẩn đoán: AUTH_401. Cần kiểm tra cấu hình Firebase của bản thử."
+            errorCode == "404" || "model not found" in details || "not found" in details ->
+                "Không tìm thấy model hoặc endpoint AI. Mã chẩn đoán: MODEL_OR_ENDPOINT_404."
             "api key" in details || "api has not been used" in details ||
                 "service disabled" in details || "not enabled" in details ->
-                "Firebase AI Logic chưa được bật đúng trong dự án Firebase. Kiểm tra AI Services → AI Logic."
+                "Firebase AI Logic chưa được bật hoặc cấu hình đúng. Mã chẩn đoán: FIREBASE_CONFIG."
             "unknownhost" in details || "unable to resolve host" in details ||
                 "network" in details || "timeout" in details || "timed out" in details ->
-                "Không kết nối được mạng. Hãy kiểm tra Internet rồi thử lại."
-            else ->
-                "Firebase AI Logic chưa phản hồi thành công. Hãy kiểm tra cấu hình Firebase/App Check rồi thử lại."
+                "Không kết nối được mạng. Mã chẩn đoán: NETWORK. Hãy kiểm tra Internet rồi thử lại."
+            else -> {
+                val exceptionType = error.javaClass.simpleName
+                    .filter { it.isLetterOrDigit() }
+                    .take(24)
+                    .ifBlank { "UnknownException" }
+                "Firebase AI Logic chưa phản hồi thành công. Mã chẩn đoán: REMOTE_ERROR_" +
+                    exceptionType + (errorCode?.let { "_$it" } ?: "") + ". Hãy gửi lại đúng mã này để kiểm tra tiếp."
+            }
         }
     }
 
