@@ -172,7 +172,7 @@ class NgocSiAiActivity : ComponentActivity() {
                 .trim()
             val command = phrase.takeIf { it.isNotBlank() }?.let(::classifyNgocSiAiLocalCommand)
             if (command != null) {
-                val reply = runLocalCommand(command)
+                val reply = runLocalCommand(command, phrase)
                 speakVoiceReply(reply)
                 Toast.makeText(this, reply, Toast.LENGTH_LONG).show()
             } else {
@@ -220,7 +220,7 @@ class NgocSiAiActivity : ComponentActivity() {
                 isOnlineConfigured = aiClient.isConfigured,
                 chatPreferences = aiChatPreferences,
                 onSendOnline = { history -> aiClient.send(history) },
-                onLocalCommand = { command -> runLocalCommand(command) },
+                onLocalCommand = { command, sourceText -> runLocalCommand(command, sourceText) },
                 onVoiceReply = { message -> speakVoiceReply(message) },
                 onSpeakMessage = { message -> speakVoiceReply(message, force = true) },
                 voiceRepliesEnabled = voiceRepliesEnabled,
@@ -250,8 +250,16 @@ class NgocSiAiActivity : ComponentActivity() {
         }, ContextCompat.getMainExecutor(this))
     }
 
-    private fun runLocalCommand(command: NgocSiAiLocalCommand): String {
+    private fun runLocalCommand(command: NgocSiAiLocalCommand, sourceText: String = ""): String {
+        val requestedSleepMinutes = if (command == NgocSiAiLocalCommand.OPEN_SLEEP_TIMER) {
+            parseNgocSiAiSleepTimerMinutes(sourceText)
+        } else {
+            null
+        }
         val route = when (command) {
+            NgocSiAiLocalCommand.OPEN_HOME -> "home" to "Trang chủ"
+            NgocSiAiLocalCommand.OPEN_ONLINE -> "online" to "Online"
+            NgocSiAiLocalCommand.OPEN_SLEEP_TIMER -> "sleep_timer" to "Hẹn giờ tắt nhạc"
             NgocSiAiLocalCommand.OPEN_LIBRARY -> "library" to "Thư viện"
             NgocSiAiLocalCommand.OPEN_YOUTUBE -> "youtube" to "YouTube"
             NgocSiAiLocalCommand.OPEN_DRIVE -> "drive" to "Google Drive"
@@ -270,9 +278,18 @@ class NgocSiAiActivity : ComponentActivity() {
                     Intent(this, MainActivity::class.java).apply {
                         flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP
                         putExtra("pro_destination", destination)
+                        if (requestedSleepMinutes != null) {
+                            putExtra("pro_sleep_minutes", requestedSleepMinutes)
+                        }
                     }
                 )
-                "Đang mở $label."
+                when {
+                    command == NgocSiAiLocalCommand.OPEN_SLEEP_TIMER && requestedSleepMinutes != null ->
+                        "Đã đặt hẹn giờ tắt nhạc trong $requestedSleepMinutes phút."
+                    command == NgocSiAiLocalCommand.OPEN_SLEEP_TIMER ->
+                        "Đang mở hẹn giờ tắt nhạc để chọn thời gian."
+                    else -> "Đang mở $label."
+                }
             }.getOrElse {
                 "Không thể mở $label. Hãy thử mở mục đó từ menu chính."
             }
@@ -423,7 +440,7 @@ private fun NgocSiAiPreviewScreen(
     isOnlineConfigured: Boolean,
     chatPreferences: SharedPreferences,
     onSendOnline: suspend (List<NgocSiAiMessage>) -> NgocSiAiReply,
-    onLocalCommand: (NgocSiAiLocalCommand) -> String,
+    onLocalCommand: (NgocSiAiLocalCommand, String) -> String,
     onVoiceReply: (String) -> Unit,
     onSpeakMessage: (String) -> Unit,
     voiceRepliesEnabled: Boolean,
@@ -481,7 +498,7 @@ private fun NgocSiAiPreviewScreen(
 
         val localCommand = classifyNgocSiAiLocalCommand(clean)
         if (localCommand != null) {
-            val commandReply = onLocalCommand(localCommand)
+            val commandReply = onLocalCommand(localCommand, clean)
             messages.add(AiPreviewMessage(false, commandReply))
             if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
             persistChatState()

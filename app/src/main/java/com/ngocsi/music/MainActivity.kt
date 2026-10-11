@@ -700,8 +700,28 @@ class MainActivity : ComponentActivity() {
         connectController()
     }
 
-    private fun handleProDestination(destination: String?) {
+    private fun handleProDestination(destination: String?, requestedSleepMinutes: Int? = null) {
         when (destination) {
+            "home" -> {
+                selectedSection = "Trang chủ"
+                showQueue = false
+                showPlaylists = false
+                showNowPlaying = false
+                showVietnamRadioHub = false
+            }
+            "online" -> {
+                selectedSection = "Online"
+                onlineHubTab = "Tất cả"
+            }
+            "sleep_timer" -> {
+                val safeMinutes = requestedSleepMinutes?.takeIf { it in setOf(15, 30, 45, 60, 90, 120) }
+                if (safeMinutes != null) {
+                    startSleepTimer(safeMinutes)
+                    showSleepTimer = false
+                } else {
+                    showSleepTimer = true
+                }
+            }
             "library" -> {
                 selectedSection = "Thư viện"
                 selectedLibrary = "Tất cả"
@@ -740,7 +760,9 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        handleProDestination(intent.getStringExtra("pro_destination"))
+        val requestedSleepMinutes = intent.getIntExtra("pro_sleep_minutes", -1)
+            .takeIf { it in setOf(15, 30, 45, 60, 90, 120) }
+        handleProDestination(intent.getStringExtra("pro_destination"), requestedSleepMinutes)
     }
 
     private fun connectController() {

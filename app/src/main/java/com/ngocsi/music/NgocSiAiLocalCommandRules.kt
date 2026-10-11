@@ -14,6 +14,9 @@ internal enum class NgocSiAiLocalCommand {
     REPEAT_OFF,
     REPEAT_ALL,
     REPEAT_ONE,
+    OPEN_HOME,
+    OPEN_ONLINE,
+    OPEN_SLEEP_TIMER,
     OPEN_LIBRARY,
     OPEN_YOUTUBE,
     OPEN_DRIVE,
@@ -48,6 +51,9 @@ internal fun classifyNgocSiAiWakePhrase(input: String): NgocSiAiLocalCommand? {
 
 internal fun isNgocSiAiNavigationCommand(command: NgocSiAiLocalCommand): Boolean =
     command in setOf(
+        NgocSiAiLocalCommand.OPEN_HOME,
+        NgocSiAiLocalCommand.OPEN_ONLINE,
+        NgocSiAiLocalCommand.OPEN_SLEEP_TIMER,
         NgocSiAiLocalCommand.OPEN_LIBRARY,
         NgocSiAiLocalCommand.OPEN_YOUTUBE,
         NgocSiAiLocalCommand.OPEN_DRIVE,
@@ -68,6 +74,34 @@ internal fun hasNgocSiAiWakePhrase(input: String): Boolean {
     return normalized == "ngoc si" || normalized.startsWith("ngoc si ")
 }
 
+internal fun parseNgocSiAiSleepTimerMinutes(input: String): Int? {
+    val normalized = Normalizer.normalize(input.trim().lowercase(Locale.ROOT), Normalizer.Form.NFD)
+        .replace("\\p{Mn}+".toRegex(), "")
+        .replace('đ', 'd')
+        .replace("[^a-z0-9]+".toRegex(), " ")
+        .trim()
+    val timerRequest = normalized.contains("hen gio") ||
+        normalized.contains("tat nhac sau") ||
+        normalized.contains("dung nhac sau") ||
+        normalized.contains("sleep timer") ||
+        normalized.contains("set timer")
+    if (!timerRequest) return null
+
+    val digits = Regex("(^|[^0-9])(120|90|60|45|30|15)([^0-9]|$)")
+        .find(normalized)?.groupValues?.get(2)?.toIntOrNull()
+    if (digits != null) return digits
+
+    val numberWords = listOf(
+        "mot tram hai muoi" to 120,
+        "chin muoi" to 90,
+        "sau muoi" to 60,
+        "bon muoi lam" to 45,
+        "ba muoi" to 30,
+        "muoi lam" to 15
+    )
+    return numberWords.firstOrNull { normalized.contains(it.first) }?.second
+}
+
 internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? {
     var phrase = Normalizer.normalize(input.trim().lowercase(Locale.ROOT), Normalizer.Form.NFD)
         .replace("\\p{Mn}+".toRegex(), "")
@@ -86,6 +120,15 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
     fun startsWithAny(vararg options: String) = options.any { phrase == it || phrase.startsWith("$it ") }
 
     return when {
+        startsWithAny("mo trang chu", "ve trang chu", "quay ve trang chu", "open home", "go home") ->
+            NgocSiAiLocalCommand.OPEN_HOME
+
+        startsWithAny("mo online", "vao online", "open online") ->
+            NgocSiAiLocalCommand.OPEN_ONLINE
+
+        startsWithAny("mo hen gio", "hen gio", "tat nhac sau", "dung nhac sau", "open sleep timer", "set sleep timer") ->
+            NgocSiAiLocalCommand.OPEN_SLEEP_TIMER
+
         // Explicit navigation commands are allowlisted; AI text is never executed as code.
         startsWithAny("mo thu vien drive", "mo google drive", "mo drive", "vao drive", "open drive") ->
             NgocSiAiLocalCommand.OPEN_DRIVE

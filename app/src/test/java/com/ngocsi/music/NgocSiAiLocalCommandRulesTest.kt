@@ -7,6 +7,10 @@ import org.junit.Test
 class NgocSiAiLocalCommandRulesTest {
     @Test
     fun recognizesExplicitAppNavigationCommands() {
+        assertEquals(NgocSiAiLocalCommand.OPEN_HOME, classifyNgocSiAiLocalCommand("Mở trang chủ"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_ONLINE, classifyNgocSiAiLocalCommand("Mở Online"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_SLEEP_TIMER, classifyNgocSiAiLocalCommand("Mở hẹn giờ"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_SLEEP_TIMER, classifyNgocSiAiLocalCommand("Hẹn giờ tắt nhạc 30 phút"))
         assertEquals(NgocSiAiLocalCommand.OPEN_LIBRARY, classifyNgocSiAiLocalCommand("Mở thư viện"))
         assertEquals(NgocSiAiLocalCommand.OPEN_YOUTUBE, classifyNgocSiAiLocalCommand("Ngọc Sĩ, mở YouTube"))
         assertEquals(NgocSiAiLocalCommand.OPEN_DRIVE, classifyNgocSiAiLocalCommand("Mở Google Drive"))
@@ -19,8 +23,19 @@ class NgocSiAiLocalCommandRulesTest {
     }
 
     @Test
+    fun parsesOnlySupportedSleepTimerMinutesFromExplicitTimerRequests() {
+        assertEquals(15, parseNgocSiAiSleepTimerMinutes("Hẹn giờ tắt nhạc 15 phút"))
+        assertEquals(30, parseNgocSiAiSleepTimerMinutes("Ngọc Sĩ, hẹn giờ 30 phút"))
+        assertEquals(45, parseNgocSiAiSleepTimerMinutes("Hẹn giờ tắt nhạc bốn mươi lăm phút"))
+        assertEquals(120, parseNgocSiAiSleepTimerMinutes("Set sleep timer for 120 minutes"))
+        assertNull(parseNgocSiAiSleepTimerMinutes("Mở YouTube trong 30 phút"))
+        assertNull(parseNgocSiAiSleepTimerMinutes("Hẹn giờ tắt nhạc 10 phút"))
+    }
+
+    @Test
     fun backgroundWakePhraseDoesNotLaunchNavigationScreens() {
         assertEquals(null, classifyNgocSiAiWakePhrase("Ngọc Sĩ, mở thư viện"))
+        assertEquals(null, classifyNgocSiAiWakePhrase("Ngọc Sĩ, hẹn giờ 30 phút"))
         assertEquals(true, hasNgocSiAiWakePhrase("Ngọc Sĩ, mở YouTube"))
         assertEquals(false, hasNgocSiAiWakePhrase("Mở YouTube"))
     }
