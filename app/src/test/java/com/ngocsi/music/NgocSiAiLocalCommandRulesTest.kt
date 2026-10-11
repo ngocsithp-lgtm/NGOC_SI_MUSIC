@@ -198,3 +198,24 @@ class NgocSiAiLocalCommandRulesTest {
             classifyNgocSiAiLocalCommand("Tắt phát ngẫu nhiên")
         )
     }
+
+
+    @Test
+    fun recognizesNaturalPhrasesToNavigateToYouTubeWithoutOnlineAI() {
+        assertEquals(
+            NgocSiAiLocalCommand.OPEN_YOUTUBE,
+            classifyNgocSiAiLocalCommand("Chuyển đến YouTube")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.OPEN_YOUTUBE,
+            classifyNgocSiAiLocalCommand("Chuyển đến một YouTube")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.OPEN_YOUTUBE,
+            classifyNgocSiAiLocalCommand("Vào mục YouTube")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.OPEN_YOUTUBE,
+            classifyNgocSiAiLocalCommand("Ngọc Sĩ, chuyển sang YouTube")
+        )
+    }
