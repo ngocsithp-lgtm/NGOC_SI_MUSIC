@@ -145,7 +145,9 @@ export default {
     }
     if (url.pathname !== "/v1/chat") return safeError(404, "Không tìm thấy đường dẫn.");
     if (request.method !== "POST") return safeError(405, "Chỉ hỗ trợ POST.");
-    const uid = await authenticateRequest(request, env);\n    if (!uid) return safeError(401, "Yêu cầu chưa được xác thực. Hãy cập nhật ứng dụng và thử lại.");\n    if (!env.GEMINI_API_KEY) return safeError(503, "Máy chủ chưa được cấu hình khóa AI.");
+    const uid = await authenticateRequest(request, env);
+    if (!uid) return safeError(401, "Yêu cầu chưa được xác thực. Hãy cập nhật ứng dụng và thử lại.");
+    if (!env.GEMINI_API_KEY) return safeError(503, "Máy chủ chưa được cấu hình khóa AI.");
 
     // Best-effort edge throttling. Cloudflare documents these counters as per-location
     // and eventually consistent, so provider free-tier quotas remain an additional guard.
