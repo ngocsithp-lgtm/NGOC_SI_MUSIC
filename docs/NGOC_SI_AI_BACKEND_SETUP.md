@@ -65,3 +65,24 @@ Add Firebase Auth, Firebase Functions, and App Check SDKs to Android only after 
 ## CI and release policy
 
 The backend workflow type-checks, runs unit tests, and checks source for common OpenAI/Gemini key patterns. It does not deploy functions or publish APKs. This is not end-to-end proof of Firebase/OpenAI/Gemini connectivity. Android integration must remain on a separate branch and release only after Android lint, unit tests, debug/release builds, package/signature checks, backend integration tests, and an on-device end-to-end check pass.
+
+
+## Verified implementation status on `feature/ngoc-si-ai-backend-foundation`
+
+This section takes precedence over the proposed architecture above when describing what is currently wired into the Android app:
+
+- `NgocSiAiScreen.kt` currently calls Firebase AI Logic directly with `GenerativeBackend.googleAI()` and `gemini-3.5-flash-lite`.
+- `NgocSiMusicApplication.kt` installs the App Check debug provider for debug builds and Play Integrity for non-debug builds.
+- `functions/src/index.ts` contains the separate callable backend with Secret Manager and server-side quotas, but the Android screen does **not** call that function yet.
+- The callable function has **not** been deployed. Therefore its 10-per-user and 50-global daily limits do **not** apply to the current direct-from-app chat screen.
+- CI success proves the checked source compiles/tests under the workflow; it does not prove a real Gemini response on the phone.
+- Do not merge this branch, build a release APK, enable production App Check enforcement, or enable billing as part of this verification step.
+
+## Next verification gate — no APK build
+
+1. Confirm in Firebase Console that the Android app registered for package `com.ngocsi.music` belongs to project `ngoc-si-music-ai`.
+2. Confirm the Gemini Developer API / Firebase AI Logic setup and review its current free-tier quotas and data-use terms.
+3. For debug testing, obtain the App Check debug token from a debug app run and register it in Firebase App Check. Never post the token publicly. A successful compile alone cannot replace this step.
+4. Only after the debug token is registered, test one ordinary Vietnamese question on a debug-installed app and record the exact error text if it fails. Do not include private data in test prompts.
+5. Before release, decide explicitly between (a) direct Firebase AI Logic with provider-side limits and no server-enforced app quota, or (b) wiring the Android client to `ngocSiAiChat`, which requires deploying the function and may require Firebase Blaze billing. Do not claim the secure server quotas protect option (a).
+
