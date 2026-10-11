@@ -33,6 +33,19 @@ test("extracts response text and rejects empty candidates", () => {
   assert.throws(() => extractGeminiAnswer({ candidates: [] }));
 });
 
+test("chat endpoint rejects requests without Firebase ID token and App Check", async () => {
+  const response = await worker.fetch(
+    new Request("https://example.test/v1/chat", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ messages: [{ role: "user", content: "Xin chào" }] })
+    }),
+    { GEMINI_API_KEY: "test-only-not-a-real-key", FIREBASE_PROJECT_ID: "ngoc-si-music-ai" }
+  );
+  assert.equal(response.status, 401);
+  assert.match((await response.json()).error, /xác thực/i);
+});
+
 test("health endpoint reports the same model selected for chat", async () => {
   const response = await worker.fetch(new Request("https://example.test/health"), {});
   assert.equal(response.status, 200);
