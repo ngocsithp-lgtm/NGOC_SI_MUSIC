@@ -1,10 +1,14 @@
 package com.ngocsi.music
 
+import android.content.ComponentName
 import android.content.Intent
 import android.speech.RecognizerIntent
 import android.speech.tts.TextToSpeech
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -61,6 +65,31 @@ fun NgocSiAiScreen(modifier: Modifier = Modifier) {
     var errorText by remember { mutableStateOf<String?>(null) }
     var ttsReady by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    var playerController by remember { mutableStateOf<MediaController?>(null) }
+    var controllerConnectError by remember { mutableStateOf(false) }
+    val controllerFuture = remember(context) {
+        MediaController.Builder(
+            context,
+            SessionToken(context, ComponentName(context, MusicService::class.java))
+        ).buildAsync()
+    }
+    DisposableEffect(controllerFuture) {
+        var disposed = false
+        controllerFuture.addListener({
+            if (!disposed) {
+                try {
+                    playerController = controllerFuture.get()
+                } catch (_: Exception) {
+                    controllerConnectError = true
+                }
+            }
+        }, ContextCompat.getMainExecutor(context))
+        onDispose {
+            disposed = true
+            MediaController.releaseFuture(controllerFuture)
+            playerController = null
+        }
+    }
     val speech = remember {
         TextToSpeech(context.applicationContext) { status ->
             ttsReady = status == TextToSpeech.SUCCESS
@@ -95,6 +124,66 @@ fun NgocSiAiScreen(modifier: Modifier = Modifier) {
             .startChat()
     }
 
+    val executeMusicCommand: (NgocSiAiMusicCommand) -> String = { command ->
+        val player = playerController
+        if (player == null) {
+            if (controllerConnectError) {
+                "Chưa kết nối được trình phát. Hãy quay lại màn hình chính, đợi vài giây rồi thử lệnh lại."
+            } else {
+                "Trình phát đang kết nối. Hãy đợi vài giây rồi thử lệnh lại."
+            }
+        } else {
+            when (command) {
+                NgocSiAiMusicCommand.PLAY -> {
+                    if (player.mediaItemCount == 0) {
+                        "Hàng đợi đang trống. Hãy chọn một bài trong Thư viện trước."
+                    } else {
+                        player.play()
+                        "Đã gửi lệnh phát nhạc."
+                    }
+                }
+                NgocSiAiMusicCommand.PAUSE -> {
+                    if (player.mediaItemCount == 0) {
+                        "Hiện chưa có bài nhạc nào trong trình phát để tạm dừng."
+                    } else {
+                        player.pause()
+                        "Đã gửi lệnh tạm dừng nhạc."
+                    }
+                }
+                NgocSiAiMusicCommand.NEXT -> {
+                    if (player.mediaItemCount == 0) {
+                        "Hàng đợi đang trống, chưa có bài tiếp theo."
+                    } else if (player.hasNextMediaItem()) {
+                        player.seekToNextMediaItem()
+                        player.play()
+                        "Đang chuyển sang bài tiếp theo."
+                    } else {
+                        "Không có bài tiếp theo trong hàng đợi."
+                    }
+                }
+                NgocSiAiMusicCommand.PREVIOUS -> {
+                    if (player.mediaItemCount == 0) {
+                        "Hàng đợi đang trống, chưa có bài trước đó."
+                    } else {
+                        if (player.currentPosition > 3_000L) {
+                            player.seekTo(0L)
+                            player.play()
+                            "Đã phát lại bài hiện tại từ đầu."
+                        } else if (player.hasPreviousMediaItem()) {
+                            player.seekToPreviousMediaItem()
+                            player.play()
+                            "Đang quay lại bài trước."
+                        } else {
+                            player.seekTo(0L)
+                            player.play()
+                            "Đang phát lại bài đầu tiên trong hàng đợi."
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     Column(
         modifier = modifier.fillMaxSize().background(Color(0xFF08090D)).padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -108,6 +197,7 @@ fun NgocSiAiScreen(modifier: Modifier = Modifier) {
                 Text("✦ NGỌC SĨ AI", color = Color(0xFFCDBEFF), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
                 Text("Trợ lý AI trực tuyến • cần Internet", color = Color(0xFFB9BBC8), fontSize = 12.sp)
                 Text("Giọng nói dùng dịch vụ nhận dạng/đọc có sẵn trên điện thoại. Không gửi mật khẩu hoặc thông tin riêng tư.", color = Color(0xFF85899A), fontSize = 11.sp)
+                Text("Lệnh nhanh: phát nhạc • tạm dừng • chuyển bài • bài trước.", color = Color(0xFFB9BBC8), fontSize = 11.sp)
             }
         }
 
@@ -193,10 +283,17 @@ fun NgocSiAiScreen(modifier: Modifier = Modifier) {
                         isLoading = true
                         scope.launch {
                             try {
-                                val answer = chat.sendMessage(question).text
-                                    ?.trim()
-                                    .orEmpty()
-                                    .ifBlank { "AI chưa trả về nội dung. Hãy thử hỏi lại." }
+                                val command = NgocSiAiMusicCommandParser.parse(question)
+                                val answer = if (command != null) {
+                                    // Direct player actions are parsed locally from a fixed allowlist.
+                                    // The model cannot invent or invoke arbitrary app functions.
+                                    executeMusicCommand(command)
+                                } else {
+                                    chat.sendMessage(question).text
+                                        ?.trim()
+                                        .orEmpty()
+                                        .ifBlank { "AI chưa trả về nội dung. Hãy thử hỏi lại." }
+                                }
                                 messages.add(NgocSiAiMessage(false, answer))
                                 if (ttsReady) {
                                     speech.language = Locale.forLanguageTag("vi-VN")
