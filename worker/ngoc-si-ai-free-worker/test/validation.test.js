@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { extractGeminiAnswer, toGeminiContents, validateMessages } from "../src/validation.js";
+import worker from "../src/index.js";
 
 test("accepts a bounded user message", () => {
   assert.deepEqual(validateMessages({ messages: [{ role: "user", content: "Xin chào" }] }), [
@@ -30,4 +31,14 @@ test("maps assistant history to Gemini model role", () => {
 test("extracts response text and rejects empty candidates", () => {
   assert.equal(extractGeminiAnswer({ candidates: [{ content: { parts: [{ text: " Xin chào " }] } }] }), "Xin chào");
   assert.throws(() => extractGeminiAnswer({ candidates: [] }));
+});
+
+test("health endpoint reports the same model selected for chat", async () => {
+  const response = await worker.fetch(new Request("https://example.test/health"), {});
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    ok: true,
+    service: "ngoc-si-ai-free-worker",
+    model: "gemini-3.5-flash-lite"
+  });
 });
