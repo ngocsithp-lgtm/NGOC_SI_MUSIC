@@ -191,17 +191,17 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
         isAnyOf(
             "phat nhac", "bat nhac", "tiep tuc phat", "tiep tuc nghe nhac",
             "tiep tuc nghe", "tiep tuc", "bat dau phat nhac", "choi nhac",
-            "play", "play music", "resume", "resume playback", "start music", "mo nhac", "nghe nhac"
+            "play", "play music", "resume", "resume playback", "start music", "mo nhac", "mo nhac len", "bat nhac len", "bat dau nghe nhac", "nghe nhac"
         ) -> NgocSiAiLocalCommand.PLAY
 
         isAnyOf(
             "tam dung", "tam dung nhac", "tam dung phat nhac",
             "pause", "pause music", "pause playback",
-            "dung nhac", "dung phat nhac", "ngung nhac", "ngung phat", "stop", "stop music"
+            "dung nhac", "dung lai", "dung phat nhac", "ngung nhac", "ngung lai", "ngung phat", "stop", "stop music"
         ) -> NgocSiAiLocalCommand.PAUSE
 
         startsWithAny("bai tiep theo", "nhac tiep theo", "chuyen bai", "chuyen sang bai tiep theo", "sang bai tiep theo",
-            "bai ke tiep", "chuyen sang bai ke tiep", "qua bai tiep",
+            "bai ke tiep", "chuyen sang bai ke tiep", "qua bai tiep", "qua bai", "bo qua bai nay", "phat bai tiep theo",
             "next", "next song", "next track", "skip", "skip song") -> NgocSiAiLocalCommand.NEXT
 
         startsWithAny("bai truoc", "nhac truoc", "quay lai bai truoc", "tro ve bai truoc",
