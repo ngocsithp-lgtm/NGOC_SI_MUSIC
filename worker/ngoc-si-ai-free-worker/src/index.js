@@ -58,11 +58,11 @@ async function verifyJwtSignature(token, jwksUrl, expectedAlgorithm, importAlgor
   const decoded = decodeJwt(token);
   if (decoded.header.alg !== expectedAlgorithm || typeof decoded.header.kid !== "string") throw new Error("invalid JWT header");
   const keys = await loadJwks(jwksUrl);
-  const jwk = keys.find(key => key.kid === decoded.header.kid && key.alg === expectedAlgorithm);
+  const jwk = keys.find(key => key.kid === decoded.header.kid && (!key.alg || key.alg === expectedAlgorithm));
   if (!jwk) {
     jwksCache.delete(jwksUrl);
     const refreshed = await loadJwks(jwksUrl);
-    const freshKey = refreshed.find(key => key.kid === decoded.header.kid && key.alg === expectedAlgorithm);
+    const freshKey = refreshed.find(key => key.kid === decoded.header.kid && (!key.alg || key.alg === expectedAlgorithm));
     if (!freshKey) throw new Error("unknown signing key");
     return { decoded, key: freshKey, importAlgorithm, verifyAlgorithm };
   }
