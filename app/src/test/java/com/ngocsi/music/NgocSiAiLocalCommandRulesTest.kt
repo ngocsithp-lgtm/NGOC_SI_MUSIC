@@ -202,6 +202,7 @@ class NgocSiAiLocalCommandRulesTest {
     fun recognizesNaturalNavigationVariantsWithoutOnlineAI() {
         assertEquals(NgocSiAiLocalCommand.OPEN_HOME, classifyNgocSiAiLocalCommand("Quay lại trang chủ"))
         assertEquals(NgocSiAiLocalCommand.OPEN_HOME, classifyNgocSiAiLocalCommand("Mở màn hình chính"))
+        assertEquals(NgocSiAiLocalCommand.PREVIOUS, classifyNgocSiAiLocalCommand("Quay lại"))
 
         assertEquals(NgocSiAiLocalCommand.OPEN_LIBRARY, classifyNgocSiAiLocalCommand("Chuyển đến thư viện"))
         assertEquals(NgocSiAiLocalCommand.OPEN_DRIVE, classifyNgocSiAiLocalCommand("Chuyển đến Google Drive"))
