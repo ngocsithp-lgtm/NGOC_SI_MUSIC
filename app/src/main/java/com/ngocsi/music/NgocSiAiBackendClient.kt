@@ -69,10 +69,8 @@ internal object NgocSiAiBackendRequest {
         return recent.mapIndexed { index, turn ->
             val limit = if (index == recent.lastIndex) 2_000 else 1_500
             turn.copy(content = turn.content.take(limit))
-        }.takeIf { it.sumOf(NgocSiAiChatTurn::contentLength) <= 8_000 }.orEmpty()
+        }.takeIf { history -> history.sumOf { it.content.length } <= 8_000 }.orEmpty()
     }
-
-    private fun NgocSiAiChatTurn.contentLength(): Int = content.length
 
     fun toCallableData(messages: List<NgocSiAiChatTurn>): Map<String, Any> {
         val history = normalize(messages)
