@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.sp
 import com.google.firebase.Firebase
 import com.google.firebase.ai.ai
 import com.google.firebase.ai.type.GenerativeBackend
+import com.google.firebase.functions.FirebaseFunctionsException
 import java.util.Locale
 import kotlinx.coroutines.launch
 
@@ -114,6 +115,7 @@ fun NgocSiAiScreen(
             .generativeModel("gemini-3.5-flash-lite")
             .startChat()
     }
+    val secureBackendClient = remember { NgocSiAiBackendClient() }
 
     val executeMusicCommand: (NgocSiAiMusicCommand) -> String = { command ->
         when (command) {
@@ -232,7 +234,16 @@ fun NgocSiAiScreen(
                     val answer = if (command != null) {
                         // Direct actions are restricted to this local allowlist.
                         executeMusicCommand(command)
+                    } else if (BuildConfig.NGOC_SI_AI_BACKEND_ENABLED) {
+                        val history = messages.drop(1).map { message ->
+                            NgocSiAiChatTurn(
+                                role = if (message.fromUser) "user" else "assistant",
+                                content = message.text
+                            )
+                        }
+                        secureBackendClient.send(history).answer
                     } else {
+                        // Transitional direct-client mode. Server-side daily quotas do not apply here.
                         chat.sendMessage(question).text
                             ?.trim()
                             .orEmpty()
@@ -244,7 +255,23 @@ fun NgocSiAiScreen(
                         speech.speak(answer.take(3500), TextToSpeech.QUEUE_FLUSH, null, "ngocsi-ai-answer")
                     }
                 } catch (e: Exception) {
+                    val callableCode = (e as? FirebaseFunctionsException)?.code
                     errorText = when {
+                        BuildConfig.NGOC_SI_AI_BACKEND_ENABLED &&
+                            callableCode == FirebaseFunctionsException.Code.UNAUTHENTICATED ->
+                            "Chưa đăng nhập ẩn danh được. Hãy bật Anonymous Authentication trong Firebase Console."
+                        BuildConfig.NGOC_SI_AI_BACKEND_ENABLED &&
+                            callableCode == FirebaseFunctionsException.Code.PERMISSION_DENIED ->
+                            "App Check từ chối yêu cầu. Hãy xác minh ứng dụng và đăng ký debug token trong Firebase Console."
+                        BuildConfig.NGOC_SI_AI_BACKEND_ENABLED &&
+                            callableCode == FirebaseFunctionsException.Code.RESOURCE_EXHAUSTED ->
+                            e.message ?: "Đã đạt hạn mức AI hôm nay. Vui lòng thử lại ngày mai."
+                        BuildConfig.NGOC_SI_AI_BACKEND_ENABLED &&
+                            callableCode == FirebaseFunctionsException.Code.FAILED_PRECONDITION ->
+                            e.message ?: "Backend AI chưa được cấu hình đầy đủ."
+                        BuildConfig.NGOC_SI_AI_BACKEND_ENABLED &&
+                            callableCode == FirebaseFunctionsException.Code.UNAVAILABLE ->
+                            "Backend AI chưa sẵn sàng hoặc đang mất kết nối. Kiểm tra triển khai Cloud Function và Internet."
                         e.message.orEmpty().contains("app check", true) ->
                             "Chưa xác minh được App Check. Cần đăng ký debug token trong Firebase Console."
                         e.message.orEmpty().contains("429") || e.message.orEmpty().contains("quota", true) ->
@@ -290,7 +317,14 @@ fun NgocSiAiScreen(
         ) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Text("✦ NGỌC SĨ AI", color = Color(0xFFCDBEFF), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
-                Text("Trợ lý AI trực tuyến • cần Internet", color = Color(0xFFB9BBC8), fontSize = 12.sp)
+                Text(
+                    if (BuildConfig.NGOC_SI_AI_BACKEND_ENABLED)
+                        "AI qua backend bảo mật • cần Firebase Auth và App Check"
+                    else
+                        "AI trực tuyến • chế độ kết nối trực tiếp đang bật",
+                    color = Color(0xFFB9BBC8),
+                    fontSize = 12.sp
+                )
                 Text("Giọng nói dùng dịch vụ nhận dạng/đọc có sẵn trên điện thoại. Không gửi mật khẩu hoặc thông tin riêng tư.", color = Color(0xFF85899A), fontSize = 11.sp)
                 Text("Có thể ra lệnh: phát/tạm dừng, bài tiếp/bài trước, ngẫu nhiên, lặp lại, hẹn giờ 5–90 phút, hủy hẹn giờ hoặc mở Thư viện, YouTube, Radio, TV, Drive, hàng đợi, Cài đặt.", color = Color(0xFFB9BBC8), fontSize = 11.sp)
             }
