@@ -160,6 +160,8 @@ class NgocSiAiLocalCommandRulesTest {
     @Test
     fun helpIntentDoesNotConfuseQuestionsWithActions() {
         assertEquals(NgocSiAiLocalCommand.HELP, classifyNgocSiAiLocalCommand("Bạn làm được gì?"))
+        assertEquals(NgocSiAiLocalCommand.HELP, classifyNgocSiAiLocalCommand("Bạn có thể giúp gì?"))
+        assertEquals(NgocSiAiLocalCommand.HELP, classifyNgocSiAiLocalCommand("Bạn có thể giúp tôi những gì?"))
         assertNull(classifyNgocSiAiLocalCommand("Tôi muốn biết cách mở YouTube"))
         assertNull(classifyNgocSiAiLocalCommand("Tôi thích Radio"))
     }
