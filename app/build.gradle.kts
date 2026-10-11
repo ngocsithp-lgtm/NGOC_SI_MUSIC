@@ -17,6 +17,9 @@ android {
     val firebaseSenderId = System.getenv("FIREBASE_SENDER_ID").orEmpty()
     val firebaseProdAppId = System.getenv("FIREBASE_APP_ID").orEmpty()
     val firebaseDebugAppId = System.getenv("FIREBASE_DEBUG_APP_ID").orEmpty()
+    // Public Worker URL only; the Gemini API key must remain a server-side secret.
+    val ngocSiAiWorkerUrl = System.getenv("NGOC_SI_AI_WORKER_URL").orEmpty()
+        .replace("\\", "\\\\").replace("\"", "\\\"")
     val ciKeystorePath = System.getenv("CI_KEYSTORE_PATH").orEmpty()
     val ciStorePassword = System.getenv("CI_KEYSTORE_PASSWORD").orEmpty()
     val ciKeyAlias = System.getenv("CI_KEY_ALIAS").orEmpty()
@@ -45,6 +48,7 @@ android {
         buildConfigField("String", "FIREBASE_PROJECT_ID", "\"$firebaseProjectId\"")
         buildConfigField("String", "FIREBASE_SENDER_ID", "\"$firebaseSenderId\"")
         buildConfigField("String", "FIREBASE_APP_ID", "\"$firebaseProdAppId\"")
+        buildConfigField("String", "NGOC_SI_AI_WORKER_URL", "\"$ngocSiAiWorkerUrl\"")
     }
 
     buildTypes {
