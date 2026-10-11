@@ -1,0 +1,16 @@
+name = "ngoc-si-ai-free-worker"
+main = "src/index.js"
+compatibility_date = "2026-10-11"
+workers_dev = true
+
+# Best-effort throttling by client IP and service-wide traffic.
+# Cloudflare rate-limit counters are per location and eventually consistent.
+[[ratelimits]]
+name = "PER_IP_LIMIT"
+namespace_id = "583021"
+simple = { limit = 5, period = 60 }
+
+[[ratelimits]]
+name = "GLOBAL_LIMIT"
+namespace_id = "583022"
+simple = { limit = 10, period = 60 }
