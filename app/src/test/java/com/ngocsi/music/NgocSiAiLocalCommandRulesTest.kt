@@ -199,6 +199,27 @@ class NgocSiAiLocalCommandRulesTest {
     }
 
     @Test
+    fun recognizesNaturalNavigationVariantsWithoutOnlineAI() {
+        assertEquals(NgocSiAiLocalCommand.OPEN_HOME, classifyNgocSiAiLocalCommand("Quay lại trang chủ"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_HOME, classifyNgocSiAiLocalCommand("Mở màn hình chính"))
+
+        assertEquals(NgocSiAiLocalCommand.OPEN_LIBRARY, classifyNgocSiAiLocalCommand("Chuyển đến thư viện"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_DRIVE, classifyNgocSiAiLocalCommand("Chuyển đến Google Drive"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_DRIVE, classifyNgocSiAiLocalCommand("Mở ứng dụng Google Drive"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_RADIO, classifyNgocSiAiLocalCommand("Chuyển sang Radio"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_RADIO, classifyNgocSiAiLocalCommand("Chuyển đến đài phát thanh"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_TV, classifyNgocSiAiLocalCommand("Vào mục truyền hình"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_TV, classifyNgocSiAiLocalCommand("Chuyển sang TV"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_PLAYLISTS, classifyNgocSiAiLocalCommand("Chuyển đến danh sách phát"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_QUEUE, classifyNgocSiAiLocalCommand("Vào hàng đợi"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_PLAYER, classifyNgocSiAiLocalCommand("Mở màn hình phát nhạc"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_SETTINGS, classifyNgocSiAiLocalCommand("Chuyển sang cài đặt"))
+
+        assertNull(classifyNgocSiAiLocalCommand("Tôi đang nghe Radio"))
+        assertNull(classifyNgocSiAiLocalCommand("Tôi thích xem TV"))
+    }
+
+    @Test
     fun recognizesNaturalPhrasesToNavigateToYouTubeWithoutOnlineAI() {
         assertEquals(
             NgocSiAiLocalCommand.OPEN_YOUTUBE,
