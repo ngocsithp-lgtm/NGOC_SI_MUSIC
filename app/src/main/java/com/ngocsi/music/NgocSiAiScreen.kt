@@ -108,19 +108,6 @@ fun NgocSiAiScreen(
             speech.shutdown()
         }
     }
-    val speechLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        val spoken = result.data
-            ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-            ?.firstOrNull()
-        if (!spoken.isNullOrBlank()) {
-            prompt = spoken
-            errorText = null
-        } else if (result.resultCode == android.app.Activity.RESULT_OK) {
-            errorText = "Chưa nhận được giọng nói. Hãy thử nói rõ hơn."
-        }
-    }
     val chat = remember {
         Firebase.ai(backend = GenerativeBackend.googleAI())
             .generativeModel("gemini-3.5-flash-lite")
@@ -201,6 +188,65 @@ fun NgocSiAiScreen(
             }
         }
     }
+    val submitQuestion: (String, Boolean) -> Unit = { rawQuestion, clearPrompt ->
+        val question = rawQuestion.trim()
+        if (question.isNotEmpty() && !isLoading) {
+            if (clearPrompt) prompt = ""
+            errorText = null
+            messages.add(NgocSiAiMessage(true, question))
+            isLoading = true
+            scope.launch {
+                try {
+                    val command = NgocSiAiMusicCommandParser.parse(question)
+                    val answer = if (command != null) {
+                        // Direct actions are restricted to this local allowlist.
+                        executeMusicCommand(command)
+                    } else {
+                        chat.sendMessage(question).text
+                            ?.trim()
+                            .orEmpty()
+                            .ifBlank { "AI chưa trả về nội dung. Hãy thử hỏi lại." }
+                    }
+                    messages.add(NgocSiAiMessage(false, answer))
+                    if (ttsReady) {
+                        speech.language = Locale.forLanguageTag("vi-VN")
+                        speech.speak(answer.take(3500), TextToSpeech.QUEUE_FLUSH, null, "ngocsi-ai-answer")
+                    }
+                } catch (e: Exception) {
+                    errorText = when {
+                        e.message.orEmpty().contains("app check", true) ->
+                            "Chưa xác minh được App Check. Cần đăng ký debug token trong Firebase Console."
+                        e.message.orEmpty().contains("429") || e.message.orEmpty().contains("quota", true) ->
+                            "Đã chạm hạn mức hiện tại. Vui lòng đợi rồi thử lại."
+                        else -> "Không kết nối được AI. Kiểm tra Internet, cấu hình Firebase và quyền App Check rồi thử lại."
+                    }
+                } finally {
+                    isLoading = false
+                }
+            }
+        }
+    }
+
+    val speechLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val spoken = result.data
+            ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+            ?.firstOrNull()
+        if (!spoken.isNullOrBlank()) {
+            val directCommand = NgocSiAiMusicCommandParser.parse(spoken)
+            if (directCommand != null) {
+                // Exact supported voice commands execute immediately; ordinary speech remains editable.
+                submitQuestion(spoken, true)
+            } else {
+                prompt = spoken
+                errorText = null
+            }
+        } else if (result.resultCode == android.app.Activity.RESULT_OK) {
+            errorText = "Chưa nhận được giọng nói. Hãy thử nói rõ hơn."
+        }
+    }
+
 
     Column(
         modifier = modifier.fillMaxSize().background(Color(0xFF08090D)).padding(14.dp),
@@ -215,7 +261,7 @@ fun NgocSiAiScreen(
                 Text("✦ NGỌC SĨ AI", color = Color(0xFFCDBEFF), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
                 Text("Trợ lý AI trực tuyến • cần Internet", color = Color(0xFFB9BBC8), fontSize = 12.sp)
                 Text("Giọng nói dùng dịch vụ nhận dạng/đọc có sẵn trên điện thoại. Không gửi mật khẩu hoặc thông tin riêng tư.", color = Color(0xFF85899A), fontSize = 11.sp)
-                Text("Lệnh nhanh: phát nhạc • tạm dừng • chuyển bài • bài trước.", color = Color(0xFFB9BBC8), fontSize = 11.sp)
+                Text("Nói lệnh để chạy ngay: phát/tạm dừng, chuyển bài, mở Thư viện, YouTube, Radio, TV, Drive, hàng đợi hoặc Cài đặt.", color = Color(0xFFB9BBC8), fontSize = 11.sp)
             }
         }
 
@@ -292,45 +338,7 @@ fun NgocSiAiScreen(
                 Text("Mic")
             }
             Button(
-                onClick = {
-                    val question = prompt.trim()
-                    if (question.isNotEmpty() && !isLoading) {
-                        prompt = ""
-                        errorText = null
-                        messages.add(NgocSiAiMessage(true, question))
-                        isLoading = true
-                        scope.launch {
-                            try {
-                                val command = NgocSiAiMusicCommandParser.parse(question)
-                                val answer = if (command != null) {
-                                    // Direct player actions are parsed locally from a fixed allowlist.
-                                    // The model cannot invent or invoke arbitrary app functions.
-                                    executeMusicCommand(command)
-                                } else {
-                                    chat.sendMessage(question).text
-                                        ?.trim()
-                                        .orEmpty()
-                                        .ifBlank { "AI chưa trả về nội dung. Hãy thử hỏi lại." }
-                                }
-                                messages.add(NgocSiAiMessage(false, answer))
-                                if (ttsReady) {
-                                    speech.language = Locale.forLanguageTag("vi-VN")
-                                    speech.speak(answer.take(3500), TextToSpeech.QUEUE_FLUSH, null, "ngocsi-ai-answer")
-                                }
-                            } catch (e: Exception) {
-                                errorText = when {
-                                    e.message.orEmpty().contains("app check", true) ->
-                                        "Chưa xác minh được App Check. Cần đăng ký debug token trong Firebase Console."
-                                    e.message.orEmpty().contains("429") || e.message.orEmpty().contains("quota", true) ->
-                                        "Đã chạm hạn mức hiện tại. Vui lòng đợi rồi thử lại."
-                                    else -> "Không kết nối được AI. Kiểm tra Internet, cấu hình Firebase và quyền App Check rồi thử lại."
-                                }
-                            } finally {
-                                isLoading = false
-                            }
-                        }
-                    }
-                },
+                onClick = { submitQuestion(prompt, true) },
                 enabled = prompt.isNotBlank() && !isLoading,
                 shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.height(56.dp)
