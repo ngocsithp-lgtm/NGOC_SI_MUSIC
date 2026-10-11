@@ -59,7 +59,9 @@ export default {
     try {
       const length = Number(request.headers.get("content-length") || 0);
       if (length > 24000) return safeError(413, "Yêu cầu quá dài. Hãy rút gọn câu hỏi.");
-      data = await request.json();
+      const rawBody = await request.text();
+      if (rawBody.length > 24000) return safeError(413, "Yêu cầu quá dài. Hãy rút gọn câu hỏi.");
+      data = JSON.parse(rawBody);
     } catch {
       return safeError(400, "Dữ liệu gửi lên không hợp lệ.");
     }
