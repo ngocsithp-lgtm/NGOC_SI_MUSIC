@@ -724,6 +724,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
             "settings" -> selectedSection = "Cài đặt"
+            "ai" -> selectedSection = "NGỌC SĨ AI"
         }
     }
 
@@ -4405,6 +4406,10 @@ class MainActivity : ComponentActivity() {
                             TvHub()
                         }
 
+                        "NGỌC SĨ AI" -> {
+                            NgocSiAiScreen(Modifier.weight(1f))
+                        }
+
                         "Online" -> {
                             if (onlineHubTab == "YouTube") {
                                 Box(
@@ -5533,6 +5538,10 @@ class MainActivity : ComponentActivity() {
                             showMore = false
                             showPlaylists = true
                         })
+                        ProHomeNavChip("✦ NGỌC SĨ AI", {
+                            showMore = false
+                            selectedSection = "NGỌC SĨ AI"
+                        })
                         ProHomeNavChip("▣ TV", {
                             showMore = false
                             selectedSection = "TV"
@@ -5594,6 +5603,7 @@ class MainActivity : ComponentActivity() {
             "Online" -> "ONLINE"
             "Radio" -> "RADIO"
             "TV" -> "TV TRỰC TUYẾN"
+            "NGỌC SĨ AI" -> "NGỌC SĨ AI"
             "Cài đặt" -> "CÀI ĐẶT"
             else -> "NGỌC SĨ MUSIC"
         }
@@ -5602,6 +5612,7 @@ class MainActivity : ComponentActivity() {
             "Online" -> "YouTube • Google Drive • nhạc trực tuyến"
             "Radio" -> if (activeRadioTitle != null) "Đang phát • $activeRadioTitle" else "Đài phát thanh Việt Nam"
             "TV" -> "${TvCatalog.builtIn.size + customTvSources.size} nguồn truyền hình"
+            "NGỌC SĨ AI" -> "Trợ lý AI trực tuyến • hỏi đáp tiếng Việt"
             "Cài đặt" -> "Phát nhạc • giao diện • nguồn nội dung"
             else -> ""
         }
@@ -5657,6 +5668,7 @@ class MainActivity : ComponentActivity() {
                                 "Online" -> "▶"
                                 "Radio" -> "◉"
                                 "TV" -> "▣"
+                                "NGỌC SĨ AI" -> "✦"
                                 "Cài đặt" -> "⚙"
                                 else -> "NS"
                             },
