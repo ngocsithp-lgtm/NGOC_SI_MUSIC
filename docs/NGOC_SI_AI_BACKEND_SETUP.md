@@ -1,8 +1,10 @@
-# NGỌC SĨ AI — secure backend setup
+# NGỌC SĨ AI — optional Cloud Functions proxy
 
-## Chosen architecture
+## Scope: separate optional backend experiment
 
-Use Firebase Cloud Functions (2nd gen) in `asia-southeast1`, Firebase Anonymous Authentication, Firebase App Check, Firestore daily quotas, and Google Gemini Developer API. The Android APK calls the Firebase callable function; it must never contain a Gemini API key.
+This guide documents an optional Cloud Functions proxy. It is **not used by** `feature/ngoc-si-ai-firebase-ai-logic-preview`; that branch uses the official Firebase AI Logic Android SDK directly with App Check. For the current goal, follow [the Firebase AI Logic setup guide](NGOC_SI_AI_FIREBASE_AI_LOGIC_SETUP.md). Do not deploy Cloud Functions or change the Firebase billing plan just to use Firebase AI Logic.
+
+Only follow the architecture below if you deliberately choose the separate Cloud Functions alternative. It adds Firebase Anonymous Authentication, Firestore usage counters, a server-held Gemini API key, a deployment step, and possible Blaze billing requirements.
 
 The server targets stable Gemini 3.5 Flash-Lite (`gemini-3.5-flash-lite`), which Google's current model guidance recommends for new projects. The official pricing page currently lists a free tier for standard model input/output; rates, access, per-project quotas, and data-use terms can change. Review current terms and limits in Google AI Studio before enabling any requests. Google may use free-tier content to improve its products, so do not send sensitive personal information. The app still uses Firebase Cloud Functions for the proxy, which requires the Blaze (pay-as-you-go) plan; no deployment or billing change has been performed. Sources: https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite and https://ai.google.dev/gemini-api/docs/pricing and https://firebase.google.com/docs/functions/quotas
 
@@ -47,7 +49,7 @@ Once the Firebase project exists and its ID is confirmed, a trusted deploy envir
 
 The function is not deployed. CI does not deploy it and does not make external Gemini API calls.
 
-## Required before Android integration
+## Requirements only if choosing the Cloud Functions alternative
 
 - Firebase Project ID.
 - Android Firebase app registration and `google-services.json` added through a safe private route.
@@ -58,7 +60,7 @@ The function is not deployed. CI does not deploy it and does not make external G
 - Budget alerts and app-side quota (10 requests per UID per UTC day).
 - Trusted deployment path. No long-lived service-account JSON in the repository.
 
-## Android integration design
+## Alternative Android integration design (not used by Firebase AI Logic preview)
 
 Add Firebase Auth, Firebase Functions, and App Check SDKs to Android only after the Firebase project configuration is available. Add a dedicated NGỌC SĨ AI screen and call the callable function through Firebase SDK. Voice input should use Android speech recognition as an opt-in microphone action; send recognized text only after the user taps send. Music actions must map locally through an allowlisted intent layer (play/pause/next/previous/sleep timer), never execute arbitrary AI-generated commands. Do not change existing playback, Drive, Radio, TV, or release behavior in the first integration step.
 
