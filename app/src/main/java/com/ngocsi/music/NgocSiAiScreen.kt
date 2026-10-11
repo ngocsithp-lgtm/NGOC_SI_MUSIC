@@ -54,7 +54,7 @@ fun NgocSiAiScreen(modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
     val chat = remember {
         Firebase.ai(backend = GenerativeBackend.googleAI())
-            .generativeModel("gemini-2.5-flash-lite")
+            .generativeModel("gemini-3.5-flash-lite")
             .startChat()
     }
 
