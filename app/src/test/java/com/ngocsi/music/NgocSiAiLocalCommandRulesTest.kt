@@ -121,4 +121,30 @@ class NgocSiAiLocalCommandRulesTest {
         )
         assertNull(classifyNgocSiAiLocalCommand("Hãy chỉ tôi cách chuyển bài"))
     }
+
+    @Test
+    fun recognizesNaturalPoliteVoiceCommandsWithoutTreatingQuestionsAsActions() {
+        assertEquals(
+            NgocSiAiLocalCommand.PLAY,
+            classifyNgocSiAiLocalCommand("Ngọc Sĩ, phát nhạc lên đi")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.PAUSE,
+            classifyNgocSiAiLocalCommand("Bạn hãy dừng phát nhạc lại")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.NEXT,
+            classifyNgocSiAiLocalCommand("Cho tôi chuyển sang bài tiếp theo nhé")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.OPEN_YOUTUBE,
+            classifyNgocSiAiLocalCommand("Mở YouTube giúp tôi")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.CURRENT_TRACK,
+            classifyNgocSiAiLocalCommand("Đang phát bài gì vậy?")
+        )
+        assertNull(classifyNgocSiAiLocalCommand("Bạn có thể phát nhạc không?"))
+        assertNull(classifyNgocSiAiLocalCommand("Tôi muốn biết cách chuyển bài"))
+    }
 }
