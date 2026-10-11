@@ -197,7 +197,7 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
         isAnyOf(
             "tam dung", "tam dung nhac", "tam dung phat nhac",
             "pause", "pause music", "pause playback",
-            "dung nhac", "dung lai", "dung phat nhac", "ngung nhac", "ngung lai", "ngung phat", "stop", "stop music"
+            "dung nhac", "dung", "dung lai", "dung phat nhac", "ngung nhac", "ngung", "ngung lai", "ngung phat", "stop", "stop music"
         ) -> NgocSiAiLocalCommand.PAUSE
 
         startsWithAny("bai tiep theo", "nhac tiep theo", "chuyen bai", "chuyen sang bai tiep theo", "sang bai tiep theo",
