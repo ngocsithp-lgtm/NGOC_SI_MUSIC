@@ -182,3 +182,19 @@ class NgocSiAiLocalCommandRulesTest {
     }
 
 }
+
+    @Test
+    fun recognizesNaturalPauseAndShuffleOffPhrasesFromSpeechRecognition() {
+        assertEquals(
+            NgocSiAiLocalCommand.PAUSE,
+            classifyNgocSiAiLocalCommand("Tạm dừng phát nhạc")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.PAUSE,
+            classifyNgocSiAiLocalCommand("Ngọc Sĩ, tạm dừng phát nhạc đi")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.SHUFFLE_OFF,
+            classifyNgocSiAiLocalCommand("Tắt phát ngẫu nhiên")
+        )
+    }
