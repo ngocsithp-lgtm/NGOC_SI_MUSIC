@@ -1,6 +1,12 @@
 name: Deploy NGOC SI AI Free Worker
 
 on:
+  push:
+    branches:
+      - "feature/ngoc-si-ai-android-integration"
+    paths:
+      - "worker/ngoc-si-ai-free-worker/**"
+      - ".github/workflows/deploy-ngoc-si-ai-free-worker.yml"
   workflow_dispatch:
 
 permissions:
@@ -8,7 +14,7 @@ permissions:
 
 jobs:
   deploy-worker:
-    if: github.ref == 'refs/heads/feature/ngoc-si-ai-android-integration'
+    if: github.ref == 'refs/heads/feature/ngoc-si-ai-android-integration' && vars.ENABLE_NGOC_SI_AI_WORKER_DEPLOY == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
