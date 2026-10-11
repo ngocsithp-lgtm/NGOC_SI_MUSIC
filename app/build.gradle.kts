@@ -87,8 +87,6 @@ dependencies {
     // Firebase AI Logic client; missing Firebase settings deliberately leave preview offline.
     implementation(platform("com.google.firebase:firebase-bom:34.19.0"))
     implementation("com.google.firebase:firebase-ai")
-    implementation("com.google.firebase:firebase-auth")
-    implementation("com.google.firebase:firebase-functions")
     implementation("com.google.firebase:firebase-appcheck-playintegrity")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2")
     testImplementation("junit:junit:4.13.2")
