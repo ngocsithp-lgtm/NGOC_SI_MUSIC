@@ -678,6 +678,14 @@ class MainActivity : ComponentActivity() {
         // Attach the Compose UI before background restoration/permission prompts.
         setContent { NgocSiMusicApp() }
 
+        // Handle navigation extras on cold creation as well as in onNewIntent().
+        // This covers cases where Android has to create MainActivity instead of
+        // reordering an existing instance when the AI assistant routes a command.
+        handleProDestination(
+            intent.getStringExtra("pro_destination"),
+            intent.getStringExtra("ai_youtube_query")
+        )
+
         // Restore persisted Drive sources only after the first frame can render.
         if (driveOAuthSignedIn) {
             window.decorView.post { restoreDriveSourcesFromCloud() }
