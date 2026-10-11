@@ -63,28 +63,28 @@ internal object NgocSiAiMusicCommandParser {
             startsWithAny(text, "mo hen gio", "mo hen gio tat nhac", "hen gio cai dat", "open sleep timer") ->
                 NgocSiAiMusicCommand.OPEN_SLEEP_TIMER
 
-            startsWithAny(text, "hen gio tat nhac sau 5 phut", "hen gio sau 5 phut", "hen gio 5 phut", "tat nhac sau 5 phut", "sleep timer 5") ->
+            startsWithAny(text, "hen gio tat nhac sau 5 phut", "hen gio tat nhac 5 phut", "hen gio tat nhac trong 5 phut", "hen gio sau 5 phut", "hen gio 5 phut", "tat nhac sau 5 phut", "sleep timer 5") ->
                 NgocSiAiMusicCommand.SET_SLEEP_TIMER_5
 
-            startsWithAny(text, "hen gio tat nhac sau 10 phut", "hen gio sau 10 phut", "hen gio 10 phut", "tat nhac sau 10 phut", "sleep timer 10") ->
+            startsWithAny(text, "hen gio tat nhac sau 10 phut", "hen gio tat nhac 10 phut", "hen gio tat nhac trong 10 phut", "hen gio sau 10 phut", "hen gio 10 phut", "tat nhac sau 10 phut", "sleep timer 10") ->
                 NgocSiAiMusicCommand.SET_SLEEP_TIMER_10
 
-            startsWithAny(text, "hen gio tat nhac sau 15 phut", "hen gio sau 15 phut", "hen gio 15 phut", "tat nhac sau 15 phut", "sleep timer 15") ->
+            startsWithAny(text, "hen gio tat nhac sau 15 phut", "hen gio tat nhac 15 phut", "hen gio tat nhac trong 15 phut", "hen gio sau 15 phut", "hen gio 15 phut", "tat nhac sau 15 phut", "sleep timer 15") ->
                 NgocSiAiMusicCommand.SET_SLEEP_TIMER_15
 
-            startsWithAny(text, "hen gio tat nhac sau 20 phut", "hen gio sau 20 phut", "hen gio 20 phut", "tat nhac sau 20 phut", "sleep timer 20") ->
+            startsWithAny(text, "hen gio tat nhac sau 20 phut", "hen gio tat nhac 20 phut", "hen gio tat nhac trong 20 phut", "hen gio sau 20 phut", "hen gio 20 phut", "tat nhac sau 20 phut", "sleep timer 20") ->
                 NgocSiAiMusicCommand.SET_SLEEP_TIMER_20
 
-            startsWithAny(text, "hen gio tat nhac sau 30 phut", "hen gio sau 30 phut", "hen gio 30 phut", "tat nhac sau 30 phut", "sleep timer 30") ->
+            startsWithAny(text, "hen gio tat nhac sau 30 phut", "hen gio tat nhac 30 phut", "hen gio tat nhac trong 30 phut", "hen gio sau 30 phut", "hen gio 30 phut", "tat nhac sau 30 phut", "sleep timer 30") ->
                 NgocSiAiMusicCommand.SET_SLEEP_TIMER_30
 
-            startsWithAny(text, "hen gio tat nhac sau 45 phut", "hen gio sau 45 phut", "hen gio 45 phut", "tat nhac sau 45 phut", "sleep timer 45") ->
+            startsWithAny(text, "hen gio tat nhac sau 45 phut", "hen gio tat nhac 45 phut", "hen gio tat nhac trong 45 phut", "hen gio sau 45 phut", "hen gio 45 phut", "tat nhac sau 45 phut", "sleep timer 45") ->
                 NgocSiAiMusicCommand.SET_SLEEP_TIMER_45
 
-            startsWithAny(text, "hen gio tat nhac sau 60 phut", "hen gio sau 60 phut", "hen gio 60 phut", "tat nhac sau 60 phut", "sleep timer 60") ->
+            startsWithAny(text, "hen gio tat nhac sau 60 phut", "hen gio tat nhac 60 phut", "hen gio tat nhac trong 60 phut", "hen gio sau 60 phut", "hen gio 60 phut", "tat nhac sau 60 phut", "sleep timer 60") ->
                 NgocSiAiMusicCommand.SET_SLEEP_TIMER_60
 
-            startsWithAny(text, "hen gio tat nhac sau 90 phut", "hen gio sau 90 phut", "hen gio 90 phut", "tat nhac sau 90 phut", "sleep timer 90") ->
+            startsWithAny(text, "hen gio tat nhac sau 90 phut", "hen gio tat nhac 90 phut", "hen gio tat nhac trong 90 phut", "hen gio sau 90 phut", "hen gio 90 phut", "tat nhac sau 90 phut", "sleep timer 90") ->
                 NgocSiAiMusicCommand.SET_SLEEP_TIMER_90
 
             startsWithAny(text, "tat xao tron", "tat phat ngau nhien", "shuffle off", "stop shuffle") ->
