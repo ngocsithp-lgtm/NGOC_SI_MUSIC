@@ -162,6 +162,8 @@ class NgocSiAiActivity : ComponentActivity() {
     private var musicController: MediaController? = null
     private var responseTts: TextToSpeech? = null
     private var responseTtsReady = false
+    // Hold a few replies while Android initializes the Vietnamese TTS engine.
+    private val pendingVoiceReplies = java.util.ArrayDeque<String>()
     private var voiceRepliesEnabled by mutableStateOf(true)
 
     private val speechLauncher =
@@ -206,7 +208,36 @@ class NgocSiAiActivity : ComponentActivity() {
         responseTts = TextToSpeech(this) { status ->
             if (status == TextToSpeech.SUCCESS) {
                 val result = responseTts?.setLanguage(Locale("vi", "VN"))
-                responseTtsReady = result != null && result != TextToSpeech.LANG_MISSING_DATA && result != TextToSpeech.LANG_NOT_SUPPORTED
+                responseTtsReady = result != null &&
+                    result != TextToSpeech.LANG_MISSING_DATA &&
+                    result != TextToSpeech.LANG_NOT_SUPPORTED
+                if (responseTtsReady && voiceRepliesEnabled) {
+                    while (pendingVoiceReplies.isNotEmpty()) {
+                        responseTts?.speak(
+                            pendingVoiceReplies.removeFirst(),
+                            TextToSpeech.QUEUE_ADD,
+                            null,
+                            "ngoc_si_activity_reply"
+                        )
+                    }
+                } else {
+                    pendingVoiceReplies.clear()
+                    if (!responseTtsReady) {
+                        Toast.makeText(
+                            this,
+                            "Chưa có dữ liệu giọng đọc tiếng Việt. Hãy kiểm tra Text-to-Speech trên điện thoại.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+            } else {
+                responseTtsReady = false
+                pendingVoiceReplies.clear()
+                Toast.makeText(
+                    this,
+                    "Không khởi tạo được giọng đọc. Hãy kiểm tra Text-to-Speech trên điện thoại.",
+                    Toast.LENGTH_LONG
+                ).show()
             }
         }
         val aiClient = NgocSiAiRemoteClient(applicationContext)
@@ -374,13 +405,16 @@ class NgocSiAiActivity : ComponentActivity() {
         if (responseTtsReady && tts != null) {
             tts.speak(message, TextToSpeech.QUEUE_FLUSH, null, "ngoc_si_activity_reply")
         } else {
-            Toast.makeText(this, "Đã nhận lệnh nhưng giọng đọc tiếng Việt chưa sẵn sàng trên máy.", Toast.LENGTH_LONG).show()
+            // Do not drop the first reply merely because TextToSpeech initializes asynchronously.
+            while (pendingVoiceReplies.size >= 4) pendingVoiceReplies.removeFirst()
+            pendingVoiceReplies.addLast(message)
         }
     }
 
     override fun onDestroy() {
         musicController?.release()
         musicController = null
+        pendingVoiceReplies.clear()
         runCatching { responseTts?.stop() }
         runCatching { responseTts?.shutdown() }
         responseTts = null
@@ -396,6 +430,7 @@ class NgocSiAiActivity : ComponentActivity() {
         if (voiceRepliesEnabled) {
             speakVoiceReply("Đã bật đọc câu trả lời bằng giọng nói.")
         } else {
+            pendingVoiceReplies.clear()
             runCatching { responseTts?.stop() }
             Toast.makeText(this, "Đã tắt đọc câu trả lời bằng giọng nói.", Toast.LENGTH_SHORT).show()
         }
