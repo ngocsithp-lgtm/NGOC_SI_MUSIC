@@ -84,8 +84,9 @@ android {
 }
 
 dependencies {
-    // Optional cloud AI client; absence of configuration deliberately leaves preview offline.
+    // Firebase AI Logic client; missing Firebase settings deliberately leave preview offline.
     implementation(platform("com.google.firebase:firebase-bom:34.19.0"))
+    implementation("com.google.firebase:firebase-ai")
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-functions")
     implementation("com.google.firebase:firebase-appcheck-playintegrity")
