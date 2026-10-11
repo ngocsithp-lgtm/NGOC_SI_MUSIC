@@ -461,7 +461,7 @@ private fun NgocSiAiPreviewScreen(
         }
     }
     var input by remember { mutableStateOf("") }
-    var pendingVoiceRequest by remember { mutableStateOf<String?>(null) }
+    val pendingVoiceRequests = remember { mutableStateListOf<String>() }
     val conversation = remember {
         mutableStateListOf<NgocSiAiMessage>().apply {
             addAll(loadAiApiConversation(chatPreferences))
@@ -469,6 +469,7 @@ private fun NgocSiAiPreviewScreen(
     }
     val coroutineScope = rememberCoroutineScope()
     var isSending by remember { mutableStateOf(false) }
+    var retryText by remember { mutableStateOf<String?>(null) }
     var quotaNote by remember { mutableStateOf("") }
     var showClearConfirm by remember { mutableStateOf(false) }
     val messageListState = androidx.compose.foundation.lazy.rememberLazyListState()
@@ -488,13 +489,24 @@ private fun NgocSiAiPreviewScreen(
         val spokenRequest = recognizedSpeech.trim()
         if (spokenRequest.isNotBlank()) {
             onSpeechConsumed()
-            pendingVoiceRequest = spokenRequest
+            if (pendingVoiceRequests.size < 4) {
+                // Queue multiple recognized utterances instead of overwriting a request
+                // while the previous AI response is still in flight.
+                pendingVoiceRequests.add(spokenRequest)
+            } else {
+                val queueNotice = "Đang xử lý các yêu cầu trước đó. Vui lòng đợi rồi nói tiếp."
+                messages.add(AiPreviewMessage(false, queueNotice))
+                if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
+                persistChatState()
+                onVoiceReply(queueNotice)
+            }
         }
     }
 
     fun sendMessage(text: String) {
         val clean = text.trim()
         if (clean.isBlank() || isSending) return
+        retryText = null
         messages.add(AiPreviewMessage(true, clean))
         if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
         input = ""
@@ -551,6 +563,7 @@ private fun NgocSiAiPreviewScreen(
                 throw cancelled
             } catch (error: NgocSiAiRemoteException) {
                 if (conversation.lastOrNull() == userTurn) conversation.removeAt(conversation.lastIndex)
+                retryText = clean
                 val errorReply = error.message ?: "Không thể kết nối NGỌC SĨ AI. Vui lòng thử lại."
                 messages.add(AiPreviewMessage(false, errorReply))
                 if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
@@ -558,6 +571,7 @@ private fun NgocSiAiPreviewScreen(
                 onVoiceReply(errorReply)
             } catch (_: Exception) {
                 if (conversation.lastOrNull() == userTurn) conversation.removeAt(conversation.lastIndex)
+                retryText = clean
                 val errorReply = "Có lỗi khi gửi yêu cầu AI. Hãy kiểm tra kết nối và cấu hình Firebase."
                 messages.add(AiPreviewMessage(false, errorReply))
                 if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
@@ -569,13 +583,12 @@ private fun NgocSiAiPreviewScreen(
         }
     }
 
-    LaunchedEffect(pendingVoiceRequest, isSending) {
-        val spokenRequest = pendingVoiceRequest
-        // Retain speech received while an AI request is in flight; process it when ready.
-        if (!spokenRequest.isNullOrBlank() && !isSending) {
-            pendingVoiceRequest = null
-            // Keep this effect after sendMessage is declared so Kotlin can resolve the local function.
-            sendMessage(spokenRequest)
+    LaunchedEffect(pendingVoiceRequests.size, pendingVoiceRequests.firstOrNull(), isSending) {
+        // Keep speech in a bounded FIFO queue while an online response is in flight.
+        // Processing one item at a time preserves the original order of spoken requests.
+        if (pendingVoiceRequests.isNotEmpty() && !isSending) {
+            val nextRequest = pendingVoiceRequests.removeAt(0)
+            sendMessage(nextRequest)
         }
     }
 
@@ -936,6 +949,19 @@ private fun NgocSiAiPreviewScreen(
                     Box(contentAlignment = Alignment.Center) {
                         Text(if (isSending) "…" else "↑", color = Color(0xFF061018), fontSize = 22.sp, fontWeight = FontWeight.Black)
                     }
+                }
+            }
+            if (!isSending && isOnlineConfigured && !retryText.isNullOrBlank()) {
+                TextButton(
+                    onClick = { retryText?.let(::sendMessage) },
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text(
+                        "↻ GỬI LẠI CÂU HỎI",
+                        color = Color(0xFF8DEEFF),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
             Spacer(Modifier.height(5.dp))
