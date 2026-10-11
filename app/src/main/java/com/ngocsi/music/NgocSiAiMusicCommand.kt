@@ -7,7 +7,7 @@ import java.util.Locale
  * Small allowlist for direct, deterministic music-player actions.
  * Unrecognized text is sent to the conversational model instead.
  */
-internal enum class NgocSiAiMusicCommand {
+enum class NgocSiAiMusicCommand {
     PLAY,
     PAUSE,
     NEXT,
