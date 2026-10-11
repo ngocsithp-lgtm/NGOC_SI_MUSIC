@@ -21,9 +21,9 @@ Official guide: https://firebase.google.com/docs/ai-logic/get-started?platform=a
 ## 3. Configure App Check
 
 1. Open **Security → App Check → Apps** and select the `com.ngocsi.music.aipreview` app.
-2. Register **Play Integrity** and use the stable preview SHA-256 verified in the prior preview CI run: `75:82:A1:F9:00:4E:B8:3A:24:84:FC:E5:B1:EC:13:9E:D2:57:14:3F:AA:E5:8C:DA:D1:B7:C2:9F:A2:04:E6:5E`. Reconfirm it against the signing fingerprint printed by the next intentionally built preview.
-3. Because this preview is expected to be sideloaded during testing, review Google's settings for apps distributed outside Google Play.
-4. Open **Security → App Check → APIs** and make sure Firebase AI Logic is enforced. Do not disable enforcement to make a failed request work.
+2. The current debug preview code uses the **App Check Debug provider** (`BuildConfig.DEBUG`), not Play Integrity. After an intentionally approved debug preview is installed and launched, retrieve its debug token from Android Studio/Logcat or the app's Firebase App Check debug log, then register that exact token for the preview app in Firebase Console. Never post the token in chat or commit it to GitHub.
+3. The stable preview SHA-256 fingerprint `75:82:A1:F9:00:4E:B8:3A:24:84:FC:E5:B1:EC:13:9E:D2:57:14:3F:AA:E5:8C:DA:D1:B7:C2:9F:A2:04:E6:5E` applies to Play Integrity signing setup only; reconfirm it against a deliberately built preview before using Play Integrity. A sideloaded debug build needs its debug token registered.
+4. Review **Security → App Check → APIs** for Firebase AI Logic. Keep enforcement enabled once the appropriate provider/token is correctly registered; do not disable enforcement to bypass a failed request.
 
 Official guide: https://firebase.google.com/docs/app-check/android/play-integrity-provider.
 
@@ -38,6 +38,7 @@ In GitHub mobile: repository → **Settings → Secrets and variables → Action
 | `FIREBASE_API_KEY` | `api_key[0].current_key` in Firebase config |
 | `FIREBASE_PROJECT_ID` | `project_info.project_id` = `ngoc-si-music-ai` |
 | `FIREBASE_SENDER_ID` | `project_info.project_number` |
+| `FIREBASE_APP_ID` | `mobilesdk_app_id` for the production package `com.ngocsi.music` (required by the CI validator even though preview variants override it) |
 | `FIREBASE_DEBUG_APP_ID` | `mobilesdk_app_id` for package `com.ngocsi.music.aipreview` |
 
 Do not send these values in chat. The preview app ID is not the same as the production app ID. If any secret is missing, this branch intentionally stays offline.
