@@ -7,6 +7,7 @@ import android.speech.tts.TextToSpeech
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import androidx.compose.foundation.background
@@ -136,6 +137,26 @@ fun NgocSiAiScreen(
                     }
                 } else {
                     when (command) {
+                        NgocSiAiMusicCommand.SHUFFLE_ON -> {
+                            player.shuffleModeEnabled = true
+                            "Đã bật phát ngẫu nhiên."
+                        }
+                        NgocSiAiMusicCommand.SHUFFLE_OFF -> {
+                            player.shuffleModeEnabled = false
+                            "Đã tắt phát ngẫu nhiên."
+                        }
+                        NgocSiAiMusicCommand.REPEAT_ONE -> {
+                            player.repeatMode = Player.REPEAT_MODE_ONE
+                            "Đã bật lặp lại bài hiện tại."
+                        }
+                        NgocSiAiMusicCommand.REPEAT_ALL -> {
+                            player.repeatMode = Player.REPEAT_MODE_ALL
+                            "Đã bật lặp lại toàn bộ hàng đợi."
+                        }
+                        NgocSiAiMusicCommand.REPEAT_OFF -> {
+                            player.repeatMode = Player.REPEAT_MODE_OFF
+                            "Đã tắt chế độ lặp lại."
+                        }
                         NgocSiAiMusicCommand.PLAY -> {
                             if (player.mediaItemCount == 0) {
                                 "Hàng đợi đang trống. Hãy chọn một bài trong Thư viện trước."
@@ -261,7 +282,7 @@ fun NgocSiAiScreen(
                 Text("✦ NGỌC SĨ AI", color = Color(0xFFCDBEFF), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
                 Text("Trợ lý AI trực tuyến • cần Internet", color = Color(0xFFB9BBC8), fontSize = 12.sp)
                 Text("Giọng nói dùng dịch vụ nhận dạng/đọc có sẵn trên điện thoại. Không gửi mật khẩu hoặc thông tin riêng tư.", color = Color(0xFF85899A), fontSize = 11.sp)
-                Text("Nói lệnh để chạy ngay: phát/tạm dừng, chuyển bài, mở Thư viện, YouTube, Radio, TV, Drive, hàng đợi hoặc Cài đặt.", color = Color(0xFFB9BBC8), fontSize = 11.sp)
+                Text("Có thể ra lệnh: phát/tạm dừng, bài tiếp/bài trước, ngẫu nhiên, lặp lại một bài/toàn bộ, hoặc mở Thư viện, YouTube, Radio, TV, Drive, hàng đợi, Cài đặt.", color = Color(0xFFB9BBC8), fontSize = 11.sp)
             }
         }
 
