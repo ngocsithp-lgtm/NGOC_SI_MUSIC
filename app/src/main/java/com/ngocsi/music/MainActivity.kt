@@ -668,6 +668,16 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // A voice command can launch a fresh MainActivity after Android has reclaimed
+        // the previous instance. Capture and consume the route so it is applied once.
+        val initialProDestination = intent.getStringExtra("pro_destination")
+        val initialProSleepMinutes = intent.getIntExtra("pro_sleep_minutes", -1)
+            .takeIf { it in setOf(15, 30, 45, 60, 90, 120) }
+        if (!initialProDestination.isNullOrBlank()) {
+            intent.removeExtra("pro_destination")
+            intent.removeExtra("pro_sleep_minutes")
+        }
+
         // Initialize lightweight app state before any feature surface is opened.
         // The UI is attached early so startup never appears as a blank window while
         // library/Drive state is being restored in the background.
@@ -687,6 +697,15 @@ class MainActivity : ComponentActivity() {
 
         // Attach the Compose UI before background restoration/permission prompts.
         setContent { NgocSiMusicApp() }
+
+        // Apply explicit voice navigation after the first UI frame is attached.
+        initialProDestination?.takeIf { it.isNotBlank() }?.let { destination ->
+            window.decorView.post {
+                if (!isFinishing && !isDestroyed) {
+                    handleProDestination(destination, initialProSleepMinutes)
+                }
+            }
+        }
 
         // Restore persisted Drive sources only after the first frame can render.
         if (driveOAuthSignedIn) {
@@ -763,10 +782,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        setIntent(intent)
+        val destination = intent.getStringExtra("pro_destination")
         val requestedSleepMinutes = intent.getIntExtra("pro_sleep_minutes", -1)
             .takeIf { it in setOf(15, 30, 45, 60, 90, 120) }
-        handleProDestination(intent.getStringExtra("pro_destination"), requestedSleepMinutes)
+        // Consume route extras so a later Activity recreation doesn't repeat the command.
+        intent.removeExtra("pro_destination")
+        intent.removeExtra("pro_sleep_minutes")
+        setIntent(intent)
+        handleProDestination(destination, requestedSleepMinutes)
     }
 
     private fun connectController() {
