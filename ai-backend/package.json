@@ -1,0 +1,20 @@
+{
+  "name": "ngoc-si-ai-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Undeployed secure backend scaffold for NGOC SI AI",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@google/genai": "^1.11.0",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.0.1",
+    "firebase-admin": "^13.4.0"
+  }
+}
