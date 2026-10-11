@@ -3,13 +3,13 @@ package com.ngocsi.music
 import android.content.Context
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
+import com.google.firebase.ai.FirebaseAI
+import com.google.firebase.ai.type.GenerativeBackend
+import com.google.firebase.ai.type.content
 import com.google.firebase.appcheck.FirebaseAppCheck
 import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.functions.FirebaseFunctions
-import com.google.firebase.functions.FirebaseFunctionsException
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.tasks.await
+import java.util.Locale
 
 internal data class NgocSiAiMessage(
     val role: String,
@@ -18,17 +18,17 @@ internal data class NgocSiAiMessage(
 
 internal data class NgocSiAiReply(
     val answer: String,
-    val remainingToday: Int?,
-    val remainingGlobalToday: Int?
+    val remainingToday: Int? = null,
+    val remainingGlobalToday: Int? = null
 )
 
 /**
- * Optional online client for the isolated NGỌC SĨ AI integration branch.
+ * Optional Firebase AI Logic client for the isolated NGỌC SĨ AI preview.
  *
- * Firebase client configuration is provided through build-time environment values.
- * When values are absent (the default CI configuration), this class stays offline and
- * the tested local-preview experience continues to work. The Gemini key never belongs
- * in this Android client; it is held by Firebase Functions Secret Manager.
+ * Firebase client settings are provided through build-time environment values.
+ * Missing values keep this preview offline. Gemini is accessed through Firebase AI
+ * Logic's Google AI backend; no Gemini API key, Firebase callable, or custom server
+ * is required by this Android client.
  */
 internal class NgocSiAiRemoteClient(context: Context) {
     private val firebaseApp: FirebaseApp? = createFirebaseApp(context.applicationContext)
@@ -38,75 +38,49 @@ internal class NgocSiAiRemoteClient(context: Context) {
 
     suspend fun send(messages: List<NgocSiAiMessage>): NgocSiAiReply {
         val app = firebaseApp
-            ?: throw NgocSiAiRemoteException("Firebase chưa được cấu hình cho bản thử này.")
+            ?: throw NgocSiAiRemoteException("Firebase AI Logic chưa được cấu hình cho bản thử này.")
 
-        val history = try {
+        val normalized = try {
             normalizeNgocSiAiHistory(messages)
         } catch (error: IllegalArgumentException) {
             throw NgocSiAiRemoteException(
                 error.message ?: "Lịch sử trò chuyện không hợp lệ. Hãy thử một câu hỏi ngắn hơn."
             )
         }
-        val auth = FirebaseAuth.getInstance(app)
-        try {
-            if (auth.currentUser == null) {
-                auth.signInAnonymously().await()
+
+        val newestUserMessage = normalized.lastOrNull()
+            ?.takeIf { it.role == "user" }
+            ?: throw NgocSiAiRemoteException("Tin nhắn chưa hợp lệ. Hãy gửi một câu hỏi mới.")
+
+        // Firebase AI Logic requires model-role history for assistant responses.
+        val previousTurns = normalized.dropLast(1).map { message ->
+            content(role = if (message.role == "assistant") "model" else "user") {
+                text(message.content)
             }
+        }
+
+        return try {
+            val model = FirebaseAI.getInstance(app, GenerativeBackend.googleAI())
+                .generativeModel(
+                    modelName = MODEL_NAME,
+                    systemInstruction = content {
+                        text(SYSTEM_INSTRUCTIONS)
+                    }
+                )
+            val chat = model.startChat(history = previousTurns)
+            val response = chat.sendMessage(newestUserMessage.content)
+            val answer = response.text?.trim()
+            if (answer.isNullOrBlank()) {
+                throw NgocSiAiRemoteException("Firebase AI Logic chưa trả về câu trả lời. Vui lòng thử lại.")
+            }
+            NgocSiAiReply(answer = answer)
         } catch (cancelled: CancellationException) {
             throw cancelled
-        } catch (_: Exception) {
-            throw NgocSiAiRemoteException(
-                "Không thể xác thực tài khoản thử nghiệm. Hãy kiểm tra Anonymous Authentication trong Firebase."
-            )
+        } catch (error: NgocSiAiRemoteException) {
+            throw error
+        } catch (error: Exception) {
+            throw NgocSiAiRemoteException(toSafeMessage(error))
         }
-
-        val callable = FirebaseFunctions.getInstance(app, "asia-southeast1")
-            .getHttpsCallable("ngocSiAiChat")
-        val request = mapOf(
-            "messages" to history.map { message ->
-                mapOf("role" to message.role, "content" to message.content)
-            }
-        )
-
-        val result = try {
-            callable.call(request).await()
-        } catch (error: FirebaseFunctionsException) {
-            val safeMessage = when (error.code) {
-                FirebaseFunctionsException.Code.UNAUTHENTICATED ->
-                    "Phiên xác thực chưa hợp lệ. Hãy thử gửi lại."
-                FirebaseFunctionsException.Code.PERMISSION_DENIED ->
-                    "Ứng dụng chưa được App Check xác minh. Cần kiểm tra cấu hình bản thử."
-                FirebaseFunctionsException.Code.RESOURCE_EXHAUSTED ->
-                    error.message?.takeIf { it.contains("lượt") || it.contains("hạn mức") }
-                        ?: "Đã chạm giới hạn sử dụng AI. Vui lòng thử lại sau."
-                FirebaseFunctionsException.Code.FAILED_PRECONDITION ->
-                    "Máy chủ AI chưa được cấu hình đầy đủ."
-                FirebaseFunctionsException.Code.INVALID_ARGUMENT ->
-                    "Tin nhắn vượt giới hạn cho phép. Hãy rút gọn câu hỏi."
-                FirebaseFunctionsException.Code.UNAVAILABLE,
-                FirebaseFunctionsException.Code.DEADLINE_EXCEEDED ->
-                    "Máy chủ AI hoặc kết nối mạng tạm thời không sẵn sàng."
-                else ->
-                    "Không thể hoàn tất yêu cầu AI. Hãy kiểm tra cấu hình rồi thử lại."
-            }
-            throw NgocSiAiRemoteException(safeMessage)
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (_: Exception) {
-            throw NgocSiAiRemoteException("Không kết nối được máy chủ AI. Hãy kiểm tra Internet.")
-        }
-
-        val response = result.data as? Map<*, *>
-            ?: throw NgocSiAiRemoteException("Máy chủ trả về dữ liệu không hợp lệ.")
-        val answer = response["answer"] as? String
-        if (answer.isNullOrBlank()) {
-            throw NgocSiAiRemoteException("Máy chủ chưa trả lời được. Vui lòng thử lại.")
-        }
-        return NgocSiAiReply(
-            answer = answer,
-            remainingToday = (response["remainingToday"] as? Number)?.toInt(),
-            remainingGlobalToday = (response["remainingGlobalToday"] as? Number)?.toInt()
-        )
     }
 
     private fun createFirebaseApp(context: Context): FirebaseApp? {
@@ -132,6 +106,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
                     .build(),
                 FIREBASE_APP_NAME
             )
+            // Install App Check before creating or using the Firebase AI Logic client.
             FirebaseAppCheck.getInstance(app).installAppCheckProviderFactory(
                 PlayIntegrityAppCheckProviderFactory.getInstance()
             )
@@ -139,9 +114,40 @@ internal class NgocSiAiRemoteClient(context: Context) {
         }.getOrNull()
     }
 
+    private fun toSafeMessage(error: Exception): String {
+        val details = generateSequence<Throwable>(error) { it.cause }
+            .take(6)
+            .joinToString(" ") { it.message.orEmpty() }
+            .lowercase(Locale.ROOT)
+
+        return when {
+            "429" in details || "resource_exhausted" in details ||
+                "quota" in details || "rate limit" in details ->
+                "NGỌC SĨ AI đã chạm hạn mức tạm thời. Vui lòng đợi rồi thử lại."
+            "app check" in details || "attestation" in details ||
+                "permission denied" in details || "403" in details ->
+                "Firebase AI Logic từ chối kết nối. Hãy kiểm tra App Check, SHA-256 và cấu hình ứng dụng thử."
+            "api key" in details || "api has not been used" in details ||
+                "service disabled" in details || "not enabled" in details ->
+                "Firebase AI Logic chưa được bật đúng trong dự án Firebase. Kiểm tra AI Services → AI Logic."
+            "unknownhost" in details || "unable to resolve host" in details ||
+                "network" in details || "timeout" in details || "timed out" in details ->
+                "Không kết nối được mạng. Hãy kiểm tra Internet rồi thử lại."
+            else ->
+                "Firebase AI Logic chưa phản hồi thành công. Hãy kiểm tra cấu hình Firebase/App Check rồi thử lại."
+        }
+    }
+
     companion object {
         private const val FIREBASE_APP_NAME = "ngocSiAi"
         private const val EXPECTED_FIREBASE_PROJECT_ID = "ngoc-si-music-ai"
+        private const val MODEL_NAME = "gemini-3.8-flash"
+        private const val SYSTEM_INSTRUCTIONS =
+            "Bạn là NGỌC SĨ AI, trợ lý tiếng Việt hữu ích, chính xác và dễ hiểu. " +
+            "Trả lời trực tiếp; nếu không chắc, hãy nói rõ giới hạn và không bịa dữ kiện. " +
+            "Không được tuyên bố đã phát nhạc, thay đổi hàng đợi, mở ứng dụng hoặc thực hiện hành động " +
+            "trên điện thoại nếu chưa có xác nhận từ công cụ trên thiết bị. " +
+            "Các lệnh nhạc của ứng dụng được kiểm tra và thực thi riêng trên thiết bị."
     }
 }
 
