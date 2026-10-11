@@ -7,6 +7,7 @@ import com.google.firebase.ai.FirebaseAI
 import com.google.firebase.ai.type.GenerativeBackend
 import com.google.firebase.ai.type.content
 import com.google.firebase.appcheck.FirebaseAppCheck
+import com.google.firebase.appcheck.debug.DebugAppCheckProviderFactory
 import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
 import kotlinx.coroutines.CancellationException
 import java.util.Locale
@@ -107,9 +108,16 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 FIREBASE_APP_NAME
             )
             // Install App Check before creating or using the Firebase AI Logic client.
-            FirebaseAppCheck.getInstance(app).installAppCheckProviderFactory(
+            val appCheck = FirebaseAppCheck.getInstance(app)
+            // This preview APK is installed directly from GitHub Actions, not Google Play.
+            // Use the Firebase App Check debug provider in debug builds; register its token
+            // in Firebase Console. Keep Play Integrity for non-debug variants only.
+            val providerFactory = if (BuildConfig.DEBUG) {
+                DebugAppCheckProviderFactory.getInstance()
+            } else {
                 PlayIntegrityAppCheckProviderFactory.getInstance()
-            )
+            }
+            appCheck.installAppCheckProviderFactory(providerFactory)
             app
         }.getOrNull()
     }
