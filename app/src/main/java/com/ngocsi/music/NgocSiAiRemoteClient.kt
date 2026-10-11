@@ -3,9 +3,7 @@ package com.ngocsi.music
 import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
