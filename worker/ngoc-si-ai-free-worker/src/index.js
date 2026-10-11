@@ -1,5 +1,7 @@
 import { extractGeminiAnswer, toGeminiContents, validateMessages } from "./validation.js";
 
+const MODEL_ID = "gemini-3.5-flash-lite";
+
 const SYSTEM_INSTRUCTION =
   "Bạn là NGỌC SĨ AI, trợ lý tiếng Việt hữu ích, rõ ràng và trung thực. " +
   "Trả lời câu hỏi tổng quát. Nếu không chắc, hãy nói rõ giới hạn. " +
@@ -37,7 +39,7 @@ export default {
       });
     }
     if (url.pathname === "/health" && request.method === "GET") {
-      return json({ ok: true, service: "ngoc-si-ai-free-worker", model: "gemini-2.5-flash-lite" });
+      return json({ ok: true, service: "ngoc-si-ai-free-worker", model: MODEL_ID });
     }
     if (url.pathname !== "/v1/chat") return safeError(404, "Không tìm thấy đường dẫn.");
     if (request.method !== "POST") return safeError(405, "Chỉ hỗ trợ POST.");
@@ -74,7 +76,7 @@ export default {
     }
 
     const upstreamUrl =
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent";
+      `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_ID}:generateContent`;
     let upstream;
     try {
       upstream = await fetch(upstreamUrl + "?key=" + encodeURIComponent(env.GEMINI_API_KEY), {
