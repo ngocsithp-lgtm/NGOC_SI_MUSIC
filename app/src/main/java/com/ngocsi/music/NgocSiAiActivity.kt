@@ -554,6 +554,7 @@ class NgocSiAiActivity : ComponentActivity() {
                 if (localItems.isEmpty()) {
                     deviceQueueLoadStarted = false
                     pendingPlayAfterQueueLoad = false
+                    pendingQueueStartIndexAfterLoad = null
                     Toast.makeText(
                         this@NgocSiAiActivity,
                         "Không tìm thấy tệp nhạc cục bộ. Bạn vẫn có thể dùng chat nếu AI trực tuyến đã cấu hình.",
@@ -566,14 +567,21 @@ class NgocSiAiActivity : ComponentActivity() {
                 activeController.prepare()
                 deviceQueueLoadStarted = false
                 val shouldStartPlayback = pendingPlayAfterQueueLoad
+                val requestedStartIndex = pendingQueueStartIndexAfterLoad ?: 0
                 pendingPlayAfterQueueLoad = false
-                if (shouldStartPlayback) activeController.play()
+                pendingQueueStartIndexAfterLoad = null
+                val canStartPlayback = shouldStartPlayback && requestedStartIndex in localItems.indices
+                if (canStartPlayback) {
+                    activeController.seekTo(requestedStartIndex, 0L)
+                    activeController.play()
+                }
                 Toast.makeText(
                     this@NgocSiAiActivity,
-                    if (shouldStartPlayback) {
-                        "Đã nạp ${localItems.size} bài và bắt đầu phát nhạc."
-                    } else {
-                        "Đã nạp ${localItems.size} bài nhạc trên điện thoại."
+                    when {
+                        canStartPlayback && requestedStartIndex == 1 -> "Đã nạp ${localItems.size} bài và đang phát bài thứ hai."
+                        canStartPlayback -> "Đã nạp ${localItems.size} bài và bắt đầu phát nhạc."
+                        shouldStartPlayback -> "Đã nạp thư viện nhưng danh sách chưa có bài thứ hai để phát."
+                        else -> "Đã nạp ${localItems.size} bài nhạc trên điện thoại."
                     },
                     Toast.LENGTH_LONG
                 ).show()
@@ -583,6 +591,7 @@ class NgocSiAiActivity : ComponentActivity() {
             } catch (_: SecurityException) {
                 deviceQueueLoadStarted = false
                 pendingPlayAfterQueueLoad = false
+                pendingQueueStartIndexAfterLoad = null
                 Toast.makeText(
                     this@NgocSiAiActivity,
                     "Android chưa cho phép đọc thư viện nhạc. Hãy cấp quyền rồi mở lại NGỌC SĨ AI.",
@@ -591,6 +600,7 @@ class NgocSiAiActivity : ComponentActivity() {
             } catch (_: Exception) {
                 deviceQueueLoadStarted = false
                 pendingPlayAfterQueueLoad = false
+                pendingQueueStartIndexAfterLoad = null
                 Toast.makeText(
                     this@NgocSiAiActivity,
                     "Không tải được thư viện nhạc trên máy. Hãy thử lại.",
