@@ -168,12 +168,26 @@ class NgocSiAiActivity : ComponentActivity() {
 
     private val speechLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            val phrase = result.data
+            if (result.resultCode != android.app.Activity.RESULT_OK) {
+                return@registerForActivityResult
+            }
+            val candidates = result.data
                 ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-                ?.firstOrNull()
                 .orEmpty()
-                .trim()
-            val command = phrase.takeIf { it.isNotBlank() }?.let(::classifyNgocSiAiLocalCommand)
+                .map(String::trim)
+                .filter(String::isNotBlank)
+            // Speech services may return several hypotheses. Prefer a recognized,
+            // explicitly allowlisted command if one of the alternatives matches.
+            val phrase = candidates.firstOrNull {
+                classifyNgocSiAiLocalCommand(it) != null
+            } ?: candidates.firstOrNull().orEmpty()
+            if (phrase.isBlank()) {
+                val reply = "Tôi chưa nghe rõ. Hãy nói chậm, gần micro hơn rồi thử lại."
+                speakVoiceReply(reply)
+                Toast.makeText(this, reply, Toast.LENGTH_LONG).show()
+                return@registerForActivityResult
+            }
+            val command = classifyNgocSiAiLocalCommand(phrase)
             if (command != null) {
                 val reply = runLocalCommand(command, phrase)
                 speakVoiceReply(reply)
@@ -462,7 +476,10 @@ class NgocSiAiActivity : ComponentActivity() {
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "vi-VN")
-            putExtra(RecognizerIntent.EXTRA_PROMPT, "Nói nội dung bạn muốn nhập")
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "vi-VN")
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "Nói lệnh hoặc câu hỏi bằng tiếng Việt")
         }
         try {
             speechLauncher.launch(intent)
