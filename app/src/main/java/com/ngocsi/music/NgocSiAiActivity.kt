@@ -251,6 +251,33 @@ class NgocSiAiActivity : ComponentActivity() {
     }
 
     private fun runLocalCommand(command: NgocSiAiLocalCommand): String {
+        val route = when (command) {
+            NgocSiAiLocalCommand.OPEN_LIBRARY -> "library" to "Thư viện"
+            NgocSiAiLocalCommand.OPEN_YOUTUBE -> "youtube" to "YouTube"
+            NgocSiAiLocalCommand.OPEN_DRIVE -> "drive" to "Google Drive"
+            NgocSiAiLocalCommand.OPEN_RADIO -> "radio" to "Radio"
+            NgocSiAiLocalCommand.OPEN_TV -> "tv" to "TV"
+            NgocSiAiLocalCommand.OPEN_QUEUE -> "queue" to "Hàng đợi"
+            NgocSiAiLocalCommand.OPEN_PLAYLISTS -> "playlists" to "Playlist"
+            NgocSiAiLocalCommand.OPEN_PLAYER -> "player" to "Trình phát"
+            NgocSiAiLocalCommand.OPEN_SETTINGS -> "settings" to "Cài đặt"
+            else -> null
+        }
+        if (route != null) {
+            val (destination, label) = route
+            return runCatching {
+                startActivity(
+                    Intent(this, MainActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                        putExtra("pro_destination", destination)
+                    }
+                )
+                "Đang mở $label."
+            }.getOrElse {
+                "Không thể mở $label. Hãy thử mở mục đó từ menu chính."
+            }
+        }
+
         val player = musicController
             ?: return "Trình phát đang khởi động hoặc chưa kết nối. Hãy thử lại sau một lát."
         if (player.mediaItemCount == 0 || player.currentMediaItem == null) {
@@ -316,6 +343,7 @@ class NgocSiAiActivity : ComponentActivity() {
                 player.repeatMode = androidx.media3.common.Player.REPEAT_MODE_ONE
                 "Đã bật lặp bài hiện tại."
             }
+            else -> "Lệnh này cần được thực hiện từ giao diện phù hợp."
         }
     }
 

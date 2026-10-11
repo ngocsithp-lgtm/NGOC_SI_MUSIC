@@ -172,9 +172,13 @@ class NgocSiWakeWordService : Service() {
                     speakReply(reply)
                 }
             } else if (recognized.isNotBlank()) {
-                // Expose the actual speech-recognition result in the persistent notification
-                // so the user can tell whether the problem is recognition or command matching.
-                updateNotification("Đã nghe: “${recognized.take(55)}” · cần mở đầu bằng “Ngọc Sĩ”")
+                // Distinguish a missing wake phrase from app navigation, which is intentionally
+                // not launched from the background microphone service.
+                if (hasNgocSiAiWakePhrase(recognized)) {
+                    updateNotification("Đã nghe: “${recognized.take(45)}” · mở mục NGỌC SĨ AI để điều hướng màn hình")
+                } else {
+                    updateNotification("Đã nghe: “${recognized.take(55)}” · cần mở đầu bằng “Ngọc Sĩ”")
+                }
             }
             if (command == null) scheduleListenRetry(650L)
         }
@@ -278,6 +282,7 @@ class NgocSiWakeWordService : Service() {
                     player.repeatMode = Player.REPEAT_MODE_ONE
                     "Lặp bài hiện tại"
                 }
+                else -> "Lệnh mở màn hình cần thực hiện trong mục NGỌC SĨ AI."
             }
         }.getOrElse { "Không thể thực hiện lệnh này" }
     }

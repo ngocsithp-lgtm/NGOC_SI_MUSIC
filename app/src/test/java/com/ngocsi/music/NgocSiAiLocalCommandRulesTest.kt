@@ -6,6 +6,26 @@ import org.junit.Test
 
 class NgocSiAiLocalCommandRulesTest {
     @Test
+    fun recognizesExplicitAppNavigationCommands() {
+        assertEquals(NgocSiAiLocalCommand.OPEN_LIBRARY, classifyNgocSiAiLocalCommand("Mở thư viện"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_YOUTUBE, classifyNgocSiAiLocalCommand("Ngọc Sĩ, mở YouTube"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_DRIVE, classifyNgocSiAiLocalCommand("Mở Google Drive"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_RADIO, classifyNgocSiAiLocalCommand("Mở Radio"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_TV, classifyNgocSiAiLocalCommand("Mở TV"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_QUEUE, classifyNgocSiAiLocalCommand("Mở hàng đợi"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_PLAYLISTS, classifyNgocSiAiLocalCommand("Mở playlist"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_PLAYER, classifyNgocSiAiLocalCommand("Mở trình phát"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_SETTINGS, classifyNgocSiAiLocalCommand("Mở cài đặt"))
+    }
+
+    @Test
+    fun backgroundWakePhraseDoesNotLaunchNavigationScreens() {
+        assertEquals(null, classifyNgocSiAiWakePhrase("Ngọc Sĩ, mở thư viện"))
+        assertEquals(true, hasNgocSiAiWakePhrase("Ngọc Sĩ, mở YouTube"))
+        assertEquals(false, hasNgocSiAiWakePhrase("Mở YouTube"))
+    }
+
+    @Test
     fun recognizesVietnameseCommandsWithAccentsAndPolitePrefixes() {
         assertEquals(NgocSiAiLocalCommand.PLAY, classifyNgocSiAiLocalCommand("Phát nhạc"))
         assertEquals(NgocSiAiLocalCommand.PAUSE, classifyNgocSiAiLocalCommand("Ngọc Sĩ, tạm dừng nhạc"))

@@ -13,7 +13,16 @@ internal enum class NgocSiAiLocalCommand {
     SHUFFLE_OFF,
     REPEAT_OFF,
     REPEAT_ALL,
-    REPEAT_ONE
+    REPEAT_ONE,
+    OPEN_LIBRARY,
+    OPEN_YOUTUBE,
+    OPEN_DRIVE,
+    OPEN_RADIO,
+    OPEN_TV,
+    OPEN_QUEUE,
+    OPEN_PLAYLISTS,
+    OPEN_PLAYER,
+    OPEN_SETTINGS
 }
 
 /**
@@ -34,6 +43,29 @@ internal fun classifyNgocSiAiWakePhrase(input: String): NgocSiAiLocalCommand? {
     val commandPhrase = normalized.removePrefix("ngoc si ").trim()
     if (commandPhrase.isBlank()) return null
     return classifyNgocSiAiLocalCommand(commandPhrase)
+        ?.takeUnless(::isNgocSiAiNavigationCommand)
+}
+
+internal fun isNgocSiAiNavigationCommand(command: NgocSiAiLocalCommand): Boolean =
+    command in setOf(
+        NgocSiAiLocalCommand.OPEN_LIBRARY,
+        NgocSiAiLocalCommand.OPEN_YOUTUBE,
+        NgocSiAiLocalCommand.OPEN_DRIVE,
+        NgocSiAiLocalCommand.OPEN_RADIO,
+        NgocSiAiLocalCommand.OPEN_TV,
+        NgocSiAiLocalCommand.OPEN_QUEUE,
+        NgocSiAiLocalCommand.OPEN_PLAYLISTS,
+        NgocSiAiLocalCommand.OPEN_PLAYER,
+        NgocSiAiLocalCommand.OPEN_SETTINGS
+    )
+
+internal fun hasNgocSiAiWakePhrase(input: String): Boolean {
+    val normalized = Normalizer.normalize(input.trim().lowercase(Locale.ROOT), Normalizer.Form.NFD)
+        .replace("\\p{Mn}+".toRegex(), "")
+        .replace('đ', 'd')
+        .replace("[^a-z0-9]+".toRegex(), " ")
+        .trim()
+    return normalized == "ngoc si" || normalized.startsWith("ngoc si ")
 }
 
 internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? {
@@ -54,6 +86,34 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
     fun startsWithAny(vararg options: String) = options.any { phrase == it || phrase.startsWith("$it ") }
 
     return when {
+        // Explicit navigation commands are allowlisted; AI text is never executed as code.
+        startsWithAny("mo thu vien drive", "mo google drive", "mo drive", "vao drive", "open drive") ->
+            NgocSiAiLocalCommand.OPEN_DRIVE
+
+        startsWithAny("mo thu vien", "vao thu vien", "open library") ->
+            NgocSiAiLocalCommand.OPEN_LIBRARY
+
+        startsWithAny("mo youtube", "vao youtube", "mo muc youtube", "open youtube") ->
+            NgocSiAiLocalCommand.OPEN_YOUTUBE
+
+        startsWithAny("mo radio", "vao radio", "mo muc radio", "open radio") ->
+            NgocSiAiLocalCommand.OPEN_RADIO
+
+        startsWithAny("mo tv", "mo tivi", "mo truyen hinh", "vao tv", "open tv") ->
+            NgocSiAiLocalCommand.OPEN_TV
+
+        startsWithAny("mo hang doi", "vao hang doi", "open queue") ->
+            NgocSiAiLocalCommand.OPEN_QUEUE
+
+        startsWithAny("mo playlist", "mo danh sach phat", "vao playlist", "open playlists") ->
+            NgocSiAiLocalCommand.OPEN_PLAYLISTS
+
+        startsWithAny("mo trinh phat", "vao trinh phat", "open player") ->
+            NgocSiAiLocalCommand.OPEN_PLAYER
+
+        startsWithAny("mo cai dat", "vao cai dat", "open settings") ->
+            NgocSiAiLocalCommand.OPEN_SETTINGS
+
         isAnyOf("phat nhac", "bat nhac", "tiep tuc phat", "tiep tuc nghe nhac",
             "play", "play music", "resume", "mo nhac") -> NgocSiAiLocalCommand.PLAY
 
