@@ -100,6 +100,7 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
 
         isAnyOf(
             "tam dung", "tam dung nhac", "tam dung lai", "tam dung bai hat",
+            "tam dung phat nhac", "tam dung phat nhac di",
             "dung", "dung lai", "dung lai di", "dung nhac", "dung nhac lai",
             "dung phat", "dung phat di", "dung phat nhac", "dung phat nhac di",
             "ngung phat nhac", "tat nhac", "tat nhac di",
