@@ -4,6 +4,18 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+// Quote environment-provided values safely for generated Java BuildConfig constants.
+// Trim values and remove one accidental pair of surrounding quotes copied from JSON.
+fun String.toBuildConfigLiteral(): String {
+    val normalized = trim().removeSurrounding("\"")
+    val escaped = normalized
+        .replace("\\", "\\\\")
+        .replace("\"", "\\\"")
+        .replace("\r", "\\r")
+        .replace("\n", "\\n")
+    return "\"$escaped\""
+}
+
 android {
     namespace = "com.ngocsi.music"
     compileSdk = 36
@@ -38,19 +50,19 @@ android {
         targetSdk = 36
         versionCode = 61
         versionName = "5.41"
-        buildConfigField("String", "YOUTUBE_API_KEY", "\"$youtubeApiKey\"")
-        buildConfigField("String", "DRIVE_API_KEY", "\"$driveApiKey\"")
-        buildConfigField("String", "FIREBASE_API_KEY", "\"$firebaseApiKey\"")
-        buildConfigField("String", "FIREBASE_PROJECT_ID", "\"$firebaseProjectId\"")
-        buildConfigField("String", "FIREBASE_SENDER_ID", "\"$firebaseSenderId\"")
-        buildConfigField("String", "FIREBASE_APP_ID", "\"$firebaseProdAppId\"")
+        buildConfigField("String", "YOUTUBE_API_KEY", youtubeApiKey.toBuildConfigLiteral())
+        buildConfigField("String", "DRIVE_API_KEY", driveApiKey.toBuildConfigLiteral())
+        buildConfigField("String", "FIREBASE_API_KEY", firebaseApiKey.toBuildConfigLiteral())
+        buildConfigField("String", "FIREBASE_PROJECT_ID", firebaseProjectId.toBuildConfigLiteral())
+        buildConfigField("String", "FIREBASE_SENDER_ID", firebaseSenderId.toBuildConfigLiteral())
+        buildConfigField("String", "FIREBASE_APP_ID", firebaseProdAppId.toBuildConfigLiteral())
     }
 
     buildTypes {
         getByName("debug") {
             // Never let an AI preview overwrite the installed production app.
             applicationIdSuffix = ".aipreview"
-            buildConfigField("String", "FIREBASE_APP_ID", "\"$firebaseDebugAppId\"")
+            buildConfigField("String", "FIREBASE_APP_ID", firebaseDebugAppId.toBuildConfigLiteral())
             if (ciKeystorePath.isNotBlank() && ciStorePassword.isNotBlank() && ciKeyAlias.isNotBlank() && ciKeyPassword.isNotBlank()) {
                 signingConfig = signingConfigs.getByName("ciStable")
             }
@@ -58,7 +70,7 @@ android {
         getByName("release") {
             applicationIdSuffix = ".aipreview"
             // Every variant on this branch is the preview package, never the production package.
-            buildConfigField("String", "FIREBASE_APP_ID", "\"$firebaseDebugAppId\"")
+            buildConfigField("String", "FIREBASE_APP_ID", firebaseDebugAppId.toBuildConfigLiteral())
             if (ciKeystorePath.isNotBlank() && ciStorePassword.isNotBlank() && ciKeyAlias.isNotBlank() && ciKeyPassword.isNotBlank()) {
                 signingConfig = signingConfigs.getByName("ciStable")
             }
