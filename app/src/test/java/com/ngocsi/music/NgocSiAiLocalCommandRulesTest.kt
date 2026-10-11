@@ -8,6 +8,8 @@ class NgocSiAiLocalCommandRulesTest {
     @Test
     fun recognizesVietnameseCommandsWithAccentsAndPolitePrefixes() {
         assertEquals(NgocSiAiLocalCommand.PLAY, classifyNgocSiAiLocalCommand("Phát nhạc"))
+        assertEquals(NgocSiAiLocalCommand.PLAY_SECOND, classifyNgocSiAiLocalCommand("Hát bài thứ hai trong danh sách"))
+        assertEquals(NgocSiAiLocalCommand.PLAY_SECOND, classifyNgocSiAiLocalCommand("Phát bài thứ hai"))
         assertEquals(NgocSiAiLocalCommand.PAUSE, classifyNgocSiAiLocalCommand("Ngọc Sĩ, tạm dừng nhạc"))
         assertEquals(NgocSiAiLocalCommand.NEXT, classifyNgocSiAiLocalCommand("Vui lòng chuyển bài"))
         assertEquals(NgocSiAiLocalCommand.PREVIOUS, classifyNgocSiAiLocalCommand("Hãy quay lại bài trước"))
