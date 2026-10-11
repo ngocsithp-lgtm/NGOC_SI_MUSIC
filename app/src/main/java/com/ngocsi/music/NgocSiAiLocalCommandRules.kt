@@ -104,6 +104,35 @@ internal fun parseNgocSiAiSleepTimerMinutes(input: String): Int? {
     return numberWords.firstOrNull { normalized.contains(it.first) }?.second
 }
 
+private fun stripNgocSiAiPoliteWrappers(input: String): String {
+    var phrase = input
+    val prefixes = listOf(
+        "ngoc si ", "vui long ", "lam on ", "ban hay ", "hay ",
+        "toi muon ", "cho toi ", "giup toi ", "lam giup toi "
+    )
+    val suffixes = listOf(
+        " giup toi voi", " giup minh voi", " giup toi", " giup minh",
+        " dum toi", " dum minh", " voi", " nhe", " nha", " nhen",
+        " vay", " nhi", " di", " len", " lai", " thoi"
+    )
+    while (phrase.isNotBlank()) {
+        val prefix = prefixes.firstOrNull { phrase.startsWith(it) }
+        if (prefix != null) {
+            phrase = phrase.removePrefix(prefix).trim()
+            continue
+        }
+        val suffix = suffixes.firstOrNull {
+            phrase.length > it.length && phrase.endsWith(it)
+        }
+        if (suffix != null) {
+            phrase = phrase.removeSuffix(suffix).trim()
+            continue
+        }
+        break
+    }
+    return phrase
+}
+
 internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? {
     var phrase = Normalizer.normalize(input.trim().lowercase(Locale.ROOT), Normalizer.Form.NFD)
         .replace("\\p{Mn}+".toRegex(), "")
@@ -112,11 +141,8 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
         .trim()
     if (phrase.isBlank()) return null
 
-    val politePrefixes = listOf("ngoc si ", "hay ", "vui long ", "lam on ")
-    while (true) {
-        val prefix = politePrefixes.firstOrNull { phrase.startsWith(it) } ?: break
-        phrase = phrase.removePrefix(prefix).trim()
-    }
+    phrase = stripNgocSiAiPoliteWrappers(phrase)
+    if (phrase.isBlank()) return null
 
     fun isAnyOf(vararg options: String) = phrase in options.toSet()
     fun startsWithAny(vararg options: String) = options.any { phrase == it || phrase.startsWith("$it ") }
@@ -162,17 +188,25 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
         startsWithAny("mo cai dat", "vao cai dat", "open settings") ->
             NgocSiAiLocalCommand.OPEN_SETTINGS
 
-        isAnyOf("phat nhac", "bat nhac", "tiep tuc phat", "tiep tuc nghe nhac",
-            "play", "play music", "resume", "mo nhac") -> NgocSiAiLocalCommand.PLAY
+        isAnyOf(
+            "phat nhac", "bat nhac", "tiep tuc phat", "tiep tuc nghe nhac",
+            "tiep tuc nghe", "tiep tuc", "bat dau phat nhac", "choi nhac",
+            "play", "play music", "resume", "resume playback", "start music", "mo nhac", "nghe nhac"
+        ) -> NgocSiAiLocalCommand.PLAY
 
-        isAnyOf("tam dung", "tam dung nhac", "pause", "pause music", "dung nhac") ->
-            NgocSiAiLocalCommand.PAUSE
+        isAnyOf(
+            "tam dung", "tam dung nhac", "tam dung phat nhac",
+            "pause", "pause music", "pause playback",
+            "dung nhac", "dung phat nhac", "ngung nhac", "ngung phat", "stop", "stop music"
+        ) -> NgocSiAiLocalCommand.PAUSE
 
         startsWithAny("bai tiep theo", "nhac tiep theo", "chuyen bai", "chuyen sang bai tiep theo", "sang bai tiep theo",
-            "next", "next song") -> NgocSiAiLocalCommand.NEXT
+            "bai ke tiep", "chuyen sang bai ke tiep", "qua bai tiep",
+            "next", "next song", "next track", "skip", "skip song") -> NgocSiAiLocalCommand.NEXT
 
         startsWithAny("bai truoc", "nhac truoc", "quay lai bai truoc", "tro ve bai truoc",
-            "previous", "previous song") -> NgocSiAiLocalCommand.PREVIOUS
+            "bai truoc do", "tro ve bai vua roi", "quay lai bai vua roi",
+            "previous", "previous song", "previous track") -> NgocSiAiLocalCommand.PREVIOUS
 
         isAnyOf("dang phat bai gi", "bai gi dang phat", "ten bai hat hien tai",
             "bai dang phat la gi", "what is playing", "current song") ->
