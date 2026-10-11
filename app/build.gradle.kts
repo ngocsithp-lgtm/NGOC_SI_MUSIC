@@ -10,7 +10,7 @@ android {
 
     val youtubeApiKey = System.getenv("YOUTUBE_API_KEY").orEmpty()
     val driveApiKey = System.getenv("DRIVE_API_KEY").orEmpty()
-    // Firebase client settings are build-time configuration; Gemini keys stay server-side.
+    // Firebase client settings are build-time configuration; no Gemini API key is embedded.
     val firebaseApiKey = System.getenv("FIREBASE_API_KEY").orEmpty()
     val firebaseProjectId = System.getenv("FIREBASE_PROJECT_ID").orEmpty()
     val firebaseSenderId = System.getenv("FIREBASE_SENDER_ID").orEmpty()
