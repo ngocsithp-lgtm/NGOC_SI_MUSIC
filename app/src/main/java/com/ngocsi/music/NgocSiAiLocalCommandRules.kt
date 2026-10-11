@@ -5,6 +5,7 @@ import java.util.Locale
 
 internal enum class NgocSiAiLocalCommand {
     PLAY,
+    PLAY_SECOND,
     PAUSE,
     NEXT,
     PREVIOUS,
@@ -87,6 +88,13 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
     fun startsWithAny(vararg options: String) = options.any { phrase == it || phrase.startsWith("$it ") }
 
     return when {
+        startsWithAny(
+            "hat bai thu hai trong danh sach", "phat bai thu hai trong danh sach",
+            "phat bai thu hai", "phat bai so hai", "hat bai so hai",
+            "bai thu hai trong danh sach", "bai so hai trong danh sach",
+            "cho phat bai thu hai", "phat bai thu hai trong hang doi"
+        ) -> NgocSiAiLocalCommand.PLAY_SECOND
+
         isAnyOf(
             "phat nhac", "phat nhac di", "phat nhac len",
             "phat bai hat", "phat bai hat di", "nghe bai hat", "nghe bai hat di",
