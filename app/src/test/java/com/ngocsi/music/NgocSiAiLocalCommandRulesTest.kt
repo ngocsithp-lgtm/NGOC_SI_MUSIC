@@ -181,7 +181,6 @@ class NgocSiAiLocalCommandRulesTest {
         assertEquals(NgocSiAiLocalCommand.NEXT, classifyNgocSiAiWakePhrase("Ngọc Sĩ, chuyển bài"))
     }
 
-}
 
     @Test
     fun recognizesNaturalPauseAndShuffleOffPhrasesFromSpeechRecognition() {
@@ -198,7 +197,6 @@ class NgocSiAiLocalCommandRulesTest {
             classifyNgocSiAiLocalCommand("Tắt phát ngẫu nhiên")
         )
     }
-
 
     @Test
     fun recognizesNaturalPhrasesToNavigateToYouTubeWithoutOnlineAI() {
@@ -219,3 +217,5 @@ class NgocSiAiLocalCommandRulesTest {
             classifyNgocSiAiLocalCommand("Ngọc Sĩ, chuyển sang YouTube")
         )
     }
+
+}
