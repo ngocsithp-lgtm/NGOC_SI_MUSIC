@@ -4407,7 +4407,59 @@ class MainActivity : ComponentActivity() {
                         }
 
                         "NGỌC SĨ AI" -> {
-                            NgocSiAiScreen(Modifier.weight(1f))
+                            NgocSiAiScreen(Modifier.weight(1f)) { command ->
+                                when (command) {
+                                    NgocSiAiMusicCommand.OPEN_LIBRARY -> {
+                                        selectedSection = "Thư viện"
+                                        selectedLibrary = "Tất cả"
+                                        libraryView = "Bài hát"
+                                        "Đã mở Thư viện nhạc."
+                                    }
+                                    NgocSiAiMusicCommand.OPEN_YOUTUBE -> {
+                                        selectedSection = "Online"
+                                        onlineHubTab = "YouTube"
+                                        "Đã mở YouTube trong NGỌC SĨ MUSIC."
+                                    }
+                                    NgocSiAiMusicCommand.OPEN_RADIO -> {
+                                        selectedSection = "Radio"
+                                        showVietnamRadioHub = true
+                                        "Đã mở Radio."
+                                    }
+                                    NgocSiAiMusicCommand.OPEN_QUEUE -> {
+                                        showQueue = true
+                                        "Đã mở hàng đợi phát nhạc."
+                                    }
+                                    NgocSiAiMusicCommand.OPEN_PLAYER -> {
+                                        if (currentSong != null || (controller?.mediaItemCount ?: 0) > 0) {
+                                            showNowPlaying = true
+                                            "Đã mở trình phát nhạc."
+                                        } else {
+                                            selectedSection = "Thư viện"
+                                            selectedLibrary = "Tất cả"
+                                            libraryView = "Bài hát"
+                                            "Chưa có bài đang phát. Đã mở Thư viện để bạn chọn bài."
+                                        }
+                                    }
+                                    NgocSiAiMusicCommand.OPEN_TV -> {
+                                        selectedSection = "TV"
+                                        "Đã mở mục TV."
+                                    }
+                                    NgocSiAiMusicCommand.OPEN_DRIVE -> {
+                                        selectedSection = "Online"
+                                        onlineHubTab = "Drive"
+                                        driveSharedStatus = "Mở trung tâm Google Drive"
+                                        "Đã mở mục Google Drive."
+                                    }
+                                    NgocSiAiMusicCommand.OPEN_SETTINGS -> {
+                                        selectedSection = "Cài đặt"
+                                        "Đã mở Cài đặt."
+                                    }
+                                    NgocSiAiMusicCommand.PLAY,
+                                    NgocSiAiMusicCommand.PAUSE,
+                                    NgocSiAiMusicCommand.NEXT,
+                                    NgocSiAiMusicCommand.PREVIOUS -> null
+                                }
+                            }
                         }
 
                         "Online" -> {
