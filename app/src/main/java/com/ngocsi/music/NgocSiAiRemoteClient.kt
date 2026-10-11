@@ -1,6 +1,17 @@
 package com.ngocsi.music
 
 import android.content.Context
+import org.json.JSONArray
+import org.json.JSONObject
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import java.util.concurrent.TimeUnit
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
 import com.google.firebase.appcheck.FirebaseAppCheck
@@ -31,15 +42,18 @@ internal data class NgocSiAiReply(
  * in this Android client; it is held by Firebase Functions Secret Manager.
  */
 internal class NgocSiAiRemoteClient(context: Context) {
-    private val firebaseApp: FirebaseApp? = createFirebaseApp(context.applicationContext)
+    private val workerBaseUrl = BuildConfig.NGOC_SI_AI_WORKER_URL.trim().trimEnd('/')
+    private val firebaseApp: FirebaseApp? =
+        if (workerBaseUrl.isBlank()) createFirebaseApp(context.applicationContext) else null
+    private val httpClient = OkHttpClient.Builder()
+        .callTimeout(30, TimeUnit.SECONDS)
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .build()
 
     val isConfigured: Boolean
-        get() = firebaseApp != null
+        get() = workerBaseUrl.isNotBlank() || firebaseApp != null
 
     suspend fun send(messages: List<NgocSiAiMessage>): NgocSiAiReply {
-        val app = firebaseApp
-            ?: throw NgocSiAiRemoteException("Firebase chưa được cấu hình cho bản thử này.")
-
         val history = try {
             normalizeNgocSiAiHistory(messages)
         } catch (error: IllegalArgumentException) {
@@ -47,6 +61,13 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 error.message ?: "Lịch sử trò chuyện không hợp lệ. Hãy thử một câu hỏi ngắn hơn."
             )
         }
+        if (workerBaseUrl.isNotBlank()) {
+            return sendViaFreeWorker(history)
+        }
+
+        val app = firebaseApp
+            ?: throw NgocSiAiRemoteException("Chưa cấu hình máy chủ AI trực tuyến.")
+
         val auth = FirebaseAuth.getInstance(app)
         try {
             if (auth.currentUser == null) {
@@ -107,6 +128,55 @@ internal class NgocSiAiRemoteClient(context: Context) {
             remainingToday = (response["remainingToday"] as? Number)?.toInt(),
             remainingGlobalToday = (response["remainingGlobalToday"] as? Number)?.toInt()
         )
+    }
+
+    private suspend fun sendViaFreeWorker(history: List<NgocSiAiMessage>): NgocSiAiReply {
+        val body = JSONObject().put(
+            "messages",
+            JSONArray().apply {
+                history.forEach { message ->
+                    put(JSONObject().put("role", message.role).put("content", message.content))
+                }
+            }
+        ).toString()
+        val request = Request.Builder()
+            .url("$workerBaseUrl/v1/chat")
+            .post(body.toRequestBody("application/json; charset=utf-8".toMediaType()))
+            .header("Accept", "application/json")
+            .build()
+
+        return try {
+            withContext(Dispatchers.IO) {
+                httpClient.newCall(request).execute().use { response ->
+                    val payload = runCatching {
+                        JSONObject(response.body?.string().orEmpty())
+                    }.getOrElse { JSONObject() }
+                    if (!response.isSuccessful) {
+                        val message = payload.optString("error").takeIf { it.isNotBlank() }
+                            ?: when (response.code) {
+                                429 -> "Đã chạm hạn mức miễn phí. Hãy thử lại sau."
+                                else -> "Máy chủ AI tạm thời gặp lỗi. Hãy thử lại sau."
+                            }
+                        throw NgocSiAiRemoteException(message)
+                    }
+                    val answer = payload.optString("answer").trim()
+                    if (answer.isBlank()) {
+                        throw NgocSiAiRemoteException("Máy chủ AI chưa trả lời được. Vui lòng thử lại.")
+                    }
+                    NgocSiAiReply(
+                        answer = answer,
+                        remainingToday = payload.optInt("remainingToday", -1).takeIf { it >= 0 },
+                        remainingGlobalToday = payload.optInt("remainingGlobalToday", -1).takeIf { it >= 0 }
+                    )
+                }
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: NgocSiAiRemoteException) {
+            throw error
+        } catch (_: Exception) {
+            throw NgocSiAiRemoteException("Không kết nối được máy chủ AI miễn phí. Hãy kiểm tra Internet.")
+        }
     }
 
     private fun createFirebaseApp(context: Context): FirebaseApp? {
