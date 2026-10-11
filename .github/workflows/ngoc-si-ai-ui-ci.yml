@@ -37,6 +37,7 @@ jobs:
       FIREBASE_SENDER_ID: ${{ secrets.FIREBASE_SENDER_ID }}
       FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
       FIREBASE_DEBUG_APP_ID: ${{ secrets.FIREBASE_DEBUG_APP_ID }}
+      NGOC_SI_AI_WORKER_URL: ${{ vars.NGOC_SI_AI_WORKER_URL }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
