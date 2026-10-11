@@ -4454,6 +4454,46 @@ class MainActivity : ComponentActivity() {
                                         selectedSection = "Cài đặt"
                                         "Đã mở Cài đặt."
                                     }
+                                    NgocSiAiMusicCommand.OPEN_SLEEP_TIMER -> {
+                                        showSleepTimer = true
+                                        "Đã mở cài đặt hẹn giờ tắt nhạc."
+                                    }
+                                    NgocSiAiMusicCommand.CANCEL_SLEEP_TIMER -> {
+                                        startSleepTimer(0)
+                                        "Đã hủy hẹn giờ tắt nhạc."
+                                    }
+                                    NgocSiAiMusicCommand.SET_SLEEP_TIMER_5 -> {
+                                        startSleepTimer(5)
+                                        "Đã hẹn giờ tắt nhạc sau 5 phút."
+                                    }
+                                    NgocSiAiMusicCommand.SET_SLEEP_TIMER_10 -> {
+                                        startSleepTimer(10)
+                                        "Đã hẹn giờ tắt nhạc sau 10 phút."
+                                    }
+                                    NgocSiAiMusicCommand.SET_SLEEP_TIMER_15 -> {
+                                        startSleepTimer(15)
+                                        "Đã hẹn giờ tắt nhạc sau 15 phút."
+                                    }
+                                    NgocSiAiMusicCommand.SET_SLEEP_TIMER_20 -> {
+                                        startSleepTimer(20)
+                                        "Đã hẹn giờ tắt nhạc sau 20 phút."
+                                    }
+                                    NgocSiAiMusicCommand.SET_SLEEP_TIMER_30 -> {
+                                        startSleepTimer(30)
+                                        "Đã hẹn giờ tắt nhạc sau 30 phút."
+                                    }
+                                    NgocSiAiMusicCommand.SET_SLEEP_TIMER_45 -> {
+                                        startSleepTimer(45)
+                                        "Đã hẹn giờ tắt nhạc sau 45 phút."
+                                    }
+                                    NgocSiAiMusicCommand.SET_SLEEP_TIMER_60 -> {
+                                        startSleepTimer(60)
+                                        "Đã hẹn giờ tắt nhạc sau 60 phút."
+                                    }
+                                    NgocSiAiMusicCommand.SET_SLEEP_TIMER_90 -> {
+                                        startSleepTimer(90)
+                                        "Đã hẹn giờ tắt nhạc sau 90 phút."
+                                    }
                                     NgocSiAiMusicCommand.PLAY,
                                     NgocSiAiMusicCommand.PAUSE,
                                     NgocSiAiMusicCommand.NEXT,
