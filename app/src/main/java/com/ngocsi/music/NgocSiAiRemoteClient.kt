@@ -41,15 +41,15 @@ internal data class NgocSiAiReply(
  */
 internal class NgocSiAiRemoteClient(context: Context) {
     private val workerBaseUrl = BuildConfig.NGOC_SI_AI_WORKER_URL.trim().trimEnd('/')
-    private val firebaseApp: FirebaseApp? =
-        if (workerBaseUrl.isBlank()) createFirebaseApp(context.applicationContext) else null
+    // Both Firebase auth and App Check are required even when routing through the Worker.
+    private val firebaseApp: FirebaseApp? = createFirebaseApp(context.applicationContext)
     private val httpClient = OkHttpClient.Builder()
         .callTimeout(30, TimeUnit.SECONDS)
         .connectTimeout(10, TimeUnit.SECONDS)
         .build()
 
     val isConfigured: Boolean
-        get() = workerBaseUrl.isNotBlank() || firebaseApp != null
+        get() = firebaseApp != null
 
     suspend fun send(messages: List<NgocSiAiMessage>): NgocSiAiReply {
         val history = try {
@@ -59,12 +59,26 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 error.message ?: "Lịch sử trò chuyện không hợp lệ. Hãy thử một câu hỏi ngắn hơn."
             )
         }
-        if (workerBaseUrl.isNotBlank()) {
-            return sendViaFreeWorker(history)
-        }
-
         val app = firebaseApp
-            ?: throw NgocSiAiRemoteException("Chưa cấu hình máy chủ AI trực tuyến.")
+            ?: throw NgocSiAiRemoteException("Chưa cấu hình Firebase Auth và App Check cho bản thử nghiệm.")
+
+        if (workerBaseUrl.isNotBlank()) {
+            val auth = FirebaseAuth.getInstance(app)
+            try {
+                if (auth.currentUser == null) auth.signInAnonymously().await()
+                val idToken = auth.currentUser?.getIdToken(false)?.await()?.token
+                    ?: throw NgocSiAiRemoteException("Chưa lấy được token xác thực Firebase.")
+                val appCheckToken = FirebaseAppCheck.getInstance(app).getAppCheckToken(false).await().token
+                if (appCheckToken.isBlank()) throw NgocSiAiRemoteException("Chưa lấy được token xác minh App Check.")
+                return sendViaFreeWorker(history, idToken, appCheckToken)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: NgocSiAiRemoteException) {
+                throw error
+            } catch (_: Exception) {
+                throw NgocSiAiRemoteException("Không thể xác thực Firebase/App Check. Hãy kiểm tra cấu hình ứng dụng thử nghiệm.")
+            }
+        }
 
         val auth = FirebaseAuth.getInstance(app)
         try {
@@ -128,7 +142,11 @@ internal class NgocSiAiRemoteClient(context: Context) {
         )
     }
 
-    private suspend fun sendViaFreeWorker(history: List<NgocSiAiMessage>): NgocSiAiReply {
+    private suspend fun sendViaFreeWorker(
+        history: List<NgocSiAiMessage>,
+        idToken: String,
+        appCheckToken: String
+    ): NgocSiAiReply {
         val body = JSONObject().put(
             "messages",
             JSONArray().apply {
@@ -141,6 +159,8 @@ internal class NgocSiAiRemoteClient(context: Context) {
             .url("$workerBaseUrl/v1/chat")
             .post(body.toRequestBody("application/json; charset=utf-8".toMediaType()))
             .header("Accept", "application/json")
+            .header("Authorization", "Bearer $idToken")
+            .header("X-Firebase-AppCheck", appCheckToken)
             .build()
 
         return try {
