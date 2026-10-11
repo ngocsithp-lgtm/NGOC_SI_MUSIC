@@ -2,7 +2,7 @@
 
 ## Chosen architecture
 
-Use Firebase Cloud Functions (2nd gen) in `asia-southeast1`, Firebase Anonymous Authentication, Firebase App Check, Firestore daily quotas, and Google Gemini Developer API. The Android APK calls the Firebase callable function; it must never contain a Gemini API key.
+Target secure architecture: Firebase Cloud Functions (2nd gen) in `asia-southeast1`, Firebase Anonymous Authentication, Firebase App Check, Firestore daily quotas, and Google Gemini Developer API. The Android feature branch now contains an opt-in callable client; it stays disabled by default until the backend prerequisites below are deployed and verified. The Android APK must never contain a Gemini API key.
 
 The server targets stable Gemini 3.5 Flash-Lite (`gemini-3.5-flash-lite`), which Google's current model guidance recommends for new projects. The official pricing page currently lists a free tier for standard model input/output; rates, access, per-project quotas, and data-use terms can change. Review current terms and limits in Google AI Studio before enabling any requests. Google may use free-tier content to improve its products, so do not send sensitive personal information. The app still uses Firebase Cloud Functions for the proxy, which requires the Blaze (pay-as-you-go) plan; no deployment or billing change has been performed. Sources: https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite and https://ai.google.dev/gemini-api/docs/pricing and https://firebase.google.com/docs/functions/quotas
 
