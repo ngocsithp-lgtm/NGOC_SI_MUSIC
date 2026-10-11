@@ -60,7 +60,7 @@ The function is not deployed. CI does not deploy it and does not make external G
 
 ## Android integration design
 
-Add Firebase Auth, Firebase Functions, and App Check SDKs to Android only after the Firebase project configuration is available. Add a dedicated NGỌC SĨ AI screen and call the callable function through Firebase SDK. Voice input should use Android speech recognition as an opt-in microphone action; send recognized text only after the user taps send. Music actions must map locally through an allowlisted intent layer (play/pause/next/previous/sleep timer), never execute arbitrary AI-generated commands. Do not change existing playback, Drive, Radio, TV, or release behavior in the first integration step.
+The secure callable backend is not yet deployed or wired to the Android screen. Do not switch the working chat UI to the callable until Firebase Anonymous Authentication, App Check, the Secret Manager key, and deployment prerequisites are verified. The current feature branch has a local allowlist for play/pause/next/previous and navigation to Library, YouTube, Radio, queue, player, TV, Drive, and Settings. Speech recognition executes only a recognized allowlisted command immediately; ordinary spoken questions populate the input field and still require the user to tap Send. This local command parser must never execute arbitrary AI-generated instructions. The sleep timer is not yet exposed as an AI command. Keep the work on the feature branch and do not merge/build a release APK before backend and on-device checks pass.
 
 ## CI and release policy
 
@@ -75,7 +75,9 @@ This section takes precedence over the proposed architecture above when describi
 - `NgocSiMusicApplication.kt` installs the App Check debug provider for debug builds and Play Integrity for non-debug builds.
 - `functions/src/index.ts` contains the separate callable backend with Secret Manager and server-side quotas, but the Android screen does **not** call that function yet.
 - The callable function has **not** been deployed. Therefore its 10-per-user and 50-global daily limits do **not** apply to the current direct-from-app chat screen.
-- CI success proves the checked source compiles/tests under the workflow; it does not prove a real Gemini response on the phone.
+- The allowlisted command layer now controls Media3 playback (play, pause, next, previous) and opens supported in-app sections (Library, YouTube, Radio, queue, player, TV, Drive, Settings).
+- Voice recognition immediately submits only a locally recognized allowlisted command. Other recognized speech remains editable in the prompt field and is not sent until the user taps Send.
+- CI success proves the checked source compiles/tests under the workflow; it does not prove a real Gemini response, Vietnamese TTS playback, speech recognition accuracy, or command execution on the user's phone.
 - Do not merge this branch, build a release APK, enable production App Check enforcement, or enable billing as part of this verification step.
 
 ## Next verification gate — no APK build
