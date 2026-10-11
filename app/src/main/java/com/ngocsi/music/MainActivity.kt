@@ -737,8 +737,8 @@ class MainActivity : ComponentActivity() {
             }
             "drive" -> {
                 selectedSection = "Online"
-                onlineHubTab = "Tất cả"
-                errorMessage = "Google Drive: chọn File Drive hoặc Thư mục để nhập nhạc."
+                // Match the actual Drive navigation tile; don't send voice users to "All".
+                onlineHubTab = "Drive"
             }
             "radio" -> {
                 selectedSection = "Radio"
