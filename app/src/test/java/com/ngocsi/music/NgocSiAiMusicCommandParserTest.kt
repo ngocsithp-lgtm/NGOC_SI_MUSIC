@@ -46,6 +46,20 @@ class NgocSiAiMusicCommandParserTest {
     }
 
     @Test
+    fun parsesSleepTimerPresetsAndCancelCommand() {
+        assertEquals(NgocSiAiMusicCommand.SET_SLEEP_TIMER_5, NgocSiAiMusicCommandParser.parse("Hẹn giờ tắt nhạc sau 5 phút"))
+        assertEquals(NgocSiAiMusicCommand.SET_SLEEP_TIMER_10, NgocSiAiMusicCommandParser.parse("Hẹn giờ tắt nhạc 10 phút"))
+        assertEquals(NgocSiAiMusicCommand.SET_SLEEP_TIMER_15, NgocSiAiMusicCommandParser.parse("Hẹn giờ sau 15 phút"))
+        assertEquals(NgocSiAiMusicCommand.SET_SLEEP_TIMER_20, NgocSiAiMusicCommandParser.parse("Tắt nhạc sau 20 phút"))
+        assertEquals(NgocSiAiMusicCommand.SET_SLEEP_TIMER_30, NgocSiAiMusicCommandParser.parse("Hẹn giờ tắt nhạc trong 30 phút"))
+        assertEquals(NgocSiAiMusicCommand.SET_SLEEP_TIMER_45, NgocSiAiMusicCommandParser.parse("sleep timer 45"))
+        assertEquals(NgocSiAiMusicCommand.SET_SLEEP_TIMER_60, NgocSiAiMusicCommandParser.parse("Hẹn giờ tắt nhạc 60 phút"))
+        assertEquals(NgocSiAiMusicCommand.SET_SLEEP_TIMER_90, NgocSiAiMusicCommandParser.parse("sleep timer 90"))
+        assertEquals(NgocSiAiMusicCommand.CANCEL_SLEEP_TIMER, NgocSiAiMusicCommandParser.parse("Hủy hẹn giờ"))
+        assertEquals(NgocSiAiMusicCommand.OPEN_SLEEP_TIMER, NgocSiAiMusicCommandParser.parse("Mở hẹn giờ tắt nhạc"))
+    }
+
+    @Test
     fun doesNotExecuteCommandsMentionedAsQuestionsOrInMiddleOfText() {
         assertNull(NgocSiAiMusicCommandParser.parse("Làm sao để tạm dừng nhạc?"))
         assertNull(NgocSiAiMusicCommandParser.parse("Tôi đang nghe nhạc, hãy tạm dừng"))
