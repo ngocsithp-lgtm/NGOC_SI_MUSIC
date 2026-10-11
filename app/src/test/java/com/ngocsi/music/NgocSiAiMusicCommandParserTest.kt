@@ -35,6 +35,17 @@ class NgocSiAiMusicCommandParserTest {
     }
 
     @Test
+    fun parsesShuffleAndRepeatCommands() {
+        assertEquals(NgocSiAiMusicCommand.SHUFFLE_ON, NgocSiAiMusicCommandParser.parse("Bật phát ngẫu nhiên"))
+        assertEquals(NgocSiAiMusicCommand.SHUFFLE_OFF, NgocSiAiMusicCommandParser.parse("Tắt xáo trộn"))
+        assertEquals(NgocSiAiMusicCommand.REPEAT_ONE, NgocSiAiMusicCommandParser.parse("Lặp lại bài này"))
+        assertEquals(NgocSiAiMusicCommand.REPEAT_ALL, NgocSiAiMusicCommandParser.parse("Lặp lại toàn bộ"))
+        assertEquals(NgocSiAiMusicCommand.REPEAT_OFF, NgocSiAiMusicCommandParser.parse("Tắt lặp lại"))
+        assertEquals(NgocSiAiMusicCommand.SHUFFLE_ON, NgocSiAiMusicCommandParser.parse("shuffle"))
+        assertEquals(NgocSiAiMusicCommand.REPEAT_ONE, NgocSiAiMusicCommandParser.parse("repeat one"))
+    }
+
+    @Test
     fun doesNotExecuteCommandsMentionedAsQuestionsOrInMiddleOfText() {
         assertNull(NgocSiAiMusicCommandParser.parse("Làm sao để tạm dừng nhạc?"))
         assertNull(NgocSiAiMusicCommandParser.parse("Tôi đang nghe nhạc, hãy tạm dừng"))
