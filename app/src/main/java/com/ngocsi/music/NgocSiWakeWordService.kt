@@ -410,6 +410,8 @@ class NgocSiWakeWordService : Service() {
 
     override fun onDestroy() {
         stopping = true
+        awaitingCommand = false
+        awaitingCommandUntilMillis = 0L
         mainHandler.removeCallbacksAndMessages(null)
         runCatching { speechRecognizer?.cancel() }
         runCatching { speechRecognizer?.destroy() }
