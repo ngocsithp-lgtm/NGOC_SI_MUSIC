@@ -1069,7 +1069,11 @@ private fun NgocSiAiPreviewScreen(
                 onVoiceReply(reply.answer)
                 val userRemaining = reply.remainingToday?.let { "Còn $it lượt/tài khoản hôm nay" }
                 val globalRemaining = reply.remainingGlobalToday?.let { "Còn $it lượt toàn hệ thống hôm nay" }
-                quotaNote = listOfNotNull(userRemaining, globalRemaining).joinToString(" • ")
+                quotaNote = if (reply.usedFallbackModel) {
+                    "Đã tự chuyển sang Gemini 3.1 Flash-Lite dự phòng do model chính bị giới hạn."
+                } else {
+                    listOfNotNull(userRemaining, globalRemaining).joinToString(" • ")
+                }
             } catch (cancelled: CancellationException) {
                 if (conversation.lastOrNull() == userTurn) conversation.removeAt(conversation.lastIndex)
                 persistChatState()

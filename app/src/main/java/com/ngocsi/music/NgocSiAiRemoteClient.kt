@@ -23,7 +23,8 @@ internal data class NgocSiAiMessage(
 internal data class NgocSiAiReply(
     val answer: String,
     val remainingToday: Int? = null,
-    val remainingGlobalToday: Int? = null
+    val remainingGlobalToday: Int? = null,
+    val usedFallbackModel: Boolean = false
 )
 
 /**
@@ -71,24 +72,52 @@ internal class NgocSiAiRemoteClient(context: Context) {
             // Obtain a fresh limited-use App Check token for each request. This is
             // compatible with Firebase AI Logic replay-protection monitoring and
             // avoids reusing the same cached token across model requests.
-            val model = FirebaseAI.getInstance(
+            val firebaseAi = FirebaseAI.getInstance(
                 app,
                 GenerativeBackend.googleAI(),
                 /* useLimitedUseAppCheckTokens = */ true
-            ).generativeModel(
-                    modelName = MODEL_NAME,
+            )
+            val primaryCoolingDown = isPrimaryModelCoolingDown()
+            var usedFallbackModel = primaryCoolingDown
+            val response = if (primaryCoolingDown) {
+                // The primary model previously reported a model-specific quota/capacity limit.
+                // Use another documented no-cost Gemini Developer API model without probing
+                // the exhausted model on every subsequent message.
+                firebaseAi.generativeModel(
+                    modelName = FALLBACK_MODEL_NAME,
                     generationConfig = RESPONSE_GENERATION_CONFIG,
-                    systemInstruction = content {
-                        text(SYSTEM_INSTRUCTIONS)
-                    }
-                )
-            val chat = model.startChat(history = previousTurns)
-            val response = chat.sendMessage(newestUserMessage.content)
+                    systemInstruction = content { text(SYSTEM_INSTRUCTIONS) }
+                ).startChat(history = previousTurns).sendMessage(newestUserMessage.content)
+            } else {
+                try {
+                    firebaseAi.generativeModel(
+                        modelName = MODEL_NAME,
+                        generationConfig = RESPONSE_GENERATION_CONFIG,
+                        systemInstruction = content { text(SYSTEM_INSTRUCTIONS) }
+                    ).startChat(history = previousTurns).sendMessage(newestUserMessage.content)
+                } catch (primaryError: CancellationException) {
+                    throw primaryError
+                } catch (primaryError: Exception) {
+                    val details = generateSequence<Throwable>(primaryError) { it.cause }
+                        .take(6)
+                        .joinToString(" ") { it.message.orEmpty() }
+                    if (!shouldTryNgocSiAiFallbackModel(details)) throw primaryError
+
+                    val safePrimaryMessage = toSafeMessage(primaryError)
+                    persistPrimaryModelCooldownIfNeeded(safePrimaryMessage)
+                    usedFallbackModel = true
+                    firebaseAi.generativeModel(
+                        modelName = FALLBACK_MODEL_NAME,
+                        generationConfig = RESPONSE_GENERATION_CONFIG,
+                        systemInstruction = content { text(SYSTEM_INSTRUCTIONS) }
+                    ).startChat(history = previousTurns).sendMessage(newestUserMessage.content)
+                }
+            }
             val answer = response.text?.trim()
             if (answer.isNullOrBlank()) {
                 throw NgocSiAiRemoteException("Firebase AI Logic chưa trả về câu trả lời. Vui lòng thử lại.")
             }
-            NgocSiAiReply(answer = answer)
+            NgocSiAiReply(answer = answer, usedFallbackModel = usedFallbackModel)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: NgocSiAiRemoteException) {
@@ -98,6 +127,26 @@ internal class NgocSiAiRemoteClient(context: Context) {
             persistQuotaCooldownIfNeeded(safeMessage)
             throw NgocSiAiRemoteException(safeMessage)
         }
+    }
+
+    private fun isPrimaryModelCoolingDown(): Boolean {
+        val until = quotaPreferences.getLong(KEY_PRIMARY_MODEL_COOLDOWN_UNTIL, 0L)
+        val now = System.currentTimeMillis()
+        if (until <= now) {
+            quotaPreferences.edit()
+                .remove(KEY_PRIMARY_MODEL_COOLDOWN_UNTIL)
+                .apply()
+            return false
+        }
+        return true
+    }
+
+    private fun persistPrimaryModelCooldownIfNeeded(message: String) {
+        val kind = classifyNgocSiAiQuotaCooldown(message) ?: return
+        val until = ngocSiAiQuotaCooldownUntilMillis(kind, System.currentTimeMillis())
+        quotaPreferences.edit()
+            .putLong(KEY_PRIMARY_MODEL_COOLDOWN_UNTIL, until)
+            .apply()
     }
 
     private fun activeQuotaCooldownMessage(): String? {
@@ -233,10 +282,12 @@ internal class NgocSiAiRemoteClient(context: Context) {
         private const val QUOTA_PREFERENCES = "ngoc_si_ai_quota_cooldown"
         private const val KEY_QUOTA_COOLDOWN_UNTIL = "cooldown_until_millis"
         private const val KEY_QUOTA_COOLDOWN_KIND = "cooldown_kind"
+        private const val KEY_PRIMARY_MODEL_COOLDOWN_UNTIL = "primary_model_cooldown_until_millis"
         private const val EXPECTED_FIREBASE_PROJECT_ID = "ngoc-si-music-ai"
-        // Flash-Lite is the documented Gemini Developer API model for no-cost Firebase use.
+        // Both stable Flash-Lite models are available via the no-cost Gemini Developer API tier.
         // Bound output and thinking so routine chat consumes fewer tokens per response.
         private const val MODEL_NAME = "gemini-3.5-flash-lite"
+        private const val FALLBACK_MODEL_NAME = "gemini-3.1-flash-lite"
         private const val MAX_OUTPUT_TOKENS = 512
         private val RESPONSE_GENERATION_CONFIG = generationConfig {
             maxOutputTokens = MAX_OUTPUT_TOKENS

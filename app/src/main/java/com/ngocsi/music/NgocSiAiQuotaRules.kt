@@ -44,6 +44,22 @@ private fun nextProviderDailyReset(nowMillis: Long, zone: ZoneId): Long {
     return nextDay.atStartOfDay(zone).toInstant().toEpochMilli()
 }
 
+/**
+ * Try the alternate model for quota/capacity failures, but don't send a second
+ * request when the provider explicitly reports a per-minute throttle.
+ */
+internal fun shouldTryNgocSiAiFallbackModel(errorDetails: String): Boolean {
+    val details = errorDetails.lowercase()
+    val minuteLimit = listOf(
+        "perminute", "per_minute", "requests per minute", "tokens per minute",
+        "requestsperminute", "tokensperminute", "rpm limit"
+    ).any { it in details }
+    val quotaOrCapacity = listOf(
+        "429", "resource_exhausted", "quota", "too many requests", "overloaded", "capacity"
+    ).any { it in details }
+    return quotaOrCapacity && !minuteLimit
+}
+
 internal fun ngocSiAiQuotaCooldownNotice(
     kind: NgocSiAiQuotaCooldownKind,
     remainingMillis: Long

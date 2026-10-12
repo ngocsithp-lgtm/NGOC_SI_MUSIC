@@ -63,4 +63,26 @@ class NgocSiAiQuotaRulesTest {
         org.junit.Assert.assertTrue(message.contains("Lệnh nhạc trên thiết bị vẫn hoạt động"))
         org.junit.Assert.assertTrue(message.contains("AI_QUOTA_COOLDOWN"))
     }
+    @Test
+    fun onlyTriesFallbackForQuotaErrorsAndNotExplicitPerMinuteThrottles() {
+        org.junit.Assert.assertTrue(
+            shouldTryNgocSiAiFallbackModel("HTTP 429 RESOURCE_EXHAUSTED: free tier quota")
+        )
+        org.junit.Assert.assertTrue(
+            shouldTryNgocSiAiFallbackModel("Daily quota has been exceeded for this model")
+        )
+        org.junit.Assert.assertTrue(
+            shouldTryNgocSiAiFallbackModel("The model is overloaded; HTTP 429")
+        )
+        org.junit.Assert.assertFalse(
+            shouldTryNgocSiAiFallbackModel("429: too many requests per minute")
+        )
+        org.junit.Assert.assertFalse(
+            shouldTryNgocSiAiFallbackModel("HTTP 401 UNAUTHENTICATED")
+        )
+        org.junit.Assert.assertFalse(
+            shouldTryNgocSiAiFallbackModel("Network timeout")
+        )
+    }
+
 }
