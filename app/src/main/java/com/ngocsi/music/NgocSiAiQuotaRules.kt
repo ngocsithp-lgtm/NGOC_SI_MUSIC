@@ -110,20 +110,32 @@ internal fun isAmbiguousNgocSiAiProjectQuotaError(message: String): Boolean {
 }
 
 /**
- * An explicit per-minute throttle should not trigger a second model request;
- * quota/capacity errors for other windows may be recoverable with the fallback.
- */
-/**
- * Try the alternate model for quota/capacity failures, but don't send a second
- * request when the provider explicitly reports a per-minute throttle.
+ * Use the alternate model only when there is a plausible model-specific quota or
+ * capacity issue. A generic project-quota response must not trigger a second call:
+ * it is unlikely to help and can consume another request from the same project.
  */
 internal fun shouldTryNgocSiAiFallbackModel(errorDetails: String): Boolean {
+    if (isAmbiguousNgocSiAiProjectQuotaError(errorDetails)) return false
+
     return when (classifyNgocSiAiQuotaErrorDetails(errorDetails)) {
         NgocSiAiQuotaCooldownKind.RATE,
         NgocSiAiQuotaCooldownKind.PAID_TIER -> false
         NgocSiAiQuotaCooldownKind.DAILY,
-        NgocSiAiQuotaCooldownKind.FREE_TIER,
-        NgocSiAiQuotaCooldownKind.TEMPORARY -> true
+        NgocSiAiQuotaCooldownKind.FREE_TIER -> true
+        NgocSiAiQuotaCooldownKind.TEMPORARY -> {
+            val details = errorDetails.lowercase(java.util.Locale.ROOT)
+            // Only retry a different model for explicit capacity/overload signals.
+            // A bare 429/quota error is not enough evidence that fallback will help.
+            val hasCapacitySignal = listOf(
+                "overloaded", "capacity", "model is busy",
+                "temporarily unavailable", "service unavailable"
+            ).any { it in details }
+            val hasGenericQuotaSignal = listOf(
+                "resource_exhausted", "too many requests", "too_many_requests",
+                "quota exceeded", "current quota"
+            ).any { it in details }
+            hasCapacitySignal && !hasGenericQuotaSignal
+        }
         null -> false
     }
 }
