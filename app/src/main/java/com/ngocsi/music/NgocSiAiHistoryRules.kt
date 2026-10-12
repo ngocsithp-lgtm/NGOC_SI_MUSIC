@@ -1,8 +1,9 @@
 package com.ngocsi.music
 
-internal const val NGOC_SI_AI_MAX_HISTORY_MESSAGES = 6
+internal const val NGOC_SI_AI_MAX_HISTORY_MESSAGES = 4
 internal const val NGOC_SI_AI_MAX_MESSAGE_CHARS = 2_000
-internal const val NGOC_SI_AI_MAX_TOTAL_CHARS = 4_000
+internal const val NGOC_SI_AI_MAX_TOTAL_CHARS = 3_000
+internal const val NGOC_SI_AI_MAX_CONTEXT_MESSAGE_CHARS = 1_000
 
 /**
  * Restores only completed user/assistant turns from persisted chat context.
@@ -57,7 +58,12 @@ internal fun normalizeNgocSiAiHistory(
         }
         // Earlier assistant answers can be longer than the server's input limit.
         // Clip historical context, never the newest user message.
-        message.copy(content = content.take(NGOC_SI_AI_MAX_MESSAGE_CHARS))
+        message.copy(
+            content = content.take(
+                if (index == selected.lastIndex) NGOC_SI_AI_MAX_MESSAGE_CHARS
+                else NGOC_SI_AI_MAX_CONTEXT_MESSAGE_CHARS
+            )
+        )
     }
 
     if (history.firstOrNull()?.role == "assistant") {
