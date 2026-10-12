@@ -222,35 +222,18 @@ internal class NgocSiAiRemoteClient(context: Context) {
             .find(details)
             ?.value
 
-        val quotaError = "429" in details || "resource_exhausted" in details ||
-            "quota" in details || "rate limit" in details
-        val dailyQuota = listOf(
-            "perday", "per_day", "requests per day", "tokens per day",
-            "requestsperday", "tokensperday"
-        ).any { it in details }
-        val minuteQuota = listOf(
-            "perminute", "per_minute", "requests per minute", "tokens per minute",
-            "requestsperminute", "tokensperminute"
-        ).any { it in details }
-        val paidTierRequired = listOf(
-            "paid tier", "billing account required", "billing must be enabled",
-            "not available on free tier", "upgrade your plan"
-        ).any { it in details }
-        val freeTierQuota = listOf(
-            "generate_content_free_tier", "free_tier", "free tier quota",
-            "free-tier quota", "limit: 0"
-        ).any { it in details }
+        val quotaKind = classifyNgocSiAiQuotaErrorDetails(details)
 
         return when {
-            quotaError && dailyQuota ->
+            quotaKind == NgocSiAiQuotaCooldownKind.DAILY ->
                 "Hạn mức AI trong ngày đã hết. Mã chẩn đoán: AI_QUOTA_429_DAILY. Không cần gửi lại liên tục; hãy chờ hạn mức được làm mới."
-            quotaError && minuteQuota ->
+            quotaKind == NgocSiAiQuotaCooldownKind.RATE ->
                 "Bạn đã chạm giới hạn yêu cầu trong thời gian ngắn. Mã chẩn đoán: AI_QUOTA_429_RATE. Hãy chờ trước khi hỏi tiếp."
-            quotaError && paidTierRequired ->
+            quotaKind == NgocSiAiQuotaCooldownKind.PAID_TIER ->
                 "Mô hình hoặc tính năng này yêu cầu gói trả phí. Mã chẩn đoán: AI_QUOTA_429_PAID_TIER. Bản Preview vẫn giữ chế độ không thanh toán."
-            quotaError && freeTierQuota ->
+            quotaKind == NgocSiAiQuotaCooldownKind.FREE_TIER ->
                 "Hạn mức miễn phí của mô hình Gemini có thể đã hết. Mã chẩn đoán: AI_QUOTA_429_FREE_TIER. Không gửi lại liên tục; ứng dụng vẫn giữ chế độ không thanh toán."
-            quotaError ->
+            quotaKind == NgocSiAiQuotaCooldownKind.TEMPORARY ->
                 "Hạn mức AI có thể đã hết hoặc mô hình đang quá tải. Mã chẩn đoán: AI_QUOTA_429. Tránh gửi lặp; hãy thử lại sau."
             "app check" in details || "attestation" in details ->
                 "App Check chưa xác minh được ứng dụng thử. Mã chẩn đoán: APP_CHECK_TOKEN. Cần kiểm tra debug token của đúng APK."
