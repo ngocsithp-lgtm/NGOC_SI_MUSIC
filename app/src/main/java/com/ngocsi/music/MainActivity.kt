@@ -5222,7 +5222,7 @@ class MainActivity : ComponentActivity() {
                 .padding(horizontal = 6.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(Modifier.size(58.dp).clip(RoundedCornerShape(10.dp))) {
+            Box(Modifier.size(62.dp).clip(RoundedCornerShape(11.dp))) {
                 SongArtwork(song, Modifier.fillMaxSize())
                 if (selected) {
                     Box(Modifier.fillMaxSize().background(Color(0x99000000)), contentAlignment = Alignment.Center) {
@@ -5270,7 +5270,7 @@ class MainActivity : ComponentActivity() {
             }
             Spacer(Modifier.width(7.dp))
             Column(horizontalAlignment = Alignment.End) {
-                Text(formatTime(shownDuration), color = Color(0xFF777986), fontSize = 9.sp)
+                Text(formatTime(shownDuration), color = Color(0xFF9AA2B2), fontSize = 10.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                     SongActionButton("＋") { addToQueue(song) }
                     SongActionButton(
@@ -5347,20 +5347,20 @@ class MainActivity : ComponentActivity() {
                     Text(
                         "THƯ VIỆN",
                         color = Color.White,
-                        fontSize = 12.sp,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Black,
                         letterSpacing = 1.2.sp
                     )
                     Text(
                         "Chọn nguồn để mở thư viện riêng",
-                        color = Color(0xFF777D8D),
-                        fontSize = 9.sp
+                        color = Color(0xFF9AA2B2),
+                        fontSize = 11.sp
                     )
                 }
                 Text(
                     "${sourceNames.size} nguồn",
-                    color = Color(0xFF777D8D),
-                    fontSize = 10.sp
+                    color = Color(0xFF9AA2B2),
+                    fontSize = 11.sp
                 )
             }
 
@@ -5379,7 +5379,7 @@ class MainActivity : ComponentActivity() {
                         label = {
                             Text(
                                 filter,
-                                fontSize = 11.sp,
+                                fontSize = 12.sp,
                                 fontWeight = if (selectedLibrary == filter) FontWeight.Bold else FontWeight.Medium
                             )
                         },
@@ -5415,7 +5415,7 @@ class MainActivity : ComponentActivity() {
                             icon = if (isDrive) "☁" else "♫",
                             selected = selectedLibrary == source,
                             onClick = { selectedLibrary = source },
-                            modifier = Modifier.width(132.dp)
+                            modifier = Modifier.width(148.dp)
                         )
                     }
                 }
@@ -5445,7 +5445,7 @@ class MainActivity : ComponentActivity() {
     ) {
         Surface(
             modifier = modifier
-                .height(54.dp)
+                .height(62.dp)
                 .clip(RoundedCornerShape(15.dp))
                 .clickable(onClick = onClick),
             shape = RoundedCornerShape(15.dp),
@@ -5462,7 +5462,7 @@ class MainActivity : ComponentActivity() {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Surface(
-                    modifier = Modifier.size(32.dp),
+                    modifier = Modifier.size(36.dp),
                     shape = RoundedCornerShape(10.dp),
                     color = if (selected) Color(0xFF6549A4) else Color(0xFF1B1F29)
                 ) {
@@ -5484,22 +5484,22 @@ class MainActivity : ComponentActivity() {
                     Text(
                         title,
                         color = Color.White,
-                        fontSize = 10.5.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        subtitle,
-                        color = if (selected) Color(0xFFBCA8EA) else Color(0xFF747B8B),
-                        fontSize = 9.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        "\${count} bài",
-                        color = Color(0xFF858C9D),
-                        fontSize = 9.sp,
+                        subtitle,
+                        color = if (selected) Color(0xFFBCA8EA) else Color(0xFF9299A9),
+                        fontSize = 10.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        "${count} bài",
+                        color = Color(0xFF9AA2B2),
+                        fontSize = 10.sp,
                         fontWeight = FontWeight.Medium
                     )
                 }
@@ -5918,7 +5918,7 @@ class MainActivity : ComponentActivity() {
                         Text(
                             "ĐANG PHÁT",
                             color = Color(0xFF9B7DFF),
-                            fontSize = 10.sp,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Black,
                             letterSpacing = 1.8.sp
                         )
@@ -5928,8 +5928,8 @@ class MainActivity : ComponentActivity() {
                                 queueSource.isNotBlank() -> queueSource.removePrefix("Google Drive • ").removePrefix("Chia sẻ • ")
                                 else -> "NGỌC SĨ MUSIC"
                             },
-                            color = Color(0xFF737988),
-                            fontSize = 9.sp,
+                            color = Color(0xFF9299A9),
+                            fontSize = 10.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -5990,8 +5990,8 @@ class MainActivity : ComponentActivity() {
                 Spacer(Modifier.height(4.dp))
                 Text(
                     song.artist,
-                    color = Color(0xFF969CAB),
-                    fontSize = 13.sp,
+                    color = Color(0xFFADB3C1),
+                    fontSize = 14.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -6023,8 +6023,8 @@ class MainActivity : ComponentActivity() {
                     Modifier.fillMaxWidth().padding(horizontal = 2.dp),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(formatTime(position), color = Color(0xFF777D8B), fontSize = 10.sp)
-                    Text(formatTime(totalDuration), color = Color(0xFF777D8B), fontSize = 10.sp)
+                    Text(formatTime(position), color = Color(0xFF969DAD), fontSize = 11.sp)
+                    Text(formatTime(totalDuration), color = Color(0xFF969DAD), fontSize = 11.sp)
                 }
 
                 Spacer(Modifier.height(10.dp))
@@ -10073,7 +10073,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 ) {
                     Box(
                         Modifier
-                            .size(52.dp)
+                            .size(54.dp)
                             .clip(RoundedCornerShape(12.dp))
                     ) {
                         SongArtwork(song, Modifier.fillMaxSize())
@@ -10103,7 +10103,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         Text(
                             "ĐANG PHÁT",
                             color = Color(0xFF8DEBFF),
-                            fontSize = 8.sp,
+                            fontSize = 9.sp,
                             fontWeight = FontWeight.Black,
                             letterSpacing = 0.8.sp,
                             maxLines = 1
@@ -10111,7 +10111,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         Text(
                             song.title,
                             color = Color.White,
-                            fontSize = 13.sp,
+                            fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -10119,8 +10119,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 song.artist.ifBlank { "Không rõ nghệ sĩ" },
-                                color = Color(0xFF8F95A4),
-                                fontSize = 10.sp,
+                                color = Color(0xFFA0A7B7),
+                                fontSize = 11.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f, fill = false)
@@ -10139,7 +10139,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
                     Surface(
                         modifier = Modifier
-                            .size(38.dp)
+                            .size(40.dp)
                             .clip(CircleShape)
                             .clickable(onClick = ::togglePlayPause),
                         shape = CircleShape,
