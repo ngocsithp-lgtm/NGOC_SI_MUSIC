@@ -39,6 +39,8 @@ class NgocSiWakeWordService : Service() {
     private var musicController: MediaController? = null
     private var listening = false
     private var stopping = false
+    private var awaitingCommand = false
+    private var awaitingCommandUntilMillis = 0L
     private var textToSpeech: TextToSpeech? = null
     private var ttsReady = false
     private var pendingVoiceReply: String? = null
@@ -173,11 +175,21 @@ class NgocSiWakeWordService : Service() {
         override fun onResults(results: Bundle?) {
             listening = false
             val phrases = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
-            // Prefer a hypothesis that both heard the wake phrase and matches an explicit action.
-            // Keep the strict wake phrase check so background speech cannot control playback.
+            // Prefer a hypothesis that contains an actionable wake phrase, then one that
+            // heard the wake phrase alone, before falling back to Android's first result.
             val recognized = selectNgocSiAiWakePhraseCandidate(phrases).orEmpty()
-            val command = recognized.takeIf { it.isNotBlank() }?.let(::classifyNgocSiAiWakePhrase)
+            val now = System.currentTimeMillis()
+            if (awaitingCommand && now > awaitingCommandUntilMillis) {
+                awaitingCommand = false
+                awaitingCommandUntilMillis = 0L
+            }
+            val wasAwaitingCommand = awaitingCommand
+            val command = classifyNgocSiAiWakePhrase(recognized)
+                ?: if (wasAwaitingCommand) classifyNgocSiAiActivatedCommand(recognized) else null
+
             if (command != null) {
+                awaitingCommand = false
+                awaitingCommandUntilMillis = 0L
                 if (musicController == null) {
                     updateNotification("Đã nhận “$recognized” · đang kết nối trình phát")
                     connectMusicController()
@@ -193,10 +205,24 @@ class NgocSiWakeWordService : Service() {
                     updateNotification("Đã nghe “$recognized” · $reply")
                     speakReply(reply)
                 }
+            } else if (isNgocSiAiWakeWordOnly(recognized)) {
+                // Two-stage interaction: say "Ngọc Sĩ", then give a playback command.
+                // The short window prevents unrelated later speech from triggering playback.
+                awaitingCommand = true
+                awaitingCommandUntilMillis = now + COMMAND_WINDOW_MILLIS
+                updateNotification("Đã nghe từ khóa “Ngọc Sĩ” · hãy nói lệnh trong 8 giây")
+                speakReply("Tôi đang nghe lệnh. Hãy nói lệnh nhạc.")
+                return
             } else if (recognized.isNotBlank()) {
-                // Expose the actual speech-recognition result in the persistent notification
-                // so the user can tell whether the problem is recognition or command matching.
-                updateNotification("Đã nghe: “${recognized.take(55)}” · cần mở đầu bằng “Ngọc Sĩ”")
+                awaitingCommand = false
+                awaitingCommandUntilMillis = 0L
+                if (wasAwaitingCommand) {
+                    updateNotification("Chưa nhận ra lệnh nhạc · hãy nói “Ngọc Sĩ, chuyển bài”")
+                } else {
+                    // Expose the actual speech-recognition result so the user can tell
+                    // whether the problem is recognition or command matching.
+                    updateNotification("Đã nghe: “${recognized.take(55)}” · cần mở đầu bằng “Ngọc Sĩ”")
+                }
             }
             if (command == null) scheduleListenRetry(650L)
         }
@@ -364,6 +390,8 @@ class NgocSiWakeWordService : Service() {
         if (stopping) return
         stopping = true
         listening = false
+        awaitingCommand = false
+        awaitingCommandUntilMillis = 0L
         mainHandler.removeCallbacksAndMessages(null)
         runCatching { speechRecognizer?.cancel() }
         runCatching { speechRecognizer?.destroy() }
@@ -406,6 +434,7 @@ class NgocSiWakeWordService : Service() {
         private const val CHANNEL_ID = "ngoc_si_wake_word"
         private const val NOTIFICATION_ID = 5871
         private const val STOP_REQUEST_CODE = 5872
+        private const val COMMAND_WINDOW_MILLIS = 8_000L
 
         fun start(context: Context) {
             val intent = Intent(context, NgocSiWakeWordService::class.java).setAction(ACTION_START)
