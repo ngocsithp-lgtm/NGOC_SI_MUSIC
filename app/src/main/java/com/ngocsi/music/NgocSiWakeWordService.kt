@@ -73,6 +73,10 @@ class NgocSiWakeWordService : Service() {
                     override fun onDone(utteranceId: String?) {
                         mainHandler.post {
                             speaking = false
+                            if (awaitingCommand) {
+                                // Start the command window after the spoken prompt, not before it.
+                                awaitingCommandUntilMillis = System.currentTimeMillis() + COMMAND_WINDOW_MILLIS
+                            }
                             if (!stopping) scheduleListenRetry(350L)
                         }
                     }
@@ -80,6 +84,9 @@ class NgocSiWakeWordService : Service() {
                     override fun onError(utteranceId: String?) {
                         mainHandler.post {
                             speaking = false
+                            if (awaitingCommand) {
+                                awaitingCommandUntilMillis = System.currentTimeMillis() + COMMAND_WINDOW_MILLIS
+                            }
                             if (!stopping) scheduleListenRetry(350L)
                         }
                     }
@@ -93,6 +100,9 @@ class NgocSiWakeWordService : Service() {
                     speakReply(queuedReply)
                 } else {
                     updateNotification("Đã xử lý lệnh · không có giọng đọc khả dụng trên máy")
+                    if (awaitingCommand) {
+                        awaitingCommandUntilMillis = System.currentTimeMillis() + COMMAND_WINDOW_MILLIS
+                    }
                     scheduleListenRetry(650L)
                 }
             }
@@ -209,7 +219,8 @@ class NgocSiWakeWordService : Service() {
                 // Two-stage interaction: say "Ngọc Sĩ", then give a playback command.
                 // The short window prevents unrelated later speech from triggering playback.
                 awaitingCommand = true
-                awaitingCommandUntilMillis = now + COMMAND_WINDOW_MILLIS
+                // The TTS listener starts the eight-second deadline once the prompt is done.
+                awaitingCommandUntilMillis = Long.MAX_VALUE
                 updateNotification("Đã nghe từ khóa “Ngọc Sĩ” · hãy nói lệnh trong 8 giây")
                 speakReply("Tôi đang nghe lệnh. Hãy nói lệnh nhạc.")
                 return
@@ -273,6 +284,9 @@ class NgocSiWakeWordService : Service() {
         }.getOrDefault(TextToSpeech.ERROR)
         if (result == TextToSpeech.ERROR) {
             speaking = false
+            if (awaitingCommand) {
+                awaitingCommandUntilMillis = System.currentTimeMillis() + COMMAND_WINDOW_MILLIS
+            }
             updateNotification("$message · không phát được giọng nói")
             scheduleListenRetry(650L)
         }
