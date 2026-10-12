@@ -82,13 +82,13 @@ class NgocSiAiHistoryRulesTest {
             )
         )
 
-        assertEquals(2_000, history[1].content.length)
+        assertEquals(NGOC_SI_AI_MAX_CONTEXT_MESSAGE_CHARS, history[1].content.length)
         assertEquals("Câu hỏi mới", history.last().content)
         assertEquals("user", history.last().role)
     }
 
     @Test
-    fun limitsHistoryToLatestSixMessages() {
+    fun limitsHistoryToLatestFourMessages() {
         val messages = buildList {
             repeat(5) { index ->
                 add(NgocSiAiMessage(role = "user", content = "câu hỏi $index"))
@@ -102,6 +102,25 @@ class NgocSiAiHistoryRulesTest {
         assertTrue(history.size <= NGOC_SI_AI_MAX_HISTORY_MESSAGES)
         assertTrue(history.sumOf { it.content.length } <= NGOC_SI_AI_MAX_TOTAL_CHARS)
         assertEquals("câu hỏi cuối", history.last().content)
+    }
+
+
+    @Test
+    fun boundsPriorContextButPreservesNewestQuestion() {
+        val history = normalizeNgocSiAiHistory(
+            listOf(
+                NgocSiAiMessage(role = "user", content = "u".repeat(1_100)),
+                NgocSiAiMessage(role = "assistant", content = "a".repeat(1_100)),
+                NgocSiAiMessage(role = "user", content = "q".repeat(500))
+            )
+        )
+
+        assertEquals(3, history.size)
+        assertEquals(1_000, history[0].content.length)
+        assertEquals(1_000, history[1].content.length)
+        assertEquals(500, history.last().content.length)
+        assertTrue(history.sumOf { it.content.length } <= NGOC_SI_AI_MAX_TOTAL_CHARS)
+        assertEquals("user", history.last().role)
     }
 
     @Test
