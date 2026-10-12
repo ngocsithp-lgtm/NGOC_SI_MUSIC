@@ -45,10 +45,6 @@ private fun nextProviderDailyReset(nowMillis: Long, zone: ZoneId): Long {
 }
 
 /**
- * Try the alternate model for quota/capacity failures, but don't send a second
- * request when the provider explicitly reports a per-minute throttle.
- */
-/**
  * Classifies quota provider details in one place so user-facing diagnostics,
  * cooldown lengths, and fallback behavior agree even when Google changes wording.
  */
@@ -116,6 +112,10 @@ internal fun isAmbiguousNgocSiAiProjectQuotaError(message: String): Boolean {
 /**
  * An explicit per-minute throttle should not trigger a second model request;
  * quota/capacity errors for other windows may be recoverable with the fallback.
+ */
+/**
+ * Try the alternate model for quota/capacity failures, but don't send a second
+ * request when the provider explicitly reports a per-minute throttle.
  */
 internal fun shouldTryNgocSiAiFallbackModel(errorDetails: String): Boolean {
     return when (classifyNgocSiAiQuotaErrorDetails(errorDetails)) {
