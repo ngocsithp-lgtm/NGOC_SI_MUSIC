@@ -1,0 +1,45 @@
+name: NGOC SI AI Backend CI
+
+on:
+  pull_request:
+    paths:
+      - "functions/**"
+      - ".github/workflows/ai-backend-ci.yml"
+      - "docs/NGOC_SI_AI_BACKEND_SETUP.md"
+  push:
+    branches:
+      - "feature/ngoc-si-ai-backend-foundation"
+    paths:
+      - "functions/**"
+      - ".github/workflows/ai-backend-ci.yml"
+      - "docs/NGOC_SI_AI_BACKEND_SETUP.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: functions
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Type-check and unit test
+        run: npm test
+      - name: Ensure no provider key is committed
+        working-directory: .
+        run: |
+          if grep -R -n -E 'sk-[A-Za-z0-9_-]{20,}|AIza[0-9A-Za-z_-]{30,}' functions/src; then
+            echo "::error::Possible provider API key found in source."
+            exit 1
+          fi

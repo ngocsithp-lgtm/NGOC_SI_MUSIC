@@ -724,6 +724,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
             "settings" -> selectedSection = "Cài đặt"
+            "ai" -> selectedSection = "NGỌC SĨ AI"
         }
     }
 
@@ -4405,6 +4406,107 @@ class MainActivity : ComponentActivity() {
                             TvHub()
                         }
 
+                        "NGỌC SĨ AI" -> {
+                            NgocSiAiScreen(Modifier.weight(1f)) { command ->
+                                when (command) {
+                                    NgocSiAiMusicCommand.OPEN_LIBRARY -> {
+                                        selectedSection = "Thư viện"
+                                        selectedLibrary = "Tất cả"
+                                        libraryView = "Bài hát"
+                                        "Đã mở Thư viện nhạc."
+                                    }
+                                    NgocSiAiMusicCommand.OPEN_YOUTUBE -> {
+                                        selectedSection = "Online"
+                                        onlineHubTab = "YouTube"
+                                        "Đã mở YouTube trong NGỌC SĨ MUSIC."
+                                    }
+                                    NgocSiAiMusicCommand.OPEN_RADIO -> {
+                                        selectedSection = "Radio"
+                                        showVietnamRadioHub = true
+                                        "Đã mở Radio."
+                                    }
+                                    NgocSiAiMusicCommand.OPEN_QUEUE -> {
+                                        showQueue = true
+                                        "Đã mở hàng đợi phát nhạc."
+                                    }
+                                    NgocSiAiMusicCommand.OPEN_PLAYER -> {
+                                        if (currentSong != null || (controller?.mediaItemCount ?: 0) > 0) {
+                                            showNowPlaying = true
+                                            "Đã mở trình phát nhạc."
+                                        } else {
+                                            selectedSection = "Thư viện"
+                                            selectedLibrary = "Tất cả"
+                                            libraryView = "Bài hát"
+                                            "Chưa có bài đang phát. Đã mở Thư viện để bạn chọn bài."
+                                        }
+                                    }
+                                    NgocSiAiMusicCommand.OPEN_TV -> {
+                                        selectedSection = "TV"
+                                        "Đã mở mục TV."
+                                    }
+                                    NgocSiAiMusicCommand.OPEN_DRIVE -> {
+                                        selectedSection = "Online"
+                                        onlineHubTab = "Drive"
+                                        driveSharedStatus = "Mở trung tâm Google Drive"
+                                        "Đã mở mục Google Drive."
+                                    }
+                                    NgocSiAiMusicCommand.OPEN_SETTINGS -> {
+                                        selectedSection = "Cài đặt"
+                                        "Đã mở Cài đặt."
+                                    }
+                                    NgocSiAiMusicCommand.OPEN_SLEEP_TIMER -> {
+                                        showSleepTimer = true
+                                        "Đã mở cài đặt hẹn giờ tắt nhạc."
+                                    }
+                                    NgocSiAiMusicCommand.CANCEL_SLEEP_TIMER -> {
+                                        startSleepTimer(0)
+                                        "Đã hủy hẹn giờ tắt nhạc."
+                                    }
+                                    NgocSiAiMusicCommand.SET_SLEEP_TIMER_5 -> {
+                                        startSleepTimer(5)
+                                        "Đã hẹn giờ tắt nhạc sau 5 phút."
+                                    }
+                                    NgocSiAiMusicCommand.SET_SLEEP_TIMER_10 -> {
+                                        startSleepTimer(10)
+                                        "Đã hẹn giờ tắt nhạc sau 10 phút."
+                                    }
+                                    NgocSiAiMusicCommand.SET_SLEEP_TIMER_15 -> {
+                                        startSleepTimer(15)
+                                        "Đã hẹn giờ tắt nhạc sau 15 phút."
+                                    }
+                                    NgocSiAiMusicCommand.SET_SLEEP_TIMER_20 -> {
+                                        startSleepTimer(20)
+                                        "Đã hẹn giờ tắt nhạc sau 20 phút."
+                                    }
+                                    NgocSiAiMusicCommand.SET_SLEEP_TIMER_30 -> {
+                                        startSleepTimer(30)
+                                        "Đã hẹn giờ tắt nhạc sau 30 phút."
+                                    }
+                                    NgocSiAiMusicCommand.SET_SLEEP_TIMER_45 -> {
+                                        startSleepTimer(45)
+                                        "Đã hẹn giờ tắt nhạc sau 45 phút."
+                                    }
+                                    NgocSiAiMusicCommand.SET_SLEEP_TIMER_60 -> {
+                                        startSleepTimer(60)
+                                        "Đã hẹn giờ tắt nhạc sau 60 phút."
+                                    }
+                                    NgocSiAiMusicCommand.SET_SLEEP_TIMER_90 -> {
+                                        startSleepTimer(90)
+                                        "Đã hẹn giờ tắt nhạc sau 90 phút."
+                                    }
+                                    NgocSiAiMusicCommand.PLAY,
+                                    NgocSiAiMusicCommand.PAUSE,
+                                    NgocSiAiMusicCommand.NEXT,
+                                    NgocSiAiMusicCommand.PREVIOUS,
+                                    NgocSiAiMusicCommand.SHUFFLE_ON,
+                                    NgocSiAiMusicCommand.SHUFFLE_OFF,
+                                    NgocSiAiMusicCommand.REPEAT_ONE,
+                                    NgocSiAiMusicCommand.REPEAT_ALL,
+                                    NgocSiAiMusicCommand.REPEAT_OFF -> null
+                                }
+                            }
+                        }
+
                         "Online" -> {
                             if (onlineHubTab == "YouTube") {
                                 Box(
@@ -5533,6 +5635,10 @@ class MainActivity : ComponentActivity() {
                             showMore = false
                             showPlaylists = true
                         })
+                        ProHomeNavChip("✦ NGỌC SĨ AI", {
+                            showMore = false
+                            selectedSection = "NGỌC SĨ AI"
+                        })
                         ProHomeNavChip("▣ TV", {
                             showMore = false
                             selectedSection = "TV"
@@ -5594,6 +5700,7 @@ class MainActivity : ComponentActivity() {
             "Online" -> "ONLINE"
             "Radio" -> "RADIO"
             "TV" -> "TV TRỰC TUYẾN"
+            "NGỌC SĨ AI" -> "NGỌC SĨ AI"
             "Cài đặt" -> "CÀI ĐẶT"
             else -> "NGỌC SĨ MUSIC"
         }
@@ -5602,6 +5709,7 @@ class MainActivity : ComponentActivity() {
             "Online" -> "YouTube • Google Drive • nhạc trực tuyến"
             "Radio" -> if (activeRadioTitle != null) "Đang phát • $activeRadioTitle" else "Đài phát thanh Việt Nam"
             "TV" -> "${TvCatalog.builtIn.size + customTvSources.size} nguồn truyền hình"
+            "NGỌC SĨ AI" -> "Trợ lý AI trực tuyến • hỏi đáp tiếng Việt"
             "Cài đặt" -> "Phát nhạc • giao diện • nguồn nội dung"
             else -> ""
         }
@@ -5657,6 +5765,7 @@ class MainActivity : ComponentActivity() {
                                 "Online" -> "▶"
                                 "Radio" -> "◉"
                                 "TV" -> "▣"
+                                "NGỌC SĨ AI" -> "✦"
                                 "Cài đặt" -> "⚙"
                                 else -> "NS"
                             },

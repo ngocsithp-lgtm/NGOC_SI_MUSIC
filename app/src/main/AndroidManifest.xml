@@ -29,6 +29,7 @@
     </queries>
 
     <application
+        android:name=".NgocSiMusicApplication"
         android:hardwareAccelerated="true"
         android:theme="@style/Theme.NgocSiMusic"
         android:label="NGỌC SĨ MUSIC"

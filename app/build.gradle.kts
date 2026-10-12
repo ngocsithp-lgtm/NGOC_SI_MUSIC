@@ -2,6 +2,7 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -10,6 +11,9 @@ android {
 
     val youtubeApiKey = System.getenv("YOUTUBE_API_KEY").orEmpty()
     val driveApiKey = System.getenv("DRIVE_API_KEY").orEmpty()
+    // Enable only after the Firebase callable backend is deployed and App Check/Auth are configured.
+    val useSecureNgocSiAiBackend = System.getenv("NGOC_SI_AI_BACKEND_ENABLED")
+        .orEmpty().equals("true", ignoreCase = true)
     val ciKeystorePath = System.getenv("CI_KEYSTORE_PATH").orEmpty()
     val ciStorePassword = System.getenv("CI_KEYSTORE_PASSWORD").orEmpty()
     val ciKeyAlias = System.getenv("CI_KEY_ALIAS").orEmpty()
@@ -34,6 +38,7 @@ android {
         versionName = "5.38"
         buildConfigField("String", "YOUTUBE_API_KEY", "\"$youtubeApiKey\"")
         buildConfigField("String", "DRIVE_API_KEY", "\"$driveApiKey\"")
+        buildConfigField("boolean", "NGOC_SI_AI_BACKEND_ENABLED", useSecureNgocSiAiBackend.toString())
     }
 
     buildTypes {
@@ -68,6 +73,12 @@ android {
 }
 
 dependencies {
+    implementation(platform("com.google.firebase:firebase-bom:34.19.0"))
+    implementation("com.google.firebase:firebase-ai")
+    implementation("com.google.firebase:firebase-auth")
+    implementation("com.google.firebase:firebase-functions")
+    implementation("com.google.firebase:firebase-appcheck-playintegrity")
+    implementation("com.google.firebase:firebase-appcheck-debug")
     testImplementation("junit:junit:4.13.2")
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-compose:1.10.0")
