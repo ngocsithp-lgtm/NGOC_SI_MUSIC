@@ -1,17 +1,7 @@
 name: NGOC SI AI Firebase Preview APK (Debug Only)
 
 on:
-  push:
-    branches:
-      - "feature/ngoc-si-ai-firebase-ai-logic-preview"
-    paths:
-      - ".github/workflows/ngoc-si-ai-firebase-preview-apk.yml"
-      - "app/src/main/**"
-      - "app/src/test/**"
-      - "app/build.gradle.kts"
-      - "build.gradle.kts"
-      - "settings.gradle.kts"
-      - "gradle/**"
+  # Package the preview APK manually only after source and test review is complete.
   workflow_dispatch:
 
 permissions:
