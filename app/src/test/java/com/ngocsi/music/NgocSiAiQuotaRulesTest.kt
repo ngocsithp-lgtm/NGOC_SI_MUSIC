@@ -100,6 +100,26 @@ class NgocSiAiQuotaRulesTest {
     }
 
     @Test
+    fun recognizesGenericProjectQuotaErrorsWithoutGuessingTheExactLimit() {
+        assertEquals(
+            true,
+            isAmbiguousNgocSiAiProjectQuotaError(
+                "HTTP 429 too_many_requests: You exceeded your current quota, please check your plan and billing details."
+            )
+        )
+        assertEquals(
+            false,
+            isAmbiguousNgocSiAiProjectQuotaError(
+                "HTTP 429 RESOURCE_EXHAUSTED quotaId=GenerateContentRequestsPerMinute-FreeTier"
+            )
+        )
+        assertEquals(
+            false,
+            isAmbiguousNgocSiAiProjectQuotaError("Network timeout")
+        )
+    }
+
+    @Test
     fun cooldownNoticeMentionsLocalCommandsStillWork() {
         val message = ngocSiAiQuotaCooldownNotice(NgocSiAiQuotaCooldownKind.RATE, 60_000L)
         org.junit.Assert.assertTrue(message.contains("Lệnh nhạc trên thiết bị vẫn hoạt động"))
