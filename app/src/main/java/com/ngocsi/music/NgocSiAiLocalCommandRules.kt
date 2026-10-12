@@ -45,30 +45,48 @@ internal enum class NgocSiAiLocalCommand {
  * Accepts a playback command only when the recognized utterance starts with the
  * explicit wake phrase "Ngọc Sĩ". This prevents background speech from triggering actions.
  */
-internal fun classifyNgocSiAiWakePhrase(input: String): NgocSiAiLocalCommand? {
-    val normalized = Normalizer.normalize(input.trim().lowercase(Locale.ROOT), Normalizer.Form.NFD)
+private val NGOC_SI_AI_WAKE_WORD_COMMANDS = setOf(
+    NgocSiAiLocalCommand.PLAY,
+    NgocSiAiLocalCommand.PAUSE,
+    NgocSiAiLocalCommand.NEXT,
+    NgocSiAiLocalCommand.PREVIOUS,
+    NgocSiAiLocalCommand.CURRENT_TRACK,
+    NgocSiAiLocalCommand.SHUFFLE_ON,
+    NgocSiAiLocalCommand.SHUFFLE_OFF,
+    NgocSiAiLocalCommand.REPEAT_OFF,
+    NgocSiAiLocalCommand.REPEAT_ALL,
+    NgocSiAiLocalCommand.REPEAT_ONE
+)
+
+private fun normalizeNgocSiAiVoicePhrase(input: String): String =
+    Normalizer.normalize(input.trim().lowercase(Locale.ROOT), Normalizer.Form.NFD)
         .replace("\\p{Mn}+".toRegex(), "")
         .replace('đ', 'd')
         .replace("[^a-z0-9]+".toRegex(), " ")
         .trim()
+
+/** True when recognition heard only the wake phrase, not a playback command yet. */
+internal fun isNgocSiAiWakeWordOnly(input: String): Boolean =
+    normalizeNgocSiAiVoicePhrase(input) in setOf(
+        "ngoc si", "ngoc si oi", "ok ngoc si", "alo ngoc si"
+    )
+
+/** Accepts a command only when wake phrase and command occur in the same utterance. */
+internal fun classifyNgocSiAiWakePhrase(input: String): NgocSiAiLocalCommand? {
+    val normalized = normalizeNgocSiAiVoicePhrase(input)
     if (!normalized.startsWith("ngoc si ")) return null
     val commandPhrase = normalized.removePrefix("ngoc si ").trim()
     if (commandPhrase.isBlank()) return null
-    return classifyNgocSiAiLocalCommand(commandPhrase)?.takeIf { command ->
-        command in setOf(
-            NgocSiAiLocalCommand.PLAY,
-            NgocSiAiLocalCommand.PAUSE,
-            NgocSiAiLocalCommand.NEXT,
-            NgocSiAiLocalCommand.PREVIOUS,
-            NgocSiAiLocalCommand.CURRENT_TRACK,
-            NgocSiAiLocalCommand.SHUFFLE_ON,
-            NgocSiAiLocalCommand.SHUFFLE_OFF,
-            NgocSiAiLocalCommand.REPEAT_OFF,
-            NgocSiAiLocalCommand.REPEAT_ALL,
-            NgocSiAiLocalCommand.REPEAT_ONE
-        )
-    }
+    return classifyNgocSiAiActivatedCommand(commandPhrase)
 }
+
+/**
+ * Once the user has explicitly activated the wake word, accept only the safe
+ * playback-control allowlist. Navigation, account and timer actions stay out of
+ * always-listening mode.
+ */
+internal fun classifyNgocSiAiActivatedCommand(input: String): NgocSiAiLocalCommand? =
+    classifyNgocSiAiLocalCommand(input)?.takeIf { it in NGOC_SI_AI_WAKE_WORD_COMMANDS }
 
 internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? {
     var phrase = Normalizer.normalize(input.trim().lowercase(Locale.ROOT), Normalizer.Form.NFD)
