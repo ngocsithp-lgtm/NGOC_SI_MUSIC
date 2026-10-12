@@ -48,16 +48,60 @@ private fun nextProviderDailyReset(nowMillis: Long, zone: ZoneId): Long {
  * Try the alternate model for quota/capacity failures, but don't send a second
  * request when the provider explicitly reports a per-minute throttle.
  */
-internal fun shouldTryNgocSiAiFallbackModel(errorDetails: String): Boolean {
-    val details = errorDetails.lowercase()
+/**
+ * Classifies quota provider details in one place so user-facing diagnostics,
+ * cooldown lengths, and fallback behavior agree even when Google changes wording.
+ */
+internal fun classifyNgocSiAiQuotaErrorDetails(message: String): NgocSiAiQuotaCooldownKind? {
+    val details = message.lowercase(java.util.Locale.ROOT)
+    val normalized = details.replace(Regex("[^a-z0-9]+"), "_")
     val minuteLimit = listOf(
-        "perminute", "per_minute", "requests per minute", "tokens per minute",
-        "requestsperminute", "tokensperminute", "rpm limit"
+        "perminute", "per_minute", "requests per minute", "requests_per_minute",
+        "tokens per minute", "tokens_per_minute", "requestsperminute",
+        "tokensperminute", "rpm limit", "quota_window_1m", "window_1m",
+        "60 seconds", "60_seconds"
+    ).any { it in details || it in normalized }
+    val dailyLimit = listOf(
+        "perday", "per_day", "requests per day", "requests_per_day",
+        "tokens per day", "tokens_per_day", "requestsperday", "tokensperday",
+        "daily quota", "daily limit", "quota_window_1d", "window_1d"
+    ).any { it in details || it in normalized }
+    val paidTierRequired = listOf(
+        "paid tier", "billing account required", "billing must be enabled",
+        "not available on free tier", "upgrade your plan"
     ).any { it in details }
-    val quotaOrCapacity = listOf(
-        "429", "resource_exhausted", "quota", "too many requests", "overloaded", "capacity"
+    val freeTierQuota = listOf(
+        "generate_content_free_tier", "free_tier", "free tier quota",
+        "free-tier quota", "limit: 0"
+    ).any { it in details || it in normalized }
+    val quotaOrCapacity = minuteLimit || dailyLimit || listOf(
+        "429", "resource_exhausted", "quota", "rate limit",
+        "too many requests", "overloaded", "capacity"
     ).any { it in details }
-    return quotaOrCapacity && !minuteLimit
+
+    if (!quotaOrCapacity) return null
+    return when {
+        minuteLimit -> NgocSiAiQuotaCooldownKind.RATE
+        dailyLimit -> NgocSiAiQuotaCooldownKind.DAILY
+        paidTierRequired -> NgocSiAiQuotaCooldownKind.PAID_TIER
+        freeTierQuota -> NgocSiAiQuotaCooldownKind.FREE_TIER
+        else -> NgocSiAiQuotaCooldownKind.TEMPORARY
+    }
+}
+
+/**
+ * An explicit per-minute throttle should not trigger a second model request;
+ * quota/capacity errors for other windows may be recoverable with the fallback.
+ */
+internal fun shouldTryNgocSiAiFallbackModel(errorDetails: String): Boolean {
+    return when (classifyNgocSiAiQuotaErrorDetails(errorDetails)) {
+        NgocSiAiQuotaCooldownKind.RATE,
+        NgocSiAiQuotaCooldownKind.PAID_TIER -> false
+        NgocSiAiQuotaCooldownKind.DAILY,
+        NgocSiAiQuotaCooldownKind.FREE_TIER,
+        NgocSiAiQuotaCooldownKind.TEMPORARY -> true
+        null -> false
+    }
 }
 
 internal fun ngocSiAiQuotaCooldownNotice(
