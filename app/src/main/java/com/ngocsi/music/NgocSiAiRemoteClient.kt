@@ -150,6 +150,10 @@ internal class NgocSiAiRemoteClient(context: Context) {
             "paid tier", "billing account required", "billing must be enabled",
             "not available on free tier", "upgrade your plan"
         ).any { it in details }
+        val freeTierQuota = listOf(
+            "generate_content_free_tier", "free_tier", "free tier quota",
+            "free-tier quota", "limit: 0"
+        ).any { it in details }
 
         return when {
             quotaError && dailyQuota ->
@@ -158,6 +162,8 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 "Bạn đã chạm giới hạn yêu cầu trong thời gian ngắn. Mã chẩn đoán: AI_QUOTA_429_RATE. Hãy chờ trước khi hỏi tiếp."
             quotaError && paidTierRequired ->
                 "Mô hình hoặc tính năng này yêu cầu gói trả phí. Mã chẩn đoán: AI_QUOTA_429_PAID_TIER. Bản Preview vẫn giữ chế độ không thanh toán."
+            quotaError && freeTierQuota ->
+                "Hạn mức miễn phí của mô hình Gemini có thể đã hết. Mã chẩn đoán: AI_QUOTA_429_FREE_TIER. Không gửi lại liên tục; ứng dụng vẫn giữ chế độ không thanh toán."
             quotaError ->
                 "Hạn mức AI có thể đã hết hoặc mô hình đang quá tải. Mã chẩn đoán: AI_QUOTA_429. Tránh gửi lặp; hãy thử lại sau."
             "app check" in details || "attestation" in details ->
@@ -191,7 +197,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
         // Flash-Lite is the documented Gemini Developer API model for no-cost Firebase use.
         // Bound output and thinking so routine chat consumes fewer tokens per response.
         private const val MODEL_NAME = "gemini-3.5-flash-lite"
-        private const val MAX_OUTPUT_TOKENS = 768
+        private const val MAX_OUTPUT_TOKENS = 512
         private val RESPONSE_GENERATION_CONFIG = generationConfig {
             maxOutputTokens = MAX_OUTPUT_TOKENS
             thinkingConfig = thinkingConfig {
@@ -201,6 +207,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
         private const val SYSTEM_INSTRUCTIONS =
             "Bạn là NGỌC SĨ AI, trợ lý tiếng Việt hữu ích, chính xác và dễ hiểu. " +
             "Trả lời trực tiếp; nếu không chắc, hãy nói rõ giới hạn và không bịa dữ kiện. " +
+            "Trả lời gọn, thường trong 3–6 ý và khoảng 150–250 từ, trừ khi người dùng yêu cầu chi tiết. " +
             "Không được tuyên bố đã phát nhạc, thay đổi hàng đợi, mở ứng dụng hoặc thực hiện hành động " +
             "trên điện thoại nếu chưa có xác nhận từ công cụ trên thiết bị. " +
             "Các lệnh nhạc của ứng dụng được kiểm tra và thực thi riêng trên thiết bị."
