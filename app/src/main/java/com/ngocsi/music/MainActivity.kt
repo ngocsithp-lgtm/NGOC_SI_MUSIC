@@ -6895,8 +6895,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         shuffleEnabled -> queueSongs.size.toString() + " bài • Phát ngẫu nhiên"
                                         else -> queueSongs.size.toString() + " bài • Theo thứ tự"
                                     },
-                                    color = Color(0xFF8B91A0),
-                                    fontSize = 11.sp
+                                    color = Color(0xFFA0A7B6),
+                                    fontSize = 12.sp
                                 )
                             }
 
@@ -6927,8 +6927,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     Spacer(Modifier.width(6.dp))
                                     Text(
                                         "Nguồn: " + activeSource.removePrefix("Google Drive • ").removePrefix("Chia sẻ • "),
-                                        color = Color(0xFFBFC3D0),
-                                        fontSize = 10.sp,
+                                        color = Color(0xFFD0D4DF),
+                                        fontSize = 11.sp,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
@@ -7049,8 +7049,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                             )
                                             Text(
                                                 currentSong.artist.ifBlank { "Nghệ sĩ chưa xác định" },
-                                                color = Color(0xFF9BA1B0),
-                                                fontSize = 10.sp,
+                                                color = Color(0xFFADB5C4),
+                                                fontSize = 11.sp,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis
                                             )
@@ -7244,13 +7244,13 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                             ) {
                                                 Text(
                                                     String.format("%02d", displayIndex + 1),
-                                                    color = Color(0xFF626A7B),
-                                                    fontSize = 9.sp,
+                                                    color = Color(0xFF9299A9),
+                                                    fontSize = 10.sp,
                                                     fontWeight = FontWeight.Bold,
                                                     modifier = Modifier.width(24.dp)
                                                 )
 
-                                                SongArtwork(song, Modifier.size(52.dp))
+                                                SongArtwork(song, Modifier.size(56.dp))
 
                                                 Spacer(Modifier.width(10.dp))
 
@@ -7260,25 +7260,25 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                                 ) {
                                                     Text(
                                                         song.title,
-                                                        color = Color(0xFFE9EBF1),
-                                                        fontSize = 13.sp,
-                                                        lineHeight = 17.sp,
+                                                        color = Color(0xFFF2F3F7),
+                                                        fontSize = 14.sp,
+                                                        lineHeight = 18.sp,
                                                         fontWeight = FontWeight.SemiBold,
                                                         maxLines = 2,
                                                         overflow = TextOverflow.Ellipsis
                                                     )
                                                     Text(
                                                         song.artist.ifBlank { "Nghệ sĩ chưa xác định" },
-                                                        color = Color(0xFF858B9B),
-                                                        fontSize = 10.sp,
+                                                        color = Color(0xFFA3AABB),
+                                                        fontSize = 11.sp,
                                                         maxLines = 1,
                                                         overflow = TextOverflow.Ellipsis
                                                     )
                                                     if (song.duration > 0L) {
                                                         Text(
                                                             formatTime(song.duration),
-                                                            color = Color(0xFF6F7788),
-                                                            fontSize = 9.sp
+                                                            color = Color(0xFF9299AA),
+                                                            fontSize = 10.sp
                                                         )
                                                     }
                                                 }
@@ -7422,8 +7422,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 )
                 Text(
                     label,
-                    color = if (emphasized) Color(0xFFE6DEFF) else Color(0xFF858C9B),
-                    fontSize = 7.sp,
+                    color = if (emphasized) Color(0xFFE6DEFF) else Color(0xFFB0B6C4),
+                    fontSize = 9.sp,
                     fontWeight = FontWeight.Black,
                     letterSpacing = 0.4.sp
                 )
@@ -7438,19 +7438,19 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(label, color = Color(0xFFC8B7FF), fontSize = 15.sp)
-            Text(title, color = Color(0xFF9E9FAA), fontSize = 8.sp)
+            Text(title, color = Color(0xFFB2B7C4), fontSize = 10.sp)
         }
     }
 
     @Composable
     private fun QueueIconButton(label: String, enabled: Boolean, onClick: () -> Unit) {
         Box(
-            modifier = Modifier.size(34.dp).clip(RoundedCornerShape(10.dp))
+            modifier = Modifier.size(38.dp).clip(RoundedCornerShape(11.dp))
                 .background(if (enabled) Color(0xFF20232D) else Color.Transparent)
                 .clickable(enabled = enabled, onClick = onClick),
             contentAlignment = Alignment.Center
         ) {
-            Text(label, color = if (enabled) Color(0xFFBDB7CC) else Color(0xFF4D4F58), fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Text(label, color = if (enabled) Color(0xFFBDB7CC) else Color(0xFF4D4F58), fontSize = 16.sp, fontWeight = FontWeight.Bold)
         }
     }
 
@@ -7468,7 +7468,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             Text(
                 label,
                 color = Color(0xFFBEB6D6),
-                fontSize = 8.sp,
+                fontSize = 9.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 0.4.sp,
                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
