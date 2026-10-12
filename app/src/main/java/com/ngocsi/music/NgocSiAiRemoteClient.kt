@@ -64,8 +64,14 @@ internal class NgocSiAiRemoteClient(context: Context) {
         }
 
         return try {
-            val model = FirebaseAI.getInstance(app, GenerativeBackend.googleAI())
-                .generativeModel(
+            // Obtain a fresh limited-use App Check token for each request. This is
+            // compatible with Firebase AI Logic replay-protection monitoring and
+            // avoids reusing the same cached token across model requests.
+            val model = FirebaseAI.getInstance(
+                app,
+                GenerativeBackend.googleAI(),
+                /* useLimitedUseAppCheckTokens = */ true
+            ).generativeModel(
                     modelName = MODEL_NAME,
                     generationConfig = RESPONSE_GENERATION_CONFIG,
                     systemInstruction = content {
