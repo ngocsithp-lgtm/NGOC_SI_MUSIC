@@ -103,7 +103,7 @@ internal fun isAmbiguousNgocSiAiProjectQuotaError(message: String): Boolean {
         "quota for your project"
     ).any { it in details }
     val quotaResponse = "429" in details || "resource_exhausted" in details ||
-        "too many requests" in details
+        "too many requests" in details || "too_many_requests" in details
     val specificWindow = classifyNgocSiAiQuotaErrorDetails(details) in setOf(
         NgocSiAiQuotaCooldownKind.RATE,
         NgocSiAiQuotaCooldownKind.DAILY,
