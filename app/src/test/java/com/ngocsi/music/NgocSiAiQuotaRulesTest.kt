@@ -58,6 +58,48 @@ class NgocSiAiQuotaRulesTest {
     }
 
     @Test
+    fun classifiesProviderMinuteQuotaAliasesForTheShortCooldown() {
+        assertEquals(
+            NgocSiAiQuotaCooldownKind.RATE,
+            classifyNgocSiAiQuotaErrorDetails(
+                "HTTP 429 RESOURCE_EXHAUSTED quotaId=GenerateContentRequestsPerMinute-FreeTier"
+            )
+        )
+        assertEquals(
+            NgocSiAiQuotaCooldownKind.RATE,
+            classifyNgocSiAiQuotaErrorDetails("429 RPM limit reached")
+        )
+        assertEquals(
+            NgocSiAiQuotaCooldownKind.RATE,
+            classifyNgocSiAiQuotaErrorDetails("429 quota_window: 1m")
+        )
+        org.junit.Assert.assertFalse(
+            shouldTryNgocSiAiFallbackModel(
+                "HTTP 429 RESOURCE_EXHAUSTED quotaId=GenerateContentRequestsPerMinute-FreeTier"
+            )
+        )
+    }
+
+    @Test
+    fun classifiesDailyFreeTierAndTemporaryQuotaErrors() {
+        assertEquals(
+            NgocSiAiQuotaCooldownKind.DAILY,
+            classifyNgocSiAiQuotaErrorDetails("429 quota exceeded: requests_per_day")
+        )
+        assertEquals(
+            NgocSiAiQuotaCooldownKind.FREE_TIER,
+            classifyNgocSiAiQuotaErrorDetails(
+                "429 RESOURCE_EXHAUSTED: generate_content_free_tier"
+            )
+        )
+        assertEquals(
+            NgocSiAiQuotaCooldownKind.TEMPORARY,
+            classifyNgocSiAiQuotaErrorDetails("The model is overloaded; HTTP 429")
+        )
+        assertNull(classifyNgocSiAiQuotaErrorDetails("Network timeout without quota information"))
+    }
+
+    @Test
     fun cooldownNoticeMentionsLocalCommandsStillWork() {
         val message = ngocSiAiQuotaCooldownNotice(NgocSiAiQuotaCooldownKind.RATE, 60_000L)
         org.junit.Assert.assertTrue(message.contains("Lệnh nhạc trên thiết bị vẫn hoạt động"))
