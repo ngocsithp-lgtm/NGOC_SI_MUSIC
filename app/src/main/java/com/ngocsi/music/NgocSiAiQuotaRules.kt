@@ -90,6 +90,30 @@ internal fun classifyNgocSiAiQuotaErrorDetails(message: String): NgocSiAiQuotaCo
 }
 
 /**
+ * Some provider 429s use a generic billing/quota sentence without telling the client
+ * whether the limit is per-minute, daily, model-specific, or project entitlement.
+ * Treat this as an ambiguous provider-side quota result instead of guessing a cause.
+ */
+internal fun isAmbiguousNgocSiAiProjectQuotaError(message: String): Boolean {
+    val details = message.lowercase(java.util.Locale.ROOT)
+    val genericQuotaMessage = listOf(
+        "you exceeded your current quota",
+        "check your plan and billing details",
+        "current quota, please check",
+        "quota for your project"
+    ).any { it in details }
+    val quotaResponse = "429" in details || "resource_exhausted" in details ||
+        "too many requests" in details
+    val specificWindow = classifyNgocSiAiQuotaErrorDetails(details) in setOf(
+        NgocSiAiQuotaCooldownKind.RATE,
+        NgocSiAiQuotaCooldownKind.DAILY,
+        NgocSiAiQuotaCooldownKind.FREE_TIER,
+        NgocSiAiQuotaCooldownKind.PAID_TIER
+    )
+    return genericQuotaMessage && quotaResponse && !specificWindow
+}
+
+/**
  * An explicit per-minute throttle should not trigger a second model request;
  * quota/capacity errors for other windows may be recoverable with the fallback.
  */
