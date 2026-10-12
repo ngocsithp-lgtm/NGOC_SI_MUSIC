@@ -96,7 +96,7 @@ class NgocSiAiQuotaRulesTest {
             NgocSiAiQuotaCooldownKind.TEMPORARY,
             classifyNgocSiAiQuotaErrorDetails("The model is overloaded; HTTP 429")
         )
-        assertNull(classifyNgocSiAiQuotaErrorDetails("Network timeout without quota information"))
+        assertNull(classifyNgocSiAiQuotaErrorDetails("Network timeout"))
     }
 
     @Test
