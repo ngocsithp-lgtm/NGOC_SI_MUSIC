@@ -286,6 +286,7 @@ internal fun selectNgocSiAiLocalCommandCandidate(candidates: List<String>): Stri
 internal fun selectNgocSiAiWakePhraseCandidate(candidates: List<String>): String? {
     val cleaned = candidates.map { it.trim() }.filter { it.isNotBlank() }
     return cleaned.firstOrNull { classifyNgocSiAiWakePhrase(it) != null }
+        ?: cleaned.firstOrNull { isNgocSiAiWakeWordOnly(it) }
         ?: cleaned.firstOrNull()
 }
 
