@@ -1166,7 +1166,7 @@ private fun NgocSiAiPreviewScreen(
         ) {
             Surface(
                 modifier = Modifier
-                    .size(42.dp)
+                    .size(44.dp)
                     .clickable(onClick = onBack),
                 shape = RoundedCornerShape(14.dp),
                 color = Color(0xFF1A1E2A)
@@ -1180,13 +1180,13 @@ private fun NgocSiAiPreviewScreen(
                 Text(
                     "NGỌC SĨ AI",
                     color = Color.White,
-                    fontSize = 19.sp,
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.Black
                 )
                 Text(
                     "TRỢ LÝ CỦA BẠN",
                     color = Color(0xFF8DEEFF),
-                    fontSize = 9.sp,
+                    fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.3.sp
                 )
@@ -1202,9 +1202,9 @@ private fun NgocSiAiPreviewScreen(
                 Text(
                     "XÓA",
                     color = Color(0xFFFFB0B0),
-                    fontSize = 9.sp,
+                    fontSize = 10.sp,
                     fontWeight = FontWeight.Black,
-                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 7.dp)
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
                 )
             }
             Spacer(Modifier.width(5.dp))
@@ -1220,9 +1220,9 @@ private fun NgocSiAiPreviewScreen(
                 Text(
                     if (voiceRepliesEnabled) "🔊" else "🔇",
                     color = if (voiceRepliesEnabled) Color(0xFF71E6B2) else Color(0xFFB9C4D6),
-                    fontSize = 11.sp,
+                    fontSize = 13.sp,
                     fontWeight = FontWeight.Black,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp)
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
                 )
             }
             Spacer(Modifier.width(5.dp))
@@ -1233,9 +1233,9 @@ private fun NgocSiAiPreviewScreen(
                 Text(
                     if (isOnlineConfigured) "AI TEST" else "PREVIEW",
                     color = Color(0xFFC7B5FF),
-                    fontSize = 9.sp,
+                    fontSize = 10.sp,
                     fontWeight = FontWeight.Black,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp)
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
                 )
             }
         }
@@ -1256,22 +1256,22 @@ private fun NgocSiAiPreviewScreen(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(if (isWakeWordListening) "🎙" else "🎤", fontSize = 18.sp)
+                Text(if (isWakeWordListening) "🎙" else "🎤", fontSize = 20.sp)
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
                         if (isWakeWordListening) "ĐANG NGHE: “NGỌC SĨ”" else "BẬT NGHE TỪ KHÓA “NGỌC SĨ”",
                         color = Color.White,
-                        fontSize = 11.sp,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
                         if (isWakeWordListening) "Nhận lệnh offline · tắt bằng cách chạm vào đây hoặc thông báo" else "Bật một lần, sau đó nói “Ngọc Sĩ, chuyển bài”",
                         color = Color(0xFFB9C4D6),
-                        fontSize = 10.sp
+                        fontSize = 11.sp
                     )
                 }
-                Text(if (isWakeWordListening) "TẮT" else "BẬT", color = if (isWakeWordListening) Color(0xFF71E6B2) else Color(0xFF8DEEFF), fontWeight = FontWeight.Black, fontSize = 10.sp)
+                Text(if (isWakeWordListening) "TẮT" else "BẬT", color = if (isWakeWordListening) Color(0xFF71E6B2) else Color(0xFF8DEEFF), fontWeight = FontWeight.Black, fontSize = 11.sp)
             }
         }
 
@@ -1296,8 +1296,8 @@ private fun NgocSiAiPreviewScreen(
                         "Bản xem trước • Chưa cấu hình Firebase • Không phát sinh phí AI"
                     },
                     color = Color(0xFFC7C1D8),
-                    fontSize = 10.sp,
-                    lineHeight = 15.sp
+                    fontSize = 11.sp,
+                    lineHeight = 16.sp
                 )
             }
         }
@@ -1307,7 +1307,7 @@ private fun NgocSiAiPreviewScreen(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth(),
-            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             items(messages) { message ->
@@ -1317,7 +1317,7 @@ private fun NgocSiAiPreviewScreen(
                 ) {
                     if (!message.isUser) {
                         Surface(
-                            modifier = Modifier.size(32.dp),
+                            modifier = Modifier.size(34.dp),
                             shape = RoundedCornerShape(11.dp),
                             color = Color(0xFF29203F)
                         ) {
@@ -1346,8 +1346,8 @@ private fun NgocSiAiPreviewScreen(
                                 message.text,
                                 modifier = Modifier.padding(horizontal = 13.dp, vertical = 12.dp),
                                 color = if (message.isUser) Color(0xFFF0ECFF) else Color(0xFFD9DCE5),
-                                fontSize = 13.sp,
-                                lineHeight = 19.sp
+                                fontSize = 14.sp,
+                                lineHeight = 21.sp
                             )
                         }
                         if (!message.isUser) {
@@ -1385,8 +1385,8 @@ private fun NgocSiAiPreviewScreen(
         ) {
             Text(
                 "GỢI Ý THỬ",
-                color = Color(0xFF777F91),
-                fontSize = 9.sp,
+                color = Color(0xFF9299AA),
+                fontSize = 10.sp,
                 fontWeight = FontWeight.Black,
                 letterSpacing = 1.sp
             )
@@ -1418,8 +1418,8 @@ private fun NgocSiAiPreviewScreen(
                         Text(
                             suggestion,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
-                            color = Color(0xFFD9D6E8),
-                            fontSize = 10.sp,
+                            color = Color(0xFFE5E2F0),
+                            fontSize = 11.sp,
                             maxLines = 1
                         )
                     }
@@ -1443,7 +1443,7 @@ private fun NgocSiAiPreviewScreen(
                         .padding(vertical = 10.dp),
                     textStyle = androidx.compose.ui.text.TextStyle(
                         color = Color.White,
-                        fontSize = 13.sp
+                        fontSize = 14.sp
                     ),
                     cursorBrush = androidx.compose.ui.graphics.SolidColor(Color(0xFF8DEEFF)),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
@@ -1454,8 +1454,8 @@ private fun NgocSiAiPreviewScreen(
                             if (input.isBlank()) {
                                 Text(
                                     "Nhập tin nhắn...",
-                                    color = Color(0xFF777F91),
-                                    fontSize = 13.sp
+                                    color = Color(0xFF9299AA),
+                                    fontSize = 14.sp
                                 )
                             }
                             innerTextField()
@@ -1493,8 +1493,8 @@ private fun NgocSiAiPreviewScreen(
                     isOnlineConfigured -> quotaNote.ifBlank { "Nhấn GỬI để hỏi, hoặc dùng micro để gửi câu hỏi tự động sau khi nhận dạng." }
                     else -> "Bản xem trước chạy cục bộ; lịch sử được lưu trên điện thoại."
                 },
-                color = Color(0xFF666D7D),
-                fontSize = 9.sp
+                color = Color(0xFF9299AA),
+                fontSize = 10.sp
             )
         }
     }
