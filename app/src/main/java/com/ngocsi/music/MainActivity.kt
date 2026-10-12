@@ -4659,8 +4659,8 @@ class MainActivity : ComponentActivity() {
 
         LazyColumn(
             modifier = modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             item {
                 Row(
@@ -4671,7 +4671,7 @@ class MainActivity : ComponentActivity() {
                         Text(
                             "NGỌC SĨ MUSIC",
                             color = Color.White,
-                            fontSize = 23.sp,
+                            fontSize = 24.sp,
                             fontWeight = FontWeight.Black
                         )
                         Text(
@@ -4701,7 +4701,7 @@ class MainActivity : ComponentActivity() {
             item {
                 Surface(
                     modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenPlayer),
-                    shape = RoundedCornerShape(24.dp),
+                    shape = RoundedCornerShape(26.dp),
                     color = Color.Transparent
                 ) {
                     Box(
@@ -4717,7 +4717,7 @@ class MainActivity : ComponentActivity() {
                                 ),
                                 RoundedCornerShape(24.dp)
                             )
-                            .padding(16.dp)
+                            .padding(18.dp)
                     ) {
                         Column {
                             Row(
@@ -4725,8 +4725,8 @@ class MainActivity : ComponentActivity() {
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Surface(
-                                    modifier = Modifier.size(78.dp),
-                                    shape = RoundedCornerShape(20.dp),
+                                    modifier = Modifier.size(84.dp),
+                                    shape = RoundedCornerShape(22.dp),
                                     color = Color(0xFF202E48),
                                     border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF3F587D))
                                 ) {
@@ -4811,7 +4811,7 @@ class MainActivity : ComponentActivity() {
                             ) {
                                 ProHomeControl("⏮", onPrevious)
                                 Surface(
-                                    modifier = Modifier.size(54.dp).clickable(onClick = onTogglePlayback),
+                                    modifier = Modifier.size(58.dp).clickable(onClick = onTogglePlayback),
                                     shape = CircleShape,
                                     color = Color(0xFF8DEEFF),
                                     shadowElevation = 7.dp
@@ -4835,7 +4835,7 @@ class MainActivity : ComponentActivity() {
             item {
                 Row(
                     Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(9.dp)
                 ) {
                     ProHomeQuickTile("♫", "Thư viện", onOpenLibrary, Modifier.weight(1f))
                     ProHomeQuickTile("▶", "YouTube", onOpenYouTube, Modifier.weight(1f))
@@ -4858,11 +4858,11 @@ class MainActivity : ComponentActivity() {
                         Text("☷", color = Color(0xFFB796FF), fontSize = 19.sp)
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
-                            Text("HÀNG ĐỢI", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Black)
+                            Text("HÀNG ĐỢI PHÁT NHẠC", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Black)
                             Text(
                                 "$queueCount bài đang chờ • chạm để quản lý",
-                                color = Color(0xFF777E8D),
-                                fontSize = 9.sp
+                                color = Color(0xFF9CA3B4),
+                                fontSize = 11.sp
                             )
                         }
                         Text("›", color = Color(0xFF9DEFFF), fontSize = 23.sp)
@@ -4873,8 +4873,8 @@ class MainActivity : ComponentActivity() {
             item {
                 Text(
                     "TRUY CẬP NHANH",
-                    color = Color(0xFF858B9C),
-                    fontSize = 10.sp,
+                    color = Color(0xFF9CA8BC),
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Black,
                     letterSpacing = 1.2.sp
                 )
@@ -4942,12 +4942,12 @@ class MainActivity : ComponentActivity() {
             border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF202938))
         ) {
             Column(
-                Modifier.padding(vertical = 10.dp),
+                Modifier.padding(vertical = 13.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(icon, color = Color(0xFF9FEFFF), fontSize = 18.sp)
                 Spacer(Modifier.height(4.dp))
-                Text(title, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text(title, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -4966,12 +4966,12 @@ class MainActivity : ComponentActivity() {
             border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1F2733))
         ) {
             Column(
-                Modifier.padding(horizontal = 6.dp, vertical = 9.dp),
+                Modifier.padding(horizontal = 5.dp, vertical = 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(icon, color = Color(0xFFB796FF), fontSize = 16.sp)
                 Spacer(Modifier.height(4.dp))
-                Text(title, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                Text(title, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 2, textAlign = androidx.compose.ui.text.style.TextAlign.Center, minLines = 2)
             }
         }
     }
