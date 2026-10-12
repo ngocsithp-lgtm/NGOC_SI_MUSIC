@@ -178,6 +178,33 @@ class NgocSiAiLocalCommandRulesTest {
 
 
     @Test
+    fun wakeWordCanActivateListeningForOneSubsequentPlaybackCommand() {
+        assertEquals(true, isNgocSiAiWakeWordOnly("Ngọc Sĩ"))
+        assertEquals(true, isNgocSiAiWakeWordOnly("Ngọc Sĩ ơi"))
+        assertEquals(true, isNgocSiAiWakeWordOnly("OK Ngọc Sĩ"))
+        assertEquals(false, isNgocSiAiWakeWordOnly("Ngọc Sĩ, chuyển bài"))
+
+        assertEquals(
+            NgocSiAiLocalCommand.NEXT,
+            classifyNgocSiAiActivatedCommand("Chuyển bài")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.PAUSE,
+            classifyNgocSiAiActivatedCommand("Tạm dừng nhạc")
+        )
+        assertNull(classifyNgocSiAiActivatedCommand("Mở YouTube"))
+        assertNull(classifyNgocSiAiActivatedCommand("Hẹn giờ 30 phút"))
+    }
+
+    @Test
+    fun wakeWordCandidateSelectionPrefersWakeOnlyPhraseOverUnrelatedHypothesis() {
+        assertEquals(
+            "Ngọc Sĩ",
+            selectNgocSiAiWakePhraseCandidate(listOf("tóc sĩ", "Ngọc Sĩ"))
+        )
+    }
+
+    @Test
     fun wakeWordModeCannotTriggerNavigationOrTimerActions() {
         assertNull(classifyNgocSiAiWakePhrase("Ngọc Sĩ, mở YouTube"))
         assertNull(classifyNgocSiAiWakePhrase("Ngọc Sĩ, mở Google Drive"))
