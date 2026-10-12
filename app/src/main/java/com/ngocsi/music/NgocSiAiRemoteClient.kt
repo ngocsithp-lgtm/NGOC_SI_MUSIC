@@ -35,7 +35,9 @@ internal data class NgocSiAiReply(
  * is required by this Android client.
  */
 internal class NgocSiAiRemoteClient(context: Context) {
-    private val firebaseApp: FirebaseApp? = createFirebaseApp(context.applicationContext)
+    private val appContext = context.applicationContext
+    private val quotaPreferences = appContext.getSharedPreferences(QUOTA_PREFERENCES, Context.MODE_PRIVATE)
+    private val firebaseApp: FirebaseApp? = createFirebaseApp(appContext)
 
     val isConfigured: Boolean
         get() = firebaseApp != null
@@ -43,6 +45,8 @@ internal class NgocSiAiRemoteClient(context: Context) {
     suspend fun send(messages: List<NgocSiAiMessage>): NgocSiAiReply {
         val app = firebaseApp
             ?: throw NgocSiAiRemoteException("Firebase AI Logic chưa được cấu hình cho bản thử này.")
+
+        activeQuotaCooldownMessage()?.let { throw NgocSiAiRemoteException(it) }
 
         val normalized = try {
             normalizeNgocSiAiHistory(messages)
@@ -90,8 +94,35 @@ internal class NgocSiAiRemoteClient(context: Context) {
         } catch (error: NgocSiAiRemoteException) {
             throw error
         } catch (error: Exception) {
-            throw NgocSiAiRemoteException(toSafeMessage(error))
+            val safeMessage = toSafeMessage(error)
+            persistQuotaCooldownIfNeeded(safeMessage)
+            throw NgocSiAiRemoteException(safeMessage)
         }
+    }
+
+    private fun activeQuotaCooldownMessage(): String? {
+        val until = quotaPreferences.getLong(KEY_QUOTA_COOLDOWN_UNTIL, 0L)
+        val now = System.currentTimeMillis()
+        if (until <= now) {
+            quotaPreferences.edit()
+                .remove(KEY_QUOTA_COOLDOWN_UNTIL)
+                .remove(KEY_QUOTA_COOLDOWN_KIND)
+                .apply()
+            return null
+        }
+        val kind = quotaPreferences.getString(KEY_QUOTA_COOLDOWN_KIND, null)
+            ?.let { runCatching { NgocSiAiQuotaCooldownKind.valueOf(it) }.getOrNull() }
+            ?: NgocSiAiQuotaCooldownKind.TEMPORARY
+        return ngocSiAiQuotaCooldownNotice(kind, until - now)
+    }
+
+    private fun persistQuotaCooldownIfNeeded(message: String) {
+        val kind = classifyNgocSiAiQuotaCooldown(message) ?: return
+        val until = ngocSiAiQuotaCooldownUntilMillis(kind, System.currentTimeMillis())
+        quotaPreferences.edit()
+            .putLong(KEY_QUOTA_COOLDOWN_UNTIL, until)
+            .putString(KEY_QUOTA_COOLDOWN_KIND, kind.name)
+            .apply()
     }
 
     private fun createFirebaseApp(context: Context): FirebaseApp? {
@@ -199,6 +230,9 @@ internal class NgocSiAiRemoteClient(context: Context) {
 
     companion object {
         private const val FIREBASE_APP_NAME = "ngocSiAi"
+        private const val QUOTA_PREFERENCES = "ngoc_si_ai_quota_cooldown"
+        private const val KEY_QUOTA_COOLDOWN_UNTIL = "cooldown_until_millis"
+        private const val KEY_QUOTA_COOLDOWN_KIND = "cooldown_kind"
         private const val EXPECTED_FIREBASE_PROJECT_ID = "ngoc-si-music-ai"
         // Flash-Lite is the documented Gemini Developer API model for no-cost Firebase use.
         // Bound output and thinking so routine chat consumes fewer tokens per response.
