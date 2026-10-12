@@ -5,7 +5,10 @@ import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
 import com.google.firebase.ai.FirebaseAI
 import com.google.firebase.ai.type.GenerativeBackend
+import com.google.firebase.ai.type.ThinkingLevel
 import com.google.firebase.ai.type.content
+import com.google.firebase.ai.type.generationConfig
+import com.google.firebase.ai.type.thinkingConfig
 import com.google.firebase.appcheck.FirebaseAppCheck
 import com.google.firebase.appcheck.debug.DebugAppCheckProviderFactory
 import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
@@ -64,6 +67,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
             val model = FirebaseAI.getInstance(app, GenerativeBackend.googleAI())
                 .generativeModel(
                     modelName = MODEL_NAME,
+                    generationConfig = RESPONSE_GENERATION_CONFIG,
                     systemInstruction = content {
                         text(SYSTEM_INSTRUCTIONS)
                     }
@@ -132,10 +136,30 @@ internal class NgocSiAiRemoteClient(context: Context) {
             .find(details)
             ?.value
 
+        val quotaError = "429" in details || "resource_exhausted" in details ||
+            "quota" in details || "rate limit" in details
+        val dailyQuota = listOf(
+            "perday", "per_day", "requests per day", "tokens per day",
+            "requestsperday", "tokensperday"
+        ).any { it in details }
+        val minuteQuota = listOf(
+            "perminute", "per_minute", "requests per minute", "tokens per minute",
+            "requestsperminute", "tokensperminute"
+        ).any { it in details }
+        val paidTierRequired = listOf(
+            "paid tier", "billing account required", "billing must be enabled",
+            "not available on free tier", "upgrade your plan"
+        ).any { it in details }
+
         return when {
-            "429" in details || "resource_exhausted" in details ||
-                "quota" in details || "rate limit" in details ->
-                "NGỌC SĨ AI đang chạm hạn mức. Mã chẩn đoán: AI_QUOTA_429. Hãy đợi rồi thử lại."
+            quotaError && dailyQuota ->
+                "Hạn mức AI trong ngày đã hết. Mã chẩn đoán: AI_QUOTA_429_DAILY. Không cần gửi lại liên tục; hãy chờ hạn mức được làm mới."
+            quotaError && minuteQuota ->
+                "Bạn đã chạm giới hạn yêu cầu trong thời gian ngắn. Mã chẩn đoán: AI_QUOTA_429_RATE. Hãy chờ trước khi hỏi tiếp."
+            quotaError && paidTierRequired ->
+                "Mô hình hoặc tính năng này yêu cầu gói trả phí. Mã chẩn đoán: AI_QUOTA_429_PAID_TIER. Bản Preview vẫn giữ chế độ không thanh toán."
+            quotaError ->
+                "Hạn mức AI có thể đã hết hoặc mô hình đang quá tải. Mã chẩn đoán: AI_QUOTA_429. Tránh gửi lặp; hãy thử lại sau."
             "app check" in details || "attestation" in details ->
                 "App Check chưa xác minh được ứng dụng thử. Mã chẩn đoán: APP_CHECK_TOKEN. Cần kiểm tra debug token của đúng APK."
             errorCode == "403" || "permission denied" in details ->
@@ -164,7 +188,16 @@ internal class NgocSiAiRemoteClient(context: Context) {
     companion object {
         private const val FIREBASE_APP_NAME = "ngocSiAi"
         private const val EXPECTED_FIREBASE_PROJECT_ID = "ngoc-si-music-ai"
-        private const val MODEL_NAME = "gemini-3.8-flash"
+        // Flash-Lite is the documented Gemini Developer API model for no-cost Firebase use.
+        // Bound output and thinking so routine chat consumes fewer tokens per response.
+        private const val MODEL_NAME = "gemini-3.5-flash-lite"
+        private const val MAX_OUTPUT_TOKENS = 768
+        private val RESPONSE_GENERATION_CONFIG = generationConfig {
+            maxOutputTokens = MAX_OUTPUT_TOKENS
+            thinkingConfig = thinkingConfig {
+                thinkingLevel = ThinkingLevel.MINIMAL
+            }
+        }
         private const val SYSTEM_INSTRUCTIONS =
             "Bạn là NGỌC SĨ AI, trợ lý tiếng Việt hữu ích, chính xác và dễ hiểu. " +
             "Trả lời trực tiếp; nếu không chắc, hãy nói rõ giới hạn và không bịa dữ kiện. " +

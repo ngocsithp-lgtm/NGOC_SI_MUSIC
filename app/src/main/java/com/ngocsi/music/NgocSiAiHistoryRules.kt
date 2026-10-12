@@ -1,8 +1,8 @@
 package com.ngocsi.music
 
-internal const val NGOC_SI_AI_MAX_HISTORY_MESSAGES = 8
+internal const val NGOC_SI_AI_MAX_HISTORY_MESSAGES = 6
 internal const val NGOC_SI_AI_MAX_MESSAGE_CHARS = 2_000
-internal const val NGOC_SI_AI_MAX_TOTAL_CHARS = 8_000
+internal const val NGOC_SI_AI_MAX_TOTAL_CHARS = 4_000
 
 /**
  * Restores only completed user/assistant turns from persisted chat context.

@@ -43,11 +43,15 @@ In GitHub mobile: repository → **Settings → Secrets and variables → Action
 
 Do not send these values in chat. The preview app ID is not the same as the production app ID. If any secret is missing, this branch intentionally stays offline.
 
-## 5. Test only after a preview is built intentionally
+## 5. Model and quota protection
+
+The preview uses `gemini-3.5-flash-lite`, which Firebase lists as a stable Gemini Flash-Lite model that does not require the Blaze pay-as-you-go plan when used with the Gemini Developer API. Responses are capped at 768 output tokens, thinking effort is set to minimal, and conversation context is limited to six messages / 4,000 characters. These limits reduce typical usage but cannot guarantee unlimited free requests: provider quotas and model capacity still apply. Do not enable billing simply to bypass `AI_QUOTA_429`.
+
+## 6. Test only after a preview is built intentionally
 
 The present change has **not** been built or run on a phone. After an approved preview build is made, verify in order: the AI page opens; a typed question returns a live answer; the answer can be read aloud by Android TTS; a supported music command executes locally; App Check, network, and quota errors show a useful message. A local-command success does not prove the online model works.
 
-This SDK path does not require `GEMINI_API_KEY`, `firebase functions:secrets:set`, or `firebase deploy`. The Cloud Functions files are a separate retained experiment, not part of this branch's Android chat request path.
+This SDK path does not require `GEMINI_API_KEY`, `firebase functions:secrets:set`, or `firebase deploy`. The Cloud Functions files are a separate retained experiment, not part of this branch's Android chat request path. GitHub Actions checks source, unit tests, package isolation, and APK signing; only a real phone test can confirm live Firebase responses and App Check behavior.
 
 ## Free-tier note
 
