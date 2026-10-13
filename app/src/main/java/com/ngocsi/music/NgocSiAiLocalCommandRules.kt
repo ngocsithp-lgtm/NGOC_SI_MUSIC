@@ -397,28 +397,35 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
             "bat nhac", "bat nhac len",
             "tiep tuc phat", "tiep tuc phat nhac", "tiep tuc nghe nhac",
             "bat dau phat nhac", "bat dau nghe nhac", "nghe nhac",
+            "cho nhac chay", "phat tiep nhac", "nghe tiep nhac", "tiep tuc nghe",
+            "bat nhac lai", "mo trinh phat nhac", "phat nhac tiep di",
             "play", "play music", "resume", "resume music",
             "mo nhac", "mo nhac di", "mo nhac len"
         ) -> NgocSiAiLocalCommand.PLAY
 
         startsWithAny(
             "dung han", "dung nhac hoan toan", "dung hoan toan", "dung phat han",
-            "ngung han", "ngung phat han", "stop playback", "stop completely"
+            "dung phat hoan toan", "tat han nhac", "tat nhac han", "ngung han",
+            "ngung nhac han", "ngung phat han", "ket thuc phat nhac",
+            "stop playback", "stop completely"
         ) -> NgocSiAiLocalCommand.STOP
 
         isAnyOf(
             "tam dung", "tam dung nhac", "tam dung lai", "tam dung bai hat",
-            "tam dung phat nhac", "tam dung phat nhac di",
+            "tam dung phat nhac", "tam dung phat nhac di", "dung tam thoi",
+            "dung mot chut", "nghi mot chut", "ngung lai", "ngung nhac",
+            "ngung bai hat", "ngung phat", "ngung phat nhac",
             "dung", "dung lai", "dung lai di", "dung nhac", "dung nhac lai",
             "dung phat", "dung phat di", "dung phat nhac", "dung phat nhac di",
-            "ngung phat nhac", "tat nhac", "tat nhac di",
+            "tat nhac", "tat nhac di", "cho dung nhac",
             "pause", "pause music", "stop", "stop music"
         ) -> NgocSiAiLocalCommand.PAUSE
 
         startsWithAny(
             "tiep theo", "bai tiep theo", "nhac tiep theo", "bai ke tiep", "nhac ke tiep",
-            "chuyen bai", "chuyen sang bai tiep theo", "chuyen sang bai ke tiep", "sang bai tiep theo",
-            "chuyen qua bai sau", "bai sau", "nhac tiep",
+            "chuyen bai", "chuyen bai hat", "doi bai", "phat bai tiep theo",
+            "chuyen sang bai tiep theo", "chuyen sang bai ke tiep", "sang bai tiep theo",
+            "chuyen qua bai sau", "bai sau", "nhac tiep", "cho bai tiep theo",
             "qua bai", "bo qua bai nay", "skip", "skip song", "skip to next song", "next", "next song"
         ) -> NgocSiAiLocalCommand.NEXT
 
