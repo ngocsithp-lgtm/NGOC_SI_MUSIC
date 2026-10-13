@@ -334,6 +334,7 @@ class NgocSiWakeWordService : Service() {
             NgocSiAiLocalCommand.OPEN_TV_CHANNEL -> "tv_channel"
             NgocSiAiLocalCommand.CREATE_PLAYLIST -> "create_playlist"
             NgocSiAiLocalCommand.PLAY_NAMED_PLAYLIST -> "play_playlist"
+            NgocSiAiLocalCommand.ADD_CURRENT_TRACK_TO_PLAYLIST -> "add_current_to_playlist"
             NgocSiAiLocalCommand.RESUME_YOUTUBE,
             NgocSiAiLocalCommand.PAUSE_YOUTUBE,
             NgocSiAiLocalCommand.NEXT_YOUTUBE_VIDEO,
@@ -380,6 +381,9 @@ class NgocSiWakeWordService : Service() {
                 NgocSiAiLocalCommand.PLAY_NAMED_PLAYLIST ->
                     extractNgocSiAiPlaylistQuery(originalText, create = false)
                         ?: return "Hãy nói tên playlist muốn phát, ví dụ: Ngọc Sĩ, phát playlist Nhạc Trịnh."
+                NgocSiAiLocalCommand.ADD_CURRENT_TRACK_TO_PLAYLIST ->
+                    extractNgocSiAiAddToPlaylistQuery(originalText)
+                        ?: return "Hãy nói rõ playlist đích, ví dụ: Ngọc Sĩ, thêm bài đang phát vào playlist Nhạc Trịnh."
                 else -> null
             }
             val youtubeAction = when (command) {
@@ -412,6 +416,7 @@ class NgocSiWakeWordService : Service() {
                 NgocSiAiLocalCommand.OPEN_TV_CHANNEL -> "Đang mở kênh $tvQuery."
                 NgocSiAiLocalCommand.CREATE_PLAYLIST -> "Đang tạo playlist $playlistQuery."
                 NgocSiAiLocalCommand.PLAY_NAMED_PLAYLIST -> "Đang tìm playlist $playlistQuery."
+                NgocSiAiLocalCommand.ADD_CURRENT_TRACK_TO_PLAYLIST -> "Đang thêm bài đang phát vào playlist $playlistQuery."
                 NgocSiAiLocalCommand.RESUME_YOUTUBE -> "Đang tiếp tục video YouTube."
                 NgocSiAiLocalCommand.PAUSE_YOUTUBE -> "Đang tạm dừng video YouTube."
                 NgocSiAiLocalCommand.NEXT_YOUTUBE_VIDEO -> "Đang chuyển video YouTube tiếp theo."
