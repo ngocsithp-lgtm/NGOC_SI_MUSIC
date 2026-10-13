@@ -65,6 +65,10 @@ class NgocSiWakeWordService : Service() {
                         }.getOrDefault(TextToSpeech.LANG_MISSING_DATA)
                         ttsReady = fallbackResult >= TextToSpeech.LANG_AVAILABLE
                     }
+                    // Keep wake-word replies on the same user-selected voice as chat.
+                    if (NgocSiAiVoiceSettings.applySavedVoice(this@NgocSiWakeWordService, tts) != null) {
+                        ttsReady = true
+                    }
                 }
                 textToSpeech?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                     override fun onStart(utteranceId: String?) {
@@ -112,6 +116,11 @@ class NgocSiWakeWordService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
             stopListeningService()
+            return START_NOT_STICKY
+        }
+        if (intent?.action == ACTION_VOICE_CHANGED) {
+            val updated = applyPreferredVoice()
+            if (updated) updateNotification("Đã cập nhật giọng đọc AI")
             return START_NOT_STICKY
         }
         if (stopping) return START_NOT_STICKY
@@ -268,6 +277,13 @@ class NgocSiWakeWordService : Service() {
     }
 
     private val restartListening = Runnable { beginListening() }
+
+    private fun applyPreferredVoice(): Boolean {
+        val tts = textToSpeech ?: return false
+        val voiceName = NgocSiAiVoiceSettings.selectedVoiceName(this) ?: return false
+        val voice = tts.voices?.firstOrNull { it.name == voiceName } ?: return false
+        return runCatching { tts.setVoice(voice) == TextToSpeech.SUCCESS }.getOrDefault(false)
+    }
 
     private fun speakReply(message: String) {
         if (stopping || message.isBlank()) return
@@ -445,6 +461,7 @@ class NgocSiWakeWordService : Service() {
     companion object {
         const val ACTION_START = "com.ngocsi.music.action.START_WAKE_WORD"
         const val ACTION_STOP = "com.ngocsi.music.action.STOP_WAKE_WORD"
+        const val ACTION_VOICE_CHANGED = "com.ngocsi.music.action.WAKE_WORD_VOICE_CHANGED"
         const val PREFS_NAME = "ngoc_si_wake_word"
         const val KEY_ENABLED = "enabled"
         private const val CHANNEL_ID = "ngoc_si_wake_word"
@@ -459,6 +476,13 @@ class NgocSiWakeWordService : Service() {
 
         fun stop(context: Context) {
             context.startService(Intent(context, NgocSiWakeWordService::class.java).setAction(ACTION_STOP))
+        }
+
+        /** Refreshes the selected TTS voice only when the wake-word service is already running. */
+        fun updateVoice(context: Context) {
+            context.startService(
+                Intent(context, NgocSiWakeWordService::class.java).setAction(ACTION_VOICE_CHANGED)
+            )
         }
     }
 }
