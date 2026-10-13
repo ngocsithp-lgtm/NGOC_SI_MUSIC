@@ -145,6 +145,7 @@ class NgocSiAiLocalCommandRulesTest {
             NgocSiAiLocalCommand.STOP,
             classifyNgocSiAiWakePhrase("AI, dừng hẳn nhạc")
         )
+        assertEquals(true, isNgocSiAiExplicitStopPhrase("AI, dừng hẳn nhạc"))
         assertEquals(
             NgocSiAiLocalCommand.STOP,
             classifyNgocSiAiWakePhrase("AI, đừng phát nhạc nữa")
