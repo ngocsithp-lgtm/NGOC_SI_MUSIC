@@ -221,8 +221,9 @@ internal fun isNgocSiAiExplicitStopPhrase(input: String): Boolean {
 
     val hardStopPrefixes = listOf(
         "dung han", "dung hoan toan", "dung het",
-        "dung nhac hoan toan", "dung phat han",
-        "ngung han", "ngung phat han",
+        "dung nhac hoan toan", "dung phat han", "dung phat hoan toan",
+        "ngung han", "ngung phat han", "ngung nhac han",
+        "tat han nhac", "tat nhac han", "ket thuc phat nhac",
         "dung nhac luon", "ngung nhac luon",
         "stop playback", "stop completely"
     )
