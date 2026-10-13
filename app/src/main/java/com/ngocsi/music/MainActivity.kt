@@ -696,7 +696,8 @@ class MainActivity : ComponentActivity() {
             intent.getStringExtra("ai_tv_channel"),
             intent.getStringExtra("ai_playlist_query"),
             intent.getStringExtra("ai_youtube_action"),
-            intent.getStringExtra("ai_track_query")
+            intent.getStringExtra("ai_track_query"),
+            intent.getStringExtra("ai_online_query")
         )
 
         // Restore persisted Drive sources only after the first frame can render.
@@ -718,7 +719,8 @@ class MainActivity : ComponentActivity() {
         tvChannelQuery: String? = null,
         playlistQuery: String? = null,
         youtubeAction: String? = null,
-        trackQuery: String? = null
+        trackQuery: String? = null,
+        onlineSearchQuery: String? = null
     ) {
         when (destination) {
             "home" -> selectedSection = "Trang chủ"
@@ -761,6 +763,27 @@ class MainActivity : ComponentActivity() {
             "online" -> {
                 selectedSection = "Online"
                 onlineHubTab = "Tất cả"
+            }
+            "search_online" -> {
+                val query = onlineSearchQuery?.trim().orEmpty()
+                selectedSection = "Online"
+                onlineHubTab = "Tất cả"
+                if (query.isNotBlank()) {
+                    searchQuery = query
+                    jamendoQuery = query
+                    youtubeQuery = query
+                    onlineSearchActive = true
+                    jamendoTracks.clear()
+                    audiusTracks.clear()
+                    youtubeTracks.clear()
+                    youtubeNextPageToken = null
+                    errorMessage = null
+                    searchJamendo()
+                    searchAudius(query)
+                    searchYouTube()
+                } else {
+                    errorMessage = "Hãy nói nội dung cần tìm, ví dụ: “Tìm nhạc Trịnh Công Sơn”."
+                }
             }
             "youtube" -> {
                 selectedSection = "Online"
@@ -907,7 +930,8 @@ class MainActivity : ComponentActivity() {
             intent.getStringExtra("ai_tv_channel"),
             intent.getStringExtra("ai_playlist_query"),
             intent.getStringExtra("ai_youtube_action"),
-            intent.getStringExtra("ai_track_query")
+            intent.getStringExtra("ai_track_query"),
+            intent.getStringExtra("ai_online_query")
         )
     }
 
