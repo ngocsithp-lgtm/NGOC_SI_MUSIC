@@ -863,7 +863,7 @@ class NgocSiWakeWordService : Service() {
     }
 
     companion object {
-        private const val PLAYER_CONNECT_RETRY_MILLIS = 300L
+        private const val PLAYER_CONNECT_RETRY_MILLIS = 180L
         const val ACTION_START = "com.ngocsi.music.action.START_WAKE_WORD"
         const val ACTION_STOP = "com.ngocsi.music.action.STOP_WAKE_WORD"
         const val ACTION_VOICE_CHANGED = "com.ngocsi.music.action.WAKE_WORD_VOICE_CHANGED"
