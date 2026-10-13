@@ -179,6 +179,52 @@ private fun trimNgocSiAiNormalizedCommandFillers(input: String): String {
 }
 
 /** Keeps the user's spelling while removing polite speech tails from extracted names. */
+/**
+ * Recognizes an explicit immediate stop request, including common wake-word and polite forms.
+ * Time-qualified requests are deliberately excluded so "stop the music after 15 minutes"
+ * continues to route to the sleep timer rather than stopping immediately.
+ */
+internal fun isNgocSiAiExplicitStopPhrase(input: String): Boolean {
+    var phrase = normalizeNgocSiAiVoicePhrase(input)
+    val prefixes = listOf(
+        "hey ngoc si ", "ok ngoc si ", "alo ngoc si ",
+        "ngoc si oi ", "ngoc si ", "hay ", "vui long ",
+        "lam on ", "toi muon ", "giup toi ", "giup minh "
+    )
+    while (true) {
+        val prefix = prefixes.firstOrNull { phrase.startsWith(it) } ?: break
+        phrase = phrase.removePrefix(prefix).trim()
+    }
+    phrase = trimNgocSiAiNormalizedCommandFillers(phrase)
+
+    if (phrase.isBlank() || phrase.startsWith("tam dung") || phrase.startsWith("pause")) {
+        return false
+    }
+    if (phrase.contains("hen gio") ||
+        Regex("""\b(sau|trong)\s+\d+\s+phut\b""").containsMatchIn(phrase)
+    ) {
+        return false
+    }
+
+    val hardStopPrefixes = listOf(
+        "dung han", "dung hoan toan", "dung het",
+        "dung nhac hoan toan", "dung phat han",
+        "ngung han", "ngung phat han",
+        "dung nhac luon", "ngung nhac luon",
+        "stop playback", "stop completely"
+    )
+    if (hardStopPrefixes.any { phrase == it || phrase.startsWith("$it ") }) return true
+
+    // These short commands are exact matches only; broad prefix matching would mistake
+    // "tắt nhạc sau 15 phút" for an immediate stop instead of a sleep-timer request.
+    return phrase in setOf(
+        "dung", "dung lai", "dung nhac", "dung phat nhac",
+        "ngung nhac", "ngung phat nhac",
+        "tat nhac", "tat het nhac", "tat phat nhac",
+        "dung bai hat", "stop", "stop music", "stop the music", "end music"
+    )
+}
+
 private fun trimNgocSiAiExtractedQuery(input: String): String {
     var query = input.trim().trim(',', ':', '-', '.', '?', '!', ';')
     val suffix = Regex(
