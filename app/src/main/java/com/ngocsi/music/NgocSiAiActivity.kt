@@ -1301,14 +1301,18 @@ private fun NgocSiAiPreviewScreen(
 
     fun sendMessage(text: String) {
         val clean = text.trim()
-        if (clean.isBlank() || isSending) return
+        if (clean.isBlank()) return
+        // Stop is a safety-critical local control and must remain responsive while
+        // an unrelated online AI request is still loading or has hit a quota error.
+        val explicitStop = isExplicitStopPlaybackPhrase(clean)
+        if (isSending && !explicitStop) return
         messages.add(AiPreviewMessage(true, clean))
         if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
         input = ""
 
         // Handle explicit Stop phrases before the general classifier. This keeps "dừng hẳn nhạc"
         // on the offline Media3 STOP path even if the generic classifier calls it PAUSE or no match.
-        val localCommand = if (isExplicitStopPlaybackPhrase(clean)) {
+        val localCommand = if (explicitStop) {
             NgocSiAiLocalCommand.STOP
         } else {
             classifyNgocSiAiLocalCommand(clean)
