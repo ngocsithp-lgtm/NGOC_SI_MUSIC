@@ -61,6 +61,30 @@ internal enum class NgocSiAiLocalCommand {
     HELP
 }
 
+
+/**
+ * These controls act on the live Media3 queue. If the controller is still connecting,
+ * the wake-word service should wait briefly instead of immediately dropping the command.
+ * Navigation and commands with a MainActivity fallback do not need this wait.
+ */
+private val NGOC_SI_AI_PLAYER_CONNECTION_COMMANDS = setOf(
+    NgocSiAiLocalCommand.PAUSE,
+    NgocSiAiLocalCommand.STOP,
+    NgocSiAiLocalCommand.NEXT,
+    NgocSiAiLocalCommand.PREVIOUS,
+    NgocSiAiLocalCommand.PLAY_SECOND,
+    NgocSiAiLocalCommand.CURRENT_TRACK,
+    NgocSiAiLocalCommand.SHUFFLE_ON,
+    NgocSiAiLocalCommand.SHUFFLE_OFF,
+    NgocSiAiLocalCommand.REPEAT_OFF,
+    NgocSiAiLocalCommand.REPEAT_ALL,
+    NgocSiAiLocalCommand.REPEAT_ONE
+)
+
+internal fun ngocSiAiCommandRequiresPlayerConnection(command: NgocSiAiLocalCommand): Boolean =
+    command in NGOC_SI_AI_PLAYER_CONNECTION_COMMANDS
+
+
 /**
  * Recognizes only short, explicit playback commands. A normal question such as
  * "Làm thế nào để phát nhạc?" is intentionally not treated as an action.
