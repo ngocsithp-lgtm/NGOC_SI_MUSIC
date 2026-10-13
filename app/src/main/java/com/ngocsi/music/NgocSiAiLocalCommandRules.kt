@@ -133,6 +133,37 @@ internal fun normalizeNgocSiAiVoicePhrase(input: String): String =
         .replace("[^a-z0-9]+".toRegex(), " ")
         .trim()
 
+
+/**
+ * Removes only common speech fillers at the end of an explicit voice command.
+ * This makes commands tolerant of conversational phrasing without broad fuzzy
+ * matching that could accidentally trigger an unrelated request.
+ */
+private fun trimNgocSiAiNormalizedCommandFillers(input: String): String {
+    var phrase = input.trim()
+    val suffixes = listOf(
+        " nhe nha", " voi nhe", " giup toi", " giup minh", " cho toi",
+        " nhe", " nha", " voi", " di", " len"
+    )
+    while (true) {
+        val suffix = suffixes.firstOrNull { phrase.endsWith(it) && phrase.length > it.length } ?: break
+        phrase = phrase.removeSuffix(suffix).trimEnd()
+    }
+    return phrase
+}
+
+/** Keeps the user's spelling while removing polite speech tails from extracted names. */
+private fun trimNgocSiAiExtractedQuery(input: String): String {
+    var query = input.trim().trim(',', ':', '-', '.', '?', '!', ';')
+    val suffix = Regex(
+        """(?iu)\\s+(?:giúp tôi|giup toi|giùm tôi|gium toi|giúp mình|giup minh|cho tôi|cho toi|nhé nha|nhe nha|với nhé|voi nhe|nhé|nhe|nha|với|voi|đi|di|lên|len)[.!?,;:]*$"""
+    )
+    while (suffix.containsMatchIn(query)) {
+        query = suffix.replaceFirst(query, "").trim().trim(',', ':', '-', '.', '?', '!', ';')
+    }
+    return query
+}
+
 /** True when recognition heard only the wake phrase, not a playback command yet. */
 internal fun isNgocSiAiWakeWordOnly(input: String): Boolean =
     normalizeNgocSiAiVoicePhrase(input) in setOf(
@@ -183,6 +214,7 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
         val prefix = politePrefixes.firstOrNull { phrase.startsWith(it) } ?: break
         phrase = phrase.removePrefix(prefix).trim()
     }
+    phrase = trimNgocSiAiNormalizedCommandFillers(phrase)
 
     fun isAnyOf(vararg options: String) = phrase in options.toSet()
     fun startsWithAny(vararg options: String) = options.any { phrase == it || phrase.startsWith("$it ") }
@@ -236,9 +268,10 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
         extractNgocSiAiTrackQuery(input) != null -> NgocSiAiLocalCommand.PLAY_TRACK
 
         isAnyOf(
-            "phat nhac", "phat nhac di", "phat nhac len",
+            "phat nhac", "phat nhac di", "phat nhac len", "toi muon phat nhac",
+            "phat nhac tren dien thoai", "phat nhac trong may", "phat nhac giup toi",
             "phat bai hat", "phat bai hat di", "nghe bai hat", "nghe bai hat di",
-            "nghe nhac di", "mo bai hat", "mo bai hat len", "cho toi nghe nhac",
+            "nghe nhac di", "toi muon nghe nhac", "mo bai hat", "mo bai hat len", "cho toi nghe nhac",
             "bat nhac", "bat nhac len",
             "tiep tuc phat", "tiep tuc phat nhac", "tiep tuc nghe nhac",
             "bat dau phat nhac", "bat dau nghe nhac", "nghe nhac",
@@ -472,7 +505,7 @@ internal fun extractNgocSiAiPlaylistQuery(input: String, create: Boolean): Strin
         )
     }
     val prefix = prefixes.firstOrNull { it.containsMatchIn(raw) } ?: return null
-    val query = prefix.replaceFirst(raw, "").trim().trim(',', ':', '-', '.', '?', '!')
+    val query = trimNgocSiAiExtractedQuery(prefix.replaceFirst(raw, ""))
     val normalized = normalizeNgocSiAiVoicePhrase(query)
     if (normalized.isBlank() || normalized in setOf("moi", "moi nhe", "nhe", "di")) return null
     return query.take(100)
@@ -487,7 +520,7 @@ internal fun extractNgocSiAiQueueToPlaylistQuery(input: String): String? {
         Regex("""^(?:(?:ngọc sĩ|ngoc si)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:lưu|luu)\s+hàng đợi thành\s+(?:playlist|danh sách phát)\s+""", RegexOption.IGNORE_CASE)
     )
     val prefix = patterns.firstOrNull { it.containsMatchIn(raw) } ?: return null
-    val query = prefix.replaceFirst(raw, "").trim().trim(',', ':', '-', '.', '?', '!')
+    val query = trimNgocSiAiExtractedQuery(prefix.replaceFirst(raw, ""))
     return query.take(100).takeIf { normalizeNgocSiAiVoicePhrase(it).isNotBlank() }
 }
 
@@ -500,7 +533,7 @@ internal fun extractNgocSiAiAddToPlaylistQuery(input: String): String? {
         Regex("""^(?:(?:ngọc sĩ|ngoc si)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:thêm|them|lưu|luu)\s+(?:bài đang phát|bai dang phat|bài hiện tại|bai hien tai)\s+(?:(?:vào|vao)\s+)?(?:playlist|danh sách phát|danh sach phat)\s+""", RegexOption.IGNORE_CASE)
     )
     val prefix = prefixes.firstOrNull { it.containsMatchIn(raw) } ?: return null
-    val query = prefix.replaceFirst(raw, "").trim().trim(',', ':', '-', '.', '?', '!')
+    val query = trimNgocSiAiExtractedQuery(prefix.replaceFirst(raw, ""))
     return query.take(100).takeIf { normalizeNgocSiAiVoicePhrase(it).isNotBlank() }
 }
 
@@ -514,7 +547,7 @@ internal fun extractNgocSiAiRadioStationQuery(input: String): String? {
         Regex("""^(?:(?:ngọc sĩ|ngoc si)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:phát|phat|mở|mo|nghe)\s+(?:vov|voh)\s*""", RegexOption.IGNORE_CASE)
     )
     val prefix = prefixes.firstOrNull { it.containsMatchIn(raw) } ?: return null
-    val query = prefix.replaceFirst(raw, "").trim().trim(',', ':', '-', '.', '?', '!')
+    val query = trimNgocSiAiExtractedQuery(prefix.replaceFirst(raw, ""))
     val normalized = normalizeNgocSiAiVoicePhrase(query)
     if (normalized.isBlank() || normalized in setOf("viet nam", "radio", "dai", "nhac")) return null
     return query.take(80)
@@ -530,7 +563,7 @@ internal fun extractNgocSiAiTvChannelQuery(input: String): String? {
         Regex("""^(?:(?:ngọc sĩ|ngoc si)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:chuyển|chuyen)\s+(?:(?:sang|đến|den)\s+)?(?:(?:kênh|kenh)\s+)?""", RegexOption.IGNORE_CASE)
     )
     val prefix = prefixes.firstOrNull { it.containsMatchIn(raw) } ?: return null
-    val query = prefix.replaceFirst(raw, "").trim().trim(',', ':', '-', '.', '?', '!')
+    val query = trimNgocSiAiExtractedQuery(prefix.replaceFirst(raw, ""))
     val normalized = normalizeNgocSiAiVoicePhrase(query)
     val channelPattern = Regex("""^(?:(?:kenh|tv)\s+)?(?:vtv\s*[1-9]|htv\s*[1-9]|vtv can tho|thvl\s*[1-4]|vtvgo|htvm)$""")
     return query.take(60).takeIf { channelPattern.matches(normalized) }
@@ -546,7 +579,7 @@ internal fun extractNgocSiAiTrackQuery(input: String): String? {
         Regex("""^(?:(?:ngọc sĩ|ngoc si)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:play|listen to)\s+(?:song|track)\s+""", RegexOption.IGNORE_CASE)
     )
     val prefix = prefixes.firstOrNull { it.containsMatchIn(raw) } ?: return null
-    val query = prefix.replaceFirst(raw, "").trim().trim(',', ':', '-', '.', '?', '!')
+    val query = trimNgocSiAiExtractedQuery(prefix.replaceFirst(raw, ""))
     val normalized = normalizeNgocSiAiVoicePhrase(query)
     if (query.length < 3 || normalized in setOf("di", "len", "nhe", "luon", "di nhe", "len nhe")) {
         return null
@@ -567,6 +600,7 @@ internal fun extractNgocSiAiOnlineQuery(input: String): String? {
         Regex("""\s+(?:(?:trên|tren)\s+)?(?:mạng|mang|online|trực tuyến|truc tuyen)\s*[?!.,]*$""", RegexOption.IGNORE_CASE),
         ""
     ).trim().trim(',', ':', '-', '.', '?', '!')
+    query = trimNgocSiAiExtractedQuery(query)
     return query.take(120).takeIf { it.length >= 2 }
 }
 
@@ -593,6 +627,7 @@ internal fun extractNgocSiAiYoutubeQuery(input: String): String? {
         Regex("""\s+(?:(?:trên|tren)\s+)?youtube\s*[?!.,]*$""", RegexOption.IGNORE_CASE),
         ""
     ).trim().trim(',', ':', '-', '.', '?', '!')
+    query = trimNgocSiAiExtractedQuery(query)
     val normalizedQuery = normalizeNgocSiAiVoicePhrase(query)
     // Filler words such as “lên” in “Mở YouTube lên” are not search terms.
     // Preserve meaningful phrases (e.g. “Mở YouTube nhạc Trịnh Công Sơn”).
