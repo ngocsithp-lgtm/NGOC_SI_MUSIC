@@ -752,7 +752,7 @@ class NgocSiAiActivity : ComponentActivity() {
 
     private fun runLocalCommand(command: NgocSiAiLocalCommand, originalText: String = ""): String {
         when (command) {
-            NgocSiAiLocalCommand.HELP -> return "Tôi có thể điều khiển nhạc trên điện thoại và YouTube riêng biệt; mở Thư viện, Yêu thích, Album, Thư mục, Drive, từng đài Radio và kênh TV; tìm YouTube; tạo/phát playlist theo tên; mở Hàng đợi, Trình phát, Cài đặt và hẹn giờ."
+            NgocSiAiLocalCommand.HELP -> return "Tôi có thể điều khiển nhạc trên điện thoại và YouTube riêng biệt; mở Thư viện, Yêu thích, Album, Thư mục, Drive, từng đài Radio và kênh TV; tìm nhạc trên Jamendo, Audius và YouTube; tạo/phát playlist theo tên; mở Hàng đợi, Trình phát, Cài đặt và hẹn giờ."
             NgocSiAiLocalCommand.RESUME_YOUTUBE -> return openAppDestination("youtube_command", "Đang tiếp tục video YouTube.", youtubeAction = "play")
             NgocSiAiLocalCommand.PAUSE_YOUTUBE -> return openAppDestination("youtube_command", "Đang tạm dừng video YouTube.", youtubeAction = "pause")
             NgocSiAiLocalCommand.NEXT_YOUTUBE_VIDEO -> return openAppDestination("youtube_command", "Đang chuyển sang video YouTube tiếp theo.", youtubeAction = "next")
@@ -765,6 +765,15 @@ class NgocSiAiActivity : ComponentActivity() {
             NgocSiAiLocalCommand.YOUTUBE_FAVORITE -> return openAppDestination("youtube_command", "Đang lưu video YouTube vào Yêu thích.", youtubeAction = "favorite")
             NgocSiAiLocalCommand.YOUTUBE_WATCH_LATER -> return openAppDestination("youtube_command", "Đang lưu video YouTube vào Xem sau.", youtubeAction = "watch_later")
             NgocSiAiLocalCommand.OPEN_HOME -> return openAppDestination("home", "Đang mở trang chủ.")
+            NgocSiAiLocalCommand.SEARCH_ONLINE_MUSIC -> {
+                val query = extractNgocSiAiOnlineQuery(originalText)
+                    ?: return "Hãy nói nội dung cần tìm, ví dụ: “Tìm nhạc Trịnh Công Sơn”."
+                return openAppDestination(
+                    "search_online",
+                    "Đang tìm “$query” trên các nguồn nhạc trực tuyến.",
+                    onlineSearchQuery = query
+                )
+            }
             NgocSiAiLocalCommand.SEARCH_YOUTUBE -> {
                 val query = extractNgocSiAiYoutubeQuery(originalText)
                     ?: return "Hãy nói tên nội dung cần tìm, ví dụ: “Tìm YouTube nhạc Trịnh Công Sơn”."
@@ -979,7 +988,8 @@ class NgocSiAiActivity : ComponentActivity() {
         radioStationQuery: String? = null,
         tvChannelQuery: String? = null,
         playlistQuery: String? = null,
-        youtubeAction: String? = null
+        youtubeAction: String? = null,
+        onlineSearchQuery: String? = null
     ): String {
         return runCatching {
             startActivity(
@@ -990,6 +1000,7 @@ class NgocSiAiActivity : ComponentActivity() {
                     tvChannelQuery?.let { putExtra("ai_tv_channel", it) }
                     playlistQuery?.let { putExtra("ai_playlist_query", it) }
                     youtubeAction?.let { putExtra("ai_youtube_action", it) }
+                    onlineSearchQuery?.let { putExtra("ai_online_query", it) }
                     // Bring the existing main app to the front and deliver its navigation event.
                     addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                 }
@@ -1693,7 +1704,7 @@ private fun NgocSiAiPreviewScreen(
                     "Đang phát bài gì?", "Phát ngẫu nhiên", "Tắt phát ngẫu nhiên",
                     "Lặp hàng đợi", "Lặp một bài", "Tắt chế độ lặp",
                     "Mở trang chủ", "Mở thư viện", "Mở Yêu thích", "Mở Album", "Mở Thư mục",
-                    "Mở Online", "Mở YouTube", "Tìm YouTube nhạc Trịnh Công Sơn",
+                    "Mở Online", "Mở YouTube", "Tìm YouTube nhạc Trịnh Công Sơn", "Tìm nhạc Trịnh Công Sơn",
                     "Mở Drive", "Mở Radio", "Phát Radio VOV3", "Mở TV", "Mở VTV3", "Mở kênh HTV7", "Mở danh sách phát",
                     "Mở hàng đợi", "Mở trình phát", "Mở Cài đặt", "Tạo playlist Nhạc Trịnh",
                     "Phát playlist Nhạc Trịnh", "Thêm bài đang phát vào playlist Nhạc Trịnh", "Tạm dừng YouTube", "Tiếp tục YouTube",
