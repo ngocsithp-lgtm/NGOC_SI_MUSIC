@@ -292,24 +292,25 @@ class NgocSiWakeWordService : Service() {
     }
 
     private fun speakReply(message: String) {
-        if (stopping || message.isBlank()) return
+        val cleanMessage = NgocSiAiSpeechTextRules.cleanForSpeech(message)
+        if (stopping || cleanMessage.isBlank()) return
         val tts = textToSpeech
         if (!ttsReady || tts == null) {
-            // Keep the result until asynchronous TextToSpeech initialization finishes.
-            pendingVoiceReply = message
-            updateNotification("$message · đang chuẩn bị giọng đọc")
+            // Keep the cleaned result until asynchronous TextToSpeech initialization finishes.
+            pendingVoiceReply = cleanMessage
+            updateNotification("$cleanMessage · đang chuẩn bị giọng đọc")
             return
         }
         speaking = true
         val result = runCatching {
-            tts.speak(message, TextToSpeech.QUEUE_FLUSH, null, "ngoc_si_reply_" + System.currentTimeMillis())
+            tts.speak(cleanMessage, TextToSpeech.QUEUE_FLUSH, null, "ngoc_si_reply_" + System.currentTimeMillis())
         }.getOrDefault(TextToSpeech.ERROR)
         if (result == TextToSpeech.ERROR) {
             speaking = false
             if (awaitingCommand) {
                 awaitingCommandUntilMillis = System.currentTimeMillis() + COMMAND_WINDOW_MILLIS
             }
-            updateNotification("$message · không phát được giọng nói")
+            updateNotification("$cleanMessage · không phát được giọng nói")
             scheduleListenRetry(650L)
         }
     }
