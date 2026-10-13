@@ -522,13 +522,25 @@ class NgocSiWakeWordService : Service() {
                 title.contains(normalizedQuery) || artist.contains(normalizedQuery)
             }
             if (matchIndex == null) {
-                return "Không tìm thấy “$query” trong hàng đợi. Hãy mở Thư viện rồi thử lại."
+                return launchMainAppRoute(
+                    destination = "play_track",
+                    response = "Đang tìm bài $query trong thư viện.",
+                    trackQuery = query
+                )
             }
             player.seekTo(matchIndex, 0L)
             player.play()
             val title = player.getMediaItemAt(matchIndex).mediaMetadata.title?.toString()
                 ?.takeIf { it.isNotBlank() } ?: query
             return "Đang phát $title."
+        }
+        if (command == NgocSiAiLocalCommand.PLAY &&
+            player.mediaItemCount > 0 && player.currentMediaItem == null
+        ) {
+            player.seekToDefaultPosition()
+            player.prepare()
+            player.play()
+            return "Đang bắt đầu phát từ đầu hàng đợi."
         }
         if (player.mediaItemCount == 0 || player.currentMediaItem == null) {
             return when (command) {
