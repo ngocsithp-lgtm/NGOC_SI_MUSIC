@@ -315,7 +315,7 @@ class NgocSiWakeWordService : Service() {
      */
     private fun runAppCommand(command: NgocSiAiLocalCommand, originalText: String): String {
         if (command == NgocSiAiLocalCommand.HELP) {
-            return "Tôi có thể phát bài theo tên, điều khiển nhạc; mở Trang chủ, Thư viện, Yêu thích, Album, Thư mục, YouTube, Drive, từng đài Radio, từng kênh TV, tạo và phát playlist theo tên, Hàng đợi, Trình phát, Cài đặt và hẹn giờ. Ví dụ: mở VTV3, phát Radio VOV3 hoặc tạo playlist Nhạc Trịnh."
+            return "Tôi có thể điều khiển nhạc điện thoại và YouTube riêng biệt; phát bài theo tên; mở thư viện, Drive, từng đài Radio, kênh TV; tìm YouTube; tạo/phát playlist; điều chỉnh phát ngẫu nhiên, lặp, hẹn giờ và lưu video yêu thích/xem sau."
         }
 
         val destination = when (command) {
@@ -411,6 +411,17 @@ class NgocSiWakeWordService : Service() {
                 NgocSiAiLocalCommand.OPEN_TV_CHANNEL -> "Đang mở kênh $tvQuery."
                 NgocSiAiLocalCommand.CREATE_PLAYLIST -> "Đang tạo playlist $playlistQuery."
                 NgocSiAiLocalCommand.PLAY_NAMED_PLAYLIST -> "Đang tìm playlist $playlistQuery."
+                NgocSiAiLocalCommand.RESUME_YOUTUBE -> "Đang tiếp tục video YouTube."
+                NgocSiAiLocalCommand.PAUSE_YOUTUBE -> "Đang tạm dừng video YouTube."
+                NgocSiAiLocalCommand.NEXT_YOUTUBE_VIDEO -> "Đang chuyển video YouTube tiếp theo."
+                NgocSiAiLocalCommand.PREVIOUS_YOUTUBE_VIDEO -> "Đang chuyển video YouTube trước."
+                NgocSiAiLocalCommand.YOUTUBE_SHUFFLE_ON -> "Đang bật phát ngẫu nhiên YouTube."
+                NgocSiAiLocalCommand.YOUTUBE_SHUFFLE_OFF -> "Đang tắt phát ngẫu nhiên YouTube."
+                NgocSiAiLocalCommand.YOUTUBE_REPEAT_OFF -> "Đang tắt lặp YouTube."
+                NgocSiAiLocalCommand.YOUTUBE_REPEAT_ALL -> "Đang lặp hàng đợi YouTube."
+                NgocSiAiLocalCommand.YOUTUBE_REPEAT_ONE -> "Đang lặp video YouTube."
+                NgocSiAiLocalCommand.YOUTUBE_FAVORITE -> "Đang thêm video YouTube vào Yêu thích."
+                NgocSiAiLocalCommand.YOUTUBE_WATCH_LATER -> "Đang lưu video YouTube xem sau."
                 NgocSiAiLocalCommand.OPEN_PLAYLISTS -> "Đã gửi lệnh mở Danh sách phát."
                 NgocSiAiLocalCommand.OPEN_QUEUE -> "Đã gửi lệnh mở Hàng đợi."
                 NgocSiAiLocalCommand.OPEN_PLAYER -> "Đã gửi lệnh mở Trình phát."
@@ -432,6 +443,7 @@ class NgocSiWakeWordService : Service() {
                     radioQuery?.let { putExtra("ai_radio_station", it) }
                     tvQuery?.let { putExtra("ai_tv_channel", it) }
                     playlistQuery?.let { putExtra("ai_playlist_query", it) }
+                    youtubeAction?.let { putExtra("ai_youtube_action", it) }
                     addFlags(
                         Intent.FLAG_ACTIVITY_NEW_TASK or
                             Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
