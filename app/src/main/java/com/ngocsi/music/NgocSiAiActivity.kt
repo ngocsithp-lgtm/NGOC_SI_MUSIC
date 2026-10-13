@@ -966,6 +966,10 @@ class NgocSiAiActivity : ComponentActivity() {
                 player.pause()
                 "Đã gửi lệnh tạm dừng nhạc."
             }
+            NgocSiAiLocalCommand.STOP -> {
+                player.stop()
+                "Đã dừng phát nhạc. Hàng đợi vẫn được giữ để bạn có thể phát lại."
+            }
             NgocSiAiLocalCommand.NEXT -> {
                 if (player.hasNextMediaItem()) {
                     player.seekToNextMediaItem()
