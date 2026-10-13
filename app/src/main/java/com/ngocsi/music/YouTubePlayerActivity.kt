@@ -27,6 +27,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
 import android.view.Gravity
 import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewFeature
@@ -48,6 +49,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         const val EXTRA_CHANNEL = "youtube_channel"
         const val EXTRA_QUEUE_JSON = "youtube_queue_json"
         const val EXTRA_QUEUE_INDEX = "youtube_queue_index"
+        const val EXTRA_AI_ACTION = "youtube_ai_action"
     }
 
     private lateinit var root: FrameLayout
@@ -73,6 +75,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var pageErrorVisible = false
     private var youtubePlayerReady = false
     private var youtubePlayerState = -1
+    private var pendingAiAction: String? = null
     private var queueTransitionInFlight = false
     private var lastHandledEndedVideoId: String? = null
     private var youtubeShuffleEnabled = false
@@ -100,6 +103,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 updatePlaybackButton()
                 restoreSavedPlaybackPosition()
                 startPlaybackPositionSaver()
+                executePendingAiAction()
             }
         }
 
@@ -178,6 +182,7 @@ class YouTubePlayerActivity : ComponentActivity() {
 
         val restoredQueueJson = savedInstanceState?.getString(EXTRA_QUEUE_JSON)
         parseQueue(restoredQueueJson ?: intent.getStringExtra(EXTRA_QUEUE_JSON))
+        pendingAiAction = intent.getStringExtra(EXTRA_AI_ACTION)
         if (queue.isNotEmpty()) {
             queueIndex = queueIndex.coerceIn(0, queue.lastIndex)
             val selected = queue[queueIndex]
@@ -203,6 +208,15 @@ class YouTubePlayerActivity : ComponentActivity() {
             }
         })
         createPlayer()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        intent.getStringExtra(EXTRA_AI_ACTION)?.let { action ->
+            pendingAiAction = action
+            executePendingAiAction()
+        }
     }
 
     private fun buildUi() {
@@ -1075,6 +1089,45 @@ class YouTubePlayerActivity : ComponentActivity() {
         if (!youtubePlayerReady) return
         val command = if (youtubePlayerState == 1) "pauseVideo()" else "playVideo()"
         webView?.evaluateJavascript(command, null)
+    }
+
+    /**
+     * Explicit voice actions are idempotent: "play" always plays and "pause" always pauses.
+     * The request is held until the embedded player reports ready.
+     */
+    private fun executePendingAiAction() {
+        val action = pendingAiAction ?: return
+        if (!youtubePlayerReady || isFinishing || isDestroyed) return
+        pendingAiAction = null
+
+        when (action) {
+            "play" -> webView?.evaluateJavascript("playVideo()", null)
+            "pause" -> webView?.evaluateJavascript("pauseVideo()", null)
+            "next" -> {
+                if (queue.size > 1) playNext()
+                else Toast.makeText(this, "Hàng đợi YouTube chưa có video tiếp theo.", Toast.LENGTH_SHORT).show()
+            }
+            "previous" -> {
+                if (queue.size > 1) playPrevious()
+                else Toast.makeText(this, "Hàng đợi YouTube chưa có video trước đó.", Toast.LENGTH_SHORT).show()
+            }
+            "shuffle_on" -> if (!youtubeShuffleEnabled) toggleYoutubeShuffle()
+            "shuffle_off" -> if (youtubeShuffleEnabled) toggleYoutubeShuffle()
+            "repeat_off" -> setYoutubeRepeatMode(0)
+            "repeat_all" -> setYoutubeRepeatMode(1)
+            "repeat_one" -> setYoutubeRepeatMode(2)
+            "favorite" -> if (!isFavorite()) toggleFavorite()
+            "watch_later" -> if (!isWatchLater()) toggleWatchLater()
+        }
+    }
+
+    private fun setYoutubeRepeatMode(mode: Int) {
+        youtubeRepeatMode = mode.coerceIn(0, 2)
+        getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+            .edit()
+            .putInt("youtube_repeat_mode", youtubeRepeatMode)
+            .apply()
+        updateQueueModeButtons()
     }
 
     private fun updatePlaybackButton() {
