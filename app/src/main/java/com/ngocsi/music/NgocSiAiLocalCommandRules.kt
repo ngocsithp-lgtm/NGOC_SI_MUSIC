@@ -282,8 +282,8 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
         ) -> NgocSiAiLocalCommand.PLAY
 
         startsWithAny(
-            "dung han", "dung han nhac", "dung hoan toan", "dung phat han",
-            "stop playback", "stop completely"
+            "dung han", "dung nhac hoan toan", "dung hoan toan", "dung phat han",
+            "ngung han", "ngung phat han", "stop playback", "stop completely"
         ) -> NgocSiAiLocalCommand.STOP
 
         isAnyOf(
