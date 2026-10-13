@@ -728,7 +728,7 @@ class NgocSiAiActivity : ComponentActivity() {
 
     private fun runLocalCommand(command: NgocSiAiLocalCommand, originalText: String = ""): String {
         when (command) {
-            NgocSiAiLocalCommand.HELP -> return "Tôi có thể điều khiển nhạc, mở Thư viện, YouTube, Google Drive, Radio, TV, Playlist, Hàng đợi, Cài đặt và đặt hẹn giờ 15, 30, 45, 60, 90 hoặc 120 phút. Hãy nói ví dụ: “Mở YouTube” hoặc “Hẹn giờ 30 phút”."
+            NgocSiAiLocalCommand.HELP -> return "Tôi có thể điều khiển phát, tạm dừng, chuyển bài, phát ngẫu nhiên, chế độ lặp; mở Trang chủ, Thư viện, Yêu thích, Album, Thư mục, YouTube, Drive, Radio, TV, Online, Playlist, Hàng đợi, Trình phát, Cài đặt; tìm nội dung YouTube và đặt hoặc hủy hẹn giờ. Hãy nói “Ngọc Sĩ”, đợi tôi đáp rồi nói lệnh."
             NgocSiAiLocalCommand.OPEN_HOME -> return openAppDestination("home", "Đang mở trang chủ.")
             NgocSiAiLocalCommand.SEARCH_YOUTUBE -> {
                 val query = extractNgocSiAiYoutubeQuery(originalText)
@@ -736,6 +736,10 @@ class NgocSiAiActivity : ComponentActivity() {
                 return openAppDestination("youtube", "Đang tìm trên YouTube: $query", query)
             }
             NgocSiAiLocalCommand.OPEN_LIBRARY -> return openAppDestination("library", "Đang mở Thư viện nhạc.")
+            NgocSiAiLocalCommand.OPEN_FAVORITES -> return openAppDestination("favorites", "Đang mở nhạc Yêu thích.")
+            NgocSiAiLocalCommand.OPEN_ALBUMS -> return openAppDestination("albums", "Đang mở danh sách Album.")
+            NgocSiAiLocalCommand.OPEN_FOLDERS -> return openAppDestination("folders", "Đang mở Thư mục nhạc.")
+            NgocSiAiLocalCommand.OPEN_ONLINE -> return openAppDestination("online", "Đang mở các nguồn Online.")
             NgocSiAiLocalCommand.OPEN_YOUTUBE -> return openAppDestination("youtube", "Đang mở YouTube.")
             NgocSiAiLocalCommand.OPEN_DRIVE -> return openAppDestination("drive", "Đang mở Google Drive.")
             NgocSiAiLocalCommand.OPEN_RADIO -> return openAppDestination("radio", "Đang mở Radio.")
@@ -983,7 +987,7 @@ class NgocSiAiActivity : ComponentActivity() {
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1_800L)
             putExtra(
                 RecognizerIntent.EXTRA_PROMPT,
-                "Nói tiếng Việt, ví dụ: Phát nhạc, tạm dừng, chuyển bài hoặc hỏi một câu"
+                "Nói tiếng Việt, ví dụ: Phát nhạc, mở YouTube, mở Drive, mở Yêu thích hoặc hẹn giờ"
             )
         }
         if (voiceRecognitionInProgress) {
@@ -1392,7 +1396,7 @@ private fun NgocSiAiPreviewScreen(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        if (isWakeWordListening) "Nói “Ngọc Sĩ”, đợi AI đáp rồi nói lệnh nhạc · chạm để tắt" else "Bật một lần; nói “Ngọc Sĩ”, rồi nói “chuyển bài”",
+                        if (isWakeWordListening) "Nói “Ngọc Sĩ”, đợi AI đáp rồi ra lệnh điều khiển ứng dụng · chạm để tắt" else "Bật một lần; nói “Ngọc Sĩ”, rồi nói “mở YouTube” hoặc “chuyển bài”",
                         color = Color(0xFFB9C4D6),
                         fontSize = 11.sp
                     )
@@ -1564,9 +1568,10 @@ private fun NgocSiAiPreviewScreen(
                     "Phát nhạc", "Tạm dừng nhạc", "Bài tiếp theo", "Bài trước",
                     "Đang phát bài gì?", "Phát ngẫu nhiên", "Tắt phát ngẫu nhiên",
                     "Lặp hàng đợi", "Lặp một bài", "Tắt chế độ lặp",
-                    "Mở thư viện", "Mở YouTube", "Tìm YouTube nhạc Trịnh Công Sơn",
+                    "Mở trang chủ", "Mở thư viện", "Mở Yêu thích", "Mở Album", "Mở Thư mục",
+                    "Mở Online", "Mở YouTube", "Tìm YouTube nhạc Trịnh Công Sơn",
                     "Mở Drive", "Mở Radio", "Mở TV", "Mở danh sách phát",
-                    "Mở hàng đợi", "Mở Cài đặt", "Hẹn giờ 30 phút",
+                    "Mở hàng đợi", "Mở trình phát", "Mở Cài đặt", "Hẹn giờ 30 phút",
                     "Tắt hẹn giờ", "Bạn làm được gì?"
                 )
                 suggestions.forEach { suggestion ->
