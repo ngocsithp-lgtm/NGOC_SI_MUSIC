@@ -552,7 +552,12 @@ internal fun extractNgocSiAiYoutubeQuery(input: String): String? {
         Regex("""^(?:(?:ngọc sĩ|ngoc si)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:tìm|tim|kiếm|kiem)\s+(?:video|bài hát|bai hat|nhạc|nhac)\s+""", RegexOption.IGNORE_CASE),
         Regex("""^(?:(?:ngọc sĩ|ngoc si)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:phát|phat|mở|mo)\s+youtube\s*[:,\-]?\s*""", RegexOption.IGNORE_CASE)
     )
-    val prefix = prefixes.firstOrNull { it.containsMatchIn(query) } ?: return null
+    val prefixIndex = prefixes.indexOfFirst { it.containsMatchIn(query) }
+    if (prefixIndex < 0) return null
+    // The generic "tìm nhạc ..." form belongs to the Online hub unless the
+    // user explicitly mentions YouTube (as a suffix or in the prefix).
+    if (prefixIndex == 2 && !normalizeNgocSiAiVoicePhrase(query).contains("youtube")) return null
+    val prefix = prefixes[prefixIndex]
     query = prefix.replaceFirst(query, "")
     query = query.replace(
         Regex("""\s+(?:(?:trên|tren)\s+)?youtube\s*[?!.,]*$""", RegexOption.IGNORE_CASE),
