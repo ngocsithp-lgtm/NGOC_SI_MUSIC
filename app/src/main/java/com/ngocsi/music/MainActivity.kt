@@ -6754,6 +6754,21 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         color = Color(0xFF8F8F9A),
                         fontSize = 12.sp
                     )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        if (activeRadioTitle != null) "Đang phát: $activeRadioTitle" else "Chọn đài bên dưới để phát trực tiếp",
+                        color = Color(0xFFB8B8C6),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    if (activeRadioTitle != null) {
+                        Spacer(Modifier.height(4.dp))
+                        OutlinedButton(
+                            onClick = { controller?.pause() },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        ) { Text("TẠM DỪNG RADIO") }
+                    }
                     Spacer(Modifier.height(10.dp))
                     OutlinedTextField(
                         value = radioFilter,
@@ -6823,12 +6838,9 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         fontSize = 11.sp
                     )
                     Spacer(Modifier.height(4.dp))
-                    TextButton(onClick = {
-                        radioFilter = ""
-                    }) { Text("XÓA TÌM KIẾM") }
+                    TextButton(onClick = { radioFilter = "" }) { Text("XÓA TÌM KIẾM") }
                 }
             }
-        }
     }
 
     @Composable
