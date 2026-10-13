@@ -337,6 +337,29 @@ class NgocSiAiLocalCommandRulesTest {
     }
 
     @Test
+    fun recognizesNaturalHelpQuestionsWithoutSendingThemToGemini() {
+        assertEquals(
+            NgocSiAiLocalCommand.HELP,
+            classifyNgocSiAiLocalCommand("Ngọc Sĩ, hôm nay bạn có thể giúp tôi việc gì?")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.HELP,
+            classifyNgocSiAiWakePhrase("Ngọc Sĩ, hôm nay bạn có thể giúp tôi việc gì?")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.HELP,
+            classifyNgocSiAiLocalCommand("Hôm nay bạn giúp được gì?")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.HELP,
+            classifyNgocSiAiLocalCommand("Các chức năng của bạn")
+        )
+        assertNull(
+            classifyNgocSiAiLocalCommand("Bạn có thể giúp tôi kiểm tra app bị lỗi không?")
+        )
+    }
+
+    @Test
     fun helpIntentDoesNotConfuseQuestionsWithActions() {
         assertEquals(NgocSiAiLocalCommand.HELP, classifyNgocSiAiLocalCommand("Bạn làm được gì?"))
         assertEquals(NgocSiAiLocalCommand.HELP, classifyNgocSiAiLocalCommand("Bạn có thể giúp gì?"))
