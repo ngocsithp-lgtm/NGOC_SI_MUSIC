@@ -752,7 +752,7 @@ class NgocSiAiActivity : ComponentActivity() {
 
     private fun runLocalCommand(command: NgocSiAiLocalCommand, originalText: String = ""): String {
         when (command) {
-            NgocSiAiLocalCommand.HELP -> return "Tôi có thể phát bài theo tên, tạm dừng, chuyển bài, phát ngẫu nhiên, chế độ lặp; mở Trang chủ, Thư viện, Yêu thích, Album, Thư mục, YouTube, Drive, Radio, TV, Online, Playlist, Hàng đợi, Trình phát, Cài đặt; tìm nội dung YouTube và đặt hoặc hủy hẹn giờ. Hãy nói “Ngọc Sĩ”, đợi tôi đáp rồi nói lệnh."
+            NgocSiAiLocalCommand.HELP -> return "Tôi có thể phát bài theo tên, tạm dừng, chuyển bài, phát ngẫu nhiên, chế độ lặp; mở Trang chủ, Thư viện, Yêu thích, Album, Thư mục, YouTube, Drive, đài Radio, kênh TV, Online, Hàng đợi, Trình phát, Cài đặt; tạo và phát playlist theo tên, tìm nội dung YouTube và đặt hoặc hủy hẹn giờ. Hãy nói “Ngọc Sĩ”, đợi tôi đáp rồi nói lệnh."
             NgocSiAiLocalCommand.OPEN_HOME -> return openAppDestination("home", "Đang mở trang chủ.")
             NgocSiAiLocalCommand.SEARCH_YOUTUBE -> {
                 val query = extractNgocSiAiYoutubeQuery(originalText)
@@ -775,6 +775,24 @@ class NgocSiAiActivity : ComponentActivity() {
                     "tv_channel",
                     "Đang mở kênh $query.",
                     tvChannelQuery = query
+                )
+            }
+            NgocSiAiLocalCommand.CREATE_PLAYLIST -> {
+                val query = extractNgocSiAiPlaylistQuery(originalText, create = true)
+                    ?: return "Hãy nói tên playlist, ví dụ: “Tạo playlist Nhạc Trịnh”."
+                return openAppDestination(
+                    "create_playlist",
+                    "Đang tạo playlist $query.",
+                    playlistQuery = query
+                )
+            }
+            NgocSiAiLocalCommand.PLAY_NAMED_PLAYLIST -> {
+                val query = extractNgocSiAiPlaylistQuery(originalText, create = false)
+                    ?: return "Hãy nói tên playlist muốn phát, ví dụ: “Phát playlist Nhạc Trịnh”."
+                return openAppDestination(
+                    "play_playlist",
+                    "Đang tìm playlist $query.",
+                    playlistQuery = query
                 )
             }
             NgocSiAiLocalCommand.OPEN_LIBRARY -> return openAppDestination("library", "Đang mở Thư viện nhạc.")
@@ -939,7 +957,8 @@ class NgocSiAiActivity : ComponentActivity() {
         response: String,
         youtubeSearchQuery: String? = null,
         radioStationQuery: String? = null,
-        tvChannelQuery: String? = null
+        tvChannelQuery: String? = null,
+        playlistQuery: String? = null
     ): String {
         return runCatching {
             startActivity(
@@ -948,6 +967,7 @@ class NgocSiAiActivity : ComponentActivity() {
                     youtubeSearchQuery?.let { putExtra("ai_youtube_query", it) }
                     radioStationQuery?.let { putExtra("ai_radio_station", it) }
                     tvChannelQuery?.let { putExtra("ai_tv_channel", it) }
+                    playlistQuery?.let { putExtra("ai_playlist_query", it) }
                     // Bring the existing main app to the front and deliver its navigation event.
                     addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                 }
@@ -1653,7 +1673,8 @@ private fun NgocSiAiPreviewScreen(
                     "Mở trang chủ", "Mở thư viện", "Mở Yêu thích", "Mở Album", "Mở Thư mục",
                     "Mở Online", "Mở YouTube", "Tìm YouTube nhạc Trịnh Công Sơn",
                     "Mở Drive", "Mở Radio", "Phát Radio VOV3", "Mở TV", "Mở VTV3", "Mở kênh HTV7", "Mở danh sách phát",
-                    "Mở hàng đợi", "Mở trình phát", "Mở Cài đặt", "Hẹn giờ 30 phút",
+                    "Mở hàng đợi", "Mở trình phát", "Mở Cài đặt", "Tạo playlist Nhạc Trịnh",
+                    "Phát playlist Nhạc Trịnh", "Hẹn giờ 30 phút",
                     "Tắt hẹn giờ", "Bạn làm được gì?"
                 )
                 suggestions.forEach { suggestion ->
