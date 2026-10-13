@@ -6,6 +6,7 @@ import java.util.Locale
 internal enum class NgocSiAiLocalCommand {
     PLAY,
     PLAY_SECOND,
+    PLAY_TRACK,
     PAUSE,
     NEXT,
     PREVIOUS,
@@ -55,6 +56,7 @@ private val NGOC_SI_AI_WAKE_WORD_COMMANDS = setOf(
     NgocSiAiLocalCommand.NEXT,
     NgocSiAiLocalCommand.PREVIOUS,
     NgocSiAiLocalCommand.PLAY_SECOND,
+    NgocSiAiLocalCommand.PLAY_TRACK,
     NgocSiAiLocalCommand.CURRENT_TRACK,
     NgocSiAiLocalCommand.SHUFFLE_ON,
     NgocSiAiLocalCommand.SHUFFLE_OFF,
@@ -88,7 +90,7 @@ private val NGOC_SI_AI_WAKE_WORD_COMMANDS = setOf(
     NgocSiAiLocalCommand.HELP
 )
 
-private fun normalizeNgocSiAiVoicePhrase(input: String): String =
+internal fun normalizeNgocSiAiVoicePhrase(input: String): String =
     Normalizer.normalize(input.trim().lowercase(Locale.ROOT), Normalizer.Form.NFD)
         .replace("\\p{Mn}+".toRegex(), "")
         .replace('đ', 'd')
@@ -142,6 +144,9 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
             "bai thu hai trong danh sach", "bai so hai trong danh sach",
             "cho phat bai thu hai", "phat bai thu hai trong hang doi"
         ) -> NgocSiAiLocalCommand.PLAY_SECOND
+
+        // Match named-song commands before generic play/pause phrases.
+        extractNgocSiAiTrackQuery(input)?.let { return NgocSiAiLocalCommand.PLAY_TRACK }
 
         isAnyOf(
             "phat nhac", "phat nhac di", "phat nhac len",
@@ -340,6 +345,25 @@ internal fun selectNgocSiAiWakePhraseCandidate(candidates: List<String>): String
         ?: cleaned.firstOrNull()
 }
 
+
+/**
+ * Extract a named song from an explicit play/open/listen command.
+ * Short filler words are rejected so "Mở bài hát lên" remains a generic Play command.
+ */
+internal fun extractNgocSiAiTrackQuery(input: String): String? {
+    val raw = input.trim()
+    val prefixes = listOf(
+        Regex("""^(?:ngọc sĩ[\s,:]+)?(?:hãy\s+)?(?:phát|mở|nghe)\s+(?:bài hát|bài|ca khúc)\s+""", RegexOption.IGNORE_CASE),
+        Regex("""^(?:ngọc sĩ[\s,:]+)?(?:hãy\s+)?(?:play|listen to)\s+(?:song|track)\s+""", RegexOption.IGNORE_CASE)
+    )
+    val prefix = prefixes.firstOrNull { it.containsMatchIn(raw) } ?: return null
+    val query = prefix.replaceFirst(raw, "").trim().trim(',', ':', '-', '.', '?', '!')
+    val normalized = normalizeNgocSiAiVoicePhrase(query)
+    if (query.length < 3 || normalized in setOf("di", "len", "nhe", "luon", "di nhe", "len nhe")) {
+        return null
+    }
+    return query.take(100).takeIf { it.isNotBlank() }
+}
 
 /**
  * Extract a user-supplied YouTube search phrase while preserving Vietnamese spelling.
