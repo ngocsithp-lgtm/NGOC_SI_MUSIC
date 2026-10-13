@@ -6808,9 +6808,10 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             Surface(
                 shape = RoundedCornerShape(26.dp),
                 color = Color(0xFF101117),
-                modifier = Modifier.fillMaxWidth()
+                // Keep the hub inside the usable phone viewport instead of covering the whole screen.
+                modifier = Modifier.fillMaxWidth(0.96f).heightIn(max = 680.dp)
             ) {
-                Column(Modifier.padding(18.dp)) {
+                Column(Modifier.fillMaxWidth().padding(14.dp)) {
                     Text("RADIO VIỆT NAM", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(4.dp))
                     Text(
@@ -6836,7 +6837,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     )
                     Spacer(Modifier.height(6.dp))
                     LazyColumn(
-                        modifier = Modifier.heightIn(max = 520.dp),
+                        // The header stays visible; only the station list scrolls on short screens.
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 340.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(filteredSources) { source ->
@@ -6847,7 +6849,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
-                                    Modifier.fillMaxWidth().padding(12.dp),
+                                    Modifier.fillMaxWidth().padding(10.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Column(Modifier.weight(1f)) {
