@@ -9,12 +9,14 @@ internal enum class NgocSiAiQuotaCooldownKind {
     DAILY,
     FREE_TIER,
     PAID_TIER,
+    PROJECT_OR_CAPACITY,
     TEMPORARY
 }
 
 internal fun classifyNgocSiAiQuotaCooldown(message: String): NgocSiAiQuotaCooldownKind? {
     val upper = message.uppercase()
     return when {
+        "AI_QUOTA_429_PROJECT_OR_CAPACITY" in upper -> NgocSiAiQuotaCooldownKind.PROJECT_OR_CAPACITY
         "AI_QUOTA_429_DAILY" in upper -> NgocSiAiQuotaCooldownKind.DAILY
         "AI_QUOTA_429_FREE_TIER" in upper -> NgocSiAiQuotaCooldownKind.FREE_TIER
         "AI_QUOTA_429_PAID_TIER" in upper -> NgocSiAiQuotaCooldownKind.PAID_TIER
@@ -34,6 +36,8 @@ internal fun ngocSiAiQuotaCooldownUntilMillis(
         NgocSiAiQuotaCooldownKind.DAILY -> return nextProviderDailyReset(nowMillis, resetZone)
         NgocSiAiQuotaCooldownKind.FREE_TIER -> return nextProviderDailyReset(nowMillis, resetZone)
         NgocSiAiQuotaCooldownKind.PAID_TIER -> 6 * 60 * 60 * 1_000L
+        // Use a bounded cooldown when the provider does not reveal its exact quota window.
+        NgocSiAiQuotaCooldownKind.PROJECT_OR_CAPACITY -> 15 * 60 * 1_000L
         NgocSiAiQuotaCooldownKind.TEMPORARY -> 2 * 60 * 1_000L
     }
     return nowMillis + durationMillis
@@ -127,6 +131,7 @@ internal fun ngocSiAiQuotaDiagnosticCode(message: String): String? {
         NgocSiAiQuotaCooldownKind.DAILY -> "AI_QUOTA_429_DAILY"
         NgocSiAiQuotaCooldownKind.RATE -> "AI_QUOTA_429_RATE"
         NgocSiAiQuotaCooldownKind.PAID_TIER -> "AI_QUOTA_429_PAID_TIER"
+        NgocSiAiQuotaCooldownKind.PROJECT_OR_CAPACITY -> "AI_QUOTA_429_PROJECT_OR_CAPACITY"
         NgocSiAiQuotaCooldownKind.FREE_TIER -> "AI_QUOTA_429_FREE_TIER"
         NgocSiAiQuotaCooldownKind.TEMPORARY -> "AI_QUOTA_429"
         null -> null
@@ -138,7 +143,8 @@ internal fun shouldTryNgocSiAiFallbackModel(errorDetails: String): Boolean {
 
     return when (classifyNgocSiAiQuotaErrorDetails(errorDetails)) {
         NgocSiAiQuotaCooldownKind.RATE,
-        NgocSiAiQuotaCooldownKind.PAID_TIER -> false
+        NgocSiAiQuotaCooldownKind.PAID_TIER,
+        NgocSiAiQuotaCooldownKind.PROJECT_OR_CAPACITY -> false
         NgocSiAiQuotaCooldownKind.DAILY,
         NgocSiAiQuotaCooldownKind.FREE_TIER -> true
         NgocSiAiQuotaCooldownKind.TEMPORARY -> {
@@ -189,6 +195,7 @@ internal fun ngocSiAiQuotaCooldownNotice(
         NgocSiAiQuotaCooldownKind.DAILY -> "hạn mức trong ngày"
         NgocSiAiQuotaCooldownKind.FREE_TIER -> "hạn mức miễn phí của Gemini"
         NgocSiAiQuotaCooldownKind.PAID_TIER -> "mô hình/tính năng báo yêu cầu gói thanh toán"
+        NgocSiAiQuotaCooldownKind.PROJECT_OR_CAPACITY -> "hạn mức chung của dự án hoặc tình trạng quá tải chưa xác định rõ"
         NgocSiAiQuotaCooldownKind.TEMPORARY -> "lỗi hạn mức hoặc quá tải tạm thời"
     }
     return "NGỌC SĨ AI đang tạm ngưng gửi yêu cầu trực tuyến do $reason. " +
