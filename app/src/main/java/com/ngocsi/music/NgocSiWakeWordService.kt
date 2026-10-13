@@ -274,11 +274,14 @@ class NgocSiWakeWordService : Service() {
 
         if (
             ngocSiAiCommandRequiresPlayerConnection(command) &&
-            musicController == null &&
-            productionMusicController == null &&
             command != NgocSiAiLocalCommand.STOP &&
+            productionMusicController == null &&
+            (productionMusicControllerConnecting || musicController == null) &&
             attemptsRemaining > 0
         ) {
+            // Prefer the stable app's live queue when its session is still binding.
+            // An already-connected empty Preview player must not win just because it
+            // became available a little earlier than the production controller.
             connectMusicController()
             connectProductionMusicController()
             mainHandler.postDelayed({
