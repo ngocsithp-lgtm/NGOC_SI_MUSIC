@@ -381,6 +381,19 @@ class NgocSiWakeWordService : Service() {
                     extractNgocSiAiPlaylistQuery(originalText, create = false)
                         ?: return "Hãy nói tên playlist muốn phát, ví dụ: Ngọc Sĩ, phát playlist Nhạc Trịnh."
                 else -> null
+            }            val youtubeAction = when (command) {
+                NgocSiAiLocalCommand.RESUME_YOUTUBE -> "play"
+                NgocSiAiLocalCommand.PAUSE_YOUTUBE -> "pause"
+                NgocSiAiLocalCommand.NEXT_YOUTUBE_VIDEO -> "next"
+                NgocSiAiLocalCommand.PREVIOUS_YOUTUBE_VIDEO -> "previous"
+                NgocSiAiLocalCommand.YOUTUBE_SHUFFLE_ON -> "shuffle_on"
+                NgocSiAiLocalCommand.YOUTUBE_SHUFFLE_OFF -> "shuffle_off"
+                NgocSiAiLocalCommand.YOUTUBE_REPEAT_OFF -> "repeat_off"
+                NgocSiAiLocalCommand.YOUTUBE_REPEAT_ALL -> "repeat_all"
+                NgocSiAiLocalCommand.YOUTUBE_REPEAT_ONE -> "repeat_one"
+                NgocSiAiLocalCommand.YOUTUBE_FAVORITE -> "favorite"
+                NgocSiAiLocalCommand.YOUTUBE_WATCH_LATER -> "watch_later"
+                else -> null
             }
             val response = when (command) {
                 NgocSiAiLocalCommand.SEARCH_YOUTUBE -> "Đã gửi lệnh tìm YouTube: $query"
