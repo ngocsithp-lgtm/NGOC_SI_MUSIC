@@ -24,6 +24,22 @@ class NgocSiAiLocalCommandRulesTest {
     }
 
     @Test
+    fun recognizesNamedRadioStationsAndTvChannels() {
+        assertEquals(NgocSiAiLocalCommand.PLAY_RADIO_STATION, classifyNgocSiAiLocalCommand("Phát Radio VOV3"))
+        assertEquals(NgocSiAiLocalCommand.PLAY_RADIO_STATION, classifyNgocSiAiWakePhrase("Ngọc Sĩ, mở Radio VOH FM 95.6"))
+        assertEquals("VOV3", extractNgocSiAiRadioStationQuery("Phát Radio VOV3"))
+        assertEquals("VOH FM 95.6", extractNgocSiAiRadioStationQuery("Ngọc Sĩ, mở Radio VOH FM 95.6"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_TV_CHANNEL, classifyNgocSiAiLocalCommand("Mở VTV3"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_TV_CHANNEL, classifyNgocSiAiWakePhrase("Ngọc Sĩ, mở kênh HTV7"))
+        assertEquals("VTV3", extractNgocSiAiTvChannelQuery("Mở VTV3"))
+        assertEquals("HTV7", extractNgocSiAiTvChannelQuery("Ngọc Sĩ, mở kênh HTV7"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_TV, classifyNgocSiAiLocalCommand("Mở TV"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_RADIO, classifyNgocSiAiLocalCommand("Mở Radio"))
+        assertNull(extractNgocSiAiRadioStationQuery("Mở Radio"))
+        assertNull(extractNgocSiAiTvChannelQuery("Mở TV"))
+    }
+
+    @Test
     fun recognizesNamedSongPlaybackCommands() {
         assertEquals(NgocSiAiLocalCommand.PLAY_TRACK, classifyNgocSiAiLocalCommand("Phát bài hát Diễm xưa"))
         assertEquals(NgocSiAiLocalCommand.PLAY_TRACK, classifyNgocSiAiWakePhrase("Ngọc Sĩ, mở bài Yesterday"))
