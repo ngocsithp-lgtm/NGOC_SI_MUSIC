@@ -184,6 +184,11 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
         // Explicit YouTube controls must not be mistaken for local music controls.
         startsWithAny("tam dung youtube", "tam dung video youtube", "pause youtube", "pause video") ->
             NgocSiAiLocalCommand.PAUSE_YOUTUBE
+
+        // A YouTube request with an actual search phrase must win over the bare
+        // "phát YouTube" resume command (for example, "Phát YouTube nhạc Trịnh").
+        extractNgocSiAiYoutubeQuery(input) != null -> NgocSiAiLocalCommand.SEARCH_YOUTUBE
+
         startsWithAny("phat youtube", "tiep tuc youtube", "tiep tuc video youtube", "phat tiep youtube", "resume youtube", "play youtube") ->
             NgocSiAiLocalCommand.RESUME_YOUTUBE
         startsWithAny("video youtube tiep theo", "youtube tiep theo", "video tiep theo tren youtube", "next youtube video") ->
@@ -204,9 +209,6 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
             NgocSiAiLocalCommand.YOUTUBE_FAVORITE
         startsWithAny("luu video youtube xem sau", "luu video nay xem sau", "them video youtube vao xem sau") ->
             NgocSiAiLocalCommand.YOUTUBE_WATCH_LATER
-
-        // Route explicit YouTube play/search requests before generic named-song matching.
-        extractNgocSiAiYoutubeQuery(input) != null -> NgocSiAiLocalCommand.SEARCH_YOUTUBE
 
         // Named feature requests take precedence over generic section navigation.
         extractNgocSiAiRadioStationQuery(input) != null -> NgocSiAiLocalCommand.PLAY_RADIO_STATION
