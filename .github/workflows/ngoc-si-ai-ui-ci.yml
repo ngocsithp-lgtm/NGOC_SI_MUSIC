@@ -101,7 +101,7 @@ jobs:
           test -n "$AAPT"
           APK="app/build/outputs/apk/debug/app-debug.apk"
           test -f "$APK"
-          "$AAPT" dump badging "$APK" | grep -m1 -E "package: name='com.ngocsi.music.aipreview' versionCode='67' versionName='5.47'"
+          "$AAPT" dump badging "$APK" | grep -m1 -E "package: name='com.ngocsi.music.aipreview' versionCode='68' versionName='5.48'"
       - name: Print stable preview signing SHA-256 for Firebase App Check
         run: |
           set -euo pipefail
