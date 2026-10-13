@@ -353,8 +353,6 @@ class NgocSiWakeWordService : Service() {
             NgocSiAiLocalCommand.SEARCH_ONLINE_MUSIC -> "search_online"
             NgocSiAiLocalCommand.OPEN_YOUTUBE,
             NgocSiAiLocalCommand.SEARCH_YOUTUBE -> "youtube"
-            NgocSiAiLocalCommand.RESUME_YOUTUBE ->
-                if (hasSavedYouTubeVideo) "youtube_command" else "youtube"
             NgocSiAiLocalCommand.OPEN_DRIVE -> "drive"
             NgocSiAiLocalCommand.OPEN_RADIO -> "radio"
             NgocSiAiLocalCommand.PLAY_RADIO_STATION -> "radio_station"
@@ -364,6 +362,7 @@ class NgocSiWakeWordService : Service() {
             NgocSiAiLocalCommand.PLAY_NAMED_PLAYLIST -> "play_playlist"
             NgocSiAiLocalCommand.ADD_CURRENT_TRACK_TO_PLAYLIST -> "add_current_to_playlist"
             NgocSiAiLocalCommand.ADD_QUEUE_TO_PLAYLIST -> "add_queue_to_playlist"
+            NgocSiAiLocalCommand.RESUME_YOUTUBE,
             NgocSiAiLocalCommand.PAUSE_YOUTUBE,
             NgocSiAiLocalCommand.NEXT_YOUTUBE_VIDEO,
             NgocSiAiLocalCommand.PREVIOUS_YOUTUBE_VIDEO,
@@ -373,7 +372,8 @@ class NgocSiWakeWordService : Service() {
             NgocSiAiLocalCommand.YOUTUBE_REPEAT_ALL,
             NgocSiAiLocalCommand.YOUTUBE_REPEAT_ONE,
             NgocSiAiLocalCommand.YOUTUBE_FAVORITE,
-            NgocSiAiLocalCommand.YOUTUBE_WATCH_LATER -> "youtube_command"
+            NgocSiAiLocalCommand.YOUTUBE_WATCH_LATER ->
+                if (hasSavedYouTubeVideo) "youtube_command" else "youtube"
             NgocSiAiLocalCommand.OPEN_PLAYLISTS -> "playlists"
             NgocSiAiLocalCommand.OPEN_QUEUE -> "queue"
             NgocSiAiLocalCommand.OPEN_PLAYER -> "player"
@@ -435,7 +435,22 @@ class NgocSiWakeWordService : Service() {
                 NgocSiAiLocalCommand.YOUTUBE_WATCH_LATER -> "watch_later"
                 else -> null
             }
-            val response = when (command) {
+            val missingYouTubeHistory = !hasSavedYouTubeVideo && command in setOf(
+                NgocSiAiLocalCommand.RESUME_YOUTUBE,
+                NgocSiAiLocalCommand.PAUSE_YOUTUBE,
+                NgocSiAiLocalCommand.NEXT_YOUTUBE_VIDEO,
+                NgocSiAiLocalCommand.PREVIOUS_YOUTUBE_VIDEO,
+                NgocSiAiLocalCommand.YOUTUBE_SHUFFLE_ON,
+                NgocSiAiLocalCommand.YOUTUBE_SHUFFLE_OFF,
+                NgocSiAiLocalCommand.YOUTUBE_REPEAT_OFF,
+                NgocSiAiLocalCommand.YOUTUBE_REPEAT_ALL,
+                NgocSiAiLocalCommand.YOUTUBE_REPEAT_ONE,
+                NgocSiAiLocalCommand.YOUTUBE_FAVORITE,
+                NgocSiAiLocalCommand.YOUTUBE_WATCH_LATER
+            )
+            val response = if (missingYouTubeHistory) {
+                "Chưa có video YouTube gần đây để điều khiển. Tôi đã mở YouTube; hãy tìm và phát video trước."
+            } else when (command) {
                 NgocSiAiLocalCommand.SEARCH_YOUTUBE -> "Đang tìm trên YouTube: $query."
                 NgocSiAiLocalCommand.SEARCH_ONLINE_MUSIC -> "Đang tìm $onlineQuery trên các nguồn nhạc trực tuyến."
                 NgocSiAiLocalCommand.OPEN_HOME -> "Đã gửi lệnh mở Trang chủ."
