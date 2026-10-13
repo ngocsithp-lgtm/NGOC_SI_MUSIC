@@ -96,6 +96,24 @@ private fun localConversationFallback(userText: String): String? {
     val normalized = Normalizer.normalize(userText.lowercase(Locale.ROOT), Normalizer.Form.NFD)
         .replace("\\p{Mn}+".toRegex(), "")
         .replace('đ', 'd')
+        .replace(Regex("[^a-z0-9\\s]"), " ")
+        .replace(Regex("\\s+"), " ")
+        .trim()
+
+    // These short, predictable exchanges are handled on-device to preserve online quota.
+    when (normalized) {
+        "chao", "xin chao", "chao ban", "xin chao ban", "chao ai", "hello", "hi" ->
+            return "Chào bạn. Mình đang nghe đây. Bạn muốn trò chuyện hay cần mình điều khiển nhạc trong ứng dụng?"
+        "cam on", "cam on ban", "cam on nhe", "thanks", "thank you" ->
+            return "Không có gì đâu. Bạn cứ nói điều bạn cần, mình sẽ hỗ trợ trong khả năng của mình."
+        "ban lam duoc gi", "ban co the lam gi", "ai lam duoc gi", "ngoc si ai lam duoc gi" ->
+            return "Mình có thể xử lý các lệnh được hỗ trợ như phát, tạm dừng hoặc dừng hẳn nhạc, chuyển bài, mở YouTube, Radio, TV và Google Drive. Mình cũng có thể trò chuyện, giải thích và cùng bạn nghĩ ý tưởng khi AI trực tuyến còn hạn mức."
+        "ban ten gi", "ten ban la gi" ->
+            return "Mình là NGỌC SĨ AI, trợ lý tích hợp trong NGỌC SĨ MUSIC."
+        "ban khoe khong", "hom nay ban the nao" ->
+            return "Mình sẵn sàng hỗ trợ bạn đây. Hôm nay bạn muốn nghe nhạc hay cùng mình giải quyết việc gì?"
+    }
+
     val asksForAppDirection =
         (normalized.contains("chuyen nghiep") || normalized.contains("pro hon") ||
             normalized.contains("nang cap") || normalized.contains("cai thien")) &&
@@ -108,8 +126,8 @@ private fun localConversationFallback(userText: String): String? {
         "Ưu tiên theo thứ tự: (1) sửa lỗi phát nhạc và lệnh giọng nói để câu nói tự nhiên được hiểu đúng; " +
         "(2) làm giao diện gọn, dễ nhìn và thống nhất; (3) kiểm tra YouTube, phát nền và màn hình khóa; " +
         "(4) kiểm tra Radio, Google Drive và danh sách phát; (5) sau cùng mới bổ sung tính năng mới. " +
-        "Với NGỌC SĨ MUSIC, bước đầu tiên hợp lý nhất là kiểm thử từng lệnh AI bằng câu nói thực tế, " +
-        "ghi lại câu nào không hiểu và sửa bộ nhận diện trước. Mình chưa thay đổi bản PRO ổn định."
+        "Bước đầu tiên hợp lý nhất là kiểm thử từng lệnh AI bằng câu nói thực tế, ghi lại câu nào không hiểu rồi sửa bộ nhận diện. " +
+        "Mình chưa thay đổi bản PRO ổn định."
 }
 
 private fun defaultAiGreeting(isOnlineConfigured: Boolean) = AiPreviewMessage(
@@ -1374,6 +1392,17 @@ private fun NgocSiAiPreviewScreen(
             if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
             persistChatState()
             onVoiceReply(commandReply)
+            return
+        }
+
+        // Keep predictable greetings/help and the common app-improvement prompt local.
+        // This reduces Gemini requests without pretending to replace free-form reasoning.
+        val localReply = localConversationFallback(clean)
+        if (localReply != null) {
+            messages.add(AiPreviewMessage(false, localReply))
+            if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
+            persistChatState()
+            onVoiceReply(localReply)
             return
         }
 
