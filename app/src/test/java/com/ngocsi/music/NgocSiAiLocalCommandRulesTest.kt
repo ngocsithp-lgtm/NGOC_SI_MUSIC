@@ -452,4 +452,47 @@ class NgocSiAiLocalCommandRulesTest {
         assertNull(selectNgocSiAiActivatedCommandCandidate(listOf("", "   ")))
     }
 
+
+    @Test
+    fun acceptsPoliteVoiceFillersWithoutLosingNamedQueries() {
+        assertEquals(
+            NgocSiAiLocalCommand.PLAY,
+            classifyNgocSiAiLocalCommand("Phát nhạc giúp tôi nhé")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.PAUSE,
+            classifyNgocSiAiLocalCommand("Tạm dừng nhạc giúp tôi")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.OPEN_YOUTUBE,
+            classifyNgocSiAiLocalCommand("Mở YouTube lên nhé")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.RESUME_YOUTUBE,
+            classifyNgocSiAiLocalCommand("Phát YouTube nhé")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.PLAY_TRACK,
+            classifyNgocSiAiLocalCommand("Phát bài hát Diễm xưa đi")
+        )
+        assertEquals("Diễm xưa", extractNgocSiAiTrackQuery("Phát bài hát Diễm xưa đi"))
+        assertEquals(
+            NgocSiAiLocalCommand.PLAY_RADIO_STATION,
+            classifyNgocSiAiLocalCommand("Phát Radio VOV3 giúp tôi")
+        )
+        assertEquals("VOV3", extractNgocSiAiRadioStationQuery("Phát Radio VOV3 giúp tôi"))
+        assertEquals(
+            NgocSiAiLocalCommand.SEARCH_YOUTUBE,
+            classifyNgocSiAiLocalCommand("Tìm YouTube nhạc Trịnh Công Sơn giúp tôi")
+        )
+        assertEquals(
+            "nhạc Trịnh Công Sơn",
+            extractNgocSiAiYoutubeQuery("Tìm YouTube nhạc Trịnh Công Sơn giúp tôi")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.PAUSE,
+            classifyNgocSiAiWakePhrase("Ngọc Sĩ, tạm dừng nhạc giúp tôi")
+        )
+    }
+
 }
