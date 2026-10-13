@@ -5,6 +5,39 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class NgocSiAiLocalCommandRulesTest {
+
+    @Test
+    fun waitsForTheLivePlayerOnlyForDirectPlaybackControls() {
+        assertEquals(
+            true,
+            ngocSiAiCommandRequiresPlayerConnection(NgocSiAiLocalCommand.STOP)
+        )
+        assertEquals(
+            true,
+            ngocSiAiCommandRequiresPlayerConnection(NgocSiAiLocalCommand.PAUSE)
+        )
+        assertEquals(
+            true,
+            ngocSiAiCommandRequiresPlayerConnection(NgocSiAiLocalCommand.NEXT)
+        )
+        assertEquals(
+            true,
+            ngocSiAiCommandRequiresPlayerConnection(NgocSiAiLocalCommand.SHUFFLE_ON)
+        )
+        assertEquals(
+            false,
+            ngocSiAiCommandRequiresPlayerConnection(NgocSiAiLocalCommand.OPEN_HOME)
+        )
+        assertEquals(
+            false,
+            ngocSiAiCommandRequiresPlayerConnection(NgocSiAiLocalCommand.OPEN_YOUTUBE)
+        )
+        assertEquals(
+            false,
+            ngocSiAiCommandRequiresPlayerConnection(NgocSiAiLocalCommand.SEARCH_YOUTUBE)
+        )
+    }
+
     @Test
     fun recognizesVietnameseCommandsWithAccentsAndPolitePrefixes() {
         assertEquals(NgocSiAiLocalCommand.PLAY, classifyNgocSiAiLocalCommand("Phát nhạc"))
