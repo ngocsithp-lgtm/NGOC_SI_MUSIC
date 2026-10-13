@@ -336,7 +336,7 @@ class NgocSiWakeWordService : Service() {
     }
     private fun runAppCommand(command: NgocSiAiLocalCommand, originalText: String): String {
         if (command == NgocSiAiLocalCommand.HELP) {
-            return "Tôi có thể điều khiển nhạc điện thoại và YouTube riêng biệt; phát bài theo tên; mở thư viện, Drive, từng đài Radio, kênh TV; tìm YouTube; tạo/phát playlist; điều chỉnh phát ngẫu nhiên, lặp, hẹn giờ và lưu video yêu thích/xem sau."
+            return "Tôi có thể điều khiển nhạc điện thoại và YouTube riêng biệt; phát bài theo tên; tìm nhạc trên Jamendo, Audius và YouTube; mở thư viện, Drive, từng đài Radio, kênh TV; tạo/phát playlist; điều chỉnh phát ngẫu nhiên, lặp, hẹn giờ và lưu video yêu thích/xem sau."
         }
 
         val destination = when (command) {
@@ -346,6 +346,7 @@ class NgocSiWakeWordService : Service() {
             NgocSiAiLocalCommand.OPEN_ALBUMS -> "albums"
             NgocSiAiLocalCommand.OPEN_FOLDERS -> "folders"
             NgocSiAiLocalCommand.OPEN_ONLINE -> "online"
+            NgocSiAiLocalCommand.SEARCH_ONLINE_MUSIC -> "search_online"
             NgocSiAiLocalCommand.OPEN_YOUTUBE,
             NgocSiAiLocalCommand.SEARCH_YOUTUBE -> "youtube"
             NgocSiAiLocalCommand.OPEN_DRIVE -> "drive"
@@ -387,6 +388,10 @@ class NgocSiWakeWordService : Service() {
                 extractNgocSiAiYoutubeQuery(originalText)
                     ?: return "Hãy nói rõ nội dung cần tìm, ví dụ: Ngọc Sĩ, tìm YouTube nhạc Trịnh Công Sơn."
             } else null
+            val onlineQuery = if (command == NgocSiAiLocalCommand.SEARCH_ONLINE_MUSIC) {
+                extractNgocSiAiOnlineQuery(originalText)
+                    ?: return "Hãy nói nội dung cần tìm, ví dụ: Ngọc Sĩ, tìm nhạc Trịnh Công Sơn."
+            } else null
             val radioQuery = if (command == NgocSiAiLocalCommand.PLAY_RADIO_STATION) {
                 extractNgocSiAiRadioStationQuery(originalText)
                     ?: return "Hãy nói tên đài, ví dụ: Ngọc Sĩ, phát Radio VOV3."
@@ -422,7 +427,8 @@ class NgocSiWakeWordService : Service() {
                 else -> null
             }
             val response = when (command) {
-                NgocSiAiLocalCommand.SEARCH_YOUTUBE -> "Đã gửi lệnh tìm YouTube: $query"
+                NgocSiAiLocalCommand.SEARCH_YOUTUBE -> "Đang tìm trên YouTube: $query."
+                NgocSiAiLocalCommand.SEARCH_ONLINE_MUSIC -> "Đang tìm $onlineQuery trên các nguồn nhạc trực tuyến."
                 NgocSiAiLocalCommand.OPEN_HOME -> "Đã gửi lệnh mở Trang chủ."
                 NgocSiAiLocalCommand.OPEN_LIBRARY -> "Đã gửi lệnh mở Thư viện."
                 NgocSiAiLocalCommand.OPEN_FAVORITES -> "Đã gửi lệnh mở nhạc Yêu thích."
@@ -467,6 +473,7 @@ class NgocSiWakeWordService : Service() {
                 val intent = Intent(this, MainActivity::class.java).apply {
                     putExtra("pro_destination", destination)
                     query?.let { putExtra("ai_youtube_query", it) }
+                    onlineQuery?.let { putExtra("ai_online_query", it) }
                     radioQuery?.let { putExtra("ai_radio_station", it) }
                     tvQuery?.let { putExtra("ai_tv_channel", it) }
                     playlistQuery?.let { putExtra("ai_playlist_query", it) }
