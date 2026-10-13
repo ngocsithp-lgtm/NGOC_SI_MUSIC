@@ -116,7 +116,7 @@ jobs:
           test -n "$AAPT"
           APK="app/build/outputs/apk/debug/app-debug.apk"
           test -s "$APK"
-          "$AAPT" dump badging "$APK" | grep -m1 -E "package: name='com.ngocsi.music.aipreview' versionCode='67' versionName='5.47'"
+          "$AAPT" dump badging "$APK" | grep -m1 -E "package: name='com.ngocsi.music.aipreview' versionCode='68' versionName='5.48'"
           echo "Verified preview-only package: com.ngocsi.music.aipreview"
 
       - name: Verify APK signature and report App Check fingerprints
@@ -135,7 +135,7 @@ jobs:
             echo "## NGỌC SĨ AI preview APK"
             echo ""
             echo "- Package: com.ngocsi.music.aipreview"
-            echo "- Version: 5.47"
+            echo "- Version: 5.48"
             echo "- SHA-1: $SHA1"
             echo "- SHA-256: $SHA256"
             echo "- APK type: debug preview only; no release APK or production publishing."
