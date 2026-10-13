@@ -24,6 +24,19 @@ class NgocSiAiLocalCommandRulesTest {
     }
 
     @Test
+    fun recognizesNamedPlaylistCreateAndPlayCommandsWithAndWithoutAccents() {
+        assertEquals(NgocSiAiLocalCommand.CREATE_PLAYLIST, classifyNgocSiAiLocalCommand("Tạo playlist Nhạc Trịnh"))
+        assertEquals(NgocSiAiLocalCommand.PLAY_NAMED_PLAYLIST, classifyNgocSiAiWakePhrase("Ngọc Sĩ, phát playlist Nhạc Trịnh"))
+        assertEquals("Nhạc Trịnh", extractNgocSiAiPlaylistQuery("Tạo playlist Nhạc Trịnh", create = true))
+        assertEquals("Nhạc Trịnh", extractNgocSiAiPlaylistQuery("Ngọc Sĩ, phát playlist Nhạc Trịnh", create = false))
+        assertEquals(NgocSiAiLocalCommand.PLAY_TRACK, classifyNgocSiAiWakePhrase("Ngọc Sĩ, mở bài Yesterday"))
+        assertEquals(NgocSiAiLocalCommand.PLAY_RADIO_STATION, classifyNgocSiAiWakePhrase("Ngọc Sĩ, phát Radio VOV3"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_TV_CHANNEL, classifyNgocSiAiWakePhrase("Ngọc Sĩ, mở VTV3"))
+        assertEquals(NgocSiAiLocalCommand.SEARCH_YOUTUBE, classifyNgocSiAiWakePhrase("Ngọc Sĩ, tìm YouTube nhạc Trịnh Công Sơn"))
+        assertEquals("nhạc Trịnh Công Sơn", extractNgocSiAiYoutubeQuery("Ngọc Sĩ, tìm YouTube nhạc Trịnh Công Sơn"))
+    }
+
+    @Test
     fun recognizesNamedRadioStationsAndTvChannels() {
         assertEquals(NgocSiAiLocalCommand.PLAY_RADIO_STATION, classifyNgocSiAiLocalCommand("Phát Radio VOV3"))
         assertEquals(NgocSiAiLocalCommand.PLAY_RADIO_STATION, classifyNgocSiAiWakePhrase("Ngọc Sĩ, mở Radio VOH FM 95.6"))
