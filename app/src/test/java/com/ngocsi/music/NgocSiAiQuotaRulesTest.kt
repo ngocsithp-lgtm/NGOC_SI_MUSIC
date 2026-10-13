@@ -198,7 +198,9 @@ class NgocSiAiQuotaRulesTest {
         org.junit.Assert.assertFalse(
             shouldTryNgocSiAiFallbackModel("Network timeout")
         )
-        org.junit.Assert.assertFalse(
+        // The message does not reveal whether the limit is model-specific or project-wide.
+        // One alternate-model attempt may recover; persistent quota cooldown prevents loops.
+        org.junit.Assert.assertTrue(
             shouldTryNgocSiAiFallbackModel(
                 "HTTP 429 too_many_requests: You exceeded your current quota, please check your plan and billing details."
             )
