@@ -92,7 +92,10 @@ private const val AI_VOICE_REPLY_KEY = "voice_replies_enabled_v1"
 private const val MAX_SAVED_AI_UI_MESSAGES = 60
 private const val MAX_SAVED_AI_MESSAGE_CHARS = 4_000
 
-private fun localConversationFallback(userText: String): String? {
+internal fun localConversationFallback(
+    userText: String,
+    previousAssistantReply: String? = null
+): String? {
     val normalized = Normalizer.normalize(userText.lowercase(Locale.ROOT), Normalizer.Form.NFD)
         .replace("\\p{Mn}+".toRegex(), "")
         .replace('đ', 'd')
@@ -100,23 +103,90 @@ private fun localConversationFallback(userText: String): String? {
         .replace(Regex("\\s+"), " ")
         .trim()
 
-    // These short, predictable exchanges are handled on-device to preserve online quota.
-    when (normalized) {
-        "chao", "xin chao", "chao ban", "xin chao ban", "chao ai",
-        "chao buoi sang", "xin chao buoi sang", "chao buoi chieu", "xin chao buoi chieu",
-        "chao buoi toi", "xin chao buoi toi", "good morning", "good evening", "hello", "hi" ->
+    fun matchesAny(vararg phrases: String): Boolean =
+        phrases.any { normalized == it || normalized.startsWith("$it ") }
+
+    // Quick everyday exchanges stay on-device and never consume Gemini requests.
+    when {
+        normalized in setOf(
+            "chao", "xin chao", "chao ban", "xin chao ban", "chao ai",
+            "chao buoi sang", "xin chao buoi sang", "chao buoi chieu",
+            "xin chao buoi chieu", "chao buoi toi", "xin chao buoi toi",
+            "good morning", "good evening", "hello", "hi"
+        ) ->
             return "Chào bạn. Mình đang nghe đây. Bạn muốn trò chuyện hay cần mình điều khiển nhạc trong ứng dụng?"
-        "cam on", "cam on ban", "cam on nhe", "cam on ban nhieu",
-        "cam on rat nhieu", "minh cam on", "toi cam on ban",
-        "thanks", "thank you" ->
+
+        normalized in setOf(
+            "cam on", "cam on ban", "cam on nhe", "cam on ban nhieu",
+            "cam on rat nhieu", "minh cam on", "toi cam on ban",
+            "thanks", "thank you"
+        ) ->
             return "Không có gì đâu. Bạn cứ nói điều bạn cần, mình sẽ hỗ trợ trong khả năng của mình."
-        "ban lam duoc gi", "ban co the lam gi", "ai lam duoc gi", "ngoc si ai lam duoc gi" ->
+
+        normalized in setOf("xin loi", "minh xin loi", "toi xin loi", "sorry") ->
+            return "Không sao đâu. Mình vẫn ở đây để cùng bạn xử lý việc cần làm."
+
+        normalized in setOf("ok", "oke", "duoc", "duoc roi", "roi", "hieu roi", "hay do", "tot") ->
+            return "Ừ, mình theo ý bạn. Khi cần đi tiếp, cứ nói tự nhiên nhé."
+
+        normalized in setOf(
+            "ban lam duoc gi", "ban co the lam gi", "ai lam duoc gi",
+            "ngoc si ai lam duoc gi", "ban ho tro duoc gi"
+        ) ->
             return "Mình có thể xử lý các lệnh được hỗ trợ như phát, tạm dừng hoặc dừng hẳn nhạc, chuyển bài, mở YouTube, Radio, TV và Google Drive. Mình cũng có thể trò chuyện, giải thích và cùng bạn nghĩ ý tưởng khi AI trực tuyến còn hạn mức."
-        "ban ten gi", "ten ban la gi" ->
+
+        normalized in setOf("ban ten gi", "ten ban la gi", "ban la ai", "ban la ai vay") ->
             return "Mình là NGỌC SĨ AI, trợ lý tích hợp trong NGỌC SĨ MUSIC."
-        "ban khoe khong", "ban co khoe khong", "ban co on khong",
-        "hom nay ban the nao", "hom nay ban ra sao", "ban the nao" ->
+
+        normalized in setOf("ban co phai nguoi that khong", "ban la nguoi that a") ->
+            return "Mình là AI, không phải con người. Mình có thể trò chuyện và hỗ trợ bạn, nhưng sẽ nói rõ khi không biết hoặc không thể thực hiện việc gì."
+
+        normalized in setOf(
+            "ban khoe khong", "ban co khoe khong", "ban co on khong",
+            "hom nay ban the nao", "hom nay ban ra sao", "ban the nao",
+            "ban dang lam gi", "co ai o do khong"
+        ) ->
             return "Mình sẵn sàng hỗ trợ bạn đây. Hôm nay bạn muốn nghe nhạc hay cùng mình giải quyết việc gì?"
+
+        matchesAny(
+            "toi buon", "minh buon", "toi thay buon", "minh thay buon",
+            "toi co don", "minh co don", "toi thay co don",
+            "toi ap luc", "minh ap luc", "toi that vong", "minh that vong",
+            "toi chan nan", "minh chan nan", "hom nay khong vui"
+        ) ->
+            return "Nghe như hôm nay bạn đang không ổn. Mình ở đây để lắng nghe, không phán xét. Điều gì đang khiến bạn nặng lòng nhất?"
+
+        matchesAny("toi met", "minh met", "met qua", "toi kiem suc", "minh kien suc") ->
+            return "Có vẻ bạn đang khá mệt. Mình không muốn vội đưa lời khuyên; bạn muốn kể điều gì làm mình mệt nhất, hay muốn nghỉ một chút rồi tính tiếp?"
+
+        matchesAny("toi vui", "minh vui", "vui qua", "hom nay vui", "toi dang vui") ->
+            return "Nghe vui đấy. Có chuyện gì tốt vừa xảy ra mà bạn muốn kể mình nghe không?"
+
+        normalized in setOf(
+            "toi muon tam su", "minh muon tam su", "hay tam su voi toi",
+            "noi chuyen voi toi", "nghe toi noi", "toi muon ke chuyen",
+            "minh muon ke chuyen", "toi can nguoi lang nghe"
+        ) ->
+            return "Được chứ, bạn cứ kể theo cách tự nhiên nhất. Mình sẽ nghe trước; bạn muốn mình chỉ lắng nghe hay cùng tìm cách giải quyết?"
+
+        matchesAny("ban co hieu toi", "ban hieu toi", "ban co lang nghe toi") ->
+            return "Mình sẽ cố gắng hiểu từ điều bạn kể và bám sát ngữ cảnh. Nếu mình hiểu lệch, bạn cứ sửa thẳng cho mình nhé."
+
+        matchesAny("ban co the suy luan", "ban co biet suy luan", "ban co thong minh") ->
+            return "Khi Gemini trực tuyến còn hoạt động, mình có thể phân tích ngữ cảnh, so sánh các khả năng và đề xuất cách làm. Khi hết hạn mức, chế độ cục bộ chỉ xử lý lệnh và một số hội thoại quen thuộc; mình sẽ không giả vờ đã phân tích được câu hỏi phức tạp."
+
+        matchesAny("tai sao ai het han muc", "sao ai het han muc", "tai sao bi loi 429", "sao chat bi 429") ||
+            (normalized.contains("han muc") && (normalized.contains("gemini") || normalized.contains("ai"))) ->
+            return "Hạn mức do Google áp dụng theo model và dự án, không phải do lệnh nhạc trên điện thoại. Mình không bật thanh toán và sẽ không gửi lặp yêu cầu khi máy chủ báo hết hạn mức. Các lệnh điều khiển cục bộ vẫn dùng được."
+
+        normalized in setOf("tiep tuc", "tiep di", "lam tiep", "noi tiep", "ke tiep", "noi tiep di") -> {
+            val previous = previousAssistantReply?.trim().orEmpty()
+            return if (previous.isNotBlank()) {
+                "Mình theo mạch vừa trao đổi nhé. Ý gần nhất là: “" + previous.take(220) + "”. Khi chat trực tuyến đang bị giới hạn, mình không muốn tự đoán thêm rồi làm sai ý bạn; bạn nói phần muốn đào sâu, mình sẽ bám đúng phần đó."
+            } else {
+                "Mình sẵn sàng tiếp tục. Bạn nhắc ngắn gọn chủ đề đang làm dở để mình không đoán sai ý nhé."
+            }
+        }
     }
 
     val asksForAppDirection =
@@ -134,7 +204,6 @@ private fun localConversationFallback(userText: String): String? {
         "Bước đầu tiên hợp lý nhất là kiểm thử từng lệnh AI bằng câu nói thực tế, ghi lại câu nào không hiểu rồi sửa bộ nhận diện. " +
         "Mình chưa thay đổi bản PRO ổn định."
 }
-
 private fun defaultAiGreeting(isOnlineConfigured: Boolean) = AiPreviewMessage(
     false,
     if (isOnlineConfigured) {
@@ -1403,7 +1472,9 @@ private fun NgocSiAiPreviewScreen(
         } else {
             classifyNgocSiAiLocalCommand(clean)
         }
-        val localReply = if (localCommand == null) localConversationFallback(clean) else null
+        val localReply = if (localCommand == null) {
+            localConversationFallback(clean, messages.lastOrNull { !it.isUser }?.text)
+        } else null
         if (isSending && localCommand == null && localReply == null) return
 
         messages.add(AiPreviewMessage(true, clean))
@@ -1502,12 +1573,18 @@ private fun NgocSiAiPreviewScreen(
             } catch (error: NgocSiAiRemoteException) {
                 if (conversation.lastOrNull() == userTurn) conversation.removeAt(conversation.lastIndex)
                 val errorReply = error.message ?: "Không thể kết nối NGỌC SĨ AI. Vui lòng thử lại."
-                val fallbackReply = localConversationFallback(clean)
+                val fallbackReply = localConversationFallback(
+                    clean,
+                    messages.dropLast(1).lastOrNull { !it.isUser }?.text
+                )
                 val visibleReply = fallbackReply ?: errorReply
-                quotaNote = if (fallbackReply != null) {
-                    "AI trực tuyến đang tạm giới hạn; đã trả lời dự phòng trên máy, không phát sinh phí."
-                } else {
-                    ngocSiAiQuotaStatusNotice(errorReply).orEmpty()
+                val quotaNotice = ngocSiAiQuotaStatusNotice(errorReply)
+                quotaNote = when {
+                    fallbackReply != null && quotaNotice != null ->
+                        "Chat trực tuyến đang bị giới hạn; đã trả lời dự phòng trên máy, không phát sinh phí."
+                    fallbackReply != null ->
+                        "Đã trả lời dự phòng trên máy do kết nối AI gặp lỗi; không phát sinh phí."
+                    else -> quotaNotice.orEmpty()
                 }
                 messages.add(AiPreviewMessage(false, visibleReply))
                 if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
