@@ -140,6 +140,22 @@ internal fun shouldTryNgocSiAiFallbackModel(errorDetails: String): Boolean {
     }
 }
 
+/**
+ * Provides a compact persistent UI status for quota failures, separate from the
+ * longer diagnostic bubble. This reminds users that local playback controls do not
+ * require a remote Gemini request.
+ */
+internal fun ngocSiAiQuotaStatusNotice(message: String): String? {
+    val upper = message.uppercase(java.util.Locale.ROOT)
+    return when {
+        "AI_QUOTA_429_PROJECT_OR_CAPACITY" in upper ->
+            "Chat trực tuyến đang bị giới hạn ở phía dự án Gemini; lệnh nhạc trên điện thoại vẫn hoạt động."
+        "AI_QUOTA_429" in upper || "AI_QUOTA_COOLDOWN" in upper ->
+            "Chat trực tuyến đang tạm dừng do hạn mức Gemini; lệnh nhạc trên điện thoại vẫn hoạt động."
+        else -> null
+    }
+}
+
 internal fun ngocSiAiQuotaCooldownNotice(
     kind: NgocSiAiQuotaCooldownKind,
     remainingMillis: Long
