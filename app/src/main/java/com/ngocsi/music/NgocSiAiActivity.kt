@@ -833,6 +833,25 @@ class NgocSiAiActivity : ComponentActivity() {
                     controller.playbackState == androidx.media3.common.Player.STATE_BUFFERING)
             )
 
+    private fun preferredPlaybackController(): MediaController? {
+        val production = productionMusicController
+        val preview = musicController
+        return when (
+            selectNgocSiAiPlaybackTarget(
+                productionConnected = production != null,
+                productionActive = hasActivePlayback(production),
+                productionHasItems = (production?.mediaItemCount ?: 0) > 0,
+                previewConnected = preview != null,
+                previewActive = hasActivePlayback(preview),
+                previewHasItems = (preview?.mediaItemCount ?: 0) > 0
+            )
+        ) {
+            NgocSiAiPlaybackTarget.PRODUCTION -> production
+            NgocSiAiPlaybackTarget.PREVIEW -> preview
+            null -> null
+        }
+    }
+
     private fun stopActiveMusicFromAi(): String {
         val production = productionMusicController
         val preview = musicController
@@ -990,7 +1009,7 @@ class NgocSiAiActivity : ComponentActivity() {
 
         if (command == NgocSiAiLocalCommand.STOP) return stopActiveMusicFromAi()
 
-        val player = musicController
+        val player = preferredPlaybackController()
             ?: return "Trình phát đang khởi động hoặc chưa kết nối. Hãy thử lại sau một lát."
         if (command != NgocSiAiLocalCommand.STOP &&
             (player.mediaItemCount == 0 || player.currentMediaItem == null)
