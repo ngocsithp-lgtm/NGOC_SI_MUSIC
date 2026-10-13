@@ -146,7 +146,7 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
         ) -> NgocSiAiLocalCommand.PLAY_SECOND
 
         // Match named-song commands before generic play/pause phrases.
-        extractNgocSiAiTrackQuery(input)?.let { return NgocSiAiLocalCommand.PLAY_TRACK }
+        extractNgocSiAiTrackQuery(input) != null -> NgocSiAiLocalCommand.PLAY_TRACK
 
         isAnyOf(
             "phat nhac", "phat nhac di", "phat nhac len",
