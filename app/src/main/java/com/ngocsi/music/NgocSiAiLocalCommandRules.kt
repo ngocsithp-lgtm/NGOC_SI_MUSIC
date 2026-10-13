@@ -38,6 +38,7 @@ internal enum class NgocSiAiLocalCommand {
     OPEN_ALBUMS,
     OPEN_FOLDERS,
     OPEN_ONLINE,
+    SEARCH_ONLINE_MUSIC,
     SEARCH_YOUTUBE,
     OPEN_YOUTUBE,
     OPEN_DRIVE,
@@ -102,6 +103,7 @@ private val NGOC_SI_AI_WAKE_WORD_COMMANDS = setOf(
     NgocSiAiLocalCommand.OPEN_ALBUMS,
     NgocSiAiLocalCommand.OPEN_FOLDERS,
     NgocSiAiLocalCommand.OPEN_ONLINE,
+    NgocSiAiLocalCommand.SEARCH_ONLINE_MUSIC,
     NgocSiAiLocalCommand.SEARCH_YOUTUBE,
     NgocSiAiLocalCommand.OPEN_YOUTUBE,
     NgocSiAiLocalCommand.OPEN_DRIVE,
@@ -327,6 +329,12 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
             "mo nhac tren dien thoai", "mo nhac local"
         ) -> NgocSiAiLocalCommand.OPEN_LIBRARY
 
+        ((phrase.startsWith("tim nhac ") || phrase.startsWith("tim bai hat ") ||
+            phrase.startsWith("tim ca khuc ") || phrase.startsWith("kiem nhac ") ||
+            phrase.startsWith("kiem bai hat ")) &&
+            !phrase.contains("youtube") && !phrase.contains("audius") && !phrase.contains("jamendo")) ->
+            NgocSiAiLocalCommand.SEARCH_ONLINE_MUSIC
+
         (phrase == "tim youtube" || phrase.startsWith("tim youtube ") ||
             phrase.startsWith("kiem youtube ") ||
             ((phrase.startsWith("tim nhac ") || phrase.startsWith("tim bai hat ") ||
@@ -492,6 +500,23 @@ internal fun extractNgocSiAiTrackQuery(input: String): String? {
     }
     return query.take(100).takeIf { it.isNotBlank() }
 }
+/**
+ * Extract free-text search for the app's general Online hub (Jamendo, Audius and YouTube).
+ */
+internal fun extractNgocSiAiOnlineQuery(input: String): String? {
+    var query = input.trim()
+    val prefixes = listOf(
+        Regex("""^(?:(?:ngọc sĩ|ngoc si)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:tìm|tim|kiếm|kiem)\s+(?:bài hát|bai hat|ca khúc|ca khuc|nhạc|nhac)\s+""", RegexOption.IGNORE_CASE)
+    )
+    val prefix = prefixes.firstOrNull { it.containsMatchIn(query) } ?: return null
+    query = prefix.replaceFirst(query, "")
+    query = query.replace(
+        Regex("""\s+(?:(?:trên|tren)\s+)?(?:mạng|mang|online|trực tuyến|truc tuyen)\s*[?!.,]*$""", RegexOption.IGNORE_CASE),
+        ""
+    ).trim().trim(',', ':', '-', '.', '?', '!')
+    return query.take(120).takeIf { it.length >= 2 }
+}
+
 /**
  * Extract a user-supplied YouTube search phrase while preserving Vietnamese spelling.
  * The caller sends it only to the app's existing YouTube search UI after an explicit request.
