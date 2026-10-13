@@ -1036,7 +1036,7 @@ class NgocSiAiActivity : ComponentActivity() {
 
     private fun speakVoiceReply(message: String, force: Boolean = false) {
         if (!force && !voiceRepliesEnabled) return
-        val cleanMessage = message.trim()
+        val cleanMessage = NgocSiAiSpeechTextRules.cleanForSpeech(message)
         if (cleanMessage.isEmpty()) return
 
         val tts = responseTts
