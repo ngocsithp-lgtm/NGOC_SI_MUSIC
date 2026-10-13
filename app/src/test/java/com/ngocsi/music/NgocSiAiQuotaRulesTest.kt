@@ -120,6 +120,19 @@ class NgocSiAiQuotaRulesTest {
     }
 
     @Test
+    fun quotaStatusNoticeSeparatesRemoteQuotaFromLocalPlayback() {
+        org.junit.Assert.assertTrue(
+            ngocSiAiQuotaStatusNotice("AI_QUOTA_429_PROJECT_OR_CAPACITY")
+                ?.contains("lệnh nhạc trên điện thoại vẫn hoạt động") == true
+        )
+        org.junit.Assert.assertTrue(
+            ngocSiAiQuotaStatusNotice("AI_QUOTA_COOLDOWN")
+                ?.contains("Chat trực tuyến đang tạm dừng") == true
+        )
+        assertNull(ngocSiAiQuotaStatusNotice("NETWORK"))
+    }
+
+    @Test
     fun cooldownNoticeMentionsLocalCommandsStillWork() {
         val message = ngocSiAiQuotaCooldownNotice(NgocSiAiQuotaCooldownKind.RATE, 60_000L)
         org.junit.Assert.assertTrue(message.contains("Lệnh nhạc trên thiết bị vẫn hoạt động"))
