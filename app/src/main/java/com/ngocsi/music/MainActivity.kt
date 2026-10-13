@@ -405,6 +405,7 @@ class MainActivity : ComponentActivity() {
     private val playlists = mutableStateListOf<MusicPlaylist>()
     // Named playlist commands may be delivered before Media3 is connected on cold launch.
     private var pendingAiPlaylistName: String? = null
+    private var pendingAiAddCurrentSongPlaylistName: String? = null
     private var localLibraryLoaded = false
     // Artwork cache is album-first: one decoded cover is shared by every song
     // in the same local album. Drive falls back to a stable source/file key when
@@ -815,6 +816,24 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+            "add_current_to_playlist" -> {
+                val query = normalizeNgocSiAiVoicePhrase(playlistQuery.orEmpty())
+                val playlist = playlists.firstOrNull { normalizeNgocSiAiVoicePhrase(it.name) == query }
+                    ?: playlists.firstOrNull {
+                        val name = normalizeNgocSiAiVoicePhrase(it.name)
+                        name.contains(query) || query.contains(name)
+                    }
+                if (playlist == null) {
+                    errorMessage = "Chưa tìm thấy playlist “${playlistQuery.orEmpty()}”. Hãy tạo playlist trước hoặc mở Danh sách phát."
+                    showPlaylists = true
+                } else {
+                    pendingAiAddCurrentSongPlaylistName = playlist.name
+                    dispatchPendingAiAddCurrentSongToPlaylistIfReady()
+                    if (pendingAiAddCurrentSongPlaylistName != null) {
+                        errorMessage = "Đã nhận lệnh thêm bài đang phát vào “${playlist.name}”; đang chuẩn bị trình phát…"
+                    }
+                }
+            }
             "play_playlist" -> {
                 val query = normalizeNgocSiAiVoicePhrase(playlistQuery.orEmpty())
                 val playlist = playlists.firstOrNull { normalizeNgocSiAiVoicePhrase(it.name) == query }
@@ -951,6 +970,7 @@ class MainActivity : ComponentActivity() {
                     // onCreate may have run before a controller was available.
                     refreshSleepTimerUiState()
                     dispatchPendingAiPlaylistIfReady()
+                    dispatchPendingAiAddCurrentSongToPlaylistIfReady()
                     pendingAiRadioStationTitle?.let { stationTitle ->
                         val station = RadioCatalog.find(stationTitle)
                         pendingAiRadioStationTitle = null
@@ -1239,6 +1259,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 dispatchPendingAiPlaylistIfReady()
+                dispatchPendingAiAddCurrentSongToPlaylistIfReady()
             } catch (e: java.util.concurrent.CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -4216,6 +4237,35 @@ class MainActivity : ComponentActivity() {
             return
         }
         playPlaylist(playlist)
+    }
+
+    private fun dispatchPendingAiAddCurrentSongToPlaylistIfReady() {
+        val requestedName = pendingAiAddCurrentSongPlaylistName ?: return
+        if (!localLibraryLoaded || controller == null) return
+
+        val playlistQuery = normalizeNgocSiAiVoicePhrase(requestedName)
+        val playlist = playlists.firstOrNull {
+            normalizeNgocSiAiVoicePhrase(it.name) == playlistQuery
+        }
+        if (playlist == null) {
+            pendingAiAddCurrentSongPlaylistName = null
+            errorMessage = "Không tìm thấy playlist “\${requestedName}”."
+            return
+        }
+
+        val activeUri = controller?.currentMediaItem?.localConfiguration?.uri?.toString()
+        val song = activeUri?.let { uri ->
+            songs.firstOrNull { it.uri.toString() == uri }
+        }
+        pendingAiAddCurrentSongPlaylistName = null
+        if (song == null) {
+            errorMessage = "Không tìm thấy bài đang phát trong thư viện để thêm vào playlist."
+            return
+        }
+
+        playlistStore.addSong(playlist.id, song.uri.toString())
+        refreshPlaylists()
+        errorMessage = "Đã thêm “\${song.title}” vào playlist “\${playlist.name}”."
     }
 
     private fun playPlaylist(playlist: MusicPlaylist) {
