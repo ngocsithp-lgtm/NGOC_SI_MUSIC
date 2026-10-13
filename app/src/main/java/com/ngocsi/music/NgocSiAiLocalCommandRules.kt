@@ -189,6 +189,7 @@ internal fun isNgocSiAiExplicitStopPhrase(input: String): Boolean {
     var phrase = normalizeNgocSiAiVoicePhrase(input)
     val prefixes = listOf(
         "hey ngoc si ", "ok ngoc si ", "alo ngoc si ",
+        "hey ai ", "ok ai ", "alo ai ", "ai oi ", "ai ",
         "ngoc si oi ", "ngoc si ", "toi muon ban ", "minh muon ban ",
         "ban giup toi ", "ban giup minh ", "toi muon ", "minh muon ",
         "hay ", "vui long ", "lam on ", "giup toi ", "giup minh "
