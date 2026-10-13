@@ -619,6 +619,10 @@ class NgocSiAiLocalCommandRulesTest {
         assertEquals(NgocSiAiLocalCommand.NEXT, classifyNgocSiAiActivatedCommand("Phát bài tiếp theo"))
         assertEquals(NgocSiAiLocalCommand.STOP, classifyNgocSiAiWakePhrase("AI, tắt hẳn nhạc"))
         assertEquals(NgocSiAiLocalCommand.STOP, classifyNgocSiAiActivatedCommand("Kết thúc phát nhạc"))
+        assertEquals(true, isNgocSiAiExplicitStopPhrase("AI, tắt hẳn nhạc"))
+        assertEquals(true, isNgocSiAiExplicitStopPhrase("Kết thúc phát nhạc"))
+        assertEquals(true, isNgocSiAiExplicitStopPhrase("Dừng phát hoàn toàn"))
+        assertEquals(false, isNgocSiAiExplicitStopPhrase("Tắt nhạc sau 30 phút"))
         assertEquals(NgocSiAiLocalCommand.SLEEP_TIMER_30, classifyNgocSiAiWakePhrase("AI, tắt nhạc sau 30 phút"))
         assertNull(classifyNgocSiAiWakePhrase("Nghe nhạc thật hay"))
     }
