@@ -4249,7 +4249,7 @@ class MainActivity : ComponentActivity() {
         }
         if (playlist == null) {
             pendingAiAddCurrentSongPlaylistName = null
-            errorMessage = "Không tìm thấy playlist “\${requestedName}”."
+            errorMessage = "Không tìm thấy playlist “${requestedName}”."
             return
         }
 
@@ -4265,7 +4265,7 @@ class MainActivity : ComponentActivity() {
 
         playlistStore.addSong(playlist.id, song.uri.toString())
         refreshPlaylists()
-        errorMessage = "Đã thêm “\${song.title}” vào playlist “\${playlist.name}”."
+        errorMessage = "Đã thêm “${song.title}” vào playlist “${playlist.name}”."
     }
 
     private fun playPlaylist(playlist: MusicPlaylist) {
