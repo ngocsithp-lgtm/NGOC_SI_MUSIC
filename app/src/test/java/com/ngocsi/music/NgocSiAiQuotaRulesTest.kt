@@ -140,6 +140,26 @@ class NgocSiAiQuotaRulesTest {
     }
 
     @Test
+    fun genericProjectQuotaIsDiagnosedBeforeGenericTemporary429() {
+        val genericProjectQuota =
+            "HTTP 429 too_many_requests: You exceeded your current quota, please check your plan and billing details."
+        assertEquals(
+            "AI_QUOTA_429_PROJECT_OR_CAPACITY",
+            ngocSiAiQuotaDiagnosticCode(genericProjectQuota)
+        )
+        assertEquals(
+            "AI_QUOTA_429_RATE",
+            ngocSiAiQuotaDiagnosticCode(
+                "HTTP 429 RESOURCE_EXHAUSTED quotaId=GenerateContentRequestsPerMinute-FreeTier"
+            )
+        )
+        assertEquals(
+            "AI_QUOTA_429",
+            ngocSiAiQuotaDiagnosticCode("The model is overloaded; HTTP 429")
+        )
+    }
+
+    @Test
     fun triesFallbackOnlyWhenThereIsAReasonableModelSpecificRecoveryPath() {
         org.junit.Assert.assertTrue(
             shouldTryNgocSiAiFallbackModel("HTTP 429 RESOURCE_EXHAUSTED: free tier quota")
