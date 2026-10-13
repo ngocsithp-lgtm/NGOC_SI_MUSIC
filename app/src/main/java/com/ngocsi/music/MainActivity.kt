@@ -403,6 +403,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var driveSourcePrefs: SharedPreferences
     private lateinit var playlistStore: PlaylistStore
     private val playlists = mutableStateListOf<MusicPlaylist>()
+    // Named playlist commands may be delivered before Media3 is connected on cold launch.
+    private var pendingAiPlaylistName: String? = null
     // Artwork cache is album-first: one decoded cover is shared by every song
     // in the same local album. Drive falls back to a stable source/file key when
     // album metadata is unavailable.
@@ -687,7 +689,8 @@ class MainActivity : ComponentActivity() {
             intent.getStringExtra("pro_destination"),
             intent.getStringExtra("ai_youtube_query"),
             intent.getStringExtra("ai_radio_station"),
-            intent.getStringExtra("ai_tv_channel")
+            intent.getStringExtra("ai_tv_channel"),
+            intent.getStringExtra("ai_playlist_query")
         )
 
         // Restore persisted Drive sources only after the first frame can render.
@@ -706,7 +709,8 @@ class MainActivity : ComponentActivity() {
         destination: String?,
         youtubeSearchQuery: String? = null,
         radioStationQuery: String? = null,
-        tvChannelQuery: String? = null
+        tvChannelQuery: String? = null,
+        playlistQuery: String? = null
     ) {
         when (destination) {
             "home" -> selectedSection = "Trang chủ"
@@ -787,6 +791,40 @@ class MainActivity : ComponentActivity() {
                     openTvSource(source)
                 }
             }
+            "create_playlist" -> {
+                val name = playlistQuery?.trim().orEmpty()
+                if (name.isBlank()) {
+                    errorMessage = "Hãy nói tên playlist muốn tạo."
+                } else {
+                    val created = playlistStore.create(name)
+                    if (created == null) {
+                        errorMessage = "Tên playlist không hợp lệ. Hãy thử một tên khác."
+                    } else {
+                        refreshPlaylists()
+                        showPlaylists = true
+                        errorMessage = "Đã tạo playlist “${created.name}”. Mở playlist rồi thêm bài hát bằng lệnh hoặc nút trên màn hình."
+                    }
+                }
+            }
+            "play_playlist" -> {
+                val query = normalizeNgocSiAiVoicePhrase(playlistQuery.orEmpty())
+                val playlist = playlists.firstOrNull { normalizeNgocSiAiVoicePhrase(it.name) == query }
+                    ?: playlists.firstOrNull {
+                        val name = normalizeNgocSiAiVoicePhrase(it.name)
+                        name.contains(query) || query.contains(name)
+                    }
+                if (playlist == null) {
+                    errorMessage = "Chưa tìm thấy playlist “${playlistQuery.orEmpty()}”. Hãy nói “Mở danh sách phát” để xem tên playlist hiện có."
+                    showPlaylists = true
+                } else if (controller != null) {
+                    pendingAiPlaylistName = null
+                    playPlaylist(playlist)
+                } else {
+                    pendingAiPlaylistName = playlist.name
+                    showPlaylists = true
+                    errorMessage = "Đã nhận lệnh phát playlist “${playlist.name}”; đang kết nối trình phát…"
+                }
+            }
             "playlists" -> showPlaylists = true
             "queue" -> showQueue = true
             "player" -> {
@@ -818,7 +856,8 @@ class MainActivity : ComponentActivity() {
             intent.getStringExtra("pro_destination"),
             intent.getStringExtra("ai_youtube_query"),
             intent.getStringExtra("ai_radio_station"),
-            intent.getStringExtra("ai_tv_channel")
+            intent.getStringExtra("ai_tv_channel"),
+            intent.getStringExtra("ai_playlist_query")
         )
     }
 
@@ -901,6 +940,18 @@ class MainActivity : ComponentActivity() {
                     // Re-check expired persisted timers after the service is connected;
                     // onCreate may have run before a controller was available.
                     refreshSleepTimerUiState()
+                    pendingAiPlaylistName?.let { requestedName ->
+                        val normalizedName = normalizeNgocSiAiVoicePhrase(requestedName)
+                        val playlist = playlists.firstOrNull {
+                            normalizeNgocSiAiVoicePhrase(it.name) == normalizedName
+                        }
+                        pendingAiPlaylistName = null
+                        if (playlist != null) {
+                            playPlaylist(playlist)
+                        } else {
+                            errorMessage = "Không tìm thấy playlist “$requestedName” sau khi kết nối trình phát."
+                        }
+                    }
                     pendingAiRadioStationTitle?.let { stationTitle ->
                         val station = RadioCatalog.find(stationTitle)
                         pendingAiRadioStationTitle = null
