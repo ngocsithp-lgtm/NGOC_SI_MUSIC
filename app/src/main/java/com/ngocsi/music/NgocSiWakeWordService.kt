@@ -218,18 +218,26 @@ class NgocSiWakeWordService : Service() {
         val production = productionMusicController
         val preview = musicController
 
+        // Do not stop an idle Preview queue when the active stable player's session
+        // could not be reached. A failed connection must never be reported as success.
         if (production == null && productionMusicControllerConnecting) {
-            return "Đang kết nối trình phát NGỌC SĨ MUSIC. Hãy thử lại sau một lát."
+            return "Đang kết nối trình phát NGỌC SĨ MUSIC. Chưa thể xác nhận đã dừng nhạc."
         }
 
-        val target = when {
-            hasActivePlayback(production) -> production
-            hasActivePlayback(preview) -> preview
-            preview != null -> preview
-            else -> production
+        val target = when (
+            selectNgocSiAiStopPlaybackTarget(
+                productionConnected = production != null,
+                productionActive = hasActivePlayback(production),
+                previewConnected = preview != null,
+                previewActive = hasActivePlayback(preview)
+            )
+        ) {
+            NgocSiAiPlaybackTarget.PRODUCTION -> production
+            NgocSiAiPlaybackTarget.PREVIEW -> preview
+            null -> null
         } ?: run {
             connectProductionMusicController()
-            return "Chưa kết nối được trình phát. Hãy thử lại sau một lát."
+            return "Chưa kết nối được trình phát NGỌC SĨ MUSIC; nhạc chưa được dừng. Hãy mở ứng dụng chính rồi thử lại."
         }
 
         return runCatching {
@@ -239,10 +247,10 @@ class NgocSiWakeWordService : Service() {
             if (target === production) {
                 "Đã dừng hẳn nhạc đang phát trong NGỌC SĨ MUSIC."
             } else {
-                "Đã dừng hẳn nhạc trong NGỌC SĨ AI Preview."
+                "Đã dừng hẳn nhạc đang phát trong NGỌC SĨ AI Preview."
             }
         }.getOrElse {
-            "Không thể dừng nhạc lúc này. Hãy thử lại."
+            "Không thể dừng nhạc lúc này. Nhạc chưa được xác nhận là đã dừng; hãy thử lại."
         }
     }
 
