@@ -398,7 +398,7 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
             "bat nhac", "bat nhac len",
             "tiep tuc phat", "tiep tuc phat nhac", "tiep tuc nghe nhac",
             "bat dau phat nhac", "bat dau nghe nhac", "nghe nhac",
-            "cho nhac chay", "phat tiep nhac", "nghe tiep nhac", "tiep tuc nghe",
+            "cho nhac chay", "cho nhac chay tiep", "phat tiep nhac", "nghe tiep nhac", "tiep tuc nghe",
             "bat nhac lai", "mo trinh phat nhac", "phat nhac tiep di",
             "play", "play music", "resume", "resume music",
             "mo nhac", "mo nhac di", "mo nhac len"
