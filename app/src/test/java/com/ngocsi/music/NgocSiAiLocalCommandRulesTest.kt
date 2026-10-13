@@ -266,6 +266,26 @@ class NgocSiAiLocalCommandRulesTest {
     }
 
     @Test
+    fun prioritizesHardStopIntentWithoutCapturingTimedStopRequests() {
+        assertEquals(true, isNgocSiAiExplicitStopPhrase("Ngọc Sĩ, dừng hẳn nhạc"))
+        assertEquals(true, isNgocSiAiExplicitStopPhrase("Ngọc Sĩ ơi, dừng hẳn nhạc đang phát"))
+        assertEquals(true, isNgocSiAiExplicitStopPhrase("Dừng nhạc hoàn toàn"))
+        assertEquals(true, isNgocSiAiExplicitStopPhrase("Ngọc Sĩ, tắt nhạc đi"))
+
+        assertEquals(false, isNgocSiAiExplicitStopPhrase("Tạm dừng nhạc"))
+        assertEquals(false, isNgocSiAiExplicitStopPhrase("Tắt nhạc sau 15 phút"))
+        assertEquals(false, isNgocSiAiExplicitStopPhrase("Dừng nhạc sau 30 phút"))
+        assertEquals(
+            NgocSiAiLocalCommand.SLEEP_TIMER_15,
+            classifyNgocSiAiLocalCommand("Tắt nhạc sau 15 phút")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.SLEEP_TIMER_30,
+            classifyNgocSiAiLocalCommand("Dừng nhạc sau 30 phút")
+        )
+    }
+
+    @Test
     fun recognizesAdditionalCommonVietnameseSpokenCommands() {
         assertEquals(NgocSiAiLocalCommand.PLAY, classifyNgocSiAiLocalCommand("Phát bài hát đi"))
         assertEquals(NgocSiAiLocalCommand.PLAY, classifyNgocSiAiLocalCommand("Cho tôi nghe nhạc"))
