@@ -355,7 +355,6 @@ class MainActivity : ComponentActivity() {
     private var libraryView by mutableStateOf("Bài hát")
     private var queueSource by mutableStateOf("")
     private var showQueue by mutableStateOf(false) // #145 queue upgrade
-    private var showVietnamRadioHub by mutableStateOf(false)
     private var radioWebUrl by mutableStateOf<String?>(null)
     private var radioWebTitle by mutableStateOf("RADIO VIỆT NAM")
     private var radioFilter by mutableStateOf("")
@@ -736,7 +735,6 @@ class MainActivity : ComponentActivity() {
                 showCreatePlaylist = false
                 editingPlaylistId = null
                 playlistPendingDeleteId = null
-                showVietnamRadioHub = false
                 showTvSourceDialog = false
                 showDriveBrowser = false
                 showDriveOAuthDiagnostics = false
