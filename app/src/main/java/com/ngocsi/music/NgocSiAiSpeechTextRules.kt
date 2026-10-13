@@ -13,6 +13,7 @@ internal object NgocSiAiSpeechTextRules {
     private val quotePrefix = Regex("""(?m)^[ \t]{0,3}>[ \t]?""")
     private val listPrefix = Regex("""(?m)^[ \t]*(?:[-+*•]|[0-9]+[.)])[ \t]+""")
     private val markdownMarkers = Regex("""[*_~`]+""")
+    private val diagnosticCode = Regex("""(?iu)\s*(?:mã(?:\s+chẩn\s+đoán)?|code)\s*:\s*[A-Z][A-Z0-9_-]{2,}[.!?]?""")
     private val lineBreaks = Regex("""[ \t]*\n+[ \t]*""")
     private val repeatedPunctuation = Regex("""([.!?])(?:[ \t]*[.!?]){1,}""")
     private val spacesBeforePunctuation = Regex("""\s+([,;:!?])""")
@@ -31,6 +32,8 @@ internal object NgocSiAiSpeechTextRules {
         text = listPrefix.replace(text, "")
         // Strip visible Markdown delimiters so TTS never says "star star" for bold text.
         text = markdownMarkers.replace(text, "")
+        // Keep diagnostic codes visible in chat, but never make TextToSpeech read them aloud.
+        text = diagnosticCode.replace(text, "")
         text = text.replace("|", " ")
         text = lineBreaks.replace(text, ". ")
         text = text.replace(Regex("""[ \t]{2,}"""), " ")
