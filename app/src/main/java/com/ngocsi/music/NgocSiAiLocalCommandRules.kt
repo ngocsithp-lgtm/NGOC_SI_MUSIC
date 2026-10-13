@@ -54,6 +54,7 @@ private val NGOC_SI_AI_WAKE_WORD_COMMANDS = setOf(
     NgocSiAiLocalCommand.PAUSE,
     NgocSiAiLocalCommand.NEXT,
     NgocSiAiLocalCommand.PREVIOUS,
+    NgocSiAiLocalCommand.PLAY_SECOND,
     NgocSiAiLocalCommand.CURRENT_TRACK,
     NgocSiAiLocalCommand.SHUFFLE_ON,
     NgocSiAiLocalCommand.SHUFFLE_OFF,
