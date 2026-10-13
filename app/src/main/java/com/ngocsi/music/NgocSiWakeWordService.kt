@@ -508,8 +508,7 @@ class NgocSiWakeWordService : Service() {
             ?: return "Trình phát chưa kết nối. Hãy mở NGỌC SĨ MUSIC một lần rồi thử lại."
         if (command == NgocSiAiLocalCommand.PLAY_TRACK) {
             val query = extractNgocSiAiTrackQuery(originalText)
-                ?: return "Hãy nói rõ tên bài, ví dụ: “Ngọc Sĩ, phát bài hát Diễm xưa”.
-            }
+                ?: return "Hãy nói rõ tên bài, ví dụ: “Ngọc Sĩ, phát bài hát Diễm xưa”.")
             val normalizedQuery = normalizeNgocSiAiVoicePhrase(query)
             val exactIndex = (0 until player.mediaItemCount).firstOrNull { index ->
                 normalizeNgocSiAiVoicePhrase(
