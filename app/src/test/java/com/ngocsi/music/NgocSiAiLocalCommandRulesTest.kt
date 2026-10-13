@@ -39,6 +39,69 @@ class NgocSiAiLocalCommandRulesTest {
     }
 
     @Test
+    fun selectsTheMediaSessionThatIsActuallyPlaying() {
+        assertEquals(
+            NgocSiAiPlaybackTarget.PRODUCTION,
+            selectNgocSiAiPlaybackTarget(
+                productionConnected = true,
+                productionActive = true,
+                productionHasItems = true,
+                previewConnected = true,
+                previewActive = false,
+                previewHasItems = true
+            )
+        )
+        assertEquals(
+            NgocSiAiPlaybackTarget.PREVIEW,
+            selectNgocSiAiPlaybackTarget(
+                productionConnected = true,
+                productionActive = false,
+                productionHasItems = true,
+                previewConnected = true,
+                previewActive = true,
+                previewHasItems = true
+            )
+        )
+    }
+
+    @Test
+    fun prefersExistingProductionQueueButUsesPreviewForAnEmptyFirstRun() {
+        assertEquals(
+            NgocSiAiPlaybackTarget.PRODUCTION,
+            selectNgocSiAiPlaybackTarget(
+                productionConnected = true,
+                productionActive = false,
+                productionHasItems = true,
+                previewConnected = true,
+                previewActive = false,
+                previewHasItems = true
+            )
+        )
+        assertEquals(
+            NgocSiAiPlaybackTarget.PREVIEW,
+            selectNgocSiAiPlaybackTarget(
+                productionConnected = true,
+                productionActive = false,
+                productionHasItems = false,
+                previewConnected = true,
+                previewActive = false,
+                previewHasItems = false
+            )
+        )
+        assertEquals(
+            null,
+            selectNgocSiAiPlaybackTarget(
+                productionConnected = false,
+                productionActive = false,
+                productionHasItems = false,
+                previewConnected = false,
+                previewActive = false,
+                previewHasItems = false
+            )
+        )
+    }
+
+    @Test
     fun recognizesVietnameseCommandsWithAccentsAndPolitePrefixes() {
         assertEquals(NgocSiAiLocalCommand.PLAY, classifyNgocSiAiLocalCommand("Phát nhạc"))
         assertEquals(NgocSiAiLocalCommand.PLAY_SECOND, classifyNgocSiAiLocalCommand("Hát bài thứ hai trong danh sách"))
