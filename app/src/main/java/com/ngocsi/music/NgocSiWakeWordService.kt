@@ -231,13 +231,13 @@ class NgocSiWakeWordService : Service() {
                 // The TTS listener starts the eight-second deadline once the prompt is done.
                 awaitingCommandUntilMillis = Long.MAX_VALUE
                 updateNotification("Đã nghe từ khóa “Ngọc Sĩ” · hãy nói lệnh trong 8 giây")
-                speakReply("Tôi đang nghe lệnh. Hãy nói lệnh nhạc.")
+                speakReply("Tôi đang nghe lệnh. Hãy nói lệnh điều khiển ứng dụng.")
                 return
             } else if (recognized.isNotBlank()) {
                 awaitingCommand = false
                 awaitingCommandUntilMillis = 0L
                 if (wasAwaitingCommand) {
-                    updateNotification("Chưa nhận ra lệnh nhạc · hãy nói “Ngọc Sĩ, mở YouTube” hoặc “Ngọc Sĩ, chuyển bài”")
+                    updateNotification("Chưa nhận ra lệnh · hãy nói “Ngọc Sĩ, mở YouTube” hoặc “Ngọc Sĩ, chuyển bài”")
                 } else {
                     // Expose the actual speech-recognition result so the user can tell
                     // whether the problem is recognition or command matching.
