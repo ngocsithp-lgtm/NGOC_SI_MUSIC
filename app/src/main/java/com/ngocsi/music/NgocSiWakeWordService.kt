@@ -315,7 +315,7 @@ class NgocSiWakeWordService : Service() {
      */
     private fun runAppCommand(command: NgocSiAiLocalCommand, originalText: String): String {
         if (command == NgocSiAiLocalCommand.HELP) {
-            return "Tôi có thể điều khiển nhạc, mở Trang chủ, Thư viện, Yêu thích, Album, Thư mục, YouTube, Drive, Radio, TV, Online, Playlist, Hàng đợi, Trình phát, Cài đặt và hẹn giờ. Hãy nói lệnh tiếp theo."
+            return "Tôi có thể phát bài theo tên, điều khiển nhạc; mở Trang chủ, Thư viện, Yêu thích, Album, Thư mục, YouTube, Drive, Radio, TV, Online, Playlist, Hàng đợi, Trình phát, Cài đặt và hẹn giờ. Hãy nói lệnh tiếp theo."
         }
 
         val destination = when (command) {
