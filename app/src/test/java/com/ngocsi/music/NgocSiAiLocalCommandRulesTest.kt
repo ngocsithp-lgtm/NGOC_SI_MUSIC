@@ -16,6 +16,34 @@ class NgocSiAiLocalCommandRulesTest {
     }
 
     @Test
+    fun recognizesNaturalHomeAndYouTubeNavigationVariants() {
+        assertEquals(
+            NgocSiAiLocalCommand.OPEN_HOME,
+            classifyNgocSiAiLocalCommand("Quay về trang chủ giúp tôi")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.OPEN_HOME,
+            classifyNgocSiAiLocalCommand("Trở lại trang chủ")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.OPEN_HOME,
+            classifyNgocSiAiWakePhrase("Ngọc Sĩ, về giao diện chính")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.OPEN_YOUTUBE,
+            classifyNgocSiAiLocalCommand("Mở YouTube lên")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.OPEN_YOUTUBE,
+            classifyNgocSiAiWakePhrase("Ngọc Sĩ, bật YouTube")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.RESUME_YOUTUBE,
+            classifyNgocSiAiWakePhrase("Ngọc Sĩ, phát YouTube")
+        )
+    }
+
+    @Test
     fun recognizesShortEnglishPlaybackCommands() {
         assertEquals(NgocSiAiLocalCommand.PLAY, classifyNgocSiAiLocalCommand("Resume"))
         assertEquals(NgocSiAiLocalCommand.PAUSE, classifyNgocSiAiLocalCommand("Pause music"))
