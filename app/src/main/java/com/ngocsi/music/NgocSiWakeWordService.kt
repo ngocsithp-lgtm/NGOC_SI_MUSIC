@@ -38,6 +38,9 @@ class NgocSiWakeWordService : Service() {
     private var speechRecognizer: SpeechRecognizer? = null
     private var musicController: MediaController? = null
     private var musicControllerConnecting = false
+    // The AI Preview has a separate package. This controller targets the stable app session.
+    private var productionMusicController: MediaController? = null
+    private var productionMusicControllerConnecting = false
     private var listening = false
     private var stopping = false
     private var awaitingCommand = false
@@ -139,6 +142,7 @@ class NgocSiWakeWordService : Service() {
         if (speechRecognizer != null) return START_NOT_STICKY
 
         connectMusicController()
+        connectProductionMusicController()
         try {
             speechRecognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(this).apply {
                 setRecognitionListener(listener)
@@ -165,6 +169,64 @@ class NgocSiWakeWordService : Service() {
         }, ContextCompat.getMainExecutor(this))
     }
 
+    private fun connectProductionMusicController() {
+        if (productionMusicController != null || productionMusicControllerConnecting) return
+        productionMusicControllerConnecting = true
+        val component = ComponentName("com.ngocsi.music", "com.ngocsi.music.MusicService")
+        val future = runCatching {
+            MediaController.Builder(this, SessionToken(this, component)).buildAsync()
+        }.getOrElse {
+            productionMusicControllerConnecting = false
+            return
+        }
+        future.addListener({
+            productionMusicControllerConnecting = false
+            runCatching { future.get() }
+                .onSuccess { controller ->
+                    if (stopping) controller.release()
+                    else productionMusicController = controller
+                }
+        }, ContextCompat.getMainExecutor(this))
+    }
+
+    private fun hasActivePlayback(controller: MediaController?): Boolean =
+        controller != null && (
+            controller.isPlaying ||
+                (controller.playWhenReady && controller.playbackState == Player.STATE_BUFFERING)
+            )
+
+    private fun stopActivePlayback(): String {
+        val production = productionMusicController
+        val preview = musicController
+
+        if (production == null && productionMusicControllerConnecting) {
+            return "Đang kết nối trình phát NGỌC SĨ MUSIC. Hãy thử lại sau một lát."
+        }
+
+        val target = when {
+            hasActivePlayback(production) -> production
+            hasActivePlayback(preview) -> preview
+            preview != null -> preview
+            else -> production
+        } ?: run {
+            connectProductionMusicController()
+            return "Chưa kết nối được trình phát. Hãy thử lại sau một lát."
+        }
+
+        return runCatching {
+            target.pause()
+            target.playWhenReady = false
+            target.stop()
+            if (target === production) {
+                "Đã dừng hẳn nhạc đang phát trong NGỌC SĨ MUSIC."
+            } else {
+                "Đã dừng hẳn nhạc trong NGỌC SĨ AI Preview."
+            }
+        }.getOrElse {
+            "Không thể dừng nhạc lúc này. Hãy thử lại."
+        }
+    }
+
     /**
      * Don't lose a direct playback command just because Media3 is still connecting.
      * Navigation commands are routed immediately; live-player commands retry briefly.
@@ -177,8 +239,21 @@ class NgocSiWakeWordService : Service() {
         if (stopping) return
 
         if (
+            command == NgocSiAiLocalCommand.STOP &&
+            productionMusicController == null &&
+            productionMusicControllerConnecting &&
+            attemptsRemaining > 0
+        ) {
+            mainHandler.postDelayed({
+                dispatchNgocSiAiCommandWhenReady(command, recognized, attemptsRemaining - 1)
+            }, PLAYER_CONNECT_RETRY_MILLIS)
+            return
+        }
+
+        if (
             ngocSiAiCommandRequiresPlayerConnection(command) &&
             musicController == null &&
+            command != NgocSiAiLocalCommand.STOP &&
             attemptsRemaining > 0
         ) {
             connectMusicController()
@@ -548,6 +623,8 @@ class NgocSiWakeWordService : Service() {
             }
         }
 
+        if (command == NgocSiAiLocalCommand.STOP) return stopActivePlayback()
+
         val connectedPlayer = musicController
         if (command == NgocSiAiLocalCommand.PLAY_TRACK &&
             (connectedPlayer == null || connectedPlayer.mediaItemCount == 0)
@@ -570,20 +647,6 @@ class NgocSiWakeWordService : Service() {
         }
         val player = connectedPlayer
             ?: return "Trình phát chưa kết nối. Hãy mở NGỌC SĨ MUSIC một lần rồi thử lại."
-
-        // Hard-stop is a direct playback action, not navigation or AI guidance.
-        // Handle it before checking the queue so the command also works when
-        // there is no current item and the MediaSession service is still alive.
-        if (command == NgocSiAiLocalCommand.STOP) {
-            return runCatching {
-                player.pause()
-                player.playWhenReady = false
-                player.stop()
-                "Đã dừng hẳn nhạc. Hàng đợi vẫn được giữ để bạn có thể phát lại."
-            }.getOrElse {
-                "Không thể dừng nhạc lúc này. Hãy thử lại."
-            }
-        }
 
         if (command == NgocSiAiLocalCommand.PLAY_TRACK) {
             val query = extractNgocSiAiTrackQuery(originalText)
@@ -758,6 +821,8 @@ class NgocSiWakeWordService : Service() {
         speechRecognizer = null
         musicController?.release()
         musicController = null
+        productionMusicController?.release()
+        productionMusicController = null
         runCatching { textToSpeech?.stop() }
         runCatching { textToSpeech?.shutdown() }
         textToSpeech = null
@@ -778,6 +843,8 @@ class NgocSiWakeWordService : Service() {
         speechRecognizer = null
         musicController?.release()
         musicController = null
+        productionMusicController?.release()
+        productionMusicController = null
         runCatching { textToSpeech?.stop() }
         runCatching { textToSpeech?.shutdown() }
         textToSpeech = null
