@@ -876,7 +876,8 @@ class MainActivity : ComponentActivity() {
                         errorMessage = "Đã nhận lệnh thêm bài đang phát vào “${playlist.name}”; đang chuẩn bị trình phát…"
                     }
                 }
-            }            "add_queue_to_playlist" -> {
+            }
+            "add_queue_to_playlist" -> {
                 val query = normalizeNgocSiAiVoicePhrase(playlistQuery.orEmpty())
                 val playlist = playlists.firstOrNull { normalizeNgocSiAiVoicePhrase(it.name) == query }
                     ?: playlists.firstOrNull {
