@@ -251,7 +251,7 @@ private fun trimNgocSiAiExtractedQuery(input: String): String {
 /** True when recognition heard only the wake phrase, not a playback command yet. */
 internal fun isNgocSiAiWakeWordOnly(input: String): Boolean =
     normalizeNgocSiAiVoicePhrase(input) in setOf(
-        "ai", "hey ai", "ok ai", "alo ai"
+        "ai", "ai oi", "hey ai", "ok ai", "alo ai"
     )
 
 /** Accepts a command only when wake phrase and command occur in the same utterance. */
@@ -259,7 +259,8 @@ internal fun classifyNgocSiAiWakePhrase(input: String): NgocSiAiLocalCommand? {
     val normalized = normalizeNgocSiAiVoicePhrase(input)
     if (!normalized.startsWith("ai ")) return null
     var commandPhrase = normalized.removePrefix("ai ").trim()
-    // The wake word is simply “AI”; no extra “ơi” is required.
+    // “AI” is the trigger; “ơi” remains an optional conversational filler.
+    if (commandPhrase.startsWith("oi ")) commandPhrase = commandPhrase.removePrefix("oi ").trim()
     if (commandPhrase.isBlank()) return null
 
     // Keep these common home aliases explicit in wake-word mode too; speech
