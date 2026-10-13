@@ -583,4 +583,29 @@ class NgocSiAiLocalCommandRulesTest {
         )
     }
 
+
+    @Test
+    fun understandsConversationalCommandsWithoutTreatingCapabilityQuestionsAsActions() {
+        assertEquals(
+            NgocSiAiLocalCommand.PAUSE,
+            classifyNgocSiAiLocalCommand("Ngọc Sĩ ơi, bạn dừng nhạc giúp tôi nhé")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.STOP,
+            classifyNgocSiAiLocalCommand("Tôi muốn bạn dừng hẳn nhạc")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.OPEN_YOUTUBE,
+            classifyNgocSiAiLocalCommand("Bạn mở YouTube giúp tôi được không")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.NEXT,
+            classifyNgocSiAiWakePhrase("Ngọc Sĩ ơi, bạn chuyển bài tiếp theo giúp mình")
+        )
+        assertEquals(
+            true,
+            isNgocSiAiExplicitStopPhrase("Tôi muốn bạn dừng hẳn nhạc")
+        )
+        assertNull(classifyNgocSiAiLocalCommand("Bạn có thể phát ngẫu nhiên không?"))
+    }
 }
