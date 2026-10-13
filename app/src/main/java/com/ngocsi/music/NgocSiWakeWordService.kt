@@ -368,7 +368,7 @@ class NgocSiWakeWordService : Service() {
                 // The TTS listener starts the eight-second deadline once the prompt is done.
                 awaitingCommandUntilMillis = Long.MAX_VALUE
                 updateNotification("Đã nghe từ khóa “AI” · hãy nói lệnh trong 8 giây")
-                speakReply("Tôi đang nghe lệnh. Hãy nói lệnh điều khiển ứng dụng.")
+                speakReply("Vâng, tôi nghe đây.")
                 return
             } else if (recognized.isNotBlank()) {
                 awaitingCommand = false
