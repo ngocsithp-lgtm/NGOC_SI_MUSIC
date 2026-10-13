@@ -17,6 +17,10 @@ internal enum class NgocSiAiLocalCommand {
     REPEAT_ONE,
     OPEN_HOME,
     OPEN_LIBRARY,
+    OPEN_FAVORITES,
+    OPEN_ALBUMS,
+    OPEN_FOLDERS,
+    OPEN_ONLINE,
     SEARCH_YOUTUBE,
     OPEN_YOUTUBE,
     OPEN_DRIVE,
@@ -55,7 +59,32 @@ private val NGOC_SI_AI_WAKE_WORD_COMMANDS = setOf(
     NgocSiAiLocalCommand.SHUFFLE_OFF,
     NgocSiAiLocalCommand.REPEAT_OFF,
     NgocSiAiLocalCommand.REPEAT_ALL,
-    NgocSiAiLocalCommand.REPEAT_ONE
+    NgocSiAiLocalCommand.REPEAT_ONE,
+    // Wake-word mode can route to every existing top-level screen and timer action.
+    NgocSiAiLocalCommand.OPEN_HOME,
+    NgocSiAiLocalCommand.OPEN_LIBRARY,
+    NgocSiAiLocalCommand.OPEN_FAVORITES,
+    NgocSiAiLocalCommand.OPEN_ALBUMS,
+    NgocSiAiLocalCommand.OPEN_FOLDERS,
+    NgocSiAiLocalCommand.OPEN_ONLINE,
+    NgocSiAiLocalCommand.SEARCH_YOUTUBE,
+    NgocSiAiLocalCommand.OPEN_YOUTUBE,
+    NgocSiAiLocalCommand.OPEN_DRIVE,
+    NgocSiAiLocalCommand.OPEN_RADIO,
+    NgocSiAiLocalCommand.OPEN_TV,
+    NgocSiAiLocalCommand.OPEN_PLAYLISTS,
+    NgocSiAiLocalCommand.OPEN_QUEUE,
+    NgocSiAiLocalCommand.OPEN_PLAYER,
+    NgocSiAiLocalCommand.OPEN_SETTINGS,
+    NgocSiAiLocalCommand.OPEN_SLEEP_TIMER,
+    NgocSiAiLocalCommand.SLEEP_TIMER_15,
+    NgocSiAiLocalCommand.SLEEP_TIMER_30,
+    NgocSiAiLocalCommand.SLEEP_TIMER_45,
+    NgocSiAiLocalCommand.SLEEP_TIMER_60,
+    NgocSiAiLocalCommand.SLEEP_TIMER_90,
+    NgocSiAiLocalCommand.SLEEP_TIMER_120,
+    NgocSiAiLocalCommand.CANCEL_SLEEP_TIMER,
+    NgocSiAiLocalCommand.HELP
 )
 
 private fun normalizeNgocSiAiVoicePhrase(input: String): String =
@@ -204,9 +233,29 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
         ) -> NgocSiAiLocalCommand.OPEN_HOME
 
         startsWithAny(
+            "mo yeu thich", "mo muc yeu thich", "mo nhac yeu thich",
+            "mo bai hat yeu thich", "mo thu vien yeu thich", "mo danh sach yeu thich",
+            "vao yeu thich", "xem yeu thich", "mo favorites", "open favorites"
+        ) -> NgocSiAiLocalCommand.OPEN_FAVORITES
+
+        startsWithAny(
+            "mo album", "mo cac album", "mo muc album", "xem album", "vao album",
+            "mo albums", "open albums"
+        ) -> NgocSiAiLocalCommand.OPEN_ALBUMS
+
+        startsWithAny(
+            "mo thu muc", "mo cac thu muc", "mo muc thu muc", "xem thu muc",
+            "vao thu muc", "open folders"
+        ) -> NgocSiAiLocalCommand.OPEN_FOLDERS
+
+        startsWithAny("mo online", "vao online", "mo muc online", "mo nguon truc tuyen", "mo cac nguon") ->
+            NgocSiAiLocalCommand.OPEN_ONLINE
+
+        startsWithAny(
             "mo thu vien", "vao thu vien", "mo muc thu vien", "mo nhac trong thu vien",
             "mo thu vien nhac", "vao muc thu vien", "chuyen den thu vien",
-            "chuyen sang thu vien", "mo ung dung thu vien"
+            "chuyen sang thu vien", "mo ung dung thu vien", "mo nhac trong dien thoai",
+            "mo nhac tren dien thoai", "mo nhac local"
         ) -> NgocSiAiLocalCommand.OPEN_LIBRARY
 
         (phrase == "tim youtube" || phrase.startsWith("tim youtube ") ||
