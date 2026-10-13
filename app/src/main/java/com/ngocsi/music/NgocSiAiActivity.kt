@@ -1301,6 +1301,7 @@ private fun NgocSiAiPreviewScreen(
             } catch (error: NgocSiAiRemoteException) {
                 if (conversation.lastOrNull() == userTurn) conversation.removeAt(conversation.lastIndex)
                 val errorReply = error.message ?: "Không thể kết nối NGỌC SĨ AI. Vui lòng thử lại."
+                quotaNote = ngocSiAiQuotaStatusNotice(errorReply).orEmpty()
                 messages.add(AiPreviewMessage(false, errorReply))
                 if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
                 persistChatState()
