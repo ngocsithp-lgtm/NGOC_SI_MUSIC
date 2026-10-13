@@ -251,16 +251,15 @@ private fun trimNgocSiAiExtractedQuery(input: String): String {
 /** True when recognition heard only the wake phrase, not a playback command yet. */
 internal fun isNgocSiAiWakeWordOnly(input: String): Boolean =
     normalizeNgocSiAiVoicePhrase(input) in setOf(
-        "ngoc si", "ngoc si oi", "ok ngoc si", "alo ngoc si"
+        "ai", "hey ai", "ok ai", "alo ai"
     )
 
 /** Accepts a command only when wake phrase and command occur in the same utterance. */
 internal fun classifyNgocSiAiWakePhrase(input: String): NgocSiAiLocalCommand? {
     val normalized = normalizeNgocSiAiVoicePhrase(input)
-    if (!normalized.startsWith("ngoc si ")) return null
-    var commandPhrase = normalized.removePrefix("ngoc si ").trim()
-    // Treat “Ngọc Sĩ ơi, …” the same as “Ngọc Sĩ, …”.
-    if (commandPhrase.startsWith("oi ")) commandPhrase = commandPhrase.removePrefix("oi ").trim()
+    if (!normalized.startsWith("ai ")) return null
+    var commandPhrase = normalized.removePrefix("ai ").trim()
+    // The wake word is simply “AI”; no extra “ơi” is required.
     if (commandPhrase.isBlank()) return null
 
     // Keep these common home aliases explicit in wake-word mode too; speech
@@ -610,7 +609,7 @@ internal fun selectNgocSiAiActivatedCommandCandidate(candidates: List<String>): 
         ?: cleaned.firstOrNull()
 }
 
-/** Wake-word mode must keep its stricter explicit “Ngọc Sĩ” requirement. */
+/** Wake-word mode must keep its stricter explicit “AI” requirement. */
 internal fun selectNgocSiAiWakePhraseCandidate(candidates: List<String>): String? {
     val cleaned = candidates.map { it.trim() }.filter { it.isNotBlank() }
     return cleaned.firstOrNull { classifyNgocSiAiWakePhrase(it) != null }
@@ -627,11 +626,11 @@ internal fun extractNgocSiAiPlaylistQuery(input: String, create: Boolean): Strin
     val raw = input.trim()
     val prefixes = if (create) {
         listOf(
-            Regex("""^(?:(?:ngọc sĩ|ngoc si)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:tạo|tao|lập|lap)\s+(?:(?:một|mot)\s+)?(?:playlist|danh sách phát|danh sach phat)\s+""", RegexOption.IGNORE_CASE)
+            Regex("""^(?:(?:ai)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:tạo|tao|lập|lap)\s+(?:(?:một|mot)\s+)?(?:playlist|danh sách phát|danh sach phat)\s+""", RegexOption.IGNORE_CASE)
         )
     } else {
         listOf(
-            Regex("""^(?:(?:ngọc sĩ|ngoc si)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:phát|phat|chạy|chay|mở|mo)\s+(?:playlist|danh sách phát|danh sach phat)\s+""", RegexOption.IGNORE_CASE)
+            Regex("""^(?:(?:ai)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:phát|phat|chạy|chay|mở|mo)\s+(?:playlist|danh sách phát|danh sach phat)\s+""", RegexOption.IGNORE_CASE)
         )
     }
     val prefix = prefixes.firstOrNull { it.containsMatchIn(raw) } ?: return null
@@ -646,8 +645,8 @@ internal fun extractNgocSiAiPlaylistQuery(input: String, create: Boolean): Strin
 internal fun extractNgocSiAiQueueToPlaylistQuery(input: String): String? {
     val raw = input.trim()
     val patterns = listOf(
-        Regex("""^(?:(?:ngọc sĩ|ngoc si)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:thêm|them|lưu|luu)\s+(?:toàn bộ\s+|toan bo\s+)?(?:hàng đợi|hang doi|queue)\s+(?:(?:hiện tại|hien tai)\s+)?(?:(?:vào|vao)\s+)?(?:playlist|danh sách phát|danh sach phat)\s+""", RegexOption.IGNORE_CASE),
-        Regex("""^(?:(?:ngọc sĩ|ngoc si)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:lưu|luu)\s+hàng đợi thành\s+(?:playlist|danh sách phát)\s+""", RegexOption.IGNORE_CASE)
+        Regex("""^(?:(?:ai)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:thêm|them|lưu|luu)\s+(?:toàn bộ\s+|toan bo\s+)?(?:hàng đợi|hang doi|queue)\s+(?:(?:hiện tại|hien tai)\s+)?(?:(?:vào|vao)\s+)?(?:playlist|danh sách phát|danh sach phat)\s+""", RegexOption.IGNORE_CASE),
+        Regex("""^(?:(?:ai)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:lưu|luu)\s+hàng đợi thành\s+(?:playlist|danh sách phát)\s+""", RegexOption.IGNORE_CASE)
     )
     val prefix = patterns.firstOrNull { it.containsMatchIn(raw) } ?: return null
     val query = trimNgocSiAiExtractedQuery(prefix.replaceFirst(raw, ""))
@@ -660,7 +659,7 @@ internal fun extractNgocSiAiQueueToPlaylistQuery(input: String): String? {
 internal fun extractNgocSiAiAddToPlaylistQuery(input: String): String? {
     val raw = input.trim()
     val prefixes = listOf(
-        Regex("""^(?:(?:ngọc sĩ|ngoc si)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:thêm|them|lưu|luu)\s+(?:bài đang phát|bai dang phat|bài hiện tại|bai hien tai)\s+(?:(?:vào|vao)\s+)?(?:playlist|danh sách phát|danh sach phat)\s+""", RegexOption.IGNORE_CASE)
+        Regex("""^(?:(?:ai)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:thêm|them|lưu|luu)\s+(?:bài đang phát|bai dang phat|bài hiện tại|bai hien tai)\s+(?:(?:vào|vao)\s+)?(?:playlist|danh sách phát|danh sach phat)\s+""", RegexOption.IGNORE_CASE)
     )
     val prefix = prefixes.firstOrNull { it.containsMatchIn(raw) } ?: return null
     val query = trimNgocSiAiExtractedQuery(prefix.replaceFirst(raw, ""))
@@ -673,8 +672,8 @@ internal fun extractNgocSiAiAddToPlaylistQuery(input: String): String? {
 internal fun extractNgocSiAiRadioStationQuery(input: String): String? {
     val raw = input.trim()
     val prefixes = listOf(
-        Regex("""^(?:(?:ngọc sĩ|ngoc si)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:phát|phat|mở|mo|nghe|bật|bat)\s+(?:(?:đài|dai)\s+(?:phát|phat)\s+(?:thanh)|đài|dai|radio)\s+""", RegexOption.IGNORE_CASE),
-        Regex("""^(?:(?:ngọc sĩ|ngoc si)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:phát|phat|mở|mo|nghe)\s+(?:vov|voh)\s*""", RegexOption.IGNORE_CASE)
+        Regex("""^(?:(?:ai)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:phát|phat|mở|mo|nghe|bật|bat)\s+(?:(?:đài|dai)\s+(?:phát|phat)\s+(?:thanh)|đài|dai|radio)\s+""", RegexOption.IGNORE_CASE),
+        Regex("""^(?:(?:ai)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:phát|phat|mở|mo|nghe)\s+(?:vov|voh)\s*""", RegexOption.IGNORE_CASE)
     )
     val prefix = prefixes.firstOrNull { it.containsMatchIn(raw) } ?: return null
     val query = trimNgocSiAiExtractedQuery(prefix.replaceFirst(raw, ""))
@@ -689,8 +688,8 @@ internal fun extractNgocSiAiRadioStationQuery(input: String): String? {
 internal fun extractNgocSiAiTvChannelQuery(input: String): String? {
     val raw = input.trim()
     val prefixes = listOf(
-        Regex("""^(?:(?:ngọc sĩ|ngoc si)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:mở|mo|xem|bật|bat|phát|phat)\s+(?:(?:kênh|kenh)\s+)?(?:(?:tv)\s+)?""", RegexOption.IGNORE_CASE),
-        Regex("""^(?:(?:ngọc sĩ|ngoc si)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:chuyển|chuyen)\s+(?:(?:sang|đến|den)\s+)?(?:(?:kênh|kenh)\s+)?""", RegexOption.IGNORE_CASE)
+        Regex("""^(?:(?:ai)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:mở|mo|xem|bật|bat|phát|phat)\s+(?:(?:kênh|kenh)\s+)?(?:(?:tv)\s+)?""", RegexOption.IGNORE_CASE),
+        Regex("""^(?:(?:ai)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:chuyển|chuyen)\s+(?:(?:sang|đến|den)\s+)?(?:(?:kênh|kenh)\s+)?""", RegexOption.IGNORE_CASE)
     )
     val prefix = prefixes.firstOrNull { it.containsMatchIn(raw) } ?: return null
     val query = trimNgocSiAiExtractedQuery(prefix.replaceFirst(raw, ""))
@@ -705,8 +704,8 @@ internal fun extractNgocSiAiTvChannelQuery(input: String): String? {
 internal fun extractNgocSiAiTrackQuery(input: String): String? {
     val raw = input.trim()
     val prefixes = listOf(
-        Regex("""^(?:(?:ngọc sĩ|ngoc si)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:phát|phat|mở|mo|nghe)\s+(?:bài hát|bai hat|bài|bai|ca khúc|ca khuc)\s+""", RegexOption.IGNORE_CASE),
-        Regex("""^(?:(?:ngọc sĩ|ngoc si)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:play|listen to)\s+(?:song|track)\s+""", RegexOption.IGNORE_CASE)
+        Regex("""^(?:(?:ai)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:phát|phat|mở|mo|nghe)\s+(?:bài hát|bai hat|bài|bai|ca khúc|ca khuc)\s+""", RegexOption.IGNORE_CASE),
+        Regex("""^(?:(?:ai)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:play|listen to)\s+(?:song|track)\s+""", RegexOption.IGNORE_CASE)
     )
     val prefix = prefixes.firstOrNull { it.containsMatchIn(raw) } ?: return null
     val query = trimNgocSiAiExtractedQuery(prefix.replaceFirst(raw, ""))
@@ -722,7 +721,7 @@ internal fun extractNgocSiAiTrackQuery(input: String): String? {
 internal fun extractNgocSiAiOnlineQuery(input: String): String? {
     var query = input.trim()
     val prefixes = listOf(
-        Regex("""^(?:(?:ngọc sĩ|ngoc si)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:tìm|tim|kiếm|kiem)\s+(?:bài hát|bai hat|ca khúc|ca khuc|nhạc|nhac)\s+""", RegexOption.IGNORE_CASE)
+        Regex("""^(?:(?:ai)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:tìm|tim|kiếm|kiem)\s+(?:bài hát|bai hat|ca khúc|ca khuc|nhạc|nhac)\s+""", RegexOption.IGNORE_CASE)
     )
     val prefix = prefixes.firstOrNull { it.containsMatchIn(query) } ?: return null
     query = prefix.replaceFirst(query, "")
@@ -741,10 +740,10 @@ internal fun extractNgocSiAiOnlineQuery(input: String): String? {
 internal fun extractNgocSiAiYoutubeQuery(input: String): String? {
     var query = input.trim()
     val prefixes = listOf(
-        Regex("""^(?:(?:ngọc sĩ|ngoc si)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:tìm|tim|kiếm|kiem)\s+(?:video|bài hát|bai hat|nhạc|nhac)\s+(?:(?:trên|tren)\s+)?youtube\s*[:,\-]?\s*""", RegexOption.IGNORE_CASE),
-        Regex("""^(?:(?:ngọc sĩ|ngoc si)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:tìm|tim|kiếm|kiem)\s+youtube\s*[:,\-]?\s*""", RegexOption.IGNORE_CASE),
-        Regex("""^(?:(?:ngọc sĩ|ngoc si)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:tìm|tim|kiếm|kiem)\s+(?:video|bài hát|bai hat|nhạc|nhac)\s+""", RegexOption.IGNORE_CASE),
-        Regex("""^(?:(?:ngọc sĩ|ngoc si)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:phát|phat|mở|mo)\s+youtube\s*[:,\-]?\s*""", RegexOption.IGNORE_CASE)
+        Regex("""^(?:(?:ai)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:tìm|tim|kiếm|kiem)\s+(?:video|bài hát|bai hat|nhạc|nhac)\s+(?:(?:trên|tren)\s+)?youtube\s*[:,\-]?\s*""", RegexOption.IGNORE_CASE),
+        Regex("""^(?:(?:ai)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:tìm|tim|kiếm|kiem)\s+youtube\s*[:,\-]?\s*""", RegexOption.IGNORE_CASE),
+        Regex("""^(?:(?:ai)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:tìm|tim|kiếm|kiem)\s+(?:video|bài hát|bai hat|nhạc|nhac)\s+""", RegexOption.IGNORE_CASE),
+        Regex("""^(?:(?:ai)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:phát|phat|mở|mo)\s+youtube\s*[:,\-]?\s*""", RegexOption.IGNORE_CASE)
     )
     val prefixIndex = prefixes.indexOfFirst { it.containsMatchIn(query) }
     if (prefixIndex < 0) return null
