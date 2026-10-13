@@ -720,7 +720,12 @@ internal fun extractNgocSiAiTrackQuery(input: String): String? {
     val prefix = prefixes.firstOrNull { it.containsMatchIn(raw) } ?: return null
     val query = trimNgocSiAiExtractedQuery(prefix.replaceFirst(raw, ""))
     val normalized = normalizeNgocSiAiVoicePhrase(query)
-    if (query.length < 3 || normalized in setOf("di", "len", "nhe", "luon", "di nhe", "len nhe")) {
+    if (query.length < 3 || normalized in setOf(
+            "di", "len", "nhe", "luon", "di nhe", "len nhe",
+            "tiep theo", "ke tiep", "bai tiep theo", "bai ke tiep",
+            "sau", "truoc", "bai sau", "bai truoc"
+        )
+    ) {
         return null
     }
     return query.take(100).takeIf { it.isNotBlank() }
