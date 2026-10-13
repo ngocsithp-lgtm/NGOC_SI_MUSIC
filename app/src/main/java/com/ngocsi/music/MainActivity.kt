@@ -691,7 +691,8 @@ class MainActivity : ComponentActivity() {
             intent.getStringExtra("ai_youtube_query"),
             intent.getStringExtra("ai_radio_station"),
             intent.getStringExtra("ai_tv_channel"),
-            intent.getStringExtra("ai_playlist_query")
+            intent.getStringExtra("ai_playlist_query"),
+            intent.getStringExtra("ai_youtube_action")
         )
 
         // Restore persisted Drive sources only after the first frame can render.
@@ -711,7 +712,8 @@ class MainActivity : ComponentActivity() {
         youtubeSearchQuery: String? = null,
         radioStationQuery: String? = null,
         tvChannelQuery: String? = null,
-        playlistQuery: String? = null
+        playlistQuery: String? = null,
+        youtubeAction: String? = null
     ) {
         when (destination) {
             "home" -> selectedSection = "Trang chủ"
@@ -746,6 +748,12 @@ class MainActivity : ComponentActivity() {
                     youtubeQuery = query.take(120)
                     searchYouTube()
                 }
+            }
+            "youtube_command" -> {
+                selectedSection = "Online"
+                onlineHubTab = "YouTube"
+                loadYouTubeLibraryState()
+                playLastYouTube(youtubeAction)
             }
             "drive" -> {
                 selectedSection = "Online"
@@ -858,7 +866,8 @@ class MainActivity : ComponentActivity() {
             intent.getStringExtra("ai_youtube_query"),
             intent.getStringExtra("ai_radio_station"),
             intent.getStringExtra("ai_tv_channel"),
-            intent.getStringExtra("ai_playlist_query")
+            intent.getStringExtra("ai_playlist_query"),
+            intent.getStringExtra("ai_youtube_action")
         )
     }
 
@@ -7775,6 +7784,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     putExtra(YouTubePlayerActivity.EXTRA_CHANNEL, track.channelTitle)
                     putExtra(YouTubePlayerActivity.EXTRA_QUEUE_JSON, queueJson)
                     putExtra(YouTubePlayerActivity.EXTRA_QUEUE_INDEX, selectedIndex)
+                    aiAction?.let { putExtra(YouTubePlayerActivity.EXTRA_AI_ACTION, it) }
+                    addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                 }
             )
         }.onFailure {
@@ -7993,8 +8004,13 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         youtubeLastQueueIndex = queueIndex.coerceAtLeast(0)
     }
 
-    private fun playLastYouTube() {
-        val track = youtubeLastPlayed ?: return
+    private fun playLastYouTube(aiAction: String? = null) {
+        val track = youtubeLastPlayed ?: run {
+            if (aiAction != null) {
+                errorMessage = "Chưa có video YouTube gần đây để điều khiển. Hãy mở YouTube và phát một video trước."
+            }
+            return
+        }
         val fallbackQueue = org.json.JSONArray().apply {
             put(org.json.JSONObject().apply {
                 put("videoId", track.videoId)
