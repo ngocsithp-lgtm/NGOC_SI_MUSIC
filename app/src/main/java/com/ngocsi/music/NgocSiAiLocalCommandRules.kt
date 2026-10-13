@@ -298,9 +298,24 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
     val politePrefixes = listOf(
         "hey ngoc si ", "ok ngoc si ", "alo ngoc si ", "ngoc si oi ", "ngoc si ",
         "toi muon ban ", "minh muon ban ", "ban giup toi ", "ban giup minh ",
-        "toi muon ", "minh muon ", "giup toi ", "giup minh ",
+        "toi muon ", "minh muon ",
         "hay ", "vui long ", "lam on "
     )
+    // “Giúp tôi tìm nhạc vui” is an open-ended request, not a short offline
+    // player command. Strip “giúp tôi/minh” only when followed by a known direct action.
+    val helpPrefix = listOf("giup toi ", "giup minh ").firstOrNull { phrase.startsWith(it) }
+    if (helpPrefix != null) {
+        val afterHelp = phrase.removePrefix(helpPrefix).trim()
+        val explicitActions = listOf(
+            "dung ", "tam dung ", "ngung ", "tat ", "phat ", "bat ", "mo ",
+            "chuyen ", "tiep tuc ", "qua bai", "bai tiep", "bai truoc",
+            "ve trang chu", "tro ve ", "quay ve ", "hen gio ", "dat hen gio ",
+            "huy hen gio", "lap ", "bo hen gio", "luu ", "them "
+        )
+        if (explicitActions.any { afterHelp == it.trim() || afterHelp.startsWith(it) }) {
+            phrase = afterHelp
+        }
+    }
     while (true) {
         val prefix = politePrefixes.firstOrNull { phrase.startsWith(it) } ?: break
         phrase = phrase.removePrefix(prefix).trim()
