@@ -42,6 +42,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -188,6 +189,8 @@ class NgocSiAiActivity : ComponentActivity() {
     private var pendingVoiceReply: String? = null
     private var pendingVoiceReplyForce = false
     private var voiceRepliesEnabled by mutableStateOf(true)
+    private var availableTtsVoices by mutableStateOf<List<NgocSiAiVoiceOption>>(emptyList())
+    private var selectedTtsVoiceName by mutableStateOf("")
     private val wakeWordStatusHandler = Handler(Looper.getMainLooper())
     private val wakeWordStatusChecker = object : Runnable {
         override fun run() {
@@ -398,9 +401,51 @@ class NgocSiAiActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        refreshTtsVoiceOptions()
         wakeWordListening = getSharedPreferences(NgocSiWakeWordService.PREFS_NAME, MODE_PRIVATE)
             .getBoolean(NgocSiWakeWordService.KEY_ENABLED, false)
         if (wakeWordListening) monitorWakeWordStatus()
+    }
+
+    private fun refreshTtsVoiceOptions() {
+        val tts = responseTts ?: return
+        availableTtsVoices = NgocSiAiVoiceSettings.availableOptions(tts.voices.orEmpty())
+        selectedTtsVoiceName = NgocSiAiVoiceSettings.selectedVoiceName(this)
+            ?.takeIf { saved -> availableTtsVoices.any { it.name == saved } }
+            ?: tts.voice?.name.orEmpty()
+    }
+
+    private fun selectAiVoice(name: String) {
+        val tts = responseTts
+        val voice = tts?.voices?.firstOrNull { it.name == name }
+        if (tts == null || voice == null) {
+            Toast.makeText(this, "Không tìm thấy giọng đọc này trên điện thoại.", Toast.LENGTH_LONG).show()
+            refreshTtsVoiceOptions()
+            return
+        }
+        val result = runCatching { tts.setVoice(voice) }.getOrDefault(TextToSpeech.ERROR)
+        if (result != TextToSpeech.SUCCESS) {
+            Toast.makeText(this, "Không đổi được giọng đọc. Hãy thử một giọng khác.", Toast.LENGTH_LONG).show()
+            return
+        }
+        NgocSiAiVoiceSettings.saveSelectedVoiceName(this, name)
+        selectedTtsVoiceName = name
+        responseTtsReady = true
+        if (wakeWordListening) NgocSiWakeWordService.updateVoice(this)
+        // Play a short preview so the user can compare installed voices.
+        speakVoiceReply("Xin chào, tôi là Ngọc Sĩ AI. Đây là giọng đọc bạn vừa chọn.", force = true)
+    }
+
+    private fun manageTtsVoices() {
+        runCatching {
+            startActivity(Intent(TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA))
+        }.onFailure {
+            Toast.makeText(
+                this,
+                "Hãy mở Cài đặt điện thoại, tìm mục Văn bản thành giọng nói và tải thêm giọng đọc.",
+                Toast.LENGTH_LONG
+            ).show()
+        }
     }
 
     private fun monitorWakeWordStatus() {
@@ -456,6 +501,10 @@ class NgocSiAiActivity : ComponentActivity() {
                         }.getOrDefault(TextToSpeech.LANG_MISSING_DATA)
                         responseTtsReady = fallbackResult >= TextToSpeech.LANG_AVAILABLE
                     }
+                    // Apply the chosen engine voice after selecting a supported language.
+                    selectedTtsVoiceName = NgocSiAiVoiceSettings.applySavedVoice(this@NgocSiAiActivity, tts)
+                        ?: tts.voice?.name.orEmpty()
+                    availableTtsVoices = NgocSiAiVoiceSettings.availableOptions(tts.voices.orEmpty())
                 }
             }
             val queuedReply = pendingVoiceReply
@@ -491,6 +540,10 @@ class NgocSiAiActivity : ComponentActivity() {
                 onSpeakMessage = { message -> speakVoiceReply(message, force = true) },
                 voiceRepliesEnabled = voiceRepliesEnabled,
                 onToggleVoiceReplies = { toggleVoiceReplies() },
+                voiceOptions = availableTtsVoices,
+                selectedVoiceName = selectedTtsVoiceName,
+                onVoiceSelected = { name -> selectAiVoice(name) },
+                onManageVoices = { manageTtsVoices() },
                 recognizedSpeech = recognizedSpeech,
                 recognizedSpeechShouldSend = recognizedSpeechShouldSend,
                 onSpeechConsumed = {
@@ -984,6 +1037,10 @@ private fun NgocSiAiPreviewScreen(
     onSpeakMessage: (String) -> Unit,
     voiceRepliesEnabled: Boolean,
     onToggleVoiceReplies: () -> Unit,
+    voiceOptions: List<NgocSiAiVoiceOption>,
+    selectedVoiceName: String,
+    onVoiceSelected: (String) -> Unit,
+    onManageVoices: () -> Unit,
     recognizedSpeech: String,
     recognizedSpeechShouldSend: Boolean,
     onSpeechConsumed: () -> Unit,
@@ -1007,6 +1064,7 @@ private fun NgocSiAiPreviewScreen(
     var isSending by remember { mutableStateOf(false) }
     var quotaNote by remember { mutableStateOf("") }
     var showClearConfirm by remember { mutableStateOf(false) }
+    var showVoicePicker by remember { mutableStateOf(false) }
     val messageListState = androidx.compose.foundation.lazy.rememberLazyListState()
 
     fun persistChatState() {
@@ -1114,6 +1172,74 @@ private fun NgocSiAiPreviewScreen(
                     .take(2_000)
             }
         }
+    }
+
+    if (showVoicePicker) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showVoicePicker = false },
+            title = { Text("Chọn giọng đọc của NGỌC SĨ AI") },
+            text = {
+                Column(Modifier.heightIn(max = 360.dp)) {
+                    if (voiceOptions.isEmpty()) {
+                        Text(
+                            "Điện thoại chưa cung cấp danh sách giọng đọc. Bạn có thể mở phần quản lý giọng đọc để cài thêm.",
+                            color = Color(0xFFD9DCE5),
+                            fontSize = 13.sp
+                        )
+                    } else {
+                        LazyColumn {
+                            items(voiceOptions, key = { it.name }) { voice ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            onVoiceSelected(voice.name)
+                                            showVoicePicker = false
+                                        }
+                                        .padding(vertical = 7.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(
+                                            voice.label,
+                                            color = Color.White,
+                                            fontSize = 13.sp
+                                        )
+                                        if (voice.languageTag.startsWith("vi")) {
+                                            Text(
+                                                "Ưu tiên cho tiếng Việt",
+                                                color = Color(0xFF71E6B2),
+                                                fontSize = 10.sp
+                                            )
+                                        }
+                                    }
+                                    androidx.compose.material3.RadioButton(
+                                        selected = selectedVoiceName == voice.name,
+                                        onClick = {
+                                            onVoiceSelected(voice.name)
+                                            showVoicePicker = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = { showVoicePicker = false }) {
+                    Text("Đóng", color = Color(0xFFD9DCE5))
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = onManageVoices) {
+                    Text("Quản lý giọng đọc", color = Color(0xFF8DEEFF))
+                }
+            },
+            containerColor = Color(0xFF171B24),
+            titleContentColor = Color.White,
+            textContentColor = Color(0xFFD9DCE5)
+        )
     }
 
     if (showClearConfirm) {
@@ -1266,12 +1392,47 @@ private fun NgocSiAiPreviewScreen(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        if (isWakeWordListening) "Nhận lệnh offline · tắt bằng cách chạm vào đây hoặc thông báo" else "Bật một lần, sau đó nói “Ngọc Sĩ, chuyển bài”",
+                        if (isWakeWordListening) "Nói “Ngọc Sĩ”, đợi AI đáp rồi nói lệnh nhạc · chạm để tắt" else "Bật một lần; nói “Ngọc Sĩ”, rồi nói “chuyển bài”",
                         color = Color(0xFFB9C4D6),
                         fontSize = 11.sp
                     )
                 }
                 Text(if (isWakeWordListening) "TẮT" else "BẬT", color = if (isWakeWordListening) Color(0xFF71E6B2) else Color(0xFF8DEEFF), fontWeight = FontWeight.Black, fontSize = 11.sp)
+            }
+        }
+
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 4.dp)
+                .clickable { showVoicePicker = true },
+            shape = RoundedCornerShape(14.dp),
+            color = Color(0xFF171421),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF39304F))
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("🔈", fontSize = 19.sp)
+                Spacer(Modifier.width(9.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "GIỌNG ĐỌC AI",
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    val selectedVoiceLabel = voiceOptions.firstOrNull { it.name == selectedVoiceName }?.label
+                        ?: "Giọng mặc định của điện thoại"
+                    Text(
+                        selectedVoiceLabel,
+                        color = Color(0xFFB9C4D6),
+                        fontSize = 11.sp,
+                        maxLines = 1
+                    )
+                }
+                Text("ĐỔI", color = Color(0xFF8DEEFF), fontSize = 11.sp, fontWeight = FontWeight.Black)
             }
         }
 
