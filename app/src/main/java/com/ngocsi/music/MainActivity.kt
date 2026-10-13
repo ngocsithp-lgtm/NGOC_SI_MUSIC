@@ -4193,6 +4193,22 @@ class MainActivity : ComponentActivity() {
         playlistDetailId = null
         showPlaylists = false
     }
+    private fun dispatchPendingAiPlaylistIfReady() {
+        val requestedName = pendingAiPlaylistName ?: return
+        if (!localLibraryLoaded || controller == null) return
+
+        val normalizedName = normalizeNgocSiAiVoicePhrase(requestedName)
+        val playlist = playlists.firstOrNull {
+            normalizeNgocSiAiVoicePhrase(it.name) == normalizedName
+        }
+        pendingAiPlaylistName = null
+        if (playlist == null) {
+            errorMessage = "Không tìm thấy playlist “$requestedName” sau khi tải danh sách."
+            return
+        }
+        playPlaylist(playlist)
+    }
+
     private fun playPlaylist(playlist: MusicPlaylist) {
         invalidatePendingPlaybackAuthorization()
         val orderedSongs = playlist.songUris.mapNotNull { uri ->
