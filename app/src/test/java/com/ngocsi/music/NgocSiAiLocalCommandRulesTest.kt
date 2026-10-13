@@ -192,8 +192,18 @@ class NgocSiAiLocalCommandRulesTest {
             NgocSiAiLocalCommand.PAUSE,
             classifyNgocSiAiActivatedCommand("Tạm dừng nhạc")
         )
-        assertNull(classifyNgocSiAiActivatedCommand("Mở YouTube"))
-        assertNull(classifyNgocSiAiActivatedCommand("Hẹn giờ 30 phút"))
+        assertEquals(
+            NgocSiAiLocalCommand.OPEN_YOUTUBE,
+            classifyNgocSiAiActivatedCommand("Mở YouTube")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.SLEEP_TIMER_30,
+            classifyNgocSiAiActivatedCommand("Hẹn giờ 30 phút")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.OPEN_DRIVE,
+            classifyNgocSiAiActivatedCommand("Mở Google Drive")
+        )
     }
 
     @Test
@@ -205,11 +215,21 @@ class NgocSiAiLocalCommandRulesTest {
     }
 
     @Test
-    fun wakeWordModeCannotTriggerNavigationOrTimerActions() {
-        assertNull(classifyNgocSiAiWakePhrase("Ngọc Sĩ, mở YouTube"))
-        assertNull(classifyNgocSiAiWakePhrase("Ngọc Sĩ, mở Google Drive"))
-        assertNull(classifyNgocSiAiWakePhrase("Ngọc Sĩ, hẹn giờ 30 phút"))
+    fun wakeWordCanRouteAcrossAppFeaturesAndTimers() {
+        assertEquals(NgocSiAiLocalCommand.OPEN_YOUTUBE, classifyNgocSiAiWakePhrase("Ngọc Sĩ, mở YouTube"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_DRIVE, classifyNgocSiAiWakePhrase("Ngọc Sĩ, mở Google Drive"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_RADIO, classifyNgocSiAiWakePhrase("Ngọc Sĩ, mở Radio"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_TV, classifyNgocSiAiWakePhrase("Ngọc Sĩ, mở TV"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_FAVORITES, classifyNgocSiAiWakePhrase("Ngọc Sĩ, mở Yêu thích"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_ALBUMS, classifyNgocSiAiWakePhrase("Ngọc Sĩ, mở Album"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_FOLDERS, classifyNgocSiAiWakePhrase("Ngọc Sĩ, mở Thư mục"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_ONLINE, classifyNgocSiAiWakePhrase("Ngọc Sĩ, mở Online"))
+        assertEquals(NgocSiAiLocalCommand.SEARCH_YOUTUBE, classifyNgocSiAiWakePhrase("Ngọc Sĩ, tìm YouTube nhạc Trịnh Công Sơn"))
+        assertEquals(NgocSiAiLocalCommand.SLEEP_TIMER_30, classifyNgocSiAiWakePhrase("Ngọc Sĩ, hẹn giờ 30 phút"))
+        assertEquals(NgocSiAiLocalCommand.CANCEL_SLEEP_TIMER, classifyNgocSiAiWakePhrase("Ngọc Sĩ, hủy hẹn giờ"))
         assertEquals(NgocSiAiLocalCommand.NEXT, classifyNgocSiAiWakePhrase("Ngọc Sĩ, chuyển bài"))
+        // Unrelated speech must not trigger an app action without the wake phrase.
+        assertNull(classifyNgocSiAiWakePhrase("Mở YouTube"))
     }
 
 
@@ -227,6 +247,15 @@ class NgocSiAiLocalCommandRulesTest {
             NgocSiAiLocalCommand.SHUFFLE_OFF,
             classifyNgocSiAiLocalCommand("Tắt phát ngẫu nhiên")
         )
+    }
+
+    @Test
+    fun recognizesAdditionalLibraryDestinationsForChatAndVoice() {
+        assertEquals(NgocSiAiLocalCommand.OPEN_FAVORITES, classifyNgocSiAiLocalCommand("Mở nhạc yêu thích"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_FAVORITES, classifyNgocSiAiLocalCommand("Mở thư viện yêu thích"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_ALBUMS, classifyNgocSiAiLocalCommand("Xem Album"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_FOLDERS, classifyNgocSiAiLocalCommand("Vào Thư mục"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_ONLINE, classifyNgocSiAiLocalCommand("Mở các nguồn Online"))
     }
 
     @Test
