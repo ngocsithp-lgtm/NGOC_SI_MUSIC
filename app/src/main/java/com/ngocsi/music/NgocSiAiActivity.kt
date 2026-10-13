@@ -806,6 +806,15 @@ class NgocSiAiActivity : ComponentActivity() {
                     playlistQuery = query
                 )
             }
+            NgocSiAiLocalCommand.ADD_CURRENT_TRACK_TO_PLAYLIST -> {
+                val query = extractNgocSiAiAddToPlaylistQuery(originalText)
+                    ?: return "Hãy nói rõ playlist đích, ví dụ: “Thêm bài đang phát vào playlist Nhạc Trịnh”."
+                return openAppDestination(
+                    "add_current_to_playlist",
+                    "Đang thêm bài đang phát vào playlist $query.",
+                    playlistQuery = query
+                )
+            }
             NgocSiAiLocalCommand.OPEN_LIBRARY -> return openAppDestination("library", "Đang mở Thư viện nhạc.")
             NgocSiAiLocalCommand.OPEN_FAVORITES -> return openAppDestination("favorites", "Đang mở nhạc Yêu thích.")
             NgocSiAiLocalCommand.OPEN_ALBUMS -> return openAppDestination("albums", "Đang mở danh sách Album.")
@@ -1687,7 +1696,7 @@ private fun NgocSiAiPreviewScreen(
                     "Mở Online", "Mở YouTube", "Tìm YouTube nhạc Trịnh Công Sơn",
                     "Mở Drive", "Mở Radio", "Phát Radio VOV3", "Mở TV", "Mở VTV3", "Mở kênh HTV7", "Mở danh sách phát",
                     "Mở hàng đợi", "Mở trình phát", "Mở Cài đặt", "Tạo playlist Nhạc Trịnh",
-                    "Phát playlist Nhạc Trịnh", "Tạm dừng YouTube", "Tiếp tục YouTube",
+                    "Phát playlist Nhạc Trịnh", "Thêm bài đang phát vào playlist Nhạc Trịnh", "Tạm dừng YouTube", "Tiếp tục YouTube",
                     "Video YouTube tiếp theo", "Video YouTube trước", "Lưu video YouTube xem sau",
                     "Hẹn giờ 30 phút",
                     "Tắt hẹn giờ", "Bạn làm được gì?"
