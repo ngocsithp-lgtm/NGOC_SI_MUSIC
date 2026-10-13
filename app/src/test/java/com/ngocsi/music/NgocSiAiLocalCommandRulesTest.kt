@@ -434,4 +434,22 @@ class NgocSiAiLocalCommandRulesTest {
         )
     }
 
+
+    @Test
+    fun activatedWakeWordCommandSelectionPrefersActionableSpeechHypothesis() {
+        assertEquals(
+            "chuyển bài",
+            selectNgocSiAiActivatedCommandCandidate(listOf("chuyện bài", "chuyển bài", "chuyển về"))
+        )
+        assertEquals(
+            "Ngọc Sĩ, mở YouTube lên",
+            selectNgocSiAiActivatedCommandCandidate(listOf("mở YouTube lên nhé", "Ngọc Sĩ, mở YouTube lên"))
+        )
+        assertEquals(
+            "câu không rõ",
+            selectNgocSiAiActivatedCommandCandidate(listOf("câu không rõ", "lời khác"))
+        )
+        assertNull(selectNgocSiAiActivatedCommandCandidate(listOf("", "   ")))
+    }
+
 }
