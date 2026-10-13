@@ -37,6 +37,7 @@ class NgocSiWakeWordService : Service() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private var speechRecognizer: SpeechRecognizer? = null
     private var musicController: MediaController? = null
+    private var musicControllerConnecting = false
     private var listening = false
     private var stopping = false
     private var awaitingCommand = false
@@ -150,16 +151,46 @@ class NgocSiWakeWordService : Service() {
     }
 
     private fun connectMusicController() {
-        if (musicController != null) return
+        if (musicController != null || musicControllerConnecting) return
+        musicControllerConnecting = true
         val token = SessionToken(this, ComponentName(this, MusicService::class.java))
         val future = MediaController.Builder(this, token).buildAsync()
         future.addListener({
+            musicControllerConnecting = false
             runCatching { future.get() }
                 .onSuccess { controller ->
                     if (stopping || speechRecognizer == null) controller.release()
                     else musicController = controller
                 }
         }, ContextCompat.getMainExecutor(this))
+    }
+
+    /**
+     * Don't lose a direct playback command just because Media3 is still connecting.
+     * Navigation commands are routed immediately; live-player commands retry briefly.
+     */
+    private fun dispatchNgocSiAiCommandWhenReady(
+        command: NgocSiAiLocalCommand,
+        recognized: String,
+        attemptsRemaining: Int = 8
+    ) {
+        if (stopping) return
+
+        if (
+            ngocSiAiCommandRequiresPlayerConnection(command) &&
+            musicController == null &&
+            attemptsRemaining > 0
+        ) {
+            connectMusicController()
+            mainHandler.postDelayed({
+                dispatchNgocSiAiCommandWhenReady(command, recognized, attemptsRemaining - 1)
+            }, PLAYER_CONNECT_RETRY_MILLIS)
+            return
+        }
+
+        val reply = runAppCommand(command, recognized)
+        updateNotification("Đã nghe “$recognized” · $reply")
+        speakReply(reply)
     }
 
     private val listener = object : RecognitionListener {
@@ -218,18 +249,8 @@ class NgocSiWakeWordService : Service() {
                 if (musicController == null) {
                     updateNotification("Đã nhận “$recognized” · đang kết nối trình phát")
                     connectMusicController()
-                    mainHandler.postDelayed({
-                        if (!stopping) {
-                            val reply = runAppCommand(command, recognized)
-                            updateNotification("Đã nghe “$recognized” · $reply")
-                            speakReply(reply)
-                        }
-                    }, 900L)
-                } else {
-                    val reply = runAppCommand(command, recognized)
-                    updateNotification("Đã nghe “$recognized” · $reply")
-                    speakReply(reply)
                 }
+                dispatchNgocSiAiCommandWhenReady(command, recognized)
             } else if (isNgocSiAiWakeWordOnly(recognized)) {
                 // Two-stage interaction: say "Ngọc Sĩ", then give a playback command.
                 // The short window prevents unrelated later speech from triggering playback.
@@ -768,6 +789,7 @@ class NgocSiWakeWordService : Service() {
     }
 
     companion object {
+        private const val PLAYER_CONNECT_RETRY_MILLIS = 250L
         const val ACTION_START = "com.ngocsi.music.action.START_WAKE_WORD"
         const val ACTION_STOP = "com.ngocsi.music.action.STOP_WAKE_WORD"
         const val ACTION_VOICE_CHANGED = "com.ngocsi.music.action.WAKE_WORD_VOICE_CHANGED"
