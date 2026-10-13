@@ -334,6 +334,17 @@ class NgocSiWakeWordService : Service() {
             NgocSiAiLocalCommand.OPEN_TV_CHANNEL -> "tv_channel"
             NgocSiAiLocalCommand.CREATE_PLAYLIST -> "create_playlist"
             NgocSiAiLocalCommand.PLAY_NAMED_PLAYLIST -> "play_playlist"
+            NgocSiAiLocalCommand.RESUME_YOUTUBE,
+            NgocSiAiLocalCommand.PAUSE_YOUTUBE,
+            NgocSiAiLocalCommand.NEXT_YOUTUBE_VIDEO,
+            NgocSiAiLocalCommand.PREVIOUS_YOUTUBE_VIDEO,
+            NgocSiAiLocalCommand.YOUTUBE_SHUFFLE_ON,
+            NgocSiAiLocalCommand.YOUTUBE_SHUFFLE_OFF,
+            NgocSiAiLocalCommand.YOUTUBE_REPEAT_OFF,
+            NgocSiAiLocalCommand.YOUTUBE_REPEAT_ALL,
+            NgocSiAiLocalCommand.YOUTUBE_REPEAT_ONE,
+            NgocSiAiLocalCommand.YOUTUBE_FAVORITE,
+            NgocSiAiLocalCommand.YOUTUBE_WATCH_LATER -> "youtube_command"
             NgocSiAiLocalCommand.OPEN_PLAYLISTS -> "playlists"
             NgocSiAiLocalCommand.OPEN_QUEUE -> "queue"
             NgocSiAiLocalCommand.OPEN_PLAYER -> "player"
