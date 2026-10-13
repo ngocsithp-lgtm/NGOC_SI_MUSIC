@@ -753,7 +753,20 @@ class NgocSiAiActivity : ComponentActivity() {
     private fun runLocalCommand(command: NgocSiAiLocalCommand, originalText: String = ""): String {
         when (command) {
             NgocSiAiLocalCommand.HELP -> return "Tôi có thể điều khiển nhạc trên điện thoại và YouTube riêng biệt; mở Thư viện, Yêu thích, Album, Thư mục, Drive, từng đài Radio và kênh TV; tìm nhạc trên Jamendo, Audius và YouTube; tạo/phát playlist theo tên; mở Hàng đợi, Trình phát, Cài đặt và hẹn giờ."
-            NgocSiAiLocalCommand.RESUME_YOUTUBE -> return openAppDestination("youtube_command", "Đang tiếp tục video YouTube.", youtubeAction = "play")
+            NgocSiAiLocalCommand.RESUME_YOUTUBE -> {
+                val hasSavedVideo = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+                    .getString("youtube_last_played_video_id", null)
+                    .isNullOrBlank()
+                    .not()
+                return if (hasSavedVideo) {
+                    openAppDestination("youtube_command", "Đang tiếp tục video YouTube.", youtubeAction = "play")
+                } else {
+                    openAppDestination(
+                        "youtube",
+                        "Chưa có video YouTube gần đây để tiếp tục. Tôi đã mở YouTube; hãy nói “Tìm YouTube” kèm tên bài hát hoặc video."
+                    )
+                }
+            }
             NgocSiAiLocalCommand.PAUSE_YOUTUBE -> return openAppDestination("youtube_command", "Đang tạm dừng video YouTube.", youtubeAction = "pause")
             NgocSiAiLocalCommand.NEXT_YOUTUBE_VIDEO -> return openAppDestination("youtube_command", "Đang chuyển sang video YouTube tiếp theo.", youtubeAction = "next")
             NgocSiAiLocalCommand.PREVIOUS_YOUTUBE_VIDEO -> return openAppDestination("youtube_command", "Đang chuyển về video YouTube trước.", youtubeAction = "previous")
