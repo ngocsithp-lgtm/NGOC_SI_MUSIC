@@ -181,6 +181,10 @@ class NgocSiAiActivity : ComponentActivity() {
     private var activeVoiceIntent: Intent? = null
     private val voiceRetryHandler = Handler(Looper.getMainLooper())
     private var musicController: MediaController? = null
+    // The Preview package is isolated from production; this optional controller lets
+    // voice commands stop the active stable app player without modifying its APK.
+    private var productionMusicController: MediaController? = null
+    private var productionMusicControllerConnecting = false
     private var deviceQueueLoadStarted = false
     // Preserve the explicit "play" request if the device library is still loading.
     private var pendingPlayAfterQueueLoad = false
@@ -535,6 +539,7 @@ class NgocSiAiActivity : ComponentActivity() {
         voiceRepliesEnabled = getSharedPreferences(AI_CHAT_PREFS_NAME, MODE_PRIVATE)
             .getBoolean(AI_VOICE_REPLY_KEY, true)
         connectMusicController()
+        connectProductionMusicController()
         setContent {
             NgocSiAiPreviewScreen(
                 isOnlineConfigured = aiClient.isConfigured,
@@ -754,6 +759,70 @@ class NgocSiAiActivity : ComponentActivity() {
         }, ContextCompat.getMainExecutor(this))
     }
 
+    private fun connectProductionMusicController() {
+        if (productionMusicController != null || productionMusicControllerConnecting) return
+        productionMusicControllerConnecting = true
+        val component = ComponentName("com.ngocsi.music", "com.ngocsi.music.MusicService")
+        val future = runCatching {
+            MediaController.Builder(this, SessionToken(this, component)).buildAsync()
+        }.getOrElse {
+            productionMusicControllerConnecting = false
+            return
+        }
+        future.addListener({
+            productionMusicControllerConnecting = false
+            runCatching { future.get() }
+                .onSuccess { connectedController ->
+                    if (isFinishing || isDestroyed) {
+                        connectedController.release()
+                    } else {
+                        productionMusicController = connectedController
+                    }
+                }
+        }, ContextCompat.getMainExecutor(this))
+    }
+
+    private fun hasActivePlayback(controller: MediaController?): Boolean =
+        controller != null && (
+            controller.isPlaying ||
+                (controller.playWhenReady &&
+                    controller.playbackState == androidx.media3.common.Player.STATE_BUFFERING)
+            )
+
+    private fun stopActiveMusicFromAi(): String {
+        val production = productionMusicController
+        val preview = musicController
+
+        // If the production session is still binding, don't accidentally stop an
+        // idle Preview queue while the real production player continues to play.
+        if (production == null && productionMusicControllerConnecting) {
+            return "Đang kết nối trình phát NGỌC SĨ MUSIC. Hãy nói lại lệnh dừng sau một lát."
+        }
+
+        val target = when {
+            hasActivePlayback(production) -> production
+            hasActivePlayback(preview) -> preview
+            preview != null -> preview
+            else -> production
+        } ?: run {
+            connectProductionMusicController()
+            return "Chưa kết nối được trình phát. Hãy thử lại sau một lát."
+        }
+
+        return runCatching {
+            target.pause()
+            target.playWhenReady = false
+            target.stop()
+            if (target === production) {
+                "Đã dừng hẳn nhạc đang phát trong NGỌC SĨ MUSIC."
+            } else {
+                "Đã dừng hẳn nhạc trong NGỌC SĨ AI Preview."
+            }
+        }.getOrElse {
+            "Không thể dừng nhạc lúc này. Hãy thử lại."
+        }
+    }
+
     private fun runYouTubeControl(action: String, response: String): String {
         val hasSavedVideo = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
             .getString("youtube_last_played_video_id", null)
@@ -874,6 +943,8 @@ class NgocSiAiActivity : ComponentActivity() {
             NgocSiAiLocalCommand.CANCEL_SLEEP_TIMER -> return openAppDestination("sleep_timer_off", "Đã yêu cầu tắt hẹn giờ.")
             else -> Unit
         }
+
+        if (command == NgocSiAiLocalCommand.STOP) return stopActiveMusicFromAi()
 
         val player = musicController
             ?: return "Trình phát đang khởi động hoặc chưa kết nối. Hãy thử lại sau một lát."
@@ -1086,6 +1157,8 @@ class NgocSiAiActivity : ComponentActivity() {
         wakeWordStatusHandler.removeCallbacksAndMessages(null)
         musicController?.release()
         musicController = null
+        productionMusicController?.release()
+        productionMusicController = null
         runCatching { responseTts?.stop() }
         runCatching { voiceRecognizer?.cancel() }
         runCatching { voiceRecognizer?.destroy() }
