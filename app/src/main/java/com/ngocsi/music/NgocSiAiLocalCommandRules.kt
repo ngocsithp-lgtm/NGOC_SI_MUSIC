@@ -156,7 +156,7 @@ private fun trimNgocSiAiNormalizedCommandFillers(input: String): String {
 private fun trimNgocSiAiExtractedQuery(input: String): String {
     var query = input.trim().trim(',', ':', '-', '.', '?', '!', ';')
     val suffix = Regex(
-        """(?iu)\\s+(?:giúp tôi|giup toi|giùm tôi|gium toi|giúp mình|giup minh|cho tôi|cho toi|nhé nha|nhe nha|với nhé|voi nhe|nhé|nhe|nha|với|voi|đi|di|lên|len)[.!?,;:]*$"""
+        """(?iu)\s+(?:giúp tôi|giup toi|giùm tôi|gium toi|giúp mình|giup minh|cho tôi|cho toi|nhé nha|nhe nha|với nhé|voi nhe|nhé|nhe|nha|với|voi|đi|di|lên|len)[.!?,;:]*$"""
     )
     while (suffix.containsMatchIn(query)) {
         query = suffix.replaceFirst(query, "").trim().trim(',', ':', '-', '.', '?', '!', ';')
