@@ -24,6 +24,18 @@ class NgocSiAiLocalCommandRulesTest {
     }
 
     @Test
+    fun recognizesGeneralOnlineMusicSearchAndQueueSaveCommands() {
+        assertEquals(NgocSiAiLocalCommand.SEARCH_ONLINE_MUSIC, classifyNgocSiAiLocalCommand("Tìm nhạc Trịnh Công Sơn"))
+        assertEquals(NgocSiAiLocalCommand.SEARCH_ONLINE_MUSIC, classifyNgocSiAiWakePhrase("Ngọc Sĩ, tìm bài hát Bolero"))
+        assertEquals("Trịnh Công Sơn", extractNgocSiAiOnlineQuery("Tìm nhạc Trịnh Công Sơn"))
+        assertEquals(NgocSiAiLocalCommand.SEARCH_YOUTUBE, classifyNgocSiAiLocalCommand("Tìm YouTube nhạc Trịnh Công Sơn"))
+        assertEquals(NgocSiAiLocalCommand.ADD_QUEUE_TO_PLAYLIST, classifyNgocSiAiLocalCommand("Thêm hàng đợi vào playlist Nhạc Trịnh"))
+        assertEquals(NgocSiAiLocalCommand.ADD_QUEUE_TO_PLAYLIST, classifyNgocSiAiWakePhrase("Ngọc Sĩ, lưu hàng đợi vào playlist Bolero"))
+        assertEquals("Nhạc Trịnh", extractNgocSiAiQueueToPlaylistQuery("Thêm hàng đợi vào playlist Nhạc Trịnh"))
+        assertEquals("Bolero", extractNgocSiAiQueueToPlaylistQuery("Ngọc Sĩ, lưu hàng đợi vào playlist Bolero"))
+    }
+
+    @Test
     fun recognizesAddingCurrentTrackToPlaylist() {
         assertEquals(NgocSiAiLocalCommand.ADD_CURRENT_TRACK_TO_PLAYLIST, classifyNgocSiAiLocalCommand("Thêm bài đang phát vào playlist Nhạc Trịnh"))
         assertEquals(NgocSiAiLocalCommand.ADD_CURRENT_TRACK_TO_PLAYLIST, classifyNgocSiAiWakePhrase("Ngọc Sĩ, thêm bài đang phát vào playlist Nhạc Trịnh"))
