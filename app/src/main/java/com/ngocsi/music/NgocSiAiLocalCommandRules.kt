@@ -110,6 +110,23 @@ internal fun selectNgocSiAiPlaybackTarget(
     else -> null
 }
 
+/**
+ * A hard-stop command must not report success after stopping an idle Preview session
+ * while the production session is unavailable. Prefer active playback; otherwise use
+ * a connected production session. Preview is a valid fallback only when it is playing.
+ */
+internal fun selectNgocSiAiStopPlaybackTarget(
+    productionConnected: Boolean,
+    productionActive: Boolean,
+    previewConnected: Boolean,
+    previewActive: Boolean
+): NgocSiAiPlaybackTarget? = when {
+    productionConnected && productionActive -> NgocSiAiPlaybackTarget.PRODUCTION
+    previewConnected && previewActive -> NgocSiAiPlaybackTarget.PREVIEW
+    productionConnected -> NgocSiAiPlaybackTarget.PRODUCTION
+    else -> null
+}
+
 
 /**
  * Recognizes only short, explicit playback commands. A normal question such as
