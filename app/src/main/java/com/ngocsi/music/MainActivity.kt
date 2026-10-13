@@ -723,7 +723,27 @@ class MainActivity : ComponentActivity() {
         onlineSearchQuery: String? = null
     ) {
         when (destination) {
-            "home" -> selectedSection = "Trang chủ"
+            "home" -> {
+                selectedSection = "Trang chủ"
+                // A voice request to return home must dismiss any modal feature
+                // surface as well; changing the selected tab alone can leave a
+                // queue/player/Drive dialog covering the home screen.
+                showNowPlaying = false
+                showQueue = false
+                showPlaylists = false
+                playlistDetailId = null
+                playlistTargetSongUri = null
+                showCreatePlaylist = false
+                editingPlaylistId = null
+                playlistPendingDeleteId = null
+                showVietnamRadioHub = false
+                showTvSourceDialog = false
+                showDriveBrowser = false
+                showDriveOAuthDiagnostics = false
+                radioWebUrl = null
+                showSleepTimer = false
+                showPlaybackSpeed = false
+            }
             "library" -> {
                 selectedSection = "Thư viện"
                 selectedLibrary = "Tất cả"
