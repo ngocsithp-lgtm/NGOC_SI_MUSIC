@@ -364,7 +364,6 @@ class NgocSiWakeWordService : Service() {
             NgocSiAiLocalCommand.PLAY_NAMED_PLAYLIST -> "play_playlist"
             NgocSiAiLocalCommand.ADD_CURRENT_TRACK_TO_PLAYLIST -> "add_current_to_playlist"
             NgocSiAiLocalCommand.ADD_QUEUE_TO_PLAYLIST -> "add_queue_to_playlist"
-            NgocSiAiLocalCommand.RESUME_YOUTUBE,
             NgocSiAiLocalCommand.PAUSE_YOUTUBE,
             NgocSiAiLocalCommand.NEXT_YOUTUBE_VIDEO,
             NgocSiAiLocalCommand.PREVIOUS_YOUTUBE_VIDEO,
