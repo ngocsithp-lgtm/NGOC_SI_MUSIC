@@ -222,20 +222,20 @@ internal class NgocSiAiRemoteClient(context: Context) {
             .find(details)
             ?.value
 
-        val quotaKind = classifyNgocSiAiQuotaErrorDetails(details)
+        val quotaDiagnosticCode = ngocSiAiQuotaDiagnosticCode(details)
 
         return when {
-            quotaKind == NgocSiAiQuotaCooldownKind.DAILY ->
+            quotaDiagnosticCode == "AI_QUOTA_429_DAILY" ->
                 "Hạn mức AI trong ngày đã hết. Mã chẩn đoán: AI_QUOTA_429_DAILY. Không cần gửi lại liên tục; hãy chờ hạn mức được làm mới."
-            quotaKind == NgocSiAiQuotaCooldownKind.RATE ->
+            quotaDiagnosticCode == "AI_QUOTA_429_RATE" ->
                 "Bạn đã chạm giới hạn yêu cầu trong thời gian ngắn. Mã chẩn đoán: AI_QUOTA_429_RATE. Hãy chờ trước khi hỏi tiếp."
-            quotaKind == NgocSiAiQuotaCooldownKind.PAID_TIER ->
+            quotaDiagnosticCode == "AI_QUOTA_429_PAID_TIER" ->
                 "Mô hình hoặc tính năng này yêu cầu gói trả phí. Mã chẩn đoán: AI_QUOTA_429_PAID_TIER. Bản Preview vẫn giữ chế độ không thanh toán."
-            quotaKind == NgocSiAiQuotaCooldownKind.FREE_TIER ->
+            quotaDiagnosticCode == "AI_QUOTA_429_FREE_TIER" ->
                 "Hạn mức miễn phí của mô hình Gemini có thể đã hết. Mã chẩn đoán: AI_QUOTA_429_FREE_TIER. Không gửi lại liên tục; ứng dụng vẫn giữ chế độ không thanh toán."
-            isAmbiguousNgocSiAiProjectQuotaError(details) ->
+            quotaDiagnosticCode == "AI_QUOTA_429_PROJECT_OR_CAPACITY" ->
                 "Google trả về lỗi 429 hạn mức chung, nhưng không cho biết rõ là giới hạn theo phút, theo ngày hay quyền hạn mức của dự án. Mã chẩn đoán: AI_QUOTA_429_PROJECT_OR_CAPACITY. Kiểm tra Usage/Rate limits của đúng dự án Gemini trong AI Studio; không cần bật thanh toán để xem thông tin."
-            quotaKind == NgocSiAiQuotaCooldownKind.TEMPORARY ->
+            quotaDiagnosticCode == "AI_QUOTA_429" ->
                 "Hạn mức AI có thể đã hết hoặc mô hình đang quá tải. Mã chẩn đoán: AI_QUOTA_429. Tránh gửi lặp; hãy thử lại sau."
             "app check" in details || "attestation" in details ->
                 "App Check chưa xác minh được ứng dụng thử. Mã chẩn đoán: APP_CHECK_TOKEN. Cần kiểm tra debug token của đúng APK."
