@@ -27,7 +27,7 @@ class NgocSiAiLocalCommandRulesTest {
     fun recognizesHomeNavigationAndYouTubePlaybackRequests() {
         assertEquals(NgocSiAiLocalCommand.OPEN_HOME, classifyNgocSiAiLocalCommand("Quay lại trang chủ"))
         assertEquals(NgocSiAiLocalCommand.OPEN_HOME, classifyNgocSiAiWakePhrase("Ngọc Sĩ, trở về màn hình chính"))
-        assertEquals(NgocSiAiLocalCommand.OPEN_YOUTUBE, classifyNgocSiAiLocalCommand("Phát YouTube"))
+        assertEquals(NgocSiAiLocalCommand.RESUME_YOUTUBE, classifyNgocSiAiLocalCommand("Phát YouTube"))
         assertEquals(NgocSiAiLocalCommand.SEARCH_YOUTUBE, classifyNgocSiAiLocalCommand("Phát YouTube nhạc Trịnh Công Sơn"))
         assertEquals("nhạc Trịnh Công Sơn", extractNgocSiAiYoutubeQuery("Phát YouTube nhạc Trịnh Công Sơn"))
         assertEquals(NgocSiAiLocalCommand.SEARCH_YOUTUBE, classifyNgocSiAiWakePhrase("Ngọc Sĩ, phát YouTube nhạc Trịnh Công Sơn"))
