@@ -24,6 +24,13 @@ class NgocSiAiLocalCommandRulesTest {
     }
 
     @Test
+    fun recognizesAddingCurrentTrackToPlaylist() {
+        assertEquals(NgocSiAiLocalCommand.ADD_CURRENT_TRACK_TO_PLAYLIST, classifyNgocSiAiLocalCommand("Thêm bài đang phát vào playlist Nhạc Trịnh"))
+        assertEquals(NgocSiAiLocalCommand.ADD_CURRENT_TRACK_TO_PLAYLIST, classifyNgocSiAiWakePhrase("Ngọc Sĩ, thêm bài đang phát vào playlist Nhạc Trịnh"))
+        assertEquals("Nhạc Trịnh", extractNgocSiAiAddToPlaylistQuery("Thêm bài đang phát vào playlist Nhạc Trịnh"))
+    }
+
+    @Test
     fun recognizesExplicitYouTubePlaybackControlsWithoutConfusingLocalMusic() {
         assertEquals(NgocSiAiLocalCommand.PAUSE_YOUTUBE, classifyNgocSiAiLocalCommand("Tạm dừng YouTube"))
         assertEquals(NgocSiAiLocalCommand.RESUME_YOUTUBE, classifyNgocSiAiWakePhrase("Ngọc Sĩ, tiếp tục YouTube"))
