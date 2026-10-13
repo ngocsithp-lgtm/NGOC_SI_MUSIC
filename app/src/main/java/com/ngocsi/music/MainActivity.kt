@@ -4617,7 +4617,7 @@ class MainActivity : ComponentActivity() {
         ) {
             Surface(
                 Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
-                color = Color(0xFF08090D)
+                color = NgocSiVisuals.Background
             ) {
                 Column(Modifier.fillMaxSize()) {
                     if (selectedSection == "Trang chủ") {
@@ -4772,8 +4772,8 @@ class MainActivity : ComponentActivity() {
                                 Surface(
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(24.dp),
-                                    color = Color(0xFF11131A),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF252936))
+                                    color = NgocSiVisuals.Surface,
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, NgocSiVisuals.Border)
                                 ) {
                                     Column(Modifier.padding(18.dp)) {
                                         Text("RADIO VIỆT NAM", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
@@ -4872,7 +4872,7 @@ class MainActivity : ComponentActivity() {
                                     modifier = Modifier.weight(1f)
                                 )
                                 TextButton(onClick = { snackbarData.dismiss() }) {
-                                    Text("ĐÓNG", color = Color(0xFF8DEEFF), fontSize = 9.sp)
+                                    Text("ĐÓNG", color = NgocSiVisuals.Secondary, fontSize = 9.sp)
                                 }
                             }
                         }
@@ -5122,7 +5122,7 @@ class MainActivity : ComponentActivity() {
                                 Surface(
                                     modifier = Modifier.size(58.dp).clickable(onClick = onTogglePlayback),
                                     shape = CircleShape,
-                                    color = Color(0xFF8DEEFF),
+                                    color = NgocSiVisuals.Secondary,
                                     shadowElevation = 7.dp
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
@@ -5164,7 +5164,7 @@ class MainActivity : ComponentActivity() {
                         Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 11.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("☷", color = Color(0xFFB796FF), fontSize = 19.sp)
+                        Text("☷", color = NgocSiVisuals.Primary, fontSize = 19.sp)
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
                             Text("HÀNG ĐỢI PHÁT NHẠC", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Black)
@@ -5210,7 +5210,7 @@ class MainActivity : ComponentActivity() {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(18.dp),
-                    color = Color(0xFF10131A)
+                    color = NgocSiVisuals.SurfaceRaised
                 ) {
                     Text(
                         "NGỌC SĨ MUSIC ${BuildConfig.VERSION_NAME} PRO • Một giao diện, mọi nguồn nhạc",
@@ -5254,7 +5254,7 @@ class MainActivity : ComponentActivity() {
                 Modifier.padding(vertical = 13.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(icon, color = Color(0xFF9FEFFF), fontSize = 18.sp)
+                Text(icon, color = NgocSiVisuals.Secondary, fontSize = 18.sp)
                 Spacer(Modifier.height(4.dp))
                 Text(title, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
@@ -5278,7 +5278,7 @@ class MainActivity : ComponentActivity() {
                 Modifier.padding(horizontal = 5.dp, vertical = 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(icon, color = Color(0xFFB796FF), fontSize = 16.sp)
+                Text(icon, color = NgocSiVisuals.Primary, fontSize = 16.sp)
                 Spacer(Modifier.height(4.dp))
                 Text(title, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 2, textAlign = androidx.compose.ui.text.style.TextAlign.Center, minLines = 2)
             }
@@ -5292,26 +5292,36 @@ class MainActivity : ComponentActivity() {
         selected: Boolean,
         onClick: () -> Unit
     ) {
-        Column(
+        val itemShape = RoundedCornerShape(14.dp)
+        Surface(
             modifier = Modifier
-                .clip(RoundedCornerShape(14.dp))
-                .clickable(onClick = onClick)
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .clip(itemShape)
+                .clickable(onClick = onClick),
+            shape = itemShape,
+            color = if (selected) Color(0xFF172739) else Color.Transparent,
+            border = androidx.compose.foundation.BorderStroke(
+                1.dp,
+                if (selected) Color(0xFF29465C) else Color.Transparent
+            )
         ) {
-            Text(
-                icon,
-                color = if (selected) Color(0xFF8DEEFF) else Color(0xFF717786),
-                fontSize = 17.sp,
-                fontWeight = if (selected) FontWeight.Black else FontWeight.Normal
-            )
-            Spacer(Modifier.height(1.dp))
-            Text(
-                label,
-                color = if (selected) Color.White else Color(0xFF717786),
-                fontSize = 9.sp,
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
-            )
+            Column(
+                modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    icon,
+                    color = if (selected) NgocSiVisuals.Secondary else Color(0xFF7A8394),
+                    fontSize = 17.sp,
+                    fontWeight = if (selected) FontWeight.Black else FontWeight.Normal
+                )
+                Spacer(Modifier.height(1.dp))
+                Text(
+                    label,
+                    color = if (selected) NgocSiVisuals.Text else Color(0xFF7A8394),
+                    fontSize = 9.sp,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                )
+            }
         }
     }
 
@@ -5324,7 +5334,7 @@ class MainActivity : ComponentActivity() {
         Surface(
             modifier = modifier.clickable(onClick = onClick),
             shape = RoundedCornerShape(12.dp),
-            color = Color(0xFF171B24)
+            color = NgocSiVisuals.SurfaceSoft
         ) {
             Text(
                 title,
@@ -5425,9 +5435,9 @@ class MainActivity : ComponentActivity() {
             keyboardActions = KeyboardActions(onSearch = { runSearch() }),
             shape = RoundedCornerShape(18.dp),
             colors = OutlinedTextFieldDefaults.colors(
-                unfocusedContainerColor = Color(0xFF11131A),
+                unfocusedContainerColor = NgocSiVisuals.Surface,
                 focusedContainerColor = Color(0xFF151722),
-                unfocusedBorderColor = Color(0xFF252936),
+                unfocusedBorderColor = NgocSiVisuals.Border,
                 focusedBorderColor = Color(0xFF8F6FE8)
             )
         )
@@ -5847,7 +5857,7 @@ class MainActivity : ComponentActivity() {
             if (showMore) {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    color = Color(0xFF10131A),
+                    color = NgocSiVisuals.SurfaceRaised,
                     border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF232836))
                 ) {
                     Row(
@@ -5949,7 +5959,7 @@ class MainActivity : ComponentActivity() {
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp, vertical = 6.dp),
             shape = RoundedCornerShape(17.dp),
-            color = Color(0xFF10131A),
+            color = NgocSiVisuals.SurfaceRaised,
             border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF202530))
         ) {
             Row(
@@ -5971,10 +5981,10 @@ class MainActivity : ComponentActivity() {
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
                         ) {
-                            Text("⌂", color = Color(0xFFCDBEFF), fontSize = 20.sp, lineHeight = 20.sp)
+                            Text("⌂", color = NgocSiVisuals.Primary, fontSize = 20.sp, lineHeight = 20.sp)
                             Text(
                                 "HOME",
-                                color = Color(0xFF8EEBFF),
+                                color = NgocSiVisuals.Secondary,
                                 fontSize = 7.sp,
                                 fontWeight = FontWeight.Black,
                                 lineHeight = 8.sp
@@ -5998,7 +6008,7 @@ class MainActivity : ComponentActivity() {
                                 "Cài đặt" -> "⚙"
                                 else -> "NS"
                             },
-                            color = Color(0xFFCDBEFF),
+                            color = NgocSiVisuals.Primary,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Black
                         )
@@ -6028,7 +6038,7 @@ class MainActivity : ComponentActivity() {
                     ) {
                         Text(
                             "PRO",
-                            color = Color(0xFF8EEBFF),
+                            color = NgocSiVisuals.Secondary,
                             fontSize = 8.sp,
                             fontWeight = FontWeight.Black,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
@@ -6251,7 +6261,7 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                     IconButton(onClick = { showQueue = true }) {
-                        Text("☷", color = Color(0xFF9FEFFF), fontSize = 22.sp)
+                        Text("☷", color = NgocSiVisuals.Secondary, fontSize = 22.sp)
                     }
                 }
 
@@ -6346,7 +6356,7 @@ class MainActivity : ComponentActivity() {
                     Surface(
                         modifier = Modifier.size(68.dp).clickable(onClick = ::togglePlayPause),
                         shape = CircleShape,
-                        color = Color(0xFF8DEEFF),
+                        color = NgocSiVisuals.Secondary,
                         shadowElevation = 8.dp
                     ) {
                         Box(contentAlignment = Alignment.Center) {
@@ -6476,8 +6486,8 @@ class MainActivity : ComponentActivity() {
                 Surface(
                     Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(22.dp),
-                    color = Color(0xFF11131A),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF252936))
+                    color = NgocSiVisuals.Surface,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, NgocSiVisuals.Border)
                 ) {
                     Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
                         Row(
@@ -6562,8 +6572,8 @@ class MainActivity : ComponentActivity() {
                 Surface(
                     Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
-                    color = Color(0xFF15161E),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF252936))
+                    color = NgocSiVisuals.SurfaceRaised,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, NgocSiVisuals.Border)
                 ) {
                     Row(
                         Modifier
@@ -6706,10 +6716,10 @@ class MainActivity : ComponentActivity() {
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(18.dp),
-            color = if (playing) Color(0xFF241B38) else Color(0xFF15161E),
+            color = if (playing) Color(0xFF241B38) else NgocSiVisuals.SurfaceRaised,
             border = androidx.compose.foundation.BorderStroke(
                 1.dp,
-                if (playing) Color(0xFF6E53A8) else Color(0xFF252936)
+                if (playing) Color(0xFF6E53A8) else NgocSiVisuals.Border
             )
         ) {
             Row(
@@ -8483,7 +8493,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(22.dp),
-                    color = Color(0xFF14141B),
+                    color = NgocSiVisuals.SurfaceRaised,
                     border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF292430))
                 ) {
                     Column(Modifier.padding(14.dp)) {
@@ -8623,8 +8633,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(18.dp),
-                    color = Color(0xFF11131A),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF252936))
+                    color = NgocSiVisuals.Surface,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, NgocSiVisuals.Border)
                 ) {
                     OutlinedTextField(
                         value = youtubeQuery,
@@ -9083,7 +9093,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
     @Composable
     private fun YouTubeEmptyState(icon: String, title: String, subtitle: String) {
-        Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), color = Color(0xFF11131A), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF222733))) {
+        Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), color = NgocSiVisuals.Surface, border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF222733))) {
             Column(Modifier.fillMaxWidth().padding(vertical = 28.dp, horizontal = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(icon, color = Color(0xFFB18CFF), fontSize = 28.sp)
                 Spacer(Modifier.height(7.dp))
@@ -9099,7 +9109,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             YouTubeFocusedScreen()
             return
         }
-        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color(0xFF14141B)).padding(14.dp)) {
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(NgocSiVisuals.SurfaceRaised).padding(14.dp)) {
             Text("NGỌC SĨ ONLINE MUSIC", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
             if (onlineFavorites.isNotEmpty()) {
                 Spacer(Modifier.height(4.dp))
@@ -9779,7 +9789,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         Column(
                             Modifier.fillMaxWidth()
                                 .clip(RoundedCornerShape(22.dp))
-                                .background(Brush.linearGradient(listOf(Color(0xFF1D1930), Color(0xFF11131A))))
+                                .background(Brush.linearGradient(listOf(Color(0xFF1D1930), NgocSiVisuals.Surface)))
                                 .padding(14.dp)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {

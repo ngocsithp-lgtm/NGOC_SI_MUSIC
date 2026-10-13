@@ -31,6 +31,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -76,6 +77,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -1234,9 +1236,10 @@ private fun NgocSiAiPreviewScreen(
         saveAiApiConversation(chatPreferences, conversation)
     }
 
-    LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty()) {
-            messageListState.animateScrollToItem(messages.lastIndex)
+    LaunchedEffect(messages.size, isSending) {
+        val finalVisibleIndex = messages.lastIndex + if (isSending) 1 else 0
+        if (finalVisibleIndex >= 0) {
+            messageListState.animateScrollToItem(finalVisibleIndex)
         }
     }
 
@@ -1346,7 +1349,7 @@ private fun NgocSiAiPreviewScreen(
                     if (voiceOptions.isEmpty()) {
                         Text(
                             "Điện thoại chưa cung cấp danh sách giọng đọc. Bạn có thể mở phần quản lý giọng đọc để cài thêm.",
-                            color = Color(0xFFD9DCE5),
+                            color = NgocSiVisuals.TextSecondary,
                             fontSize = 13.sp
                         )
                     } else {
@@ -1391,17 +1394,17 @@ private fun NgocSiAiPreviewScreen(
             },
             confirmButton = {
                 androidx.compose.material3.TextButton(onClick = { showVoicePicker = false }) {
-                    Text("Đóng", color = Color(0xFFD9DCE5))
+                    Text("Đóng", color = NgocSiVisuals.TextSecondary)
                 }
             },
             dismissButton = {
                 androidx.compose.material3.TextButton(onClick = onManageVoices) {
-                    Text("Quản lý giọng đọc", color = Color(0xFF8DEEFF))
+                    Text("Quản lý giọng đọc", color = NgocSiVisuals.Secondary)
                 }
             },
-            containerColor = Color(0xFF171B24),
+            containerColor = NgocSiVisuals.SurfaceSoft,
             titleContentColor = Color.White,
-            textContentColor = Color(0xFFD9DCE5)
+            textContentColor = NgocSiVisuals.TextSecondary
         )
     }
 
@@ -1431,25 +1434,25 @@ private fun NgocSiAiPreviewScreen(
             },
             dismissButton = {
                 androidx.compose.material3.TextButton(onClick = { showClearConfirm = false }) {
-                    Text("Hủy", color = Color(0xFFD9DCE5))
+                    Text("Hủy", color = NgocSiVisuals.TextSecondary)
                 }
             },
-            containerColor = Color(0xFF171B24),
+            containerColor = NgocSiVisuals.SurfaceSoft,
             titleContentColor = Color.White,
-            textContentColor = Color(0xFFD9DCE5)
+            textContentColor = NgocSiVisuals.TextSecondary
         )
     }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF08090D))
+            .background(NgocSiVisuals.Background)
             .imePadding()
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color(0xFF0D1018))
+                .background(NgocSiVisuals.Surface)
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -1474,7 +1477,7 @@ private fun NgocSiAiPreviewScreen(
                 )
                 Text(
                     "TRỢ LÝ CỦA BẠN",
-                    color = Color(0xFF8DEEFF),
+                    color = NgocSiVisuals.Secondary,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.3.sp
@@ -1485,7 +1488,7 @@ private fun NgocSiAiPreviewScreen(
                     showClearConfirm = true
                 },
                 shape = RoundedCornerShape(50),
-                color = Color(0xFF242033),
+                color = NgocSiVisuals.SurfaceRaised,
                 border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF3A334A))
             ) {
                 Text(
@@ -1500,7 +1503,7 @@ private fun NgocSiAiPreviewScreen(
             Surface(
                 modifier = Modifier.clickable(onClick = onToggleVoiceReplies),
                 shape = RoundedCornerShape(50),
-                color = if (voiceRepliesEnabled) Color(0xFF123329) else Color(0xFF242033),
+                color = if (voiceRepliesEnabled) Color(0xFF123329) else NgocSiVisuals.SurfaceRaised,
                 border = androidx.compose.foundation.BorderStroke(
                     1.dp,
                     if (voiceRepliesEnabled) Color(0xFF39C98A) else Color(0xFF3A334A)
@@ -1508,7 +1511,7 @@ private fun NgocSiAiPreviewScreen(
             ) {
                 Text(
                     if (voiceRepliesEnabled) "🔊" else "🔇",
-                    color = if (voiceRepliesEnabled) Color(0xFF71E6B2) else Color(0xFFB9C4D6),
+                    color = if (voiceRepliesEnabled) Color(0xFF71E6B2) else NgocSiVisuals.TextSecondary,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Black,
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
@@ -1517,7 +1520,7 @@ private fun NgocSiAiPreviewScreen(
             Spacer(Modifier.width(5.dp))
             Surface(
                 shape = RoundedCornerShape(50),
-                color = Color(0xFF242033)
+                color = NgocSiVisuals.SurfaceRaised
             ) {
                 Text(
                     if (isOnlineConfigured) "AI TEST" else "PREVIEW",
@@ -1529,100 +1532,147 @@ private fun NgocSiAiPreviewScreen(
             }
         }
 
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp)
-                .clickable(onClick = onToggleWakeWord),
-            shape = RoundedCornerShape(14.dp),
-            color = if (isWakeWordListening) Color(0xFF123329) else Color(0xFF171421),
-            border = androidx.compose.foundation.BorderStroke(
-                1.dp,
-                if (isWakeWordListening) Color(0xFF39C98A) else Color(0xFF39304F)
-            )
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(if (isWakeWordListening) "🎙" else "🎤", fontSize = 20.sp)
-                Spacer(Modifier.width(10.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        if (isWakeWordListening) "ĐANG NGHE: “NGỌC SĨ”" else "BẬT NGHE TỪ KHÓA “NGỌC SĨ”",
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        if (isWakeWordListening) "Nói “Ngọc Sĩ”, đợi AI đáp rồi ra lệnh điều khiển ứng dụng · chạm để tắt" else "Bật một lần; nói “Ngọc Sĩ”, rồi nói “mở YouTube” hoặc “chuyển bài”",
-                        color = Color(0xFFB9C4D6),
-                        fontSize = 11.sp
-                    )
-                }
-                Text(if (isWakeWordListening) "TẮT" else "BẬT", color = if (isWakeWordListening) Color(0xFF71E6B2) else Color(0xFF8DEEFF), fontWeight = FontWeight.Black, fontSize = 11.sp)
-            }
-        }
+        val selectedVoiceLabel = voiceOptions.firstOrNull { it.name == selectedVoiceName }?.label
+            ?: "Giọng mặc định của điện thoại"
 
-        Surface(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 4.dp)
-                .clickable { showVoicePicker = true },
-            shape = RoundedCornerShape(14.dp),
-            color = Color(0xFF171421),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF39304F))
+                .padding(horizontal = 12.dp, vertical = 5.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("🔈", fontSize = 19.sp)
-                Spacer(Modifier.width(9.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        "GIỌNG ĐỌC AI",
-                        color = Color.White,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    val selectedVoiceLabel = voiceOptions.firstOrNull { it.name == selectedVoiceName }?.label
-                        ?: "Giọng mặc định của điện thoại"
-                    Text(
-                        selectedVoiceLabel,
-                        color = Color(0xFFB9C4D6),
-                        fontSize = 11.sp,
-                        maxLines = 1
-                    )
-                }
-                Text("ĐỔI", color = Color(0xFF8DEEFF), fontSize = 11.sp, fontWeight = FontWeight.Black)
-            }
-        }
-
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            shape = RoundedCornerShape(14.dp),
-            color = Color(0xFF171421),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF39304F))
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("✦", color = Color(0xFFB99AFF), fontSize = 19.sp)
-                Spacer(Modifier.width(9.dp))
-                Text(
-                    if (isOnlineConfigured) {
-                        "Chế độ trực tuyến • Câu nói qua micro sẽ gửi tới máy chủ AI sau khi nhận dạng. Không đọc thông tin nhạy cảm."
-                    } else {
-                        "Bản xem trước • Chưa cấu hình Firebase • Không phát sinh phí AI"
-                    },
-                    color = Color(0xFFC7C1D8),
-                    fontSize = 11.sp,
-                    lineHeight = 16.sp
+            Surface(
+                modifier = Modifier
+                    .weight(1.08f)
+                    .clickable(onClick = onToggleWakeWord),
+                shape = RoundedCornerShape(18.dp),
+                color = if (isWakeWordListening) Color(0xFF123329) else NgocSiVisuals.SurfaceRaised,
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    if (isWakeWordListening) Color(0xFF286653) else NgocSiVisuals.Border
                 )
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 11.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        modifier = Modifier.size(34.dp),
+                        shape = CircleShape,
+                        color = if (isWakeWordListening) Color(0xFF1B4A3C) else Color(0xFF28213D)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                if (isWakeWordListening) "●" else "◉",
+                                color = if (isWakeWordListening) NgocSiVisuals.Success else NgocSiVisuals.Primary,
+                                fontSize = 17.sp
+                            )
+                        }
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            "ĐIỀU KHIỂN GIỌNG NÓI",
+                            color = NgocSiVisuals.TextMuted,
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 0.35.sp,
+                            maxLines = 1
+                        )
+                        Text(
+                            if (isWakeWordListening) "Đang nghe từ khóa" else "Đánh thức “Ngọc Sĩ”",
+                            color = NgocSiVisuals.Text,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+
+            Surface(
+                modifier = Modifier
+                    .weight(0.92f)
+                    .clickable { showVoicePicker = true },
+                shape = RoundedCornerShape(18.dp),
+                color = NgocSiVisuals.SurfaceRaised,
+                border = androidx.compose.foundation.BorderStroke(1.dp, NgocSiVisuals.Border)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 11.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        modifier = Modifier.size(34.dp),
+                        shape = CircleShape,
+                        color = Color(0xFF28213D)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text("♫", color = NgocSiVisuals.Primary, fontSize = 19.sp)
+                        }
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            "GIỌNG ĐỌC",
+                            color = NgocSiVisuals.TextMuted,
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 0.35.sp
+                        )
+                        Text(
+                            selectedVoiceLabel,
+                            color = NgocSiVisuals.Text,
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Text("›", color = NgocSiVisuals.Secondary, fontSize = 22.sp)
+                }
+            }
+        }
+
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 3.dp),
+            shape = RoundedCornerShape(14.dp),
+            color = NgocSiVisuals.Surface,
+            border = androidx.compose.foundation.BorderStroke(1.dp, NgocSiVisuals.Border)
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(7.dp)
+                        .clip(CircleShape)
+                        .background(if (isOnlineConfigured) NgocSiVisuals.Success else NgocSiVisuals.TextMuted)
+                )
+                Spacer(Modifier.width(8.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        if (isOnlineConfigured) "NGỌC SĨ AI • TRỰC TUYẾN" else "NGỌC SĨ AI • BẢN XEM TRƯỚC",
+                        color = NgocSiVisuals.Text,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        when {
+                            quotaNote.isNotBlank() -> quotaNote
+                            isOnlineConfigured -> "Câu hỏi tự do có thể chịu giới hạn theo hạn mức Gemini."
+                            else -> "Lệnh nhạc cơ bản chạy tại máy; chat tự do đang tắt."
+                        },
+                        color = NgocSiVisuals.TextSecondary,
+                        fontSize = 10.sp,
+                        lineHeight = 14.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
         }
 
@@ -1646,7 +1696,7 @@ private fun NgocSiAiPreviewScreen(
                             color = Color(0xFF29203F)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Text("✦", color = Color(0xFFB99AFF), fontSize = 17.sp)
+                                Text("✦", color = NgocSiVisuals.Primary, fontSize = 17.sp)
                             }
                         }
                         Spacer(Modifier.width(8.dp))
@@ -1660,16 +1710,16 @@ private fun NgocSiAiPreviewScreen(
                                 bottomStart = if (message.isUser) 18.dp else 5.dp,
                                 bottomEnd = if (message.isUser) 5.dp else 18.dp
                             ),
-                            color = if (message.isUser) Color(0xFF25213A) else Color(0xFF141821),
+                            color = if (message.isUser) Color(0xFF25213A) else NgocSiVisuals.SurfaceRaised,
                             border = androidx.compose.foundation.BorderStroke(
                                 1.dp,
-                                if (message.isUser) Color(0xFF44376B) else Color(0xFF252B37)
+                                if (message.isUser) Color(0xFF44376B) else NgocSiVisuals.Border
                             )
                         ) {
                             Text(
                                 message.text,
                                 modifier = Modifier.padding(horizontal = 13.dp, vertical = 12.dp),
-                                color = if (message.isUser) Color(0xFFF0ECFF) else Color(0xFFD9DCE5),
+                                color = if (message.isUser) Color(0xFFF0ECFF) else NgocSiVisuals.TextSecondary,
                                 fontSize = 14.sp,
                                 lineHeight = 21.sp
                             )
@@ -1683,18 +1733,50 @@ private fun NgocSiAiPreviewScreen(
                                 Surface(
                                     modifier = Modifier.clickable { onSpeakMessage(message.text) },
                                     shape = RoundedCornerShape(50),
-                                    color = Color(0xFF171B25),
+                                    color = NgocSiVisuals.SurfaceSoft,
                                     border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF2B3040))
                                 ) {
                                     Text(
                                         "🔊 ĐỌC",
                                         modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
-                                        color = Color(0xFFB9C4D6),
+                                        color = NgocSiVisuals.TextSecondary,
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
                             }
+                        }
+                    }
+                }
+            }
+            if (isSending) {
+                item(key = "assistant-thinking") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Start,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            modifier = Modifier.size(32.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFF28213D)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text("✦", color = NgocSiVisuals.Primary, fontSize = 17.sp)
+                            }
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = NgocSiVisuals.SurfaceRaised,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, NgocSiVisuals.Border)
+                        ) {
+                            Text(
+                                "Đang xử lý yêu cầu…",
+                                modifier = Modifier.padding(horizontal = 13.dp, vertical = 11.dp),
+                                color = NgocSiVisuals.TextSecondary,
+                                fontSize = 12.sp
+                            )
                         }
                     }
                 }
@@ -1721,26 +1803,21 @@ private fun NgocSiAiPreviewScreen(
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(7.dp)
             ) {
-                val suggestions = (if (isOnlineConfigured) {
-                    listOf("Bạn có thể giúp gì?", "Giải thích bằng tiếng Việt dễ hiểu", "Tóm tắt nội dung này", "Lên kế hoạch cho tôi", "Viết nội dung giúp tôi")
-                } else emptyList()) + listOf(
-                    "Phát nhạc", "Phát bài hát Diễm xưa", "Tạm dừng nhạc", "Bài tiếp theo", "Bài trước",
-                    "Đang phát bài gì?", "Phát ngẫu nhiên", "Tắt phát ngẫu nhiên",
-                    "Lặp hàng đợi", "Lặp một bài", "Tắt chế độ lặp",
-                    "Mở trang chủ", "Mở thư viện", "Mở Yêu thích", "Mở Album", "Mở Thư mục",
-                    "Mở Online", "Mở YouTube", "Tìm YouTube nhạc Trịnh Công Sơn", "Tìm nhạc Trịnh Công Sơn",
-                    "Mở Drive", "Mở Radio", "Phát Radio VOV3", "Mở TV", "Mở VTV3", "Mở kênh HTV7", "Mở danh sách phát",
-                    "Mở hàng đợi", "Mở trình phát", "Mở Cài đặt", "Tạo playlist Nhạc Trịnh",
-                    "Phát playlist Nhạc Trịnh", "Thêm bài đang phát vào playlist Nhạc Trịnh", "Thêm hàng đợi vào playlist Nhạc Trịnh", "Tạm dừng YouTube", "Tiếp tục YouTube",
-                    "Video YouTube tiếp theo", "Video YouTube trước", "Lưu video YouTube xem sau",
-                    "Hẹn giờ 30 phút",
-                    "Tắt hẹn giờ", "Bạn làm được gì?"
+                val suggestions = listOf(
+                    "Bạn làm được gì?",
+                    "Phát nhạc",
+                    "Tạm dừng nhạc",
+                    "Mở YouTube",
+                    "Bài tiếp theo",
+                    "Mở Google Drive",
+                    "Mở Radio",
+                    "Hẹn giờ 30 phút"
                 )
                 suggestions.forEach { suggestion ->
                     Surface(
                         modifier = Modifier.clickable { input = suggestion },
                         shape = RoundedCornerShape(50),
-                        color = Color(0xFF171B25),
+                        color = NgocSiVisuals.SurfaceSoft,
                         border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF2B3040))
                     ) {
                         Text(
@@ -1759,7 +1836,8 @@ private fun NgocSiAiPreviewScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(20.dp))
-                    .background(Color(0xFF171B24))
+                    .background(NgocSiVisuals.SurfaceSoft)
+                    .border(1.dp, NgocSiVisuals.Border, RoundedCornerShape(20.dp))
                     .padding(start = 13.dp, end = 7.dp, top = 7.dp, bottom = 7.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -1773,7 +1851,7 @@ private fun NgocSiAiPreviewScreen(
                         color = Color.White,
                         fontSize = 14.sp
                     ),
-                    cursorBrush = androidx.compose.ui.graphics.SolidColor(Color(0xFF8DEEFF)),
+                    cursorBrush = androidx.compose.ui.graphics.SolidColor(NgocSiVisuals.Secondary),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                     keyboardActions = KeyboardActions(onSend = { sendMessage(input) }),
                     singleLine = false,
@@ -1795,7 +1873,7 @@ private fun NgocSiAiPreviewScreen(
                         .size(48.dp)
                         .clickable(onClick = onVoice),
                     shape = CircleShape,
-                    color = Color(0xFF242033)
+                    color = NgocSiVisuals.SurfaceRaised
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Text("🎙", fontSize = 17.sp)
@@ -1807,7 +1885,7 @@ private fun NgocSiAiPreviewScreen(
                         .size(48.dp)
                         .clickable(enabled = !isSending) { sendMessage(input) },
                     shape = CircleShape,
-                    color = if (isSending) Color(0xFF515661) else Color(0xFF8DEEFF)
+                    color = if (isSending) Color(0xFF515661) else NgocSiVisuals.Secondary
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Text(if (isSending) "…" else "↑", color = Color(0xFF061018), fontSize = 22.sp, fontWeight = FontWeight.Black)
