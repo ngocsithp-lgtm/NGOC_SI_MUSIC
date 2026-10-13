@@ -608,4 +608,19 @@ class NgocSiAiLocalCommandRulesTest {
         )
         assertNull(classifyNgocSiAiLocalCommand("Bạn có thể phát ngẫu nhiên không?"))
     }
+
+    @Test
+    fun understandsBroaderNaturalVietnamesePlaybackCommandsOffline() {
+        assertEquals(NgocSiAiLocalCommand.PLAY, classifyNgocSiAiWakePhrase("AI, cho nhạc chạy tiếp"))
+        assertEquals(NgocSiAiLocalCommand.PLAY, classifyNgocSiAiActivatedCommand("Nghe tiếp nhạc"))
+        assertEquals(NgocSiAiLocalCommand.PAUSE, classifyNgocSiAiWakePhrase("AI, ngừng phát nhạc"))
+        assertEquals(NgocSiAiLocalCommand.PAUSE, classifyNgocSiAiActivatedCommand("Nghỉ một chút"))
+        assertEquals(NgocSiAiLocalCommand.NEXT, classifyNgocSiAiWakePhrase("AI, đổi bài"))
+        assertEquals(NgocSiAiLocalCommand.NEXT, classifyNgocSiAiActivatedCommand("Phát bài tiếp theo"))
+        assertEquals(NgocSiAiLocalCommand.STOP, classifyNgocSiAiWakePhrase("AI, tắt hẳn nhạc"))
+        assertEquals(NgocSiAiLocalCommand.STOP, classifyNgocSiAiActivatedCommand("Kết thúc phát nhạc"))
+        assertEquals(NgocSiAiLocalCommand.SLEEP_TIMER_30, classifyNgocSiAiWakePhrase("AI, tắt nhạc sau 30 phút"))
+        assertNull(classifyNgocSiAiWakePhrase("Nghe nhạc thật hay"))
+    }
+
 }
