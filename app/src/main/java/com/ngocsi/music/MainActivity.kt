@@ -7834,7 +7834,6 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     putExtra(YouTubePlayerActivity.EXTRA_CHANNEL, track.channelTitle)
                     putExtra(YouTubePlayerActivity.EXTRA_QUEUE_JSON, queueJson)
                     putExtra(YouTubePlayerActivity.EXTRA_QUEUE_INDEX, selectedIndex)
-                    aiAction?.let { putExtra(YouTubePlayerActivity.EXTRA_AI_ACTION, it) }
                     addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                 }
             )
@@ -8083,6 +8082,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     putExtra(YouTubePlayerActivity.EXTRA_CHANNEL, track.channelTitle)
                     putExtra(YouTubePlayerActivity.EXTRA_QUEUE_JSON, queueJson)
                     putExtra(YouTubePlayerActivity.EXTRA_QUEUE_INDEX, selectedIndex)
+                    aiAction?.let { putExtra(YouTubePlayerActivity.EXTRA_AI_ACTION, it) }
+                    addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                 }
             )
         }.onFailure {
