@@ -214,7 +214,7 @@ class NgocSiWakeWordService : Service() {
                     connectMusicController()
                     mainHandler.postDelayed({
                         if (!stopping) {
-                            val reply = runPlaybackCommand(command)
+                            val reply = runAppCommand(command, recognized)
                             updateNotification("Đã nghe “$recognized” · $reply")
                             speakReply(reply)
                         }
@@ -237,7 +237,7 @@ class NgocSiWakeWordService : Service() {
                 awaitingCommand = false
                 awaitingCommandUntilMillis = 0L
                 if (wasAwaitingCommand) {
-                    updateNotification("Chưa nhận ra lệnh nhạc · hãy nói “Ngọc Sĩ, chuyển bài”")
+                    updateNotification("Chưa nhận ra lệnh nhạc · hãy nói “Ngọc Sĩ, mở YouTube” hoặc “Ngọc Sĩ, chuyển bài”")
                 } else {
                     // Expose the actual speech-recognition result so the user can tell
                     // whether the problem is recognition or command matching.
@@ -308,59 +308,162 @@ class NgocSiWakeWordService : Service() {
         }
     }
 
-    private fun runPlaybackCommand(command: NgocSiAiLocalCommand): String {
-        val player = musicController ?: return "Trình phát chưa kết nối"
-        if (player.mediaItemCount == 0 || player.currentMediaItem == null) {
-            return "Chưa có bài nhạc trong hàng đợi. Hãy chọn bài trong NGỌC SĨ MUSIC trước."
+    /**
+     * Routes wake-word commands through the same destinations as the AI chat.
+     * Navigation is handled before requiring a queue, so opening Drive/YouTube/TV,
+     * changing library views, or setting a timer does not depend on a song playing.
+     */
+    private fun runAppCommand(command: NgocSiAiLocalCommand, originalText: String): String {
+        if (command == NgocSiAiLocalCommand.HELP) {
+            return "Tôi có thể điều khiển nhạc, mở Trang chủ, Thư viện, Yêu thích, Album, Thư mục, YouTube, Drive, Radio, TV, Online, Playlist, Hàng đợi, Trình phát, Cài đặt và hẹn giờ. Hãy nói lệnh tiếp theo."
         }
+
+        val destination = when (command) {
+            NgocSiAiLocalCommand.OPEN_HOME -> "home"
+            NgocSiAiLocalCommand.OPEN_LIBRARY -> "library"
+            NgocSiAiLocalCommand.OPEN_FAVORITES -> "favorites"
+            NgocSiAiLocalCommand.OPEN_ALBUMS -> "albums"
+            NgocSiAiLocalCommand.OPEN_FOLDERS -> "folders"
+            NgocSiAiLocalCommand.OPEN_ONLINE -> "online"
+            NgocSiAiLocalCommand.OPEN_YOUTUBE,
+            NgocSiAiLocalCommand.SEARCH_YOUTUBE -> "youtube"
+            NgocSiAiLocalCommand.OPEN_DRIVE -> "drive"
+            NgocSiAiLocalCommand.OPEN_RADIO -> "radio"
+            NgocSiAiLocalCommand.OPEN_TV -> "tv"
+            NgocSiAiLocalCommand.OPEN_PLAYLISTS -> "playlists"
+            NgocSiAiLocalCommand.OPEN_QUEUE -> "queue"
+            NgocSiAiLocalCommand.OPEN_PLAYER -> "player"
+            NgocSiAiLocalCommand.OPEN_SETTINGS -> "settings"
+            NgocSiAiLocalCommand.OPEN_SLEEP_TIMER -> "sleep_timer"
+            NgocSiAiLocalCommand.SLEEP_TIMER_15 -> "sleep_timer_15"
+            NgocSiAiLocalCommand.SLEEP_TIMER_30 -> "sleep_timer_30"
+            NgocSiAiLocalCommand.SLEEP_TIMER_45 -> "sleep_timer_45"
+            NgocSiAiLocalCommand.SLEEP_TIMER_60 -> "sleep_timer_60"
+            NgocSiAiLocalCommand.SLEEP_TIMER_90 -> "sleep_timer_90"
+            NgocSiAiLocalCommand.SLEEP_TIMER_120 -> "sleep_timer_120"
+            NgocSiAiLocalCommand.CANCEL_SLEEP_TIMER -> "sleep_timer_off"
+            else -> null
+        }
+
+        if (destination != null) {
+            val query = if (command == NgocSiAiLocalCommand.SEARCH_YOUTUBE) {
+                extractNgocSiAiYoutubeQuery(originalText)
+                    ?: return "Hãy nói rõ nội dung cần tìm, ví dụ: Ngọc Sĩ, tìm YouTube nhạc Trịnh Công Sơn."
+            } else null
+            val response = when (command) {
+                NgocSiAiLocalCommand.SEARCH_YOUTUBE -> "Đã gửi lệnh tìm YouTube: $query"
+                NgocSiAiLocalCommand.OPEN_HOME -> "Đã gửi lệnh mở Trang chủ."
+                NgocSiAiLocalCommand.OPEN_LIBRARY -> "Đã gửi lệnh mở Thư viện."
+                NgocSiAiLocalCommand.OPEN_FAVORITES -> "Đã gửi lệnh mở nhạc Yêu thích."
+                NgocSiAiLocalCommand.OPEN_ALBUMS -> "Đã gửi lệnh mở Album."
+                NgocSiAiLocalCommand.OPEN_FOLDERS -> "Đã gửi lệnh mở Thư mục."
+                NgocSiAiLocalCommand.OPEN_ONLINE -> "Đã gửi lệnh mở các nguồn Online."
+                NgocSiAiLocalCommand.OPEN_YOUTUBE -> "Đã gửi lệnh mở YouTube."
+                NgocSiAiLocalCommand.OPEN_DRIVE -> "Đã gửi lệnh mở Google Drive."
+                NgocSiAiLocalCommand.OPEN_RADIO -> "Đã gửi lệnh mở Radio."
+                NgocSiAiLocalCommand.OPEN_TV -> "Đã gửi lệnh mở TV."
+                NgocSiAiLocalCommand.OPEN_PLAYLISTS -> "Đã gửi lệnh mở Danh sách phát."
+                NgocSiAiLocalCommand.OPEN_QUEUE -> "Đã gửi lệnh mở Hàng đợi."
+                NgocSiAiLocalCommand.OPEN_PLAYER -> "Đã gửi lệnh mở Trình phát."
+                NgocSiAiLocalCommand.OPEN_SETTINGS -> "Đã gửi lệnh mở Cài đặt."
+                NgocSiAiLocalCommand.OPEN_SLEEP_TIMER -> "Đã gửi lệnh mở Hẹn giờ."
+                NgocSiAiLocalCommand.SLEEP_TIMER_15 -> "Đã gửi lệnh hẹn giờ tắt nhạc sau 15 phút."
+                NgocSiAiLocalCommand.SLEEP_TIMER_30 -> "Đã gửi lệnh hẹn giờ tắt nhạc sau 30 phút."
+                NgocSiAiLocalCommand.SLEEP_TIMER_45 -> "Đã gửi lệnh hẹn giờ tắt nhạc sau 45 phút."
+                NgocSiAiLocalCommand.SLEEP_TIMER_60 -> "Đã gửi lệnh hẹn giờ tắt nhạc sau 60 phút."
+                NgocSiAiLocalCommand.SLEEP_TIMER_90 -> "Đã gửi lệnh hẹn giờ tắt nhạc sau 90 phút."
+                NgocSiAiLocalCommand.SLEEP_TIMER_120 -> "Đã gửi lệnh hẹn giờ tắt nhạc sau 120 phút."
+                NgocSiAiLocalCommand.CANCEL_SLEEP_TIMER -> "Đã gửi lệnh hủy hẹn giờ."
+                else -> "Đã gửi lệnh điều hướng."
+            }
+            return runCatching {
+                val intent = Intent(this, MainActivity::class.java).apply {
+                    putExtra("pro_destination", destination)
+                    query?.let { putExtra("ai_youtube_query", it) }
+                    addFlags(
+                        Intent.FLAG_ACTIVITY_NEW_TASK or
+                            Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
+                            Intent.FLAG_ACTIVITY_SINGLE_TOP
+                    )
+                }
+                startActivity(intent)
+                response
+            }.getOrElse {
+                "Chưa thể mở chức năng này từ nền. Hãy mở NGỌC SĨ MUSIC rồi lặp lại lệnh."
+            }
+        }
+
+        val player = musicController ?: return "Trình phát chưa kết nối. Hãy mở NGỌC SĨ MUSIC một lần rồi thử lại."
+        if (player.mediaItemCount == 0 || player.currentMediaItem == null) {
+            return when (command) {
+                NgocSiAiLocalCommand.PLAY,
+                NgocSiAiLocalCommand.PLAY_SECOND,
+                NgocSiAiLocalCommand.NEXT,
+                NgocSiAiLocalCommand.PREVIOUS,
+                NgocSiAiLocalCommand.CURRENT_TRACK ->
+                    "Hàng đợi đang trống. Hãy mở Thư viện và chọn bài nhạc trước."
+                else -> "Chưa có bài nhạc trong hàng đợi để thực hiện lệnh này."
+            }
+        }
+
         return runCatching {
             when (command) {
                 NgocSiAiLocalCommand.PLAY -> {
                     player.play()
-                    "Phát nhạc"
+                    "Đã gửi lệnh phát nhạc"
+                }
+                NgocSiAiLocalCommand.PLAY_SECOND -> {
+                    if (player.mediaItemCount > 1) {
+                        player.seekTo(1, 0L)
+                        player.play()
+                        "Đang phát bài thứ hai"
+                    } else "Hàng đợi chưa có bài thứ hai"
                 }
                 NgocSiAiLocalCommand.PAUSE -> {
                     player.pause()
-                    "Tạm dừng"
+                    "Đã tạm dừng nhạc"
                 }
                 NgocSiAiLocalCommand.NEXT -> {
                     if (player.hasNextMediaItem()) {
                         player.seekToNextMediaItem()
-                        "Chuyển bài"
+                        "Đã chuyển bài tiếp theo"
                     } else "Không có bài tiếp theo"
                 }
                 NgocSiAiLocalCommand.PREVIOUS -> {
                     if (player.hasPreviousMediaItem()) {
                         player.seekToPreviousMediaItem()
-                        "Về bài trước"
+                        "Đã quay lại bài trước"
                     } else "Không có bài trước"
                 }
                 NgocSiAiLocalCommand.CURRENT_TRACK -> {
                     val title = player.currentMediaItem?.mediaMetadata?.title?.toString()
                         ?.takeIf { it.isNotBlank() } ?: "Chưa rõ tên bài"
-                    if (player.isPlaying) "Đang phát $title" else "Bài hiện tại: $title"
+                    val artist = player.currentMediaItem?.mediaMetadata?.artist?.toString()
+                        ?.takeIf { it.isNotBlank() }
+                    val status = if (player.isPlaying) "Đang phát" else "Bài hiện tại"
+                    if (artist == null) "$status: $title" else "$status: $title — $artist"
                 }
                 NgocSiAiLocalCommand.SHUFFLE_ON -> {
                     player.shuffleModeEnabled = true
-                    "Bật phát ngẫu nhiên"
+                    "Đã bật phát ngẫu nhiên"
                 }
                 NgocSiAiLocalCommand.SHUFFLE_OFF -> {
                     player.shuffleModeEnabled = false
-                    "Tắt phát ngẫu nhiên"
+                    "Đã tắt phát ngẫu nhiên"
                 }
                 NgocSiAiLocalCommand.REPEAT_OFF -> {
                     player.repeatMode = Player.REPEAT_MODE_OFF
-                    "Tắt chế độ lặp"
+                    "Đã tắt chế độ lặp"
                 }
                 NgocSiAiLocalCommand.REPEAT_ALL -> {
                     player.repeatMode = Player.REPEAT_MODE_ALL
-                    "Lặp hàng đợi"
+                    "Đã bật lặp hàng đợi"
                 }
                 NgocSiAiLocalCommand.REPEAT_ONE -> {
                     player.repeatMode = Player.REPEAT_MODE_ONE
-                    "Lặp bài hiện tại"
+                    "Đã bật lặp bài hiện tại"
                 }
-                else -> "Lệnh này cần mở NGỌC SĨ AI để điều hướng hoặc đặt hẹn giờ"
+                else -> "Lệnh này chưa có thao tác trực tiếp. Hãy mở NGỌC SĨ AI để được hướng dẫn."
             }
         }.getOrElse { "Không thể thực hiện lệnh này" }
     }
