@@ -443,7 +443,7 @@ class NgocSiAiLocalCommandRulesTest {
         )
         assertEquals(
             "Ngọc Sĩ, mở YouTube lên",
-            selectNgocSiAiActivatedCommandCandidate(listOf("mở YouTube lên nhé", "Ngọc Sĩ, mở YouTube lên"))
+            selectNgocSiAiActivatedCommandCandidate(listOf("một chuyện bài", "Ngọc Sĩ, mở YouTube lên"))
         )
         assertEquals(
             "câu không rõ",
