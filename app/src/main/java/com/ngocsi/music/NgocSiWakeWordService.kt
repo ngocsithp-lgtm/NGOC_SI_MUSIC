@@ -339,6 +339,10 @@ class NgocSiWakeWordService : Service() {
             return "Tôi có thể điều khiển nhạc điện thoại và YouTube riêng biệt; phát bài theo tên; tìm nhạc trên Jamendo, Audius và YouTube; mở thư viện, Drive, từng đài Radio, kênh TV; tạo/phát playlist; điều chỉnh phát ngẫu nhiên, lặp, hẹn giờ và lưu video yêu thích/xem sau."
         }
 
+        val hasSavedYouTubeVideo = getSharedPreferences("ngoc_si_music", Context.MODE_PRIVATE)
+            .getString("youtube_last_played_video_id", null)
+            .isNullOrBlank()
+            .not()
         val destination = when (command) {
             NgocSiAiLocalCommand.OPEN_HOME -> "home"
             NgocSiAiLocalCommand.OPEN_LIBRARY -> "library"
@@ -349,6 +353,8 @@ class NgocSiWakeWordService : Service() {
             NgocSiAiLocalCommand.SEARCH_ONLINE_MUSIC -> "search_online"
             NgocSiAiLocalCommand.OPEN_YOUTUBE,
             NgocSiAiLocalCommand.SEARCH_YOUTUBE -> "youtube"
+            NgocSiAiLocalCommand.RESUME_YOUTUBE ->
+                if (hasSavedYouTubeVideo) "youtube_command" else "youtube"
             NgocSiAiLocalCommand.OPEN_DRIVE -> "drive"
             NgocSiAiLocalCommand.OPEN_RADIO -> "radio"
             NgocSiAiLocalCommand.PLAY_RADIO_STATION -> "radio_station"
@@ -449,7 +455,11 @@ class NgocSiWakeWordService : Service() {
                 NgocSiAiLocalCommand.PLAY_NAMED_PLAYLIST -> "Đang tìm playlist $playlistQuery."
                 NgocSiAiLocalCommand.ADD_CURRENT_TRACK_TO_PLAYLIST -> "Đang thêm bài đang phát vào playlist $playlistQuery."
                 NgocSiAiLocalCommand.ADD_QUEUE_TO_PLAYLIST -> "Đang lưu hàng đợi vào playlist $playlistQuery."
-                NgocSiAiLocalCommand.RESUME_YOUTUBE -> "Đang tiếp tục video YouTube."
+                NgocSiAiLocalCommand.RESUME_YOUTUBE -> if (hasSavedYouTubeVideo) {
+                    "Đang tiếp tục video YouTube."
+                } else {
+                    "Chưa có video YouTube gần đây để tiếp tục. Tôi đã mở YouTube; hãy nói “Tìm YouTube” kèm tên bài hát hoặc video."
+                }
                 NgocSiAiLocalCommand.PAUSE_YOUTUBE -> "Đang tạm dừng video YouTube."
                 NgocSiAiLocalCommand.NEXT_YOUTUBE_VIDEO -> "Đang chuyển video YouTube tiếp theo."
                 NgocSiAiLocalCommand.PREVIOUS_YOUTUBE_VIDEO -> "Đang chuyển video YouTube trước."
