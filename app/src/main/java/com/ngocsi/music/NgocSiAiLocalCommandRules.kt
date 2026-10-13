@@ -12,6 +12,7 @@ internal enum class NgocSiAiLocalCommand {
     CREATE_PLAYLIST,
     PLAY_NAMED_PLAYLIST,
     ADD_CURRENT_TRACK_TO_PLAYLIST,
+    ADD_QUEUE_TO_PLAYLIST,
     RESUME_YOUTUBE,
     PAUSE_YOUTUBE,
     NEXT_YOUTUBE_VIDEO,
@@ -79,6 +80,7 @@ private val NGOC_SI_AI_WAKE_WORD_COMMANDS = setOf(
     NgocSiAiLocalCommand.CREATE_PLAYLIST,
     NgocSiAiLocalCommand.PLAY_NAMED_PLAYLIST,
     NgocSiAiLocalCommand.ADD_CURRENT_TRACK_TO_PLAYLIST,
+    NgocSiAiLocalCommand.ADD_QUEUE_TO_PLAYLIST,
     NgocSiAiLocalCommand.RESUME_YOUTUBE,
     NgocSiAiLocalCommand.PAUSE_YOUTUBE,
     NgocSiAiLocalCommand.NEXT_YOUTUBE_VIDEO,
@@ -209,6 +211,7 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
         extractNgocSiAiPlaylistQuery(input, create = true) != null -> NgocSiAiLocalCommand.CREATE_PLAYLIST
         extractNgocSiAiPlaylistQuery(input, create = false) != null -> NgocSiAiLocalCommand.PLAY_NAMED_PLAYLIST
         extractNgocSiAiAddToPlaylistQuery(input) != null -> NgocSiAiLocalCommand.ADD_CURRENT_TRACK_TO_PLAYLIST
+        extractNgocSiAiQueueToPlaylistQuery(input) != null -> NgocSiAiLocalCommand.ADD_QUEUE_TO_PLAYLIST
 
         // Match named-song commands before generic play/pause phrases.
         extractNgocSiAiTrackQuery(input) != null -> NgocSiAiLocalCommand.PLAY_TRACK
@@ -438,6 +441,20 @@ internal fun extractNgocSiAiPlaylistQuery(input: String, create: Boolean): Strin
     if (normalized.isBlank() || normalized in setOf("moi", "moi nhe", "nhe", "di")) return null
     return query.take(100)
 }
+/**
+ * Extract a playlist name for saving the current queue.
+ */
+internal fun extractNgocSiAiQueueToPlaylistQuery(input: String): String? {
+    val raw = input.trim()
+    val patterns = listOf(
+        Regex("""^(?:(?:ngọc sĩ|ngoc si)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:thêm|them|lưu|luu)\s+(?:toàn bộ\s+|toan bo\s+)?(?:hàng đợi|hang doi|queue)\s+(?:(?:hiện tại|hien tai)\s+)?(?:(?:vào|vao)\s+)?(?:playlist|danh sách phát|danh sach phat)\s+""", RegexOption.IGNORE_CASE),
+        Regex("""^(?:(?:ngọc sĩ|ngoc si)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:lưu|luu)\s+hàng đợi thành\s+(?:playlist|danh sách phát)\s+""", RegexOption.IGNORE_CASE)
+    )
+    val prefix = patterns.firstOrNull { it.containsMatchIn(raw) } ?: return null
+    val query = prefix.replaceFirst(raw, "").trim().trim(',', ':', '-', '.', '?', '!')
+    return query.take(100).takeIf { normalizeNgocSiAiVoicePhrase(it).isNotBlank() }
+}
+
 /**
  * Extract a playlist target for adding the currently playing song.
  */
