@@ -969,8 +969,12 @@ class NgocSiAiActivity : ComponentActivity() {
                 "Đã gửi lệnh tạm dừng nhạc."
             }
             NgocSiAiLocalCommand.STOP -> {
+                // Explicitly disable playback before stopping so the service cannot
+                // continue playing due to a stale playWhenReady state.
+                player.pause()
+                player.playWhenReady = false
                 player.stop()
-                "Đã dừng phát nhạc. Hàng đợi vẫn được giữ để bạn có thể phát lại."
+                "Đã dừng hẳn nhạc. Hàng đợi vẫn được giữ để bạn có thể phát lại."
             }
             NgocSiAiLocalCommand.NEXT -> {
                 if (player.hasNextMediaItem()) {
