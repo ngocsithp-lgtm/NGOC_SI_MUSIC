@@ -876,6 +876,20 @@ class MainActivity : ComponentActivity() {
                         errorMessage = "Đã nhận lệnh thêm bài đang phát vào “${playlist.name}”; đang chuẩn bị trình phát…"
                     }
                 }
+            }            "add_queue_to_playlist" -> {
+                val query = normalizeNgocSiAiVoicePhrase(playlistQuery.orEmpty())
+                val playlist = playlists.firstOrNull { normalizeNgocSiAiVoicePhrase(it.name) == query }
+                    ?: playlists.firstOrNull {
+                        val name = normalizeNgocSiAiVoicePhrase(it.name)
+                        name.contains(query) || query.contains(name)
+                    }
+                if (playlist == null) {
+                    errorMessage = "Chưa tìm thấy playlist “${playlistQuery.orEmpty()}”. Hãy mở Danh sách phát để kiểm tra tên."
+                    showPlaylists = true
+                } else {
+                    addQueueToPlaylist(playlist)
+                    showPlaylists = true
+                }
             }
             "play_playlist" -> {
                 val query = normalizeNgocSiAiVoicePhrase(playlistQuery.orEmpty())
