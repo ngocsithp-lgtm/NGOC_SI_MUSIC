@@ -60,7 +60,7 @@ class NgocSiAiLocalCommandRulesTest {
         )
         assertEquals(
             NgocSiAiLocalCommand.OPEN_HOME,
-            classifyNgocSiAiWakePhrase("Ngọc Sĩ, về giao diện chính")
+            classifyNgocSiAiWakePhrase("AI, về giao diện chính")
         )
         assertEquals(
             NgocSiAiLocalCommand.OPEN_YOUTUBE,
@@ -68,11 +68,11 @@ class NgocSiAiLocalCommandRulesTest {
         )
         assertEquals(
             NgocSiAiLocalCommand.OPEN_YOUTUBE,
-            classifyNgocSiAiWakePhrase("Ngọc Sĩ, bật YouTube")
+            classifyNgocSiAiWakePhrase("AI, bật YouTube")
         )
         assertEquals(
             NgocSiAiLocalCommand.RESUME_YOUTUBE,
-            classifyNgocSiAiWakePhrase("Ngọc Sĩ, phát YouTube")
+            classifyNgocSiAiWakePhrase("AI, phát YouTube")
         )
     }
 
@@ -93,7 +93,7 @@ class NgocSiAiLocalCommandRulesTest {
         assertNull(extractNgocSiAiYoutubeQuery("Mở YouTube lên"))
         assertEquals(
             NgocSiAiLocalCommand.OPEN_YOUTUBE,
-            classifyNgocSiAiWakePhrase("Ngọc Sĩ, mở YouTube lên")
+            classifyNgocSiAiWakePhrase("AI, mở YouTube lên")
         )
         assertEquals(
             NgocSiAiLocalCommand.SEARCH_YOUTUBE,
@@ -108,22 +108,22 @@ class NgocSiAiLocalCommandRulesTest {
     @Test
     fun recognizesHomeNavigationAndYouTubePlaybackRequests() {
         assertEquals(NgocSiAiLocalCommand.OPEN_HOME, classifyNgocSiAiLocalCommand("Quay lại trang chủ"))
-        assertEquals(NgocSiAiLocalCommand.OPEN_HOME, classifyNgocSiAiWakePhrase("Ngọc Sĩ, trở về màn hình chính"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_HOME, classifyNgocSiAiWakePhrase("AI, trở về màn hình chính"))
         assertEquals(NgocSiAiLocalCommand.RESUME_YOUTUBE, classifyNgocSiAiLocalCommand("Phát YouTube"))
         assertEquals(NgocSiAiLocalCommand.SEARCH_YOUTUBE, classifyNgocSiAiLocalCommand("Phát YouTube nhạc Trịnh Công Sơn"))
         assertEquals("nhạc Trịnh Công Sơn", extractNgocSiAiYoutubeQuery("Phát YouTube nhạc Trịnh Công Sơn"))
-        assertEquals(NgocSiAiLocalCommand.SEARCH_YOUTUBE, classifyNgocSiAiWakePhrase("Ngọc Sĩ, phát YouTube nhạc Trịnh Công Sơn"))
+        assertEquals(NgocSiAiLocalCommand.SEARCH_YOUTUBE, classifyNgocSiAiWakePhrase("AI, phát YouTube nhạc Trịnh Công Sơn"))
     }
 
     @Test
     fun recognizesGeneralOnlineMusicSearchAndQueueSaveCommands() {
         assertEquals(NgocSiAiLocalCommand.SEARCH_ONLINE_MUSIC, classifyNgocSiAiLocalCommand("Tìm nhạc Trịnh Công Sơn"))
         assertNull(extractNgocSiAiYoutubeQuery("Tìm nhạc Trịnh Công Sơn"))
-        assertEquals(NgocSiAiLocalCommand.SEARCH_ONLINE_MUSIC, classifyNgocSiAiWakePhrase("Ngọc Sĩ, tìm bài hát Bolero"))
+        assertEquals(NgocSiAiLocalCommand.SEARCH_ONLINE_MUSIC, classifyNgocSiAiWakePhrase("AI, tìm bài hát Bolero"))
         assertEquals("Trịnh Công Sơn", extractNgocSiAiOnlineQuery("Tìm nhạc Trịnh Công Sơn"))
         assertEquals(NgocSiAiLocalCommand.SEARCH_YOUTUBE, classifyNgocSiAiLocalCommand("Tìm YouTube nhạc Trịnh Công Sơn"))
         assertEquals(NgocSiAiLocalCommand.ADD_QUEUE_TO_PLAYLIST, classifyNgocSiAiLocalCommand("Thêm hàng đợi vào playlist Nhạc Trịnh"))
-        assertEquals(NgocSiAiLocalCommand.ADD_QUEUE_TO_PLAYLIST, classifyNgocSiAiWakePhrase("Ngọc Sĩ, lưu hàng đợi vào playlist Bolero"))
+        assertEquals(NgocSiAiLocalCommand.ADD_QUEUE_TO_PLAYLIST, classifyNgocSiAiWakePhrase("AI, lưu hàng đợi vào playlist Bolero"))
         assertEquals("Nhạc Trịnh", extractNgocSiAiQueueToPlaylistQuery("Thêm hàng đợi vào playlist Nhạc Trịnh"))
         assertEquals("Bolero", extractNgocSiAiQueueToPlaylistQuery("Ngọc Sĩ, lưu hàng đợi vào playlist Bolero"))
     }
@@ -131,22 +131,22 @@ class NgocSiAiLocalCommandRulesTest {
     @Test
     fun recognizesAddingCurrentTrackToPlaylist() {
         assertEquals(NgocSiAiLocalCommand.ADD_CURRENT_TRACK_TO_PLAYLIST, classifyNgocSiAiLocalCommand("Thêm bài đang phát vào playlist Nhạc Trịnh"))
-        assertEquals(NgocSiAiLocalCommand.ADD_CURRENT_TRACK_TO_PLAYLIST, classifyNgocSiAiWakePhrase("Ngọc Sĩ, thêm bài đang phát vào playlist Nhạc Trịnh"))
+        assertEquals(NgocSiAiLocalCommand.ADD_CURRENT_TRACK_TO_PLAYLIST, classifyNgocSiAiWakePhrase("AI, thêm bài đang phát vào playlist Nhạc Trịnh"))
         assertEquals("Nhạc Trịnh", extractNgocSiAiAddToPlaylistQuery("Thêm bài đang phát vào playlist Nhạc Trịnh"))
     }
 
     @Test
     fun recognizesExplicitYouTubePlaybackControlsWithoutConfusingLocalMusic() {
         assertEquals(NgocSiAiLocalCommand.PAUSE_YOUTUBE, classifyNgocSiAiLocalCommand("Tạm dừng YouTube"))
-        assertEquals(NgocSiAiLocalCommand.RESUME_YOUTUBE, classifyNgocSiAiWakePhrase("Ngọc Sĩ, tiếp tục YouTube"))
-        assertEquals(NgocSiAiLocalCommand.NEXT_YOUTUBE_VIDEO, classifyNgocSiAiWakePhrase("Ngọc Sĩ, video YouTube tiếp theo"))
+        assertEquals(NgocSiAiLocalCommand.RESUME_YOUTUBE, classifyNgocSiAiWakePhrase("AI, tiếp tục YouTube"))
+        assertEquals(NgocSiAiLocalCommand.NEXT_YOUTUBE_VIDEO, classifyNgocSiAiWakePhrase("AI, video YouTube tiếp theo"))
         assertEquals(NgocSiAiLocalCommand.PREVIOUS_YOUTUBE_VIDEO, classifyNgocSiAiLocalCommand("Video YouTube trước"))
         assertEquals(NgocSiAiLocalCommand.YOUTUBE_SHUFFLE_ON, classifyNgocSiAiLocalCommand("Bật phát ngẫu nhiên YouTube"))
-        assertEquals(NgocSiAiLocalCommand.YOUTUBE_SHUFFLE_OFF, classifyNgocSiAiWakePhrase("Ngọc Sĩ, tắt phát ngẫu nhiên YouTube"))
+        assertEquals(NgocSiAiLocalCommand.YOUTUBE_SHUFFLE_OFF, classifyNgocSiAiWakePhrase("AI, tắt phát ngẫu nhiên YouTube"))
         assertEquals(NgocSiAiLocalCommand.YOUTUBE_REPEAT_OFF, classifyNgocSiAiLocalCommand("Tắt lặp YouTube"))
-        assertEquals(NgocSiAiLocalCommand.YOUTUBE_REPEAT_ALL, classifyNgocSiAiWakePhrase("Ngọc Sĩ, lặp hàng đợi YouTube"))
+        assertEquals(NgocSiAiLocalCommand.YOUTUBE_REPEAT_ALL, classifyNgocSiAiWakePhrase("AI, lặp hàng đợi YouTube"))
         assertEquals(NgocSiAiLocalCommand.YOUTUBE_REPEAT_ONE, classifyNgocSiAiLocalCommand("Lặp video YouTube"))
-        assertEquals(NgocSiAiLocalCommand.YOUTUBE_FAVORITE, classifyNgocSiAiWakePhrase("Ngọc Sĩ, thích video YouTube này"))
+        assertEquals(NgocSiAiLocalCommand.YOUTUBE_FAVORITE, classifyNgocSiAiWakePhrase("AI, thích video YouTube này"))
         assertEquals(NgocSiAiLocalCommand.YOUTUBE_WATCH_LATER, classifyNgocSiAiLocalCommand("Lưu video YouTube xem sau"))
         assertEquals(NgocSiAiLocalCommand.PAUSE, classifyNgocSiAiLocalCommand("Tạm dừng nhạc"))
     }
@@ -154,24 +154,24 @@ class NgocSiAiLocalCommandRulesTest {
     @Test
     fun recognizesNamedPlaylistCreateAndPlayCommandsWithAndWithoutAccents() {
         assertEquals(NgocSiAiLocalCommand.CREATE_PLAYLIST, classifyNgocSiAiLocalCommand("Tạo playlist Nhạc Trịnh"))
-        assertEquals(NgocSiAiLocalCommand.PLAY_NAMED_PLAYLIST, classifyNgocSiAiWakePhrase("Ngọc Sĩ, phát playlist Nhạc Trịnh"))
+        assertEquals(NgocSiAiLocalCommand.PLAY_NAMED_PLAYLIST, classifyNgocSiAiWakePhrase("AI, phát playlist Nhạc Trịnh"))
         assertEquals("Nhạc Trịnh", extractNgocSiAiPlaylistQuery("Tạo playlist Nhạc Trịnh", create = true))
         assertEquals("Nhạc Trịnh", extractNgocSiAiPlaylistQuery("Ngọc Sĩ, phát playlist Nhạc Trịnh", create = false))
-        assertEquals(NgocSiAiLocalCommand.PLAY_TRACK, classifyNgocSiAiWakePhrase("Ngọc Sĩ, mở bài Yesterday"))
-        assertEquals(NgocSiAiLocalCommand.PLAY_RADIO_STATION, classifyNgocSiAiWakePhrase("Ngọc Sĩ, phát Radio VOV3"))
-        assertEquals(NgocSiAiLocalCommand.OPEN_TV_CHANNEL, classifyNgocSiAiWakePhrase("Ngọc Sĩ, mở VTV3"))
-        assertEquals(NgocSiAiLocalCommand.SEARCH_YOUTUBE, classifyNgocSiAiWakePhrase("Ngọc Sĩ, tìm YouTube nhạc Trịnh Công Sơn"))
+        assertEquals(NgocSiAiLocalCommand.PLAY_TRACK, classifyNgocSiAiWakePhrase("AI, mở bài Yesterday"))
+        assertEquals(NgocSiAiLocalCommand.PLAY_RADIO_STATION, classifyNgocSiAiWakePhrase("AI, phát Radio VOV3"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_TV_CHANNEL, classifyNgocSiAiWakePhrase("AI, mở VTV3"))
+        assertEquals(NgocSiAiLocalCommand.SEARCH_YOUTUBE, classifyNgocSiAiWakePhrase("AI, tìm YouTube nhạc Trịnh Công Sơn"))
         assertEquals("nhạc Trịnh Công Sơn", extractNgocSiAiYoutubeQuery("Ngọc Sĩ, tìm YouTube nhạc Trịnh Công Sơn"))
     }
 
     @Test
     fun recognizesNamedRadioStationsAndTvChannels() {
         assertEquals(NgocSiAiLocalCommand.PLAY_RADIO_STATION, classifyNgocSiAiLocalCommand("Phát Radio VOV3"))
-        assertEquals(NgocSiAiLocalCommand.PLAY_RADIO_STATION, classifyNgocSiAiWakePhrase("Ngọc Sĩ, mở Radio VOH FM 95.6"))
+        assertEquals(NgocSiAiLocalCommand.PLAY_RADIO_STATION, classifyNgocSiAiWakePhrase("AI, mở Radio VOH FM 95.6"))
         assertEquals("VOV3", extractNgocSiAiRadioStationQuery("Phát Radio VOV3"))
         assertEquals("VOH FM 95.6", extractNgocSiAiRadioStationQuery("Ngọc Sĩ, mở Radio VOH FM 95.6"))
         assertEquals(NgocSiAiLocalCommand.OPEN_TV_CHANNEL, classifyNgocSiAiLocalCommand("Mở VTV3"))
-        assertEquals(NgocSiAiLocalCommand.OPEN_TV_CHANNEL, classifyNgocSiAiWakePhrase("Ngọc Sĩ, mở kênh HTV7"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_TV_CHANNEL, classifyNgocSiAiWakePhrase("AI, mở kênh HTV7"))
         assertEquals("VTV3", extractNgocSiAiTvChannelQuery("Mở VTV3"))
         assertEquals("HTV7", extractNgocSiAiTvChannelQuery("Ngọc Sĩ, mở kênh HTV7"))
         assertEquals(NgocSiAiLocalCommand.OPEN_TV, classifyNgocSiAiLocalCommand("Mở TV"))
@@ -183,7 +183,7 @@ class NgocSiAiLocalCommandRulesTest {
     @Test
     fun recognizesNamedSongPlaybackCommands() {
         assertEquals(NgocSiAiLocalCommand.PLAY_TRACK, classifyNgocSiAiLocalCommand("Phát bài hát Diễm xưa"))
-        assertEquals(NgocSiAiLocalCommand.PLAY_TRACK, classifyNgocSiAiWakePhrase("Ngọc Sĩ, mở bài Yesterday"))
+        assertEquals(NgocSiAiLocalCommand.PLAY_TRACK, classifyNgocSiAiWakePhrase("AI, mở bài Yesterday"))
         assertEquals("Diễm xưa", extractNgocSiAiTrackQuery("Phát bài hát Diễm xưa"))
         assertEquals("Yesterday", extractNgocSiAiTrackQuery("Ngọc Sĩ, mở bài Yesterday"))
         assertNull(extractNgocSiAiTrackQuery("Mở bài hát lên"))
@@ -208,18 +208,18 @@ class NgocSiAiLocalCommandRulesTest {
 
     @Test
     fun wakePhraseRequiresNgocSiAndRecognizesExplicitCommands() {
-        assertEquals(NgocSiAiLocalCommand.NEXT, classifyNgocSiAiWakePhrase("Ngọc Sĩ, chuyển bài"))
-        assertEquals(NgocSiAiLocalCommand.NEXT, classifyNgocSiAiWakePhrase("Ngọc Sĩ, chuyển sang bài tiếp theo nhé"))
-        assertEquals(NgocSiAiLocalCommand.NEXT, classifyNgocSiAiWakePhrase("Ngọc Sĩ, bài tiếp theo"))
-        assertEquals(NgocSiAiLocalCommand.PLAY, classifyNgocSiAiWakePhrase("Ngọc Sĩ, mở nhạc"))
-        assertEquals(NgocSiAiLocalCommand.PAUSE, classifyNgocSiAiWakePhrase("Ngọc Sĩ, dừng nhạc"))
-        assertEquals(NgocSiAiLocalCommand.PAUSE, classifyNgocSiAiWakePhrase("NGỌC SĨ tạm dừng nhạc"))
-        assertEquals(NgocSiAiLocalCommand.SHUFFLE_ON, classifyNgocSiAiWakePhrase("Ngọc Sĩ, bật phát ngẫu nhiên"))
-        assertEquals(NgocSiAiLocalCommand.REPEAT_ONE, classifyNgocSiAiWakePhrase("Ngọc Sĩ, lặp một bài"))
+        assertEquals(NgocSiAiLocalCommand.NEXT, classifyNgocSiAiWakePhrase("AI, chuyển bài"))
+        assertEquals(NgocSiAiLocalCommand.NEXT, classifyNgocSiAiWakePhrase("AI, chuyển sang bài tiếp theo nhé"))
+        assertEquals(NgocSiAiLocalCommand.NEXT, classifyNgocSiAiWakePhrase("AI, bài tiếp theo"))
+        assertEquals(NgocSiAiLocalCommand.PLAY, classifyNgocSiAiWakePhrase("AI, mở nhạc"))
+        assertEquals(NgocSiAiLocalCommand.PAUSE, classifyNgocSiAiWakePhrase("AI, dừng nhạc"))
+        assertEquals(NgocSiAiLocalCommand.PAUSE, classifyNgocSiAiWakePhrase("AI tạm dừng nhạc"))
+        assertEquals(NgocSiAiLocalCommand.SHUFFLE_ON, classifyNgocSiAiWakePhrase("AI, bật phát ngẫu nhiên"))
+        assertEquals(NgocSiAiLocalCommand.REPEAT_ONE, classifyNgocSiAiWakePhrase("AI, lặp một bài"))
         assertNull(classifyNgocSiAiWakePhrase("Chuyển bài"))
-        assertNull(classifyNgocSiAiWakePhrase("Ngọc Sĩ"))
-        assertNull(classifyNgocSiAiWakePhrase("Tôi nghe Ngọc Sĩ chuyển bài"))
-        assertNull(classifyNgocSiAiWakePhrase("Ngọc Sĩ, làm thế nào để chuyển bài?"))
+        assertNull(classifyNgocSiAiWakePhrase("AI"))
+        assertNull(classifyNgocSiAiWakePhrase("Tôi nghe AI chuyển bài"))
+        assertNull(classifyNgocSiAiWakePhrase("AI, làm thế nào để chuyển bài?"))
     }
 
     @Test
@@ -261,7 +261,7 @@ class NgocSiAiLocalCommandRulesTest {
         assertEquals(NgocSiAiLocalCommand.STOP, classifyNgocSiAiLocalCommand("Ngừng hẳn nhạc"))
         assertEquals(NgocSiAiLocalCommand.STOP, classifyNgocSiAiLocalCommand("Dừng hoàn toàn"))
         assertEquals(NgocSiAiLocalCommand.PAUSE, classifyNgocSiAiLocalCommand("Tạm dừng nhạc"))
-        assertEquals(NgocSiAiLocalCommand.STOP, classifyNgocSiAiWakePhrase("Ngọc Sĩ, dừng hẳn nhạc"))
+        assertEquals(NgocSiAiLocalCommand.STOP, classifyNgocSiAiWakePhrase("AI, dừng hẳn nhạc"))
         assertNull(classifyNgocSiAiWakePhrase("Dừng hẳn nhạc"))
     }
 
@@ -305,7 +305,7 @@ class NgocSiAiLocalCommandRulesTest {
         assertEquals(NgocSiAiLocalCommand.PAUSE, classifyNgocSiAiLocalCommand("Tắt nhạc đi"))
         assertEquals(NgocSiAiLocalCommand.NEXT, classifyNgocSiAiLocalCommand("Tiếp theo"))
         assertEquals(NgocSiAiLocalCommand.NEXT, classifyNgocSiAiLocalCommand("Qua bài"))
-        assertEquals(NgocSiAiLocalCommand.NEXT, classifyNgocSiAiWakePhrase("Ngọc Sĩ, chuyển sang bài kế tiếp"))
+        assertEquals(NgocSiAiLocalCommand.NEXT, classifyNgocSiAiWakePhrase("AI, chuyển sang bài kế tiếp"))
         assertEquals(NgocSiAiLocalCommand.PREVIOUS, classifyNgocSiAiLocalCommand("Bài trước đó"))
     }
 
@@ -324,7 +324,7 @@ class NgocSiAiLocalCommandRulesTest {
     fun wakeWordCandidateSelectionStillRequiresTheWakePhrase() {
         assertEquals(
             "Ngọc Sĩ, chuyển bài",
-            selectNgocSiAiWakePhraseCandidate(listOf("chuyển bài", "Ngọc Sĩ, chuyển bài", "Ngọc Sĩ"))
+            selectNgocSiAiWakePhraseCandidate(listOf("chuyển bài", "AI, chuyển bài", "AI"))
         )
         assertEquals("chuyển bài", selectNgocSiAiWakePhraseCandidate(listOf("chuyển bài", "qua bài")))
     }
@@ -364,7 +364,7 @@ class NgocSiAiLocalCommandRulesTest {
         )
         assertEquals(
             NgocSiAiLocalCommand.HELP,
-            classifyNgocSiAiWakePhrase("Ngọc Sĩ, hôm nay bạn có thể giúp tôi việc gì?")
+            classifyNgocSiAiWakePhrase("AI, hôm nay bạn có thể giúp tôi việc gì?")
         )
         assertEquals(
             NgocSiAiLocalCommand.HELP,
@@ -401,10 +401,10 @@ class NgocSiAiLocalCommandRulesTest {
 
     @Test
     fun wakeWordCanActivateListeningForOneSubsequentPlaybackCommand() {
-        assertEquals(true, isNgocSiAiWakeWordOnly("Ngọc Sĩ"))
-        assertEquals(true, isNgocSiAiWakeWordOnly("Ngọc Sĩ ơi"))
-        assertEquals(true, isNgocSiAiWakeWordOnly("OK Ngọc Sĩ"))
-        assertEquals(false, isNgocSiAiWakeWordOnly("Ngọc Sĩ, chuyển bài"))
+        assertEquals(true, isNgocSiAiWakeWordOnly("AI"))
+        assertEquals(true, isNgocSiAiWakeWordOnly("AI ơi"))
+        assertEquals(true, isNgocSiAiWakeWordOnly("OK AI"))
+        assertEquals(false, isNgocSiAiWakeWordOnly("AI, chuyển bài"))
 
         assertEquals(
             NgocSiAiLocalCommand.NEXT,
@@ -432,24 +432,24 @@ class NgocSiAiLocalCommandRulesTest {
     fun wakeWordCandidateSelectionPrefersWakeOnlyPhraseOverUnrelatedHypothesis() {
         assertEquals(
             "Ngọc Sĩ",
-            selectNgocSiAiWakePhraseCandidate(listOf("tóc sĩ", "Ngọc Sĩ"))
+            selectNgocSiAiWakePhraseCandidate(listOf("tóc sĩ", "AI"))
         )
     }
 
     @Test
     fun wakeWordCanRouteAcrossAppFeaturesAndTimers() {
-        assertEquals(NgocSiAiLocalCommand.OPEN_YOUTUBE, classifyNgocSiAiWakePhrase("Ngọc Sĩ, mở YouTube"))
-        assertEquals(NgocSiAiLocalCommand.OPEN_DRIVE, classifyNgocSiAiWakePhrase("Ngọc Sĩ, mở Google Drive"))
-        assertEquals(NgocSiAiLocalCommand.OPEN_RADIO, classifyNgocSiAiWakePhrase("Ngọc Sĩ, mở Radio"))
-        assertEquals(NgocSiAiLocalCommand.OPEN_TV, classifyNgocSiAiWakePhrase("Ngọc Sĩ, mở TV"))
-        assertEquals(NgocSiAiLocalCommand.OPEN_FAVORITES, classifyNgocSiAiWakePhrase("Ngọc Sĩ, mở Yêu thích"))
-        assertEquals(NgocSiAiLocalCommand.OPEN_ALBUMS, classifyNgocSiAiWakePhrase("Ngọc Sĩ, mở Album"))
-        assertEquals(NgocSiAiLocalCommand.OPEN_FOLDERS, classifyNgocSiAiWakePhrase("Ngọc Sĩ, mở Thư mục"))
-        assertEquals(NgocSiAiLocalCommand.OPEN_ONLINE, classifyNgocSiAiWakePhrase("Ngọc Sĩ, mở Online"))
-        assertEquals(NgocSiAiLocalCommand.SEARCH_YOUTUBE, classifyNgocSiAiWakePhrase("Ngọc Sĩ, tìm YouTube nhạc Trịnh Công Sơn"))
-        assertEquals(NgocSiAiLocalCommand.SLEEP_TIMER_30, classifyNgocSiAiWakePhrase("Ngọc Sĩ, hẹn giờ 30 phút"))
-        assertEquals(NgocSiAiLocalCommand.CANCEL_SLEEP_TIMER, classifyNgocSiAiWakePhrase("Ngọc Sĩ, hủy hẹn giờ"))
-        assertEquals(NgocSiAiLocalCommand.NEXT, classifyNgocSiAiWakePhrase("Ngọc Sĩ, chuyển bài"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_YOUTUBE, classifyNgocSiAiWakePhrase("AI, mở YouTube"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_DRIVE, classifyNgocSiAiWakePhrase("AI, mở Google Drive"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_RADIO, classifyNgocSiAiWakePhrase("AI, mở Radio"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_TV, classifyNgocSiAiWakePhrase("AI, mở TV"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_FAVORITES, classifyNgocSiAiWakePhrase("AI, mở Yêu thích"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_ALBUMS, classifyNgocSiAiWakePhrase("AI, mở Album"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_FOLDERS, classifyNgocSiAiWakePhrase("AI, mở Thư mục"))
+        assertEquals(NgocSiAiLocalCommand.OPEN_ONLINE, classifyNgocSiAiWakePhrase("AI, mở Online"))
+        assertEquals(NgocSiAiLocalCommand.SEARCH_YOUTUBE, classifyNgocSiAiWakePhrase("AI, tìm YouTube nhạc Trịnh Công Sơn"))
+        assertEquals(NgocSiAiLocalCommand.SLEEP_TIMER_30, classifyNgocSiAiWakePhrase("AI, hẹn giờ 30 phút"))
+        assertEquals(NgocSiAiLocalCommand.CANCEL_SLEEP_TIMER, classifyNgocSiAiWakePhrase("AI, hủy hẹn giờ"))
+        assertEquals(NgocSiAiLocalCommand.NEXT, classifyNgocSiAiWakePhrase("AI, chuyển bài"))
         // Unrelated speech must not trigger an app action without the wake phrase.
         assertNull(classifyNgocSiAiWakePhrase("Mở YouTube"))
     }
@@ -579,7 +579,7 @@ class NgocSiAiLocalCommandRulesTest {
         )
         assertEquals(
             NgocSiAiLocalCommand.PAUSE,
-            classifyNgocSiAiWakePhrase("Ngọc Sĩ, tạm dừng nhạc giúp tôi")
+            classifyNgocSiAiWakePhrase("AI, tạm dừng nhạc giúp tôi")
         )
     }
 
@@ -600,7 +600,7 @@ class NgocSiAiLocalCommandRulesTest {
         )
         assertEquals(
             NgocSiAiLocalCommand.NEXT,
-            classifyNgocSiAiWakePhrase("Ngọc Sĩ ơi, bạn chuyển bài tiếp theo giúp mình")
+            classifyNgocSiAiWakePhrase("AI ơi, bạn chuyển bài tiếp theo giúp mình")
         )
         assertEquals(
             true,
