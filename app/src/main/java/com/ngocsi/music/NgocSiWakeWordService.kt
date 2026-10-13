@@ -234,16 +234,19 @@ class NgocSiWakeWordService : Service() {
     private fun dispatchNgocSiAiCommandWhenReady(
         command: NgocSiAiLocalCommand,
         recognized: String,
-        attemptsRemaining: Int = 8
+        attemptsRemaining: Int = 18
     ) {
         if (stopping) return
 
         if (
             command == NgocSiAiLocalCommand.STOP &&
             productionMusicController == null &&
-            productionMusicControllerConnecting &&
             attemptsRemaining > 0
         ) {
+            // The first voice command can arrive before the stable app's MediaSession
+            // connection has completed. Always initiate/re-initiate the connection and
+            // wait briefly instead of telling the user to repeat the stop command.
+            connectProductionMusicController()
             mainHandler.postDelayed({
                 dispatchNgocSiAiCommandWhenReady(command, recognized, attemptsRemaining - 1)
             }, PLAYER_CONNECT_RETRY_MILLIS)
@@ -856,7 +859,7 @@ class NgocSiWakeWordService : Service() {
     }
 
     companion object {
-        private const val PLAYER_CONNECT_RETRY_MILLIS = 250L
+        private const val PLAYER_CONNECT_RETRY_MILLIS = 300L
         const val ACTION_START = "com.ngocsi.music.action.START_WAKE_WORD"
         const val ACTION_STOP = "com.ngocsi.music.action.STOP_WAKE_WORD"
         const val ACTION_VOICE_CHANGED = "com.ngocsi.music.action.WAKE_WORD_VOICE_CHANGED"
