@@ -315,7 +315,7 @@ class NgocSiWakeWordService : Service() {
      */
     private fun runAppCommand(command: NgocSiAiLocalCommand, originalText: String): String {
         if (command == NgocSiAiLocalCommand.HELP) {
-            return "Tôi có thể phát bài theo tên, điều khiển nhạc; mở Trang chủ, Thư viện, Yêu thích, Album, Thư mục, YouTube, Drive, Radio, TV, Online, Playlist, Hàng đợi, Trình phát, Cài đặt và hẹn giờ. Hãy nói lệnh tiếp theo."
+            return "Tôi có thể phát bài theo tên, điều khiển nhạc; mở Trang chủ, Thư viện, Yêu thích, Album, Thư mục, YouTube, Drive, từng đài Radio, từng kênh TV, Online, Playlist, Hàng đợi, Trình phát, Cài đặt và hẹn giờ. Ví dụ: mở VTV3 hoặc phát Radio VOV3."
         }
 
         val destination = when (command) {
@@ -329,7 +329,9 @@ class NgocSiWakeWordService : Service() {
             NgocSiAiLocalCommand.SEARCH_YOUTUBE -> "youtube"
             NgocSiAiLocalCommand.OPEN_DRIVE -> "drive"
             NgocSiAiLocalCommand.OPEN_RADIO -> "radio"
+            NgocSiAiLocalCommand.PLAY_RADIO_STATION -> "radio_station"
             NgocSiAiLocalCommand.OPEN_TV -> "tv"
+            NgocSiAiLocalCommand.OPEN_TV_CHANNEL -> "tv_channel"
             NgocSiAiLocalCommand.OPEN_PLAYLISTS -> "playlists"
             NgocSiAiLocalCommand.OPEN_QUEUE -> "queue"
             NgocSiAiLocalCommand.OPEN_PLAYER -> "player"
@@ -350,6 +352,14 @@ class NgocSiWakeWordService : Service() {
                 extractNgocSiAiYoutubeQuery(originalText)
                     ?: return "Hãy nói rõ nội dung cần tìm, ví dụ: Ngọc Sĩ, tìm YouTube nhạc Trịnh Công Sơn."
             } else null
+            val radioQuery = if (command == NgocSiAiLocalCommand.PLAY_RADIO_STATION) {
+                extractNgocSiAiRadioStationQuery(originalText)
+                    ?: return "Hãy nói tên đài, ví dụ: Ngọc Sĩ, phát Radio VOV3."
+            } else null
+            val tvQuery = if (command == NgocSiAiLocalCommand.OPEN_TV_CHANNEL) {
+                extractNgocSiAiTvChannelQuery(originalText)
+                    ?: return "Hãy nói tên kênh, ví dụ: Ngọc Sĩ, mở VTV3."
+            } else null
             val response = when (command) {
                 NgocSiAiLocalCommand.SEARCH_YOUTUBE -> "Đã gửi lệnh tìm YouTube: $query"
                 NgocSiAiLocalCommand.OPEN_HOME -> "Đã gửi lệnh mở Trang chủ."
@@ -361,7 +371,9 @@ class NgocSiWakeWordService : Service() {
                 NgocSiAiLocalCommand.OPEN_YOUTUBE -> "Đã gửi lệnh mở YouTube."
                 NgocSiAiLocalCommand.OPEN_DRIVE -> "Đã gửi lệnh mở Google Drive."
                 NgocSiAiLocalCommand.OPEN_RADIO -> "Đã gửi lệnh mở Radio."
+                NgocSiAiLocalCommand.PLAY_RADIO_STATION -> "Đang mở đài $radioQuery."
                 NgocSiAiLocalCommand.OPEN_TV -> "Đã gửi lệnh mở TV."
+                NgocSiAiLocalCommand.OPEN_TV_CHANNEL -> "Đang mở kênh $tvQuery."
                 NgocSiAiLocalCommand.OPEN_PLAYLISTS -> "Đã gửi lệnh mở Danh sách phát."
                 NgocSiAiLocalCommand.OPEN_QUEUE -> "Đã gửi lệnh mở Hàng đợi."
                 NgocSiAiLocalCommand.OPEN_PLAYER -> "Đã gửi lệnh mở Trình phát."
@@ -380,6 +392,8 @@ class NgocSiWakeWordService : Service() {
                 val intent = Intent(this, MainActivity::class.java).apply {
                     putExtra("pro_destination", destination)
                     query?.let { putExtra("ai_youtube_query", it) }
+                    radioQuery?.let { putExtra("ai_radio_station", it) }
+                    tvQuery?.let { putExtra("ai_tv_channel", it) }
                     addFlags(
                         Intent.FLAG_ACTIVITY_NEW_TASK or
                             Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
