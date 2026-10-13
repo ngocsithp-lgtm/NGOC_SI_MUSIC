@@ -439,7 +439,7 @@ class NgocSiAiLocalCommandRulesTest {
     fun activatedWakeWordCommandSelectionPrefersActionableSpeechHypothesis() {
         assertEquals(
             "chuyển bài",
-            selectNgocSiAiActivatedCommandCandidate(listOf("chuyện bài", "chuyển bài", "chuyển về"))
+            selectNgocSiAiActivatedCommandCandidate(listOf("chuyển bây", "chuyển bài", "chuyển về"))
         )
         assertEquals(
             "Ngọc Sĩ, mở YouTube lên",
