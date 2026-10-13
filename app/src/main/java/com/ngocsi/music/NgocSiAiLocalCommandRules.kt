@@ -11,6 +11,7 @@ internal enum class NgocSiAiLocalCommand {
     OPEN_TV_CHANNEL,
     CREATE_PLAYLIST,
     PLAY_NAMED_PLAYLIST,
+    ADD_CURRENT_TRACK_TO_PLAYLIST,
     RESUME_YOUTUBE,
     PAUSE_YOUTUBE,
     NEXT_YOUTUBE_VIDEO,
@@ -76,6 +77,7 @@ private val NGOC_SI_AI_WAKE_WORD_COMMANDS = setOf(
     NgocSiAiLocalCommand.OPEN_TV_CHANNEL,
     NgocSiAiLocalCommand.CREATE_PLAYLIST,
     NgocSiAiLocalCommand.PLAY_NAMED_PLAYLIST,
+    NgocSiAiLocalCommand.ADD_CURRENT_TRACK_TO_PLAYLIST,
     NgocSiAiLocalCommand.RESUME_YOUTUBE,
     NgocSiAiLocalCommand.PAUSE_YOUTUBE,
     NgocSiAiLocalCommand.NEXT_YOUTUBE_VIDEO,
@@ -204,6 +206,7 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
         extractNgocSiAiTvChannelQuery(input) != null -> NgocSiAiLocalCommand.OPEN_TV_CHANNEL
         extractNgocSiAiPlaylistQuery(input, create = true) != null -> NgocSiAiLocalCommand.CREATE_PLAYLIST
         extractNgocSiAiPlaylistQuery(input, create = false) != null -> NgocSiAiLocalCommand.PLAY_NAMED_PLAYLIST
+        extractNgocSiAiAddToPlaylistQuery(input) != null -> NgocSiAiLocalCommand.ADD_CURRENT_TRACK_TO_PLAYLIST
 
         // Match named-song commands before generic play/pause phrases.
         extractNgocSiAiTrackQuery(input) != null -> NgocSiAiLocalCommand.PLAY_TRACK
@@ -427,6 +430,19 @@ internal fun extractNgocSiAiPlaylistQuery(input: String, create: Boolean): Strin
     if (normalized.isBlank() || normalized in setOf("moi", "moi nhe", "nhe", "di")) return null
     return query.take(100)
 }
+/**
+ * Extract a playlist target for adding the currently playing song.
+ */
+internal fun extractNgocSiAiAddToPlaylistQuery(input: String): String? {
+    val raw = input.trim()
+    val prefixes = listOf(
+        Regex("""^(?:(?:ngọc sĩ|ngoc si)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:thêm|them|lưu|luu)\s+(?:bài đang phát|bai dang phat|bài hiện tại|bai hien tai)\s+(?:(?:vào|vao)\s+)?(?:playlist|danh sách phát|danh sach phat)\s+""", RegexOption.IGNORE_CASE)
+    )
+    val prefix = prefixes.firstOrNull { it.containsMatchIn(raw) } ?: return null
+    val query = prefix.replaceFirst(raw, "").trim().trim(',', ':', '-', '.', '?', '!')
+    return query.take(100).takeIf { normalizeNgocSiAiVoicePhrase(it).isNotBlank() }
+}
+
 /**
  * Extract an explicit radio-station request. Examples: "Phát Radio VOV3", "Mở Radio VOH FM 95.6".
  */
