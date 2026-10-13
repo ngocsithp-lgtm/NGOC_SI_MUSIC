@@ -394,6 +394,33 @@ class NgocSiWakeWordService : Service() {
         }
 
         val player = musicController ?: return "Trình phát chưa kết nối. Hãy mở NGỌC SĨ MUSIC một lần rồi thử lại."
+        if (command == NgocSiAiLocalCommand.PLAY_TRACK) {
+            val query = extractNgocSiAiTrackQuery(originalText)
+                ?: return "Hãy nói rõ tên bài, ví dụ: “Ngọc Sĩ, phát bài hát Diễm xưa”."
+            if (player.mediaItemCount == 0) {
+                return "Hàng đợi đang trống. Hãy mở Thư viện trong NGỌC SĨ MUSIC rồi thử lệnh phát theo tên bài."
+            }
+            val normalizedQuery = normalizeNgocSiAiVoicePhrase(query)
+            val exactIndex = (0 until player.mediaItemCount).firstOrNull { index ->
+                normalizeNgocSiAiVoicePhrase(
+                    player.getMediaItemAt(index).mediaMetadata.title?.toString().orEmpty()
+                ) == normalizedQuery
+            }
+            val matchIndex = exactIndex ?: (0 until player.mediaItemCount).firstOrNull { index ->
+                val item = player.getMediaItemAt(index)
+                val title = normalizeNgocSiAiVoicePhrase(item.mediaMetadata.title?.toString().orEmpty())
+                val artist = normalizeNgocSiAiVoicePhrase(item.mediaMetadata.artist?.toString().orEmpty())
+                title.contains(normalizedQuery) || artist.contains(normalizedQuery)
+            }
+            if (matchIndex == null) {
+                return "Không tìm thấy “$query” trong hàng đợi. Hãy mở Thư viện rồi thử lại."
+            }
+            player.seekTo(matchIndex, 0L)
+            player.play()
+            val title = player.getMediaItemAt(matchIndex).mediaMetadata.title?.toString()
+                ?.takeIf { it.isNotBlank() } ?: query
+            return "Đang phát $title."
+        }
         if (player.mediaItemCount == 0 || player.currentMediaItem == null) {
             return when (command) {
                 NgocSiAiLocalCommand.PLAY,
