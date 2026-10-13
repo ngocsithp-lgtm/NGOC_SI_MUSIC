@@ -221,6 +221,15 @@ class NgocSiAiLocalCommandRulesTest {
     }
 
     @Test
+    fun distinguishesHardStopFromPauseAndRequiresWakePhraseInWakeMode() {
+        assertEquals(NgocSiAiLocalCommand.STOP, classifyNgocSiAiLocalCommand("Dừng hẳn nhạc"))
+        assertEquals(NgocSiAiLocalCommand.STOP, classifyNgocSiAiLocalCommand("Dừng hoàn toàn"))
+        assertEquals(NgocSiAiLocalCommand.PAUSE, classifyNgocSiAiLocalCommand("Tạm dừng nhạc"))
+        assertEquals(NgocSiAiLocalCommand.STOP, classifyNgocSiAiWakePhrase("Ngọc Sĩ, dừng hẳn nhạc"))
+        assertNull(classifyNgocSiAiWakePhrase("Dừng hẳn nhạc"))
+    }
+
+    @Test
     fun recognizesAdditionalCommonVietnameseSpokenCommands() {
         assertEquals(NgocSiAiLocalCommand.PLAY, classifyNgocSiAiLocalCommand("Phát bài hát đi"))
         assertEquals(NgocSiAiLocalCommand.PLAY, classifyNgocSiAiLocalCommand("Cho tôi nghe nhạc"))
