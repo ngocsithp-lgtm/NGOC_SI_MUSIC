@@ -170,7 +170,7 @@ private fun trimNgocSiAiNormalizedCommandFillers(input: String): String {
     val suffixes = listOf(
         " duoc khong", " duoc chu", " giup toi nhe", " giup minh nhe",
         " nhe nha", " voi nhe", " giup toi", " giup minh", " cho toi",
-        " mot chut", " nhe", " nha", " voi", " di", " len"
+        " nhe", " nha", " voi", " di", " len"
     )
     while (true) {
         val suffix = suffixes.firstOrNull { phrase.endsWith(it) && phrase.length > it.length } ?: break
@@ -428,7 +428,8 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
             "ngung bai hat", "ngung phat", "ngung phat nhac",
             "dung", "dung lai", "dung lai di", "dung nhac", "dung nhac lai",
             "dung phat", "dung phat di", "dung phat nhac", "dung phat nhac di",
-            "tam dung bai hat", "tam dung nhac mot chut", "dung nhac mot chut",
+            "tam dung bai hat", "tam dung bai hat mot chut",
+            "tam dung nhac mot chut", "dung nhac mot chut",
             "tat nhac", "tat nhac di", "cho dung nhac",
             "pause", "pause music", "stop", "stop music"
         ) -> NgocSiAiLocalCommand.PAUSE
@@ -439,7 +440,7 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
             "chuyen sang bai tiep theo", "chuyen sang bai ke tiep", "sang bai tiep theo",
             "chuyen qua bai sau", "bai sau", "nhac tiep", "cho bai tiep theo",
             "chuyen sang bai khac", "sang bai khac", "doi sang bai khac", "doi bai khac",
-            "bo bai nay", "bo qua bai nay", "bo qua bai dang phat",
+            "qua bai", "bo bai nay", "bo qua bai nay", "bo qua bai dang phat",
             "skip", "skip song", "skip this song", "skip this track",
             "skip to next song", "next", "next song", "next track"
         ) -> NgocSiAiLocalCommand.NEXT
