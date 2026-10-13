@@ -1999,8 +1999,8 @@ class MainActivity : ComponentActivity() {
             accessToken,
             resourceKey?.takeIf { it.isNotBlank() }?.let { "$id/$it" }
         )
-        val shortcut = root.optJSONObject("shortcutDetails")
-        val targetId = shortcut?.optString("targetId").orEmpty().trim()
+        val shortcut = root.optJSONObject("shortcutDetails") ?: return root
+        val targetId = shortcut.optString("targetId").orEmpty().trim()
         if (targetId.isBlank()) return root
 
         val targetKey = shortcut.optString("targetResourceKey").trim()

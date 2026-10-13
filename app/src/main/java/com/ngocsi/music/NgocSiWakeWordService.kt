@@ -56,7 +56,7 @@ class NgocSiWakeWordService : Service() {
                 val tts = textToSpeech
                 if (tts != null) {
                     val vietnameseResult = runCatching {
-                        tts.setLanguage(Locale("vi", "VN"))
+                        tts.setLanguage(Locale.forLanguageTag("vi-VN"))
                     }.getOrDefault(TextToSpeech.LANG_MISSING_DATA)
                     ttsReady = vietnameseResult >= TextToSpeech.LANG_AVAILABLE
                     if (!ttsReady) {

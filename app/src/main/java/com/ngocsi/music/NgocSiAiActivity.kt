@@ -492,7 +492,7 @@ class NgocSiAiActivity : ComponentActivity() {
                         }
                     })
                     val vietnameseResult = runCatching {
-                        tts.setLanguage(Locale("vi", "VN"))
+                        tts.setLanguage(Locale.forLanguageTag("vi-VN"))
                     }.getOrDefault(TextToSpeech.LANG_MISSING_DATA)
                     responseTtsReady = vietnameseResult >= TextToSpeech.LANG_AVAILABLE
                     if (!responseTtsReady) {

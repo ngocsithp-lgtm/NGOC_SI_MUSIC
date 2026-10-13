@@ -20,7 +20,7 @@ internal object NgocSiAiVoiceSettings {
     const val PREFERENCES_NAME = "ngoc_si_ai_voice_settings"
     const val KEY_SELECTED_VOICE_NAME = "selected_voice_name"
 
-    private val vietnameseLocale = Locale("vi", "VN")
+    private val vietnameseLocale = Locale.forLanguageTag("vi-VN")
 
     fun selectedVoiceName(context: Context): String? =
         context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
