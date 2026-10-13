@@ -634,7 +634,11 @@ class NgocSiAiActivity : ComponentActivity() {
                         title.contains(normalizedQuery) || artist.contains(normalizedQuery)
                     }.takeIf { it >= 0 }
                 }
-                val shouldStartPlayback = pendingPlayAfterQueueLoad || targetTrackIndex != null
+                val shouldStartPlayback = if (pendingTrackQuery != null) {
+                    targetTrackIndex != null
+                } else {
+                    pendingPlayAfterQueueLoad
+                }
                 val requestedStartIndex = targetTrackIndex ?: pendingQueueStartIndexAfterLoad ?: 0
                 pendingPlayAfterQueueLoad = false
                 pendingQueueStartIndexAfterLoad = null
