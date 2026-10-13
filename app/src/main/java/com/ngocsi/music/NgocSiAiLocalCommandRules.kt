@@ -25,6 +25,7 @@ internal enum class NgocSiAiLocalCommand {
     YOUTUBE_FAVORITE,
     YOUTUBE_WATCH_LATER,
     PAUSE,
+    STOP,
     NEXT,
     PREVIOUS,
     CURRENT_TRACK,
@@ -71,6 +72,7 @@ internal enum class NgocSiAiLocalCommand {
 private val NGOC_SI_AI_WAKE_WORD_COMMANDS = setOf(
     NgocSiAiLocalCommand.PLAY,
     NgocSiAiLocalCommand.PAUSE,
+    NgocSiAiLocalCommand.STOP,
     NgocSiAiLocalCommand.NEXT,
     NgocSiAiLocalCommand.PREVIOUS,
     NgocSiAiLocalCommand.PLAY_SECOND,
@@ -278,6 +280,11 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
             "play", "play music", "resume", "resume music",
             "mo nhac", "mo nhac di", "mo nhac len"
         ) -> NgocSiAiLocalCommand.PLAY
+
+        startsWithAny(
+            "dung han", "dung han nhac", "dung hoan toan", "dung phat han",
+            "stop playback", "stop completely"
+        ) -> NgocSiAiLocalCommand.STOP
 
         isAnyOf(
             "tam dung", "tam dung nhac", "tam dung lai", "tam dung bai hat",
