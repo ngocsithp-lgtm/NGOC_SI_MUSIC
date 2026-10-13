@@ -24,6 +24,16 @@ class NgocSiAiLocalCommandRulesTest {
     }
 
     @Test
+    fun recognizesNamedSongPlaybackCommands() {
+        assertEquals(NgocSiAiLocalCommand.PLAY_TRACK, classifyNgocSiAiLocalCommand("Phát bài hát Diễm xưa"))
+        assertEquals(NgocSiAiLocalCommand.PLAY_TRACK, classifyNgocSiAiWakePhrase("Ngọc Sĩ, mở bài Yesterday"))
+        assertEquals("Diễm xưa", extractNgocSiAiTrackQuery("Phát bài hát Diễm xưa"))
+        assertEquals("Yesterday", extractNgocSiAiTrackQuery("Ngọc Sĩ, mở bài Yesterday"))
+        assertNull(extractNgocSiAiTrackQuery("Mở bài hát lên"))
+        assertEquals(NgocSiAiLocalCommand.PLAY, classifyNgocSiAiLocalCommand("Mở bài hát lên"))
+    }
+
+    @Test
     fun recognizesCurrentTrackStatusQuestions() {
         assertEquals(NgocSiAiLocalCommand.CURRENT_TRACK, classifyNgocSiAiLocalCommand("Đang phát bài gì?"))
         assertEquals(NgocSiAiLocalCommand.CURRENT_TRACK, classifyNgocSiAiLocalCommand("Ngọc Sĩ, bài gì đang phát"))
