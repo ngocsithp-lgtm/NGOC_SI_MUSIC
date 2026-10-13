@@ -59,7 +59,7 @@ internal object NgocSiAiVoiceSettings {
         val counts = mutableMapOf<String, Int>()
         return sorted.map { voice ->
             val languageTag = voice.locale.toLanguageTag()
-            val groupKey = "$languageTag|\${voice.isNetworkConnectionRequired}"
+            val groupKey = "$languageTag|${voice.isNetworkConnectionRequired}"
             val index = (counts[groupKey] ?: 0) + 1
             counts[groupKey] = index
             val languageName = voice.locale.getDisplayName(vietnameseLocale)
