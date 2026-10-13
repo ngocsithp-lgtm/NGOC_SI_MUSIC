@@ -925,20 +925,26 @@ class NgocSiAiActivity : ComponentActivity() {
         val production = productionMusicController
         val preview = musicController
 
-        // If the production session is still binding, don't accidentally stop an
-        // idle Preview queue while the real production player continues to play.
+        // Never stop an idle Preview queue as a false substitute for the stable player's
+        // session. If the stable session is unavailable, report that stopping was not done.
         if (production == null && productionMusicControllerConnecting) {
-            return "Đang kết nối trình phát NGỌC SĨ MUSIC. Hãy nói lại lệnh dừng sau một lát."
+            return "Đang kết nối trình phát NGỌC SĨ MUSIC. Nhạc chưa được xác nhận là đã dừng."
         }
 
-        val target = when {
-            hasActivePlayback(production) -> production
-            hasActivePlayback(preview) -> preview
-            preview != null -> preview
-            else -> production
+        val target = when (
+            selectNgocSiAiStopPlaybackTarget(
+                productionConnected = production != null,
+                productionActive = hasActivePlayback(production),
+                previewConnected = preview != null,
+                previewActive = hasActivePlayback(preview)
+            )
+        ) {
+            NgocSiAiPlaybackTarget.PRODUCTION -> production
+            NgocSiAiPlaybackTarget.PREVIEW -> preview
+            null -> null
         } ?: run {
             connectProductionMusicController()
-            return "Chưa kết nối được trình phát. Hãy thử lại sau một lát."
+            return "Chưa kết nối được trình phát NGỌC SĨ MUSIC; nhạc chưa được dừng. Hãy mở ứng dụng chính rồi thử lại."
         }
 
         return runCatching {
@@ -948,10 +954,10 @@ class NgocSiAiActivity : ComponentActivity() {
             if (target === production) {
                 "Đã dừng hẳn nhạc đang phát trong NGỌC SĨ MUSIC."
             } else {
-                "Đã dừng hẳn nhạc trong NGỌC SĨ AI Preview."
+                "Đã dừng hẳn nhạc đang phát trong NGỌC SĨ AI Preview."
             }
         }.getOrElse {
-            "Không thể dừng nhạc lúc này. Hãy thử lại."
+            "Không thể dừng nhạc lúc này. Nhạc chưa được xác nhận là đã dừng; hãy thử lại."
         }
     }
 
