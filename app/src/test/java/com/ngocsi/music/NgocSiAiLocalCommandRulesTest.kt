@@ -140,6 +140,22 @@ class NgocSiAiLocalCommandRulesTest {
     }
 
     @Test
+    fun aiWakePhraseRecognizesImmediateHardStopWithoutOnlineAi() {
+        assertEquals(
+            NgocSiAiLocalCommand.STOP,
+            classifyNgocSiAiWakePhrase("AI, dừng hẳn nhạc")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.STOP,
+            classifyNgocSiAiWakePhrase("AI, đừng phát nhạc nữa")
+        )
+        assertEquals(
+            false,
+            isNgocSiAiExplicitStopPhrase("AI, dừng nhạc sau 15 phút")
+        )
+    }
+
+    @Test
     fun directAiPrefixRoutesAppCommandsLocally() {
         assertEquals(
             NgocSiAiLocalCommand.OPEN_YOUTUBE,
