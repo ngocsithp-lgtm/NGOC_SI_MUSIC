@@ -295,7 +295,8 @@ class NgocSiAiActivity : ComponentActivity() {
                 .filter { it.isNotBlank() }
             // Prefer a recognized candidate that matches an implemented music command;
             // otherwise keep Android's highest-confidence candidate.
-            val phrase = candidates.firstOrNull { classifyNgocSiAiLocalCommand(it) != null }
+            val phrase = candidates.firstOrNull { isExplicitStopPlaybackPhrase(it) }
+                ?: candidates.firstOrNull { classifyNgocSiAiLocalCommand(it) != null }
                 ?: candidates.firstOrNull().orEmpty()
             runOnUiThread {
                 voiceRecognitionInProgress = false
@@ -334,7 +335,8 @@ class NgocSiAiActivity : ComponentActivity() {
             val candidates = result.data
                 ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
                 .orEmpty()
-            val phrase = selectNgocSiAiLocalCommandCandidate(candidates).orEmpty()
+            val phrase = candidates.firstOrNull { isExplicitStopPlaybackPhrase(it) }
+                ?: selectNgocSiAiLocalCommandCandidate(candidates).orEmpty()
             if (result.resultCode == RESULT_OK && phrase.isNotBlank()) {
                 // Confirm recognition immediately so a user can distinguish microphone/
                 // speech-service problems from command-routing or AI-backend problems.
@@ -764,6 +766,50 @@ class NgocSiAiActivity : ComponentActivity() {
             )
         }
         return openAppDestination("youtube_command", response, youtubeAction = action)
+    }
+
+    private fun isExplicitStopPlaybackPhrase(text: String): Boolean {
+        val normalized = java.text.Normalizer.normalize(
+            text.lowercase(java.util.Locale.ROOT),
+            java.text.Normalizer.Form.NFD
+        )
+            .replace(Regex("\\p{M}+"), "")
+            .replace('đ', 'd')
+            .replace(Regex("[^a-z0-9\\s]"), " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+
+        val command = normalized
+            .replace(Regex("^(hey\\s+)?ngoc\\s+si(\\s+oi)?\\s+"), "")
+            .removePrefix("lam on ")
+            .removePrefix("hay ")
+            .trim()
+
+        // "Tạm dừng" is a pause request, not the explicit Stop action.
+        if (command.startsWith("tam dung") || command.startsWith("pause")) return false
+
+        val stopPhrases = listOf(
+            "dung hoan toan phat nhac",
+            "dung hoan toan nhac",
+            "dung het phat nhac",
+            "dung het nhac",
+            "dung han phat nhac",
+            "dung han nhac",
+            "ngung han phat nhac",
+            "ngung han nhac",
+            "dung phat nhac",
+            "dung nhac",
+            "ngung phat nhac",
+            "ngung nhac",
+            "tat het nhac",
+            "tat phat nhac",
+            "tat nhac",
+            "dung bai hat",
+            "stop the music",
+            "stop music",
+            "stop playback"
+        )
+        return stopPhrases.any { command == it || command.startsWith("$it ") }
     }
 
     private fun runLocalCommand(command: NgocSiAiLocalCommand, originalText: String = ""): String {
@@ -1260,7 +1306,13 @@ private fun NgocSiAiPreviewScreen(
         if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
         input = ""
 
-        val localCommand = classifyNgocSiAiLocalCommand(clean)
+        // Handle explicit Stop phrases before the general classifier. This keeps "dừng hẳn nhạc"
+        // on the offline Media3 STOP path even if the generic classifier calls it PAUSE or no match.
+        val localCommand = if (isExplicitStopPlaybackPhrase(clean)) {
+            NgocSiAiLocalCommand.STOP
+        } else {
+            classifyNgocSiAiLocalCommand(clean)
+        }
         if (localCommand != null) {
             val commandReply = onLocalCommand(localCommand, clean)
             messages.add(AiPreviewMessage(false, commandReply))
