@@ -274,7 +274,7 @@ class NgocSiWakeWordService : Service() {
     private val listener = object : RecognitionListener {
         override fun onReadyForSpeech(params: Bundle?) {
             listening = true
-            updateNotification("Đang nghe từ khóa “Ngọc Sĩ” · chỉ nhận dạng trên thiết bị")
+            updateNotification("Đang nghe từ khóa “AI” · chỉ nhận dạng trên thiết bị")
         }
 
         override fun onBeginningOfSpeech() = Unit
@@ -309,7 +309,7 @@ class NgocSiWakeWordService : Service() {
                 awaitingCommandUntilMillis = 0L
             }
             val wasAwaitingCommand = awaitingCommand
-            // While waiting for the command after “Ngọc Sĩ”, prefer any recognized
+            // While waiting for the command after “AI”, prefer any recognized
             // actionable hypothesis rather than blindly trusting Android's first guess.
             // Outside that short window, still require the explicit wake phrase.
             val recognized = (if (wasAwaitingCommand) {
@@ -330,23 +330,23 @@ class NgocSiWakeWordService : Service() {
                 }
                 dispatchNgocSiAiCommandWhenReady(command, recognized)
             } else if (isNgocSiAiWakeWordOnly(recognized)) {
-                // Two-stage interaction: say "Ngọc Sĩ", then give a playback command.
+                // Two-stage interaction: say "AI", then give a playback command.
                 // The short window prevents unrelated later speech from triggering playback.
                 awaitingCommand = true
                 // The TTS listener starts the eight-second deadline once the prompt is done.
                 awaitingCommandUntilMillis = Long.MAX_VALUE
-                updateNotification("Đã nghe từ khóa “Ngọc Sĩ” · hãy nói lệnh trong 8 giây")
+                updateNotification("Đã nghe từ khóa “AI” · hãy nói lệnh trong 8 giây")
                 speakReply("Tôi đang nghe lệnh. Hãy nói lệnh điều khiển ứng dụng.")
                 return
             } else if (recognized.isNotBlank()) {
                 awaitingCommand = false
                 awaitingCommandUntilMillis = 0L
                 if (wasAwaitingCommand) {
-                    updateNotification("Chưa nhận ra lệnh · hãy nói “Ngọc Sĩ, mở YouTube” hoặc “Ngọc Sĩ, chuyển bài”")
+                    updateNotification("Chưa nhận ra lệnh · hãy nói “AI, mở YouTube” hoặc “AI, chuyển bài”")
                 } else {
                     // Expose the actual speech-recognition result so the user can tell
                     // whether the problem is recognition or command matching.
-                    updateNotification("Đã nghe: “${recognized.take(55)}” · cần mở đầu bằng “Ngọc Sĩ”")
+                    updateNotification("Đã nghe: “${recognized.take(55)}” · cần mở đầu bằng “AI”")
                 }
             }
             if (command == null) scheduleListenRetry(650L)
@@ -502,33 +502,33 @@ class NgocSiWakeWordService : Service() {
         if (destination != null) {
             val query = if (command == NgocSiAiLocalCommand.SEARCH_YOUTUBE) {
                 extractNgocSiAiYoutubeQuery(originalText)
-                    ?: return "Hãy nói rõ nội dung cần tìm, ví dụ: Ngọc Sĩ, tìm YouTube nhạc Trịnh Công Sơn."
+                    ?: return "Hãy nói rõ nội dung cần tìm, ví dụ: AI, tìm YouTube nhạc Trịnh Công Sơn."
             } else null
             val onlineQuery = if (command == NgocSiAiLocalCommand.SEARCH_ONLINE_MUSIC) {
                 extractNgocSiAiOnlineQuery(originalText)
-                    ?: return "Hãy nói nội dung cần tìm, ví dụ: Ngọc Sĩ, tìm nhạc Trịnh Công Sơn."
+                    ?: return "Hãy nói nội dung cần tìm, ví dụ: AI, tìm nhạc Trịnh Công Sơn."
             } else null
             val radioQuery = if (command == NgocSiAiLocalCommand.PLAY_RADIO_STATION) {
                 extractNgocSiAiRadioStationQuery(originalText)
-                    ?: return "Hãy nói tên đài, ví dụ: Ngọc Sĩ, phát Radio VOV3."
+                    ?: return "Hãy nói tên đài, ví dụ: AI, phát Radio VOV3."
             } else null
             val tvQuery = if (command == NgocSiAiLocalCommand.OPEN_TV_CHANNEL) {
                 extractNgocSiAiTvChannelQuery(originalText)
-                    ?: return "Hãy nói tên kênh, ví dụ: Ngọc Sĩ, mở VTV3."
+                    ?: return "Hãy nói tên kênh, ví dụ: AI, mở VTV3."
             } else null
             val playlistQuery = when (command) {
                 NgocSiAiLocalCommand.CREATE_PLAYLIST ->
                     extractNgocSiAiPlaylistQuery(originalText, create = true)
-                        ?: return "Hãy nói tên playlist muốn tạo, ví dụ: Ngọc Sĩ, tạo playlist Nhạc Trịnh."
+                        ?: return "Hãy nói tên playlist muốn tạo, ví dụ: AI, tạo playlist Nhạc Trịnh."
                 NgocSiAiLocalCommand.PLAY_NAMED_PLAYLIST ->
                     extractNgocSiAiPlaylistQuery(originalText, create = false)
-                        ?: return "Hãy nói tên playlist muốn phát, ví dụ: Ngọc Sĩ, phát playlist Nhạc Trịnh."
+                        ?: return "Hãy nói tên playlist muốn phát, ví dụ: AI, phát playlist Nhạc Trịnh."
                 NgocSiAiLocalCommand.ADD_CURRENT_TRACK_TO_PLAYLIST ->
                     extractNgocSiAiAddToPlaylistQuery(originalText)
-                        ?: return "Hãy nói rõ playlist đích, ví dụ: Ngọc Sĩ, thêm bài đang phát vào playlist Nhạc Trịnh."
+                        ?: return "Hãy nói rõ playlist đích, ví dụ: AI, thêm bài đang phát vào playlist Nhạc Trịnh."
                 NgocSiAiLocalCommand.ADD_QUEUE_TO_PLAYLIST ->
                     extractNgocSiAiQueueToPlaylistQuery(originalText)
-                        ?: return "Hãy nói rõ playlist đích, ví dụ: Ngọc Sĩ, thêm hàng đợi vào playlist Nhạc Trịnh."
+                        ?: return "Hãy nói rõ playlist đích, ví dụ: AI, thêm hàng đợi vào playlist Nhạc Trịnh."
                 else -> null
             }
             val youtubeAction = when (command) {
@@ -637,7 +637,7 @@ class NgocSiWakeWordService : Service() {
             (connectedPlayer == null || connectedPlayer.mediaItemCount == 0)
         ) {
             val query = extractNgocSiAiTrackQuery(originalText)
-                ?: return "Hãy nói rõ tên bài, ví dụ: “Ngọc Sĩ, phát bài hát Diễm xưa”."
+                ?: return "Hãy nói rõ tên bài, ví dụ: “AI, phát bài hát Diễm xưa”."
             return launchMainAppRoute(
                 destination = "play_track",
                 response = "Đang tìm và phát bài $query trong thư viện.",
@@ -657,7 +657,7 @@ class NgocSiWakeWordService : Service() {
 
         if (command == NgocSiAiLocalCommand.PLAY_TRACK) {
             val query = extractNgocSiAiTrackQuery(originalText)
-                ?: return "Hãy nói rõ tên bài, ví dụ: “Ngọc Sĩ, phát bài hát Diễm xưa”."
+                ?: return "Hãy nói rõ tên bài, ví dụ: “AI, phát bài hát Diễm xưa”."
             val normalizedQuery = normalizeNgocSiAiVoicePhrase(query)
             val exactIndex = (0 until player.mediaItemCount).firstOrNull { index ->
                 normalizeNgocSiAiVoicePhrase(
@@ -803,7 +803,7 @@ class NgocSiWakeWordService : Service() {
                 "NGỌC SĨ AI · nhận lệnh giọng nói",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Hiển thị khi micro đang chờ từ khóa Ngọc Sĩ"
+                description = "Hiển thị khi micro đang chờ từ khóa AI"
             }
             getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }
