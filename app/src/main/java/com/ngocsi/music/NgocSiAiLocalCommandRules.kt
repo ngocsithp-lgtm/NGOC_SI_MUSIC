@@ -436,6 +436,17 @@ internal fun selectNgocSiAiLocalCommandCandidate(candidates: List<String>): Stri
         ?: cleaned.firstOrNull()
 }
 
+/**
+ * After the wake word has activated the short command window, rank Android speech
+ * hypotheses by actionable intent. Choosing the first raw hypothesis can miss a
+ * valid command when the recognizer offers several close Vietnamese transcriptions.
+ */
+internal fun selectNgocSiAiActivatedCommandCandidate(candidates: List<String>): String? {
+    val cleaned = candidates.map { it.trim() }.filter { it.isNotBlank() }
+    return cleaned.firstOrNull { classifyNgocSiAiActivatedCommand(it) != null }
+        ?: cleaned.firstOrNull()
+}
+
 /** Wake-word mode must keep its stricter explicit “Ngọc Sĩ” requirement. */
 internal fun selectNgocSiAiWakePhraseCandidate(candidates: List<String>): String? {
     val cleaned = candidates.map { it.trim() }.filter { it.isNotBlank() }
