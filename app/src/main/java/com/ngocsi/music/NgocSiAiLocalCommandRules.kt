@@ -205,6 +205,9 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
         startsWithAny("luu video youtube xem sau", "luu video nay xem sau", "them video youtube vao xem sau") ->
             NgocSiAiLocalCommand.YOUTUBE_WATCH_LATER
 
+        // Route explicit YouTube play/search requests before generic named-song matching.
+        extractNgocSiAiYoutubeQuery(input) != null -> NgocSiAiLocalCommand.SEARCH_YOUTUBE
+
         // Named feature requests take precedence over generic section navigation.
         extractNgocSiAiRadioStationQuery(input) != null -> NgocSiAiLocalCommand.PLAY_RADIO_STATION
         extractNgocSiAiTvChannelQuery(input) != null -> NgocSiAiLocalCommand.OPEN_TV_CHANNEL
@@ -303,7 +306,8 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
 
         isAnyOf(
             "ve trang chu", "mo trang chu", "mo home", "home", "trang chu",
-            "quay lai trang chu", "tro ve trang chu", "mo man hinh chinh", "ve man hinh chinh"
+            "quay lai trang chu", "tro ve trang chu", "quay lai man hinh chinh",
+            "tro ve man hinh chinh", "ve trang chinh", "mo man hinh chinh", "ve man hinh chinh"
         ) -> NgocSiAiLocalCommand.OPEN_HOME
 
         startsWithAny(
@@ -345,7 +349,7 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
             NgocSiAiLocalCommand.SEARCH_YOUTUBE
 
         startsWithAny(
-            "mo youtube", "vao youtube", "mo video youtube", "mo muc youtube",
+            "phat youtube", "mo youtube", "vao youtube", "mo video youtube", "mo muc youtube",
             "chuyen den youtube", "chuyen den mot youtube", "vao muc youtube",
             "chuyen sang youtube", "mo ung dung youtube"
         ) ->
