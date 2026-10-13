@@ -125,7 +125,7 @@ class NgocSiAiLocalCommandRulesTest {
         assertEquals(NgocSiAiLocalCommand.ADD_QUEUE_TO_PLAYLIST, classifyNgocSiAiLocalCommand("Thêm hàng đợi vào playlist Nhạc Trịnh"))
         assertEquals(NgocSiAiLocalCommand.ADD_QUEUE_TO_PLAYLIST, classifyNgocSiAiWakePhrase("AI, lưu hàng đợi vào playlist Bolero"))
         assertEquals("Nhạc Trịnh", extractNgocSiAiQueueToPlaylistQuery("Thêm hàng đợi vào playlist Nhạc Trịnh"))
-        assertEquals("Bolero", extractNgocSiAiQueueToPlaylistQuery("Ngọc Sĩ, lưu hàng đợi vào playlist Bolero"))
+        assertEquals("Bolero", extractNgocSiAiQueueToPlaylistQuery("AI, lưu hàng đợi vào playlist Bolero"))
     }
 
     @Test
@@ -156,12 +156,12 @@ class NgocSiAiLocalCommandRulesTest {
         assertEquals(NgocSiAiLocalCommand.CREATE_PLAYLIST, classifyNgocSiAiLocalCommand("Tạo playlist Nhạc Trịnh"))
         assertEquals(NgocSiAiLocalCommand.PLAY_NAMED_PLAYLIST, classifyNgocSiAiWakePhrase("AI, phát playlist Nhạc Trịnh"))
         assertEquals("Nhạc Trịnh", extractNgocSiAiPlaylistQuery("Tạo playlist Nhạc Trịnh", create = true))
-        assertEquals("Nhạc Trịnh", extractNgocSiAiPlaylistQuery("Ngọc Sĩ, phát playlist Nhạc Trịnh", create = false))
+        assertEquals("Nhạc Trịnh", extractNgocSiAiPlaylistQuery("AI, phát playlist Nhạc Trịnh", create = false))
         assertEquals(NgocSiAiLocalCommand.PLAY_TRACK, classifyNgocSiAiWakePhrase("AI, mở bài Yesterday"))
         assertEquals(NgocSiAiLocalCommand.PLAY_RADIO_STATION, classifyNgocSiAiWakePhrase("AI, phát Radio VOV3"))
         assertEquals(NgocSiAiLocalCommand.OPEN_TV_CHANNEL, classifyNgocSiAiWakePhrase("AI, mở VTV3"))
         assertEquals(NgocSiAiLocalCommand.SEARCH_YOUTUBE, classifyNgocSiAiWakePhrase("AI, tìm YouTube nhạc Trịnh Công Sơn"))
-        assertEquals("nhạc Trịnh Công Sơn", extractNgocSiAiYoutubeQuery("Ngọc Sĩ, tìm YouTube nhạc Trịnh Công Sơn"))
+        assertEquals("nhạc Trịnh Công Sơn", extractNgocSiAiYoutubeQuery("AI, tìm YouTube nhạc Trịnh Công Sơn"))
     }
 
     @Test
@@ -169,11 +169,11 @@ class NgocSiAiLocalCommandRulesTest {
         assertEquals(NgocSiAiLocalCommand.PLAY_RADIO_STATION, classifyNgocSiAiLocalCommand("Phát Radio VOV3"))
         assertEquals(NgocSiAiLocalCommand.PLAY_RADIO_STATION, classifyNgocSiAiWakePhrase("AI, mở Radio VOH FM 95.6"))
         assertEquals("VOV3", extractNgocSiAiRadioStationQuery("Phát Radio VOV3"))
-        assertEquals("VOH FM 95.6", extractNgocSiAiRadioStationQuery("Ngọc Sĩ, mở Radio VOH FM 95.6"))
+        assertEquals("VOH FM 95.6", extractNgocSiAiRadioStationQuery("AI, mở Radio VOH FM 95.6"))
         assertEquals(NgocSiAiLocalCommand.OPEN_TV_CHANNEL, classifyNgocSiAiLocalCommand("Mở VTV3"))
         assertEquals(NgocSiAiLocalCommand.OPEN_TV_CHANNEL, classifyNgocSiAiWakePhrase("AI, mở kênh HTV7"))
         assertEquals("VTV3", extractNgocSiAiTvChannelQuery("Mở VTV3"))
-        assertEquals("HTV7", extractNgocSiAiTvChannelQuery("Ngọc Sĩ, mở kênh HTV7"))
+        assertEquals("HTV7", extractNgocSiAiTvChannelQuery("AI, mở kênh HTV7"))
         assertEquals(NgocSiAiLocalCommand.OPEN_TV, classifyNgocSiAiLocalCommand("Mở TV"))
         assertEquals(NgocSiAiLocalCommand.OPEN_RADIO, classifyNgocSiAiLocalCommand("Mở Radio"))
         assertNull(extractNgocSiAiRadioStationQuery("Mở Radio"))
@@ -185,7 +185,7 @@ class NgocSiAiLocalCommandRulesTest {
         assertEquals(NgocSiAiLocalCommand.PLAY_TRACK, classifyNgocSiAiLocalCommand("Phát bài hát Diễm xưa"))
         assertEquals(NgocSiAiLocalCommand.PLAY_TRACK, classifyNgocSiAiWakePhrase("AI, mở bài Yesterday"))
         assertEquals("Diễm xưa", extractNgocSiAiTrackQuery("Phát bài hát Diễm xưa"))
-        assertEquals("Yesterday", extractNgocSiAiTrackQuery("Ngọc Sĩ, mở bài Yesterday"))
+        assertEquals("Yesterday", extractNgocSiAiTrackQuery("AI, mở bài Yesterday"))
         assertNull(extractNgocSiAiTrackQuery("Mở bài hát lên"))
         assertEquals(NgocSiAiLocalCommand.PLAY, classifyNgocSiAiLocalCommand("Mở bài hát lên"))
     }
