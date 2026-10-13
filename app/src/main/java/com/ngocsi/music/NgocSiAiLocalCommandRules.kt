@@ -168,6 +168,7 @@ internal fun normalizeNgocSiAiVoicePhrase(input: String): String =
 private fun trimNgocSiAiNormalizedCommandFillers(input: String): String {
     var phrase = input.trim()
     val suffixes = listOf(
+        " duoc khong", " duoc chu", " giup toi nhe", " giup minh nhe",
         " nhe nha", " voi nhe", " giup toi", " giup minh", " cho toi",
         " nhe", " nha", " voi", " di", " len"
     )
@@ -188,12 +189,23 @@ internal fun isNgocSiAiExplicitStopPhrase(input: String): Boolean {
     var phrase = normalizeNgocSiAiVoicePhrase(input)
     val prefixes = listOf(
         "hey ngoc si ", "ok ngoc si ", "alo ngoc si ",
-        "ngoc si oi ", "ngoc si ", "hay ", "vui long ",
-        "lam on ", "toi muon ", "giup toi ", "giup minh "
+        "ngoc si oi ", "ngoc si ", "toi muon ban ", "minh muon ban ",
+        "ban giup toi ", "ban giup minh ", "toi muon ", "minh muon ",
+        "hay ", "vui long ", "lam on ", "giup toi ", "giup minh "
     )
     while (true) {
         val prefix = prefixes.firstOrNull { phrase.startsWith(it) } ?: break
         phrase = phrase.removePrefix(prefix).trim()
+    }
+    if (phrase.startsWith("ban ")) {
+        val afterYouPrefix = phrase.removePrefix("ban ").trim()
+        val explicitActionStarts = listOf(
+            "dung ", "ngung ", "tat nhac", "tat het nhac", "stop ",
+            "stop", "stop the music", "stop music"
+        )
+        if (explicitActionStarts.any { afterYouPrefix == it.trim() || afterYouPrefix.startsWith(it) }) {
+            phrase = afterYouPrefix
+        }
     }
     phrase = trimNgocSiAiNormalizedCommandFillers(phrase)
 
@@ -246,7 +258,9 @@ internal fun isNgocSiAiWakeWordOnly(input: String): Boolean =
 internal fun classifyNgocSiAiWakePhrase(input: String): NgocSiAiLocalCommand? {
     val normalized = normalizeNgocSiAiVoicePhrase(input)
     if (!normalized.startsWith("ngoc si ")) return null
-    val commandPhrase = normalized.removePrefix("ngoc si ").trim()
+    var commandPhrase = normalized.removePrefix("ngoc si ").trim()
+    // Treat “Ngọc Sĩ ơi, …” the same as “Ngọc Sĩ, …”.
+    if (commandPhrase.startsWith("oi ")) commandPhrase = commandPhrase.removePrefix("oi ").trim()
     if (commandPhrase.isBlank()) return null
 
     // Keep these common home aliases explicit in wake-word mode too; speech
@@ -281,10 +295,30 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
         .trim()
     if (phrase.isBlank()) return null
 
-    val politePrefixes = listOf("ngoc si ", "hay ", "vui long ", "lam on ")
+    val politePrefixes = listOf(
+        "hey ngoc si ", "ok ngoc si ", "alo ngoc si ", "ngoc si oi ", "ngoc si ",
+        "toi muon ban ", "minh muon ban ", "ban giup toi ", "ban giup minh ",
+        "toi muon ", "minh muon ", "giup toi ", "giup minh ",
+        "hay ", "vui long ", "lam on "
+    )
     while (true) {
         val prefix = politePrefixes.firstOrNull { phrase.startsWith(it) } ?: break
         phrase = phrase.removePrefix(prefix).trim()
+    }
+    // Allow an ordinary conversational “bạn, …” before an explicit command,
+    // but do not strip “bạn” from questions such as “Bạn làm được gì?”.
+    if (phrase.startsWith("ban ")) {
+        val afterYouPrefix = phrase.removePrefix("ban ").trim()
+        val explicitActionStarts = listOf(
+            "dung ", "tam dung ", "ngung ", "tat ", "phat ", "bat ", "mo ",
+            "chuyen ", "tiep tuc ", "qua bai", "bai tiep", "bai truoc",
+            "ve trang chu", "tro ve ", "quay ve ", "hen gio ", "dat hen gio ",
+            "huy hen gio", "tim nhac ", "tim bai hat ", "tim youtube ",
+            "lap ", "bo hen gio", "luu ", "them "
+        )
+        if (explicitActionStarts.any { afterYouPrefix == it.trim() || afterYouPrefix.startsWith(it) }) {
+            phrase = afterYouPrefix
+        }
     }
     phrase = trimNgocSiAiNormalizedCommandFillers(phrase)
 
