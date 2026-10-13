@@ -405,6 +405,7 @@ class MainActivity : ComponentActivity() {
     private val playlists = mutableStateListOf<MusicPlaylist>()
     // Named playlist commands may be delivered before Media3 is connected on cold launch.
     private var pendingAiPlaylistName: String? = null
+    private var localLibraryLoaded = false
     // Artwork cache is album-first: one decoded cover is shared by every song
     // in the same local album. Drive falls back to a stable source/file key when
     // album metadata is unavailable.
@@ -816,13 +817,13 @@ class MainActivity : ComponentActivity() {
                 if (playlist == null) {
                     errorMessage = "Chưa tìm thấy playlist “${playlistQuery.orEmpty()}”. Hãy nói “Mở danh sách phát” để xem tên playlist hiện có."
                     showPlaylists = true
-                } else if (controller != null) {
+                } else if (controller != null && localLibraryLoaded) {
                     pendingAiPlaylistName = null
                     playPlaylist(playlist)
                 } else {
                     pendingAiPlaylistName = playlist.name
                     showPlaylists = true
-                    errorMessage = "Đã nhận lệnh phát playlist “${playlist.name}”; đang kết nối trình phát…"
+                    errorMessage = "Đã nhận lệnh phát playlist “${playlist.name}”; đang chuẩn bị thư viện và trình phát…"
                 }
             }
             "playlists" -> showPlaylists = true
@@ -940,18 +941,7 @@ class MainActivity : ComponentActivity() {
                     // Re-check expired persisted timers after the service is connected;
                     // onCreate may have run before a controller was available.
                     refreshSleepTimerUiState()
-                    pendingAiPlaylistName?.let { requestedName ->
-                        val normalizedName = normalizeNgocSiAiVoicePhrase(requestedName)
-                        val playlist = playlists.firstOrNull {
-                            normalizeNgocSiAiVoicePhrase(it.name) == normalizedName
-                        }
-                        pendingAiPlaylistName = null
-                        if (playlist != null) {
-                            playPlaylist(playlist)
-                        } else {
-                            errorMessage = "Không tìm thấy playlist “$requestedName” sau khi kết nối trình phát."
-                        }
-                    }
+                    dispatchPendingAiPlaylistIfReady()
                     pendingAiRadioStationTitle?.let { stationTitle ->
                         val station = RadioCatalog.find(stationTitle)
                         pendingAiRadioStationTitle = null
@@ -1121,6 +1111,7 @@ class MainActivity : ComponentActivity() {
 
                 songs.clear()
                 songs.addAll(result)
+                localLibraryLoaded = true
 
                 // Rehydrate transient Radio items stored in the saved queue.
                 if (savedQueueOrder.isNotEmpty()) {
@@ -1238,6 +1229,7 @@ class MainActivity : ComponentActivity() {
                         isPlaying = c.isPlaying
                     }
                 }
+                dispatchPendingAiPlaylistIfReady()
             } catch (e: java.util.concurrent.CancellationException) {
                 throw e
             } catch (e: Exception) {
