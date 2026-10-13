@@ -195,6 +195,25 @@ class NgocSiWakeWordService : Service() {
                 (controller.playWhenReady && controller.playbackState == Player.STATE_BUFFERING)
             )
 
+    private fun preferredPlaybackController(): MediaController? {
+        val production = productionMusicController
+        val preview = musicController
+        return when (
+            selectNgocSiAiPlaybackTarget(
+                productionConnected = production != null,
+                productionActive = hasActivePlayback(production),
+                productionHasItems = (production?.mediaItemCount ?: 0) > 0,
+                previewConnected = preview != null,
+                previewActive = hasActivePlayback(preview),
+                previewHasItems = (preview?.mediaItemCount ?: 0) > 0
+            )
+        ) {
+            NgocSiAiPlaybackTarget.PRODUCTION -> production
+            NgocSiAiPlaybackTarget.PREVIEW -> preview
+            null -> null
+        }
+    }
+
     private fun stopActivePlayback(): String {
         val production = productionMusicController
         val preview = musicController
@@ -256,10 +275,12 @@ class NgocSiWakeWordService : Service() {
         if (
             ngocSiAiCommandRequiresPlayerConnection(command) &&
             musicController == null &&
+            productionMusicController == null &&
             command != NgocSiAiLocalCommand.STOP &&
             attemptsRemaining > 0
         ) {
             connectMusicController()
+            connectProductionMusicController()
             mainHandler.postDelayed({
                 dispatchNgocSiAiCommandWhenReady(command, recognized, attemptsRemaining - 1)
             }, PLAYER_CONNECT_RETRY_MILLIS)
@@ -632,7 +653,7 @@ class NgocSiWakeWordService : Service() {
 
         if (command == NgocSiAiLocalCommand.STOP) return stopActivePlayback()
 
-        val connectedPlayer = musicController
+        val connectedPlayer = preferredPlaybackController()
         if (command == NgocSiAiLocalCommand.PLAY_TRACK &&
             (connectedPlayer == null || connectedPlayer.mediaItemCount == 0)
         ) {
