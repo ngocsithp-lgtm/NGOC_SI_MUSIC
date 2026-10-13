@@ -711,6 +711,28 @@ class MainActivity : ComponentActivity() {
         connectController()
     }
 
+    /**
+     * AI voice navigation must not change a tab behind an old modal. Close the
+     * currently visible feature surface first; the destination handler below can
+     * then open the requested destination's own dialog when that is intentional.
+     */
+    private fun dismissAiNavigationOverlays() {
+        showNowPlaying = false
+        showQueue = false
+        showPlaylists = false
+        playlistDetailId = null
+        playlistTargetSongUri = null
+        showCreatePlaylist = false
+        editingPlaylistId = null
+        playlistPendingDeleteId = null
+        showTvSourceDialog = false
+        showDriveBrowser = false
+        showDriveOAuthDiagnostics = false
+        radioWebUrl = null
+        showSleepTimer = false
+        showPlaybackSpeed = false
+    }
+
     private fun handleProDestination(
         destination: String?,
         youtubeSearchQuery: String? = null,
@@ -721,26 +743,10 @@ class MainActivity : ComponentActivity() {
         trackQuery: String? = null,
         onlineSearchQuery: String? = null
     ) {
+        if (destination != null) dismissAiNavigationOverlays()
         when (destination) {
             "home" -> {
                 selectedSection = "Trang chủ"
-                // A voice request to return home must dismiss any modal feature
-                // surface as well; changing the selected tab alone can leave a
-                // queue/player/Drive dialog covering the home screen.
-                showNowPlaying = false
-                showQueue = false
-                showPlaylists = false
-                playlistDetailId = null
-                playlistTargetSongUri = null
-                showCreatePlaylist = false
-                editingPlaylistId = null
-                playlistPendingDeleteId = null
-                showTvSourceDialog = false
-                showDriveBrowser = false
-                showDriveOAuthDiagnostics = false
-                radioWebUrl = null
-                showSleepTimer = false
-                showPlaybackSpeed = false
             }
             "library" -> {
                 selectedSection = "Thư viện"
@@ -823,10 +829,8 @@ class MainActivity : ComponentActivity() {
             }
             "radio" -> {
                 selectedSection = "Radio"
-                selectedSection = "Radio"
             }
             "radio_station" -> {
-                selectedSection = "Radio"
                 selectedSection = "Radio"
                 val requested = radioStationQuery?.let { query ->
                     val normalizedQuery = normalizeNgocSiAiVoicePhrase(query)
