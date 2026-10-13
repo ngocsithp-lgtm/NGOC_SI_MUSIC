@@ -36,6 +36,7 @@ class NgocSiAiLocalCommandRulesTest {
     @Test
     fun recognizesGeneralOnlineMusicSearchAndQueueSaveCommands() {
         assertEquals(NgocSiAiLocalCommand.SEARCH_ONLINE_MUSIC, classifyNgocSiAiLocalCommand("Tìm nhạc Trịnh Công Sơn"))
+        assertNull(extractNgocSiAiYoutubeQuery("Tìm nhạc Trịnh Công Sơn"))
         assertEquals(NgocSiAiLocalCommand.SEARCH_ONLINE_MUSIC, classifyNgocSiAiWakePhrase("Ngọc Sĩ, tìm bài hát Bolero"))
         assertEquals("Trịnh Công Sơn", extractNgocSiAiOnlineQuery("Tìm nhạc Trịnh Công Sơn"))
         assertEquals(NgocSiAiLocalCommand.SEARCH_YOUTUBE, classifyNgocSiAiLocalCommand("Tìm YouTube nhạc Trịnh Công Sơn"))
