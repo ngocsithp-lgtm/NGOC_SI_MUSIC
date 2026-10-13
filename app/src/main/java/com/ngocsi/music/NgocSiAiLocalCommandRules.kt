@@ -298,6 +298,7 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
     if (phrase.isBlank()) return null
 
     val politePrefixes = listOf(
+        "hey ai ", "ok ai ", "alo ai ", "ai oi ", "ai ",
         "hey ngoc si ", "ok ngoc si ", "alo ngoc si ", "ngoc si oi ", "ngoc si ",
         "toi muon ban ", "minh muon ban ", "ban giup toi ", "ban giup minh ",
         "toi muon ", "minh muon ",
@@ -496,6 +497,9 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
             "ve trang chu", "mo trang chu", "mo home", "home", "trang chu",
             "quay lai trang chu", "tro ve trang chu", "tro lai trang chu",
             "quay ve trang chu", "mo lai trang chu", "quay lai man hinh chinh",
+            "ve lai trang chu", "dua toi ve trang chu", "dua toi ra trang chu",
+            "dua toi ve man hinh chinh", "dua toi ra man hinh chinh",
+            "dua toi ve giao dien chinh", "dua toi ra giao dien chinh",
             "tro ve man hinh chinh", "tro lai man hinh chinh", "ve trang chinh",
             "mo man hinh chinh", "ve man hinh chinh", "ve giao dien chinh",
             "tro ve giao dien chinh", "quay ve giao dien chinh",

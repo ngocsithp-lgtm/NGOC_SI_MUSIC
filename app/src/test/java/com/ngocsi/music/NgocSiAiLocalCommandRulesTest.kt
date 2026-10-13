@@ -77,6 +77,33 @@ class NgocSiAiLocalCommandRulesTest {
     }
 
     @Test
+    fun directAiPrefixRoutesAppCommandsLocally() {
+        assertEquals(
+            NgocSiAiLocalCommand.OPEN_YOUTUBE,
+            classifyNgocSiAiLocalCommand("AI, mở YouTube")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.OPEN_DRIVE,
+            classifyNgocSiAiLocalCommand("AI, mở Google Drive")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.OPEN_RADIO,
+            classifyNgocSiAiLocalCommand("AI, vào Radio")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.OPEN_HOME,
+            classifyNgocSiAiLocalCommand("AI, đưa tôi về trang chủ")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.STOP,
+            classifyNgocSiAiLocalCommand("AI, dừng hẳn nhạc")
+        )
+        assertNull(
+            classifyNgocSiAiLocalCommand("AI, bạn có thể hướng dẫn tôi cách mở YouTube không?")
+        )
+    }
+
+    @Test
     fun recognizesShortEnglishPlaybackCommands() {
         assertEquals(NgocSiAiLocalCommand.PLAY, classifyNgocSiAiLocalCommand("Resume"))
         assertEquals(NgocSiAiLocalCommand.PAUSE, classifyNgocSiAiLocalCommand("Pause music"))
@@ -207,7 +234,7 @@ class NgocSiAiLocalCommandRulesTest {
     }
 
     @Test
-    fun wakePhraseRequiresNgocSiAndRecognizesExplicitCommands() {
+    fun wakePhraseRequiresAiAndRecognizesExplicitCommands() {
         assertEquals(NgocSiAiLocalCommand.NEXT, classifyNgocSiAiWakePhrase("AI, chuyển bài"))
         assertEquals(NgocSiAiLocalCommand.NEXT, classifyNgocSiAiWakePhrase("AI, chuyển sang bài tiếp theo nhé"))
         assertEquals(NgocSiAiLocalCommand.NEXT, classifyNgocSiAiWakePhrase("AI, bài tiếp theo"))

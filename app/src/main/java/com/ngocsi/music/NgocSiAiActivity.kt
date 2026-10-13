@@ -404,7 +404,7 @@ class NgocSiAiActivity : ComponentActivity() {
                     Toast.makeText(this, "Không thể bật nghe từ khóa. Hãy thử lại.", Toast.LENGTH_LONG).show()
                 }
             } else {
-                Toast.makeText(this, "Cần quyền micro để nghe từ khóa Ngọc Sĩ.", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "Cần quyền micro để nghe từ khóa AI.", Toast.LENGTH_LONG).show()
             }
         }
 
@@ -1676,7 +1676,7 @@ private fun NgocSiAiPreviewScreen(
                             maxLines = 1
                         )
                         Text(
-                            if (isWakeWordListening) "Đang nghe từ khóa" else "Đánh thức “Ngọc Sĩ”",
+                            if (isWakeWordListening) "Đang nghe từ khóa" else "Đánh thức “AI”",
                             color = NgocSiVisuals.Text,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
