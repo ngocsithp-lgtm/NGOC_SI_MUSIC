@@ -11,6 +11,17 @@ internal enum class NgocSiAiLocalCommand {
     OPEN_TV_CHANNEL,
     CREATE_PLAYLIST,
     PLAY_NAMED_PLAYLIST,
+    RESUME_YOUTUBE,
+    PAUSE_YOUTUBE,
+    NEXT_YOUTUBE_VIDEO,
+    PREVIOUS_YOUTUBE_VIDEO,
+    YOUTUBE_SHUFFLE_ON,
+    YOUTUBE_SHUFFLE_OFF,
+    YOUTUBE_REPEAT_OFF,
+    YOUTUBE_REPEAT_ALL,
+    YOUTUBE_REPEAT_ONE,
+    YOUTUBE_FAVORITE,
+    YOUTUBE_WATCH_LATER,
     PAUSE,
     NEXT,
     PREVIOUS,
@@ -65,6 +76,17 @@ private val NGOC_SI_AI_WAKE_WORD_COMMANDS = setOf(
     NgocSiAiLocalCommand.OPEN_TV_CHANNEL,
     NgocSiAiLocalCommand.CREATE_PLAYLIST,
     NgocSiAiLocalCommand.PLAY_NAMED_PLAYLIST,
+    NgocSiAiLocalCommand.RESUME_YOUTUBE,
+    NgocSiAiLocalCommand.PAUSE_YOUTUBE,
+    NgocSiAiLocalCommand.NEXT_YOUTUBE_VIDEO,
+    NgocSiAiLocalCommand.PREVIOUS_YOUTUBE_VIDEO,
+    NgocSiAiLocalCommand.YOUTUBE_SHUFFLE_ON,
+    NgocSiAiLocalCommand.YOUTUBE_SHUFFLE_OFF,
+    NgocSiAiLocalCommand.YOUTUBE_REPEAT_OFF,
+    NgocSiAiLocalCommand.YOUTUBE_REPEAT_ALL,
+    NgocSiAiLocalCommand.YOUTUBE_REPEAT_ONE,
+    NgocSiAiLocalCommand.YOUTUBE_FAVORITE,
+    NgocSiAiLocalCommand.YOUTUBE_WATCH_LATER,
     NgocSiAiLocalCommand.CURRENT_TRACK,
     NgocSiAiLocalCommand.SHUFFLE_ON,
     NgocSiAiLocalCommand.SHUFFLE_OFF,
@@ -152,6 +174,30 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
             "bai thu hai trong danh sach", "bai so hai trong danh sach",
             "cho phat bai thu hai", "phat bai thu hai trong hang doi"
         ) -> NgocSiAiLocalCommand.PLAY_SECOND
+
+        // Explicit YouTube controls must not be mistaken for local music controls.
+        startsWithAny("tam dung youtube", "tam dung video youtube", "pause youtube", "pause video") ->
+            NgocSiAiLocalCommand.PAUSE_YOUTUBE
+        startsWithAny("tiep tuc youtube", "tiep tuc video youtube", "phat tiep youtube", "resume youtube", "play youtube") ->
+            NgocSiAiLocalCommand.RESUME_YOUTUBE
+        startsWithAny("video youtube tiep theo", "youtube tiep theo", "video tiep theo tren youtube", "next youtube video") ->
+            NgocSiAiLocalCommand.NEXT_YOUTUBE_VIDEO
+        startsWithAny("video youtube truoc", "youtube truoc", "video truoc tren youtube", "previous youtube video") ->
+            NgocSiAiLocalCommand.PREVIOUS_YOUTUBE_VIDEO
+        startsWithAny("bat ngau nhien youtube", "youtube shuffle on", "bat phat ngau nhien youtube") ->
+            NgocSiAiLocalCommand.YOUTUBE_SHUFFLE_ON
+        startsWithAny("tat ngau nhien youtube", "youtube shuffle off", "tat phat ngau nhien youtube") ->
+            NgocSiAiLocalCommand.YOUTUBE_SHUFFLE_OFF
+        startsWithAny("tat lap youtube", "youtube repeat off", "tat che do lap youtube") ->
+            NgocSiAiLocalCommand.YOUTUBE_REPEAT_OFF
+        startsWithAny("lap hang doi youtube", "youtube repeat all", "lap tat ca video youtube") ->
+            NgocSiAiLocalCommand.YOUTUBE_REPEAT_ALL
+        startsWithAny("lap video youtube", "lap mot video youtube", "youtube repeat one") ->
+            NgocSiAiLocalCommand.YOUTUBE_REPEAT_ONE
+        startsWithAny("thich video youtube", "them video youtube vao yeu thich", "yeu thich video dang mo") ->
+            NgocSiAiLocalCommand.YOUTUBE_FAVORITE
+        startsWithAny("luu video youtube xem sau", "luu video nay xem sau", "them video youtube vao xem sau") ->
+            NgocSiAiLocalCommand.YOUTUBE_WATCH_LATER
 
         // Named feature requests take precedence over generic section navigation.
         extractNgocSiAiRadioStationQuery(input) != null -> NgocSiAiLocalCommand.PLAY_RADIO_STATION
