@@ -323,7 +323,7 @@ class NgocSiAiLocalCommandRulesTest {
     @Test
     fun wakeWordCandidateSelectionStillRequiresTheWakePhrase() {
         assertEquals(
-            "Ngọc Sĩ, chuyển bài",
+            "AI, chuyển bài",
             selectNgocSiAiWakePhraseCandidate(listOf("chuyển bài", "AI, chuyển bài", "AI"))
         )
         assertEquals("chuyển bài", selectNgocSiAiWakePhraseCandidate(listOf("chuyển bài", "qua bài")))
@@ -431,7 +431,7 @@ class NgocSiAiLocalCommandRulesTest {
     @Test
     fun wakeWordCandidateSelectionPrefersWakeOnlyPhraseOverUnrelatedHypothesis() {
         assertEquals(
-            "Ngọc Sĩ",
+            "AI",
             selectNgocSiAiWakePhraseCandidate(listOf("tóc sĩ", "AI"))
         )
     }
