@@ -752,7 +752,18 @@ class NgocSiAiActivity : ComponentActivity() {
 
     private fun runLocalCommand(command: NgocSiAiLocalCommand, originalText: String = ""): String {
         when (command) {
-            NgocSiAiLocalCommand.HELP -> return "Tôi có thể phát bài theo tên, tạm dừng, chuyển bài, phát ngẫu nhiên, chế độ lặp; mở Trang chủ, Thư viện, Yêu thích, Album, Thư mục, YouTube, Drive, đài Radio, kênh TV, Online, Hàng đợi, Trình phát, Cài đặt; tạo và phát playlist theo tên, tìm nội dung YouTube và đặt hoặc hủy hẹn giờ. Hãy nói “Ngọc Sĩ”, đợi tôi đáp rồi nói lệnh."
+            NgocSiAiLocalCommand.HELP -> return "Tôi có thể điều khiển nhạc trên điện thoại và YouTube riêng biệt; mở Thư viện, Yêu thích, Album, Thư mục, Drive, từng đài Radio và kênh TV; tìm YouTube; tạo/phát playlist theo tên; mở Hàng đợi, Trình phát, Cài đặt và hẹn giờ."
+            NgocSiAiLocalCommand.RESUME_YOUTUBE -> return openAppDestination("youtube_command", "Đang tiếp tục video YouTube.", youtubeAction = "play")
+            NgocSiAiLocalCommand.PAUSE_YOUTUBE -> return openAppDestination("youtube_command", "Đang tạm dừng video YouTube.", youtubeAction = "pause")
+            NgocSiAiLocalCommand.NEXT_YOUTUBE_VIDEO -> return openAppDestination("youtube_command", "Đang chuyển sang video YouTube tiếp theo.", youtubeAction = "next")
+            NgocSiAiLocalCommand.PREVIOUS_YOUTUBE_VIDEO -> return openAppDestination("youtube_command", "Đang chuyển về video YouTube trước.", youtubeAction = "previous")
+            NgocSiAiLocalCommand.YOUTUBE_SHUFFLE_ON -> return openAppDestination("youtube_command", "Đang bật phát ngẫu nhiên YouTube.", youtubeAction = "shuffle_on")
+            NgocSiAiLocalCommand.YOUTUBE_SHUFFLE_OFF -> return openAppDestination("youtube_command", "Đang tắt phát ngẫu nhiên YouTube.", youtubeAction = "shuffle_off")
+            NgocSiAiLocalCommand.YOUTUBE_REPEAT_OFF -> return openAppDestination("youtube_command", "Đang tắt chế độ lặp YouTube.", youtubeAction = "repeat_off")
+            NgocSiAiLocalCommand.YOUTUBE_REPEAT_ALL -> return openAppDestination("youtube_command", "Đang bật lặp hàng đợi YouTube.", youtubeAction = "repeat_all")
+            NgocSiAiLocalCommand.YOUTUBE_REPEAT_ONE -> return openAppDestination("youtube_command", "Đang bật lặp video YouTube.", youtubeAction = "repeat_one")
+            NgocSiAiLocalCommand.YOUTUBE_FAVORITE -> return openAppDestination("youtube_command", "Đang lưu video YouTube vào Yêu thích.", youtubeAction = "favorite")
+            NgocSiAiLocalCommand.YOUTUBE_WATCH_LATER -> return openAppDestination("youtube_command", "Đang lưu video YouTube vào Xem sau.", youtubeAction = "watch_later")
             NgocSiAiLocalCommand.OPEN_HOME -> return openAppDestination("home", "Đang mở trang chủ.")
             NgocSiAiLocalCommand.SEARCH_YOUTUBE -> {
                 val query = extractNgocSiAiYoutubeQuery(originalText)
@@ -958,7 +969,8 @@ class NgocSiAiActivity : ComponentActivity() {
         youtubeSearchQuery: String? = null,
         radioStationQuery: String? = null,
         tvChannelQuery: String? = null,
-        playlistQuery: String? = null
+        playlistQuery: String? = null,
+        youtubeAction: String? = null
     ): String {
         return runCatching {
             startActivity(
@@ -968,6 +980,7 @@ class NgocSiAiActivity : ComponentActivity() {
                     radioStationQuery?.let { putExtra("ai_radio_station", it) }
                     tvChannelQuery?.let { putExtra("ai_tv_channel", it) }
                     playlistQuery?.let { putExtra("ai_playlist_query", it) }
+                    youtubeAction?.let { putExtra("ai_youtube_action", it) }
                     // Bring the existing main app to the front and deliver its navigation event.
                     addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                 }
@@ -1674,7 +1687,9 @@ private fun NgocSiAiPreviewScreen(
                     "Mở Online", "Mở YouTube", "Tìm YouTube nhạc Trịnh Công Sơn",
                     "Mở Drive", "Mở Radio", "Phát Radio VOV3", "Mở TV", "Mở VTV3", "Mở kênh HTV7", "Mở danh sách phát",
                     "Mở hàng đợi", "Mở trình phát", "Mở Cài đặt", "Tạo playlist Nhạc Trịnh",
-                    "Phát playlist Nhạc Trịnh", "Hẹn giờ 30 phút",
+                    "Phát playlist Nhạc Trịnh", "Tạm dừng YouTube", "Tiếp tục YouTube",
+                    "Video YouTube tiếp theo", "Video YouTube trước", "Lưu video YouTube xem sau",
+                    "Hẹn giờ 30 phút",
                     "Tắt hẹn giờ", "Bạn làm được gì?"
                 )
                 suggestions.forEach { suggestion ->
