@@ -1424,7 +1424,13 @@ private fun NgocSiAiPreviewScreen(
                 }
                 saveAiApiConversation(chatPreferences, conversation)
             }
-            persistChatState()
+            if (isSending) {
+                // Do not persist an unfinished remote user turn when a local command
+                // interrupts the wait; the in-flight result will complete or roll it back.
+                saveAiPreviewMessages(chatPreferences, messages)
+            } else {
+                persistChatState()
+            }
             onVoiceReply(commandReply)
             return
         }
@@ -1443,7 +1449,11 @@ private fun NgocSiAiPreviewScreen(
                 }
                 saveAiApiConversation(chatPreferences, conversation)
             }
-            persistChatState()
+            if (isSending) {
+                saveAiPreviewMessages(chatPreferences, messages)
+            } else {
+                persistChatState()
+            }
             onVoiceReply(localReply)
             return
         }
