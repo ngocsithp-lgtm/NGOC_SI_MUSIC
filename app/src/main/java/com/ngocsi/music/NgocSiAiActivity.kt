@@ -1395,36 +1395,54 @@ private fun NgocSiAiPreviewScreen(
     fun sendMessage(text: String) {
         val clean = text.trim()
         if (clean.isBlank()) return
-        // Stop is a safety-critical local control and must remain responsive while
-        // an unrelated online AI request is still loading or has hit a quota error.
+        // All allowlisted on-device commands and short local replies stay responsive
+        // while an unrelated Gemini request is still in flight.
         val explicitStop = isNgocSiAiExplicitStopPhrase(clean)
-        if (isSending && !explicitStop) return
-        messages.add(AiPreviewMessage(true, clean))
-        if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
-        input = ""
-
-        // Handle explicit Stop phrases before the general classifier. This keeps "dừng hẳn nhạc"
-        // on the offline Media3 STOP path even if the generic classifier calls it PAUSE or no match.
         val localCommand = if (explicitStop) {
             NgocSiAiLocalCommand.STOP
         } else {
             classifyNgocSiAiLocalCommand(clean)
         }
+        val localReply = if (localCommand == null) localConversationFallback(clean) else null
+        if (isSending && localCommand == null && localReply == null) return
+
+        messages.add(AiPreviewMessage(true, clean))
+        if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
+        input = ""
         if (localCommand != null) {
             val commandReply = onLocalCommand(localCommand, clean)
             messages.add(AiPreviewMessage(false, commandReply))
             if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
+            // Preserve local turns in future model context only when no earlier request
+            // is in flight; never interleave them inside an unfinished user/assistant pair.
+            if (!isSending) {
+                conversation.add(NgocSiAiMessage(role = "user", content = clean))
+                conversation.add(NgocSiAiMessage(role = "assistant", content = commandReply))
+                while (conversation.size > NGOC_SI_AI_MAX_HISTORY_MESSAGES) {
+                    conversation.removeAt(0)
+                    if (conversation.firstOrNull()?.role == "assistant") conversation.removeAt(0)
+                }
+                saveAiApiConversation(chatPreferences, conversation)
+            }
             persistChatState()
             onVoiceReply(commandReply)
             return
         }
 
-        // Keep predictable greetings/help and the common app-improvement prompt local.
-        // This reduces Gemini requests without pretending to replace free-form reasoning.
-        val localReply = localConversationFallback(clean)
+        // Keep predictable greetings/help local and preserve them for later context without
+        // spending an online request.
         if (localReply != null) {
             messages.add(AiPreviewMessage(false, localReply))
             if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
+            if (!isSending) {
+                conversation.add(NgocSiAiMessage(role = "user", content = clean))
+                conversation.add(NgocSiAiMessage(role = "assistant", content = localReply))
+                while (conversation.size > NGOC_SI_AI_MAX_HISTORY_MESSAGES) {
+                    conversation.removeAt(0)
+                    if (conversation.firstOrNull()?.role == "assistant") conversation.removeAt(0)
+                }
+                saveAiApiConversation(chatPreferences, conversation)
+            }
             persistChatState()
             onVoiceReply(localReply)
             return
