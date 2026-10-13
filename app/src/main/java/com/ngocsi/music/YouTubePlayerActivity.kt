@@ -1099,6 +1099,8 @@ class YouTubePlayerActivity : ComponentActivity() {
         val action = pendingAiAction ?: return
         if (!youtubePlayerReady || isFinishing || isDestroyed) return
         pendingAiAction = null
+        // Prevent a one-shot voice action from running again after a configuration change.
+        intent.removeExtra(EXTRA_AI_ACTION)
 
         when (action) {
             "play" -> webView?.evaluateJavascript("playVideo()", null)
