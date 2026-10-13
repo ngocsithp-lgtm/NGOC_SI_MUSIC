@@ -361,6 +361,8 @@ class MainActivity : ComponentActivity() {
     private var radioFilter by mutableStateOf("")
     private var activeRadioTitle: String? = null
     private var activeRadioStreams: List<String> = emptyList()
+    // Voice requests may arrive before Media3 finishes connecting during cold startup.
+    private var pendingAiRadioStationTitle: String? = null
     private var activeRadioStreamIndex = 0
     private var selectedSection by mutableStateOf("Trang chủ")
     private var showTvSourceDialog by mutableStateOf(false)
@@ -683,7 +685,9 @@ class MainActivity : ComponentActivity() {
         // reordering an existing instance when the AI assistant routes a command.
         handleProDestination(
             intent.getStringExtra("pro_destination"),
-            intent.getStringExtra("ai_youtube_query")
+            intent.getStringExtra("ai_youtube_query"),
+            intent.getStringExtra("ai_radio_station"),
+            intent.getStringExtra("ai_tv_channel")
         )
 
         // Restore persisted Drive sources only after the first frame can render.
@@ -698,7 +702,12 @@ class MainActivity : ComponentActivity() {
         connectController()
     }
 
-    private fun handleProDestination(destination: String?, youtubeSearchQuery: String? = null) {
+    private fun handleProDestination(
+        destination: String?,
+        youtubeSearchQuery: String? = null,
+        radioStationQuery: String? = null,
+        tvChannelQuery: String? = null
+    ) {
         when (destination) {
             "home" -> selectedSection = "Trang chủ"
             "library" -> {
@@ -741,7 +750,43 @@ class MainActivity : ComponentActivity() {
                 selectedSection = "Radio"
                 showVietnamRadioHub = true
             }
+            "radio_station" -> {
+                selectedSection = "Radio"
+                showVietnamRadioHub = true
+                val requested = radioStationQuery?.let { query ->
+                    val normalizedQuery = normalizeNgocSiAiVoicePhrase(query)
+                    RadioCatalog.stations.firstOrNull { station ->
+                        val title = normalizeNgocSiAiVoicePhrase(station.title)
+                        val shortTitle = title.substringBefore(" ")
+                        title.contains(normalizedQuery) ||
+                            normalizedQuery.contains(shortTitle) ||
+                            title.contains(normalizedQuery.replace(" ", ""))
+                    }
+                }
+                if (requested == null) {
+                    errorMessage = "Chưa tìm thấy đài “${radioStationQuery.orEmpty()}”. Hãy thử VOV1, VOV2, VOV3 hoặc VOH FM 95.6."
+                } else if (controller != null) {
+                    pendingAiRadioStationTitle = null
+                    playVerifiedRadio(requested.title, requested.streamUrls)
+                } else {
+                    pendingAiRadioStationTitle = requested.title
+                    errorMessage = "Đã nhận lệnh mở ${requested.title}; đang kết nối trình phát…"
+                }
+            }
             "tv" -> selectedSection = "TV"
+            "tv_channel" -> {
+                selectedSection = "TV"
+                val query = normalizeNgocSiAiVoicePhrase(tvChannelQuery.orEmpty())
+                val source = (TvCatalog.builtIn + customTvSources).firstOrNull { candidate ->
+                    val title = normalizeNgocSiAiVoicePhrase(candidate.name)
+                    title.contains(query) || title.replace(" ", "").contains(query.replace(" ", ""))
+                }
+                if (source == null) {
+                    errorMessage = "Chưa tìm thấy kênh TV “${tvChannelQuery.orEmpty()}”. Hãy thử VTV1, VTV2, VTV3 hoặc HTV7."
+                } else {
+                    openTvSource(source)
+                }
+            }
             "playlists" -> showPlaylists = true
             "queue" -> showQueue = true
             "player" -> {
@@ -771,7 +816,9 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         handleProDestination(
             intent.getStringExtra("pro_destination"),
-            intent.getStringExtra("ai_youtube_query")
+            intent.getStringExtra("ai_youtube_query"),
+            intent.getStringExtra("ai_radio_station"),
+            intent.getStringExtra("ai_tv_channel")
         )
     }
 
@@ -854,6 +901,13 @@ class MainActivity : ComponentActivity() {
                     // Re-check expired persisted timers after the service is connected;
                     // onCreate may have run before a controller was available.
                     refreshSleepTimerUiState()
+                    pendingAiRadioStationTitle?.let { stationTitle ->
+                        val station = RadioCatalog.find(stationTitle)
+                        pendingAiRadioStationTitle = null
+                        if (station != null) {
+                            playVerifiedRadio(station.title, station.streamUrls)
+                        }
+                    }
                 }
             } catch (e: Exception) {
                 errorMessage = "Không kết nối được trình phát."
