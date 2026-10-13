@@ -549,6 +549,21 @@ class NgocSiWakeWordService : Service() {
         }
         val player = connectedPlayer
             ?: return "Trình phát chưa kết nối. Hãy mở NGỌC SĨ MUSIC một lần rồi thử lại."
+
+        // Hard-stop is a direct playback action, not navigation or AI guidance.
+        // Handle it before checking the queue so the command also works when
+        // there is no current item and the MediaSession service is still alive.
+        if (command == NgocSiAiLocalCommand.STOP) {
+            return runCatching {
+                player.pause()
+                player.playWhenReady = false
+                player.stop()
+                "Đã dừng hẳn nhạc. Hàng đợi vẫn được giữ để bạn có thể phát lại."
+            }.getOrElse {
+                "Không thể dừng nhạc lúc này. Hãy thử lại."
+            }
+        }
+
         if (command == NgocSiAiLocalCommand.PLAY_TRACK) {
             val query = extractNgocSiAiTrackQuery(originalText)
                 ?: return "Hãy nói rõ tên bài, ví dụ: “Ngọc Sĩ, phát bài hát Diễm xưa”."
