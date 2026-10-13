@@ -313,6 +313,27 @@ class NgocSiWakeWordService : Service() {
      * Navigation is handled before requiring a queue, so opening Drive/YouTube/TV,
      * changing library views, or setting a timer does not depend on a song playing.
      */
+    private fun launchMainAppRoute(
+        destination: String,
+        response: String,
+        trackQuery: String? = null
+    ): String {
+        return runCatching {
+            val intent = Intent(this, MainActivity::class.java).apply {
+                putExtra("pro_destination", destination)
+                trackQuery?.let { putExtra("ai_track_query", it) }
+                addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP
+                )
+            }
+            startActivity(intent)
+            response
+        }.getOrElse {
+            "Chưa thể mở thư viện từ nền. Hãy mở NGỌC SĨ MUSIC rồi lặp lại lệnh."
+        }
+    }
     private fun runAppCommand(command: NgocSiAiLocalCommand, originalText: String): String {
         if (command == NgocSiAiLocalCommand.HELP) {
             return "Tôi có thể điều khiển nhạc điện thoại và YouTube riêng biệt; phát bài theo tên; mở thư viện, Drive, từng đài Radio, kênh TV; tìm YouTube; tạo/phát playlist; điều chỉnh phát ngẫu nhiên, lặp, hẹn giờ và lưu video yêu thích/xem sau."
@@ -463,12 +484,31 @@ class NgocSiWakeWordService : Service() {
             }
         }
 
-        val player = musicController ?: return "Trình phát chưa kết nối. Hãy mở NGỌC SĨ MUSIC một lần rồi thử lại."
-        if (command == NgocSiAiLocalCommand.PLAY_TRACK) {
+        val connectedPlayer = musicController
+        if (command == NgocSiAiLocalCommand.PLAY_TRACK &&
+            (connectedPlayer == null || connectedPlayer.mediaItemCount == 0)
+        ) {
             val query = extractNgocSiAiTrackQuery(originalText)
                 ?: return "Hãy nói rõ tên bài, ví dụ: “Ngọc Sĩ, phát bài hát Diễm xưa”."
-            if (player.mediaItemCount == 0) {
-                return "Hàng đợi đang trống. Hãy mở Thư viện trong NGỌC SĨ MUSIC rồi thử lệnh phát theo tên bài."
+            return launchMainAppRoute(
+                destination = "play_track",
+                response = "Đang tìm và phát bài $query trong thư viện.",
+                trackQuery = query
+            )
+        }
+        if (command == NgocSiAiLocalCommand.PLAY &&
+            (connectedPlayer == null || connectedPlayer.mediaItemCount == 0)
+        ) {
+            return launchMainAppRoute(
+                destination = "play_local",
+                response = "Đang mở thư viện và phát nhạc trên điện thoại."
+            )
+        }
+        val player = connectedPlayer
+            ?: return "Trình phát chưa kết nối. Hãy mở NGỌC SĨ MUSIC một lần rồi thử lại."
+        if (command == NgocSiAiLocalCommand.PLAY_TRACK) {
+            val query = extractNgocSiAiTrackQuery(originalText)
+                ?: return "Hãy nói rõ tên bài, ví dụ: “Ngọc Sĩ, phát bài hát Diễm xưa”.
             }
             val normalizedQuery = normalizeNgocSiAiVoicePhrase(query)
             val exactIndex = (0 until player.mediaItemCount).firstOrNull { index ->
