@@ -406,6 +406,8 @@ class MainActivity : ComponentActivity() {
     // Named playlist commands may be delivered before Media3 is connected on cold launch.
     private var pendingAiPlaylistName: String? = null
     private var pendingAiAddCurrentSongPlaylistName: String? = null
+    private var pendingAiLocalPlaybackRequested = false
+    private var pendingAiTrackQuery: String? = null
     private var localLibraryLoaded = false
     // Artwork cache is album-first: one decoded cover is shared by every song
     // in the same local album. Drive falls back to a stable source/file key when
@@ -693,7 +695,8 @@ class MainActivity : ComponentActivity() {
             intent.getStringExtra("ai_radio_station"),
             intent.getStringExtra("ai_tv_channel"),
             intent.getStringExtra("ai_playlist_query"),
-            intent.getStringExtra("ai_youtube_action")
+            intent.getStringExtra("ai_youtube_action"),
+            intent.getStringExtra("ai_track_query")
         )
 
         // Restore persisted Drive sources only after the first frame can render.
@@ -714,7 +717,8 @@ class MainActivity : ComponentActivity() {
         radioStationQuery: String? = null,
         tvChannelQuery: String? = null,
         playlistQuery: String? = null,
-        youtubeAction: String? = null
+        youtubeAction: String? = null,
+        trackQuery: String? = null
     ) {
         when (destination) {
             "home" -> selectedSection = "Trang chủ"
@@ -722,6 +726,22 @@ class MainActivity : ComponentActivity() {
                 selectedSection = "Thư viện"
                 selectedLibrary = "Tất cả"
                 libraryView = "Bài hát"
+            }
+            "play_local" -> {
+                selectedSection = "Thư viện"
+                selectedLibrary = "Tất cả"
+                libraryView = "Bài hát"
+                pendingAiTrackQuery = null
+                pendingAiLocalPlaybackRequested = true
+                dispatchPendingAiLocalPlaybackIfReady()
+            }
+            "play_track" -> {
+                selectedSection = "Thư viện"
+                selectedLibrary = "Tất cả"
+                libraryView = "Bài hát"
+                pendingAiTrackQuery = trackQuery
+                pendingAiLocalPlaybackRequested = true
+                dispatchPendingAiLocalPlaybackIfReady()
             }
             "favorites" -> {
                 selectedSection = "Thư viện"
@@ -886,7 +906,8 @@ class MainActivity : ComponentActivity() {
             intent.getStringExtra("ai_radio_station"),
             intent.getStringExtra("ai_tv_channel"),
             intent.getStringExtra("ai_playlist_query"),
-            intent.getStringExtra("ai_youtube_action")
+            intent.getStringExtra("ai_youtube_action"),
+            intent.getStringExtra("ai_track_query")
         )
     }
 
@@ -971,6 +992,7 @@ class MainActivity : ComponentActivity() {
                     refreshSleepTimerUiState()
                     dispatchPendingAiPlaylistIfReady()
                     dispatchPendingAiAddCurrentSongToPlaylistIfReady()
+                    dispatchPendingAiLocalPlaybackIfReady()
                     pendingAiRadioStationTitle?.let { stationTitle ->
                         val station = RadioCatalog.find(stationTitle)
                         pendingAiRadioStationTitle = null
@@ -1260,6 +1282,7 @@ class MainActivity : ComponentActivity() {
                 }
                 dispatchPendingAiPlaylistIfReady()
                 dispatchPendingAiAddCurrentSongToPlaylistIfReady()
+                dispatchPendingAiLocalPlaybackIfReady()
             } catch (e: java.util.concurrent.CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -4237,6 +4260,42 @@ class MainActivity : ComponentActivity() {
             return
         }
         playPlaylist(playlist)
+    }
+
+    private fun dispatchPendingAiLocalPlaybackIfReady() {
+        if (!pendingAiLocalPlaybackRequested || !localLibraryLoaded || controller == null) return
+
+        val requestedQuery = pendingAiTrackQuery?.trim().orEmpty()
+        pendingAiLocalPlaybackRequested = false
+        pendingAiTrackQuery = null
+
+        val deviceSongs = songs.filter { it.source == "Thiết bị" }
+        if (requestedQuery.isBlank()) {
+            if (deviceSongs.isEmpty()) {
+                errorMessage = "Chưa tìm thấy bài nhạc trong bộ nhớ điện thoại."
+                return
+            }
+            playFilteredSongs(deviceSongs)
+            errorMessage = "Đang phát nhạc trong thư viện điện thoại."
+            return
+        }
+
+        val normalizedQuery = normalizeNgocSiAiVoicePhrase(requestedQuery)
+        val candidates = deviceSongs + songs.filter { it.source != "Thiết bị" }
+        val matchedSong = candidates.firstOrNull { song ->
+            normalizeNgocSiAiVoicePhrase(song.title) == normalizedQuery
+        } ?: candidates.firstOrNull { song ->
+            normalizeNgocSiAiVoicePhrase(song.title).contains(normalizedQuery) ||
+                normalizeNgocSiAiVoicePhrase(song.artist).contains(normalizedQuery)
+        }
+
+        if (matchedSong == null) {
+            errorMessage = "Không tìm thấy bài “${requestedQuery}” trong thư viện hiện có."
+            return
+        }
+
+        playFilteredSongs(listOf(matchedSong))
+        errorMessage = "Đang phát ${matchedSong.title}."
     }
 
     private fun dispatchPendingAiAddCurrentSongToPlaylistIfReady() {
