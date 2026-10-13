@@ -706,6 +706,25 @@ class MainActivity : ComponentActivity() {
                 selectedLibrary = "Tất cả"
                 libraryView = "Bài hát"
             }
+            "favorites" -> {
+                selectedSection = "Thư viện"
+                selectedLibrary = "Yêu thích"
+                libraryView = "Bài hát"
+            }
+            "albums" -> {
+                selectedSection = "Thư viện"
+                selectedLibrary = "Tất cả"
+                libraryView = "Album"
+            }
+            "folders" -> {
+                selectedSection = "Thư viện"
+                selectedLibrary = "Tất cả"
+                libraryView = "Thư mục"
+            }
+            "online" -> {
+                selectedSection = "Online"
+                onlineHubTab = "Tất cả"
+            }
             "youtube" -> {
                 selectedSection = "Online"
                 onlineHubTab = "YouTube"
