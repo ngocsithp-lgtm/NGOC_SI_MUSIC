@@ -9,6 +9,8 @@ internal enum class NgocSiAiLocalCommand {
     PLAY_TRACK,
     PLAY_RADIO_STATION,
     OPEN_TV_CHANNEL,
+    CREATE_PLAYLIST,
+    PLAY_NAMED_PLAYLIST,
     PAUSE,
     NEXT,
     PREVIOUS,
@@ -61,6 +63,8 @@ private val NGOC_SI_AI_WAKE_WORD_COMMANDS = setOf(
     NgocSiAiLocalCommand.PLAY_TRACK,
     NgocSiAiLocalCommand.PLAY_RADIO_STATION,
     NgocSiAiLocalCommand.OPEN_TV_CHANNEL,
+    NgocSiAiLocalCommand.CREATE_PLAYLIST,
+    NgocSiAiLocalCommand.PLAY_NAMED_PLAYLIST,
     NgocSiAiLocalCommand.CURRENT_TRACK,
     NgocSiAiLocalCommand.SHUFFLE_ON,
     NgocSiAiLocalCommand.SHUFFLE_OFF,
@@ -149,9 +153,11 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
             "cho phat bai thu hai", "phat bai thu hai trong hang doi"
         ) -> NgocSiAiLocalCommand.PLAY_SECOND
 
-        // Named radio stations and TV channels take precedence over generic screen navigation.
+        // Named feature requests take precedence over generic section navigation.
         extractNgocSiAiRadioStationQuery(input) != null -> NgocSiAiLocalCommand.PLAY_RADIO_STATION
         extractNgocSiAiTvChannelQuery(input) != null -> NgocSiAiLocalCommand.OPEN_TV_CHANNEL
+        extractNgocSiAiPlaylistQuery(input, create = true) != null -> NgocSiAiLocalCommand.CREATE_PLAYLIST
+        extractNgocSiAiPlaylistQuery(input, create = false) != null -> NgocSiAiLocalCommand.PLAY_NAMED_PLAYLIST
 
         // Match named-song commands before generic play/pause phrases.
         extractNgocSiAiTrackQuery(input) != null -> NgocSiAiLocalCommand.PLAY_TRACK
@@ -353,6 +359,29 @@ internal fun selectNgocSiAiWakePhraseCandidate(candidates: List<String>): String
         ?: cleaned.firstOrNull()
 }
 
+
+/**
+ * Extract a playlist name for explicit create/play actions.
+ * "Mở playlist" remains generic navigation; "Phát playlist Nhạc Trịnh" targets a specific list.
+ */
+internal fun extractNgocSiAiPlaylistQuery(input: String, create: Boolean): String? {
+    val raw = input.trim()
+    val prefixes = if (create) {
+        listOf(
+            Regex("""^(?:ngọc sĩ[\s,:]+)?(?:hãy\s+)?(?:tạo|lập)\s+(?:một\s+)?(?:playlist|danh sách phát)\s+""", RegexOption.IGNORE_CASE),
+            Regex("""^(?:ngọc sĩ[\s,:]+)?(?:hãy\s+)?(?:tạo|lập)\s+playlist\s+""", RegexOption.IGNORE_CASE)
+        )
+    } else {
+        listOf(
+            Regex("""^(?:ngọc sĩ[\s,:]+)?(?:hãy\s+)?(?:phát|chạy|mở)\s+(?:playlist|danh sách phát)\s+""", RegexOption.IGNORE_CASE)
+        )
+    }
+    val prefix = prefixes.firstOrNull { it.containsMatchIn(raw) } ?: return null
+    val query = prefix.replaceFirst(raw, "").trim().trim(',', ':', '-', '.', '?', '!')
+    val normalized = normalizeNgocSiAiVoicePhrase(query)
+    if (normalized.isBlank() || normalized in setOf("moi", "moi nhe", "nhe", "di")) return null
+    return query.take(100)
+}
 
 /**
  * Extract an explicit radio-station request. Examples: "Phát Radio VOV3", "Mở Radio VOH FM 95.6".
