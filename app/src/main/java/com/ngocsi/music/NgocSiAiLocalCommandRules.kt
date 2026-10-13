@@ -145,6 +145,20 @@ internal fun classifyNgocSiAiWakePhrase(input: String): NgocSiAiLocalCommand? {
     if (!normalized.startsWith("ngoc si ")) return null
     val commandPhrase = normalized.removePrefix("ngoc si ").trim()
     if (commandPhrase.isBlank()) return null
+
+    // Keep these common home aliases explicit in wake-word mode too; speech
+    // services often normalize “về giao diện chính” differently from “về trang chủ”.
+    if (
+        commandPhrase == "ve giao dien chinh" ||
+        commandPhrase.startsWith("ve giao dien chinh ") ||
+        commandPhrase == "tro ve giao dien chinh" ||
+        commandPhrase.startsWith("tro ve giao dien chinh ") ||
+        commandPhrase == "quay ve giao dien chinh" ||
+        commandPhrase.startsWith("quay ve giao dien chinh ")
+    ) {
+        return NgocSiAiLocalCommand.OPEN_HOME
+    }
+
     return classifyNgocSiAiActivatedCommand(commandPhrase)
 }
 
