@@ -97,7 +97,7 @@ android {
 
 dependencies {
     // Firebase AI Logic client; missing Firebase settings deliberately leave preview offline.
-    implementation(platform("com.google.firebase:firebase-bom:34.19.0"))
+    implementation(platform("com.google.firebase:firebase-bom:35.0.0"))
     implementation("com.google.firebase:firebase-ai")
     implementation("com.google.firebase:firebase-appcheck-playintegrity")
     // Debug-only App Check provider for sideloaded preview builds; token must be registered in Firebase Console.
