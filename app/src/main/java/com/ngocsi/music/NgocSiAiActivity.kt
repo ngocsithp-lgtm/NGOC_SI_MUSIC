@@ -752,7 +752,7 @@ class NgocSiAiActivity : ComponentActivity() {
 
     private fun runLocalCommand(command: NgocSiAiLocalCommand, originalText: String = ""): String {
         when (command) {
-            NgocSiAiLocalCommand.HELP -> return "Tôi có thể điều khiển phát, tạm dừng, chuyển bài, phát ngẫu nhiên, chế độ lặp; mở Trang chủ, Thư viện, Yêu thích, Album, Thư mục, YouTube, Drive, Radio, TV, Online, Playlist, Hàng đợi, Trình phát, Cài đặt; tìm nội dung YouTube và đặt hoặc hủy hẹn giờ. Hãy nói “Ngọc Sĩ”, đợi tôi đáp rồi nói lệnh."
+            NgocSiAiLocalCommand.HELP -> return "Tôi có thể phát bài theo tên, tạm dừng, chuyển bài, phát ngẫu nhiên, chế độ lặp; mở Trang chủ, Thư viện, Yêu thích, Album, Thư mục, YouTube, Drive, Radio, TV, Online, Playlist, Hàng đợi, Trình phát, Cài đặt; tìm nội dung YouTube và đặt hoặc hủy hẹn giờ. Hãy nói “Ngọc Sĩ”, đợi tôi đáp rồi nói lệnh."
             NgocSiAiLocalCommand.OPEN_HOME -> return openAppDestination("home", "Đang mở trang chủ.")
             NgocSiAiLocalCommand.SEARCH_YOUTUBE -> {
                 val query = extractNgocSiAiYoutubeQuery(originalText)
@@ -1621,7 +1621,7 @@ private fun NgocSiAiPreviewScreen(
                 val suggestions = (if (isOnlineConfigured) {
                     listOf("Bạn có thể giúp gì?", "Giải thích bằng tiếng Việt dễ hiểu", "Tóm tắt nội dung này", "Lên kế hoạch cho tôi", "Viết nội dung giúp tôi")
                 } else emptyList()) + listOf(
-                    "Phát nhạc", "Tạm dừng nhạc", "Bài tiếp theo", "Bài trước",
+                    "Phát nhạc", "Phát bài hát Diễm xưa", "Tạm dừng nhạc", "Bài tiếp theo", "Bài trước",
                     "Đang phát bài gì?", "Phát ngẫu nhiên", "Tắt phát ngẫu nhiên",
                     "Lặp hàng đợi", "Lặp một bài", "Tắt chế độ lặp",
                     "Mở trang chủ", "Mở thư viện", "Mở Yêu thích", "Mở Album", "Mở Thư mục",
