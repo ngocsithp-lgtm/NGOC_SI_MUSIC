@@ -203,12 +203,12 @@ class NgocSiWakeWordService : Service() {
             // While waiting for the command after “Ngọc Sĩ”, prefer any recognized
             // actionable hypothesis rather than blindly trusting Android's first guess.
             // Outside that short window, still require the explicit wake phrase.
-            val recognized = if (wasAwaitingCommand) {
+            val recognized = (if (wasAwaitingCommand) {
                 selectNgocSiAiActivatedCommandCandidate(phrases)
                     ?: selectNgocSiAiWakePhraseCandidate(phrases)
             } else {
                 selectNgocSiAiWakePhraseCandidate(phrases)
-            }.orEmpty()
+            }).orEmpty()
             val command = classifyNgocSiAiWakePhrase(recognized)
                 ?: if (wasAwaitingCommand) classifyNgocSiAiActivatedCommand(recognized) else null
 
