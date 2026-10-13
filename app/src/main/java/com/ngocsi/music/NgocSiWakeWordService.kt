@@ -381,7 +381,8 @@ class NgocSiWakeWordService : Service() {
                     extractNgocSiAiPlaylistQuery(originalText, create = false)
                         ?: return "Hãy nói tên playlist muốn phát, ví dụ: Ngọc Sĩ, phát playlist Nhạc Trịnh."
                 else -> null
-            }            val youtubeAction = when (command) {
+            }
+            val youtubeAction = when (command) {
                 NgocSiAiLocalCommand.RESUME_YOUTUBE -> "play"
                 NgocSiAiLocalCommand.PAUSE_YOUTUBE -> "pause"
                 NgocSiAiLocalCommand.NEXT_YOUTUBE_VIDEO -> "next"
