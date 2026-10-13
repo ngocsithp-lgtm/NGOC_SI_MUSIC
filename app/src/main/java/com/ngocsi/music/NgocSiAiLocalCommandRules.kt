@@ -170,7 +170,7 @@ private fun trimNgocSiAiNormalizedCommandFillers(input: String): String {
     val suffixes = listOf(
         " duoc khong", " duoc chu", " giup toi nhe", " giup minh nhe",
         " nhe nha", " voi nhe", " giup toi", " giup minh", " cho toi",
-        " nhe", " nha", " voi", " di", " len"
+        " mot chut", " nhe", " nha", " voi", " di", " len"
     )
     while (true) {
         val suffix = suffixes.firstOrNull { phrase.endsWith(it) && phrase.length > it.length } ?: break
@@ -225,6 +225,9 @@ internal fun isNgocSiAiExplicitStopPhrase(input: String): Boolean {
         "ngung han", "ngung phat han", "ngung nhac han",
         "tat han nhac", "tat nhac han", "ket thuc phat nhac",
         "dung nhac luon", "ngung nhac luon",
+        "dung nhac nua", "dung phat nua", "dung phat nhac nua",
+        "ngung nhac nua", "ngung phat nua", "ngung phat nhac nua",
+        "tat nhac luon", "tat het nhac luon", "dung bai nay luon",
         "stop playback", "stop completely"
     )
     if (hardStopPrefixes.any { phrase == it || phrase.startsWith("$it ") }) return true
@@ -400,7 +403,10 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
             "tiep tuc phat", "tiep tuc phat nhac", "tiep tuc nghe nhac",
             "bat dau phat nhac", "bat dau nghe nhac", "nghe nhac",
             "cho nhac chay", "cho nhac chay tiep", "phat tiep nhac", "nghe tiep nhac", "tiep tuc nghe",
-            "bat nhac lai", "mo trinh phat nhac", "phat nhac tiep di",
+            "bat nhac lai", "bat lai nhac", "phat lai nhac",
+            "mo trinh phat nhac", "phat nhac tiep di", "phat nhac tiep",
+            "phat tiep", "phat tiep bai dang nghe",
+            "tiep tuc phat bai", "tiep tuc phat bai hat", "cho nhac phat lai",
             "play", "play music", "resume", "resume music",
             "mo nhac", "mo nhac di", "mo nhac len"
         ) -> NgocSiAiLocalCommand.PLAY
@@ -409,6 +415,9 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
             "dung han", "dung nhac hoan toan", "dung hoan toan", "dung phat han",
             "dung phat hoan toan", "tat han nhac", "tat nhac han", "ngung han",
             "ngung nhac han", "ngung phat han", "ket thuc phat nhac",
+            "dung nhac nua", "dung phat nua", "dung phat nhac nua",
+            "ngung nhac nua", "ngung phat nua", "ngung phat nhac nua",
+            "tat nhac luon", "tat het nhac luon", "dung bai nay luon",
             "stop playback", "stop completely"
         ) -> NgocSiAiLocalCommand.STOP
 
@@ -419,6 +428,7 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
             "ngung bai hat", "ngung phat", "ngung phat nhac",
             "dung", "dung lai", "dung lai di", "dung nhac", "dung nhac lai",
             "dung phat", "dung phat di", "dung phat nhac", "dung phat nhac di",
+            "tam dung bai hat", "tam dung nhac mot chut", "dung nhac mot chut",
             "tat nhac", "tat nhac di", "cho dung nhac",
             "pause", "pause music", "stop", "stop music"
         ) -> NgocSiAiLocalCommand.PAUSE
@@ -428,7 +438,10 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
             "chuyen bai", "chuyen bai hat", "doi bai", "phat bai tiep theo",
             "chuyen sang bai tiep theo", "chuyen sang bai ke tiep", "sang bai tiep theo",
             "chuyen qua bai sau", "bai sau", "nhac tiep", "cho bai tiep theo",
-            "qua bai", "bo qua bai nay", "skip", "skip song", "skip to next song", "next", "next song"
+            "chuyen sang bai khac", "sang bai khac", "doi sang bai khac", "doi bai khac",
+            "bo bai nay", "bo qua bai nay", "bo qua bai dang phat",
+            "skip", "skip song", "skip this song", "skip this track",
+            "skip to next song", "next", "next song", "next track"
         ) -> NgocSiAiLocalCommand.NEXT
 
         // Treat a standalone "quay lại" as Previous, but let "quay lại trang chủ"
@@ -486,7 +499,13 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
             startsWithAny("tat nhac sau 120 phut", "dung nhac sau 120 phut") ->
             NgocSiAiLocalCommand.SLEEP_TIMER_120
 
-        isAnyOf("ban lam duoc gi", "ban co the giup gi", "ban co the giup toi nhung gi", "toi co the hoi gi", "ai lam duoc gi", "tro giup", "huong dan su dung", "cac chuc nang cua ai") ||
+        isAnyOf(
+            "ban lam duoc gi", "ban lam duoc gi vay",
+            "ban co the lam gi", "ban co the lam gi vay",
+            "ban co the giup gi", "ban co the giup toi gi",
+            "ban co the giup toi nhung gi", "toi co the hoi gi", "ai lam duoc gi",
+            "tro giup", "huong dan su dung", "cac chuc nang cua ai"
+        ) ||
             phrase.contains("ban co the giup toi viec gi") ||
             phrase.contains("ban co the giup minh viec gi") ||
             phrase.contains("hom nay ban giup duoc gi") ||
@@ -500,6 +519,8 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
             "ve lai trang chu", "dua toi ve trang chu", "dua toi ra trang chu",
             "dua toi ve man hinh chinh", "dua toi ra man hinh chinh",
             "dua toi ve giao dien chinh", "dua toi ra giao dien chinh",
+            "ve man hinh dau", "tro ve man hinh dau", "quay ve man hinh dau",
+            "mo man hinh dau", "ve giao dien ban dau", "tro ve giao dien ban dau",
             "tro ve man hinh chinh", "tro lai man hinh chinh", "ve trang chinh",
             "mo man hinh chinh", "ve man hinh chinh", "ve giao dien chinh",
             "tro ve giao dien chinh", "quay ve giao dien chinh",

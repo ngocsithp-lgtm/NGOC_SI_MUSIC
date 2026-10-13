@@ -102,15 +102,20 @@ private fun localConversationFallback(userText: String): String? {
 
     // These short, predictable exchanges are handled on-device to preserve online quota.
     when (normalized) {
-        "chao", "xin chao", "chao ban", "xin chao ban", "chao ai", "hello", "hi" ->
+        "chao", "xin chao", "chao ban", "xin chao ban", "chao ai",
+        "chao buoi sang", "xin chao buoi sang", "chao buoi chieu", "xin chao buoi chieu",
+        "chao buoi toi", "xin chao buoi toi", "good morning", "good evening", "hello", "hi" ->
             return "Chào bạn. Mình đang nghe đây. Bạn muốn trò chuyện hay cần mình điều khiển nhạc trong ứng dụng?"
-        "cam on", "cam on ban", "cam on nhe", "thanks", "thank you" ->
+        "cam on", "cam on ban", "cam on nhe", "cam on ban nhieu",
+        "cam on rat nhieu", "minh cam on", "toi cam on ban",
+        "thanks", "thank you" ->
             return "Không có gì đâu. Bạn cứ nói điều bạn cần, mình sẽ hỗ trợ trong khả năng của mình."
         "ban lam duoc gi", "ban co the lam gi", "ai lam duoc gi", "ngoc si ai lam duoc gi" ->
             return "Mình có thể xử lý các lệnh được hỗ trợ như phát, tạm dừng hoặc dừng hẳn nhạc, chuyển bài, mở YouTube, Radio, TV và Google Drive. Mình cũng có thể trò chuyện, giải thích và cùng bạn nghĩ ý tưởng khi AI trực tuyến còn hạn mức."
         "ban ten gi", "ten ban la gi" ->
             return "Mình là NGỌC SĨ AI, trợ lý tích hợp trong NGỌC SĨ MUSIC."
-        "ban khoe khong", "hom nay ban the nao" ->
+        "ban khoe khong", "ban co khoe khong", "ban co on khong",
+        "hom nay ban the nao", "hom nay ban ra sao", "ban the nao" ->
             return "Mình sẵn sàng hỗ trợ bạn đây. Hôm nay bạn muốn nghe nhạc hay cùng mình giải quyết việc gì?"
     }
 

@@ -104,6 +104,43 @@ class NgocSiAiLocalCommandRulesTest {
     }
 
     @Test
+    fun recognizesNaturalConversationalAliasesWithoutOnlineAi() {
+        assertEquals(
+            NgocSiAiLocalCommand.STOP,
+            classifyNgocSiAiLocalCommand("AI, đừng phát nhạc nữa")
+        )
+        assertEquals(true, isNgocSiAiExplicitStopPhrase("AI, đừng phát nhạc nữa"))
+        assertEquals(
+            NgocSiAiLocalCommand.STOP,
+            classifyNgocSiAiLocalCommand("Tắt nhạc luôn")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.PAUSE,
+            classifyNgocSiAiLocalCommand("Tạm dừng bài hát một chút")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.PLAY,
+            classifyNgocSiAiLocalCommand("Phát nhạc tiếp đi")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.NEXT,
+            classifyNgocSiAiLocalCommand("Bỏ bài này đi")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.NEXT,
+            classifyNgocSiAiLocalCommand("Chuyển sang bài khác")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.OPEN_HOME,
+            classifyNgocSiAiLocalCommand("Về màn hình đầu")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.HELP,
+            classifyNgocSiAiLocalCommand("Bạn có thể làm gì vậy?")
+        )
+    }
+
+    @Test
     fun recognizesShortEnglishPlaybackCommands() {
         assertEquals(NgocSiAiLocalCommand.PLAY, classifyNgocSiAiLocalCommand("Resume"))
         assertEquals(NgocSiAiLocalCommand.PAUSE, classifyNgocSiAiLocalCommand("Pause music"))
