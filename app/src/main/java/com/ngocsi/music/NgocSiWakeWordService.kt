@@ -220,7 +220,7 @@ class NgocSiWakeWordService : Service() {
                         }
                     }, 900L)
                 } else {
-                    val reply = runPlaybackCommand(command)
+                    val reply = runAppCommand(command, recognized)
                     updateNotification("Đã nghe “$recognized” · $reply")
                     speakReply(reply)
                 }
