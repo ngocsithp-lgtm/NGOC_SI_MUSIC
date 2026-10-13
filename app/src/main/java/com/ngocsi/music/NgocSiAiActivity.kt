@@ -759,6 +759,24 @@ class NgocSiAiActivity : ComponentActivity() {
                     ?: return "Hãy nói tên nội dung cần tìm, ví dụ: “Tìm YouTube nhạc Trịnh Công Sơn”."
                 return openAppDestination("youtube", "Đang tìm trên YouTube: $query", query)
             }
+            NgocSiAiLocalCommand.PLAY_RADIO_STATION -> {
+                val query = extractNgocSiAiRadioStationQuery(originalText)
+                    ?: return "Hãy nói rõ tên đài, ví dụ: “Phát Radio VOV3” hoặc “Mở Radio VOH FM 95.6”."
+                return openAppDestination(
+                    "radio_station",
+                    "Đang mở đài $query.",
+                    radioStationQuery = query
+                )
+            }
+            NgocSiAiLocalCommand.OPEN_TV_CHANNEL -> {
+                val query = extractNgocSiAiTvChannelQuery(originalText)
+                    ?: return "Hãy nói tên kênh, ví dụ: “Mở VTV3” hoặc “Mở kênh HTV7”."
+                return openAppDestination(
+                    "tv_channel",
+                    "Đang mở kênh $query.",
+                    tvChannelQuery = query
+                )
+            }
             NgocSiAiLocalCommand.OPEN_LIBRARY -> return openAppDestination("library", "Đang mở Thư viện nhạc.")
             NgocSiAiLocalCommand.OPEN_FAVORITES -> return openAppDestination("favorites", "Đang mở nhạc Yêu thích.")
             NgocSiAiLocalCommand.OPEN_ALBUMS -> return openAppDestination("albums", "Đang mở danh sách Album.")
@@ -916,12 +934,20 @@ class NgocSiAiActivity : ComponentActivity() {
         }
     }
 
-    private fun openAppDestination(destination: String, response: String, youtubeSearchQuery: String? = null): String {
+    private fun openAppDestination(
+        destination: String,
+        response: String,
+        youtubeSearchQuery: String? = null,
+        radioStationQuery: String? = null,
+        tvChannelQuery: String? = null
+    ): String {
         return runCatching {
             startActivity(
                 Intent(this, MainActivity::class.java).apply {
                     putExtra("pro_destination", destination)
                     youtubeSearchQuery?.let { putExtra("ai_youtube_query", it) }
+                    radioStationQuery?.let { putExtra("ai_radio_station", it) }
+                    tvChannelQuery?.let { putExtra("ai_tv_channel", it) }
                     // Bring the existing main app to the front and deliver its navigation event.
                     addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                 }
@@ -1626,7 +1652,7 @@ private fun NgocSiAiPreviewScreen(
                     "Lặp hàng đợi", "Lặp một bài", "Tắt chế độ lặp",
                     "Mở trang chủ", "Mở thư viện", "Mở Yêu thích", "Mở Album", "Mở Thư mục",
                     "Mở Online", "Mở YouTube", "Tìm YouTube nhạc Trịnh Công Sơn",
-                    "Mở Drive", "Mở Radio", "Mở TV", "Mở danh sách phát",
+                    "Mở Drive", "Mở Radio", "Phát Radio VOV3", "Mở TV", "Mở VTV3", "Mở kênh HTV7", "Mở danh sách phát",
                     "Mở hàng đợi", "Mở trình phát", "Mở Cài đặt", "Hẹn giờ 30 phút",
                     "Tắt hẹn giờ", "Bạn làm được gì?"
                 )
