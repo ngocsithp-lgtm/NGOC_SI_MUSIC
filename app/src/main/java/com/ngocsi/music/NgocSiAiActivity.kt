@@ -875,7 +875,9 @@ class NgocSiAiActivity : ComponentActivity() {
 
         val player = musicController
             ?: return "Trình phát đang khởi động hoặc chưa kết nối. Hãy thử lại sau một lát."
-        if (player.mediaItemCount == 0 || player.currentMediaItem == null) {
+        if (command != NgocSiAiLocalCommand.STOP &&
+            (player.mediaItemCount == 0 || player.currentMediaItem == null)
+        ) {
             val audioPermission = if (Build.VERSION.SDK_INT >= 33) {
                 Manifest.permission.READ_MEDIA_AUDIO
             } else {
