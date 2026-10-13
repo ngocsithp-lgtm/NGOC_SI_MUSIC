@@ -306,10 +306,14 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
         isAnyOf("ban lam duoc gi", "ban co the giup gi", "ban co the giup toi nhung gi", "toi co the hoi gi", "ai lam duoc gi", "tro giup", "huong dan su dung", "cac chuc nang cua ai") ->
             NgocSiAiLocalCommand.HELP
 
-        isAnyOf(
+        startsWithAny(
             "ve trang chu", "mo trang chu", "mo home", "home", "trang chu",
-            "quay lai trang chu", "tro ve trang chu", "quay lai man hinh chinh",
-            "tro ve man hinh chinh", "ve trang chinh", "mo man hinh chinh", "ve man hinh chinh"
+            "quay lai trang chu", "tro ve trang chu", "tro lai trang chu",
+            "quay ve trang chu", "mo lai trang chu", "quay lai man hinh chinh",
+            "tro ve man hinh chinh", "tro lai man hinh chinh", "ve trang chinh",
+            "mo man hinh chinh", "ve man hinh chinh", "ve giao dien chinh",
+            "tro ve giao dien chinh", "quay ve giao dien chinh",
+            "open home", "go home", "back to home", "return home"
         ) -> NgocSiAiLocalCommand.OPEN_HOME
 
         startsWithAny(
@@ -353,7 +357,8 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
         startsWithAny(
             "mo youtube", "vao youtube", "mo video youtube", "mo muc youtube",
             "chuyen den youtube", "chuyen den mot youtube", "vao muc youtube",
-            "chuyen sang youtube", "mo ung dung youtube"
+            "chuyen sang youtube", "mo ung dung youtube", "mo youtube len",
+            "bat youtube", "bat video youtube", "open youtube"
         ) ->
             NgocSiAiLocalCommand.OPEN_YOUTUBE
 
