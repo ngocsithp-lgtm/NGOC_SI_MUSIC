@@ -71,6 +71,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
+import java.text.Normalizer
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -90,6 +91,26 @@ private const val AI_CHAT_CONVERSATION_KEY = "api_conversation_v1"
 private const val AI_VOICE_REPLY_KEY = "voice_replies_enabled_v1"
 private const val MAX_SAVED_AI_UI_MESSAGES = 60
 private const val MAX_SAVED_AI_MESSAGE_CHARS = 4_000
+
+private fun localConversationFallback(userText: String): String? {
+    val normalized = Normalizer.normalize(userText.lowercase(Locale.ROOT), Normalizer.Form.NFD)
+        .replace("\\p{Mn}+".toRegex(), "")
+        .replace('đ', 'd')
+    val asksForAppDirection =
+        (normalized.contains("chuyen nghiep") || normalized.contains("pro hon") ||
+            normalized.contains("nang cap") || normalized.contains("cai thien")) &&
+        (normalized.contains("app") || normalized.contains("ung dung")) &&
+        (normalized.contains("bat dau") || normalized.contains("tu dau") ||
+            normalized.contains("nen lam gi") || normalized.contains("nen uu tien"))
+    if (!asksForAppDirection) return null
+
+    return "Mình đề xuất bắt đầu bằng một đợt kiểm tra chất lượng trước khi thêm tính năng mới. " +
+        "Ưu tiên theo thứ tự: (1) sửa lỗi phát nhạc và lệnh giọng nói để câu nói tự nhiên được hiểu đúng; " +
+        "(2) làm giao diện gọn, dễ nhìn và thống nhất; (3) kiểm tra YouTube, phát nền và màn hình khóa; " +
+        "(4) kiểm tra Radio, Google Drive và danh sách phát; (5) sau cùng mới bổ sung tính năng mới. " +
+        "Với NGỌC SĨ MUSIC, bước đầu tiên hợp lý nhất là kiểm thử từng lệnh AI bằng câu nói thực tế, " +
+        "ghi lại câu nào không hiểu và sửa bộ nhận diện trước. Mình chưa thay đổi bản PRO ổn định."
+}
 
 private fun defaultAiGreeting(isOnlineConfigured: Boolean) = AiPreviewMessage(
     false,
@@ -1400,11 +1421,17 @@ private fun NgocSiAiPreviewScreen(
             } catch (error: NgocSiAiRemoteException) {
                 if (conversation.lastOrNull() == userTurn) conversation.removeAt(conversation.lastIndex)
                 val errorReply = error.message ?: "Không thể kết nối NGỌC SĨ AI. Vui lòng thử lại."
-                quotaNote = ngocSiAiQuotaStatusNotice(errorReply).orEmpty()
-                messages.add(AiPreviewMessage(false, errorReply))
+                val fallbackReply = localConversationFallback(clean)
+                val visibleReply = fallbackReply ?: errorReply
+                quotaNote = if (fallbackReply != null) {
+                    "AI trực tuyến đang tạm giới hạn; đã trả lời dự phòng trên máy, không phát sinh phí."
+                } else {
+                    ngocSiAiQuotaStatusNotice(errorReply).orEmpty()
+                }
+                messages.add(AiPreviewMessage(false, visibleReply))
                 if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
                 persistChatState()
-                onVoiceReply(errorReply)
+                onVoiceReply(visibleReply)
             } catch (_: Exception) {
                 if (conversation.lastOrNull() == userTurn) conversation.removeAt(conversation.lastIndex)
                 val errorReply = "Có lỗi khi gửi yêu cầu AI. Hãy kiểm tra kết nối và cấu hình Firebase."
@@ -1901,6 +1928,7 @@ private fun NgocSiAiPreviewScreen(
             ) {
                 val suggestions = listOf(
                     "Bạn làm được gì?",
+                    "Tôi muốn app của mình chuyên nghiệp hơn nhưng chưa biết nên bắt đầu từ đâu.",
                     "Phát nhạc",
                     "Tạm dừng nhạc",
                     "Mở YouTube",
