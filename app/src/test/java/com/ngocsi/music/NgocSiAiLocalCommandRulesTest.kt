@@ -102,6 +102,46 @@ class NgocSiAiLocalCommandRulesTest {
     }
 
     @Test
+    fun hardStopNeverTargetsAnIdlePreviewWhenProductionSessionIsMissing() {
+        assertEquals(
+            null,
+            selectNgocSiAiStopPlaybackTarget(
+                productionConnected = false,
+                productionActive = false,
+                previewConnected = true,
+                previewActive = false
+            )
+        )
+        assertEquals(
+            NgocSiAiPlaybackTarget.PRODUCTION,
+            selectNgocSiAiStopPlaybackTarget(
+                productionConnected = true,
+                productionActive = true,
+                previewConnected = true,
+                previewActive = false
+            )
+        )
+        assertEquals(
+            NgocSiAiPlaybackTarget.PREVIEW,
+            selectNgocSiAiStopPlaybackTarget(
+                productionConnected = false,
+                productionActive = false,
+                previewConnected = true,
+                previewActive = true
+            )
+        )
+        assertEquals(
+            NgocSiAiPlaybackTarget.PRODUCTION,
+            selectNgocSiAiStopPlaybackTarget(
+                productionConnected = true,
+                productionActive = false,
+                previewConnected = true,
+                previewActive = false
+            )
+        )
+    }
+
+    @Test
     fun recognizesVietnameseCommandsWithAccentsAndPolitePrefixes() {
         assertEquals(NgocSiAiLocalCommand.PLAY, classifyNgocSiAiLocalCommand("Phát nhạc"))
         assertEquals(NgocSiAiLocalCommand.PLAY_SECOND, classifyNgocSiAiLocalCommand("Hát bài thứ hai trong danh sách"))
