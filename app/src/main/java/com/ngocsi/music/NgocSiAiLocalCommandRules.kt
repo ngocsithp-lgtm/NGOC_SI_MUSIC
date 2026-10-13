@@ -7,6 +7,8 @@ internal enum class NgocSiAiLocalCommand {
     PLAY,
     PLAY_SECOND,
     PLAY_TRACK,
+    PLAY_RADIO_STATION,
+    OPEN_TV_CHANNEL,
     PAUSE,
     NEXT,
     PREVIOUS,
@@ -57,6 +59,8 @@ private val NGOC_SI_AI_WAKE_WORD_COMMANDS = setOf(
     NgocSiAiLocalCommand.PREVIOUS,
     NgocSiAiLocalCommand.PLAY_SECOND,
     NgocSiAiLocalCommand.PLAY_TRACK,
+    NgocSiAiLocalCommand.PLAY_RADIO_STATION,
+    NgocSiAiLocalCommand.OPEN_TV_CHANNEL,
     NgocSiAiLocalCommand.CURRENT_TRACK,
     NgocSiAiLocalCommand.SHUFFLE_ON,
     NgocSiAiLocalCommand.SHUFFLE_OFF,
@@ -144,6 +148,10 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
             "bai thu hai trong danh sach", "bai so hai trong danh sach",
             "cho phat bai thu hai", "phat bai thu hai trong hang doi"
         ) -> NgocSiAiLocalCommand.PLAY_SECOND
+
+        // Named radio stations and TV channels take precedence over generic screen navigation.
+        extractNgocSiAiRadioStationQuery(input) != null -> NgocSiAiLocalCommand.PLAY_RADIO_STATION
+        extractNgocSiAiTvChannelQuery(input) != null -> NgocSiAiLocalCommand.OPEN_TV_CHANNEL
 
         // Match named-song commands before generic play/pause phrases.
         extractNgocSiAiTrackQuery(input) != null -> NgocSiAiLocalCommand.PLAY_TRACK
@@ -345,6 +353,39 @@ internal fun selectNgocSiAiWakePhraseCandidate(candidates: List<String>): String
         ?: cleaned.firstOrNull()
 }
 
+
+/**
+ * Extract an explicit radio-station request. Examples: "Phát Radio VOV3", "Mở Radio VOH FM 95.6".
+ */
+internal fun extractNgocSiAiRadioStationQuery(input: String): String? {
+    val raw = input.trim()
+    val prefixes = listOf(
+        Regex("""^(?:ngọc sĩ[\s,:]+)?(?:hãy\s+)?(?:phát|mở|nghe|bật)\s+(?:đài\s+phát\s+thanh|đài|radio)\s+""", RegexOption.IGNORE_CASE),
+        Regex("""^(?:ngọc sĩ[\s,:]+)?(?:hãy\s+)?(?:phát|nghe)\s+(?:vov|voh)\s*""", RegexOption.IGNORE_CASE)
+    )
+    val prefix = prefixes.firstOrNull { it.containsMatchIn(raw) } ?: return null
+    val query = prefix.replaceFirst(raw, "").trim().trim(',', ':', '-', '.', '?', '!')
+    val normalized = normalizeNgocSiAiVoicePhrase(query)
+    if (normalized.isBlank() || normalized in setOf("viet nam", "radio", "dai", "nhac")) return null
+    return query.take(80)
+}
+
+/**
+ * Extract an explicit TV channel request such as "Mở VTV3" or "Mở kênh HTV7".
+ * Bare "Mở TV" remains the generic TV screen route.
+ */
+internal fun extractNgocSiAiTvChannelQuery(input: String): String? {
+    val raw = input.trim()
+    val prefixes = listOf(
+        Regex("""^(?:ngọc sĩ[\s,:]+)?(?:hãy\s+)?(?:mở|xem|bật|phát)\s+(?:kênh\s+)?""", RegexOption.IGNORE_CASE),
+        Regex("""^(?:ngọc sĩ[\s,:]+)?(?:hãy\s+)?(?:chuyển\s+(?:sang|đến)\s+)(?:kênh\s+)?""", RegexOption.IGNORE_CASE)
+    )
+    val prefix = prefixes.firstOrNull { it.containsMatchIn(raw) } ?: return null
+    val query = prefix.replaceFirst(raw, "").trim().trim(',', ':', '-', '.', '?', '!')
+    val normalized = normalizeNgocSiAiVoicePhrase(query)
+    val channelPattern = Regex("""^(?:(?:kenh|tv)\s+)?(?:vtv\s*[1-9]|htv\s*[1-9]|vtv can tho|thvl\s*[1-4]|vtvgo|htvm)$""")
+    return query.take(60).takeIf { channelPattern.matches(normalized) }
+}
 
 /**
  * Extract a named song from an explicit play/open/listen command.
