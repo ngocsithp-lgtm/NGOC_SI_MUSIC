@@ -184,7 +184,7 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
         // Explicit YouTube controls must not be mistaken for local music controls.
         startsWithAny("tam dung youtube", "tam dung video youtube", "pause youtube", "pause video") ->
             NgocSiAiLocalCommand.PAUSE_YOUTUBE
-        startsWithAny("tiep tuc youtube", "tiep tuc video youtube", "phat tiep youtube", "resume youtube", "play youtube") ->
+        startsWithAny("phat youtube", "tiep tuc youtube", "tiep tuc video youtube", "phat tiep youtube", "resume youtube", "play youtube") ->
             NgocSiAiLocalCommand.RESUME_YOUTUBE
         startsWithAny("video youtube tiep theo", "youtube tiep theo", "video tiep theo tren youtube", "next youtube video") ->
             NgocSiAiLocalCommand.NEXT_YOUTUBE_VIDEO
@@ -349,7 +349,7 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
             NgocSiAiLocalCommand.SEARCH_YOUTUBE
 
         startsWithAny(
-            "phat youtube", "mo youtube", "vao youtube", "mo video youtube", "mo muc youtube",
+            "mo youtube", "vao youtube", "mo video youtube", "mo muc youtube",
             "chuyen den youtube", "chuyen den mot youtube", "vao muc youtube",
             "chuyen sang youtube", "mo ung dung youtube"
         ) ->
