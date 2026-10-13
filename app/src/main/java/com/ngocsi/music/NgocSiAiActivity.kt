@@ -183,6 +183,7 @@ class NgocSiAiActivity : ComponentActivity() {
     // Preserve the explicit "play" request if the device library is still loading.
     private var pendingPlayAfterQueueLoad = false
     private var pendingQueueStartIndexAfterLoad: Int? = null
+    private var pendingTrackQueryAfterQueueLoad: String? = null
     private var responseTts: TextToSpeech? = null
     private var responseTtsInitialized = false
     private var responseTtsReady = false
@@ -608,6 +609,7 @@ class NgocSiAiActivity : ComponentActivity() {
                     deviceQueueLoadStarted = false
                     pendingPlayAfterQueueLoad = false
                     pendingQueueStartIndexAfterLoad = null
+                    pendingTrackQueryAfterQueueLoad = null
                     Toast.makeText(
                         this@NgocSiAiActivity,
                         "Không tìm thấy tệp nhạc cục bộ. Bạn vẫn có thể dùng chat nếu AI trực tuyến đã cấu hình.",
@@ -619,8 +621,21 @@ class NgocSiAiActivity : ComponentActivity() {
                 activeController.setMediaItems(localItems)
                 activeController.prepare()
                 deviceQueueLoadStarted = false
-                val shouldStartPlayback = pendingPlayAfterQueueLoad
-                val requestedStartIndex = pendingQueueStartIndexAfterLoad ?: 0
+                val pendingTrackQuery = pendingTrackQueryAfterQueueLoad
+                pendingTrackQueryAfterQueueLoad = null
+                val targetTrackIndex = pendingTrackQuery?.let { query ->
+                    val normalizedQuery = normalizeNgocSiAiVoicePhrase(query)
+                    val exact = localItems.indexOfFirst { item ->
+                        normalizeNgocSiAiVoicePhrase(item.mediaMetadata.title?.toString().orEmpty()) == normalizedQuery
+                    }
+                    if (exact >= 0) exact else localItems.indexOfFirst { item ->
+                        val title = normalizeNgocSiAiVoicePhrase(item.mediaMetadata.title?.toString().orEmpty())
+                        val artist = normalizeNgocSiAiVoicePhrase(item.mediaMetadata.artist?.toString().orEmpty())
+                        title.contains(normalizedQuery) || artist.contains(normalizedQuery)
+                    }.takeIf { it >= 0 }
+                }
+                val shouldStartPlayback = pendingPlayAfterQueueLoad || targetTrackIndex != null
+                val requestedStartIndex = targetTrackIndex ?: pendingQueueStartIndexAfterLoad ?: 0
                 pendingPlayAfterQueueLoad = false
                 pendingQueueStartIndexAfterLoad = null
                 val canStartPlayback = shouldStartPlayback && requestedStartIndex in localItems.indices
@@ -628,11 +643,14 @@ class NgocSiAiActivity : ComponentActivity() {
                     activeController.seekTo(requestedStartIndex, 0L)
                     activeController.play()
                 }
+                val startedTitle = localItems.getOrNull(requestedStartIndex)?.mediaMetadata?.title?.toString().orEmpty()
                 Toast.makeText(
                     this@NgocSiAiActivity,
                     when {
-                        canStartPlayback && requestedStartIndex == 1 -> "Đã nạp ${localItems.size} bài và đang phát bài thứ hai."
-                        canStartPlayback -> "Đã nạp ${localItems.size} bài và bắt đầu phát nhạc."
+                        targetTrackIndex != null && canStartPlayback -> "Đã nạp thư viện và đang phát: $startedTitle."
+                        targetTrackIndex == null && canStartPlayback && requestedStartIndex == 1 -> "Đã nạp ${localItems.size} bài và đang phát bài thứ hai."
+                        targetTrackIndex == null && canStartPlayback -> "Đã nạp ${localItems.size} bài và bắt đầu phát nhạc."
+                        pendingTrackQuery != null -> "Đã nạp thư viện nhưng không tìm thấy bài “$pendingTrackQuery”."
                         shouldStartPlayback -> "Đã nạp thư viện nhưng danh sách chưa có bài thứ hai để phát."
                         else -> "Đã nạp ${localItems.size} bài nhạc trên điện thoại."
                     },
@@ -645,6 +663,7 @@ class NgocSiAiActivity : ComponentActivity() {
                 deviceQueueLoadStarted = false
                 pendingPlayAfterQueueLoad = false
                 pendingQueueStartIndexAfterLoad = null
+                pendingTrackQueryAfterQueueLoad = null
                 Toast.makeText(
                     this@NgocSiAiActivity,
                     "Android chưa cho phép đọc thư viện nhạc. Hãy cấp quyền rồi mở lại NGỌC SĨ AI.",
@@ -654,6 +673,7 @@ class NgocSiAiActivity : ComponentActivity() {
                 deviceQueueLoadStarted = false
                 pendingPlayAfterQueueLoad = false
                 pendingQueueStartIndexAfterLoad = null
+                pendingTrackQueryAfterQueueLoad = null
                 Toast.makeText(
                     this@NgocSiAiActivity,
                     "Không tải được thư viện nhạc trên máy. Hãy thử lại.",
@@ -770,18 +790,25 @@ class NgocSiAiActivity : ComponentActivity() {
             if (ContextCompat.checkSelfPermission(this, audioPermission) != PackageManager.PERMISSION_GRANTED) {
                 return "Chưa có quyền đọc nhạc. Hãy cấp quyền Âm nhạc và âm thanh cho NGỌC SĨ AI Preview trong Cài đặt ứng dụng."
             }
-            // Keep the latest explicit command intent; a later Pause cancels pending playback.
-            pendingPlayAfterQueueLoad = command == NgocSiAiLocalCommand.PLAY || command == NgocSiAiLocalCommand.PLAY_SECOND
+            // Preserve an explicit play request while the device library is loading.
+            val requestedTrack = if (command == NgocSiAiLocalCommand.PLAY_TRACK) {
+                extractNgocSiAiTrackQuery(originalText)
+            } else null
+            pendingTrackQueryAfterQueueLoad = requestedTrack
+            pendingPlayAfterQueueLoad = command == NgocSiAiLocalCommand.PLAY ||
+                command == NgocSiAiLocalCommand.PLAY_SECOND || requestedTrack != null
             pendingQueueStartIndexAfterLoad = if (command == NgocSiAiLocalCommand.PLAY_SECOND) 1 else if (command == NgocSiAiLocalCommand.PLAY) 0 else null
             if (!deviceQueueLoadStarted) {
                 loadDeviceMusicIntoQueue()
-                return if (command == NgocSiAiLocalCommand.PLAY) {
-                    "Đang nạp thư viện nhạc; tôi sẽ tự phát ngay khi nạp xong."
-                } else {
-                    "Đang kiểm tra thư viện nhạc trên điện thoại. Hãy thử lại sau khi nạp xong."
+                return when {
+                    requestedTrack != null -> "Đang nạp thư viện; tôi sẽ tìm và phát bài $requestedTrack ngay khi sẵn sàng."
+                    command == NgocSiAiLocalCommand.PLAY -> "Đang nạp thư viện nhạc; tôi sẽ tự phát ngay khi nạp xong."
+                    else -> "Đang kiểm tra thư viện nhạc trên điện thoại. Hãy thử lại sau khi nạp xong."
                 }
             }
-            return if (command == NgocSiAiLocalCommand.PLAY) {
+            return if (requestedTrack != null) {
+                "Thư viện đang nạp; tôi sẽ tìm bài $requestedTrack khi sẵn sàng."
+            } else if (command == NgocSiAiLocalCommand.PLAY) {
                 "Thư viện đang nạp; tôi sẽ tự phát nhạc ngay khi sẵn sàng."
             } else {
                 "Thư viện nhạc đang được nạp. Hãy đợi một chút rồi thử lại."
@@ -802,6 +829,31 @@ class NgocSiAiActivity : ComponentActivity() {
                     else -> "Đang tạm dừng"
                 }
                 if (artist == null) "$status: $title" else "$status: $title — $artist"
+            }
+            NgocSiAiLocalCommand.PLAY_TRACK -> {
+                val query = extractNgocSiAiTrackQuery(originalText)
+                    ?: return "Hãy nói tên bài, ví dụ: “Phát bài hát Diễm xưa”."
+                val normalizedQuery = normalizeNgocSiAiVoicePhrase(query)
+                val exactIndex = (0 until player.mediaItemCount).firstOrNull { index ->
+                    normalizeNgocSiAiVoicePhrase(
+                        player.getMediaItemAt(index).mediaMetadata.title?.toString().orEmpty()
+                    ) == normalizedQuery
+                }
+                val matchIndex = exactIndex ?: (0 until player.mediaItemCount).firstOrNull { index ->
+                    val item = player.getMediaItemAt(index)
+                    val title = normalizeNgocSiAiVoicePhrase(item.mediaMetadata.title?.toString().orEmpty())
+                    val artist = normalizeNgocSiAiVoicePhrase(item.mediaMetadata.artist?.toString().orEmpty())
+                    title.contains(normalizedQuery) || artist.contains(normalizedQuery)
+                }
+                if (matchIndex == null) {
+                    "Không tìm thấy “$query” trong hàng đợi hiện tại. Hãy mở Thư viện hoặc thêm bài vào hàng đợi trước."
+                } else {
+                    player.seekTo(matchIndex, 0L)
+                    player.play()
+                    val title = player.getMediaItemAt(matchIndex).mediaMetadata.title?.toString()
+                        ?.takeIf { it.isNotBlank() } ?: query
+                    "Đang phát $title."
+                }
             }
             NgocSiAiLocalCommand.PLAY_SECOND -> {
                 if (player.mediaItemCount > 1) {
