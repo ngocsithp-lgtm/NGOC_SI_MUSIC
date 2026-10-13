@@ -94,9 +94,9 @@ private const val MAX_SAVED_AI_MESSAGE_CHARS = 4_000
 private fun defaultAiGreeting(isOnlineConfigured: Boolean) = AiPreviewMessage(
     false,
     if (isOnlineConfigured) {
-        "Xin chào! NGỌC SĨ AI đang ở chế độ kiểm thử trực tuyến. Chỉ gửi câu hỏi khi bạn nhấn nút gửi."
+        "Chào bạn, mình là Ngọc Sĩ AI. Cứ nói chuyện tự nhiên với mình nhé."
     } else {
-        "Xin chào! Tôi là NGỌC SĨ AI. Đây là bản xem trước giao diện; AI trực tuyến chưa được cấu hình."
+        "Chào bạn, mình là Ngọc Sĩ AI. Mình vẫn nhận lệnh điều khiển ứng dụng; trò chuyện tự do cần kết nối AI."
     }
 )
 
@@ -1227,9 +1227,10 @@ class NgocSiAiActivity : ComponentActivity() {
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 1_000L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1_200L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1_800L)
+            // Shorter silence windows reduce command latency without cutting off normal phrases.
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 700L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 900L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1_300L)
             putExtra(
                 RecognizerIntent.EXTRA_PROMPT,
                 "Nói tiếng Việt, ví dụ: Phát nhạc, mở YouTube, mở Drive, mở Yêu thích hoặc hẹn giờ"
