@@ -582,5 +582,9 @@ internal fun extractNgocSiAiYoutubeQuery(input: String): String? {
         Regex("""\s+(?:(?:trên|tren)\s+)?youtube\s*[?!.,]*$""", RegexOption.IGNORE_CASE),
         ""
     ).trim().trim(',', ':', '-', '.', '?', '!')
+    val normalizedQuery = normalizeNgocSiAiVoicePhrase(query)
+    // Filler words such as “lên” in “Mở YouTube lên” are not search terms.
+    // Preserve meaningful phrases (e.g. “Mở YouTube nhạc Trịnh Công Sơn”).
+    if (normalizedQuery in setOf("len", "nhe", "di", "luon", "len nhe", "di nhe")) return null
     return query.take(120).takeIf { it.length >= 2 }
 }
