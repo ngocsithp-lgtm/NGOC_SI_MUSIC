@@ -26,6 +26,10 @@ class NgocSiAiQuotaRulesTest {
             classifyNgocSiAiQuotaCooldown("AI_QUOTA_429_RATE")
         )
         assertEquals(
+            NgocSiAiQuotaCooldownKind.PROJECT_OR_CAPACITY,
+            classifyNgocSiAiQuotaCooldown("AI_QUOTA_429_PROJECT_OR_CAPACITY")
+        )
+        assertEquals(
             NgocSiAiQuotaCooldownKind.TEMPORARY,
             classifyNgocSiAiQuotaCooldown("AI_QUOTA_429")
         )
@@ -54,6 +58,10 @@ class NgocSiAiQuotaRulesTest {
         assertEquals(
             now + 120_000L,
             ngocSiAiQuotaCooldownUntilMillis(NgocSiAiQuotaCooldownKind.TEMPORARY, now)
+        )
+        assertEquals(
+            now + 15 * 60 * 1_000L,
+            ngocSiAiQuotaCooldownUntilMillis(NgocSiAiQuotaCooldownKind.PROJECT_OR_CAPACITY, now)
         )
     }
 
@@ -130,6 +138,17 @@ class NgocSiAiQuotaRulesTest {
                 ?.contains("Chat trực tuyến đang tạm dừng") == true
         )
         assertNull(ngocSiAiQuotaStatusNotice("NETWORK"))
+    }
+
+    @Test
+    fun ambiguousProjectQuotaGetsBoundedCooldownAndClearReason() {
+        val message = ngocSiAiQuotaCooldownNotice(
+            NgocSiAiQuotaCooldownKind.PROJECT_OR_CAPACITY,
+            15 * 60 * 1_000L
+        )
+        org.junit.Assert.assertTrue(message.contains("hạn mức chung của dự án"))
+        org.junit.Assert.assertTrue(message.contains("15 phút"))
+        org.junit.Assert.assertTrue(message.contains("Lệnh nhạc trên thiết bị vẫn hoạt động"))
     }
 
     @Test
