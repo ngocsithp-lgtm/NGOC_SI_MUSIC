@@ -825,11 +825,11 @@ class MainActivity : ComponentActivity() {
             }
             "radio" -> {
                 selectedSection = "Radio"
-                showVietnamRadioHub = true
+                selectedSection = "Radio"
             }
             "radio_station" -> {
                 selectedSection = "Radio"
-                showVietnamRadioHub = true
+                selectedSection = "Radio"
                 val requested = radioStationQuery?.let { query ->
                     val normalizedQuery = normalizeNgocSiAiVoicePhrase(query)
                     RadioCatalog.stations.firstOrNull { station ->
@@ -4515,7 +4515,6 @@ class MainActivity : ComponentActivity() {
                 showQueue ||
                 showPlaylists ||
                 showCreatePlaylist ||
-                showVietnamRadioHub ||
                 showTvSourceDialog ||
                 showDriveBrowser ||
                 radioWebUrl != null ||
@@ -4639,7 +4638,6 @@ class MainActivity : ComponentActivity() {
                             },
                             onOpenRadio = {
                                 selectedSection = "Radio"
-                                showVietnamRadioHub = true
                             },
                             onOpenTv = { selectedSection = "TV" },
                             onOpenDrive = {
@@ -4769,65 +4767,7 @@ class MainActivity : ComponentActivity() {
                                     .padding(horizontal = 16.dp),
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                Surface(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(24.dp),
-                                    color = NgocSiVisuals.Surface,
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, NgocSiVisuals.Border)
-                                ) {
-                                    Column(Modifier.padding(18.dp)) {
-                                        Text("RADIO VIỆT NAM", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
-                                        Spacer(Modifier.height(6.dp))
-                                        Text(
-                                            if (activeRadioTitle != null) "Đang phát: $activeRadioTitle" else "Chọn đài để bắt đầu phát",
-                                            color = Color(0xFF9C9DA9),
-                                            fontSize = 13.sp
-                                        )
-                                        Spacer(Modifier.height(14.dp))
-                                        Row(
-                                            Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            Button(
-                                                onClick = { showVietnamRadioHub = true },
-                                                modifier = Modifier.weight(1f),
-                                                shape = RoundedCornerShape(14.dp)
-                                            ) {
-                                                Text("TẤT CẢ ĐÀI")
-                                            }
-                                            OutlinedButton(
-                                                onClick = { selectedSection = "Online"; onlineHubTab = "YouTube" },
-                                                modifier = Modifier.weight(1f),
-                                                shape = RoundedCornerShape(14.dp)
-                                            ) {
-                                                Text("YOUTUBE")
-                                            }
-                                        }
-                                        if (activeRadioTitle != null) {
-                                            Spacer(Modifier.height(8.dp))
-                                            OutlinedButton(
-                                                onClick = { controller?.pause() },
-                                                modifier = Modifier.fillMaxWidth(),
-                                                shape = RoundedCornerShape(14.dp)
-                                            ) {
-                                                Text("TẠM DỪNG RADIO")
-                                            }
-                                        }
-                                    }
-                                }
-
-                                Text(
-                                    "ĐÀI NỔI BẬT",
-                                    color = Color.White,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    letterSpacing = 1.sp
-                                )
-
-                                RadioCatalog.stations.forEach { station ->
-                                    RadioStationCard(station)
-                                }
-
+                                VietnamRadioHubContent()
                                 errorMessage?.takeIf { activeRadioTitle != null }?.let {
                                     Text(it, color = Color(0xFFFFB4AB), fontSize = 13.sp)
                                 }
@@ -4894,7 +4834,6 @@ class MainActivity : ComponentActivity() {
             songs.firstOrNull { it.uri.toString() == targetUri }?.let { PlaylistPickerDialog(it) }
         }
         if (showCreatePlaylist) CreatePlaylistDialog()
-        if (showVietnamRadioHub) VietnamRadioHubDialog()
         if (showTvSourceDialog) TvSourceDialog()
         if (showDriveOAuthDiagnostics) DriveOAuthDiagnosticsDialog()
         radioWebUrl?.let { RadioWebViewDialog(it, radioWebTitle) }
@@ -5925,7 +5864,7 @@ class MainActivity : ComponentActivity() {
                     ProHomeNavItem("◉", "Radio", selectedSection == "Radio") {
                         showMore = false
                         selectedSection = "Radio"
-                        showVietnamRadioHub = true
+                        selectedSection = "Radio"
                     }
                     ProHomeNavItem("＋", "Thêm", showMore) {
                         showMore = !showMore
@@ -6786,7 +6725,7 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun VietnamRadioHubDialog() {
+    private fun VietnamRadioHubContent() {
         val sources = RadioCatalog.stations.map {
             Triple(it.title, it.description, it.sourceUrl)
         } + listOf(
@@ -6801,15 +6740,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         val filteredSources = if (normalizedFilter.isBlank()) sources else sources.filter { source ->
             source.first.lowercase().contains(normalizedFilter) || source.second.lowercase().contains(normalizedFilter)
         }
-        Dialog(onDismissRequest = {
-            showVietnamRadioHub = false
-            radioFilter = ""
-        }) {
-            Surface(
+        Surface(
                 shape = RoundedCornerShape(26.dp),
                 color = Color(0xFF101117),
                 // Keep the hub inside the usable phone viewport instead of covering the whole screen.
-                modifier = Modifier.fillMaxWidth(0.96f).heightIn(max = 680.dp)
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Column(Modifier.fillMaxWidth().padding(14.dp)) {
                     Text("RADIO VIỆT NAM", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
@@ -6836,12 +6771,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         fontSize = 11.sp
                     )
                     Spacer(Modifier.height(6.dp))
-                    LazyColumn(
-                        // The header stays visible; only the station list scrolls on short screens.
-                        modifier = Modifier.fillMaxWidth().heightIn(max = 340.dp),
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(filteredSources) { source ->
+                        filteredSources.forEach { source ->
                             val streamUrls = verifiedStreams[source.first]
                             Surface(
                                 shape = RoundedCornerShape(16.dp),
@@ -6865,8 +6799,6 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     if (!streamUrls.isNullOrEmpty()) {
                                         Button(
                                             onClick = {
-                                                showVietnamRadioHub = false
-                                                radioFilter = ""
                                                 playVerifiedRadio(source.first, streamUrls)
                                             },
                                             shape = RoundedCornerShape(12.dp)
@@ -6876,8 +6808,6 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                             onClick = {
                                                 radioWebTitle = source.first
                                                 radioWebUrl = source.third
-                                                showVietnamRadioHub = false
-                                                radioFilter = ""
                                             },
                                             shape = RoundedCornerShape(12.dp)
                                         ) { Text("MỞ NGUỒN") }
@@ -6894,9 +6824,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     )
                     Spacer(Modifier.height(4.dp))
                     TextButton(onClick = {
-                        showVietnamRadioHub = false
                         radioFilter = ""
-                    }) { Text("Đóng") }
+                    }) { Text("XÓA TÌM KIẾM") }
                 }
             }
         }
@@ -9122,7 +9051,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         Spacer(Modifier.height(8.dp))
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Text("🎧 NGUỒN NHẠC VIỆT NAM", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                            TextButton(onClick = { showVietnamRadioHub = true }) { Text("MỞ HUB") }
+                            TextButton(onClick = { selectedSection = "Radio" }) { Text("MỞ HUB") }
                         }
                         Spacer(Modifier.height(6.dp))
                         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
