@@ -823,7 +823,8 @@ class NgocSiAiActivity : ComponentActivity() {
                     "Đang thêm bài đang phát vào playlist $query.",
                     playlistQuery = query
                 )
-            }            NgocSiAiLocalCommand.ADD_QUEUE_TO_PLAYLIST -> {
+            }
+            NgocSiAiLocalCommand.ADD_QUEUE_TO_PLAYLIST -> {
                 val query = extractNgocSiAiQueueToPlaylistQuery(originalText)
                     ?: return "Hãy nói playlist đích, ví dụ: “Thêm hàng đợi vào playlist Nhạc Trịnh”."
                 return openAppDestination(
