@@ -114,6 +114,25 @@ internal fun isAmbiguousNgocSiAiProjectQuotaError(message: String): Boolean {
  * capacity issue. A generic project-quota response must not trigger a second call:
  * it is unlikely to help and can consume another request from the same project.
  */
+/**
+ * Chooses a diagnostic before the generic 429 fallback. Some Gemini responses say
+ * only that the project exceeded its current quota; they must not be mislabeled as
+ * a short-lived temporary overload or trigger a speculative model retry.
+ */
+internal fun ngocSiAiQuotaDiagnosticCode(message: String): String? {
+    if (isAmbiguousNgocSiAiProjectQuotaError(message)) {
+        return "AI_QUOTA_429_PROJECT_OR_CAPACITY"
+    }
+    return when (classifyNgocSiAiQuotaErrorDetails(message)) {
+        NgocSiAiQuotaCooldownKind.DAILY -> "AI_QUOTA_429_DAILY"
+        NgocSiAiQuotaCooldownKind.RATE -> "AI_QUOTA_429_RATE"
+        NgocSiAiQuotaCooldownKind.PAID_TIER -> "AI_QUOTA_429_PAID_TIER"
+        NgocSiAiQuotaCooldownKind.FREE_TIER -> "AI_QUOTA_429_FREE_TIER"
+        NgocSiAiQuotaCooldownKind.TEMPORARY -> "AI_QUOTA_429"
+        null -> null
+    }
+}
+
 internal fun shouldTryNgocSiAiFallbackModel(errorDetails: String): Boolean {
     if (isAmbiguousNgocSiAiProjectQuotaError(errorDetails)) return false
 
