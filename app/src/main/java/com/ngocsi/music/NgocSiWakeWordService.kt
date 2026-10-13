@@ -194,15 +194,21 @@ class NgocSiWakeWordService : Service() {
         override fun onResults(results: Bundle?) {
             listening = false
             val phrases = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
-            // Prefer a hypothesis that contains an actionable wake phrase, then one that
-            // heard the wake phrase alone, before falling back to Android's first result.
-            val recognized = selectNgocSiAiWakePhraseCandidate(phrases).orEmpty()
             val now = System.currentTimeMillis()
             if (awaitingCommand && now > awaitingCommandUntilMillis) {
                 awaitingCommand = false
                 awaitingCommandUntilMillis = 0L
             }
             val wasAwaitingCommand = awaitingCommand
+            // While waiting for the command after “Ngọc Sĩ”, prefer any recognized
+            // actionable hypothesis rather than blindly trusting Android's first guess.
+            // Outside that short window, still require the explicit wake phrase.
+            val recognized = if (wasAwaitingCommand) {
+                selectNgocSiAiActivatedCommandCandidate(phrases)
+                    ?: selectNgocSiAiWakePhraseCandidate(phrases)
+            } else {
+                selectNgocSiAiWakePhraseCandidate(phrases)
+            }.orEmpty()
             val command = classifyNgocSiAiWakePhrase(recognized)
                 ?: if (wasAwaitingCommand) classifyNgocSiAiActivatedCommand(recognized) else null
 
