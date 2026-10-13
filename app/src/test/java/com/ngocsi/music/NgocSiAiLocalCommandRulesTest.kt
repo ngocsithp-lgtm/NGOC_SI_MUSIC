@@ -24,6 +24,22 @@ class NgocSiAiLocalCommandRulesTest {
     }
 
     @Test
+    fun recognizesExplicitYouTubePlaybackControlsWithoutConfusingLocalMusic() {
+        assertEquals(NgocSiAiLocalCommand.PAUSE_YOUTUBE, classifyNgocSiAiLocalCommand("Tạm dừng YouTube"))
+        assertEquals(NgocSiAiLocalCommand.RESUME_YOUTUBE, classifyNgocSiAiWakePhrase("Ngọc Sĩ, tiếp tục YouTube"))
+        assertEquals(NgocSiAiLocalCommand.NEXT_YOUTUBE_VIDEO, classifyNgocSiAiWakePhrase("Ngọc Sĩ, video YouTube tiếp theo"))
+        assertEquals(NgocSiAiLocalCommand.PREVIOUS_YOUTUBE_VIDEO, classifyNgocSiAiLocalCommand("Video YouTube trước"))
+        assertEquals(NgocSiAiLocalCommand.YOUTUBE_SHUFFLE_ON, classifyNgocSiAiLocalCommand("Bật phát ngẫu nhiên YouTube"))
+        assertEquals(NgocSiAiLocalCommand.YOUTUBE_SHUFFLE_OFF, classifyNgocSiAiWakePhrase("Ngọc Sĩ, tắt phát ngẫu nhiên YouTube"))
+        assertEquals(NgocSiAiLocalCommand.YOUTUBE_REPEAT_OFF, classifyNgocSiAiLocalCommand("Tắt lặp YouTube"))
+        assertEquals(NgocSiAiLocalCommand.YOUTUBE_REPEAT_ALL, classifyNgocSiAiWakePhrase("Ngọc Sĩ, lặp hàng đợi YouTube"))
+        assertEquals(NgocSiAiLocalCommand.YOUTUBE_REPEAT_ONE, classifyNgocSiAiLocalCommand("Lặp video YouTube"))
+        assertEquals(NgocSiAiLocalCommand.YOUTUBE_FAVORITE, classifyNgocSiAiWakePhrase("Ngọc Sĩ, thích video YouTube này"))
+        assertEquals(NgocSiAiLocalCommand.YOUTUBE_WATCH_LATER, classifyNgocSiAiLocalCommand("Lưu video YouTube xem sau"))
+        assertEquals(NgocSiAiLocalCommand.PAUSE, classifyNgocSiAiLocalCommand("Tạm dừng nhạc"))
+    }
+
+    @Test
     fun recognizesNamedPlaylistCreateAndPlayCommandsWithAndWithoutAccents() {
         assertEquals(NgocSiAiLocalCommand.CREATE_PLAYLIST, classifyNgocSiAiLocalCommand("Tạo playlist Nhạc Trịnh"))
         assertEquals(NgocSiAiLocalCommand.PLAY_NAMED_PLAYLIST, classifyNgocSiAiWakePhrase("Ngọc Sĩ, phát playlist Nhạc Trịnh"))
