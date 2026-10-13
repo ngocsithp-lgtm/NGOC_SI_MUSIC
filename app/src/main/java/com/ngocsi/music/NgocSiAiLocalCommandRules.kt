@@ -84,6 +84,32 @@ private val NGOC_SI_AI_PLAYER_CONNECTION_COMMANDS = setOf(
 internal fun ngocSiAiCommandRequiresPlayerConnection(command: NgocSiAiLocalCommand): Boolean =
     command in NGOC_SI_AI_PLAYER_CONNECTION_COMMANDS
 
+internal enum class NgocSiAiPlaybackTarget {
+    PRODUCTION,
+    PREVIEW
+}
+
+/**
+ * Prefer whichever app is actively playing. When neither is playing, prefer an existing
+ * production queue; fall back to Preview so first-use play commands can populate its queue.
+ */
+internal fun selectNgocSiAiPlaybackTarget(
+    productionConnected: Boolean,
+    productionActive: Boolean,
+    productionHasItems: Boolean,
+    previewConnected: Boolean,
+    previewActive: Boolean,
+    previewHasItems: Boolean
+): NgocSiAiPlaybackTarget? = when {
+    productionConnected && productionActive -> NgocSiAiPlaybackTarget.PRODUCTION
+    previewConnected && previewActive -> NgocSiAiPlaybackTarget.PREVIEW
+    productionConnected && productionHasItems -> NgocSiAiPlaybackTarget.PRODUCTION
+    previewConnected && previewHasItems -> NgocSiAiPlaybackTarget.PREVIEW
+    previewConnected -> NgocSiAiPlaybackTarget.PREVIEW
+    productionConnected -> NgocSiAiPlaybackTarget.PRODUCTION
+    else -> null
+}
+
 
 /**
  * Recognizes only short, explicit playback commands. A normal question such as
