@@ -363,6 +363,7 @@ class NgocSiAiActivity : ComponentActivity() {
                 chatPreferences = aiChatPreferences,
                 onSendOnline = { history -> aiClient.send(history) },
                 onLocalCommand = { command -> runLocalCommand(command) },
+                onStopPlayback = { stopPlaybackFromAi() },
                 onVoiceReply = { message -> speakVoiceReply(message) },
                 onSpeakMessage = { message -> speakVoiceReply(message, force = true) },
                 voiceRepliesEnabled = voiceRepliesEnabled,
@@ -610,6 +611,23 @@ class NgocSiAiActivity : ComponentActivity() {
         }
     }
 
+    private fun stopPlaybackFromAi(): String {
+        val player = musicController
+            ?: return "Trình phát đang kết nối. Hãy thử lại sau một lát."
+
+        return runCatching {
+            // Match the app's explicit Stop action: silence immediately and reset
+            // the active track to its beginning without requiring an online AI call.
+            player.pause()
+            if (player.mediaItemCount > 0) {
+                player.seekTo(0L)
+            }
+            "Đã dừng hẳn nhạc và đưa bài hiện tại về đầu bài."
+        }.getOrElse {
+            "Chưa thể dừng nhạc. Hãy thử lại khi trình phát đã kết nối."
+        }
+    }
+
     private fun speakVoiceReply(message: String, force: Boolean = false) {
         if (!force && !voiceRepliesEnabled) return
         val cleanMessage = message.trim()
@@ -729,12 +747,59 @@ class NgocSiAiActivity : ComponentActivity() {
     }
 }
 
+private fun isNgocSiStopPlaybackCommand(text: String): Boolean {
+    val normalized = java.text.Normalizer.normalize(
+        text.lowercase(Locale.ROOT),
+        java.text.Normalizer.Form.NFD
+    )
+        .replace(Regex("\\p{M}+"), "")
+        .replace('đ', 'd')
+        .replace(Regex("[^a-z0-9\\s]"), " ")
+        .replace(Regex("\\s+"), " ")
+        .trim()
+
+    var command = normalized
+        .replace(Regex("^(hey\\s+)?ngoc\\s+si\\s+"), "")
+        .trim()
+    listOf("lam on ", "hay ", "toi muon ", "giup toi ").forEach { prefix ->
+        if (command.startsWith(prefix)) command = command.removePrefix(prefix).trim()
+    }
+
+    // Do not confuse "tạm dừng" with the explicit Stop action.
+    if (command.startsWith("tam dung") || command.startsWith("pause")) return false
+
+    val stopPhrases = listOf(
+        "dung hoan toan phat nhac",
+        "dung hoan toan nhac",
+        "dung het phat nhac",
+        "dung het nhac",
+        "dung han phat nhac",
+        "dung han nhac",
+        "ngung han phat nhac",
+        "ngung han nhac",
+        "dung phat nhac",
+        "dung nhac",
+        "ngung phat nhac",
+        "ngung nhac",
+        "tat het nhac",
+        "tat phat nhac",
+        "tat nhac",
+        "dung bai hat",
+        "stop the music",
+        "stop music",
+        "stop playback",
+        "end music"
+    )
+    return stopPhrases.any { command == it || command.startsWith("$it ") }
+}
+
 @Composable
 private fun NgocSiAiPreviewScreen(
     isOnlineConfigured: Boolean,
     chatPreferences: SharedPreferences,
     onSendOnline: suspend (List<NgocSiAiMessage>) -> NgocSiAiReply,
     onLocalCommand: (NgocSiAiLocalCommand) -> String,
+    onStopPlayback: () -> String,
     onVoiceReply: (String) -> Unit,
     onSpeakMessage: (String) -> Unit,
     voiceRepliesEnabled: Boolean,
@@ -781,6 +846,17 @@ private fun NgocSiAiPreviewScreen(
         messages.add(AiPreviewMessage(true, clean))
         if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
         input = ""
+
+        // High-priority offline route: "dừng hẳn nhạc" must never be sent to
+        // Gemini or downgraded to a simple pause by the generic command classifier.
+        if (isNgocSiStopPlaybackCommand(clean)) {
+            val commandReply = onStopPlayback()
+            messages.add(AiPreviewMessage(false, commandReply))
+            if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
+            persistChatState()
+            onVoiceReply(commandReply)
+            return
+        }
 
         val localCommand = classifyNgocSiAiLocalCommand(clean)
         if (localCommand != null) {
