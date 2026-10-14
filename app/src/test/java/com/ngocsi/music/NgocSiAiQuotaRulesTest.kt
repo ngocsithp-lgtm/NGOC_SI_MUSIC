@@ -53,6 +53,19 @@ class NgocSiAiQuotaRulesTest {
     }
 
     @Test
+    fun freeTierProjectRestrictionDoesNotPretendToResetAtMidnight() {
+        val now = Instant.parse("2026-10-12T23:59:00Z").toEpochMilli()
+        assertEquals(
+            now + 24 * 60 * 60 * 1_000L,
+            ngocSiAiQuotaCooldownUntilMillis(
+                NgocSiAiQuotaCooldownKind.PROJECT_FREE_TIER_RESTRICTED,
+                now,
+                ZoneId.of("America/Los_Angeles")
+            )
+        )
+    }
+
+    @Test
     fun shortTermErrorsUseBoundedCooldowns() {
         val now = 1_000_000L
         assertEquals(
