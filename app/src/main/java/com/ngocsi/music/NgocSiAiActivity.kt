@@ -407,6 +407,9 @@ class NgocSiAiActivity : ComponentActivity() {
                         val retryIntent = activeVoiceIntent
                         if (recognizer != null && retryIntent != null) {
                             runCatching { recognizer.startListening(retryIntent) }
+                                .onSuccess {
+                                    speechFallbackHandler.postDelayed(speechNoTranscriptWatchdog, 10_000L)
+                                }
                                 .onFailure {
                                     voiceRecognitionInProgress = false
                                     partialSpeechTranscript = ""
