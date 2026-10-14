@@ -287,9 +287,11 @@ private fun saveAiApiConversation(
 class NgocSiAiActivity : ComponentActivity() {
     private var recognizedSpeech by mutableStateOf("")
     private var recognizedSpeechShouldSend by mutableStateOf(false)
+    // Show live partial transcription so voice chat visibly responds while the user speaks.
+    private var partialSpeechTranscript by mutableStateOf("")
     private var wakeWordListening by mutableStateOf(false)
     private var voiceRecognizer: SpeechRecognizer? = null
-    private var voiceRecognitionInProgress = false
+    private var voiceRecognitionInProgress by mutableStateOf(false)
     private var voiceRetryCount = 0
     private var activeVoiceIntent: Intent? = null
     private val voiceRetryHandler = Handler(Looper.getMainLooper())
@@ -335,12 +337,17 @@ class NgocSiAiActivity : ComponentActivity() {
         override fun onReadyForSpeech(params: Bundle?) {
             runOnUiThread {
                 if (!isFinishing && !isDestroyed) {
-                    Toast.makeText(this@NgocSiAiActivity, "Micro đang nghe tiếng Việt. Hãy nói lệnh ngay bây giờ.", Toast.LENGTH_SHORT).show()
+                    voiceRecognitionInProgress = true
+                    partialSpeechTranscript = ""
                 }
             }
         }
 
-        override fun onBeginningOfSpeech() = Unit
+        override fun onBeginningOfSpeech() {
+            runOnUiThread {
+                if (!isFinishing && !isDestroyed) partialSpeechTranscript = ""
+            }
+        }
         override fun onRmsChanged(rmsdB: Float) = Unit
         override fun onBufferReceived(buffer: ByteArray?) = Unit
         override fun onEndOfSpeech() = Unit
@@ -349,8 +356,10 @@ class NgocSiAiActivity : ComponentActivity() {
             runOnUiThread {
                 if (isFinishing || isDestroyed) {
                     voiceRecognitionInProgress = false
+                    partialSpeechTranscript = ""
                     return@runOnUiThread
                 }
+                partialSpeechTranscript = ""
                 val canRetry = error == SpeechRecognizer.ERROR_NO_MATCH ||
                     error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
                 if (canRetry && voiceRetryCount < 1 && activeVoiceIntent != null) {
@@ -366,6 +375,7 @@ class NgocSiAiActivity : ComponentActivity() {
                             runCatching { recognizer.startListening(retryIntent) }
                                 .onFailure {
                                     voiceRecognitionInProgress = false
+                                    partialSpeechTranscript = ""
                                     Toast.makeText(
                                         this@NgocSiAiActivity,
                                         "Chưa nghe rõ. Hãy nhấn micro và nói gần điện thoại hơn.",
@@ -379,6 +389,7 @@ class NgocSiAiActivity : ComponentActivity() {
                     return@runOnUiThread
                 }
                 voiceRecognitionInProgress = false
+                partialSpeechTranscript = ""
                 val message = when (error) {
                     SpeechRecognizer.ERROR_AUDIO ->
                         "Không thu được âm thanh. Hãy kiểm tra micro và thử lại."
@@ -417,6 +428,7 @@ class NgocSiAiActivity : ComponentActivity() {
                 ?: candidates.firstOrNull().orEmpty()
             runOnUiThread {
                 voiceRecognitionInProgress = false
+                partialSpeechTranscript = ""
                 voiceRetryCount = 0
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 if (phrase.isBlank()) {
@@ -439,9 +451,21 @@ class NgocSiAiActivity : ComponentActivity() {
         }
 
         override fun onPartialResults(partialResults: Bundle?) {
-            // Receiving partial hypotheses keeps the recognition service engaged while
-            // the user is still speaking; do not execute a command until final results.
-            partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+            // Partial results are only a live preview. Never execute a command or send
+            // chat to Gemini until onResults returns the complete utterance.
+            val candidates = partialResults
+                ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                .orEmpty()
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+            val phrase = candidates.firstOrNull { isNgocSiAiExplicitStopPhrase(it) }
+                ?: candidates.firstOrNull { classifyNgocSiAiLocalCommand(it) != null }
+                ?: candidates.firstOrNull().orEmpty()
+            runOnUiThread {
+                if (!isFinishing && !isDestroyed && voiceRecognitionInProgress) {
+                    partialSpeechTranscript = phrase.take(180)
+                }
+            }
         }
         override fun onEvent(eventType: Int, params: Bundle?) = Unit
     }
@@ -449,6 +473,7 @@ class NgocSiAiActivity : ComponentActivity() {
     private val speechLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             voiceRecognitionInProgress = false
+            partialSpeechTranscript = ""
             val candidates = result.data
                 ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
                 .orEmpty()
@@ -669,9 +694,12 @@ class NgocSiAiActivity : ComponentActivity() {
                 onManageVoices = { manageTtsVoices() },
                 recognizedSpeech = recognizedSpeech,
                 recognizedSpeechShouldSend = recognizedSpeechShouldSend,
+                partialSpeechTranscript = partialSpeechTranscript,
+                isVoiceListening = voiceRecognitionInProgress,
                 onSpeechConsumed = {
                     recognizedSpeech = ""
                     recognizedSpeechShouldSend = false
+                    partialSpeechTranscript = ""
                 },
                 onBack = { finish() },
                 onVoice = { startVoiceInput() },
@@ -1309,6 +1337,7 @@ class NgocSiAiActivity : ComponentActivity() {
         responseTtsInitialized = false
         responseTtsReady = false
         pendingVoiceReply = null
+        partialSpeechTranscript = ""
         super.onDestroy()
     }
 
@@ -1365,10 +1394,13 @@ class NgocSiAiActivity : ComponentActivity() {
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false)
-            // Shorter silence windows reduce command latency without cutting off normal phrases.
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 700L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 900L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1_300L)
+            // Android 13+ offers a latency-oriented formatting mode for real-time dictation.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                putExtra(
+                    RecognizerIntent.EXTRA_ENABLE_FORMATTING,
+                    RecognizerIntent.FORMATTING_OPTIMIZE_LATENCY
+                )
+            }
             putExtra(
                 RecognizerIntent.EXTRA_PROMPT,
                 "Nói tiếng Việt, ví dụ: Phát nhạc, mở YouTube, mở Drive, mở Yêu thích hoặc hẹn giờ"
@@ -1382,6 +1414,8 @@ class NgocSiAiActivity : ComponentActivity() {
             if (!SpeechRecognizer.isRecognitionAvailable(this)) {
                 // Keep the Android/Google speech activity as a fallback on devices
                 // that do not expose a RecognitionService directly to the app.
+                voiceRecognitionInProgress = true
+                partialSpeechTranscript = ""
                 speechLauncher.launch(intent)
                 return
             }
@@ -1390,15 +1424,18 @@ class NgocSiAiActivity : ComponentActivity() {
                 voiceRecognizer = it
             }
             voiceRecognitionInProgress = true
+            partialSpeechTranscript = ""
             voiceRetryCount = 0
             activeVoiceIntent = intent
             Toast.makeText(this, "Đang nghe… hãy nói rõ câu lệnh, không cần nói quá nhanh.", Toast.LENGTH_SHORT).show()
             recognizer.startListening(intent)
         } catch (_: SecurityException) {
             voiceRecognitionInProgress = false
+            partialSpeechTranscript = ""
             Toast.makeText(this, "Thiếu quyền micro. Hãy cấp quyền micro cho NGỌC SĨ AI Preview.", Toast.LENGTH_LONG).show()
         } catch (_: Exception) {
             voiceRecognitionInProgress = false
+            partialSpeechTranscript = ""
             // If the direct service cannot start, fall back to Android's speech UI.
             runCatching {
                 runCatching { voiceRecognizer?.destroy() }
@@ -1431,6 +1468,8 @@ private fun NgocSiAiPreviewScreen(
     onManageVoices: () -> Unit,
     recognizedSpeech: String,
     recognizedSpeechShouldSend: Boolean,
+    partialSpeechTranscript: String,
+    isVoiceListening: Boolean,
     onSpeechConsumed: () -> Unit,
     onBack: () -> Unit,
     onVoice: () -> Unit,
@@ -2076,6 +2115,40 @@ private fun NgocSiAiPreviewScreen(
                 .background(Color(0xFF0D1016))
                 .padding(horizontal = 12.dp, vertical = 10.dp)
         ) {
+            if (isVoiceListening) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFF17231F),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF2C5148))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 11.dp, vertical = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("🎙", fontSize = 14.sp)
+                        Spacer(Modifier.width(8.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                if (partialSpeechTranscript.isBlank()) "ĐANG NGHE TIẾNG VIỆT"
+                                else "ĐANG NHẬN GIỌNG NÓI",
+                                color = Color(0xFF86E0BD),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                            Text(
+                                partialSpeechTranscript.ifBlank { "Hãy nói tự nhiên; bản ghi sẽ hiện tại đây." },
+                                color = Color(0xFFE0EDE8),
+                                fontSize = 12.sp,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+            }
             Text(
                 "GỢI Ý THỬ",
                 color = Color(0xFF9299AA),
