@@ -28,7 +28,8 @@ internal object NgocSiVoiceProfile {
     private const val PREFS = "ngoc_si_owner_voice"
     private const val KEY_PROFILE = "encrypted_profile"
     private const val KEY_PROFILE_VERSION = "profile_version"
-    private const val PROFILE_VERSION = 2
+    private const val LEGACY_PROFILE_VERSION = 2
+    private const val PROFILE_VERSION = 3
     private const val KEY_LOCK_ENABLED = "voice_lock_enabled"
     private const val KEY_ALIAS = "ngoc_si_voice_profile_key"
     private const val MODEL_NAME = "3dspeaker_speech_campplus_sv_zh-cn_16k-common.onnx"
@@ -43,7 +44,8 @@ internal object NgocSiVoiceProfile {
 
     fun hasProfile(context: Context): Boolean {
         val preferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        return preferences.getInt(KEY_PROFILE_VERSION, 0) == PROFILE_VERSION &&
+        return preferences.getInt(KEY_PROFILE_VERSION, 0) in
+            setOf(LEGACY_PROFILE_VERSION, PROFILE_VERSION) &&
             !preferences.getString(KEY_PROFILE, null).isNullOrBlank()
     }
 
@@ -57,7 +59,7 @@ internal object NgocSiVoiceProfile {
             .getBoolean(KEY_LOCK_ENABLED, false)
 
     fun setLockEnabled(context: Context, enabled: Boolean): Boolean {
-        if (enabled && loadProfile(context) == null) return false
+        if (enabled && loadProfiles(context) == null) return false
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit().putBoolean(KEY_LOCK_ENABLED, enabled).apply()
         return true
@@ -162,9 +164,26 @@ internal object NgocSiVoiceProfile {
         return normalizeEmbedding(combined)
     }
 
-    fun matches(enrolled: FloatArray, candidate: FloatArray): Boolean {
-        if (enrolled.size < MIN_EMBEDDING_SIZE || enrolled.size != candidate.size) return false
-        if (enrolled.any { !it.isFinite() } || candidate.any { !it.isFinite() }) return false
+    fun matches(enrolled: FloatArray, candidate: FloatArray): Boolean =
+        cosineSimilarity(enrolled, candidate) >= COSINE_THRESHOLD
+
+    /**
+     * Compare against each independently enrolled utterance rather than only the centroid.
+     * This preserves natural variation in pitch, loudness and phrasing between enrollment
+     * prompts and later commands while keeping the same conservative similarity threshold.
+     */
+    fun matches(enrolled: List<FloatArray>, candidate: FloatArray): Boolean {
+        if (enrolled.isEmpty()) return false
+        val bestSimilarity = enrolled.asSequence()
+            .map { cosineSimilarity(it, candidate) }
+            .filter { it.isFinite() }
+            .maxOrNull() ?: return false
+        return bestSimilarity >= COSINE_THRESHOLD
+    }
+
+    private fun cosineSimilarity(enrolled: FloatArray, candidate: FloatArray): Float {
+        if (enrolled.size < MIN_EMBEDDING_SIZE || enrolled.size != candidate.size) return Float.NEGATIVE_INFINITY
+        if (enrolled.any { !it.isFinite() } || candidate.any { !it.isFinite() }) return Float.NEGATIVE_INFINITY
         var dot = 0.0
         var enrolledNorm = 0.0
         var candidateNorm = 0.0
@@ -173,40 +192,76 @@ internal object NgocSiVoiceProfile {
             enrolledNorm += enrolled[index].toDouble() * enrolled[index]
             candidateNorm += candidate[index].toDouble() * candidate[index]
         }
-        if (enrolledNorm < 1e-12 || candidateNorm < 1e-12) return false
-        return (dot / sqrt(enrolledNorm * candidateNorm)).toFloat() >= COSINE_THRESHOLD
+        if (enrolledNorm < 1e-12 || candidateNorm < 1e-12) return Float.NEGATIVE_INFINITY
+        return (dot / sqrt(enrolledNorm * candidateNorm)).toFloat()
     }
 
     fun saveProfile(context: Context, features: FloatArray): Boolean {
+        // Keep compatibility for a single legacy embedding; new enrollments store all 3 samples.
         val normalized = normalizeEmbedding(features) ?: return false
-        return runCatching {
-            val plain = normalized.joinToString(",") { it.toString() }.toByteArray(Charsets.UTF_8)
+        return saveEncryptedProfile(
+            context = context,
+            plain = normalized.joinToString(",") { it.toString() },
+            version = LEGACY_PROFILE_VERSION
+        )
+    }
+
+    fun saveProfile(context: Context, features: List<FloatArray>): Boolean {
+        if (features.size < 3) return false
+        val normalized = features.map { normalizeEmbedding(it) ?: return false }
+        val dimension = normalized.first().size
+        if (normalized.any { it.size != dimension }) return false
+        val serialized = normalized.joinToString(";") { embedding ->
+            embedding.joinToString(",") { it.toString() }
+        }
+        return saveEncryptedProfile(context, serialized, PROFILE_VERSION)
+    }
+
+    private fun saveEncryptedProfile(context: Context, plain: String, version: Int): Boolean =
+        runCatching {
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
             cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey())
-            val encrypted = cipher.doFinal(plain)
+            val encrypted = cipher.doFinal(plain.toByteArray(Charsets.UTF_8))
             val packed = Base64.encodeToString(cipher.iv, Base64.NO_WRAP) + ":" +
                 Base64.encodeToString(encrypted, Base64.NO_WRAP)
             context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
                 .putString(KEY_PROFILE, packed)
-                .putInt(KEY_PROFILE_VERSION, PROFILE_VERSION)
+                .putInt(KEY_PROFILE_VERSION, version)
                 .putBoolean(KEY_LOCK_ENABLED, true)
                 .commit()
         }.getOrDefault(false)
+
+    fun loadProfile(context: Context): FloatArray? {
+        val templates = loadProfiles(context) ?: return null
+        return combine(templates) ?: templates.firstOrNull()
     }
 
-    fun loadProfile(context: Context): FloatArray? = runCatching {
+    /**
+     * Version 2 stored an averaged embedding. Version 3 stores the three enrollment templates.
+     * Older profiles remain readable and can keep working until the owner re-enrolls.
+     */
+    fun loadProfiles(context: Context): List<FloatArray>? = runCatching {
         val preferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        if (preferences.getInt(KEY_PROFILE_VERSION, 0) != PROFILE_VERSION) return null
-        val packed = preferences.getString(KEY_PROFILE, null) ?: return null
+        val version = preferences.getInt(KEY_PROFILE_VERSION, 0)
+        if (version != LEGACY_PROFILE_VERSION && version != PROFILE_VERSION) return@runCatching null
+        val packed = preferences.getString(KEY_PROFILE, null) ?: return@runCatching null
         val separator = packed.indexOf(':')
-        require(separator > 0 && separator < packed.lastIndex)
+        if (separator <= 0 || separator >= packed.lastIndex) return@runCatching null
         val iv = Base64.decode(packed.substring(0, separator), Base64.NO_WRAP)
         val encrypted = Base64.decode(packed.substring(separator + 1), Base64.NO_WRAP)
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.DECRYPT_MODE, getOrCreateKey(), GCMParameterSpec(128, iv))
         val decoded = cipher.doFinal(encrypted).toString(Charsets.UTF_8)
-            .split(',').map(String::toFloat)
-        normalizeEmbedding(decoded.toFloatArray())
+        val serialized = if (version == LEGACY_PROFILE_VERSION) listOf(decoded) else decoded.split(';')
+        val templates = serialized.map { entry ->
+            val values = entry.split(',').map(String::toFloat).toFloatArray()
+            normalizeEmbedding(values) ?: return@runCatching null
+        }
+        if (templates.isEmpty()) return@runCatching null
+        val dimension = templates.first().size
+        if (templates.any { it.size != dimension }) return@runCatching null
+        if (version == PROFILE_VERSION && templates.size < 3) return@runCatching null
+        templates
     }.getOrNull()
 
     private fun getOrCreateKey(): SecretKey {
