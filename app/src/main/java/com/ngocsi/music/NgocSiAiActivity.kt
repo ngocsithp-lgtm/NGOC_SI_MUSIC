@@ -340,6 +340,8 @@ class NgocSiAiActivity : ComponentActivity() {
     private var pendingOwnerVoiceEnrollment = false
     private var voiceRecognizer: SpeechRecognizer? = null
     private val voiceInputAudioBuffer = ByteArrayOutputStream()
+    @Volatile private var pendingOwnerVoicePcm: ByteArray? = null
+    private var ownerVoiceAudioSourcePipe: NgocSiVoiceAudioSourcePipe? = null
     private var voiceRecognitionInProgress by mutableStateOf(false)
     private var ownerVoiceVerificationInProgress by mutableStateOf(false)
     private var voiceRetryCount = 0
@@ -378,8 +380,9 @@ class NgocSiAiActivity : ComponentActivity() {
                 // leaving the chat stuck forever waiting for a final callback.
                 speechFallbackUsed = true
                 speechFallbackHandler.removeCallbacks(this)
-                val capturedPcm = voiceInputAudioBuffer.toByteArray()
+                val capturedPcm = pendingOwnerVoicePcm ?: voiceInputAudioBuffer.toByteArray()
                 voiceInputAudioBuffer.reset()
+                closeOwnerVoiceAudioSource()
                 runCatching { voiceRecognizer?.cancel() }
                 runCatching { voiceRecognizer?.destroy() }
                 voiceRecognizer = null
@@ -480,6 +483,7 @@ class NgocSiAiActivity : ComponentActivity() {
                     return@runOnUiThread
                 }
                 speechFallbackHandler.removeCallbacks(speechNoTranscriptWatchdog)
+                closeOwnerVoiceAudioSource()
                 partialSpeechTranscript = ""
                 val canRetry = error == SpeechRecognizer.ERROR_NO_MATCH ||
                     error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
@@ -546,8 +550,9 @@ class NgocSiAiActivity : ComponentActivity() {
                 .orEmpty()
                 .map { it.trim() }
                 .filter { it.isNotBlank() }
-            val capturedPcm = voiceInputAudioBuffer.toByteArray()
+            val capturedPcm = pendingOwnerVoicePcm ?: voiceInputAudioBuffer.toByteArray()
             voiceInputAudioBuffer.reset()
+            closeOwnerVoiceAudioSource()
             // Prefer a recognized candidate that matches an implemented music command;
             // otherwise keep Android's highest-confidence candidate.
             val phrase = candidates.firstOrNull { isNgocSiAiExplicitStopPhrase(it) }
@@ -1598,6 +1603,14 @@ class NgocSiAiActivity : ComponentActivity() {
             recognizedSpeechShouldSend = true
             return
         }
+        if (capturedPcm.isEmpty()) {
+            Toast.makeText(
+                this,
+                "Không có dữ liệu âm thanh để xác minh giọng. Hãy nhấn micro và nói lại.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
         ownerVoiceVerificationInProgress = true
         lifecycleScope.launch {
             val accepted = withContext(Dispatchers.Default) {
@@ -1627,6 +1640,17 @@ class NgocSiAiActivity : ComponentActivity() {
             voiceInputPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
             return
         }
+        if (voiceRecognitionInProgress || ownerVoiceVerificationInProgress) {
+            Toast.makeText(
+                this,
+                if (ownerVoiceVerificationInProgress) "Đang xác minh giọng nói trên điện thoại."
+                else "Micro đang nghe. Hãy nói lệnh hoặc đợi kết thúc.",
+                Toast.LENGTH_SHORT
+            ).show()
+            return
+        }
+
+        val lockEnabled = NgocSiVoiceProfile.isLockEnabled(this)
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "vi-VN")
@@ -1634,7 +1658,6 @@ class NgocSiAiActivity : ComponentActivity() {
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false)
-            // Android 13+ offers a latency-oriented formatting mode for real-time dictation.
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 putExtra(
                     RecognizerIntent.EXTRA_ENABLE_FORMATTING,
@@ -1646,60 +1669,73 @@ class NgocSiAiActivity : ComponentActivity() {
                 "Nói tiếng Việt, ví dụ: Phát nhạc, mở YouTube, mở Drive, mở Yêu thích hoặc hẹn giờ"
             )
         }
-        if (voiceRecognitionInProgress || ownerVoiceVerificationInProgress) {
-            Toast.makeText(
-                this,
-                if (ownerVoiceVerificationInProgress) "Đang xác minh giọng nói trên điện thoại." else "Micro đang nghe. Hãy nói lệnh hoặc đợi kết thúc.",
-                Toast.LENGTH_SHORT
-            ).show()
+
+        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+            if (lockEnabled) {
+                Toast.makeText(
+                    this,
+                    "Dịch vụ nhận dạng trên máy không hỗ trợ xác minh âm thanh. Hãy cập nhật dịch vụ Google rồi thử lại.",
+                    Toast.LENGTH_LONG
+                ).show()
+            } else {
+                voiceRecognitionInProgress = true
+                partialSpeechTranscript = ""
+                runCatching { speechLauncher.launch(intent) }
+                    .onFailure {
+                        voiceRecognitionInProgress = false
+                        Toast.makeText(
+                            this,
+                            "Không mở được dịch vụ nhận dạng giọng nói. Hãy cập nhật ứng dụng Google hoặc Speech Services.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+            }
             return
         }
+
         try {
             speechFallbackUsed = false
             speechFallbackHandler.removeCallbacks(speechNoTranscriptWatchdog)
-            if (!SpeechRecognizer.isRecognitionAvailable(this)) {
-                if (NgocSiVoiceProfile.isLockEnabled(this)) {
-                    Toast.makeText(
-                        this,
-                        "Thiết bị không cung cấp âm thanh để xác minh giọng. Tắt khóa giọng hoặc dùng nhận dạng trực tiếp.",
-                        Toast.LENGTH_LONG
-                    ).show()
-                    return
-                }
-                // Keep the Android/Google speech activity as a fallback on devices
-                // that do not expose a RecognitionService directly to the app.
-                voiceRecognitionInProgress = true
-                partialSpeechTranscript = ""
-                speechLauncher.launch(intent)
-                return
-            }
+            voiceInputAudioBuffer.reset()
+            closeOwnerVoiceAudioSource()
             val recognizer = voiceRecognizer ?: SpeechRecognizer.createSpeechRecognizer(this).also {
                 it.setRecognitionListener(inAppSpeechListener)
                 voiceRecognizer = it
             }
-            voiceInputAudioBuffer.reset()
             voiceRecognitionInProgress = true
             partialSpeechTranscript = ""
             voiceRetryCount = 0
             activeVoiceIntent = intent
-            Toast.makeText(this, "Đang nghe… hãy nói rõ câu lệnh, không cần nói quá nhanh.", Toast.LENGTH_SHORT).show()
-            recognizer.startListening(intent)
-            speechFallbackHandler.postDelayed(speechNoTranscriptWatchdog, 10_000L)
+            Toast.makeText(
+                this,
+                if (lockEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+                    "Đang nghe và xác minh giọng nói trên điện thoại…"
+                else "Đang nghe… hãy nói rõ câu lệnh, không cần nói quá nhanh.",
+                Toast.LENGTH_SHORT
+            ).show()
+
+            if (lockEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                startOwnerVoiceCaptureAndRecognition(recognizer, intent)
+            } else {
+                recognizer.startListening(intent)
+                speechFallbackHandler.postDelayed(speechNoTranscriptWatchdog, 10_000L)
+            }
         } catch (_: SecurityException) {
+            closeOwnerVoiceAudioSource()
             voiceRecognitionInProgress = false
             partialSpeechTranscript = ""
             Toast.makeText(this, "Thiếu quyền micro. Hãy cấp quyền micro cho NGỌC SĨ AI Preview.", Toast.LENGTH_LONG).show()
         } catch (_: Exception) {
+            closeOwnerVoiceAudioSource()
             voiceRecognitionInProgress = false
             partialSpeechTranscript = ""
-            // If the direct service cannot start, fall back to Android's speech UI.
             runCatching {
                 runCatching { voiceRecognizer?.destroy() }
                 voiceRecognizer = null
-                if (NgocSiVoiceProfile.isLockEnabled(this)) {
+                if (lockEnabled) {
                     Toast.makeText(
                         this,
-                        "Không thể xác minh giọng trong chế độ nhận dạng dự phòng. Hãy thử lại micro.",
+                        "Không thể xác minh giọng trong chế độ nhận dạng hiện tại. Hãy thử lại micro.",
                         Toast.LENGTH_LONG
                     ).show()
                 } else {
@@ -1713,6 +1749,74 @@ class NgocSiAiActivity : ComponentActivity() {
                 ).show()
             }
         }
+    }
+
+    private fun startOwnerVoiceCaptureAndRecognition(
+        recognizer: SpeechRecognizer,
+        intent: Intent
+    ) {
+        lifecycleScope.launch {
+            val pcm = withContext(Dispatchers.IO) {
+                NgocSiOwnerVoiceAudio.captureUtterance(
+                    shouldStop = { isFinishing || isDestroyed },
+                    onVoiceDetected = {
+                        runOnUiThread {
+                            if (!isFinishing && !isDestroyed) {
+                                partialSpeechTranscript = "Đang thu giọng để xác minh…"
+                            }
+                        }
+                    }
+                )
+            }
+            if (isFinishing || isDestroyed) {
+                closeOwnerVoiceAudioSource()
+                return@launch
+            }
+            if (pcm == null) {
+                voiceRecognitionInProgress = false
+                partialSpeechTranscript = ""
+                Toast.makeText(
+                    this@NgocSiAiActivity,
+                    "Chưa thu được câu nói rõ ràng. Hãy nhấn micro và nói gần điện thoại hơn.",
+                    Toast.LENGTH_LONG
+                ).show()
+                return@launch
+            }
+            val pipe = NgocSiVoiceAudioSourcePipe.create(intent, pcm)
+            if (pipe == null) {
+                voiceRecognitionInProgress = false
+                partialSpeechTranscript = ""
+                Toast.makeText(
+                    this@NgocSiAiActivity,
+                    "Không thể chuyển âm thanh sang nhận dạng để xác minh giọng. Hãy thử lại.",
+                    Toast.LENGTH_LONG
+                ).show()
+                return@launch
+            }
+            pendingOwnerVoicePcm = pcm
+            ownerVoiceAudioSourcePipe = pipe
+            try {
+                recognizer.startListening(intent)
+                pipe.writeAsync(lifecycleScope)
+                speechFallbackHandler.removeCallbacks(speechNoTranscriptWatchdog)
+                speechFallbackHandler.postDelayed(speechNoTranscriptWatchdog, 10_000L)
+            } catch (_: Exception) {
+                closeOwnerVoiceAudioSource()
+                voiceRecognitionInProgress = false
+                partialSpeechTranscript = ""
+                Toast.makeText(
+                    this@NgocSiAiActivity,
+                    "Dịch vụ nhận dạng chưa xử lý được âm thanh để xác minh giọng. Hãy thử lại.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
+
+    private fun closeOwnerVoiceAudioSource() {
+        pendingOwnerVoicePcm = null
+        ownerVoiceAudioSourcePipe?.close()
+        ownerVoiceAudioSourcePipe = null
     }
 }
 @Composable
