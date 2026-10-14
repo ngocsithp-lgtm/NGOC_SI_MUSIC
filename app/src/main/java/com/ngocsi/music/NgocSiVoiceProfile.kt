@@ -43,10 +43,14 @@ internal object NgocSiVoiceProfile {
 
     fun hasProfile(context: Context): Boolean = loadProfile(context) != null
 
-    fun isLockEnabled(context: Context): Boolean {
-        val preferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        return preferences.getBoolean(KEY_LOCK_ENABLED, false) && hasProfile(context)
-    }
+    /**
+     * Returns whether the user requested the lock, even if its profile is broken or from
+     * an old schema. Callers must reject speech when the request is on but the profile fails
+     * to decrypt/load; never silently turn a corrupt profile into "lock disabled".
+     */
+    fun isLockEnabled(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getBoolean(KEY_LOCK_ENABLED, false)
 
     fun setLockEnabled(context: Context, enabled: Boolean): Boolean {
         if (enabled && loadProfile(context) == null) return false
