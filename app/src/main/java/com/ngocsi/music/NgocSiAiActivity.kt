@@ -204,6 +204,45 @@ internal fun localConversationFallback(
         "Bước đầu tiên hợp lý nhất là kiểm thử từng lệnh AI bằng câu nói thực tế, ghi lại câu nào không hiểu rồi sửa bộ nhận diện. " +
         "Mình chưa thay đổi bản PRO ổn định."
 }
+
+/**
+ * Safe local response used only after an online request has failed.
+ * It keeps short follow-up questions tied to the previous reply without pretending
+ * to perform new reasoning when Gemini is unavailable or quota-limited.
+ */
+internal fun localConversationFallbackAfterRemoteError(
+    userText: String,
+    previousAssistantReply: String?,
+    remoteError: String?
+): String? {
+    localConversationFallback(userText, previousAssistantReply)?.let { return it }
+
+    val previous = previousAssistantReply?.trim().orEmpty()
+    if (previous.isBlank()) return null
+    val normalized = normalizeNgocSiAiVoicePhrase(userText)
+    val asksForContext = normalized in setOf(
+        "tai sao", "vi sao", "sao vay", "tai sao vay", "vi sao vay",
+        "giai thich them", "noi ro hon", "noi ro hon di",
+        "y ban la gi", "y cua ban la gi", "cu the hon", "vi du di",
+        "why", "why is that", "what do you mean"
+    ) || normalized.startsWith("tai sao ") ||
+        normalized.startsWith("vi sao ") ||
+        normalized.startsWith("giai thich them ")
+    if (!asksForContext) return null
+
+    val error = remoteError.orEmpty().lowercase(Locale.ROOT)
+    val status = when {
+        "quota" in error || "429" in error || "han muc" in error ->
+            "Chat Gemini đang bị giới hạn hạn mức"
+        "network" in error || "timeout" in error || "mạng" in error ->
+            "Kết nối chat trực tuyến đang gặp sự cố"
+        else -> "Chat trực tuyến hiện chưa trả lời được"
+    }
+    return "Bạn đang hỏi tiếp về điều mình vừa nói: “${previous.take(180)}”. " +
+        "$status, nên mình chưa muốn đoán lý do khi chưa đủ dữ liệu. " +
+        "Bạn chỉ rõ phần muốn giải thích thêm nhé; khi chat trực tuyến hoạt động lại, mình sẽ bám đúng câu hỏi đó."
+}
+
 private fun defaultAiGreeting(isOnlineConfigured: Boolean) = AiPreviewMessage(
     false,
     if (isOnlineConfigured) {
@@ -1691,9 +1730,10 @@ private fun NgocSiAiPreviewScreen(
             } catch (error: NgocSiAiRemoteException) {
                 if (conversation.lastOrNull() == userTurn) conversation.removeAt(conversation.lastIndex)
                 val errorReply = error.message ?: "Không thể kết nối NGỌC SĨ AI. Vui lòng thử lại."
-                val fallbackReply = localConversationFallback(
-                    clean,
-                    messages.dropLast(1).lastOrNull { !it.isUser }?.text
+                val fallbackReply = localConversationFallbackAfterRemoteError(
+                    userText = clean,
+                    previousAssistantReply = messages.dropLast(1).lastOrNull { !it.isUser }?.text,
+                    remoteError = errorReply
                 )
                 val visibleReply = fallbackReply ?: errorReply
                 val quotaNotice = ngocSiAiQuotaStatusNotice(errorReply)
