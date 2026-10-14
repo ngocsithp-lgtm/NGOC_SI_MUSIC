@@ -400,6 +400,7 @@ class NgocSiAiActivity : ComponentActivity() {
             speechFallbackUsed = true
             val intent = activeVoiceIntent
             voiceInputAudioBuffer.reset()
+            closeOwnerVoiceAudioSource()
             runCatching { voiceRecognizer?.cancel() }
             runCatching { voiceRecognizer?.destroy() }
             voiceRecognizer = null
@@ -408,7 +409,7 @@ class NgocSiAiActivity : ComponentActivity() {
             if (NgocSiVoiceProfile.isLockEnabled(this@NgocSiAiActivity)) {
                 Toast.makeText(
                     this@NgocSiAiActivity,
-                    "Chưa có dữ liệu âm thanh để xác minh giọng. Hãy nhấn micro và thử lại.",
+                    "Dịch vụ nhận dạng chưa trả về chữ cho đoạn giọng vừa thu. Hãy cập nhật ứng dụng Google hoặc Speech Services rồi thử lại.",
                     Toast.LENGTH_LONG
                 ).show()
                 return
@@ -483,6 +484,25 @@ class NgocSiAiActivity : ComponentActivity() {
                     return@runOnUiThread
                 }
                 speechFallbackHandler.removeCallbacks(speechNoTranscriptWatchdog)
+                val partial = partialSpeechTranscript.trim()
+                val capturedPcm = pendingOwnerVoicePcm ?: voiceInputAudioBuffer.toByteArray()
+                if (partial.isNotBlank() &&
+                    (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT)
+                ) {
+                    voiceInputAudioBuffer.reset()
+                    closeOwnerVoiceAudioSource()
+                    runCatching { voiceRecognizer?.cancel() }
+                    voiceRecognitionInProgress = false
+                    partialSpeechTranscript = ""
+                    voiceRetryCount = 0
+                    Toast.makeText(
+                        this@NgocSiAiActivity,
+                        "Đang gửi phần câu nói đã nhận được…",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    deliverRecognizedSpeechAfterVoiceCheck(partial, capturedPcm)
+                    return@runOnUiThread
+                }
                 closeOwnerVoiceAudioSource()
                 partialSpeechTranscript = ""
                 val canRetry = error == SpeechRecognizer.ERROR_NO_MATCH ||
@@ -1482,6 +1502,7 @@ class NgocSiAiActivity : ComponentActivity() {
 
     override fun onDestroy() {
         wakeWordStatusHandler.removeCallbacksAndMessages(null)
+        closeOwnerVoiceAudioSource()
         musicController?.release()
         musicController = null
         productionMusicController?.release()
