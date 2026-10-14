@@ -135,31 +135,36 @@ internal class NgocSiAiRemoteClient(context: Context) {
         // Fail closed if Actions secrets accidentally point to a different Firebase project.
         if (projectId != EXPECTED_FIREBASE_PROJECT_ID) return null
 
-        return runCatching {
-            val existing = FirebaseApp.getApps(context).firstOrNull { it.name == FIREBASE_APP_NAME }
-            val app = existing ?: FirebaseApp.initializeApp(
-                context,
-                FirebaseOptions.Builder()
-                    .setApiKey(apiKey)
-                    .setProjectId(projectId)
-                    .setGcmSenderId(senderId)
-                    .setApplicationId(appId)
-                    .build(),
-                FIREBASE_APP_NAME
-            )
-            // Install App Check before creating or using the Firebase AI Logic client.
-            val appCheck = FirebaseAppCheck.getInstance(app)
-            // This preview APK is installed directly from GitHub Actions, not Google Play.
-            // Use the Firebase App Check debug provider in debug builds; register its token
-            // in Firebase Console. Keep Play Integrity for non-debug variants only.
-            val providerFactory = if (BuildConfig.DEBUG) {
-                DebugAppCheckProviderFactory.getInstance()
-            } else {
-                PlayIntegrityAppCheckProviderFactory.getInstance()
-            }
-            appCheck.installAppCheckProviderFactory(providerFactory)
-            app
-        }.getOrNull()
+        return synchronized(FIREBASE_APP_INITIALIZATION_LOCK) {
+            runCatching {
+                val existing = FirebaseApp.getApps(context).firstOrNull { it.name == FIREBASE_APP_NAME }
+                val app = existing ?: FirebaseApp.initializeApp(
+                    context,
+                    FirebaseOptions.Builder()
+                        .setApiKey(apiKey)
+                        .setProjectId(projectId)
+                        .setGcmSenderId(senderId)
+                        .setApplicationId(appId)
+                        .build(),
+                    FIREBASE_APP_NAME
+                )
+                // The chat screen and hands-free service can create clients concurrently.
+                // Serialize named-app creation so only one request can initialize it.
+                if (!appCheckProviderInstalled) {
+                    // This preview APK is installed directly from GitHub Actions, not Google Play.
+                    // Use the Firebase App Check debug provider in debug builds; register its token
+                    // in Firebase Console. Keep Play Integrity for non-debug variants only.
+                    val providerFactory = if (BuildConfig.DEBUG) {
+                        DebugAppCheckProviderFactory.getInstance()
+                    } else {
+                        PlayIntegrityAppCheckProviderFactory.getInstance()
+                    }
+                    FirebaseAppCheck.getInstance(app).installAppCheckProviderFactory(providerFactory)
+                    appCheckProviderInstalled = true
+                }
+                app
+            }.getOrNull()
+        }
     }
 
     private fun toSafeMessage(error: Exception): String {
@@ -217,6 +222,9 @@ internal class NgocSiAiRemoteClient(context: Context) {
     }
 
     companion object {
+        private val FIREBASE_APP_INITIALIZATION_LOCK = Any()
+        private var appCheckProviderInstalled = false
+
         private const val FIREBASE_APP_NAME = "ngocSiAi"
         private const val QUOTA_PREFERENCES = "ngoc_si_ai_quota_cooldown"
         private const val KEY_QUOTA_COOLDOWN_UNTIL = "cooldown_until_millis"
