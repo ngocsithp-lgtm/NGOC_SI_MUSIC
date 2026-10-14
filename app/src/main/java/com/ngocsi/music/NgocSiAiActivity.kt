@@ -510,7 +510,7 @@ class NgocSiAiActivity : ComponentActivity() {
         override fun onEvent(eventType: Int, params: Bundle?) = Unit
     }
 
-    private val speechLauncher =
+    private val speechLauncher: androidx.activity.result.ActivityResultLauncher<Intent> =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             speechFallbackHandler.removeCallbacks(speechNoTranscriptWatchdog)
             speechFallbackUsed = false
