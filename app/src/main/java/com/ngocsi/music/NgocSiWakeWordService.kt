@@ -36,6 +36,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Experimental on-device wake-phrase listener. It intentionally refuses online recognition.
@@ -607,77 +608,124 @@ class NgocSiWakeWordService : Service() {
             }
             return
         }
+
         answeringQuestion = true
         cancelConversationTimeout()
+        val conversationTurnId = nextConversationTurnId()
+        publishConversationUpdate(
+            cleanQuestion,
+            CONVERSATION_PENDING_REPLY,
+            conversationTurnId
+        )
         updateNotification("Đã nghe câu hỏi · đang tạo câu trả lời…")
-        aiScope.launch {
-            val client = NgocSiAiRemoteClient(applicationContext)
-            val previousAssistantReply = conversationHistory
-                .lastOrNull { it.role == "assistant" }
-                ?.content
-            // Match the in-app chat path: answer familiar exchanges locally first so
-            // greetings, follow-ups, and quota questions do not consume Gemini requests.
-            val localFallback = localConversationFallback(cleanQuestion, previousAssistantReply)
-            val userMessage = NgocSiAiMessage(role = "user", content = cleanQuestion)
-            // Preserve recent turns so follow-up questions have context in either mode.
-            val requestHistory = conversationHistory.toMutableList()
-            while (requestHistory.size > MAX_CONVERSATION_MESSAGES - 2) {
-                requestHistory.removeAt(0)
-            }
-            requestHistory.add(userMessage)
 
-            var remoteAnswer: String? = null
-            var remoteError: String? = null
-            if (localFallback == null) {
-                if (!client.isConfigured) {
-                    remoteError =
-                        "Tôi nghe được câu hỏi, nhưng chat trực tuyến chưa được cấu hình trong bản Preview này. Tôi vẫn có thể thực hiện các lệnh điều khiển ứng dụng được hỗ trợ."
-                } else {
-                    try {
-                        remoteAnswer = client.send(requestHistory).answer
-                    } catch (cancelled: CancellationException) {
-                        throw cancelled
-                    } catch (error: Exception) {
-                        remoteError = error.message?.takeIf { it.isNotBlank() }
-                            ?: "Tôi đã nghe câu hỏi nhưng hiện chưa lấy được câu trả lời. Hãy thử lại sau."
+        aiScope.launch {
+            try {
+                val client = NgocSiAiRemoteClient(applicationContext)
+                val previousAssistantReply = conversationHistory
+                    .lastOrNull { it.role == "assistant" }
+                    ?.content
+
+                // Handle common turns on-device first; this avoids spending the free
+                // Gemini allowance for greetings, quick help and known local responses.
+                val localFallback = localConversationFallback(cleanQuestion, previousAssistantReply)
+                val userMessage = NgocSiAiMessage(role = "user", content = cleanQuestion)
+                val requestHistory = conversationHistory.toMutableList()
+                while (requestHistory.size > MAX_CONVERSATION_MESSAGES - 2) {
+                    requestHistory.removeAt(0)
+                }
+                requestHistory.add(userMessage)
+
+                var remoteAnswer: String? = null
+                var remoteError: String? = null
+                if (localFallback == null) {
+                    if (!client.isConfigured) {
+                        remoteError =
+                            "Tôi nghe được câu hỏi, nhưng chat trực tuyến chưa được cấu hình trong bản Preview này. Các lệnh ứng dụng được hỗ trợ vẫn có thể chạy trên điện thoại."
+                    } else {
+                        try {
+                            remoteAnswer = withTimeoutOrNull(20_000L) {
+                                client.send(requestHistory).answer
+                            }
+                            if (remoteAnswer.isNullOrBlank()) {
+                                remoteError =
+                                    "Tôi đã nghe câu hỏi nhưng máy chủ AI phản hồi quá chậm. Hãy thử lại sau; các lệnh nhạc vẫn hoạt động."
+                            }
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (error: Exception) {
+                            remoteError = error.message?.takeIf { it.isNotBlank() }
+                                ?: "Tôi đã nghe câu hỏi nhưng hiện chưa lấy được câu trả lời. Hãy thử lại sau."
+                        }
                     }
                 }
-            }
-            if (stopping) return@launch
+                if (stopping) return@launch
 
-            val errorFallback = if (remoteAnswer.isNullOrBlank() && remoteError != null) {
-                localConversationFallbackAfterRemoteError(
-                    userText = cleanQuestion,
-                    previousAssistantReply = previousAssistantReply,
-                    remoteError = remoteError
-                )
-            } else null
-            val answer = localFallback
-                ?: remoteAnswer?.trim()?.takeIf { it.isNotBlank() }
-                ?: errorFallback
-                ?: remoteError?.takeIf { it.isNotBlank() }
-                ?: "Tôi đã nghe câu hỏi nhưng hiện chưa lấy được câu trả lời. Hãy thử lại sau."
-            // Keep successful Gemini turns and safe local replies for natural follow-ups;
-            // never put a raw transport/quota error into the conversation history.
-            val keepTurnInHistory =
-                localFallback != null || !remoteAnswer.isNullOrBlank() || errorFallback != null
-            if (keepTurnInHistory) {
-                conversationHistory.clear()
-                conversationHistory.addAll(requestHistory)
-                conversationHistory.add(NgocSiAiMessage(role = "assistant", content = answer))
-                while (conversationHistory.size > MAX_CONVERSATION_MESSAGES) {
-                    conversationHistory.removeAt(0)
+                val errorFallback = if (remoteAnswer.isNullOrBlank() && remoteError != null) {
+                    localConversationFallbackAfterRemoteError(
+                        userText = cleanQuestion,
+                        previousAssistantReply = previousAssistantReply,
+                        remoteError = remoteError
+                    )
+                } else null
+                val answer = localFallback
+                    ?: remoteAnswer?.trim()?.takeIf { it.isNotBlank() }
+                    ?: errorFallback
+                    ?: remoteError?.takeIf { it.isNotBlank() }
+                    ?: "Tôi đã nghe câu hỏi nhưng hiện chưa lấy được câu trả lời. Hãy thử lại sau."
+
+                val keepTurnInHistory =
+                    localFallback != null || !remoteAnswer.isNullOrBlank() || errorFallback != null
+                if (keepTurnInHistory) {
+                    conversationHistory.clear()
+                    conversationHistory.addAll(requestHistory)
+                    conversationHistory.add(NgocSiAiMessage(role = "assistant", content = answer))
+                    while (conversationHistory.size > MAX_CONVERSATION_MESSAGES) {
+                        conversationHistory.removeAt(0)
+                    }
                 }
+
+                publishConversationUpdate(cleanQuestion, answer, conversationTurnId)
+                val replySource = if (localFallback != null) {
+                    "Trả lời tại máy · không dùng hạn mức Gemini"
+                } else {
+                    "Câu trả lời"
+                }
+                updateNotification("$replySource: ${answer.take(100)}")
+                speakReply(answer)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                if (!stopping) {
+                    val safeAnswer =
+                        "Mình đã nghe câu hỏi nhưng chưa xử lý xong. Bạn thử nói lại một câu ngắn gọn nhé."
+                    publishConversationUpdate(cleanQuestion, safeAnswer, conversationTurnId)
+                    updateNotification(safeAnswer)
+                    speakReply(safeAnswer)
+                }
+            } finally {
+                answeringQuestion = false
             }
-            answeringQuestion = false
-            val replySource = if (localFallback != null) {
-                "Trả lời tại máy · không dùng hạn mức Gemini"
-            } else {
-                "Câu trả lời"
-            }
-            updateNotification("$replySource: ${answer.take(100)}")
-            speakReply(answer)
         }
+    }
+
+    private fun nextConversationTurnId(): Long {
+        val prefs = getSharedPreferences(CONVERSATION_PREFS_NAME, Context.MODE_PRIVATE)
+        return maxOf(
+            System.currentTimeMillis(),
+            prefs.getLong(KEY_CONVERSATION_TURN_ID, 0L) + 1L
+        )
+    }
+
+    private fun publishConversationUpdate(question: String, answer: String, turnId: Long) {
+        val prefs = getSharedPreferences(CONVERSATION_PREFS_NAME, Context.MODE_PRIVATE)
+        val revision = prefs.getLong(KEY_CONVERSATION_REVISION, 0L) + 1L
+        prefs.edit()
+            .putLong(KEY_CONVERSATION_TURN_ID, turnId)
+            .putLong(KEY_CONVERSATION_REVISION, revision)
+            .putString(KEY_CONVERSATION_QUESTION, question.take(2_000))
+            .putString(KEY_CONVERSATION_ANSWER, answer.take(4_000))
+            .apply()
     }
 
     private fun handleOwnerVoiceEnrollment(sample: FloatArray?) {
@@ -1486,6 +1534,13 @@ class NgocSiWakeWordService : Service() {
         private const val OWNER_VOICE_ENROLLMENT_SAMPLES = 3
         private const val MAX_ENROLLMENT_AUDIO_FAILURES = 3
         private const val MAX_CAPTURED_AUDIO_BYTES = 160_000
+        const val CONVERSATION_PREFS_NAME = "ngoc_si_ai_wake_conversation"
+        const val KEY_CONVERSATION_TURN_ID = "conversation_turn_id"
+        const val KEY_CONVERSATION_REVISION = "conversation_revision"
+        const val KEY_CONVERSATION_QUESTION = "conversation_question"
+        const val KEY_CONVERSATION_ANSWER = "conversation_answer"
+        const val CONVERSATION_PENDING_REPLY = "Đang xử lý câu hỏi bằng nghe từ khóa…"
+
         const val ACTION_START = "com.ngocsi.music.action.START_WAKE_WORD"
         const val ACTION_STOP = "com.ngocsi.music.action.STOP_WAKE_WORD"
         const val ACTION_VOICE_CHANGED = "com.ngocsi.music.action.WAKE_WORD_VOICE_CHANGED"
