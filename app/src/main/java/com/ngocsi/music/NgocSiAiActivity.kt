@@ -497,7 +497,8 @@ class NgocSiAiActivity : ComponentActivity() {
                 .filter { it.isNotBlank() }
             val phrase = candidates.firstOrNull { isNgocSiAiExplicitStopPhrase(it) }
                 ?: candidates.firstOrNull { classifyNgocSiAiLocalCommand(it) != null }
-                ?: candidates.firstOrNull().orEmpty()            runOnUiThread {
+                ?: candidates.firstOrNull().orEmpty()
+            runOnUiThread {
                 if (!isFinishing && !isDestroyed && voiceRecognitionInProgress) {
                     partialSpeechTranscript = phrase.take(180)
                     if (phrase.isNotBlank()) {
@@ -1000,7 +1001,8 @@ class NgocSiAiActivity : ComponentActivity() {
 
         // Never stop an idle Preview queue as a false substitute for the stable player's
         // session. If the stable session is unavailable, report that stopping was not done.
-        if (production == null && productionMusicControllerConnecting) {            return "Đang kết nối trình phát NGỌC SĨ MUSIC. Nhạc chưa được xác nhận là đã dừng."
+        if (production == null && productionMusicControllerConnecting) {
+            return "Đang kết nối trình phát NGỌC SĨ MUSIC. Nhạc chưa được xác nhận là đã dừng."
         }
 
         val target = when (
@@ -1998,7 +2000,8 @@ private fun NgocSiAiPreviewScreen(
                             selectedVoiceLabel,
                             color = NgocSiVisuals.Text,
                             fontSize = 11.sp,
-                            maxLines = 1,                            overflow = TextOverflow.Ellipsis
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                     Text("›", color = NgocSiVisuals.Secondary, fontSize = 22.sp)
