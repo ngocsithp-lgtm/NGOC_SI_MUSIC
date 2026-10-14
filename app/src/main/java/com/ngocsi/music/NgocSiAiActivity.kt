@@ -416,6 +416,8 @@ class NgocSiAiActivity : ComponentActivity() {
                 .getBoolean(NgocSiWakeWordService.KEY_ENABLED, false)
             val wasListening = wakeWordListening
             wakeWordListening = enabled
+            ownerVoiceEnrolled = NgocSiVoiceProfile.hasProfile(this@NgocSiAiActivity)
+            ownerVoiceLockEnabled = NgocSiVoiceProfile.isLockEnabled(this@NgocSiAiActivity)
             if (enabled) {
                 wakeWordStatusHandler.postDelayed(this, 1_000L)
             } else if (wasListening) {
@@ -2156,7 +2158,7 @@ private fun NgocSiAiPreviewScreen(
                 Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
                     Text("BẢO VỆ GIỌNG NÓI", color = NgocSiVisuals.Text, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        if (isOwnerVoiceEnrolled) "Đã đăng ký mẫu giọng trên máy" else "Đăng ký 3 câu mẫu",
+                        if (isOwnerVoiceEnrolled) "Mẫu lưu trên máy · bộ lọc thử nghiệm" else "Đăng ký 3 câu mẫu",
                         color = NgocSiVisuals.TextSecondary, fontSize = 9.sp, maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
