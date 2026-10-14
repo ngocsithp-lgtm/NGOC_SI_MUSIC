@@ -15,3 +15,14 @@ Processing and privacy:
 - The model is used as a speaker filter, not as the sole security control for sensitive actions.
 
 This notice identifies the upstream projects and model used in the experimental Preview feature.
+
+Offline Vietnamese speech-to-text (ASR) model used by voice-protected commands:
+- Model: sherpa-onnx-zipformer-vi-30M-int8-2026-02-09
+- Model origin: https://huggingface.co/hynt/Zipformer-30M-RNNT-6000h
+- ONNX packaging and usage instructions: https://github.com/k2-fsa/sherpa-onnx
+- Model license declared by the upstream author: Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International (CC BY-NC-ND 4.0): https://creativecommons.org/licenses/by-nc-nd/4.0/
+- The model files are included unchanged for non-commercial Preview testing. This model must not be used in a commercial release or distributed as an adapted model without separate permission from the rights holder. Before any commercial publication of NGỌC SĨ MUSIC, replace this ASR model with one whose license permits that use, or obtain written permission.
+
+ASR privacy:
+- Vietnamese transcription runs on this phone after microphone capture.
+- The temporary PCM is used first for transcription, then for the registered-speaker similarity check; it is not uploaded to Gemini or written to disk by this flow.
