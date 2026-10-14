@@ -48,6 +48,11 @@ android {
         applicationId = "com.ngocsi.music"
         minSdk = 26
         targetSdk = 36
+        // Preview's neural speaker-verification runtime is built for current ARM64 phones.
+        // Stable production ABI settings are untouched on main.
+        ndk {
+            abiFilters += listOf("arm64-v8a")
+        }
         versionCode = 71
         versionName = "5.51"
         buildConfigField("String", "YOUTUBE_API_KEY", youtubeApiKey.toBuildConfigLiteral())
@@ -96,6 +101,9 @@ android {
 }
 
 dependencies {
+    // Downloaded by the Preview-only GitHub Actions workflow before lint/build.
+    // It supplies the local sherpa-onnx neural speaker embedding runtime.
+    implementation(files("libs/sherpa-onnx-1.13.8.aar"))
     // Firebase AI Logic client; missing Firebase settings deliberately leave preview offline.
     implementation(platform("com.google.firebase:firebase-bom:35.0.0"))
     implementation("com.google.firebase:firebase-ai")
