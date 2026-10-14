@@ -26,6 +26,12 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import java.util.Locale
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 /**
  * Experimental on-device wake-phrase listener. It intentionally refuses online recognition.
@@ -35,6 +41,8 @@ import java.util.Locale
 class NgocSiWakeWordService : Service() {
 
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val aiScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var answeringQuestion = false
     private var speechRecognizer: SpeechRecognizer? = null
     private var musicController: MediaController? = null
     private var musicControllerConnecting = false
@@ -345,7 +353,9 @@ class NgocSiWakeWordService : Service() {
             // actionable hypothesis rather than blindly trusting Android's first guess.
             // Outside that short window, still require the explicit wake phrase.
             val recognized = (if (wasAwaitingCommand) {
+                // After the explicit wake word, accept ordinary speech as chat too.
                 selectNgocSiAiActivatedCommandCandidate(phrases)
+                    ?: phrases.firstOrNull { it.isNotBlank() }?.trim()
                     ?: selectNgocSiAiWakePhraseCandidate(phrases)
             } else {
                 selectNgocSiAiWakePhraseCandidate(phrases)
@@ -374,7 +384,9 @@ class NgocSiWakeWordService : Service() {
                 awaitingCommand = false
                 awaitingCommandUntilMillis = 0L
                 if (wasAwaitingCommand) {
-                    updateNotification("Chưa nhận ra lệnh · hãy nói “AI, mở YouTube” hoặc “AI, chuyển bài”")
+                    // Known app commands were handled above. Route ordinary questions to AI chat.
+                    answerConversationalQuestion(recognized)
+                    return
                 } else {
                     // Expose the actual speech-recognition result so the user can tell
                     // whether the problem is recognition or command matching.
@@ -388,8 +400,37 @@ class NgocSiWakeWordService : Service() {
         override fun onEvent(eventType: Int, params: Bundle?) = Unit
     }
 
+    private fun answerConversationalQuestion(question: String) {
+        val cleanQuestion = question.trim()
+        if (cleanQuestion.isBlank() || stopping) {
+            if (!stopping) scheduleListenRetry(650L)
+            return
+        }
+        answeringQuestion = true
+        updateNotification("Đã nghe câu hỏi · đang tạo câu trả lời…")
+        aiScope.launch {
+            val client = NgocSiAiRemoteClient(applicationContext)
+            val answer = if (!client.isConfigured) {
+                "Tôi nghe được câu hỏi, nhưng chat trực tuyến chưa được cấu hình trong bản Preview này. Tôi vẫn có thể thực hiện các lệnh điều khiển ứng dụng được hỗ trợ."
+            } else {
+                try {
+                    client.send(listOf(NgocSiAiMessage(role = "user", content = cleanQuestion))).answer
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    error.message?.takeIf { it.isNotBlank() }
+                        ?: "Tôi đã nghe câu hỏi nhưng hiện chưa lấy được câu trả lời. Hãy thử lại sau."
+                }
+            }
+            if (stopping) return@launch
+            answeringQuestion = false
+            updateNotification("Câu trả lời: ${answer.take(100)}")
+            speakReply(answer)
+        }
+    }
+
     private fun beginListening() {
-        if (stopping || speechRecognizer == null || listening || speaking) return
+        if (stopping || answeringQuestion || speechRecognizer == null || listening || speaking) return
         try {
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
@@ -874,6 +915,8 @@ class NgocSiWakeWordService : Service() {
 
     override fun onDestroy() {
         stopping = true
+        answeringQuestion = false
+        aiScope.cancel()
         awaitingCommand = false
         awaitingCommandUntilMillis = 0L
         mainHandler.removeCallbacksAndMessages(null)
