@@ -6,6 +6,9 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.ComponentName
+import android.media.AudioFormat
+import android.media.AudioRecord
+import android.media.MediaRecorder
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
@@ -67,6 +70,7 @@ class NgocSiWakeWordService : Service() {
     private var speaking = false
     private var verifyingOwnerVoice = false
     private val currentAudioBuffer = ByteArrayOutputStream()
+    @Volatile private var enrollmentAudioRecord: AudioRecord? = null
     private var enrollmentSamplesRemaining = 0
     private var enrollmentAudioFailures = 0
     private var enrollmentPromptPending = false
@@ -750,6 +754,12 @@ class NgocSiWakeWordService : Service() {
         if (stopping || answeringQuestion || speechRecognizer == null ||
             recognitionStarting || listening || speaking || enrollmentPromptPending || verifyingOwnerVoice
         ) return
+        // SpeechRecognizer may omit onBufferReceived on Android. Enrollment needs PCM, not
+        // transcription, so record the prompted sample directly from the microphone.
+        if (enrollmentSamplesRemaining > 0) {
+            beginEnrollmentAudioCapture()
+            return
+        }
         try {
             val recognizer = speechRecognizer ?: return
             mainHandler.removeCallbacks(partialRecognitionFallback)
@@ -777,6 +787,94 @@ class NgocSiWakeWordService : Service() {
         } catch (_: Exception) {
             recognitionStarting = false
             scheduleListenRetry(650L)
+        }
+    }
+
+    private fun beginEnrollmentAudioCapture() {
+        if (stopping || enrollmentSamplesRemaining <= 0 || listening || verifyingOwnerVoice) return
+        val sampleRate = 16_000
+        val minBuffer = AudioRecord.getMinBufferSize(
+            sampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT
+        )
+        if (minBuffer <= 0) {
+            handleOwnerVoiceEnrollment(null)
+            return
+        }
+        listening = true
+        updateNotification("Đang thu mẫu giọng trực tiếp từ micro · hãy đọc câu vừa nghe")
+        aiScope.launch(Dispatchers.IO) {
+            var recorder: AudioRecord? = null
+            var failure = false
+            val captured = ByteArrayOutputStream()
+            try {
+                recorder = AudioRecord(
+                    MediaRecorder.AudioSource.VOICE_RECOGNITION,
+                    sampleRate,
+                    AudioFormat.CHANNEL_IN_MONO,
+                    AudioFormat.ENCODING_PCM_16BIT,
+                    maxOf(minBuffer * 2, sampleRate / 2)
+                )
+                if (recorder.state != AudioRecord.STATE_INITIALIZED) {
+                    failure = true
+                } else {
+                    enrollmentAudioRecord = recorder
+                    recorder.startRecording()
+                    val chunk = ByteArray(2048)
+                    val startedAt = System.currentTimeMillis()
+                    var speechStartedAt = 0L
+                    var lastVoiceAt = 0L
+                    while (!stopping && System.currentTimeMillis() - startedAt < 9_000L) {
+                        val count = recorder.read(chunk, 0, chunk.size)
+                        if (count <= 0) continue
+                        var energy = 0.0
+                        var i = 0
+                        while (i + 1 < count) {
+                            val value = ((chunk[i + 1].toInt() shl 8) or (chunk[i].toInt() and 0xff)).toShort().toInt()
+                            energy += value.toDouble() * value
+                            i += 2
+                        }
+                        val rms = kotlin.math.sqrt(energy / (count / 2).coerceAtLeast(1))
+                        val now = System.currentTimeMillis()
+                        if (rms >= 420.0) {
+                            if (speechStartedAt == 0L) speechStartedAt = now
+                            lastVoiceAt = now
+                        }
+                        if (speechStartedAt > 0L) {
+                            val remaining = sampleRate * 2 * 7 - captured.size()
+                            if (remaining > 0) captured.write(chunk, 0, minOf(count, remaining))
+                            if (now - speechStartedAt >= 1_000L && lastVoiceAt > 0L && now - lastVoiceAt >= 750L) break
+                        }
+                    }
+                    if (captured.size() < sampleRate * 2) failure = true
+                }
+            } catch (_: SecurityException) {
+                failure = true
+            } catch (_: Exception) {
+                failure = true
+            } finally {
+                enrollmentAudioRecord = null
+                runCatching { recorder?.stop() }
+                runCatching { recorder?.release() }
+            }
+            val pcm = if (!failure && !stopping) captured.toByteArray() else null
+            mainHandler.post {
+                listening = false
+                if (stopping) return@post
+                if (pcm == null) {
+                    updateNotification("Chưa thu được âm thanh · hãy đọc rõ hơn, gần micro hơn")
+                    handleOwnerVoiceEnrollment(null)
+                    return@post
+                }
+                verifyingOwnerVoice = true
+                updateNotification("Đang phân tích mẫu giọng trên điện thoại…")
+                aiScope.launch(Dispatchers.Default) {
+                    val embedding = NgocSiVoiceProfile.extractFeatures(this@NgocSiWakeWordService, pcm)
+                    mainHandler.post {
+                        verifyingOwnerVoice = false
+                        if (!stopping) handleOwnerVoiceEnrollment(embedding)
+                    }
+                }
+            }
         }
     }
 
