@@ -321,7 +321,28 @@ class NgocSiAiActivity : ComponentActivity() {
     private val speechNoTranscriptWatchdog = object : Runnable {
         override fun run() {
             if (!voiceRecognitionInProgress || isFinishing || isDestroyed || speechFallbackUsed) return
-            if (partialSpeechTranscript.isNotBlank()) return
+            val partial = partialSpeechTranscript.trim()
+            if (partial.isNotBlank()) {
+                // Some Android speech services emit interim text but never call onResults.
+                // After a quiet timeout, submit the best available transcript instead of
+                // leaving the chat stuck forever waiting for a final callback.
+                speechFallbackUsed = true
+                speechFallbackHandler.removeCallbacks(this)
+                runCatching { voiceRecognizer?.cancel() }
+                runCatching { voiceRecognizer?.destroy() }
+                voiceRecognizer = null
+                voiceRecognitionInProgress = false
+                partialSpeechTranscript = ""
+                voiceRetryCount = 0
+                Toast.makeText(
+                    this@NgocSiAiActivity,
+                    "Đã nhận giọng nói: ${partial.take(100)}",
+                    Toast.LENGTH_SHORT
+                ).show()
+                recognizedSpeech = partial
+                recognizedSpeechShouldSend = true
+                return
+            }
             speechFallbackUsed = true
             val intent = activeVoiceIntent
             runCatching { voiceRecognizer?.cancel() }
@@ -502,7 +523,10 @@ class NgocSiAiActivity : ComponentActivity() {
                 if (!isFinishing && !isDestroyed && voiceRecognitionInProgress) {
                     partialSpeechTranscript = phrase.take(180)
                     if (phrase.isNotBlank()) {
+                        // Keep a finalization timeout active. If only interim text arrives,
+                        // the watchdog will submit it after the recognizer goes quiet.
                         speechFallbackHandler.removeCallbacks(speechNoTranscriptWatchdog)
+                        speechFallbackHandler.postDelayed(speechNoTranscriptWatchdog, 10_000L)
                     }
                 }
             }
