@@ -474,7 +474,7 @@ class NgocSiWakeWordService : Service() {
         }
         if (NgocSiVoiceProfile.isLockEnabled(this) && phrases.any { it.isNotBlank() }) {
             val profile = NgocSiVoiceProfile.loadProfile(this)
-            val sample = NgocSiVoiceProfile.extractFeatures(capturedAudio)
+            val sample = NgocSiVoiceProfile.extractFeatures(this, capturedAudio)
             val rejectionMessage = when {
                 profile == null -> "Đã bỏ qua: không mở được hồ sơ giọng nói đã đăng ký"
                 sample == null -> "Đã bỏ qua: không lấy được âm thanh để xác minh giọng chủ máy"
