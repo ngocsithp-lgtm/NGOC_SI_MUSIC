@@ -69,6 +69,7 @@ class NgocSiWakeWordService : Service() {
     private var ttsReady = false
     private var pendingVoiceReply: String? = null
     private var speaking = false
+    private var stopVoiceControlAfterReply = false
     private var verifyingOwnerVoice = false
     private val currentAudioBuffer = ByteArrayOutputStream()
     @Volatile private var pendingOwnerVoicePcm: ByteArray? = null
@@ -111,6 +112,11 @@ class NgocSiWakeWordService : Service() {
                         mainHandler.post {
                             speaking = false
                             enrollmentPromptPending = false
+                            if (stopVoiceControlAfterReply) {
+                                stopVoiceControlAfterReply = false
+                                stopListeningService()
+                                return@post
+                            }
                             if (awaitingCommand) {
                                 // Keep the original short wake-prompt window for backwards compatibility.
                                 awaitingCommandUntilMillis = System.currentTimeMillis() + COMMAND_WINDOW_MILLIS
@@ -124,6 +130,11 @@ class NgocSiWakeWordService : Service() {
                         mainHandler.post {
                             speaking = false
                             enrollmentPromptPending = false
+                            if (stopVoiceControlAfterReply) {
+                                stopVoiceControlAfterReply = false
+                                stopListeningService()
+                                return@post
+                            }
                             if (awaitingCommand) {
                                 awaitingCommandUntilMillis = System.currentTimeMillis() + COMMAND_WINDOW_MILLIS
                             }
@@ -546,6 +557,13 @@ class NgocSiWakeWordService : Service() {
     }
 
     private fun processRecognizedPhrases(phrases: List<String>) {
+        // Handle the explicit exit command before wake-word or playback classification.
+        // It disables only the microphone listener and never pauses the music player.
+        val stopVoicePhrase = phrases.firstOrNull { isNgocSiAiStopVoiceControlPhrase(it) }
+        if (stopVoicePhrase != null) {
+            stopVoiceControlByCommand(stopVoicePhrase)
+            return
+        }
         if (conversationActive) cancelConversationTimeout()
         val now = System.currentTimeMillis()
         if (awaitingCommand && now > awaitingCommandUntilMillis) {
@@ -1030,8 +1048,39 @@ class NgocSiWakeWordService : Service() {
         }
     }
 
+    private fun stopVoiceControlByCommand(recognized: String) {
+        awaitingCommand = false
+        awaitingCommandUntilMillis = 0L
+        conversationActive = false
+        conversationSpeechStarted = false
+        conversationHistory.clear()
+        cancelConversationTimeout()
+        mainHandler.removeCallbacks(restartListening)
+        mainHandler.removeCallbacks(partialRecognitionFallback)
+        mainHandler.removeCallbacks(recognitionStartWatchdog)
+        listening = false
+        recognitionStarting = false
+        currentAudioBuffer.reset()
+        closeOwnerVoiceAudioSource()
+
+        updateNotification("Đã nhận lệnh tạm dừng AI · đang tắt điều khiển giọng nói")
+        if (ttsReady && textToSpeech != null) {
+            stopVoiceControlAfterReply = true
+            speakReply("Được, tôi đã tạm dừng điều khiển giọng nói.")
+            // Do not leave the microphone service running if this device's TTS misses its callback.
+            mainHandler.postDelayed({
+                if (stopVoiceControlAfterReply) {
+                    stopVoiceControlAfterReply = false
+                    stopListeningService()
+                }
+            }, VOICE_CONTROL_STOP_REPLY_TIMEOUT_MILLIS)
+        } else {
+            stopListeningService()
+        }
+    }
+
     private fun scheduleListenRetry(delayMs: Long) {
-        if (stopping) return
+        if (stopping || stopVoiceControlAfterReply) return
         mainHandler.removeCallbacks(restartListening)
         mainHandler.postDelayed(restartListening, delayMs)
     }
@@ -1471,6 +1520,7 @@ class NgocSiWakeWordService : Service() {
     private fun stopListeningService() {
         closeOwnerVoiceAudioSource()
         if (stopping) return
+        stopVoiceControlAfterReply = false
         stopping = true
         listening = false
         recognitionStarting = false
@@ -1556,6 +1606,7 @@ class NgocSiWakeWordService : Service() {
         private const val PARTIAL_AFTER_END_MILLIS = 1_200L
         private const val CONVERSATION_IDLE_TIMEOUT_MILLIS = 30_000L
         private const val CONVERSATION_TIMEOUT_RECHECK_MILLIS = 1_000L
+        private const val VOICE_CONTROL_STOP_REPLY_TIMEOUT_MILLIS = 3_500L
         private const val MAX_CONVERSATION_MESSAGES = 12
 
         fun start(context: Context) {
