@@ -45,7 +45,7 @@ Do not send these values in chat. The preview app ID is not the same as the prod
 
 ## 5. Model and quota protection
 
-The preview uses `gemini-3.5-flash-lite`, which Firebase lists as a stable Gemini Flash-Lite model that does not require the Blaze pay-as-you-go plan when used with the Gemini Developer API. Responses are capped at 768 output tokens, thinking effort is set to minimal, and conversation context is limited to six messages / 4,000 characters. These limits reduce typical usage but cannot guarantee unlimited free requests: provider quotas and model capacity still apply. Do not enable billing simply to bypass `AI_QUOTA_429`.
+The preview uses `gemini-3.5-flash-lite` as the high-volume primary model and `gemini-3.8-flash` as a distinct fallback when the primary model appears to hit a model-specific quota or capacity limit. Firebase lists both models as available without the Blaze pay-as-you-go plan when using the Gemini Developer API. Responses are capped at 256 output tokens, thinking effort is set to LOW, and conversation context is bounded by the app's history normalizer. These limits reduce typical usage but cannot guarantee unlimited free requests: RPM, input-token limits, daily quotas, project-wide restrictions, and model capacity still apply. A fallback model cannot fix a project-wide quota. Do not enable billing simply to bypass `AI_QUOTA_429`.
 
 ## 6. Test only after a preview is built intentionally
 
