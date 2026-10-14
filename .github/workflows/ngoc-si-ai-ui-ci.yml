@@ -101,7 +101,14 @@ jobs:
           test -n "$AAPT"
           APK="app/build/outputs/apk/debug/app-debug.apk"
           test -f "$APK"
-          "$AAPT" dump badging "$APK" | grep -m1 -E "package: name='com.ngocsi.music.aipreview' versionCode='70' versionName='5.50'"
+          EXPECTED_VERSION_CODE="$(sed -nE 's/^[[:space:]]*versionCode[[:space:]]*=[[:space:]]*([0-9]+).*$/\1/p' app/build.gradle.kts | head -n1)"
+          EXPECTED_VERSION_NAME="$(sed -nE 's/^[[:space:]]*versionName[[:space:]]*=[[:space:]]*"([^"]+)".*$/\1/p' app/build.gradle.kts | head -n1)"
+          test -n "$EXPECTED_VERSION_CODE"
+          test -n "$EXPECTED_VERSION_NAME"
+          BADGING="$("$AAPT" dump badging "$APK")"
+          grep -F "package: name='com.ngocsi.music.aipreview'" <<< "$BADGING" >/dev/null
+          grep -F "versionCode='$EXPECTED_VERSION_CODE' versionName='$EXPECTED_VERSION_NAME'" <<< "$BADGING" >/dev/null
+          echo "Verified preview-only package: com.ngocsi.music.aipreview, version $EXPECTED_VERSION_NAME (code $EXPECTED_VERSION_CODE)"
       - name: Print stable preview signing SHA-256 for Firebase App Check
         run: |
           set -euo pipefail

@@ -116,8 +116,15 @@ jobs:
           test -n "$AAPT"
           APK="app/build/outputs/apk/debug/app-debug.apk"
           test -s "$APK"
-          "$AAPT" dump badging "$APK" | grep -m1 -E "package: name='com.ngocsi.music.aipreview' versionCode='70' versionName='5.50'"
-          echo "Verified preview-only package: com.ngocsi.music.aipreview"
+          EXPECTED_VERSION_CODE="$(sed -nE 's/^[[:space:]]*versionCode[[:space:]]*=[[:space:]]*([0-9]+).*$/\1/p' app/build.gradle.kts | head -n1)"
+          EXPECTED_VERSION_NAME="$(sed -nE 's/^[[:space:]]*versionName[[:space:]]*=[[:space:]]*"([^"]+)".*$/\1/p' app/build.gradle.kts | head -n1)"
+          test -n "$EXPECTED_VERSION_CODE"
+          test -n "$EXPECTED_VERSION_NAME"
+          BADGING="$("$AAPT" dump badging "$APK")"
+          grep -F "package: name='com.ngocsi.music.aipreview'" <<< "$BADGING" >/dev/null
+          grep -F "versionCode='$EXPECTED_VERSION_CODE' versionName='$EXPECTED_VERSION_NAME'" <<< "$BADGING" >/dev/null
+          echo "PREVIEW_VERSION_NAME=$EXPECTED_VERSION_NAME" >> "$GITHUB_ENV"
+          echo "Verified preview-only package: com.ngocsi.music.aipreview, version $EXPECTED_VERSION_NAME (code $EXPECTED_VERSION_CODE)"
 
       - name: Verify APK signature and report App Check fingerprints
         shell: bash
@@ -135,7 +142,7 @@ jobs:
             echo "## NGỌC SĨ AI preview APK"
             echo ""
             echo "- Package: com.ngocsi.music.aipreview"
-            echo "- Version: 5.50"
+            echo "- Version: ${PREVIEW_VERSION_NAME}"
             echo "- SHA-1: $SHA1"
             echo "- SHA-256: $SHA256"
             echo "- APK type: debug preview only; no release APK or production publishing."
