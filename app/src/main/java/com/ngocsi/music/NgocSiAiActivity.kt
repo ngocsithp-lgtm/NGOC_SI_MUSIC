@@ -1612,7 +1612,7 @@ class NgocSiAiActivity : ComponentActivity() {
 
     private fun verifyOwnerVoice(capturedPcm: ByteArray): Boolean {
         if (!NgocSiVoiceProfile.isLockEnabled(this)) return true
-        val enrolled = NgocSiVoiceProfile.loadProfile(this) ?: return false
+        val enrolled = NgocSiVoiceProfile.loadProfiles(this) ?: return false
         val candidate = NgocSiVoiceProfile.extractFeatures(this@NgocSiAiActivity, capturedPcm) ?: return false
         return NgocSiVoiceProfile.matches(enrolled, candidate)
     }
@@ -1646,7 +1646,7 @@ class NgocSiAiActivity : ComponentActivity() {
                     Toast.LENGTH_LONG
                 ).show()
                 speakVoiceReply(
-                    "Tôi nghe được câu lệnh nhưng giọng chưa khớp mẫu đã đăng ký. Hãy nói lại rõ ràng hơn.",
+                    "Tôi nghe được câu lệnh nhưng mẫu giọng lưu chưa khớp đủ rõ. Hãy đăng ký lại ba mẫu giọng trong phần bảo vệ giọng nói, rồi thử lại.",
                     force = true
                 )
                 return@launch
