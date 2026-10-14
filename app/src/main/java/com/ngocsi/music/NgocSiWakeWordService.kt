@@ -626,7 +626,7 @@ class NgocSiWakeWordService : Service() {
     }
 
     private fun handleOwnerVoiceEnrollment(pcm: ByteArray) {
-        val sample = NgocSiVoiceProfile.extractFeatures(pcm)
+        val sample = NgocSiVoiceProfile.extractFeatures(this, pcm)
         if (sample == null) {
             enrollmentAudioFailures++
             if (enrollmentAudioFailures >= MAX_ENROLLMENT_AUDIO_FAILURES) {
