@@ -475,16 +475,17 @@ class NgocSiWakeWordService : Service() {
         if (NgocSiVoiceProfile.isLockEnabled(this) && phrases.any { it.isNotBlank() }) {
             val profile = NgocSiVoiceProfile.loadProfile(this)
             val sample = NgocSiVoiceProfile.extractFeatures(capturedAudio)
-            if (profile == null || sample == null || !NgocSiVoiceProfile.matches(profile, sample)) {
+            val rejectionMessage = when {
+                profile == null -> "Đã bỏ qua: không mở được hồ sơ giọng nói đã đăng ký"
+                sample == null -> "Đã bỏ qua: không lấy được âm thanh để xác minh giọng chủ máy"
+                !NgocSiVoiceProfile.matches(profile, sample) ->
+                    "Đã bỏ qua câu nói: giọng không khớp hồ sơ đã đăng ký"
+                else -> null
+            }
+            if (rejectionMessage != null) {
                 awaitingCommand = false
                 awaitingCommandUntilMillis = 0L
-                updateNotification(
-                    if (sample == null) {
-                        "Đã bỏ qua: không lấy được âm thanh để xác minh giọng chủ máy"
-                    } else {
-                        "Đã bỏ qua câu nói: giọng không khớp hồ sơ đã đăng ký"
-                    }
-                )
+                updateNotification(rejectionMessage)
                 scheduleListenRetry(350L)
                 return
             }
@@ -637,7 +638,7 @@ class NgocSiWakeWordService : Service() {
                 )
                 speakReply(
                     "Tôi không lấy được mẫu âm thanh để đăng ký. Có thể dịch vụ nhận dạng trên máy không cung cấp dữ liệu âm thanh. " +
-                        "Tôi đã dừng đăng ký và chưa bật bảo vệ mới."
+                        "Tôi đã dừng đăng ký; hồ sơ giọng cũ, nếu có, vẫn được giữ nguyên."
                 )
                 return
             }
