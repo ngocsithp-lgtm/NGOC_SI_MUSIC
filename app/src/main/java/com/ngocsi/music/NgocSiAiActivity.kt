@@ -1645,10 +1645,73 @@ class NgocSiAiActivity : ComponentActivity() {
                     "Không xác minh được giọng đã đăng ký. Câu nói chưa được gửi hoặc thực hiện.",
                     Toast.LENGTH_LONG
                 ).show()
+                speakVoiceReply(
+                    "Tôi nghe được câu lệnh nhưng giọng chưa khớp mẫu đã đăng ký. Hãy nói lại rõ ràng hơn.",
+                    force = true
+                )
                 return@launch
             }
             recognizedSpeech = phrase
             recognizedSpeechShouldSend = true
+        }
+    }
+
+    private fun startOwnerVoiceCaptureAndTranscribe() {
+        lifecycleScope.launch {
+            val pcm = withContext(Dispatchers.IO) {
+                NgocSiOwnerVoiceAudio.captureUtterance(
+                    shouldStop = { isFinishing || isDestroyed },
+                    onVoiceDetected = {
+                        runOnUiThread {
+                            if (!isFinishing && !isDestroyed) {
+                                partialSpeechTranscript = "Đang thu giọng để xác minh…"
+                            }
+                        }
+                    }
+                )
+            }
+            if (isFinishing || isDestroyed) {
+                voiceRecognitionInProgress = false
+                partialSpeechTranscript = ""
+                return@launch
+            }
+            if (pcm == null) {
+                voiceRecognitionInProgress = false
+                partialSpeechTranscript = ""
+                Toast.makeText(
+                    this@NgocSiAiActivity,
+                    "Chưa thu được câu nói rõ ràng. Hãy nói gần điện thoại hơn rồi thử lại.",
+                    Toast.LENGTH_LONG
+                ).show()
+                speakVoiceReply("Tôi chưa nghe rõ câu lệnh. Hãy nói gần điện thoại hơn rồi thử lại.", force = true)
+                return@launch
+            }
+
+            partialSpeechTranscript = "Đang nhận dạng tiếng Việt ngoại tuyến…"
+            val phrase = withContext(Dispatchers.Default) {
+                NgocSiOwnerVoiceTranscriber.transcribe(applicationContext, pcm)
+            }
+            voiceRecognitionInProgress = false
+            partialSpeechTranscript = ""
+            if (isFinishing || isDestroyed) return@launch
+            if (phrase.isNullOrBlank()) {
+                Toast.makeText(
+                    this@NgocSiAiActivity,
+                    "Đã thu âm nhưng chưa nhận dạng được câu lệnh. Hãy nói chậm, đủ câu và thử lại.",
+                    Toast.LENGTH_LONG
+                ).show()
+                speakVoiceReply(
+                    "Tôi đã nghe âm thanh nhưng chưa nhận dạng được câu lệnh. Hãy nói chậm hơn rồi thử lại.",
+                    force = true
+                )
+                return@launch
+            }
+            Toast.makeText(
+                this@NgocSiAiActivity,
+                "Đã nhận giọng nói: ${phrase.take(100)}",
+                Toast.LENGTH_SHORT
+            ).show()
+            deliverRecognizedSpeechAfterVoiceCheck(phrase, pcm)
         }
     }
 
@@ -1668,6 +1731,23 @@ class NgocSiAiActivity : ComponentActivity() {
                 else "Micro đang nghe. Hãy nói lệnh hoặc đợi kết thúc.",
                 Toast.LENGTH_SHORT
             ).show()
+            return
+        }
+
+        speechFallbackUsed = false
+        speechFallbackHandler.removeCallbacks(speechNoTranscriptWatchdog)
+        voiceInputAudioBuffer.reset()
+        if (NgocSiVoiceProfile.isLockEnabled(this)) {
+            // Protected mode transcribes the just-recorded utterance locally; no injected
+            // audio or Android speech-service fallback is involved.
+            voiceRecognitionInProgress = true
+            partialSpeechTranscript = "Đang chờ giọng nói…"
+            Toast.makeText(
+                this,
+                "Bảo vệ giọng đang bật · nhận dạng tiếng Việt trên điện thoại.",
+                Toast.LENGTH_SHORT
+            ).show()
+            startOwnerVoiceCaptureAndTranscribe()
             return
         }
 
