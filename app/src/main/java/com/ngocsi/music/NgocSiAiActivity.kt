@@ -334,6 +334,9 @@ class NgocSiAiActivity : ComponentActivity() {
     // Show live partial transcription so voice chat visibly responds while the user speaks.
     private var partialSpeechTranscript by mutableStateOf("")
     private var wakeWordListening by mutableStateOf(false)
+    private var ownerVoiceEnrolled by mutableStateOf(false)
+    private var ownerVoiceLockEnabled by mutableStateOf(false)
+    private var pendingOwnerVoiceEnrollment = false
     private var voiceRecognizer: SpeechRecognizer? = null
     private var voiceRecognitionInProgress by mutableStateOf(false)
     private var voiceRetryCount = 0
@@ -647,7 +650,11 @@ class NgocSiAiActivity : ComponentActivity() {
 
     private val wakeWordPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            if (granted) {
+            if (pendingOwnerVoiceEnrollment) {
+                pendingOwnerVoiceEnrollment = false
+                if (granted) requestOwnerVoiceEnrollment()
+                else Toast.makeText(this, "Cần quyền micro để đăng ký giọng nói.", Toast.LENGTH_LONG).show()
+            } else if (granted) {
                 try {
                     NgocSiWakeWordService.start(this)
                     wakeWordListening = true
@@ -662,6 +669,7 @@ class NgocSiAiActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        refreshOwnerVoiceState()
         refreshTtsVoiceOptions()
         wakeWordListening = getSharedPreferences(NgocSiWakeWordService.PREFS_NAME, MODE_PRIVATE)
             .getBoolean(NgocSiWakeWordService.KEY_ENABLED, false)
@@ -716,6 +724,7 @@ class NgocSiAiActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        refreshOwnerVoiceState()
         responseTts = TextToSpeech(this) { status ->
             responseTtsInitialized = true
             if (status == TextToSpeech.SUCCESS) {
@@ -818,7 +827,11 @@ class NgocSiAiActivity : ComponentActivity() {
                 onBack = { finish() },
                 onVoice = { startVoiceInput() },
                 isWakeWordListening = wakeWordListening,
-                onToggleWakeWord = { toggleWakeWordListening() }
+                onToggleWakeWord = { toggleWakeWordListening() },
+                isOwnerVoiceEnrolled = ownerVoiceEnrolled,
+                isOwnerVoiceLockEnabled = ownerVoiceLockEnabled,
+                onEnrollOwnerVoice = { requestOwnerVoiceEnrollment() },
+                onToggleOwnerVoiceLock = { toggleOwnerVoiceLock() }
             )
         }
         requestMusicPermissionIfNeeded()
@@ -1469,6 +1482,53 @@ class NgocSiAiActivity : ComponentActivity() {
         }
     }
 
+    private fun refreshOwnerVoiceState() {
+        ownerVoiceEnrolled = NgocSiVoiceProfile.hasProfile(this)
+        ownerVoiceLockEnabled = NgocSiVoiceProfile.isLockEnabled(this)
+    }
+
+    private fun requestOwnerVoiceEnrollment() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            pendingOwnerVoiceEnrollment = true
+            wakeWordPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            return
+        }
+        try {
+            NgocSiWakeWordService.enrollOwnerVoice(this)
+            wakeWordListening = true
+            monitorWakeWordStatus()
+            Toast.makeText(
+                this,
+                "Hãy đọc lần lượt 3 câu mà AI hướng dẫn. Không rời màn hình khi đang đăng ký.",
+                Toast.LENGTH_LONG
+            ).show()
+        } catch (_: Exception) {
+            Toast.makeText(this, "Không thể bắt đầu đăng ký giọng nói. Hãy thử lại.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun toggleOwnerVoiceLock() {
+        refreshOwnerVoiceState()
+        if (!ownerVoiceEnrolled) {
+            Toast.makeText(this, "Hãy đăng ký 3 mẫu giọng nói trước khi bật bảo vệ.", Toast.LENGTH_LONG).show()
+            return
+        }
+        val enabled = !ownerVoiceLockEnabled
+        if (NgocSiVoiceProfile.setLockEnabled(this, enabled)) {
+            ownerVoiceLockEnabled = enabled
+            Toast.makeText(
+                this,
+                if (enabled) "Đã bật bộ lọc giọng nói thử nghiệm." else "Đã tắt bộ lọc giọng nói.",
+                Toast.LENGTH_SHORT
+            ).show()
+        } else {
+            ownerVoiceLockEnabled = false
+            Toast.makeText(this, "Chưa có hồ sơ giọng nói hợp lệ. Hãy đăng ký lại.", Toast.LENGTH_LONG).show()
+        }
+    }
+
     private fun toggleWakeWordListening() {
         if (wakeWordListening) {
             NgocSiWakeWordService.stop(this)
@@ -1591,7 +1651,11 @@ private fun NgocSiAiPreviewScreen(
     onBack: () -> Unit,
     onVoice: () -> Unit,
     isWakeWordListening: Boolean,
-    onToggleWakeWord: () -> Unit
+    onToggleWakeWord: () -> Unit,
+    isOwnerVoiceEnrolled: Boolean,
+    isOwnerVoiceLockEnabled: Boolean,
+    onEnrollOwnerVoice: () -> Unit,
+    onToggleOwnerVoiceLock: () -> Unit
 ) {
     val messages = remember {
         mutableStateListOf<AiPreviewMessage>().apply {
@@ -2074,6 +2138,45 @@ private fun NgocSiAiPreviewScreen(
                         )
                     }
                     Text("›", color = NgocSiVisuals.Secondary, fontSize = 22.sp)
+                }
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                modifier = Modifier.weight(1.35f).clickable(onClick = onEnrollOwnerVoice),
+                shape = RoundedCornerShape(12.dp),
+                color = NgocSiVisuals.SurfaceRaised,
+                border = androidx.compose.foundation.BorderStroke(1.dp, NgocSiVisuals.Border)
+            ) {
+                Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                    Text("BẢO VỆ GIỌNG NÓI", color = NgocSiVisuals.Text, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        if (isOwnerVoiceEnrolled) "Đã đăng ký mẫu giọng trên máy" else "Đăng ký 3 câu mẫu",
+                        color = NgocSiVisuals.TextSecondary, fontSize = 9.sp, maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            Surface(
+                modifier = Modifier.weight(1f).clickable(onClick = onToggleOwnerVoiceLock),
+                shape = RoundedCornerShape(12.dp),
+                color = if (isOwnerVoiceLockEnabled) Color(0xFF123329) else NgocSiVisuals.SurfaceRaised,
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp, if (isOwnerVoiceLockEnabled) Color(0xFF286653) else NgocSiVisuals.Border
+                )
+            ) {
+                Column(Modifier.padding(horizontal = 9.dp, vertical = 8.dp)) {
+                    Text(
+                        if (isOwnerVoiceLockEnabled) "● ĐÃ BẬT" else "○ TẮT",
+                        color = if (isOwnerVoiceLockEnabled) NgocSiVisuals.Success else NgocSiVisuals.Text,
+                        fontSize = 9.sp, fontWeight = FontWeight.Bold
+                    )
+                    Text("Xác minh giọng", color = NgocSiVisuals.TextSecondary, fontSize = 9.sp, maxLines = 1)
                 }
             }
         }
