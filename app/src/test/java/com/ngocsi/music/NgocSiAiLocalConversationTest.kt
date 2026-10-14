@@ -41,6 +41,31 @@ class NgocSiAiLocalConversationTest {
     }
 
     @Test
+    fun contextualWhyQuestionGetsHonestLocalReplyWhenRemoteQuotaFails() {
+        val previous = "Gemini đang bị giới hạn nên chưa trả lời được câu hỏi trước."
+        val answer = localConversationFallbackAfterRemoteError(
+            userText = "Tại sao?",
+            previousAssistantReply = previous,
+            remoteError = "AI_QUOTA_429"
+        )
+        assertNotNull(answer)
+        assertTrue(answer!!.contains(previous))
+        assertTrue(answer.contains("Gemini đang bị giới hạn hạn mức"))
+        assertTrue(answer.contains("chưa muốn đoán lý do"))
+    }
+
+    @Test
+    fun unsupportedFollowUpDoesNotReceiveInventedContextWhenNoPreviousAnswerExists() {
+        assertNull(
+            localConversationFallbackAfterRemoteError(
+                userText = "Tại sao?",
+                previousAssistantReply = null,
+                remoteError = "NETWORK"
+            )
+        )
+    }
+
+    @Test
     fun unsupportedFactualQuestionIsNotGivenAnInventedOfflineAnswer() {
         assertNull(localConversationFallback("Thủ đô của Pháp là gì?"))
     }
