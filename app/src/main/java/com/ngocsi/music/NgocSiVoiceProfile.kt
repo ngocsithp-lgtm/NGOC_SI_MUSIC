@@ -53,15 +53,18 @@ internal object NgocSiVoiceProfile {
      * an old schema. Callers must reject speech when the request is on but the profile fails
      * to decrypt/load; never silently turn a corrupt profile into "lock disabled".
      */
-    fun isLockEnabled(context: Context): Boolean =
+    /** Owner voice verification is intentionally disabled in Preview by user request. */
+    fun isLockEnabled(context: Context): Boolean {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getBoolean(KEY_LOCK_ENABLED, false)
+            .edit().putBoolean(KEY_LOCK_ENABLED, false).apply()
+        return false
+    }
 
+    /** Keep the legacy setting off; voice enrollment/verification is not used in Preview. */
     fun setLockEnabled(context: Context, enabled: Boolean): Boolean {
-        if (enabled && loadProfiles(context) == null) return false
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .edit().putBoolean(KEY_LOCK_ENABLED, enabled).apply()
-        return true
+            .edit().putBoolean(KEY_LOCK_ENABLED, false).apply()
+        return !enabled
     }
 
     fun clearProfile(context: Context) {
