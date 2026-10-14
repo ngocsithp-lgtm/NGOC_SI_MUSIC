@@ -183,9 +183,13 @@ class NgocSiWakeWordService : Service() {
         getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit().putBoolean(KEY_ENABLED, true).apply()
 
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
-            !SpeechRecognizer.isOnDeviceRecognitionAvailable(this)
-        ) {
+        val ownerVoiceLockEnabled = NgocSiVoiceProfile.isLockEnabled(this)
+        val platformOfflineAsrAvailable =
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                SpeechRecognizer.isOnDeviceRecognitionAvailable(this)
+        // Protected mode has its own local Vietnamese ASR and doesn't depend on Android's
+        // optional prerecorded-audio input feature.
+        if (!ownerVoiceLockEnabled && !platformOfflineAsrAvailable) {
             failAndStop("Máy chưa hỗ trợ nhận dạng giọng nói offline trên thiết bị này.")
             return START_NOT_STICKY
         }
@@ -194,8 +198,10 @@ class NgocSiWakeWordService : Service() {
         connectMusicController()
         connectProductionMusicController()
         try {
-            speechRecognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(this).apply {
-                setRecognitionListener(listener)
+            if (platformOfflineAsrAvailable) {
+                speechRecognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(this).apply {
+                    setRecognitionListener(listener)
+                }
             }
             if (enrollmentSamplesRemaining > 0) {
                 speakReply(enrollmentPrompt())
@@ -203,7 +209,12 @@ class NgocSiWakeWordService : Service() {
                 beginListening()
             }
         } catch (_: Exception) {
-            failAndStop("Không thể khởi động nhận dạng tiếng Việt offline.")
+            if (NgocSiVoiceProfile.isLockEnabled(this)) {
+                updateNotification("Đang dùng nhận dạng tiếng Việt ngoại tuyến trên điện thoại")
+                beginListening()
+            } else {
+                failAndStop("Không thể khởi động nhận dạng tiếng Việt offline.")
+            }
         }
         return START_NOT_STICKY
     }
@@ -217,8 +228,9 @@ class NgocSiWakeWordService : Service() {
             musicControllerConnecting = false
             runCatching { future.get() }
                 .onSuccess { controller ->
-                    if (stopping || speechRecognizer == null) controller.release()
-                    else musicController = controller
+                    if (stopping || (speechRecognizer == null && !NgocSiVoiceProfile.isLockEnabled(this))) {
+                        controller.release()
+                    } else musicController = controller
                 }
         }, ContextCompat.getMainExecutor(this))
     }
@@ -769,23 +781,38 @@ class NgocSiWakeWordService : Service() {
         }
 
     private fun beginListening() {
-        if (stopping || answeringQuestion || speechRecognizer == null ||
-            recognitionStarting || listening || speaking || enrollmentPromptPending || verifyingOwnerVoice
+        if (stopping || answeringQuestion || recognitionStarting || listening || speaking ||
+            enrollmentPromptPending || verifyingOwnerVoice
         ) return
         if (enrollmentSamplesRemaining > 0) {
             beginEnrollmentAudioCapture()
             return
         }
-        // Android may omit SpeechRecognizer.onBufferReceived. On Android 13+, capture the
-        // utterance once, then feed that same PCM to ASR and local speaker verification.
-        if (NgocSiVoiceProfile.isLockEnabled(this) &&
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
-        ) {
+        if (NgocSiVoiceProfile.isLockEnabled(this)) {
+            // Protected listening captures an utterance once and transcribes it locally.
             beginOwnerVoiceCapture()
             return
         }
+        var activeRecognizer = speechRecognizer
+        if (activeRecognizer == null) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+                !SpeechRecognizer.isOnDeviceRecognitionAvailable(this)
+            ) {
+                failAndStop("Máy chưa hỗ trợ nhận dạng giọng nói offline trên thiết bị này.")
+                return
+            }
+            activeRecognizer = try {
+                SpeechRecognizer.createOnDeviceSpeechRecognizer(this).apply {
+                    setRecognitionListener(listener)
+                }
+            } catch (_: Exception) {
+                failAndStop("Không thể khởi động nhận dạng tiếng Việt offline.")
+                return
+            }
+            speechRecognizer = activeRecognizer
+        }
         try {
-            val recognizer = speechRecognizer ?: return
+            val recognizer = activeRecognizer ?: return
             mainHandler.removeCallbacks(partialRecognitionFallback)
             partialRecognitionCandidates = emptyList()
             currentAudioBuffer.reset()
@@ -803,8 +830,8 @@ class NgocSiWakeWordService : Service() {
     }
 
     private fun beginOwnerVoiceCapture() {
-        if (stopping || answeringQuestion || speechRecognizer == null ||
-            recognitionStarting || listening || speaking || verifyingOwnerVoice
+        if (stopping || answeringQuestion || recognitionStarting || listening ||
+            speaking || verifyingOwnerVoice
         ) return
         listening = true
         updateNotification(
@@ -813,7 +840,7 @@ class NgocSiWakeWordService : Service() {
         )
         aiScope.launch(Dispatchers.IO) {
             val pcm = NgocSiOwnerVoiceAudio.captureUtterance(
-                shouldStop = { stopping || speechRecognizer == null },
+                shouldStop = { stopping },
                 onVoiceDetected = {
                     mainHandler.post {
                         if (!stopping) updateNotification("Đang thu giọng nói để xác minh trên điện thoại…")
@@ -834,37 +861,29 @@ class NgocSiWakeWordService : Service() {
     }
 
     private fun startRecognitionFromOwnerVoiceAudio(pcm: ByteArray) {
-        val recognizer = speechRecognizer ?: return
-        mainHandler.removeCallbacks(partialRecognitionFallback)
-        partialRecognitionCandidates = emptyList()
-        currentAudioBuffer.reset()
-        val intent = buildSpeechRecognitionIntent()
-        val pipe = NgocSiVoiceAudioSourcePipe.create(intent, pcm)
-        if (pipe == null) {
-            updateNotification("Không thể chuyển âm thanh đã thu sang nhận dạng · đang thử lại")
-            scheduleListenRetry(700L)
+        if (stopping || pcm.isEmpty()) {
+            updateNotification("Không thu được câu nói · hãy thử lại gần micro hơn")
+            scheduleListenRetry(500L)
             return
         }
-        closeOwnerVoiceAudioSource()
-        pendingOwnerVoicePcm = pcm
-        ownerVoiceAudioSourcePipe = pipe
-        recognitionStarting = true
-        try {
-            recognizer.startListening(intent)
-            pipe.writeAsync(aiScope)
-            mainHandler.removeCallbacks(recognitionStartWatchdog)
-            mainHandler.postDelayed(recognitionStartWatchdog, RECOGNITION_START_TIMEOUT_MILLIS)
-        } catch (_: SecurityException) {
-            closeOwnerVoiceAudioSource()
-            recognitionStarting = false
-            listening = false
-            failAndStop("Không có quyền micro. Hãy cấp quyền micro rồi bật lại.")
-        } catch (_: Exception) {
-            closeOwnerVoiceAudioSource()
-            recognitionStarting = false
-            listening = false
-            updateNotification("Không thể nhận dạng câu nói đã thu · đang nghe lại")
-            scheduleListenRetry(700L)
+        verifyingOwnerVoice = true
+        updateNotification("Đang nhận dạng tiếng Việt ngoại tuyến…")
+        aiScope.launch(Dispatchers.Default) {
+            val phrase = NgocSiOwnerVoiceTranscriber.transcribe(applicationContext, pcm)
+            mainHandler.post {
+                if (stopping) {
+                    verifyingOwnerVoice = false
+                    return@post
+                }
+                verifyingOwnerVoice = false
+                if (phrase.isNullOrBlank()) {
+                    updateNotification("Đã thu âm nhưng chưa nhận dạng được câu lệnh")
+                    speakReply("Tôi nghe thấy âm thanh nhưng chưa hiểu câu lệnh. Hãy nói chậm và gần micro hơn rồi thử lại.")
+                    return@post
+                }
+                pendingOwnerVoicePcm = pcm
+                processRecognitionPhrases(listOf(phrase))
+            }
         }
     }
 
