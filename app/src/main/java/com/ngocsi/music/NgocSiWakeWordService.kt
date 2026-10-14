@@ -65,6 +65,7 @@ class NgocSiWakeWordService : Service() {
     private var ttsReady = false
     private var pendingVoiceReply: String? = null
     private var speaking = false
+    private var verifyingOwnerVoice = false
     private val currentAudioBuffer = ByteArrayOutputStream()
     private var enrollmentSamplesRemaining = 0
     private var enrollmentAudioFailures = 0
@@ -468,28 +469,61 @@ class NgocSiWakeWordService : Service() {
         conversationSpeechStarted = false
         val capturedAudio = currentAudioBuffer.toByteArray()
         currentAudioBuffer.reset()
+        if (conversationActive) cancelConversationTimeout()
+
         if (enrollmentSamplesRemaining > 0) {
-            handleOwnerVoiceEnrollment(capturedAudio)
+            verifyingOwnerVoice = true
+            updateNotification("Đang phân tích mẫu giọng trên thiết bị…")
+            aiScope.launch(Dispatchers.Default) {
+                val sample = NgocSiVoiceProfile.extractFeatures(
+                    this@NgocSiWakeWordService,
+                    capturedAudio
+                )
+                mainHandler.post {
+                    verifyingOwnerVoice = false
+                    if (stopping) return@post
+                    handleOwnerVoiceEnrollment(sample)
+                }
+            }
             return
         }
+
         if (NgocSiVoiceProfile.isLockEnabled(this) && phrases.any { it.isNotBlank() }) {
-            val profile = NgocSiVoiceProfile.loadProfile(this)
-            val sample = NgocSiVoiceProfile.extractFeatures(this, capturedAudio)
-            val rejectionMessage = when {
-                profile == null -> "Đã bỏ qua: không mở được hồ sơ giọng nói đã đăng ký"
-                sample == null -> "Đã bỏ qua: không lấy được âm thanh để xác minh giọng chủ máy"
-                !NgocSiVoiceProfile.matches(profile, sample) ->
-                    "Đã bỏ qua câu nói: giọng không khớp hồ sơ đã đăng ký"
-                else -> null
+            verifyingOwnerVoice = true
+            updateNotification("Đang xác minh người nói trên thiết bị…")
+            aiScope.launch(Dispatchers.Default) {
+                val profile = NgocSiVoiceProfile.loadProfile(applicationContext)
+                val sample = NgocSiVoiceProfile.extractFeatures(applicationContext, capturedAudio)
+                val rejectionMessage = when {
+                    profile == null ->
+                        "Đã bỏ qua: không mở được hồ sơ giọng nói đã đăng ký"
+                    sample == null ->
+                        "Đã bỏ qua: không lấy được âm thanh hợp lệ để xác minh giọng"
+                    !NgocSiVoiceProfile.matches(profile, sample) ->
+                        "Đã bỏ qua câu nói: giọng không khớp hồ sơ đã đăng ký"
+                    else -> null
+                }
+                mainHandler.post {
+                    verifyingOwnerVoice = false
+                    if (stopping) return@post
+                    if (rejectionMessage != null) {
+                        awaitingCommand = false
+                        awaitingCommandUntilMillis = 0L
+                        updateNotification(rejectionMessage)
+                        if (conversationActive) scheduleConversationTimeout()
+                        scheduleListenRetry(350L)
+                        return@post
+                    }
+                    processRecognizedPhrases(phrases)
+                }
             }
-            if (rejectionMessage != null) {
-                awaitingCommand = false
-                awaitingCommandUntilMillis = 0L
-                updateNotification(rejectionMessage)
-                scheduleListenRetry(350L)
-                return
-            }
+            return
         }
+
+        processRecognizedPhrases(phrases)
+    }
+
+    private fun processRecognizedPhrases(phrases: List<String>) {
         if (conversationActive) cancelConversationTimeout()
         val now = System.currentTimeMillis()
         if (awaitingCommand && now > awaitingCommandUntilMillis) {
@@ -625,8 +659,7 @@ class NgocSiWakeWordService : Service() {
         }
     }
 
-    private fun handleOwnerVoiceEnrollment(pcm: ByteArray) {
-        val sample = NgocSiVoiceProfile.extractFeatures(this, pcm)
+    private fun handleOwnerVoiceEnrollment(sample: FloatArray?) {
         if (sample == null) {
             enrollmentAudioFailures++
             if (enrollmentAudioFailures >= MAX_ENROLLMENT_AUDIO_FAILURES) {
@@ -715,7 +748,7 @@ class NgocSiWakeWordService : Service() {
 
     private fun beginListening() {
         if (stopping || answeringQuestion || speechRecognizer == null ||
-            recognitionStarting || listening || speaking || enrollmentPromptPending
+            recognitionStarting || listening || speaking || enrollmentPromptPending || verifyingOwnerVoice
         ) return
         try {
             val recognizer = speechRecognizer ?: return
