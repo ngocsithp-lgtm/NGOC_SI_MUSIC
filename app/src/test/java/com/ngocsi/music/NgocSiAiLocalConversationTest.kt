@@ -38,6 +38,13 @@ class NgocSiAiLocalConversationTest {
         assertNotNull(answer)
         assertTrue(answer!!.contains("Ưu tiên kiểm tra lệnh dừng nhạc."))
         assertTrue(answer.contains("không muốn tự đoán thêm"))
+
+        val naturalContinuation = localConversationFallback(
+            "Làm tiếp đi",
+            "Ưu tiên kiểm tra lệnh dừng nhạc."
+        )
+        assertNotNull(naturalContinuation)
+        assertTrue(naturalContinuation!!.contains("Ưu tiên kiểm tra lệnh dừng nhạc."))
     }
 
     @Test
