@@ -314,6 +314,33 @@ class NgocSiAiActivity : ComponentActivity() {
     private var availableTtsVoices by mutableStateOf<List<NgocSiAiVoiceOption>>(emptyList())
     private var selectedTtsVoiceName by mutableStateOf("")
     private val wakeWordStatusHandler = Handler(Looper.getMainLooper())
+    // Some Android speech services start successfully but never deliver partial/final text.
+    // Recover by opening the system speech UI instead of leaving the microphone silently stuck.
+    private val speechFallbackHandler = Handler(Looper.getMainLooper())
+    private var speechFallbackUsed = false
+    private val speechNoTranscriptWatchdog = object : Runnable {
+        override fun run() {
+            if (!voiceRecognitionInProgress || isFinishing || isDestroyed || speechFallbackUsed) return
+            if (partialSpeechTranscript.isNotBlank()) return
+            speechFallbackUsed = true
+            val intent = activeVoiceIntent
+            runCatching { voiceRecognizer?.cancel() }
+            runCatching { voiceRecognizer?.destroy() }
+            voiceRecognizer = null
+            voiceRecognitionInProgress = false
+            partialSpeechTranscript = ""
+            if (intent != null) {
+                runCatching { speechLauncher.launch(intent) }
+                    .onFailure {
+                        Toast.makeText(
+                            this@NgocSiAiActivity,
+                            "Dịch vụ nghe chưa trả về chữ. Hãy cập nhật ứng dụng Google hoặc Speech Services rồi thử lại.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+            }
+        }
+    }
     private val wakeWordStatusChecker = object : Runnable {
         override fun run() {
             if (isFinishing || isDestroyed) return
@@ -345,7 +372,13 @@ class NgocSiAiActivity : ComponentActivity() {
 
         override fun onBeginningOfSpeech() {
             runOnUiThread {
-                if (!isFinishing && !isDestroyed) partialSpeechTranscript = ""
+                if (!isFinishing && !isDestroyed) {
+                    partialSpeechTranscript = ""
+                    // Give the direct recognition service a chance, then fall back if it
+                    // produces no transcript at all. This watchdog never submits speech itself.
+                    speechFallbackHandler.removeCallbacks(speechNoTranscriptWatchdog)
+                    speechFallbackHandler.postDelayed(speechNoTranscriptWatchdog, 10_000L)
+                }
             }
         }
         override fun onRmsChanged(rmsdB: Float) = Unit
@@ -359,6 +392,7 @@ class NgocSiAiActivity : ComponentActivity() {
                     partialSpeechTranscript = ""
                     return@runOnUiThread
                 }
+                speechFallbackHandler.removeCallbacks(speechNoTranscriptWatchdog)
                 partialSpeechTranscript = ""
                 val canRetry = error == SpeechRecognizer.ERROR_NO_MATCH ||
                     error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
@@ -464,6 +498,9 @@ class NgocSiAiActivity : ComponentActivity() {
             runOnUiThread {
                 if (!isFinishing && !isDestroyed && voiceRecognitionInProgress) {
                     partialSpeechTranscript = phrase.take(180)
+                    if (phrase.isNotBlank()) {
+                        speechFallbackHandler.removeCallbacks(speechNoTranscriptWatchdog)
+                    }
                 }
             }
         }
@@ -472,6 +509,8 @@ class NgocSiAiActivity : ComponentActivity() {
 
     private val speechLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            speechFallbackHandler.removeCallbacks(speechNoTranscriptWatchdog)
+            speechFallbackUsed = false
             voiceRecognitionInProgress = false
             partialSpeechTranscript = ""
             val candidates = result.data
@@ -1331,6 +1370,7 @@ class NgocSiAiActivity : ComponentActivity() {
         voiceRecognizer = null
         voiceRecognitionInProgress = false
         voiceRetryHandler.removeCallbacksAndMessages(null)
+        speechFallbackHandler.removeCallbacksAndMessages(null)
         activeVoiceIntent = null
         runCatching { responseTts?.shutdown() }
         responseTts = null
@@ -1411,6 +1451,8 @@ class NgocSiAiActivity : ComponentActivity() {
             return
         }
         try {
+            speechFallbackUsed = false
+            speechFallbackHandler.removeCallbacks(speechNoTranscriptWatchdog)
             if (!SpeechRecognizer.isRecognitionAvailable(this)) {
                 // Keep the Android/Google speech activity as a fallback on devices
                 // that do not expose a RecognitionService directly to the app.
@@ -1429,6 +1471,7 @@ class NgocSiAiActivity : ComponentActivity() {
             activeVoiceIntent = intent
             Toast.makeText(this, "Đang nghe… hãy nói rõ câu lệnh, không cần nói quá nhanh.", Toast.LENGTH_SHORT).show()
             recognizer.startListening(intent)
+            speechFallbackHandler.postDelayed(speechNoTranscriptWatchdog, 10_000L)
         } catch (_: SecurityException) {
             voiceRecognitionInProgress = false
             partialSpeechTranscript = ""
