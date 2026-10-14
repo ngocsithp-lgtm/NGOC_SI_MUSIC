@@ -1606,7 +1606,7 @@ class NgocSiAiActivity : ComponentActivity() {
     private fun verifyOwnerVoice(capturedPcm: ByteArray): Boolean {
         if (!NgocSiVoiceProfile.isLockEnabled(this)) return true
         val enrolled = NgocSiVoiceProfile.loadProfile(this) ?: return false
-        val candidate = NgocSiVoiceProfile.extractFeatures(capturedPcm) ?: return false
+        val candidate = NgocSiVoiceProfile.extractFeatures(this, capturedPcm) ?: return false
         return NgocSiVoiceProfile.matches(enrolled, candidate)
     }
 
