@@ -175,6 +175,10 @@ internal class NgocSiAiRemoteClient(context: Context) {
         val quotaDiagnosticCode = ngocSiAiQuotaDiagnosticCode(details)
 
         return when {
+            quotaDiagnosticCode == "AI_FREE_TIER_PROJECT_RESTRICTED" ->
+                "Google đã hạn chế quyền truy cập Gemini Developer API Free Tier của dự án sau bước xác minh tài khoản. " +
+                    "Đổi model hoặc gửi lại liên tục không khắc phục được. Mã chẩn đoán: AI_FREE_TIER_PROJECT_RESTRICTED. " +
+                    "Ứng dụng không bật thanh toán; lệnh cục bộ vẫn hoạt động."
             quotaDiagnosticCode == "AI_QUOTA_429_DAILY" ->
                 "Hạn mức AI trong ngày đã hết. Mã chẩn đoán: AI_QUOTA_429_DAILY. Không cần gửi lại liên tục; hãy chờ hạn mức được làm mới."
             quotaDiagnosticCode == "AI_QUOTA_429_RATE" ->

@@ -10,12 +10,14 @@ internal enum class NgocSiAiQuotaCooldownKind {
     FREE_TIER,
     PAID_TIER,
     PROJECT_OR_CAPACITY,
+    PROJECT_FREE_TIER_RESTRICTED,
     TEMPORARY
 }
 
 internal fun classifyNgocSiAiQuotaCooldown(message: String): NgocSiAiQuotaCooldownKind? {
     val upper = message.uppercase()
     return when {
+        "AI_FREE_TIER_PROJECT_RESTRICTED" in upper -> NgocSiAiQuotaCooldownKind.PROJECT_FREE_TIER_RESTRICTED
         "AI_QUOTA_429_PROJECT_OR_CAPACITY" in upper -> NgocSiAiQuotaCooldownKind.PROJECT_OR_CAPACITY
         "AI_QUOTA_429_DAILY" in upper -> NgocSiAiQuotaCooldownKind.DAILY
         "AI_QUOTA_429_FREE_TIER" in upper -> NgocSiAiQuotaCooldownKind.FREE_TIER
@@ -35,6 +37,8 @@ internal fun ngocSiAiQuotaCooldownUntilMillis(
         NgocSiAiQuotaCooldownKind.RATE -> 60_000L
         NgocSiAiQuotaCooldownKind.DAILY -> return nextProviderDailyReset(nowMillis, resetZone)
         NgocSiAiQuotaCooldownKind.FREE_TIER -> return nextProviderDailyReset(nowMillis, resetZone)
+        NgocSiAiQuotaCooldownKind.PROJECT_FREE_TIER_RESTRICTED ->
+            return nextProviderDailyReset(nowMillis, resetZone)
         NgocSiAiQuotaCooldownKind.PAID_TIER -> 6 * 60 * 60 * 1_000L
         // Use a bounded cooldown when the provider does not reveal its exact quota window.
         NgocSiAiQuotaCooldownKind.PROJECT_OR_CAPACITY -> 15 * 60 * 1_000L
@@ -53,6 +57,9 @@ private fun nextProviderDailyReset(nowMillis: Long, zone: ZoneId): Long {
  * cooldown lengths, and fallback behavior agree even when Google changes wording.
  */
 internal fun classifyNgocSiAiQuotaErrorDetails(message: String): NgocSiAiQuotaCooldownKind? {
+    if (isNgocSiAiFreeTierProjectRestrictedError(message)) {
+        return NgocSiAiQuotaCooldownKind.PROJECT_FREE_TIER_RESTRICTED
+    }
     val details = message.lowercase(java.util.Locale.ROOT)
     val normalized = details.replace(Regex("[^a-z0-9]+"), "_")
     val minuteLimit = listOf(
@@ -94,6 +101,18 @@ internal fun classifyNgocSiAiQuotaErrorDetails(message: String): NgocSiAiQuotaCo
  * whether the limit is per-minute, daily, model-specific, or project entitlement.
  * Treat this as an ambiguous provider-side quota result instead of guessing a cause.
  */
+/**
+ * Some unbilled Gemini Developer API projects can be explicitly restricted from Free Tier
+ * access by provider-side account verification. This is different from an App Check failure
+ * and should not be presented as something the user can fix by retrying or changing models.
+ */
+internal fun isNgocSiAiFreeTierProjectRestrictedError(message: String): Boolean {
+    val details = message.lowercase(java.util.Locale.ROOT)
+    return "automated account verification" in details &&
+        "free tier" in details &&
+        ("restricted" in details || "cannot be manually enabled" in details)
+}
+
 internal fun isAmbiguousNgocSiAiProjectQuotaError(message: String): Boolean {
     val details = message.lowercase(java.util.Locale.ROOT)
     val genericQuotaMessage = listOf(
@@ -127,6 +146,7 @@ internal fun ngocSiAiQuotaDiagnosticCode(message: String): String? {
         NgocSiAiQuotaCooldownKind.RATE -> "AI_QUOTA_429_RATE"
         NgocSiAiQuotaCooldownKind.PAID_TIER -> "AI_QUOTA_429_PAID_TIER"
         NgocSiAiQuotaCooldownKind.PROJECT_OR_CAPACITY -> "AI_QUOTA_429_PROJECT_OR_CAPACITY"
+        NgocSiAiQuotaCooldownKind.PROJECT_FREE_TIER_RESTRICTED -> "AI_FREE_TIER_PROJECT_RESTRICTED"
         NgocSiAiQuotaCooldownKind.FREE_TIER -> "AI_QUOTA_429_FREE_TIER"
         NgocSiAiQuotaCooldownKind.TEMPORARY -> "AI_QUOTA_429"
         null -> null
@@ -148,6 +168,8 @@ internal fun shouldTryNgocSiAiFallbackModel(errorDetails: String): Boolean = fal
 internal fun ngocSiAiQuotaStatusNotice(message: String): String? {
     val upper = message.uppercase(java.util.Locale.ROOT)
     return when {
+        "AI_FREE_TIER_PROJECT_RESTRICTED" in upper ->
+            "Quyền Gemini miễn phí của dự án đang bị nhà cung cấp hạn chế; lệnh trên điện thoại vẫn hoạt động, không bật thanh toán."
         "AI_QUOTA_429_PROJECT_OR_CAPACITY" in upper ->
             "Chat trực tuyến đang bị giới hạn ở phía dự án Gemini; lệnh nhạc trên điện thoại vẫn hoạt động."
         "AI_QUOTA_429" in upper || "AI_QUOTA_COOLDOWN" in upper ->
@@ -171,6 +193,8 @@ internal fun ngocSiAiQuotaCooldownNotice(
         NgocSiAiQuotaCooldownKind.FREE_TIER -> "hạn mức miễn phí của Gemini"
         NgocSiAiQuotaCooldownKind.PAID_TIER -> "mô hình/tính năng báo yêu cầu gói thanh toán"
         NgocSiAiQuotaCooldownKind.PROJECT_OR_CAPACITY -> "hạn mức chung của dự án hoặc tình trạng quá tải chưa xác định rõ"
+        NgocSiAiQuotaCooldownKind.PROJECT_FREE_TIER_RESTRICTED ->
+            "quyền truy cập Gemini miễn phí của dự án bị hạn chế"
         NgocSiAiQuotaCooldownKind.TEMPORARY -> "lỗi hạn mức hoặc quá tải tạm thời"
     }
     return "NGỌC SĨ AI đang tạm ngưng gửi yêu cầu trực tuyến do $reason. " +

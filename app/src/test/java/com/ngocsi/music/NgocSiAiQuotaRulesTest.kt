@@ -30,6 +30,10 @@ class NgocSiAiQuotaRulesTest {
             classifyNgocSiAiQuotaCooldown("AI_QUOTA_429_PROJECT_OR_CAPACITY")
         )
         assertEquals(
+            NgocSiAiQuotaCooldownKind.PROJECT_FREE_TIER_RESTRICTED,
+            classifyNgocSiAiQuotaCooldown("AI_FREE_TIER_PROJECT_RESTRICTED")
+        )
+        assertEquals(
             NgocSiAiQuotaCooldownKind.TEMPORARY,
             classifyNgocSiAiQuotaCooldown("AI_QUOTA_429")
         )
@@ -62,6 +66,33 @@ class NgocSiAiQuotaRulesTest {
         assertEquals(
             now + 15 * 60 * 1_000L,
             ngocSiAiQuotaCooldownUntilMillis(NgocSiAiQuotaCooldownKind.PROJECT_OR_CAPACITY, now)
+        )
+    }
+
+    @Test
+    fun identifiesExplicitFreeTierProjectRestrictionSeparatelyFromAppCheckAnd429() {
+        val providerMessage =
+            "PERMISSION_DENIED: Access to the Gemini Developer API Free Tier for this project " +
+                "is restricted by automated account verification checks, and Free Tier access " +
+                "cannot be manually enabled or restored for unbilled projects."
+
+        assertEquals(
+            NgocSiAiQuotaCooldownKind.PROJECT_FREE_TIER_RESTRICTED,
+            classifyNgocSiAiQuotaErrorDetails(providerMessage)
+        )
+        assertEquals(
+            "AI_FREE_TIER_PROJECT_RESTRICTED",
+            ngocSiAiQuotaDiagnosticCode(providerMessage)
+        )
+        assertEquals(
+            "AI_FREE_TIER_PROJECT_RESTRICTED",
+            classifyNgocSiAiQuotaCooldown(
+                "Google error. Mã chẩn đoán: AI_FREE_TIER_PROJECT_RESTRICTED"
+            )?.let { "AI_FREE_TIER_PROJECT_RESTRICTED" }
+        )
+        assertEquals(
+            "Quyền Gemini miễn phí của dự án đang bị nhà cung cấp hạn chế; lệnh trên điện thoại vẫn hoạt động, không bật thanh toán.",
+            ngocSiAiQuotaStatusNotice("AI_FREE_TIER_PROJECT_RESTRICTED")
         )
     }
 
