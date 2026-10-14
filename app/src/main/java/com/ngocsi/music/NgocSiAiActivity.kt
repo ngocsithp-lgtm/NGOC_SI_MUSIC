@@ -2038,7 +2038,11 @@ private fun NgocSiAiPreviewScreen(
         isSending = true
         coroutineScope.launch {
             try {
-                val reply = onSendOnline(history.toList())
+                val reply = kotlinx.coroutines.withTimeoutOrNull(25_000L) {
+                    onSendOnline(history.toList())
+                } ?: throw NgocSiAiRemoteException(
+                    "AI trực tuyến phản hồi quá chậm. Câu hỏi đã được giữ lại trong cuộc trò chuyện; hãy thử lại sau."
+                )
                 conversation.add(NgocSiAiMessage(role = "assistant", content = reply.answer))
                 messages.add(AiPreviewMessage(false, reply.answer))
                 if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
@@ -2046,11 +2050,7 @@ private fun NgocSiAiPreviewScreen(
                 onVoiceReply(reply.answer)
                 val userRemaining = reply.remainingToday?.let { "Còn $it lượt/tài khoản hôm nay" }
                 val globalRemaining = reply.remainingGlobalToday?.let { "Còn $it lượt toàn hệ thống hôm nay" }
-                quotaNote = if (reply.usedFallbackModel) {
-                    "Đã tự chuyển sang Gemini 3.8 Flash dự phòng do model chính bị giới hạn."
-                } else {
-                    listOfNotNull(userRemaining, globalRemaining).joinToString(" • ")
-                }
+                quotaNote = listOfNotNull(userRemaining, globalRemaining).joinToString(" • ")
             } catch (cancelled: CancellationException) {
                 if (conversation.lastOrNull() == userTurn) conversation.removeAt(conversation.lastIndex)
                 persistChatState()
