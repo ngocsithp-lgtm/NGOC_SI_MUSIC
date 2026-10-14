@@ -41,7 +41,11 @@ internal object NgocSiVoiceProfile {
     private val nativeLock = Any()
     @Volatile private var extractor: SpeakerEmbeddingExtractor? = null
 
-    fun hasProfile(context: Context): Boolean = loadProfile(context) != null
+    fun hasProfile(context: Context): Boolean {
+        val preferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        return preferences.getInt(KEY_PROFILE_VERSION, 0) == PROFILE_VERSION &&
+            !preferences.getString(KEY_PROFILE, null).isNullOrBlank()
+    }
 
     /**
      * Returns whether the user requested the lock, even if its profile is broken or from
