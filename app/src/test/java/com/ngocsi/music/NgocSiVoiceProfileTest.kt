@@ -31,6 +31,20 @@ class NgocSiVoiceProfileTest {
     }
 
     @Test
+    fun multiTemplateVerificationAcceptsAnyEnrolledSpeakingStyle() {
+        val templates = listOf(unitVector(0), unitVector(5), unitVector(9))
+        assertTrue(NgocSiVoiceProfile.matches(templates, unitVector(9)))
+        assertFalse(NgocSiVoiceProfile.matches(templates, unitVector(190)))
+    }
+
+    @Test
+    fun multiTemplateVerificationRejectsEmptyOrMalformedProfiles() {
+        assertFalse(NgocSiVoiceProfile.matches(emptyList(), unitVector(0)))
+        val malformed = unitVector(0).also { it[12] = Float.NaN }
+        assertFalse(NgocSiVoiceProfile.matches(listOf(malformed), unitVector(0)))
+    }
+
+    @Test
     fun combinedProfileIsNormalizedAndRejectsInconsistentDimensions() {
         val owner = unitVector(0)
         val combined = requireNotNull(
