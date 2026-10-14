@@ -50,11 +50,13 @@ internal object NgocSiVoiceProfile {
         }
     }
 
-    fun hasProfile(context: Context): Boolean = loadProfile(context) != null
+    fun hasProfile(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).contains(KEY_PROFILE)
 
-    fun isLockEnabled(context: Context): Boolean =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getBoolean(KEY_LOCK_ENABLED, false) && hasProfile(context)
+    fun isLockEnabled(context: Context): Boolean {
+        val preferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        return preferences.getBoolean(KEY_LOCK_ENABLED, false) && preferences.contains(KEY_PROFILE)
+    }
 
     fun setLockEnabled(context: Context, enabled: Boolean): Boolean {
         if (enabled && loadProfile(context) == null) return false
