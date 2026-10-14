@@ -813,6 +813,18 @@ class NgocSiAiLocalCommandRulesTest {
 
     
     @Test
+    fun recognizesTheExplicitVoiceControlStopPhraseWithoutStoppingMusicCommands() {
+        assertEquals(true, isNgocSiAiStopVoiceControlPhrase("tạm dừng AI"))
+        assertEquals(true, isNgocSiAiStopVoiceControlPhrase("AI, tạm dừng AI đi"))
+        assertEquals(true, isNgocSiAiStopVoiceControlPhrase("tắt điều khiển giọng nói"))
+        assertEquals(true, isNgocSiAiStopVoiceControlPhrase("Ngừng nghe từ khóa"))
+
+        assertEquals(false, isNgocSiAiStopVoiceControlPhrase("AI"))
+        assertEquals(false, isNgocSiAiStopVoiceControlPhrase("tạm dừng nhạc"))
+        assertEquals(false, isNgocSiAiStopVoiceControlPhrase("tắt nhạc sau 15 phút"))
+    }
+
+    @Test
     fun continuousWakeSessionRoutesCommonCommandsLocally() {
         assertEquals(
             NgocSiAiLocalCommand.NEXT,
