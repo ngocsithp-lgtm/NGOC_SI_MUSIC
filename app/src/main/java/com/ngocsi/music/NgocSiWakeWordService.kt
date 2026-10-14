@@ -910,8 +910,17 @@ class NgocSiWakeWordService : Service() {
         }
         var activeRecognizer = speechRecognizer
         if (activeRecognizer == null) {
-            val platformAvailable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                SpeechRecognizer.isOnDeviceRecognitionAvailable(this)
+            // Keep the API 26–30 path explicit: on-device platform recognition was
+            // added in API 31, so older devices must use the bundled offline ASR.
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+                speechRecognitionPath = NgocSiAiSpeechRecognitionPath.BUNDLED_VIETNAMESE_OFFLINE
+                updateNotification(
+                    "Nhận dạng hệ thống không khả dụng · dùng bộ tiếng Việt offline tích hợp"
+                )
+                beginOwnerVoiceCapture()
+                return
+            }
+            val platformAvailable = SpeechRecognizer.isOnDeviceRecognitionAvailable(this)
             if (!platformAvailable) {
                 speechRecognitionPath = NgocSiAiSpeechRecognitionPath.BUNDLED_VIETNAMESE_OFFLINE
                 updateNotification(
