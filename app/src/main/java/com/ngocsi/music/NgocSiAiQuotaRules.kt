@@ -127,7 +127,8 @@ internal fun isAmbiguousNgocSiAiProjectQuotaError(message: String): Boolean {
         NgocSiAiQuotaCooldownKind.RATE,
         NgocSiAiQuotaCooldownKind.DAILY,
         NgocSiAiQuotaCooldownKind.FREE_TIER,
-        NgocSiAiQuotaCooldownKind.PAID_TIER
+        NgocSiAiQuotaCooldownKind.PAID_TIER,
+        NgocSiAiQuotaCooldownKind.PROJECT_FREE_TIER_RESTRICTED
     )
     return genericQuotaMessage && quotaResponse && !specificWindow
 }
