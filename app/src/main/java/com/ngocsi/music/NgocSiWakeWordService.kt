@@ -101,6 +101,7 @@ class NgocSiWakeWordService : Service() {
                     override fun onDone(utteranceId: String?) {
                         mainHandler.post {
                             speaking = false
+                            enrollmentPromptPending = false
                             if (awaitingCommand) {
                                 // Keep the original short wake-prompt window for backwards compatibility.
                                 awaitingCommandUntilMillis = System.currentTimeMillis() + COMMAND_WINDOW_MILLIS
@@ -113,6 +114,7 @@ class NgocSiWakeWordService : Service() {
                     override fun onError(utteranceId: String?) {
                         mainHandler.post {
                             speaking = false
+                            enrollmentPromptPending = false
                             if (awaitingCommand) {
                                 awaitingCommandUntilMillis = System.currentTimeMillis() + COMMAND_WINDOW_MILLIS
                             }
