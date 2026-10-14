@@ -269,10 +269,11 @@ internal class NgocSiAiRemoteClient(context: Context) {
         private const val KEY_QUOTA_COOLDOWN_KIND = "cooldown_kind"
         private const val KEY_PRIMARY_MODEL_COOLDOWN_UNTIL = "primary_model_cooldown_until_millis"
         private const val EXPECTED_FIREBASE_PROJECT_ID = "ngoc-si-music-ai"
-        // Both stable Flash-Lite models are available via the no-cost Gemini Developer API tier.
-        // Bound output and thinking so routine chat consumes fewer tokens per response.
+        // Keep Flash-Lite as the high-volume primary; use a distinct supported model as fallback
+        // so a model-specific limit may recover without requiring billing. A project-wide quota
+        // still blocks both models and is handled by the persistent cooldown below.
         private const val MODEL_NAME = "gemini-3.5-flash-lite"
-        private const val FALLBACK_MODEL_NAME = "gemini-3.1-flash-lite"
+        private const val FALLBACK_MODEL_NAME = "gemini-3.8-flash"
         private const val MAX_OUTPUT_TOKENS = 256
         private val RESPONSE_GENERATION_CONFIG = generationConfig {
             maxOutputTokens = MAX_OUTPUT_TOKENS
