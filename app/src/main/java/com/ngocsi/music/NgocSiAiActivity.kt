@@ -90,6 +90,8 @@ private const val AI_CHAT_PREFS_NAME = "ngoc_si_ai_chat_history"
 private const val AI_CHAT_MESSAGES_KEY = "chat_messages_v1"
 private const val AI_CHAT_CONVERSATION_KEY = "api_conversation_v1"
 private const val AI_VOICE_REPLY_KEY = "voice_replies_enabled_v1"
+private const val AI_WAKEWORD_LAST_DISPLAYED_TURN_KEY = "wake_word_last_displayed_turn_id"
+private const val AI_WAKEWORD_LAST_CONTEXT_TURN_KEY = "wake_word_last_context_turn_id"
 private const val MAX_SAVED_AI_UI_MESSAGES = 60
 private const val MAX_SAVED_AI_MESSAGE_CHARS = 4_000
 
@@ -335,6 +337,10 @@ class NgocSiAiActivity : ComponentActivity() {
     // Show live partial transcription so voice chat visibly responds while the user speaks.
     private var partialSpeechTranscript by mutableStateOf("")
     private var wakeWordListening by mutableStateOf(false)
+    private var wakeWordConversationTurnId by mutableStateOf(0L)
+    private var wakeWordConversationRevision by mutableStateOf(0L)
+    private var wakeWordConversationQuestion by mutableStateOf("")
+    private var wakeWordConversationAnswer by mutableStateOf("")
     private var ownerVoiceEnrolled by mutableStateOf(false)
     private var ownerVoiceLockEnabled by mutableStateOf(false)
     private var pendingOwnerVoiceEnrollment = false
@@ -433,6 +439,25 @@ class NgocSiAiActivity : ComponentActivity() {
                 .getBoolean(NgocSiWakeWordService.KEY_ENABLED, false)
             val wasListening = wakeWordListening
             wakeWordListening = enabled
+            val conversationPrefs = getSharedPreferences(
+                NgocSiWakeWordService.CONVERSATION_PREFS_NAME,
+                MODE_PRIVATE
+            )
+            val conversationRevision = conversationPrefs.getLong(
+                NgocSiWakeWordService.KEY_CONVERSATION_REVISION, 0L
+            )
+            if (conversationRevision > wakeWordConversationRevision) {
+                wakeWordConversationTurnId = conversationPrefs.getLong(
+                    NgocSiWakeWordService.KEY_CONVERSATION_TURN_ID, 0L
+                )
+                wakeWordConversationRevision = conversationRevision
+                wakeWordConversationQuestion = conversationPrefs.getString(
+                    NgocSiWakeWordService.KEY_CONVERSATION_QUESTION, ""
+                ).orEmpty()
+                wakeWordConversationAnswer = conversationPrefs.getString(
+                    NgocSiWakeWordService.KEY_CONVERSATION_ANSWER, ""
+                ).orEmpty()
+            }
             ownerVoiceEnrolled = NgocSiVoiceProfile.hasProfile(this@NgocSiAiActivity)
             ownerVoiceLockEnabled = NgocSiVoiceProfile.isLockEnabled(this@NgocSiAiActivity)
             if (enabled) {
@@ -882,6 +907,10 @@ class NgocSiAiActivity : ComponentActivity() {
                 onVoice = { startVoiceInput() },
                 isWakeWordListening = wakeWordListening,
                 onToggleWakeWord = { toggleWakeWordListening() },
+                wakeWordConversationTurnId = wakeWordConversationTurnId,
+                wakeWordConversationRevision = wakeWordConversationRevision,
+                wakeWordConversationQuestion = wakeWordConversationQuestion,
+                wakeWordConversationAnswer = wakeWordConversationAnswer,
                 isOwnerVoiceEnrolled = false,
                 isOwnerVoiceLockEnabled = false,
                 onEnrollOwnerVoice = { requestOwnerVoiceEnrollment() },
@@ -1911,6 +1940,10 @@ private fun NgocSiAiPreviewScreen(
     onVoice: () -> Unit,
     isWakeWordListening: Boolean,
     onToggleWakeWord: () -> Unit,
+    wakeWordConversationTurnId: Long,
+    wakeWordConversationRevision: Long,
+    wakeWordConversationQuestion: String,
+    wakeWordConversationAnswer: String,
     isOwnerVoiceEnrolled: Boolean,
     isOwnerVoiceLockEnabled: Boolean,
     onEnrollOwnerVoice: () -> Unit,
@@ -1937,6 +1970,54 @@ private fun NgocSiAiPreviewScreen(
     fun persistChatState() {
         saveAiPreviewMessages(chatPreferences, messages)
         saveAiApiConversation(chatPreferences, conversation)
+    }
+
+    LaunchedEffect(wakeWordConversationRevision) {
+        val turnId = wakeWordConversationTurnId
+        val question = wakeWordConversationQuestion.trim()
+        val answer = wakeWordConversationAnswer.trim()
+        if (turnId <= 0L || question.isBlank() || answer.isBlank()) return@LaunchedEffect
+
+        val displayedTurnId = chatPreferences.getLong(AI_WAKEWORD_LAST_DISPLAYED_TURN_KEY, 0L)
+        val contextTurnId = chatPreferences.getLong(AI_WAKEWORD_LAST_CONTEXT_TURN_KEY, 0L)
+        if (turnId > displayedTurnId) {
+            messages.add(AiPreviewMessage(true, question))
+            messages.add(AiPreviewMessage(false, answer))
+            while (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
+            chatPreferences.edit().putLong(AI_WAKEWORD_LAST_DISPLAYED_TURN_KEY, turnId).apply()
+        } else if (
+            turnId == displayedTurnId &&
+            answer != NgocSiWakeWordService.CONVERSATION_PENDING_REPLY
+        ) {
+            val lastUserIndex = messages.indexOfLast { it.isUser }
+            val pendingReplyIndex = lastUserIndex + 1
+            val hasMatchingPendingReply = lastUserIndex >= 0 &&
+                messages[lastUserIndex].text == question &&
+                pendingReplyIndex == messages.lastIndex &&
+                pendingReplyIndex >= 0 &&
+                !messages[pendingReplyIndex].isUser &&
+                messages[pendingReplyIndex].text == NgocSiWakeWordService.CONVERSATION_PENDING_REPLY
+            if (hasMatchingPendingReply) {
+                messages[pendingReplyIndex] = AiPreviewMessage(false, answer)
+            } else if (messages.lastOrNull()?.let { !it.isUser && it.text == answer } != true) {
+                messages.add(AiPreviewMessage(false, answer))
+                while (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
+            }
+        }
+
+        if (
+            answer != NgocSiWakeWordService.CONVERSATION_PENDING_REPLY &&
+            turnId > contextTurnId
+        ) {
+            conversation.add(NgocSiAiMessage(role = "user", content = question))
+            conversation.add(NgocSiAiMessage(role = "assistant", content = answer))
+            while (conversation.size > NGOC_SI_AI_MAX_HISTORY_MESSAGES) {
+                conversation.removeAt(0)
+                if (conversation.firstOrNull()?.role == "assistant") conversation.removeAt(0)
+            }
+            chatPreferences.edit().putLong(AI_WAKEWORD_LAST_CONTEXT_TURN_KEY, turnId).apply()
+        }
+        persistChatState()
     }
 
     LaunchedEffect(messages.size, isSending) {
