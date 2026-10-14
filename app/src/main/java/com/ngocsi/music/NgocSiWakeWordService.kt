@@ -19,6 +19,7 @@ import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.os.Bundle
+import java.io.ByteArrayOutputStream
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.media3.common.Player
@@ -64,6 +65,10 @@ class NgocSiWakeWordService : Service() {
     private var ttsReady = false
     private var pendingVoiceReply: String? = null
     private var speaking = false
+    private val currentAudioBuffer = ByteArrayOutputStream()
+    private var enrollmentSamplesRemaining = 0
+    private var enrollmentPromptPending = false
+    private val enrollmentFeatures = mutableListOf<FloatArray>()
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -145,6 +150,20 @@ class NgocSiWakeWordService : Service() {
             if (updated) updateNotification("Đã cập nhật giọng đọc AI")
             return START_NOT_STICKY
         }
+        if (intent?.action == ACTION_ENROLL_OWNER_VOICE) {
+            enrollmentSamplesRemaining = OWNER_VOICE_ENROLLMENT_SAMPLES
+            enrollmentFeatures.clear()
+            currentAudioBuffer.reset()
+            enrollmentPromptPending = true
+            updateNotification("Bắt đầu đăng ký giọng nói · 0/3 mẫu")
+            if (speechRecognizer != null) {
+                mainHandler.removeCallbacks(restartListening)
+                mainHandler.removeCallbacks(partialRecognitionFallback)
+                runCatching { speechRecognizer?.cancel() }
+                speakReply(enrollmentPrompt())
+                return START_NOT_STICKY
+            }
+        }
         if (stopping) return START_NOT_STICKY
 
         startForegroundCompat(buildNotification("Chuẩn bị nhận lệnh offline…"))
@@ -165,7 +184,11 @@ class NgocSiWakeWordService : Service() {
             speechRecognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(this).apply {
                 setRecognitionListener(listener)
             }
-            beginListening()
+            if (enrollmentSamplesRemaining > 0) {
+                speakReply(enrollmentPrompt())
+            } else {
+                beginListening()
+            }
         } catch (_: Exception) {
             failAndStop("Không thể khởi động nhận dạng tiếng Việt offline.")
         }
