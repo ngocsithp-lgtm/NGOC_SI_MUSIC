@@ -531,13 +531,22 @@ class NgocSiWakeWordService : Service() {
             }
             if (stopping) return@launch
 
+            val errorFallback = if (remoteAnswer.isNullOrBlank() && remoteError != null) {
+                localConversationFallbackAfterRemoteError(
+                    userText = cleanQuestion,
+                    previousAssistantReply = previousAssistantReply,
+                    remoteError = remoteError
+                )
+            } else null
             val answer = localFallback
                 ?: remoteAnswer?.trim()?.takeIf { it.isNotBlank() }
+                ?: errorFallback
                 ?: remoteError?.takeIf { it.isNotBlank() }
                 ?: "Tôi đã nghe câu hỏi nhưng hiện chưa lấy được câu trả lời. Hãy thử lại sau."
-            // Keep successful Gemini turns and supported local replies for natural
-            // follow-ups; never put a transport/quota error into the conversation history.
-            val keepTurnInHistory = localFallback != null || !remoteAnswer.isNullOrBlank()
+            // Keep successful Gemini turns and safe local replies for natural follow-ups;
+            // never put a raw transport/quota error into the conversation history.
+            val keepTurnInHistory =
+                localFallback != null || !remoteAnswer.isNullOrBlank() || errorFallback != null
             if (keepTurnInHistory) {
                 conversationHistory.clear()
                 conversationHistory.addAll(requestHistory)
