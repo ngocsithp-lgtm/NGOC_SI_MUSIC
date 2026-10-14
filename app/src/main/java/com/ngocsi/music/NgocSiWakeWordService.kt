@@ -513,7 +513,7 @@ class NgocSiWakeWordService : Service() {
             verifyingOwnerVoice = true
             updateNotification("Đang xác minh người nói trên thiết bị…")
             aiScope.launch(Dispatchers.Default) {
-                val profile = NgocSiVoiceProfile.loadProfile(applicationContext)
+                val profile = NgocSiVoiceProfile.loadProfiles(applicationContext)
                 val sample = NgocSiVoiceProfile.extractFeatures(applicationContext, capturedAudio)
                 val rejectionMessage = when {
                     profile == null ->
@@ -532,7 +532,7 @@ class NgocSiWakeWordService : Service() {
                         awaitingCommandUntilMillis = 0L
                         updateNotification(rejectionMessage)
                         if (conversationActive) scheduleConversationTimeout()
-                        speakReply("Tôi nghe được câu nói nhưng chưa xác minh được giọng đã đăng ký. Hãy nói rõ và gần micro hơn rồi thử lại.")
+                        speakReply("Tôi nghe được câu lệnh nhưng mẫu giọng lưu chưa khớp đủ rõ. Hãy đăng ký lại ba mẫu giọng trong phần bảo vệ giọng nói, rồi thử lại.")
                         return@post
                     }
                     processRecognizedPhrases(phrases)
@@ -714,13 +714,14 @@ class NgocSiWakeWordService : Service() {
             return
         }
 
-        val profile = NgocSiVoiceProfile.combine(enrollmentFeatures)
-        val saved = profile != null && NgocSiVoiceProfile.saveProfile(this, profile)
+        val keepExistingLock = NgocSiVoiceProfile.isLockEnabled(this)
+        val saved = NgocSiVoiceProfile.saveProfile(this, enrollmentFeatures.toList())
         enrollmentFeatures.clear()
         if (!saved) {
-            NgocSiVoiceProfile.setLockEnabled(this, false)
-            updateNotification("Chưa lưu được hồ sơ giọng nói · hãy đăng ký lại")
-            speakReply("Tôi chưa lưu được hồ sơ giọng nói. Hãy thử đăng ký lại.")
+            // A failed re-enrollment must not silently disable an already-working protection lock.
+            if (!keepExistingLock) NgocSiVoiceProfile.setLockEnabled(this, false)
+            updateNotification("Chưa lưu được mẫu giọng mới · hồ sơ trước đó được giữ nguyên")
+            speakReply("Tôi chưa lưu được mẫu giọng mới. Hồ sơ trước đó vẫn được giữ nguyên. Hãy thử đăng ký lại.")
         } else {
             updateNotification("Đã đăng ký giọng nói · xác minh người nói đã bật trên Preview")
             speakReply(
