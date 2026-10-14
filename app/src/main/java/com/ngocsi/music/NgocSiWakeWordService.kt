@@ -363,7 +363,13 @@ class NgocSiWakeWordService : Service() {
         }
 
         override fun onRmsChanged(rmsdB: Float) = Unit
-        override fun onBufferReceived(buffer: ByteArray?) = Unit
+        override fun onBufferReceived(buffer: ByteArray?) {
+            if (buffer == null || stopping) return
+            // Android does not guarantee this callback on every recognizer implementation.
+            // The voice lock therefore fails closed if usable PCM is not provided.
+            val remaining = MAX_CAPTURED_AUDIO_BYTES - currentAudioBuffer.size()
+            if (remaining > 0) currentAudioBuffer.write(buffer, 0, minOf(buffer.size, remaining))
+        }
 
         override fun onEndOfSpeech() {
             listening = false
@@ -619,12 +625,13 @@ class NgocSiWakeWordService : Service() {
 
     private fun beginListening() {
         if (stopping || answeringQuestion || speechRecognizer == null ||
-            recognitionStarting || listening || speaking
+            recognitionStarting || listening || speaking || enrollmentPromptPending
         ) return
         try {
             val recognizer = speechRecognizer ?: return
             mainHandler.removeCallbacks(partialRecognitionFallback)
             partialRecognitionCandidates = emptyList()
+            currentAudioBuffer.reset()
             recognitionStarting = true
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
