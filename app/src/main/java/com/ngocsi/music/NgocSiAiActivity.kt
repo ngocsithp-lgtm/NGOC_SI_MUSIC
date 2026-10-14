@@ -911,10 +911,6 @@ class NgocSiAiActivity : ComponentActivity() {
                 wakeWordConversationRevision = wakeWordConversationRevision,
                 wakeWordConversationQuestion = wakeWordConversationQuestion,
                 wakeWordConversationAnswer = wakeWordConversationAnswer,
-                isOwnerVoiceEnrolled = false,
-                isOwnerVoiceLockEnabled = false,
-                onEnrollOwnerVoice = { requestOwnerVoiceEnrollment() },
-                onToggleOwnerVoiceLock = { toggleOwnerVoiceLock() }
             )
         }
         requestMusicPermissionIfNeeded()
@@ -1945,10 +1941,6 @@ private fun NgocSiAiPreviewScreen(
     wakeWordConversationRevision: Long,
     wakeWordConversationQuestion: String,
     wakeWordConversationAnswer: String,
-    isOwnerVoiceEnrolled: Boolean,
-    isOwnerVoiceLockEnabled: Boolean,
-    onEnrollOwnerVoice: () -> Unit,
-    onToggleOwnerVoiceLock: () -> Unit
 ) {
     val messages = remember {
         mutableStateListOf<AiPreviewMessage>().apply {
@@ -2483,44 +2475,6 @@ private fun NgocSiAiPreviewScreen(
             }
         }
 
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Surface(
-                modifier = Modifier.weight(1.35f).clickable(onClick = onEnrollOwnerVoice),
-                shape = RoundedCornerShape(12.dp),
-                color = NgocSiVisuals.SurfaceRaised,
-                border = androidx.compose.foundation.BorderStroke(1.dp, NgocSiVisuals.Border)
-            ) {
-                Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
-                    Text("BẢO VỆ GIỌNG NÓI", color = NgocSiVisuals.Text, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                    Text(
-                        if (isOwnerVoiceEnrolled) "Mẫu lưu trên máy · bộ lọc thử nghiệm" else "Đăng ký 3 câu mẫu",
-                        color = NgocSiVisuals.TextSecondary, fontSize = 9.sp, maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-            Surface(
-                modifier = Modifier.weight(1f).clickable(onClick = onToggleOwnerVoiceLock),
-                shape = RoundedCornerShape(12.dp),
-                color = if (isOwnerVoiceLockEnabled) Color(0xFF123329) else NgocSiVisuals.SurfaceRaised,
-                border = androidx.compose.foundation.BorderStroke(
-                    1.dp, if (isOwnerVoiceLockEnabled) Color(0xFF286653) else NgocSiVisuals.Border
-                )
-            ) {
-                Column(Modifier.padding(horizontal = 9.dp, vertical = 8.dp)) {
-                    Text(
-                        if (isOwnerVoiceLockEnabled) "● ĐÃ BẬT" else "○ TẮT",
-                        color = if (isOwnerVoiceLockEnabled) NgocSiVisuals.Success else NgocSiVisuals.Text,
-                        fontSize = 9.sp, fontWeight = FontWeight.Bold
-                    )
-                    Text("Xác minh giọng", color = NgocSiVisuals.TextSecondary, fontSize = 9.sp, maxLines = 1)
-                }
-            }
-        }
 
         Surface(
             modifier = Modifier
