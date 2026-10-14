@@ -33,7 +33,22 @@ internal object NgocSiVoiceProfile {
     private const val CEPSTRA_COUNT = 10
     private const val FEATURE_COUNT = CEPSTRA_COUNT * 2
     private const val MIN_SAMPLES = 2_048
-    private const val COSINE_THRESHOLD = 0.94f
+    private const val COSINE_THRESHOLD = 0.92f
+    private val hammingWindow by lazy {
+        FloatArray(FRAME_SIZE) { n ->
+            (0.54 - 0.46 * cos(2.0 * Math.PI * n / (FRAME_SIZE - 1))).toFloat()
+        }
+    }
+    private val cosineTable by lazy {
+        Array(FRAME_SIZE / 2 + 1) { bin ->
+            FloatArray(FRAME_SIZE) { n -> cos(2.0 * Math.PI * bin * n / FRAME_SIZE).toFloat() }
+        }
+    }
+    private val sineTable by lazy {
+        Array(FRAME_SIZE / 2 + 1) { bin ->
+            FloatArray(FRAME_SIZE) { n -> kotlin.math.sin(2.0 * Math.PI * bin * n / FRAME_SIZE).toFloat() }
+        }
+    }
 
     fun hasProfile(context: Context): Boolean = loadProfile(context) != null
 
@@ -81,11 +96,9 @@ internal object NgocSiVoiceProfile {
                 var real = 0.0
                 var imaginary = 0.0
                 for (n in 0 until FRAME_SIZE) {
-                    val window = 0.54 - 0.46 * cos(2.0 * Math.PI * n / (FRAME_SIZE - 1))
-                    val value = samples[start + n] * window
-                    val angle = 2.0 * Math.PI * bin * n / FRAME_SIZE
-                    real += value * cos(angle)
-                    imaginary -= value * kotlin.math.sin(angle)
+                    val value = samples[start + n] * hammingWindow[n]
+                    real += value * cosineTable[bin][n]
+                    imaginary -= value * sineTable[bin][n]
                 }
                 val band = (((bin - 1) * BAND_COUNT) / (FRAME_SIZE / 2)).coerceIn(0, BAND_COUNT - 1)
                 bandLogs[band] += (real * real + imaginary * imaginary).toFloat()
@@ -136,7 +149,7 @@ internal object NgocSiVoiceProfile {
         for (sample in samples) {
             for (i in result.indices) result[i] += sample[i] / samples.size
         }
-        return result.takeIf { it.all(Float::isFinite) }
+        return result.takeIf { vector -> vector.all { it.isFinite() } }
     }
 
     fun matches(enrolled: FloatArray, candidate: FloatArray): Boolean {
@@ -180,7 +193,7 @@ internal object NgocSiVoiceProfile {
         cipher.init(Cipher.DECRYPT_MODE, getOrCreateKey(), GCMParameterSpec(128, iv))
         val decoded = cipher.doFinal(encrypted).toString(Charsets.UTF_8)
             .split(',').map(String::toFloat)
-        decoded.toFloatArray().takeIf { it.size == FEATURE_COUNT && it.all(Float::isFinite) }
+        decoded.toFloatArray().takeIf { vector -> vector.size == FEATURE_COUNT && vector.all { it.isFinite() } }
     }.getOrNull()
 
     private fun getOrCreateKey(): SecretKey {
