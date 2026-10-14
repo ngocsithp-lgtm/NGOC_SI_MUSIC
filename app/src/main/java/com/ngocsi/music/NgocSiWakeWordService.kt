@@ -67,6 +67,7 @@ class NgocSiWakeWordService : Service() {
     private var speaking = false
     private val currentAudioBuffer = ByteArrayOutputStream()
     private var enrollmentSamplesRemaining = 0
+    private var enrollmentAudioFailures = 0
     private var enrollmentPromptPending = false
     private val enrollmentFeatures = mutableListOf<FloatArray>()
 
@@ -154,6 +155,7 @@ class NgocSiWakeWordService : Service() {
         }
         if (intent?.action == ACTION_ENROLL_OWNER_VOICE) {
             enrollmentSamplesRemaining = OWNER_VOICE_ENROLLMENT_SAMPLES
+            enrollmentAudioFailures = 0
             enrollmentFeatures.clear()
             currentAudioBuffer.reset()
             enrollmentPromptPending = true
@@ -625,6 +627,20 @@ class NgocSiWakeWordService : Service() {
     private fun handleOwnerVoiceEnrollment(pcm: ByteArray) {
         val sample = NgocSiVoiceProfile.extractFeatures(pcm)
         if (sample == null) {
+            enrollmentAudioFailures++
+            if (enrollmentAudioFailures >= MAX_ENROLLMENT_AUDIO_FAILURES) {
+                enrollmentSamplesRemaining = 0
+                enrollmentFeatures.clear()
+                enrollmentPromptPending = true
+                updateNotification(
+                    "Không lấy được mẫu âm thanh từ dịch vụ nhận dạng · đăng ký đã dừng"
+                )
+                speakReply(
+                    "Tôi không lấy được mẫu âm thanh để đăng ký. Có thể dịch vụ nhận dạng trên máy không cung cấp dữ liệu âm thanh. " +
+                        "Tôi đã dừng đăng ký và chưa bật bảo vệ mới."
+                )
+                return
+            }
             enrollmentPromptPending = true
             updateNotification(
                 "Chưa lấy đủ âm thanh · hãy đọc câu dài hơn, rõ ràng và gần micro"
@@ -632,6 +648,7 @@ class NgocSiWakeWordService : Service() {
             speakReply(enrollmentPrompt())
             return
         }
+        enrollmentAudioFailures = 0
         enrollmentFeatures.add(sample)
         enrollmentSamplesRemaining--
         val completed = enrollmentFeatures.size
@@ -1230,6 +1247,7 @@ class NgocSiWakeWordService : Service() {
     companion object {
         private const val PLAYER_CONNECT_RETRY_MILLIS = 180L
         private const val OWNER_VOICE_ENROLLMENT_SAMPLES = 3
+        private const val MAX_ENROLLMENT_AUDIO_FAILURES = 3
         private const val MAX_CAPTURED_AUDIO_BYTES = 160_000
         const val ACTION_START = "com.ngocsi.music.action.START_WAKE_WORD"
         const val ACTION_STOP = "com.ngocsi.music.action.STOP_WAKE_WORD"
