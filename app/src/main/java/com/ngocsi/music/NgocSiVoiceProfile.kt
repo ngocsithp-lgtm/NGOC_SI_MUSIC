@@ -4,6 +4,9 @@ import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
+import com.k2fsa.sherpa.onnx.OnlineStream
+import com.k2fsa.sherpa.onnx.SpeakerEmbeddingExtractor
+import com.k2fsa.sherpa.onnx.SpeakerEmbeddingExtractorConfig
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.security.KeyStore
@@ -11,51 +14,38 @@ import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
-import kotlin.math.cos
-import kotlin.math.ln
 import kotlin.math.sqrt
 
 /**
- * Experimental, local-only voice-print filter for the Preview build.
+ * Local-only owner speaker verification for the AI Preview build.
  *
- * This is a lightweight signal fingerprint, not a trained speaker-embedding model. It can
- * reduce casual false activation but must not be treated as strong biometric authentication.
- * Raw audio is never persisted; only the feature vector is encrypted using Android Keystore.
+ * Uses a neural speaker embedding model (sherpa-onnx / 3D-Speaker) on-device. Only a normalized
+ * embedding is encrypted and retained. Temporary PCM buffers stay in memory and are discarded.
+ * This is speaker similarity, not presentation-attack/liveness detection; recordings and voice
+ * synthesis can still defeat it, so do not use it as the sole security control for sensitive data.
  */
 internal object NgocSiVoiceProfile {
     private const val PREFS = "ngoc_si_owner_voice"
     private const val KEY_PROFILE = "encrypted_profile"
+    private const val KEY_PROFILE_VERSION = "profile_version"
+    private const val PROFILE_VERSION = 2
     private const val KEY_LOCK_ENABLED = "voice_lock_enabled"
     private const val KEY_ALIAS = "ngoc_si_voice_profile_key"
-    private const val FRAME_SIZE = 256
-    private const val HOP_SIZE = 128
-    private const val BAND_COUNT = 16
-    private const val CEPSTRA_COUNT = 10
-    private const val FEATURE_COUNT = CEPSTRA_COUNT * 2
-    private const val MIN_SAMPLES = 2_048
-    private const val COSINE_THRESHOLD = 0.92f
-    private val hammingWindow by lazy {
-        FloatArray(FRAME_SIZE) { n ->
-            (0.54 - 0.46 * cos(2.0 * Math.PI * n / (FRAME_SIZE - 1))).toFloat()
-        }
-    }
-    private val cosineTable by lazy {
-        Array(FRAME_SIZE / 2 + 1) { bin ->
-            FloatArray(FRAME_SIZE) { n -> cos(2.0 * Math.PI * bin * n / FRAME_SIZE).toFloat() }
-        }
-    }
-    private val sineTable by lazy {
-        Array(FRAME_SIZE / 2 + 1) { bin ->
-            FloatArray(FRAME_SIZE) { n -> kotlin.math.sin(2.0 * Math.PI * bin * n / FRAME_SIZE).toFloat() }
-        }
-    }
+    private const val MODEL_NAME = "3dspeaker_speech_campplus_sv_zh-cn_16k-common.onnx"
+    private const val SAMPLE_RATE = 16_000
+    private const val MIN_PCM_SAMPLES = SAMPLE_RATE
+    private const val MIN_EMBEDDING_SIZE = 64
+    // Initial conservative threshold. Device/noise-specific false accepts/rejects still need field tests.
+    private const val COSINE_THRESHOLD = 0.55f
 
-    fun hasProfile(context: Context): Boolean =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).contains(KEY_PROFILE)
+    private val nativeLock = Any()
+    @Volatile private var extractor: SpeakerEmbeddingExtractor? = null
+
+    fun hasProfile(context: Context): Boolean = loadProfile(context) != null
 
     fun isLockEnabled(context: Context): Boolean {
         val preferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        return preferences.getBoolean(KEY_LOCK_ENABLED, false) && preferences.contains(KEY_PROFILE)
+        return preferences.getBoolean(KEY_LOCK_ENABLED, false) && hasProfile(context)
     }
 
     fun setLockEnabled(context: Context, enabled: Boolean): Boolean {
@@ -67,111 +57,121 @@ internal object NgocSiVoiceProfile {
 
     fun clearProfile(context: Context) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .edit().remove(KEY_PROFILE).putBoolean(KEY_LOCK_ENABLED, false).apply()
+            .edit()
+            .remove(KEY_PROFILE)
+            .remove(KEY_PROFILE_VERSION)
+            .putBoolean(KEY_LOCK_ENABLED, false)
+            .apply()
     }
 
-    fun extractFeatures(pcmBigEndian: ByteArray): FloatArray? {
-        val sampleCount = pcmBigEndian.size / 2
-        if (sampleCount < MIN_SAMPLES) return null
+    /**
+     * Convert SpeechRecognizer's captured PCM16 buffer to a speaker embedding.
+     * Android does not guarantee onBufferReceived on every recognition service; null means
+     * "cannot verify", and callers must reject that utterance while voice lock is enabled.
+     */
+    fun extractFeatures(context: Context, pcmLittleEndian: ByteArray): FloatArray? {
+        val samples = pcm16LittleEndianToFloat(pcmLittleEndian) ?: return null
+        return synchronized(nativeLock) {
+            val model = getExtractor(context) ?: return@synchronized null
+            var stream: OnlineStream? = null
+            try {
+                stream = model.createStream()
+                stream.acceptWaveform(samples, SAMPLE_RATE)
+                stream.inputFinished()
+                if (!model.isReady(stream)) return@synchronized null
+                normalizeEmbedding(model.compute(stream))
+            } catch (_: Throwable) {
+                // Missing/corrupt model or native runtime must never become an authentication success.
+                null
+            } finally {
+                stream?.let { runCatching { it.release() } }
+            }
+        }
+    }
+
+    private fun pcm16LittleEndianToFloat(pcm: ByteArray): FloatArray? {
+        val sampleCount = pcm.size / 2
+        if (sampleCount < MIN_PCM_SAMPLES) return null
+        val input = ByteBuffer.wrap(pcm, 0, sampleCount * 2).order(ByteOrder.LITTLE_ENDIAN)
         val samples = FloatArray(sampleCount)
-        val input = ByteBuffer.wrap(pcmBigEndian).order(ByteOrder.BIG_ENDIAN)
         var mean = 0.0
-        for (i in 0 until sampleCount) {
-            samples[i] = input.short.toFloat() / 32768f
-            mean += samples[i]
+        for (index in samples.indices) {
+            val sample = input.short.toFloat() / 32768f
+            samples[index] = sample
+            mean += sample
         }
         val dc = (mean / sampleCount).toFloat()
-        var peak = 0f
-        for (i in samples.indices) {
-            samples[i] -= dc
-            peak = maxOf(peak, kotlin.math.abs(samples[i]))
+        var energy = 0.0
+        for (index in samples.indices) {
+            samples[index] -= dc
+            energy += samples[index] * samples[index]
         }
-        if (peak < 0.008f) return null
-        for (i in samples.indices) samples[i] /= peak
+        if (energy / sampleCount < 0.000004) return null
+        return samples
+    }
 
-        val frameFeatures = ArrayList<FloatArray>()
-        var start = 0
-        while (start + FRAME_SIZE <= samples.size) {
-            val bandLogs = FloatArray(BAND_COUNT)
-            val bandCounts = IntArray(BAND_COUNT)
-            for (bin in 1..FRAME_SIZE / 2) {
-                var real = 0.0
-                var imaginary = 0.0
-                for (n in 0 until FRAME_SIZE) {
-                    val value = samples[start + n] * hammingWindow[n]
-                    real += value * cosineTable[bin][n]
-                    imaginary -= value * sineTable[bin][n]
-                }
-                val band = (((bin - 1) * BAND_COUNT) / (FRAME_SIZE / 2)).coerceIn(0, BAND_COUNT - 1)
-                bandLogs[band] += (real * real + imaginary * imaginary).toFloat()
-                bandCounts[band]++
+    private fun getExtractor(context: Context): SpeakerEmbeddingExtractor? {
+        extractor?.let { return it }
+        return runCatching {
+            // The CI workflow packages the model as an APK asset. No network request or API key is
+            // used at runtime; model inference stays on the phone.
+            require(context.assets.list("")?.contains(MODEL_NAME) == true) {
+                "Speaker embedding model is missing from Preview assets"
             }
-            for (band in 0 until BAND_COUNT) {
-                bandLogs[band] = ln(
-                    bandLogs[band] / maxOf(1, bandCounts[band]) + 1e-8f
+            SpeakerEmbeddingExtractor(
+                assetManager = context.assets,
+                config = SpeakerEmbeddingExtractorConfig(
+                    model = MODEL_NAME,
+                    numThreads = 2,
+                    debug = false,
+                    provider = "cpu"
                 )
-            }
-            val cepstra = FloatArray(CEPSTRA_COUNT)
-            for (coefficient in 1..CEPSTRA_COUNT) {
-                var value = 0.0
-                for (band in 0 until BAND_COUNT) {
-                    value += bandLogs[band] * cos(
-                        Math.PI * coefficient * (band + 0.5) / BAND_COUNT
-                    )
-                }
-                cepstra[coefficient - 1] = value.toFloat()
-            }
-            frameFeatures.add(cepstra)
-            start += HOP_SIZE
-        }
-        if (frameFeatures.size < 6) return null
+            ).also { extractor = it }
+        }.getOrNull()
+    }
 
-        val output = FloatArray(FEATURE_COUNT)
-        for (dimension in 0 until CEPSTRA_COUNT) {
-            var average = 0.0
-            for (frame in frameFeatures) average += frame[dimension]
-            average /= frameFeatures.size
-            output[dimension] = average.toFloat()
-            var variance = 0.0
-            for (frame in frameFeatures) {
-                val delta = frame[dimension] - average
-                variance += delta * delta
-            }
-            output[CEPSTRA_COUNT + dimension] =
-                sqrt(variance / frameFeatures.size).toFloat()
-        }
-        return output.takeIf { vector ->
-            vector.all { it.isFinite() } && vector.any { kotlin.math.abs(it) > 1e-5f }
-        }
+    private fun normalizeEmbedding(input: FloatArray): FloatArray? {
+        if (input.size < MIN_EMBEDDING_SIZE || input.any { !it.isFinite() }) return null
+        var normSquared = 0.0
+        for (value in input) normSquared += value.toDouble() * value
+        if (normSquared < 1e-12) return null
+        val norm = sqrt(normSquared).toFloat()
+        return FloatArray(input.size) { index -> input[index] / norm }
     }
 
     fun combine(samples: List<FloatArray>): FloatArray? {
-        if (samples.size < 3 || samples.any { it.size != FEATURE_COUNT }) return null
-        val result = FloatArray(FEATURE_COUNT)
+        if (samples.size < 3) return null
+        val dimension = samples.firstOrNull()?.size ?: return null
+        if (dimension < MIN_EMBEDDING_SIZE ||
+            samples.any { it.size != dimension || it.any { value -> !value.isFinite() } }
+        ) return null
+
+        val combined = FloatArray(dimension)
         for (sample in samples) {
-            for (i in result.indices) result[i] += sample[i] / samples.size
+            for (index in 0 until dimension) combined[index] += sample[index] / samples.size
         }
-        return result.takeIf { vector -> vector.all { it.isFinite() } }
+        return normalizeEmbedding(combined)
     }
 
     fun matches(enrolled: FloatArray, candidate: FloatArray): Boolean {
-        if (enrolled.size != FEATURE_COUNT || candidate.size != FEATURE_COUNT) return false
+        if (enrolled.size < MIN_EMBEDDING_SIZE || enrolled.size != candidate.size) return false
+        if (enrolled.any { !it.isFinite() } || candidate.any { !it.isFinite() }) return false
         var dot = 0.0
-        var a2 = 0.0
-        var b2 = 0.0
-        for (i in enrolled.indices) {
-            dot += enrolled[i] * candidate[i]
-            a2 += enrolled[i] * enrolled[i]
-            b2 += candidate[i] * candidate[i]
+        var enrolledNorm = 0.0
+        var candidateNorm = 0.0
+        for (index in enrolled.indices) {
+            dot += enrolled[index].toDouble() * candidate[index]
+            enrolledNorm += enrolled[index].toDouble() * enrolled[index]
+            candidateNorm += candidate[index].toDouble() * candidate[index]
         }
-        if (a2 <= 1e-9 || b2 <= 1e-9) return false
-        return (dot / sqrt(a2 * b2)).toFloat() >= COSINE_THRESHOLD
+        if (enrolledNorm < 1e-12 || candidateNorm < 1e-12) return false
+        return (dot / sqrt(enrolledNorm * candidateNorm)).toFloat() >= COSINE_THRESHOLD
     }
 
     fun saveProfile(context: Context, features: FloatArray): Boolean {
-        if (features.size != FEATURE_COUNT || features.any { !it.isFinite() }) return false
+        val normalized = normalizeEmbedding(features) ?: return false
         return runCatching {
-            val plain = features.joinToString(",") { it.toString() }.toByteArray(Charsets.UTF_8)
+            val plain = normalized.joinToString(",") { it.toString() }.toByteArray(Charsets.UTF_8)
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
             cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey())
             val encrypted = cipher.doFinal(plain)
@@ -179,14 +179,16 @@ internal object NgocSiVoiceProfile {
                 Base64.encodeToString(encrypted, Base64.NO_WRAP)
             context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
                 .putString(KEY_PROFILE, packed)
+                .putInt(KEY_PROFILE_VERSION, PROFILE_VERSION)
                 .putBoolean(KEY_LOCK_ENABLED, true)
                 .commit()
         }.getOrDefault(false)
     }
 
     fun loadProfile(context: Context): FloatArray? = runCatching {
-        val packed = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getString(KEY_PROFILE, null) ?: return null
+        val preferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (preferences.getInt(KEY_PROFILE_VERSION, 0) != PROFILE_VERSION) return null
+        val packed = preferences.getString(KEY_PROFILE, null) ?: return null
         val separator = packed.indexOf(':')
         require(separator > 0 && separator < packed.lastIndex)
         val iv = Base64.decode(packed.substring(0, separator), Base64.NO_WRAP)
@@ -195,7 +197,7 @@ internal object NgocSiVoiceProfile {
         cipher.init(Cipher.DECRYPT_MODE, getOrCreateKey(), GCMParameterSpec(128, iv))
         val decoded = cipher.doFinal(encrypted).toString(Charsets.UTF_8)
             .split(',').map(String::toFloat)
-        decoded.toFloatArray().takeIf { vector -> vector.size == FEATURE_COUNT && vector.all { it.isFinite() } }
+        normalizeEmbedding(decoded.toFloatArray())
     }.getOrNull()
 
     private fun getOrCreateKey(): SecretKey {
