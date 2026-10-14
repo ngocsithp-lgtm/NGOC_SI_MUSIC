@@ -73,18 +73,19 @@ internal object NgocSiVoiceProfile {
         val samples = pcm16LittleEndianToFloat(pcmLittleEndian) ?: return null
         return synchronized(nativeLock) {
             val model = getExtractor(context) ?: return@synchronized null
-            var stream: OnlineStream? = null
             try {
-                stream = model.createStream()
-                stream.acceptWaveform(samples, SAMPLE_RATE)
-                stream.inputFinished()
-                if (!model.isReady(stream)) return@synchronized null
-                normalizeEmbedding(model.compute(stream))
+                val stream = model.createStream()
+                try {
+                    stream.acceptWaveform(samples, SAMPLE_RATE)
+                    stream.inputFinished()
+                    if (!model.isReady(stream)) return@synchronized null
+                    normalizeEmbedding(model.compute(stream))
+                } finally {
+                    runCatching { stream.release() }
+                }
             } catch (_: Throwable) {
                 // Missing/corrupt model or native runtime must never become an authentication success.
                 null
-            } finally {
-                stream?.let { runCatching { it.release() } }
             }
         }
     }
