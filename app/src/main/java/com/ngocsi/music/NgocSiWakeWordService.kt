@@ -54,6 +54,9 @@ class NgocSiWakeWordService : Service() {
     private var productionMusicController: MediaController? = null
     private var productionMusicControllerConnecting = false
     private var listening = false
+    // Prevent overlapping startListening calls while Android is still preparing the recognizer.
+    private var recognitionStarting = false
+    private var partialRecognitionCandidates: List<String> = emptyList()
     private var stopping = false
     private var awaitingCommand = false
     private var awaitingCommandUntilMillis = 0L
@@ -320,6 +323,8 @@ class NgocSiWakeWordService : Service() {
 
     private val listener = object : RecognitionListener {
         override fun onReadyForSpeech(params: Bundle?) {
+            recognitionStarting = false
+            mainHandler.removeCallbacks(recognitionStartWatchdog)
             listening = true
             updateNotification(
                 if (conversationActive) "Đang nghe cuộc trò chuyện · nói tự nhiên, không cần gọi AI lại"
@@ -331,18 +336,30 @@ class NgocSiWakeWordService : Service() {
             conversationSpeechStarted = true
             if (conversationActive) cancelConversationTimeout()
         }
+
         override fun onRmsChanged(rmsdB: Float) = Unit
         override fun onBufferReceived(buffer: ByteArray?) = Unit
+
         override fun onEndOfSpeech() {
             listening = false
+            // Some Android offline recognizers deliver useful partial text but never call
+            // onResults. Give the final callback a short chance, then submit the best phrase.
+            if (partialRecognitionCandidates.isNotEmpty()) {
+                mainHandler.removeCallbacks(partialRecognitionFallback)
+                mainHandler.postDelayed(partialRecognitionFallback, PARTIAL_AFTER_END_MILLIS)
+            }
         }
 
         override fun onError(error: Int) {
             listening = false
+            recognitionStarting = false
+            mainHandler.removeCallbacks(recognitionStartWatchdog)
+            mainHandler.removeCallbacks(partialRecognitionFallback)
+            val candidates = partialRecognitionCandidates
+            partialRecognitionCandidates = emptyList()
             val speechWasInProgress = conversationSpeechStarted
             conversationSpeechStarted = false
             if (stopping) return
-            if (conversationActive && speechWasInProgress) scheduleConversationTimeout()
             if (error == SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE ||
                 error == SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED
             ) {
@@ -353,72 +370,118 @@ class NgocSiWakeWordService : Service() {
                 failAndStop("Thiếu quyền micro. Hãy cấp quyền micro rồi bật lại.")
                 return
             }
-            scheduleListenRetry(if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) 1_200L else 500L)
+            // Use any text already captured instead of silently discarding it on a late error.
+            if (candidates.isNotEmpty()) {
+                processRecognitionPhrases(candidates)
+                return
+            }
+            if (conversationActive && speechWasInProgress) scheduleConversationTimeout()
+            scheduleListenRetry(if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) 1_000L else 350L)
         }
 
         override fun onResults(results: Bundle?) {
-            listening = false
-            conversationSpeechStarted = false
-            if (conversationActive) cancelConversationTimeout()
+            mainHandler.removeCallbacks(recognitionStartWatchdog)
+            mainHandler.removeCallbacks(partialRecognitionFallback)
+            recognitionStarting = false
             val phrases = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
-            val now = System.currentTimeMillis()
-            if (awaitingCommand && now > awaitingCommandUntilMillis) {
-                awaitingCommand = false
-                awaitingCommandUntilMillis = 0L
-            }
-            val wasAwaitingCommand = awaitingCommand || conversationActive
-            // After one wake phrase, keep accepting speech for the full active session.
-            // Prefer an actionable local command over a less accurate top recognition guess.
-            val recognized = (if (wasAwaitingCommand) {
-                // After the explicit wake word, accept ordinary speech as chat too.
-                selectNgocSiAiActivatedCommandCandidate(phrases)
-                    ?: phrases.firstOrNull { it.isNotBlank() }?.trim()
-                    ?: selectNgocSiAiWakePhraseCandidate(phrases)
-            } else {
-                selectNgocSiAiWakePhraseCandidate(phrases)
-            }).orEmpty()
-            val command = classifyNgocSiAiWakePhrase(recognized)
-                ?: if (wasAwaitingCommand) classifyNgocSiAiActivatedCommand(recognized) else null
-
-            if (command != null) {
-                awaitingCommand = false
-                awaitingCommandUntilMillis = 0L
-                if (musicController == null) {
-                    updateNotification("Đã nhận “$recognized” · đang kết nối trình phát")
-                    connectMusicController()
-                }
-                dispatchNgocSiAiCommandWhenReady(command, recognized)
-            } else if (isNgocSiAiWakeWordOnly(recognized)) {
-                // Start a hands-free session. The next sentence and later turns can be
-                // ordinary questions or app commands without repeating the wake word.
-                if (!conversationActive) conversationHistory.clear()
-                conversationActive = true
-                conversationSpeechStarted = false
-                cancelConversationTimeout()
-                awaitingCommand = true
-                awaitingCommandUntilMillis = Long.MAX_VALUE
-                updateNotification("Đã nghe từ khóa “AI” · có thể trò chuyện liên tục")
-                speakReply("Vâng, tôi nghe đây. Bạn cứ nói tiếp, không cần gọi AI lại.")
-                return
-            } else if (recognized.isNotBlank()) {
-                awaitingCommand = false
-                awaitingCommandUntilMillis = 0L
-                if (wasAwaitingCommand) {
-                    // Known app commands were handled above. Route ordinary questions to AI chat.
-                    answerConversationalQuestion(recognized)
-                    return
-                } else {
-                    // Expose the actual speech-recognition result so the user can tell
-                    // whether the problem is recognition or command matching.
-                    updateNotification("Đã nghe: “${recognized.take(55)}” · cần mở đầu bằng “AI”")
-                }
-            }
-            if (recognized.isBlank() && conversationActive) scheduleConversationTimeout()
-            if (command == null) scheduleListenRetry(650L)
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+            partialRecognitionCandidates = emptyList()
+            processRecognitionPhrases(phrases)
         }
 
-        override fun onPartialResults(partialResults: Bundle?) = Unit
+        override fun onPartialResults(partialResults: Bundle?) {
+            val candidates = partialResults
+                ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                .orEmpty()
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+            if (candidates.isEmpty() || stopping) return
+            partialRecognitionCandidates = candidates
+            // A trailing partial result should not leave the microphone loop stuck forever.
+            mainHandler.removeCallbacks(partialRecognitionFallback)
+            mainHandler.postDelayed(partialRecognitionFallback, PARTIAL_IDLE_FALLBACK_MILLIS)
+        }
+
         override fun onEvent(eventType: Int, params: Bundle?) = Unit
+    }
+
+    private val recognitionStartWatchdog = Runnable {
+        if (stopping || !recognitionStarting) return@Runnable
+        recognitionStarting = false
+        listening = false
+        runCatching { speechRecognizer?.cancel() }
+        updateNotification("Dịch vụ nghe phản hồi chậm · đang tự khởi động lại")
+        scheduleListenRetry(800L)
+    }
+
+    private val partialRecognitionFallback = Runnable {
+        if (stopping || partialRecognitionCandidates.isEmpty()) return@Runnable
+        val candidates = partialRecognitionCandidates
+        partialRecognitionCandidates = emptyList()
+        recognitionStarting = false
+        listening = false
+        mainHandler.removeCallbacks(recognitionStartWatchdog)
+        // Cancel before processing to avoid a late final result being handled twice.
+        runCatching { speechRecognizer?.cancel() }
+        processRecognitionPhrases(candidates)
+    }
+
+    private fun processRecognitionPhrases(phrases: List<String>) {
+        listening = false
+        recognitionStarting = false
+        conversationSpeechStarted = false
+        if (conversationActive) cancelConversationTimeout()
+        val now = System.currentTimeMillis()
+        if (awaitingCommand && now > awaitingCommandUntilMillis) {
+            awaitingCommand = false
+            awaitingCommandUntilMillis = 0L
+        }
+        val wasAwaitingCommand = awaitingCommand || conversationActive
+        // Once awake, prefer an implemented command across all recognition candidates.
+        // Otherwise preserve the best natural-language candidate for conversation.
+        val recognized = (if (wasAwaitingCommand) {
+            selectNgocSiAiActivatedCommandCandidate(phrases)
+                ?: phrases.firstOrNull { it.isNotBlank() }?.trim()
+                ?: selectNgocSiAiWakePhraseCandidate(phrases)
+        } else {
+            selectNgocSiAiWakePhraseCandidate(phrases)
+        }).orEmpty()
+        val command = classifyNgocSiAiWakePhrase(recognized)
+            ?: if (wasAwaitingCommand) classifyNgocSiAiActivatedCommand(recognized) else null
+
+        if (command != null) {
+            awaitingCommand = false
+            awaitingCommandUntilMillis = 0L
+            if (musicController == null) {
+                updateNotification("Đã nhận “$recognized” · đang kết nối trình phát")
+                connectMusicController()
+            }
+            dispatchNgocSiAiCommandWhenReady(command, recognized)
+        } else if (isNgocSiAiWakeWordOnly(recognized)) {
+            // Keep the hands-free session active until idle; later turns don't need the wake word.
+            if (!conversationActive) conversationHistory.clear()
+            conversationActive = true
+            conversationSpeechStarted = false
+            cancelConversationTimeout()
+            awaitingCommand = true
+            awaitingCommandUntilMillis = Long.MAX_VALUE
+            updateNotification("Đã nghe từ khóa “AI” · có thể trò chuyện liên tục")
+            speakReply("Vâng, tôi nghe đây. Bạn cứ nói tiếp, không cần gọi AI lại.")
+            return
+        } else if (recognized.isNotBlank()) {
+            awaitingCommand = false
+            awaitingCommandUntilMillis = 0L
+            if (wasAwaitingCommand) {
+                // Ordinary questions go to the same local-first conversation path as chat.
+                answerConversationalQuestion(recognized)
+                return
+            } else {
+                updateNotification("Đã nghe: “${recognized.take(55)}” · cần mở đầu bằng “AI”")
+            }
+        }
+        if (recognized.isBlank() && conversationActive) scheduleConversationTimeout()
+        if (command == null) scheduleListenRetry(350L)
     }
 
     private fun answerConversationalQuestion(question: String) {
@@ -521,25 +584,35 @@ class NgocSiWakeWordService : Service() {
     }
 
     private fun beginListening() {
-        if (stopping || answeringQuestion || speechRecognizer == null || listening || speaking) return
+        if (stopping || answeringQuestion || speechRecognizer == null ||
+            recognitionStarting || listening || speaking
+        ) return
         try {
+            val recognizer = speechRecognizer ?: return
+            mainHandler.removeCallbacks(partialRecognitionFallback)
+            partialRecognitionCandidates = emptyList()
+            recognitionStarting = true
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, "vi-VN")
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "vi-VN")
                 putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
-                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                 // Finish quiet, short commands sooner while retaining offline recognition.
-                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 700L)
-                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 650L)
-                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 950L)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 500L)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 550L)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 850L)
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
             }
-            speechRecognizer?.startListening(intent)
+            recognizer.startListening(intent)
+            mainHandler.removeCallbacks(recognitionStartWatchdog)
+            mainHandler.postDelayed(recognitionStartWatchdog, RECOGNITION_START_TIMEOUT_MILLIS)
         } catch (_: SecurityException) {
+            recognitionStarting = false
             failAndStop("Không có quyền micro. Hãy cấp quyền micro rồi bật lại.")
         } catch (_: Exception) {
-            scheduleListenRetry(1_000L)
+            recognitionStarting = false
+            scheduleListenRetry(650L)
         }
     }
 
@@ -985,6 +1058,8 @@ class NgocSiWakeWordService : Service() {
         if (stopping) return
         stopping = true
         listening = false
+        recognitionStarting = false
+        partialRecognitionCandidates = emptyList()
         conversationActive = false
         conversationSpeechStarted = false
         conversationHistory.clear()
@@ -1046,6 +1121,9 @@ class NgocSiWakeWordService : Service() {
         private const val NOTIFICATION_ID = 5871
         private const val STOP_REQUEST_CODE = 5872
         private const val COMMAND_WINDOW_MILLIS = 8_000L
+        private const val RECOGNITION_START_TIMEOUT_MILLIS = 8_000L
+        private const val PARTIAL_IDLE_FALLBACK_MILLIS = 3_500L
+        private const val PARTIAL_AFTER_END_MILLIS = 1_200L
         private const val CONVERSATION_IDLE_TIMEOUT_MILLIS = 30_000L
         private const val CONVERSATION_TIMEOUT_RECHECK_MILLIS = 1_000L
         private const val MAX_CONVERSATION_MESSAGES = 12
