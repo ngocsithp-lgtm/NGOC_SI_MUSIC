@@ -161,6 +161,8 @@ class NgocSiWakeWordService : Service() {
             if (speechRecognizer != null) {
                 mainHandler.removeCallbacks(restartListening)
                 mainHandler.removeCallbacks(partialRecognitionFallback)
+                partialRecognitionCandidates = emptyList()
+                currentAudioBuffer.reset()
                 runCatching { speechRecognizer?.cancel() }
                 speakReply(enrollmentPrompt())
                 return START_NOT_STICKY
@@ -1171,6 +1173,10 @@ class NgocSiWakeWordService : Service() {
         listening = false
         recognitionStarting = false
         partialRecognitionCandidates = emptyList()
+        currentAudioBuffer.reset()
+        enrollmentSamplesRemaining = 0
+        enrollmentPromptPending = false
+        enrollmentFeatures.clear()
         conversationActive = false
         conversationSpeechStarted = false
         conversationHistory.clear()
