@@ -179,37 +179,20 @@ class NgocSiAiQuotaRulesTest {
     }
 
     @Test
-    fun triesFallbackOnlyWhenThereIsAReasonableModelSpecificRecoveryPath() {
-        org.junit.Assert.assertTrue(
-            shouldTryNgocSiAiFallbackModel("HTTP 429 RESOURCE_EXHAUSTED: free tier quota")
+    fun previewNeverRetriesAnotherModelWithoutExplicitBillingConsent() {
+        val quotaAndCapacityErrors = listOf(
+            "HTTP 429 RESOURCE_EXHAUSTED: free tier quota",
+            "Daily quota has been exceeded for this model",
+            "HTTP 429 too_many_requests: You exceeded your current quota",
+            "The model is overloaded; HTTP 429",
+            "429: too many requests per minute",
+            "HTTP 429 RESOURCE_EXHAUSTED: project quota exceeded"
         )
-        org.junit.Assert.assertTrue(
-            shouldTryNgocSiAiFallbackModel("Daily quota has been exceeded for this model")
-        )
-        org.junit.Assert.assertTrue(
-            shouldTryNgocSiAiFallbackModel("The model is overloaded; HTTP 429")
-        )
-        org.junit.Assert.assertFalse(
-            shouldTryNgocSiAiFallbackModel("429: too many requests per minute")
-        )
-        org.junit.Assert.assertFalse(
-            shouldTryNgocSiAiFallbackModel("HTTP 401 UNAUTHENTICATED")
-        )
-        org.junit.Assert.assertFalse(
-            shouldTryNgocSiAiFallbackModel("Network timeout")
-        )
-        // The message does not reveal whether the limit is model-specific or project-wide.
-        // One alternate-model attempt may recover; persistent quota cooldown prevents loops.
-        org.junit.Assert.assertTrue(
-            shouldTryNgocSiAiFallbackModel(
-                "HTTP 429 too_many_requests: You exceeded your current quota, please check your plan and billing details."
-            )
-        )
-        org.junit.Assert.assertFalse(
-            shouldTryNgocSiAiFallbackModel("HTTP 429 RESOURCE_EXHAUSTED: project quota exceeded")
-        )
-        org.junit.Assert.assertFalse(
-            shouldTryNgocSiAiFallbackModel("HTTP 429 RESOURCE_EXHAUSTED")
-        )
+        quotaAndCapacityErrors.forEach { details ->
+            org.junit.Assert.assertFalse(shouldTryNgocSiAiFallbackModel(details))
+        }
+        org.junit.Assert.assertFalse(shouldTryNgocSiAiFallbackModel("HTTP 401 UNAUTHENTICATED"))
+        org.junit.Assert.assertFalse(shouldTryNgocSiAiFallbackModel("Network timeout"))
     }
+
 }
