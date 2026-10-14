@@ -4,7 +4,6 @@ import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
-import com.k2fsa.sherpa.onnx.OnlineStream
 import com.k2fsa.sherpa.onnx.SpeakerEmbeddingExtractor
 import com.k2fsa.sherpa.onnx.SpeakerEmbeddingExtractorConfig
 import java.nio.ByteBuffer
@@ -19,8 +18,8 @@ import kotlin.math.sqrt
 /**
  * Local-only owner speaker verification for the AI Preview build.
  *
- * Uses a neural speaker embedding model (sherpa-onnx / 3D-Speaker) on-device. Only a normalized
- * embedding is encrypted and retained. Temporary PCM buffers stay in memory and are discarded.
+ * Uses a neural speaker embedding model (sherpa-onnx / 3D-Speaker) on-device. The enrolled
+ * speaker templates are encrypted and retained. Temporary PCM buffers stay in memory and are discarded.
  * This is speaker similarity, not presentation-attack/liveness detection; recordings and voice
  * synthesis can still defeat it, so do not use it as the sole security control for sensitive data.
  */
