@@ -435,28 +435,47 @@ class NgocSiWakeWordService : Service() {
         updateNotification("Đã nghe câu hỏi · đang tạo câu trả lời…")
         aiScope.launch {
             val client = NgocSiAiRemoteClient(applicationContext)
+            val previousAssistantReply = conversationHistory
+                .lastOrNull { it.role == "assistant" }
+                ?.content
+            // Match the in-app chat path: answer familiar exchanges locally first so
+            // greetings, follow-ups, and quota questions do not consume Gemini requests.
+            val localFallback = localConversationFallback(cleanQuestion, previousAssistantReply)
             val userMessage = NgocSiAiMessage(role = "user", content = cleanQuestion)
-            // Preserve recent turns so follow-up questions such as "why?" have context.
+            // Preserve recent turns so follow-up questions have context in either mode.
             val requestHistory = conversationHistory.toMutableList()
             while (requestHistory.size > MAX_CONVERSATION_MESSAGES - 2) {
                 requestHistory.removeAt(0)
             }
             requestHistory.add(userMessage)
-            var receivedOnlineAnswer = false
-            val answer = if (!client.isConfigured) {
-                "Tôi nghe được câu hỏi, nhưng chat trực tuyến chưa được cấu hình trong bản Preview này. Tôi vẫn có thể thực hiện các lệnh điều khiển ứng dụng được hỗ trợ."
-            } else {
-                try {
-                    client.send(requestHistory).answer.also { receivedOnlineAnswer = true }
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (error: Exception) {
-                    error.message?.takeIf { it.isNotBlank() }
-                        ?: "Tôi đã nghe câu hỏi nhưng hiện chưa lấy được câu trả lời. Hãy thử lại sau."
+
+            var remoteAnswer: String? = null
+            var remoteError: String? = null
+            if (localFallback == null) {
+                if (!client.isConfigured) {
+                    remoteError =
+                        "Tôi nghe được câu hỏi, nhưng chat trực tuyến chưa được cấu hình trong bản Preview này. Tôi vẫn có thể thực hiện các lệnh điều khiển ứng dụng được hỗ trợ."
+                } else {
+                    try {
+                        remoteAnswer = client.send(requestHistory).answer
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (error: Exception) {
+                        remoteError = error.message?.takeIf { it.isNotBlank() }
+                            ?: "Tôi đã nghe câu hỏi nhưng hiện chưa lấy được câu trả lời. Hãy thử lại sau."
+                    }
                 }
             }
             if (stopping) return@launch
-            if (receivedOnlineAnswer) {
+
+            val answer = localFallback
+                ?: remoteAnswer?.trim()?.takeIf { it.isNotBlank() }
+                ?: remoteError?.takeIf { it.isNotBlank() }
+                ?: "Tôi đã nghe câu hỏi nhưng hiện chưa lấy được câu trả lời. Hãy thử lại sau."
+            // Keep successful Gemini turns and supported local replies for natural
+            // follow-ups; never put a transport/quota error into the conversation history.
+            val keepTurnInHistory = localFallback != null || !remoteAnswer.isNullOrBlank()
+            if (keepTurnInHistory) {
                 conversationHistory.clear()
                 conversationHistory.addAll(requestHistory)
                 conversationHistory.add(NgocSiAiMessage(role = "assistant", content = answer))
@@ -465,7 +484,12 @@ class NgocSiWakeWordService : Service() {
                 }
             }
             answeringQuestion = false
-            updateNotification("Câu trả lời: ${answer.take(100)}")
+            val replySource = if (localFallback != null) {
+                "Trả lời tại máy · không dùng hạn mức Gemini"
+            } else {
+                "Câu trả lời"
+            }
+            updateNotification("$replySource: ${answer.take(100)}")
             speakReply(answer)
         }
     }
