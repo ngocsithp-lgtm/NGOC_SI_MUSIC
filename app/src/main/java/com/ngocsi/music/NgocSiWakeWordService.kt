@@ -43,6 +43,10 @@ class NgocSiWakeWordService : Service() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val aiScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var answeringQuestion = false
+    // Once "AI" wakes the assistant, keep a hands-free conversation session open until idle.
+    private var conversationActive = false
+    private var conversationSpeechStarted = false
+    private val conversationHistory = mutableListOf<NgocSiAiMessage>()
     private var speechRecognizer: SpeechRecognizer? = null
     private var musicController: MediaController? = null
     private var musicControllerConnecting = false
@@ -90,9 +94,10 @@ class NgocSiWakeWordService : Service() {
                         mainHandler.post {
                             speaking = false
                             if (awaitingCommand) {
-                                // Start the command window after the spoken prompt, not before it.
+                                // Keep the original short wake-prompt window for backwards compatibility.
                                 awaitingCommandUntilMillis = System.currentTimeMillis() + COMMAND_WINDOW_MILLIS
                             }
+                            if (conversationActive) scheduleConversationTimeout()
                             if (!stopping) scheduleListenRetry(350L)
                         }
                     }
@@ -103,6 +108,7 @@ class NgocSiWakeWordService : Service() {
                             if (awaitingCommand) {
                                 awaitingCommandUntilMillis = System.currentTimeMillis() + COMMAND_WINDOW_MILLIS
                             }
+                            if (conversationActive) scheduleConversationTimeout()
                             if (!stopping) scheduleListenRetry(350L)
                         }
                     }
@@ -119,6 +125,7 @@ class NgocSiWakeWordService : Service() {
                     if (awaitingCommand) {
                         awaitingCommandUntilMillis = System.currentTimeMillis() + COMMAND_WINDOW_MILLIS
                     }
+                    if (conversationActive) scheduleConversationTimeout()
                     scheduleListenRetry(650L)
                 }
             }
@@ -314,10 +321,16 @@ class NgocSiWakeWordService : Service() {
     private val listener = object : RecognitionListener {
         override fun onReadyForSpeech(params: Bundle?) {
             listening = true
-            updateNotification("Đang nghe từ khóa “AI” · chỉ nhận dạng trên thiết bị")
+            updateNotification(
+                if (conversationActive) "Đang nghe cuộc trò chuyện · nói tự nhiên, không cần gọi AI lại"
+                else "Đang nghe từ khóa “AI” · chỉ nhận dạng trên thiết bị"
+            )
         }
 
-        override fun onBeginningOfSpeech() = Unit
+        override fun onBeginningOfSpeech() {
+            conversationSpeechStarted = true
+            if (conversationActive) cancelConversationTimeout()
+        }
         override fun onRmsChanged(rmsdB: Float) = Unit
         override fun onBufferReceived(buffer: ByteArray?) = Unit
         override fun onEndOfSpeech() {
@@ -326,7 +339,10 @@ class NgocSiWakeWordService : Service() {
 
         override fun onError(error: Int) {
             listening = false
+            val speechWasInProgress = conversationSpeechStarted
+            conversationSpeechStarted = false
             if (stopping) return
+            if (conversationActive && speechWasInProgress) scheduleConversationTimeout()
             if (error == SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE ||
                 error == SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED
             ) {
@@ -342,16 +358,17 @@ class NgocSiWakeWordService : Service() {
 
         override fun onResults(results: Bundle?) {
             listening = false
+            conversationSpeechStarted = false
+            if (conversationActive) cancelConversationTimeout()
             val phrases = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
             val now = System.currentTimeMillis()
             if (awaitingCommand && now > awaitingCommandUntilMillis) {
                 awaitingCommand = false
                 awaitingCommandUntilMillis = 0L
             }
-            val wasAwaitingCommand = awaitingCommand
-            // While waiting for the command after “AI”, prefer any recognized
-            // actionable hypothesis rather than blindly trusting Android's first guess.
-            // Outside that short window, still require the explicit wake phrase.
+            val wasAwaitingCommand = awaitingCommand || conversationActive
+            // After one wake phrase, keep accepting speech for the full active session.
+            // Prefer an actionable local command over a less accurate top recognition guess.
             val recognized = (if (wasAwaitingCommand) {
                 // After the explicit wake word, accept ordinary speech as chat too.
                 selectNgocSiAiActivatedCommandCandidate(phrases)
@@ -372,13 +389,16 @@ class NgocSiWakeWordService : Service() {
                 }
                 dispatchNgocSiAiCommandWhenReady(command, recognized)
             } else if (isNgocSiAiWakeWordOnly(recognized)) {
-                // Two-stage interaction: say "AI", then give a playback command.
-                // The short window prevents unrelated later speech from triggering playback.
+                // Start a hands-free session. The next sentence and later turns can be
+                // ordinary questions or app commands without repeating the wake word.
+                if (!conversationActive) conversationHistory.clear()
+                conversationActive = true
+                conversationSpeechStarted = false
+                cancelConversationTimeout()
                 awaitingCommand = true
-                // The TTS listener starts the eight-second deadline once the prompt is done.
                 awaitingCommandUntilMillis = Long.MAX_VALUE
-                updateNotification("Đã nghe từ khóa “AI” · hãy nói lệnh trong 8 giây")
-                speakReply("Vâng, tôi nghe đây.")
+                updateNotification("Đã nghe từ khóa “AI” · có thể trò chuyện liên tục")
+                speakReply("Vâng, tôi nghe đây. Bạn cứ nói tiếp, không cần gọi AI lại.")
                 return
             } else if (recognized.isNotBlank()) {
                 awaitingCommand = false
@@ -393,6 +413,7 @@ class NgocSiWakeWordService : Service() {
                     updateNotification("Đã nghe: “${recognized.take(55)}” · cần mở đầu bằng “AI”")
                 }
             }
+            if (recognized.isBlank() && conversationActive) scheduleConversationTimeout()
             if (command == null) scheduleListenRetry(650L)
         }
 
@@ -403,18 +424,30 @@ class NgocSiWakeWordService : Service() {
     private fun answerConversationalQuestion(question: String) {
         val cleanQuestion = question.trim()
         if (cleanQuestion.isBlank() || stopping) {
-            if (!stopping) scheduleListenRetry(650L)
+            if (!stopping) {
+                if (conversationActive) scheduleConversationTimeout()
+                scheduleListenRetry(650L)
+            }
             return
         }
         answeringQuestion = true
+        cancelConversationTimeout()
         updateNotification("Đã nghe câu hỏi · đang tạo câu trả lời…")
         aiScope.launch {
             val client = NgocSiAiRemoteClient(applicationContext)
+            val userMessage = NgocSiAiMessage(role = "user", content = cleanQuestion)
+            // Preserve recent turns so follow-up questions such as "why?" have context.
+            val requestHistory = conversationHistory.toMutableList()
+            while (requestHistory.size > MAX_CONVERSATION_MESSAGES - 2) {
+                requestHistory.removeAt(0)
+            }
+            requestHistory.add(userMessage)
+            var receivedOnlineAnswer = false
             val answer = if (!client.isConfigured) {
                 "Tôi nghe được câu hỏi, nhưng chat trực tuyến chưa được cấu hình trong bản Preview này. Tôi vẫn có thể thực hiện các lệnh điều khiển ứng dụng được hỗ trợ."
             } else {
                 try {
-                    client.send(listOf(NgocSiAiMessage(role = "user", content = cleanQuestion))).answer
+                    client.send(requestHistory).answer.also { receivedOnlineAnswer = true }
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (error: Exception) {
@@ -423,9 +456,43 @@ class NgocSiWakeWordService : Service() {
                 }
             }
             if (stopping) return@launch
+            if (receivedOnlineAnswer) {
+                conversationHistory.clear()
+                conversationHistory.addAll(requestHistory)
+                conversationHistory.add(NgocSiAiMessage(role = "assistant", content = answer))
+                while (conversationHistory.size > MAX_CONVERSATION_MESSAGES) {
+                    conversationHistory.removeAt(0)
+                }
+            }
             answeringQuestion = false
             updateNotification("Câu trả lời: ${answer.take(100)}")
             speakReply(answer)
+        }
+    }
+
+    private fun cancelConversationTimeout() {
+        mainHandler.removeCallbacks(conversationTimeout)
+    }
+
+    private fun scheduleConversationTimeout(delayMs: Long = CONVERSATION_IDLE_TIMEOUT_MILLIS) {
+        if (stopping || !conversationActive) return
+        mainHandler.removeCallbacks(conversationTimeout)
+        mainHandler.postDelayed(conversationTimeout, delayMs)
+    }
+
+    private val conversationTimeout = object : Runnable {
+        override fun run() {
+            if (stopping || !conversationActive) return
+            if (speaking || answeringQuestion || conversationSpeechStarted) {
+                mainHandler.postDelayed(this, CONVERSATION_TIMEOUT_RECHECK_MILLIS)
+                return
+            }
+            conversationActive = false
+            conversationSpeechStarted = false
+            awaitingCommand = false
+            awaitingCommandUntilMillis = 0L
+            conversationHistory.clear()
+            updateNotification("Phiên trò chuyện đã kết thúc do im lặng · nói “AI” để gọi lại")
         }
     }
 
@@ -486,6 +553,7 @@ class NgocSiWakeWordService : Service() {
             if (awaitingCommand) {
                 awaitingCommandUntilMillis = System.currentTimeMillis() + COMMAND_WINDOW_MILLIS
             }
+            if (conversationActive) scheduleConversationTimeout()
             updateNotification("$cleanMessage · không phát được giọng nói")
             scheduleListenRetry(650L)
         }
@@ -893,6 +961,9 @@ class NgocSiWakeWordService : Service() {
         if (stopping) return
         stopping = true
         listening = false
+        conversationActive = false
+        conversationSpeechStarted = false
+        conversationHistory.clear()
         awaitingCommand = false
         awaitingCommandUntilMillis = 0L
         mainHandler.removeCallbacksAndMessages(null)
@@ -916,6 +987,9 @@ class NgocSiWakeWordService : Service() {
     override fun onDestroy() {
         stopping = true
         answeringQuestion = false
+        conversationActive = false
+        conversationSpeechStarted = false
+        conversationHistory.clear()
         aiScope.cancel()
         awaitingCommand = false
         awaitingCommandUntilMillis = 0L
@@ -948,6 +1022,9 @@ class NgocSiWakeWordService : Service() {
         private const val NOTIFICATION_ID = 5871
         private const val STOP_REQUEST_CODE = 5872
         private const val COMMAND_WINDOW_MILLIS = 8_000L
+        private const val CONVERSATION_IDLE_TIMEOUT_MILLIS = 30_000L
+        private const val CONVERSATION_TIMEOUT_RECHECK_MILLIS = 1_000L
+        private const val MAX_CONVERSATION_MESSAGES = 12
 
         fun start(context: Context) {
             val intent = Intent(context, NgocSiWakeWordService::class.java).setAction(ACTION_START)
