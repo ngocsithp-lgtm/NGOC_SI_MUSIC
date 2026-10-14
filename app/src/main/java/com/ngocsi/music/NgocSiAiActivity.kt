@@ -179,7 +179,12 @@ internal fun localConversationFallback(
             (normalized.contains("han muc") && (normalized.contains("gemini") || normalized.contains("ai"))) ->
             return "Hạn mức do Google áp dụng theo model và dự án, không phải do lệnh nhạc trên điện thoại. Mình không bật thanh toán và sẽ không gửi lặp yêu cầu khi máy chủ báo hết hạn mức. Các lệnh điều khiển cục bộ vẫn dùng được."
 
-        normalized in setOf("tiep tuc", "tiep di", "lam tiep", "noi tiep", "ke tiep", "noi tiep di") -> {
+        normalized in setOf(
+            "tiep tuc", "tiep tuc di", "tiep tuc nhe",
+            "tiep di", "tiep nua", "lam tiep", "lam tiep di", "lam tiep nhe",
+            "noi tiep", "noi tiep di", "noi tiep nhe",
+            "ke tiep", "ke tiep di"
+        ) -> {
             val previous = previousAssistantReply?.trim().orEmpty()
             return if (previous.isNotBlank()) {
                 "Mình theo mạch vừa trao đổi nhé. Ý gần nhất là: “" + previous.take(220) + "”. Khi chat trực tuyến đang bị giới hạn, mình không muốn tự đoán thêm rồi làm sai ý bạn; bạn nói phần muốn đào sâu, mình sẽ bám đúng phần đó."
