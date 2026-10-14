@@ -462,6 +462,29 @@ class NgocSiWakeWordService : Service() {
         listening = false
         recognitionStarting = false
         conversationSpeechStarted = false
+        val capturedAudio = currentAudioBuffer.toByteArray()
+        currentAudioBuffer.reset()
+        if (enrollmentSamplesRemaining > 0) {
+            handleOwnerVoiceEnrollment(capturedAudio)
+            return
+        }
+        if (NgocSiVoiceProfile.isLockEnabled(this) && phrases.any { it.isNotBlank() }) {
+            val profile = NgocSiVoiceProfile.loadProfile(this)
+            val sample = NgocSiVoiceProfile.extractFeatures(capturedAudio)
+            if (profile == null || sample == null || !NgocSiVoiceProfile.matches(profile, sample)) {
+                awaitingCommand = false
+                awaitingCommandUntilMillis = 0L
+                updateNotification(
+                    if (sample == null) {
+                        "Đã bỏ qua: không lấy được âm thanh để xác minh giọng chủ máy"
+                    } else {
+                        "Đã bỏ qua câu nói: giọng không khớp hồ sơ đã đăng ký"
+                    }
+                )
+                scheduleListenRetry(350L)
+                return
+            }
+        }
         if (conversationActive) cancelConversationTimeout()
         val now = System.currentTimeMillis()
         if (awaitingCommand && now > awaitingCommandUntilMillis) {
@@ -595,6 +618,53 @@ class NgocSiWakeWordService : Service() {
             updateNotification("$replySource: ${answer.take(100)}")
             speakReply(answer)
         }
+    }
+
+    private fun handleOwnerVoiceEnrollment(pcm: ByteArray) {
+        val sample = NgocSiVoiceProfile.extractFeatures(pcm)
+        if (sample == null) {
+            enrollmentPromptPending = true
+            updateNotification(
+                "Chưa lấy đủ âm thanh · hãy đọc câu dài hơn, rõ ràng và gần micro"
+            )
+            speakReply(enrollmentPrompt())
+            return
+        }
+        enrollmentFeatures.add(sample)
+        enrollmentSamplesRemaining--
+        val completed = enrollmentFeatures.size
+        if (enrollmentSamplesRemaining > 0) {
+            enrollmentPromptPending = true
+            updateNotification("Đã ghi mẫu giọng " + completed + "/3 · tiếp tục đọc câu tiếp theo")
+            speakReply(enrollmentPrompt())
+            return
+        }
+
+        val profile = NgocSiVoiceProfile.combine(enrollmentFeatures)
+        val saved = profile != null && NgocSiVoiceProfile.saveProfile(this, profile)
+        enrollmentFeatures.clear()
+        if (!saved) {
+            NgocSiVoiceProfile.setLockEnabled(this, false)
+            updateNotification("Chưa lưu được hồ sơ giọng nói · hãy đăng ký lại")
+            speakReply("Tôi chưa lưu được hồ sơ giọng nói. Hãy thử đăng ký lại.")
+        } else {
+            updateNotification("Đã đăng ký giọng nói · xác minh người nói đã bật trên Preview")
+            speakReply(
+                "Đã đăng ký giọng nói của bạn. Từ giờ tôi sẽ kiểm tra mẫu giọng trước khi xử lý câu nói. " +
+                    "Đây là bộ lọc thử nghiệm và có thể nhầm khi môi trường ồn."
+            )
+        }
+    }
+
+    private fun enrollmentPrompt(): String {
+        val sampleNumber = (OWNER_VOICE_ENROLLMENT_SAMPLES - enrollmentSamplesRemaining + 1)
+            .coerceIn(1, OWNER_VOICE_ENROLLMENT_SAMPLES)
+        val phrase = when (sampleNumber) {
+            1 -> "Tôi đang đăng ký giọng nói của mình."
+            2 -> "AI, hãy mở thư viện nhạc của tôi."
+            else -> "AI, hãy giúp tôi điều khiển nhạc."
+        }
+        return "Mẫu giọng " + sampleNumber + " trên 3. Hãy đọc rõ câu: " + phrase
     }
 
     private fun cancelConversationTimeout() {
@@ -1153,9 +1223,12 @@ class NgocSiWakeWordService : Service() {
 
     companion object {
         private const val PLAYER_CONNECT_RETRY_MILLIS = 180L
+        private const val OWNER_VOICE_ENROLLMENT_SAMPLES = 3
+        private const val MAX_CAPTURED_AUDIO_BYTES = 160_000
         const val ACTION_START = "com.ngocsi.music.action.START_WAKE_WORD"
         const val ACTION_STOP = "com.ngocsi.music.action.STOP_WAKE_WORD"
         const val ACTION_VOICE_CHANGED = "com.ngocsi.music.action.WAKE_WORD_VOICE_CHANGED"
+        const val ACTION_ENROLL_OWNER_VOICE = "com.ngocsi.music.action.ENROLL_OWNER_VOICE"
         const val PREFS_NAME = "ngoc_si_wake_word"
         const val KEY_ENABLED = "enabled"
         private const val CHANNEL_ID = "ngoc_si_wake_word"
@@ -1176,6 +1249,13 @@ class NgocSiWakeWordService : Service() {
 
         fun stop(context: Context) {
             context.startService(Intent(context, NgocSiWakeWordService::class.java).setAction(ACTION_STOP))
+        }
+
+        fun enrollOwnerVoice(context: Context) {
+            ContextCompat.startForegroundService(
+                context,
+                Intent(context, NgocSiWakeWordService::class.java).setAction(ACTION_ENROLL_OWNER_VOICE)
+            )
         }
 
         /** Refreshes the selected TTS voice only when the wake-word service is already running. */
