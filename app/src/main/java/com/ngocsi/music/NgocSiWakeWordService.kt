@@ -220,8 +220,17 @@ class NgocSiWakeWordService : Service() {
         connectProductionMusicController()
         try {
             if (speechRecognitionPath == NgocSiAiSpeechRecognitionPath.ANDROID_ON_DEVICE) {
-                speechRecognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(this).apply {
-                    setRecognitionListener(listener)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    speechRecognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(this).apply {
+                        setRecognitionListener(listener)
+                    }
+                } else {
+                    // The on-device factory is API 31+. Keep minSdk 26 devices on the
+                    // bundled Vietnamese offline recognizer instead of calling a new API.
+                    speechRecognitionPath = NgocSiAiSpeechRecognitionPath.BUNDLED_VIETNAMESE_OFFLINE
+                    updateNotification(
+                        "Thiết bị dùng bộ nhận dạng tiếng Việt ngoại tuyến tích hợp"
+                    )
                 }
             }
             if (enrollmentSamplesRemaining > 0) {
