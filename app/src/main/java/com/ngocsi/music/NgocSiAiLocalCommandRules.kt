@@ -222,6 +222,40 @@ private fun trimNgocSiAiNormalizedCommandFillers(input: String): String {
     return phrase
 }
 
+/**
+ * Recognizes a direct request to disable hands-free voice control.
+ * Exact normalized phrases are used to avoid stopping on unrelated conversation.
+ */
+internal fun isNgocSiAiStopVoiceControlPhrase(input: String): Boolean {
+    var phrase = normalizeNgocSiAiVoicePhrase(input)
+    val prefixes = listOf(
+        "hey ngoc si ", "ok ngoc si ", "alo ngoc si ", "ngoc si oi ", "ngoc si ",
+        "hey ai ", "ok ai ", "alo ai ", "ai oi ", "ai ",
+        "vui long ", "lam on ", "hay "
+    )
+    while (true) {
+        val prefix = prefixes.firstOrNull { phrase.startsWith(it) } ?: break
+        phrase = phrase.removePrefix(prefix).trim()
+    }
+    phrase = trimNgocSiAiNormalizedCommandFillers(phrase)
+    return phrase in setOf(
+        "tam dung ai",
+        "tam dung nghe ai",
+        "dung nghe ai",
+        "ngung nghe ai",
+        "tam dung dieu khien giong noi",
+        "tam dung dieu khien bang giong noi",
+        "tat dieu khien giong noi",
+        "tat dieu khien bang giong noi",
+        "dung nghe tu khoa",
+        "ngung nghe tu khoa",
+        "tat nghe tu khoa",
+        "thoat che do nghe",
+        "thoat che do tro chuyen",
+        "ket thuc tro chuyen"
+    )
+}
+
 /** Keeps the user's spelling while removing polite speech tails from extracted names. */
 /**
  * Recognizes an explicit immediate stop request, including common wake-word and polite forms.
