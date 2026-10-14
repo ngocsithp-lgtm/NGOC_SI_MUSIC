@@ -37,8 +37,9 @@ internal fun ngocSiAiQuotaCooldownUntilMillis(
         NgocSiAiQuotaCooldownKind.RATE -> 60_000L
         NgocSiAiQuotaCooldownKind.DAILY -> return nextProviderDailyReset(nowMillis, resetZone)
         NgocSiAiQuotaCooldownKind.FREE_TIER -> return nextProviderDailyReset(nowMillis, resetZone)
-        NgocSiAiQuotaCooldownKind.PROJECT_FREE_TIER_RESTRICTED ->
-            return nextProviderDailyReset(nowMillis, resetZone)
+        // A project eligibility restriction is not a daily quota that resets at midnight.
+        // Back off for 24 hours so the app does not immediately repeat a known-denied request.
+        NgocSiAiQuotaCooldownKind.PROJECT_FREE_TIER_RESTRICTED -> 24 * 60 * 60 * 1_000L
         NgocSiAiQuotaCooldownKind.PAID_TIER -> 6 * 60 * 60 * 1_000L
         // Use a bounded cooldown when the provider does not reveal its exact quota window.
         NgocSiAiQuotaCooldownKind.PROJECT_OR_CAPACITY -> 15 * 60 * 1_000L
