@@ -1917,6 +1917,7 @@ class NgocSiAiActivity : ComponentActivity() {
         ownerVoiceAudioSourcePipe = null
     }
 }
+@OptIn(UnstableApi::class)
 @Composable
 private fun NgocSiAiPreviewScreen(
     isOnlineConfigured: Boolean,
