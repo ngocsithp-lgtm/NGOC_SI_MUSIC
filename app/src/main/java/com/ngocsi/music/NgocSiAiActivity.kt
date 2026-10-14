@@ -882,8 +882,8 @@ class NgocSiAiActivity : ComponentActivity() {
                 onVoice = { startVoiceInput() },
                 isWakeWordListening = wakeWordListening,
                 onToggleWakeWord = { toggleWakeWordListening() },
-                isOwnerVoiceEnrolled = ownerVoiceEnrolled,
-                isOwnerVoiceLockEnabled = ownerVoiceLockEnabled,
+                isOwnerVoiceEnrolled = false,
+                isOwnerVoiceLockEnabled = false,
                 onEnrollOwnerVoice = { requestOwnerVoiceEnrollment() },
                 onToggleOwnerVoiceLock = { toggleOwnerVoiceLock() }
             )
@@ -1543,47 +1543,15 @@ class NgocSiAiActivity : ComponentActivity() {
     }
 
     private fun requestOwnerVoiceEnrollment() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) !=
-            PackageManager.PERMISSION_GRANTED
-        ) {
-            pendingOwnerVoiceEnrollment = true
-            wakeWordPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-            return
-        }
-        try {
-            NgocSiWakeWordService.enrollOwnerVoice(this)
-            wakeWordListening = true
-            monitorWakeWordStatus()
-            Toast.makeText(
-                this,
-                "Hãy đọc lần lượt 3 câu mà AI hướng dẫn. Không rời màn hình khi đang đăng ký.",
-                Toast.LENGTH_LONG
-            ).show()
-        } catch (_: Exception) {
-            Toast.makeText(this, "Không thể bắt đầu đăng ký giọng nói. Hãy thử lại.", Toast.LENGTH_LONG).show()
-        }
+        NgocSiVoiceProfile.setLockEnabled(this, false)
+        ownerVoiceLockEnabled = false
+        Toast.makeText(this, "Đã bỏ đăng ký và xác minh giọng nói. Bạn có thể nói lệnh trực tiếp với AI.", Toast.LENGTH_LONG).show()
     }
 
     private fun toggleOwnerVoiceLock() {
-        refreshOwnerVoiceState()
-        // Always let the user disable a stuck or corrupted profile; never strand the lock.
-        if (ownerVoiceLockEnabled) {
-            NgocSiVoiceProfile.setLockEnabled(this, false)
-            ownerVoiceLockEnabled = false
-            Toast.makeText(this, "Đã tắt bộ lọc giọng nói.", Toast.LENGTH_SHORT).show()
-            return
-        }
-        if (!ownerVoiceEnrolled) {
-            Toast.makeText(this, "Hãy đăng ký 3 mẫu giọng nói trước khi bật bảo vệ.", Toast.LENGTH_LONG).show()
-            return
-        }
-        if (NgocSiVoiceProfile.setLockEnabled(this, true)) {
-            ownerVoiceLockEnabled = true
-            Toast.makeText(this, "Đã bật xác minh giọng nói trên thiết bị.", Toast.LENGTH_SHORT).show()
-        } else {
-            ownerVoiceLockEnabled = false
-            Toast.makeText(this, "Chưa có hồ sơ giọng nói hợp lệ. Hãy đăng ký lại.", Toast.LENGTH_LONG).show()
-        }
+        NgocSiVoiceProfile.setLockEnabled(this, false)
+        ownerVoiceLockEnabled = false
+        Toast.makeText(this, "Bảo vệ giọng nói đã được gỡ bỏ. AI sẽ nhận lệnh mà không xác minh người nói.", Toast.LENGTH_LONG).show()
     }
 
     private fun toggleWakeWordListening() {
