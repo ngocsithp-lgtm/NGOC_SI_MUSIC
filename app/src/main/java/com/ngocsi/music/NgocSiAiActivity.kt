@@ -341,6 +341,7 @@ class NgocSiAiActivity : ComponentActivity() {
     private var voiceRecognizer: SpeechRecognizer? = null
     private val voiceInputAudioBuffer = ByteArrayOutputStream()
     private var voiceRecognitionInProgress by mutableStateOf(false)
+    private var ownerVoiceVerificationInProgress by mutableStateOf(false)
     private var voiceRetryCount = 0
     private var activeVoiceIntent: Intent? = null
     private val voiceRetryHandler = Handler(Looper.getMainLooper())
@@ -385,23 +386,12 @@ class NgocSiAiActivity : ComponentActivity() {
                 voiceRecognitionInProgress = false
                 partialSpeechTranscript = ""
                 voiceRetryCount = 0
-                if (NgocSiVoiceProfile.isLockEnabled(this@NgocSiAiActivity) &&
-                    !verifyOwnerVoice(capturedPcm)
-                ) {
-                    Toast.makeText(
-                        this@NgocSiAiActivity,
-                        "Không xác minh được giọng đã đăng ký. Câu nói chưa được gửi hoặc thực hiện.",
-                        Toast.LENGTH_LONG
-                    ).show()
-                    return
-                }
                 Toast.makeText(
                     this@NgocSiAiActivity,
                     "Đã nhận giọng nói: ${partial.take(100)}",
                     Toast.LENGTH_SHORT
                 ).show()
-                recognizedSpeech = partial
-                recognizedSpeechShouldSend = true
+                deliverRecognizedSpeechAfterVoiceCheck(partial, capturedPcm)
                 return
             }
             speechFallbackUsed = true
@@ -568,16 +558,6 @@ class NgocSiAiActivity : ComponentActivity() {
                 partialSpeechTranscript = ""
                 voiceRetryCount = 0
                 if (isFinishing || isDestroyed) return@runOnUiThread
-                if (NgocSiVoiceProfile.isLockEnabled(this@NgocSiAiActivity) &&
-                    !verifyOwnerVoice(capturedPcm)
-                ) {
-                    Toast.makeText(
-                        this@NgocSiAiActivity,
-                        "Không xác minh được giọng đã đăng ký. Câu nói chưa được gửi hoặc thực hiện.",
-                        Toast.LENGTH_LONG
-                    ).show()
-                    return@runOnUiThread
-                }
                 if (phrase.isBlank()) {
                     Toast.makeText(
                         this@NgocSiAiActivity,
@@ -590,9 +570,8 @@ class NgocSiAiActivity : ComponentActivity() {
                         "Đã nhận giọng nói: ${phrase.take(100)}",
                         Toast.LENGTH_SHORT
                     ).show()
-                    // Use the same allowlisted command/chat path as typed input.
-                    recognizedSpeech = phrase
-                    recognizedSpeechShouldSend = true
+                    // Verify the speaker off the UI thread before routing to any command or AI request.
+                    deliverRecognizedSpeechAfterVoiceCheck(phrase, capturedPcm)
                 }
             }
         }
@@ -1561,18 +1540,20 @@ class NgocSiAiActivity : ComponentActivity() {
 
     private fun toggleOwnerVoiceLock() {
         refreshOwnerVoiceState()
+        // Always let the user disable a stuck or corrupted profile; never strand the lock.
+        if (ownerVoiceLockEnabled) {
+            NgocSiVoiceProfile.setLockEnabled(this, false)
+            ownerVoiceLockEnabled = false
+            Toast.makeText(this, "Đã tắt bộ lọc giọng nói.", Toast.LENGTH_SHORT).show()
+            return
+        }
         if (!ownerVoiceEnrolled) {
             Toast.makeText(this, "Hãy đăng ký 3 mẫu giọng nói trước khi bật bảo vệ.", Toast.LENGTH_LONG).show()
             return
         }
-        val enabled = !ownerVoiceLockEnabled
-        if (NgocSiVoiceProfile.setLockEnabled(this, enabled)) {
-            ownerVoiceLockEnabled = enabled
-            Toast.makeText(
-                this,
-                if (enabled) "Đã bật bộ lọc giọng nói thử nghiệm." else "Đã tắt bộ lọc giọng nói.",
-                Toast.LENGTH_SHORT
-            ).show()
+        if (NgocSiVoiceProfile.setLockEnabled(this, true)) {
+            ownerVoiceLockEnabled = true
+            Toast.makeText(this, "Đã bật xác minh giọng nói trên thiết bị.", Toast.LENGTH_SHORT).show()
         } else {
             ownerVoiceLockEnabled = false
             Toast.makeText(this, "Chưa có hồ sơ giọng nói hợp lệ. Hãy đăng ký lại.", Toast.LENGTH_LONG).show()
@@ -1610,6 +1591,33 @@ class NgocSiAiActivity : ComponentActivity() {
         return NgocSiVoiceProfile.matches(enrolled, candidate)
     }
 
+    private fun deliverRecognizedSpeechAfterVoiceCheck(phrase: String, capturedPcm: ByteArray) {
+        if (phrase.isBlank() || isFinishing || isDestroyed) return
+        if (!NgocSiVoiceProfile.isLockEnabled(this)) {
+            recognizedSpeech = phrase
+            recognizedSpeechShouldSend = true
+            return
+        }
+        ownerVoiceVerificationInProgress = true
+        lifecycleScope.launch {
+            val accepted = withContext(Dispatchers.Default) {
+                runCatching { verifyOwnerVoice(capturedPcm) }.getOrDefault(false)
+            }
+            ownerVoiceVerificationInProgress = false
+            if (isFinishing || isDestroyed) return@launch
+            if (!accepted) {
+                Toast.makeText(
+                    this@NgocSiAiActivity,
+                    "Không xác minh được giọng đã đăng ký. Câu nói chưa được gửi hoặc thực hiện.",
+                    Toast.LENGTH_LONG
+                ).show()
+                return@launch
+            }
+            recognizedSpeech = phrase
+            recognizedSpeechShouldSend = true
+        }
+    }
+
     private fun startVoiceInput() {
         if (ContextCompat.checkSelfPermission(
                 this,
@@ -1638,8 +1646,12 @@ class NgocSiAiActivity : ComponentActivity() {
                 "Nói tiếng Việt, ví dụ: Phát nhạc, mở YouTube, mở Drive, mở Yêu thích hoặc hẹn giờ"
             )
         }
-        if (voiceRecognitionInProgress) {
-            Toast.makeText(this, "Micro đang nghe. Hãy nói lệnh hoặc đợi kết thúc.", Toast.LENGTH_SHORT).show()
+        if (voiceRecognitionInProgress || ownerVoiceVerificationInProgress) {
+            Toast.makeText(
+                this,
+                if (ownerVoiceVerificationInProgress) "Đang xác minh giọng nói trên điện thoại." else "Micro đang nghe. Hãy nói lệnh hoặc đợi kết thúc.",
+                Toast.LENGTH_SHORT
+            ).show()
             return
         }
         try {
