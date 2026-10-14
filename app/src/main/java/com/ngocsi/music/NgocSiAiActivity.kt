@@ -497,8 +497,7 @@ class NgocSiAiActivity : ComponentActivity() {
                 .filter { it.isNotBlank() }
             val phrase = candidates.firstOrNull { isNgocSiAiExplicitStopPhrase(it) }
                 ?: candidates.firstOrNull { classifyNgocSiAiLocalCommand(it) != null }
-                ?: candidates.firstOrNull().orEmpty()
-            runOnUiThread {
+                ?: candidates.firstOrNull().orEmpty()            runOnUiThread {
                 if (!isFinishing && !isDestroyed && voiceRecognitionInProgress) {
                     partialSpeechTranscript = phrase.take(180)
                     if (phrase.isNotBlank()) {
@@ -519,8 +518,12 @@ class NgocSiAiActivity : ComponentActivity() {
             val candidates = result.data
                 ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
                 .orEmpty()
+            // If the system speech UI was used as a fallback, accept ordinary
+            // conversational speech too—not only recognized local music commands.
+            // Otherwise voice chat appears to do nothing for normal questions.
             val phrase = candidates.firstOrNull { isNgocSiAiExplicitStopPhrase(it) }
-                ?: selectNgocSiAiLocalCommandCandidate(candidates).orEmpty()
+                ?: selectNgocSiAiLocalCommandCandidate(candidates)
+                ?: candidates.firstOrNull().orEmpty().trim()
             if (result.resultCode == RESULT_OK && phrase.isNotBlank()) {
                 // Confirm recognition immediately so a user can distinguish microphone/
                 // speech-service problems from command-routing or AI-backend problems.
@@ -997,8 +1000,7 @@ class NgocSiAiActivity : ComponentActivity() {
 
         // Never stop an idle Preview queue as a false substitute for the stable player's
         // session. If the stable session is unavailable, report that stopping was not done.
-        if (production == null && productionMusicControllerConnecting) {
-            return "Đang kết nối trình phát NGỌC SĨ MUSIC. Nhạc chưa được xác nhận là đã dừng."
+        if (production == null && productionMusicControllerConnecting) {            return "Đang kết nối trình phát NGỌC SĨ MUSIC. Nhạc chưa được xác nhận là đã dừng."
         }
 
         val target = when (
@@ -1497,7 +1499,6 @@ class NgocSiAiActivity : ComponentActivity() {
         }
     }
 }
-
 @Composable
 private fun NgocSiAiPreviewScreen(
     isOnlineConfigured: Boolean,
@@ -1997,8 +1998,7 @@ private fun NgocSiAiPreviewScreen(
                             selectedVoiceLabel,
                             color = NgocSiVisuals.Text,
                             fontSize = 11.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            maxLines = 1,                            overflow = TextOverflow.Ellipsis
                         )
                     }
                     Text("›", color = NgocSiVisuals.Secondary, fontSize = 22.sp)
