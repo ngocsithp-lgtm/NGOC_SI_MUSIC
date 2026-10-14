@@ -1653,7 +1653,7 @@ private fun NgocSiAiPreviewScreen(
                 val userRemaining = reply.remainingToday?.let { "Còn $it lượt/tài khoản hôm nay" }
                 val globalRemaining = reply.remainingGlobalToday?.let { "Còn $it lượt toàn hệ thống hôm nay" }
                 quotaNote = if (reply.usedFallbackModel) {
-                    "Đã tự chuyển sang Gemini 3.1 Flash-Lite dự phòng do model chính bị giới hạn."
+                    "Đã tự chuyển sang Gemini 3.8 Flash dự phòng do model chính bị giới hạn."
                 } else {
                     listOfNotNull(userRemaining, globalRemaining).joinToString(" • ")
                 }
