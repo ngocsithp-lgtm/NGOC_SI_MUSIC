@@ -811,4 +811,32 @@ class NgocSiAiLocalCommandRulesTest {
         assertNull(classifyNgocSiAiWakePhrase("Nghe nhạc thật hay"))
     }
 
+    
+    @Test
+    fun continuousWakeSessionRoutesCommonCommandsLocally() {
+        assertEquals(
+            NgocSiAiLocalCommand.NEXT,
+            classifyNgocSiAiActivatedCommand("Bài tiếp theo")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.STOP,
+            classifyNgocSiAiActivatedCommand("Dừng hẳn nhạc")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.OPEN_YOUTUBE,
+            classifyNgocSiAiActivatedCommand("Mở YouTube")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.OPEN_RADIO,
+            classifyNgocSiAiActivatedCommand("Mở Radio")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.OPEN_LIBRARY,
+            classifyNgocSiAiActivatedCommand("Mở thư viện")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.OPEN_HOME,
+            classifyNgocSiAiActivatedCommand("Quay về trang chủ")
+        )
+    }
 }
