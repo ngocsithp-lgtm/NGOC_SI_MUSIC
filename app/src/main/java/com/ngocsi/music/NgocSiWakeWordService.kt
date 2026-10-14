@@ -53,6 +53,7 @@ class NgocSiWakeWordService : Service() {
     private var conversationSpeechStarted = false
     private val conversationHistory = mutableListOf<NgocSiAiMessage>()
     private var speechRecognizer: SpeechRecognizer? = null
+    private var speechRecognitionPath = NgocSiAiSpeechRecognitionPath.ANDROID_ON_DEVICE
     private var musicController: MediaController? = null
     private var musicControllerConnecting = false
     // The AI Preview has a separate package. This controller targets the stable app session.
@@ -199,18 +200,26 @@ class NgocSiWakeWordService : Service() {
         val platformOfflineAsrAvailable =
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
                 SpeechRecognizer.isOnDeviceRecognitionAvailable(this)
-        // Protected mode has its own local Vietnamese ASR and doesn't depend on Android's
-        // optional prerecorded-audio input feature.
-        if (!ownerVoiceLockEnabled && !platformOfflineAsrAvailable) {
-            failAndStop("Máy chưa hỗ trợ nhận dạng giọng nói offline trên thiết bị này.")
+        speechRecognitionPath = selectNgocSiAiSpeechRecognitionPath(
+            platformOfflineAvailable = platformOfflineAsrAvailable,
+            voiceVerificationEnabled = ownerVoiceLockEnabled
+        )
+
+        if (speechRecognitionPath == NgocSiAiSpeechRecognitionPath.BUNDLED_VIETNAMESE_OFFLINE) {
+            runCatching { speechRecognizer?.cancel() }
+            runCatching { speechRecognizer?.destroy() }
+            speechRecognizer = null
+            updateNotification(
+                "Đang dùng bộ nhận dạng tiếng Việt ngoại tuyến tích hợp trong ứng dụng"
+            )
+        } else if (speechRecognizer != null) {
             return START_NOT_STICKY
         }
-        if (speechRecognizer != null) return START_NOT_STICKY
 
         connectMusicController()
         connectProductionMusicController()
         try {
-            if (platformOfflineAsrAvailable) {
+            if (speechRecognitionPath == NgocSiAiSpeechRecognitionPath.ANDROID_ON_DEVICE) {
                 speechRecognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(this).apply {
                     setRecognitionListener(listener)
                 }
@@ -221,11 +230,17 @@ class NgocSiWakeWordService : Service() {
                 beginListening()
             }
         } catch (_: Exception) {
-            if (NgocSiVoiceProfile.isLockEnabled(this)) {
-                updateNotification("Đang dùng nhận dạng tiếng Việt ngoại tuyến trên điện thoại")
-                beginListening()
+            runCatching { speechRecognizer?.cancel() }
+            runCatching { speechRecognizer?.destroy() }
+            speechRecognizer = null
+            speechRecognitionPath = NgocSiAiSpeechRecognitionPath.BUNDLED_VIETNAMESE_OFFLINE
+            updateNotification(
+                "Nhận dạng hệ thống không khởi động được · chuyển sang bộ tiếng Việt offline tích hợp"
+            )
+            if (enrollmentSamplesRemaining > 0) {
+                speakReply(enrollmentPrompt())
             } else {
-                failAndStop("Không thể khởi động nhận dạng tiếng Việt offline.")
+                beginListening()
             }
         }
         return START_NOT_STICKY
@@ -240,7 +255,11 @@ class NgocSiWakeWordService : Service() {
             musicControllerConnecting = false
             runCatching { future.get() }
                 .onSuccess { controller ->
-                    if (stopping || (speechRecognizer == null && !NgocSiVoiceProfile.isLockEnabled(this))) {
+                    if (
+                        stopping ||
+                        (speechRecognizer == null &&
+                            speechRecognitionPath == NgocSiAiSpeechRecognitionPath.ANDROID_ON_DEVICE)
+                    ) {
                         controller.release()
                     } else musicController = controller
                 }
@@ -855,17 +874,24 @@ class NgocSiWakeWordService : Service() {
             beginEnrollmentAudioCapture()
             return
         }
-        if (NgocSiVoiceProfile.isLockEnabled(this)) {
-            // Protected listening captures an utterance once and transcribes it locally.
+        if (
+            NgocSiVoiceProfile.isLockEnabled(this) ||
+            speechRecognitionPath == NgocSiAiSpeechRecognitionPath.BUNDLED_VIETNAMESE_OFFLINE
+        ) {
+            // Use the bundled Vietnamese ASR locally when platform recognition is unavailable.
             beginOwnerVoiceCapture()
             return
         }
         var activeRecognizer = speechRecognizer
         if (activeRecognizer == null) {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
-                !SpeechRecognizer.isOnDeviceRecognitionAvailable(this)
-            ) {
-                failAndStop("Máy chưa hỗ trợ nhận dạng giọng nói offline trên thiết bị này.")
+            val platformAvailable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                SpeechRecognizer.isOnDeviceRecognitionAvailable(this)
+            if (!platformAvailable) {
+                speechRecognitionPath = NgocSiAiSpeechRecognitionPath.BUNDLED_VIETNAMESE_OFFLINE
+                updateNotification(
+                    "Nhận dạng hệ thống không khả dụng · dùng bộ tiếng Việt offline tích hợp"
+                )
+                beginOwnerVoiceCapture()
                 return
             }
             activeRecognizer = try {
@@ -873,7 +899,11 @@ class NgocSiWakeWordService : Service() {
                     setRecognitionListener(listener)
                 }
             } catch (_: Exception) {
-                failAndStop("Không thể khởi động nhận dạng tiếng Việt offline.")
+                speechRecognitionPath = NgocSiAiSpeechRecognitionPath.BUNDLED_VIETNAMESE_OFFLINE
+                updateNotification(
+                    "Không khởi động được nhận dạng hệ thống · dùng bộ tiếng Việt offline tích hợp"
+                )
+                beginOwnerVoiceCapture()
                 return
             }
             speechRecognizer = activeRecognizer
@@ -892,7 +922,14 @@ class NgocSiWakeWordService : Service() {
             failAndStop("Không có quyền micro. Hãy cấp quyền micro rồi bật lại.")
         } catch (_: Exception) {
             recognitionStarting = false
-            scheduleListenRetry(650L)
+            runCatching { activeRecognizer?.cancel() }
+            runCatching { activeRecognizer?.destroy() }
+            speechRecognizer = null
+            speechRecognitionPath = NgocSiAiSpeechRecognitionPath.BUNDLED_VIETNAMESE_OFFLINE
+            updateNotification(
+                "Nhận dạng hệ thống gặp lỗi · chuyển sang bộ tiếng Việt offline tích hợp"
+            )
+            scheduleListenRetry(300L)
         }
     }
 
@@ -902,15 +939,15 @@ class NgocSiWakeWordService : Service() {
         ) return
         listening = true
         updateNotification(
-            if (conversationActive) "Đang nghe câu nói · xác minh giọng ngay trên điện thoại"
-            else "Đang nghe từ khóa “AI” · xác minh giọng ngay trên điện thoại"
+            if (conversationActive) "Đang nghe câu tiếp theo · nhận dạng tiếng Việt offline"
+            else "Đang nghe từ khóa “AI” · nhận dạng tiếng Việt offline"
         )
         aiScope.launch(Dispatchers.IO) {
             val pcm = NgocSiOwnerVoiceAudio.captureUtterance(
                 shouldStop = { stopping },
                 onVoiceDetected = {
                     mainHandler.post {
-                        if (!stopping) updateNotification("Đang thu giọng nói để xác minh trên điện thoại…")
+                        if (!stopping) updateNotification("Đang thu âm để nhận dạng tiếng Việt trên điện thoại…")
                     }
                 }
             )
