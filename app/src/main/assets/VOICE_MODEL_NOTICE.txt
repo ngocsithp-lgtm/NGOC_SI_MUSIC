@@ -1,0 +1,17 @@
+NGỌC SĨ AI Preview — Offline speaker-verification model notice
+
+Model:
+- 3dspeaker_speech_campplus_sv_zh-cn_16k-common.onnx
+- Upstream project: https://github.com/modelscope/3D-Speaker
+- Model/runtime distribution source: https://github.com/k2-fsa/sherpa-onnx
+- 3D-Speaker project states it is released under the Apache License 2.0.
+- sherpa-onnx runtime version used by this Preview build: 1.13.8.
+
+Processing and privacy:
+- Model inference runs locally on this device.
+- The application stores only an encrypted speaker embedding for the enrolled owner voice.
+- Captured PCM audio is kept temporarily in memory and is not written to disk or sent to Gemini.
+- Speaker similarity is not liveness detection; a recording or synthetic voice may still defeat it.
+- The model is used as a speaker filter, not as the sole security control for sensitive actions.
+
+This notice identifies the upstream projects and model used in the experimental Preview feature.
