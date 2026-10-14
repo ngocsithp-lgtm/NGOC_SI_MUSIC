@@ -69,55 +69,24 @@ internal class NgocSiAiRemoteClient(context: Context) {
         }
 
         return try {
-            // Obtain a fresh limited-use App Check token for each request. This is
-            // compatible with Firebase AI Logic replay-protection monitoring and
-            // avoids reusing the same cached token across model requests.
+            // Use only the explicitly configured free-tier primary model. Never silently
+            // switch to a potentially billable model when quota is reached.
             val firebaseAi = FirebaseAI.getInstance(
                 app,
                 GenerativeBackend.googleAI(),
                 /* useLimitedUseAppCheckTokens = */ true
             )
-            val primaryCoolingDown = isPrimaryModelCoolingDown()
-            var usedFallbackModel = primaryCoolingDown
-            val response = if (primaryCoolingDown) {
-                // The primary model previously reported a model-specific quota/capacity limit.
-                // Use another documented no-cost Gemini Developer API model without probing
-                // the exhausted model on every subsequent message.
-                firebaseAi.generativeModel(
-                    modelName = FALLBACK_MODEL_NAME,
-                    generationConfig = RESPONSE_GENERATION_CONFIG,
-                    systemInstruction = content { text(SYSTEM_INSTRUCTIONS) }
-                ).startChat(history = previousTurns).sendMessage(newestUserMessage.content)
-            } else {
-                try {
-                    firebaseAi.generativeModel(
-                        modelName = MODEL_NAME,
-                        generationConfig = RESPONSE_GENERATION_CONFIG,
-                        systemInstruction = content { text(SYSTEM_INSTRUCTIONS) }
-                    ).startChat(history = previousTurns).sendMessage(newestUserMessage.content)
-                } catch (primaryError: CancellationException) {
-                    throw primaryError
-                } catch (primaryError: Exception) {
-                    val details = generateSequence<Throwable>(primaryError) { it.cause }
-                        .take(6)
-                        .joinToString(" ") { it.message.orEmpty() }
-                    if (!shouldTryNgocSiAiFallbackModel(details)) throw primaryError
+            val response = firebaseAi.generativeModel(
+                modelName = MODEL_NAME,
+                generationConfig = RESPONSE_GENERATION_CONFIG,
+                systemInstruction = content { text(SYSTEM_INSTRUCTIONS) }
+            ).startChat(history = previousTurns).sendMessage(newestUserMessage.content)
 
-                    val safePrimaryMessage = toSafeMessage(primaryError)
-                    persistPrimaryModelCooldownIfNeeded(safePrimaryMessage)
-                    usedFallbackModel = true
-                    firebaseAi.generativeModel(
-                        modelName = FALLBACK_MODEL_NAME,
-                        generationConfig = RESPONSE_GENERATION_CONFIG,
-                        systemInstruction = content { text(SYSTEM_INSTRUCTIONS) }
-                    ).startChat(history = previousTurns).sendMessage(newestUserMessage.content)
-                }
-            }
             val answer = response.text?.trim()
             if (answer.isNullOrBlank()) {
                 throw NgocSiAiRemoteException("Firebase AI Logic chưa trả về câu trả lời. Vui lòng thử lại.")
             }
-            NgocSiAiReply(answer = answer, usedFallbackModel = usedFallbackModel)
+            NgocSiAiReply(answer = answer)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: NgocSiAiRemoteException) {
@@ -129,25 +98,6 @@ internal class NgocSiAiRemoteClient(context: Context) {
         }
     }
 
-    private fun isPrimaryModelCoolingDown(): Boolean {
-        val until = quotaPreferences.getLong(KEY_PRIMARY_MODEL_COOLDOWN_UNTIL, 0L)
-        val now = System.currentTimeMillis()
-        if (until <= now) {
-            quotaPreferences.edit()
-                .remove(KEY_PRIMARY_MODEL_COOLDOWN_UNTIL)
-                .apply()
-            return false
-        }
-        return true
-    }
-
-    private fun persistPrimaryModelCooldownIfNeeded(message: String) {
-        val kind = classifyNgocSiAiQuotaCooldown(message) ?: return
-        val until = ngocSiAiQuotaCooldownUntilMillis(kind, System.currentTimeMillis())
-        quotaPreferences.edit()
-            .putLong(KEY_PRIMARY_MODEL_COOLDOWN_UNTIL, until)
-            .apply()
-    }
 
     private fun activeQuotaCooldownMessage(): String? {
         val until = quotaPreferences.getLong(KEY_QUOTA_COOLDOWN_UNTIL, 0L)
@@ -267,13 +217,10 @@ internal class NgocSiAiRemoteClient(context: Context) {
         private const val QUOTA_PREFERENCES = "ngoc_si_ai_quota_cooldown"
         private const val KEY_QUOTA_COOLDOWN_UNTIL = "cooldown_until_millis"
         private const val KEY_QUOTA_COOLDOWN_KIND = "cooldown_kind"
-        private const val KEY_PRIMARY_MODEL_COOLDOWN_UNTIL = "primary_model_cooldown_until_millis"
         private const val EXPECTED_FIREBASE_PROJECT_ID = "ngoc-si-music-ai"
-        // Keep Flash-Lite as the high-volume primary; use a distinct supported model as fallback
-        // so a model-specific limit may recover without requiring billing. A project-wide quota
-        // still blocks both models and is handled by the persistent cooldown below.
+        // Keep the free-tier Flash-Lite model as the only remote model.
+        // Quota errors trigger a cooldown; there is no automatic paid-model fallback.
         private const val MODEL_NAME = "gemini-3.5-flash-lite"
-        private const val FALLBACK_MODEL_NAME = "gemini-3.8-flash"
         private const val MAX_OUTPUT_TOKENS = 256
         private val RESPONSE_GENERATION_CONFIG = generationConfig {
             maxOutputTokens = MAX_OUTPUT_TOKENS
