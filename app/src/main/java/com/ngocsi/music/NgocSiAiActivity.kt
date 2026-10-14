@@ -20,6 +20,7 @@ import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.widget.Toast
+import java.io.ByteArrayOutputStream
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -338,6 +339,7 @@ class NgocSiAiActivity : ComponentActivity() {
     private var ownerVoiceLockEnabled by mutableStateOf(false)
     private var pendingOwnerVoiceEnrollment = false
     private var voiceRecognizer: SpeechRecognizer? = null
+    private val voiceInputAudioBuffer = ByteArrayOutputStream()
     private var voiceRecognitionInProgress by mutableStateOf(false)
     private var voiceRetryCount = 0
     private var activeVoiceIntent: Intent? = null
@@ -375,12 +377,24 @@ class NgocSiAiActivity : ComponentActivity() {
                 // leaving the chat stuck forever waiting for a final callback.
                 speechFallbackUsed = true
                 speechFallbackHandler.removeCallbacks(this)
+                val capturedPcm = voiceInputAudioBuffer.toByteArray()
+                voiceInputAudioBuffer.reset()
                 runCatching { voiceRecognizer?.cancel() }
                 runCatching { voiceRecognizer?.destroy() }
                 voiceRecognizer = null
                 voiceRecognitionInProgress = false
                 partialSpeechTranscript = ""
                 voiceRetryCount = 0
+                if (NgocSiVoiceProfile.isLockEnabled(this@NgocSiAiActivity) &&
+                    !verifyOwnerVoice(capturedPcm)
+                ) {
+                    Toast.makeText(
+                        this@NgocSiAiActivity,
+                        "Không xác minh được giọng đã đăng ký. Câu nói chưa được gửi hoặc thực hiện.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    return
+                }
                 Toast.makeText(
                     this@NgocSiAiActivity,
                     "Đã nhận giọng nói: ${partial.take(100)}",
@@ -392,11 +406,20 @@ class NgocSiAiActivity : ComponentActivity() {
             }
             speechFallbackUsed = true
             val intent = activeVoiceIntent
+            voiceInputAudioBuffer.reset()
             runCatching { voiceRecognizer?.cancel() }
             runCatching { voiceRecognizer?.destroy() }
             voiceRecognizer = null
             voiceRecognitionInProgress = false
             partialSpeechTranscript = ""
+            if (NgocSiVoiceProfile.isLockEnabled(this@NgocSiAiActivity)) {
+                Toast.makeText(
+                    this@NgocSiAiActivity,
+                    "Chưa có dữ liệu âm thanh để xác minh giọng. Hãy nhấn micro và thử lại.",
+                    Toast.LENGTH_LONG
+                ).show()
+                return
+            }
             if (intent != null) {
                 runCatching { speechLauncher.launch(intent) }
                     .onFailure {
@@ -452,7 +475,11 @@ class NgocSiAiActivity : ComponentActivity() {
             }
         }
         override fun onRmsChanged(rmsdB: Float) = Unit
-        override fun onBufferReceived(buffer: ByteArray?) = Unit
+        override fun onBufferReceived(buffer: ByteArray?) {
+            if (buffer == null || isFinishing || isDestroyed) return
+            val remaining = 160_000 - voiceInputAudioBuffer.size()
+            if (remaining > 0) voiceInputAudioBuffer.write(buffer, 0, minOf(buffer.size, remaining))
+        }
         override fun onEndOfSpeech() = Unit
 
         override fun onError(error: Int) {
@@ -476,6 +503,7 @@ class NgocSiAiActivity : ComponentActivity() {
                         val recognizer = voiceRecognizer
                         val retryIntent = activeVoiceIntent
                         if (recognizer != null && retryIntent != null) {
+                            voiceInputAudioBuffer.reset()
                             runCatching { recognizer.startListening(retryIntent) }
                                 .onSuccess {
                                     speechFallbackHandler.postDelayed(speechNoTranscriptWatchdog, 10_000L)
@@ -528,6 +556,8 @@ class NgocSiAiActivity : ComponentActivity() {
                 .orEmpty()
                 .map { it.trim() }
                 .filter { it.isNotBlank() }
+            val capturedPcm = voiceInputAudioBuffer.toByteArray()
+            voiceInputAudioBuffer.reset()
             // Prefer a recognized candidate that matches an implemented music command;
             // otherwise keep Android's highest-confidence candidate.
             val phrase = candidates.firstOrNull { isNgocSiAiExplicitStopPhrase(it) }
@@ -538,6 +568,16 @@ class NgocSiAiActivity : ComponentActivity() {
                 partialSpeechTranscript = ""
                 voiceRetryCount = 0
                 if (isFinishing || isDestroyed) return@runOnUiThread
+                if (NgocSiVoiceProfile.isLockEnabled(this@NgocSiAiActivity) &&
+                    !verifyOwnerVoice(capturedPcm)
+                ) {
+                    Toast.makeText(
+                        this@NgocSiAiActivity,
+                        "Không xác minh được giọng đã đăng ký. Câu nói chưa được gửi hoặc thực hiện.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    return@runOnUiThread
+                }
                 if (phrase.isBlank()) {
                     Toast.makeText(
                         this@NgocSiAiActivity,
@@ -589,6 +629,14 @@ class NgocSiAiActivity : ComponentActivity() {
             speechFallbackUsed = false
             voiceRecognitionInProgress = false
             partialSpeechTranscript = ""
+            if (NgocSiVoiceProfile.isLockEnabled(this)) {
+                Toast.makeText(
+                    this,
+                    "Chế độ nhận dạng dự phòng không cung cấp âm thanh để xác minh giọng. Câu nói đã bị bỏ qua.",
+                    Toast.LENGTH_LONG
+                ).show()
+                return@registerForActivityResult
+            }
             val candidates = result.data
                 ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
                 .orEmpty()
@@ -1555,6 +1603,13 @@ class NgocSiAiActivity : ComponentActivity() {
         }
     }
 
+    private fun verifyOwnerVoice(capturedPcm: ByteArray): Boolean {
+        if (!NgocSiVoiceProfile.isLockEnabled(this)) return true
+        val enrolled = NgocSiVoiceProfile.loadProfile(this) ?: return false
+        val candidate = NgocSiVoiceProfile.extractFeatures(capturedPcm) ?: return false
+        return NgocSiVoiceProfile.matches(enrolled, candidate)
+    }
+
     private fun startVoiceInput() {
         if (ContextCompat.checkSelfPermission(
                 this,
@@ -1591,6 +1646,14 @@ class NgocSiAiActivity : ComponentActivity() {
             speechFallbackUsed = false
             speechFallbackHandler.removeCallbacks(speechNoTranscriptWatchdog)
             if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+                if (NgocSiVoiceProfile.isLockEnabled(this)) {
+                    Toast.makeText(
+                        this,
+                        "Thiết bị không cung cấp âm thanh để xác minh giọng. Tắt khóa giọng hoặc dùng nhận dạng trực tiếp.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    return
+                }
                 // Keep the Android/Google speech activity as a fallback on devices
                 // that do not expose a RecognitionService directly to the app.
                 voiceRecognitionInProgress = true
@@ -1602,6 +1665,7 @@ class NgocSiAiActivity : ComponentActivity() {
                 it.setRecognitionListener(inAppSpeechListener)
                 voiceRecognizer = it
             }
+            voiceInputAudioBuffer.reset()
             voiceRecognitionInProgress = true
             partialSpeechTranscript = ""
             voiceRetryCount = 0
@@ -1620,7 +1684,15 @@ class NgocSiAiActivity : ComponentActivity() {
             runCatching {
                 runCatching { voiceRecognizer?.destroy() }
                 voiceRecognizer = null
-                speechLauncher.launch(intent)
+                if (NgocSiVoiceProfile.isLockEnabled(this)) {
+                    Toast.makeText(
+                        this,
+                        "Không thể xác minh giọng trong chế độ nhận dạng dự phòng. Hãy thử lại micro.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                } else {
+                    speechLauncher.launch(intent)
+                }
             }.onFailure {
                 Toast.makeText(
                     this,
