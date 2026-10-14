@@ -133,36 +133,12 @@ internal fun ngocSiAiQuotaDiagnosticCode(message: String): String? {
     }
 }
 
-internal fun shouldTryNgocSiAiFallbackModel(errorDetails: String): Boolean {
-    // The scope of a generic "current quota" 429 is ambiguous. Try the alternate
-    // no-cost model once: this can recover if only the primary model's quota is
-    // exhausted. If the project-wide quota is exhausted too, the caller records a
-    // cooldown, so subsequent messages won't repeatedly probe either model.
-    if (isAmbiguousNgocSiAiProjectQuotaError(errorDetails)) return true
-
-    return when (classifyNgocSiAiQuotaErrorDetails(errorDetails)) {
-        NgocSiAiQuotaCooldownKind.RATE,
-        NgocSiAiQuotaCooldownKind.PAID_TIER,
-        NgocSiAiQuotaCooldownKind.PROJECT_OR_CAPACITY -> false
-        NgocSiAiQuotaCooldownKind.DAILY,
-        NgocSiAiQuotaCooldownKind.FREE_TIER -> true
-        NgocSiAiQuotaCooldownKind.TEMPORARY -> {
-            val details = errorDetails.lowercase(java.util.Locale.ROOT)
-            // Only retry a different model for explicit capacity/overload signals.
-            // A bare 429/quota error is not enough evidence that fallback will help.
-            val hasCapacitySignal = listOf(
-                "overloaded", "capacity", "model is busy",
-                "temporarily unavailable", "service unavailable"
-            ).any { it in details }
-            val hasGenericQuotaSignal = listOf(
-                "resource_exhausted", "too many requests", "too_many_requests",
-                "quota exceeded", "current quota"
-            ).any { it in details }
-            hasCapacitySignal && !hasGenericQuotaSignal
-        }
-        null -> false
-    }
-}
+/**
+ * Preview must not retry quota/availability errors against another model because that
+ * can consume extra requests or silently move the user to a billable model.
+ */
+@Suppress("UNUSED_PARAMETER")
+internal fun shouldTryNgocSiAiFallbackModel(errorDetails: String): Boolean = false
 
 /**
  * Provides a compact persistent UI status for quota failures, separate from the
