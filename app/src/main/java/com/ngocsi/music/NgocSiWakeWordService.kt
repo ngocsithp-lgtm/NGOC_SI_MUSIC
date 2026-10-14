@@ -448,7 +448,24 @@ class NgocSiWakeWordService : Service() {
             if (error == SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE ||
                 error == SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED
             ) {
-                failAndStop("Gói nhận dạng tiếng Việt offline chưa có trên máy. Không dùng mạng thay thế.")
+                if (candidates.isNotEmpty()) {
+                    processRecognitionPhrases(candidates)
+                    return
+                }
+                closeOwnerVoiceAudioSource()
+                if (speechRecognitionPath == NgocSiAiSpeechRecognitionPath.ANDROID_ON_DEVICE) {
+                    runCatching { speechRecognizer?.cancel() }
+                    runCatching { speechRecognizer?.destroy() }
+                    speechRecognizer = null
+                    speechRecognitionPath =
+                        NgocSiAiSpeechRecognitionPath.BUNDLED_VIETNAMESE_OFFLINE
+                    updateNotification(
+                        "Gói tiếng Việt của Android chưa sẵn có · chuyển sang nhận dạng offline tích hợp"
+                    )
+                    scheduleListenRetry(300L)
+                } else {
+                    failAndStop("Chưa khởi động được bộ nhận dạng tiếng Việt offline tích hợp.")
+                }
                 return
             }
             if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
