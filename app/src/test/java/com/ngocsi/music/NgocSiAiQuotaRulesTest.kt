@@ -85,10 +85,10 @@ class NgocSiAiQuotaRulesTest {
             ngocSiAiQuotaDiagnosticCode(providerMessage)
         )
         assertEquals(
-            "AI_FREE_TIER_PROJECT_RESTRICTED",
+            NgocSiAiQuotaCooldownKind.PROJECT_FREE_TIER_RESTRICTED,
             classifyNgocSiAiQuotaCooldown(
                 "Google error. Mã chẩn đoán: AI_FREE_TIER_PROJECT_RESTRICTED"
-            )?.let { "AI_FREE_TIER_PROJECT_RESTRICTED" }
+            )
         )
         assertEquals(
             "Quyền Gemini miễn phí của dự án đang bị nhà cung cấp hạn chế; lệnh trên điện thoại vẫn hoạt động, không bật thanh toán.",
