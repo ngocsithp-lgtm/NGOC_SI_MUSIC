@@ -62,6 +62,22 @@ class NgocSiAiLocalConversationTest {
     }
 
     @Test
+    fun followUpAfterQuotaErrorKeepsTheMostRecentlySpokenErrorAsContext() {
+        val lastSpokenReply =
+            "Chat trực tuyến đang bị giới hạn hạn mức. Mã chẩn đoán: AI_QUOTA_429_PROJECT_OR_CAPACITY."
+        val answer = localConversationFallbackAfterRemoteError(
+            userText = "Tại sao vậy?",
+            previousAssistantReply = lastSpokenReply,
+            remoteError = "Mã chẩn đoán: AI_QUOTA_429_PROJECT_OR_CAPACITY"
+        )
+
+        assertNotNull(answer)
+        assertTrue(answer!!.contains(lastSpokenReply))
+        assertTrue(answer.contains("Gemini đang bị giới hạn hạn mức"))
+        assertTrue(answer.contains("chưa muốn đoán lý do"))
+    }
+
+    @Test
     fun unsupportedFollowUpDoesNotReceiveInventedContextWhenNoPreviousAnswerExists() {
         assertNull(
             localConversationFallbackAfterRemoteError(
