@@ -1272,7 +1272,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             // supplies the Referer from baseUrl. Use the app package as the stable identity
             // instead of youtube.com as the referring page.
             val safeId = sanitizeVideoId(videoId)
-            val appIdentityUrl = "https://com.ngocsi.music/"
+            val appIdentityUrl = "https://$packageName/"
             val origin = appIdentityUrl
 
             val html = """
