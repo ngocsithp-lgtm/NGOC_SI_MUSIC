@@ -87,6 +87,8 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var pageErrorVisible = false
     private var youtubePlayerReady = false
     private var youtubePlayerState = -1
+    private var restoredPositionVideoId: String? = null
+    private var positionRestoreAttempts = 0
     private var pendingAiAction: String? = null
     private var queueTransitionInFlight = false
     private var lastHandledEndedVideoId: String? = null
@@ -126,6 +128,9 @@ class YouTubePlayerActivity : ComponentActivity() {
                 youtubePlayerState = state
                 updatePlaybackButton()
                 updatePipParamsIfSupported()
+                // The IFrame API can report onReady before the video is seekable.
+                // Retry position restoration when the item becomes cued or starts.
+                if (state == 5 || state == 1) restoreSavedPlaybackPosition()
                 if (state == 0 && queue.isNotEmpty()) {
                     val endedId = sanitizeVideoId(videoId)
                     if (endedId.isNotBlank() && lastHandledEndedVideoId != endedId) {
@@ -919,6 +924,8 @@ class YouTubePlayerActivity : ComponentActivity() {
                 videoId = selected.videoId
                 title = selected.title
                 channel = selected.channelTitle
+                restoredPositionVideoId = null
+                positionRestoreAttempts = 0
                 lastHandledEndedVideoId = null
 
                 // Keep one IFrame player alive while moving through the queue.
@@ -977,14 +984,28 @@ class YouTubePlayerActivity : ComponentActivity() {
     private fun restoreSavedPlaybackPosition() {
         if (!youtubePlayerReady || videoId.isBlank() || webView == null) return
         val safeId = sanitizeVideoId(videoId)
+        if (restoredPositionVideoId == safeId || positionRestoreAttempts >= 12) return
         val positionMs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
             .getLong("youtube_position_ms_" + safeId, 0L)
-        if (positionMs < 3000L) return
+        if (positionMs < 3000L) {
+            restoredPositionVideoId = safeId
+            return
+        }
+
+        positionRestoreAttempts++
         val seconds = positionMs / 1000.0
         webView?.evaluateJavascript(
-            "(function(){try{lamPlayer.seekTo($seconds,true);return 'ok';}catch(e){return 'err';}})();",
-            null
-        )
+            "(function(){try{var s=lamPlayer.getPlayerState();if(s!==1&&s!==5)return 'wait';lamPlayer.seekTo($seconds,true);return 'ok';}catch(e){return 'wait';}})();"
+        ) { result ->
+            if (isFinishing || isDestroyed || safeId != sanitizeVideoId(videoId)) return@evaluateJavascript
+            if (result?.contains("ok") == true) {
+                restoredPositionVideoId = safeId
+            } else if (positionRestoreAttempts < 12) {
+                playbackPositionHandler.postDelayed({
+                    if (safeId == sanitizeVideoId(videoId)) restoreSavedPlaybackPosition()
+                }, 400L)
+            }
+        }
     }
 
     private fun startPlaybackPositionSaver() {
@@ -1154,6 +1175,8 @@ class YouTubePlayerActivity : ComponentActivity() {
         pageErrorVisible = false
         youtubePlayerReady = false
         youtubePlayerState = -1
+        restoredPositionVideoId = null
+        positionRestoreAttempts = 0
         lastHandledEndedVideoId = null
 
         val player = WebView(this).apply {
