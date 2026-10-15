@@ -10,7 +10,7 @@ package com.ngocsi.music
 internal object YouTubePlaybackRules {
     private val videoIdPattern = Regex("^[A-Za-z0-9_-]{11}$")
     private val videoUrlPattern = Regex(
-        """(?:[?&]v=|youtu\.be/|youtube\.com/(?:embed|shorts|live)/)([A-Za-z0-9_-]{11})""",
+        """(?:(?:https?://)?(?:www\\.|m\\.)?youtube\\.com/watch\\?(?:[^#\\s&]+&)*v=|(?:https?://)?youtu\\.be/|(?:https?://)?(?:www\\.|m\\.)?youtube\\.com/(?:embed|shorts|live)/)([A-Za-z0-9_-]{11})""",
         RegexOption.IGNORE_CASE
     )
 
