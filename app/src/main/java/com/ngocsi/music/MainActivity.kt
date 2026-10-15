@@ -5259,7 +5259,7 @@ class MainActivity : ComponentActivity() {
                 Text(
                     label,
                     color = if (selected) NgocSiVisuals.Text else Color(0xFF7A8394),
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
                 )
             }
@@ -5521,9 +5521,9 @@ class MainActivity : ComponentActivity() {
                     Text(
                         "ĐANG PHÁT • " + formatTime(position) + " / " + formatTime(shownDuration),
                         color = Color(0xFF6BE7FF),
-                        fontSize = 8.sp,
+                        fontSize = 10.sp,
                         fontWeight = FontWeight.Black,
-                        letterSpacing = 0.6.sp,
+                        letterSpacing = 0.4.sp,
                         maxLines = 1
                     )
                 }
@@ -5866,7 +5866,6 @@ class MainActivity : ComponentActivity() {
                     ProHomeNavItem("◉", "Radio", selectedSection == "Radio") {
                         showMore = false
                         selectedSection = "Radio"
-                        selectedSection = "Radio"
                     }
                     ProHomeNavItem("＋", "Thêm", showMore) {
                         showMore = !showMore
@@ -5926,9 +5925,9 @@ class MainActivity : ComponentActivity() {
                             Text(
                                 "HOME",
                                 color = NgocSiVisuals.Secondary,
-                                fontSize = 9.sp,
+                                fontSize = 10.sp,
                                 fontWeight = FontWeight.Black,
-                                lineHeight = 10.sp
+                                lineHeight = 11.sp
                             )
                         }
                     }
@@ -5966,7 +5965,7 @@ class MainActivity : ComponentActivity() {
                     )
                     Text(
                         subtitle,
-                        color = Color(0xFF777F8E),
+                        color = NgocSiVisuals.TextSecondary,
                         fontSize = 11.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -10860,7 +10859,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
     ) {
         Box(
             modifier = Modifier
-                .size(34.dp)
+                .size(44.dp)
                 .clip(RoundedCornerShape(10.dp))
                 .background(Color(0xFF20232D))
                 .clickable(onClick = onClick),
