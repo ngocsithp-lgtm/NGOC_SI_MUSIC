@@ -435,8 +435,16 @@ class NgocSiAiActivity : ComponentActivity() {
     private val wakeWordStatusChecker = object : Runnable {
         override fun run() {
             if (isFinishing || isDestroyed) return
-            val enabled = getSharedPreferences(NgocSiWakeWordService.PREFS_NAME, MODE_PRIVATE)
-                .getBoolean(NgocSiWakeWordService.KEY_ENABLED, false)
+            val wakeWordPreferences = getSharedPreferences(NgocSiWakeWordService.PREFS_NAME, MODE_PRIVATE)
+            val enabled = wakeWordPreferences.getBoolean(NgocSiWakeWordService.KEY_ENABLED, false)
+            val stoppedByCommand = wakeWordPreferences.getBoolean(
+                NgocSiWakeWordService.KEY_STOPPED_BY_COMMAND, false
+            )
+            if (!enabled && stoppedByCommand) {
+                wakeWordPreferences.edit()
+                    .putBoolean(NgocSiWakeWordService.KEY_STOPPED_BY_COMMAND, false)
+                    .apply()
+            }
             val wasListening = wakeWordListening
             wakeWordListening = enabled
             val conversationPrefs = getSharedPreferences(
@@ -462,7 +470,12 @@ class NgocSiAiActivity : ComponentActivity() {
             ownerVoiceLockEnabled = NgocSiVoiceProfile.isLockEnabled(this@NgocSiAiActivity)
             if (enabled) {
                 wakeWordStatusHandler.postDelayed(this, 1_000L)
-            } else if (wasListening) {
+            } else if (
+                shouldShowNgocSiWakeWordStoppedWarning(
+                    wasListening = wasListening,
+                    stoppedByCommand = stoppedByCommand
+                )
+            ) {
                 Toast.makeText(
                     this@NgocSiAiActivity,
                     "Nghe từ khóa đã tự tắt. Máy có thể chưa có gói nhận dạng tiếng Việt offline; hãy dùng nút micro để ra lệnh.",
