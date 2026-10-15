@@ -33,16 +33,16 @@ internal object MorpheMediaSessionBridge {
         // In that case the caller can fall back to the embedded YouTube player.
         val supportedActions = session.playbackState?.actions ?: 0L
         val supportsAction = when (action) {
-            "play" -> supportedActions and (
+            "play" -> (supportedActions and (
                 android.media.session.PlaybackState.ACTION_PLAY or
                     android.media.session.PlaybackState.ACTION_PLAY_PAUSE
-                ) != 0L
-            "pause" -> supportedActions and (
+                )) != 0L
+            "pause" -> (supportedActions and (
                 android.media.session.PlaybackState.ACTION_PAUSE or
                     android.media.session.PlaybackState.ACTION_PLAY_PAUSE
-                ) != 0L
-            "next" -> supportedActions and android.media.session.PlaybackState.ACTION_SKIP_TO_NEXT != 0L
-            "previous" -> supportedActions and android.media.session.PlaybackState.ACTION_SKIP_TO_PREVIOUS != 0L
+                )) != 0L
+            "next" -> (supportedActions and android.media.session.PlaybackState.ACTION_SKIP_TO_NEXT) != 0L
+            "previous" -> (supportedActions and android.media.session.PlaybackState.ACTION_SKIP_TO_PREVIOUS) != 0L
             else -> false
         }
         if (!supportsAction) return null
