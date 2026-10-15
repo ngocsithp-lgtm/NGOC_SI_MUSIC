@@ -75,6 +75,8 @@ import java.util.Locale
 import java.text.Normalizer
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -2337,6 +2339,7 @@ private fun NgocSiAiPreviewScreen(
             Surface(
                 modifier = Modifier
                     .size(44.dp)
+                    .semantics { contentDescription = "Quay lại" }
                     .clickable(onClick = onBack),
                 shape = RoundedCornerShape(14.dp),
                 color = Color(0xFF1A1E2A)
@@ -2379,7 +2382,15 @@ private fun NgocSiAiPreviewScreen(
             }
             Spacer(Modifier.width(5.dp))
             Surface(
-                modifier = Modifier.clickable(onClick = onToggleVoiceReplies),
+                modifier = Modifier
+                    .semantics {
+                        contentDescription = if (voiceRepliesEnabled) {
+                            "Tắt đọc phản hồi bằng giọng nói"
+                        } else {
+                            "Bật đọc phản hồi bằng giọng nói"
+                        }
+                    }
+                    .clickable(onClick = onToggleVoiceReplies),
                 shape = RoundedCornerShape(50),
                 color = if (voiceRepliesEnabled) Color(0xFF123329) else NgocSiVisuals.SurfaceRaised,
                 border = androidx.compose.foundation.BorderStroke(
@@ -2391,19 +2402,6 @@ private fun NgocSiAiPreviewScreen(
                     if (voiceRepliesEnabled) "🔊" else "🔇",
                     color = if (voiceRepliesEnabled) Color(0xFF71E6B2) else NgocSiVisuals.TextSecondary,
                     fontSize = 13.sp,
-                    fontWeight = FontWeight.Black,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
-                )
-            }
-            Spacer(Modifier.width(5.dp))
-            Surface(
-                shape = RoundedCornerShape(50),
-                color = NgocSiVisuals.SurfaceRaised
-            ) {
-                Text(
-                    if (isOnlineConfigured) "AI TEST" else "PREVIEW",
-                    color = Color(0xFFC7B5FF),
-                    fontSize = 10.sp,
                     fontWeight = FontWeight.Black,
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
                 )
@@ -2452,7 +2450,7 @@ private fun NgocSiAiPreviewScreen(
                         Text(
                             "ĐIỀU KHIỂN GIỌNG NÓI",
                             color = NgocSiVisuals.TextMuted,
-                            fontSize = 8.sp,
+                            fontSize = 10.sp,
                             fontWeight = FontWeight.Black,
                             letterSpacing = 0.35.sp,
                             maxLines = 1
@@ -2495,7 +2493,7 @@ private fun NgocSiAiPreviewScreen(
                         Text(
                             "GIỌNG ĐỌC",
                             color = NgocSiVisuals.TextMuted,
-                            fontSize = 8.sp,
+                            fontSize = 10.sp,
                             fontWeight = FontWeight.Black,
                             letterSpacing = 0.35.sp
                         )
@@ -2785,6 +2783,7 @@ private fun NgocSiAiPreviewScreen(
                 Surface(
                     modifier = Modifier
                         .size(48.dp)
+                        .semantics { contentDescription = "Nhập câu hỏi bằng giọng nói" }
                         .clickable(onClick = onVoice),
                     shape = CircleShape,
                     color = NgocSiVisuals.SurfaceRaised
@@ -2797,6 +2796,9 @@ private fun NgocSiAiPreviewScreen(
                 Surface(
                     modifier = Modifier
                         .size(48.dp)
+                        .semantics {
+                            contentDescription = if (isSending) "Đang gửi tin nhắn" else "Gửi tin nhắn"
+                        }
                         .clickable(enabled = !isSending) { sendMessage(input) },
                     shape = CircleShape,
                     color = if (isSending) Color(0xFF515661) else NgocSiVisuals.Secondary
