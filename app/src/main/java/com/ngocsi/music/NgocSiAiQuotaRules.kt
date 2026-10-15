@@ -193,6 +193,18 @@ internal fun ngocSiAiQuotaStatusNotice(message: String): String? {
     }
 }
 
+/**
+ * Keeps the provider's specific quota or eligibility cause visible even when a local
+ * response was shown, instead of masking it with a generic fallback status.
+ */
+internal fun ngocSiAiQuotaUiNotice(message: String, localFallbackUsed: Boolean): String =
+    ngocSiAiQuotaStatusNotice(message)
+        ?: if (localFallbackUsed) {
+            "Đã trả lời dự phòng trên máy do kết nối AI gặp lỗi; không phát sinh phí."
+        } else {
+            ""
+        }
+
 internal fun ngocSiAiQuotaCooldownNotice(
     kind: NgocSiAiQuotaCooldownKind,
     remainingMillis: Long
