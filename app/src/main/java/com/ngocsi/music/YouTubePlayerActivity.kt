@@ -221,19 +221,21 @@ class YouTubePlayerActivity : ComponentActivity() {
 
     private fun buildUi() {
         root = FrameLayout(this).apply {
-            setBackgroundColor(AndroidColor.BLACK)
+            setBackgroundColor(AndroidColor.rgb(8, 9, 12))
         }
 
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(AndroidColor.BLACK)
+            setBackgroundColor(AndroidColor.rgb(8, 9, 12))
+            setPadding(0, 0, 0, dp(12))
         }
 
+        // Minimal app bar: keep navigation, but remove the redundant HOME button.
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(6), dp(4), dp(8), dp(4))
-            setBackgroundColor(AndroidColor.rgb(18, 18, 22))
+            setPadding(dp(10), dp(5), dp(16), dp(5))
+            setBackgroundColor(AndroidColor.rgb(17, 18, 23))
         }
 
         val backButton = Button(this).apply {
@@ -242,9 +244,9 @@ class YouTubePlayerActivity : ComponentActivity() {
             textSize = 28f
             setTextColor(AndroidColor.WHITE)
             background = roundedButtonDrawable(
-                fill = AndroidColor.rgb(18, 20, 27),
-                stroke = AndroidColor.rgb(42, 48, 60),
-                radius = dp(12)
+                fill = AndroidColor.rgb(24, 26, 33),
+                stroke = AndroidColor.rgb(42, 46, 56),
+                radius = dp(13)
             )
             backgroundTintList = null
             contentDescription = "Quay lại"
@@ -252,92 +254,90 @@ class YouTubePlayerActivity : ComponentActivity() {
                 if (customView != null) exitFullscreen() else finish()
             }
         }
-        header.addView(
-            backButton,
-            LinearLayout.LayoutParams(dp(48), dp(48))
-        )
+        header.addView(backButton, LinearLayout.LayoutParams(dp(44), dp(44)))
 
-        val homeButton = Button(this).apply {
-            text = "HOME"
-            isAllCaps = false
-            textSize = 11f
-            setTextColor(AndroidColor.WHITE)
-            background = roundedButtonDrawable(
-                fill = AndroidColor.rgb(18, 20, 27),
-                stroke = AndroidColor.rgb(42, 48, 60),
-                radius = dp(11)
-            )
-            backgroundTintList = null
-            contentDescription = "Về trang chủ NGỌC SĨ MUSIC"
-            setOnClickListener {
-                if (customView != null) exitFullscreen()
-                finish()
-            }
-        }
-        header.addView(
-            homeButton,
-            LinearLayout.LayoutParams(dp(58), dp(44)).apply {
-                marginEnd = dp(5)
-            }
-        )
-
-        val info = LinearLayout(this).apply {
+        val headerInfo = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(12), 0, 0, 0)
         }
-
-        val nowPlaying = TextView(this).apply {
-            text = "●  NGỌC SĨ YOUTUBE MUSIC  •  ĐANG PHÁT"
-            setTextColor(AndroidColor.rgb(143, 214, 148))
-            textSize = 9f
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-            letterSpacing = 0.08f
-        }
-        info.addView(nowPlaying)
-
-        titleView = TextView(this).apply {
-            text = title
+        val headerTitle = TextView(this).apply {
+            text = "YouTube"
             setTextColor(AndroidColor.WHITE)
             textSize = 15f
-            maxLines = 2
-            ellipsize = android.text.TextUtils.TruncateAt.END
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
         }
-
-        channelView = TextView(this).apply {
-            text = channel
-            setTextColor(AndroidColor.rgb(155, 155, 166))
-            textSize = 12f
-            maxLines = 1
-            ellipsize = android.text.TextUtils.TruncateAt.END
+        val headerSubtitle = TextView(this).apply {
+            text = "NGỌC SĨ MUSIC"
+            setTextColor(AndroidColor.rgb(145, 148, 160))
+            textSize = 10f
+            letterSpacing = 0.08f
         }
-
-        info.addView(titleView)
-        info.addView(channelView)
-
-        header.addView(
-            info,
-            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-        )
+        headerInfo.addView(headerTitle)
+        headerInfo.addView(headerSubtitle)
+        header.addView(headerInfo, LinearLayout.LayoutParams(
+            0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
+        ))
 
         playerContainer = FrameLayout(this).apply {
             setBackgroundColor(AndroidColor.BLACK)
+            contentDescription = "Trình phát video YouTube"
         }
 
         content.addView(header, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
         ))
-        // Keep the embedded player at the standard 16:9 video ratio instead of
-        // stretching it to fill the entire remaining screen. This gives a more
-        // predictable phone layout while fullscreen remains available from YouTube.
+
+        // Preserve the native 16:9 video ratio.
         val playerHeight = (resources.displayMetrics.widthPixels * 9f / 16f).toInt()
         content.addView(playerContainer, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             playerHeight.coerceAtLeast(dp(200))
         ))
+
+        // Separate metadata from navigation so the video remains the visual focus.
+        val info = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(13), dp(16), dp(5))
+            setBackgroundColor(AndroidColor.rgb(11, 12, 16))
+        }
+        val nowPlaying = TextView(this).apply {
+            text = "●  ĐANG PHÁT"
+            setTextColor(AndroidColor.rgb(143, 214, 148))
+            textSize = 10f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            letterSpacing = 0.06f
+        }
+        titleView = TextView(this).apply {
+            text = title
+            setTextColor(AndroidColor.WHITE)
+            textSize = 18f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            maxLines = 2
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            setPadding(0, dp(4), 0, dp(3))
+        }
+        channelView = TextView(this).apply {
+            text = channel
+            setTextColor(AndroidColor.rgb(158, 160, 171))
+            textSize = 13f
+            maxLines = 2
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }
+        info.addView(nowPlaying)
+        info.addView(titleView)
+        info.addView(channelView)
+        content.addView(info, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ))
+
+        // The three essential transport actions get the strongest visual emphasis.
         val transport = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setPadding(dp(8), dp(5), dp(8), dp(3))
+            setPadding(dp(12), dp(10), dp(12), dp(8))
         }
         previousButton = actionButton("⏮") { playPrevious() }
         playPauseButton = actionButton("▶") { toggleYoutubePlayback() }
@@ -345,115 +345,86 @@ class YouTubePlayerActivity : ComponentActivity() {
         styleWideButton(playPauseButton, emphasized = true)
         previousButton.contentDescription = "Video trước"
         nextButton.contentDescription = "Video tiếp theo"
-        transport.addView(previousButton, LinearLayout.LayoutParams(dp(50), dp(44)).apply {
-            marginEnd = dp(8)
+        previousButton.textSize = 19f
+        playPauseButton.textSize = 22f
+        nextButton.textSize = 19f
+        transport.addView(previousButton, LinearLayout.LayoutParams(dp(58), dp(48)).apply {
+            marginEnd = dp(12)
         })
-        transport.addView(playPauseButton, LinearLayout.LayoutParams(dp(62), dp(46)).apply {
-            marginEnd = dp(8)
+        transport.addView(playPauseButton, LinearLayout.LayoutParams(dp(72), dp(52)).apply {
+            marginEnd = dp(12)
         })
-        transport.addView(nextButton, LinearLayout.LayoutParams(dp(50), dp(44)))
+        transport.addView(nextButton, LinearLayout.LayoutParams(dp(58), dp(48)))
         content.addView(transport)
 
+        // Secondary actions are compact and visually subordinate to play/pause.
         val utilityRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(8), dp(2), dp(8), dp(2))
+            setPadding(dp(10), dp(1), dp(10), dp(3))
         }
-        favoriteButton = actionButton("♡") { toggleFavorite() }
-        watchLaterButton = actionButton("🔖") { toggleWatchLater() }
-        val shuffleButton = actionButton("") { toggleYoutubeShuffle() }.apply {
+        favoriteButton = actionButton("♡\nYêu thích") { toggleFavorite() }.apply {
+            textSize = 11f
+            contentDescription = "Yêu thích"
+        }
+        watchLaterButton = actionButton("🔖\nXem sau") { toggleWatchLater() }.apply {
+            textSize = 11f
+            contentDescription = "Lưu vào danh sách xem sau"
+        }
+        val shuffleButton = actionButton("🔀\nTrộn") { toggleYoutubeShuffle() }.apply {
             tag = "youtube_shuffle_button"
+            textSize = 11f
             contentDescription = "Phát ngẫu nhiên hàng đợi YouTube"
         }
-        val repeatButton = actionButton("") { toggleYoutubeRepeat() }.apply {
+        val repeatButton = actionButton("🔁\nLặp") { toggleYoutubeRepeat() }.apply {
             tag = "youtube_repeat_button"
+            textSize = 11f
             contentDescription = "Chế độ lặp hàng đợi YouTube"
         }
-        favoriteButton.contentDescription = "Yêu thích"
-        watchLaterButton.contentDescription = "Xem sau"
-        utilityRow.addView(favoriteButton, LinearLayout.LayoutParams(0, dp(40), 1f).apply {
-            marginEnd = dp(4)
-        })
-        utilityRow.addView(watchLaterButton, LinearLayout.LayoutParams(0, dp(40), 1f).apply {
-            marginEnd = dp(4)
-        })
-        utilityRow.addView(shuffleButton, LinearLayout.LayoutParams(0, dp(40), 1f).apply {
-            marginEnd = dp(4)
-        })
-        utilityRow.addView(repeatButton, LinearLayout.LayoutParams(0, dp(40), 1f))
+        listOf(favoriteButton, watchLaterButton, shuffleButton, repeatButton).forEachIndexed { index, button ->
+            utilityRow.addView(button, LinearLayout.LayoutParams(0, dp(50), 1f).apply {
+                if (index < 3) marginEnd = dp(5)
+            })
+        }
         content.addView(utilityRow)
 
+        // Queue is one clear entry point; share stays available but no longer competes as a large button.
+        val queueActions = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(10), dp(8), dp(10), dp(3))
+        }
         val queueButton = Button(this).apply {
-            text = "☷  HÀNG ĐỢI  •  " + (queueIndex + 1) + "/" + queue.size
+            text = "☷  Hàng đợi  •  " + (queueIndex + 1) + "/" + queue.size
             tag = "queue_button"
             setOnClickListener { showQueueDialog() }
         }
         styleWideButton(queueButton)
-        content.addView(queueButton, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            dp(44)
-        ).apply {
-            leftMargin = dp(8)
-            rightMargin = dp(8)
-            topMargin = dp(2)
+        queueButton.textSize = 14f
+        queueActions.addView(queueButton, LinearLayout.LayoutParams(0, dp(46), 1f).apply {
+            marginEnd = dp(8)
         })
 
-        val queueProgress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
-            max = queue.size.coerceAtLeast(1)
-            progress = (queueIndex + 1).coerceIn(0, max)
-            tag = "queue_progress"
-            isIndeterminate = false
-            contentDescription = "Tiến độ hàng đợi YouTube"
-        }
-        content.addView(queueProgress, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            dp(3)
-        ).apply {
-            leftMargin = dp(8)
-            rightMargin = dp(8)
-            topMargin = dp(2)
-            bottomMargin = dp(4)
-        })
-
-        val queueShareRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(8), dp(1), dp(8), dp(4))
-        }
-
-        val share = Button(this).apply {
-            text = "↗  Chia sẻ"
-            setOnClickListener {
-                val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                    type = "text/plain"
-                    putExtra(Intent.EXTRA_TEXT, "https://www.youtube.com/watch?v=" + videoId)
-                    putExtra(Intent.EXTRA_TITLE, title)
-                }
-                startActivity(Intent.createChooser(shareIntent, "Chia sẻ video"))
+        val share = actionButton("↗") {
+            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, "https://www.youtube.com/watch?v=" + videoId)
+                putExtra(Intent.EXTRA_TITLE, title)
             }
+            startActivity(Intent.createChooser(shareIntent, "Chia sẻ video"))
+        }.apply {
+            contentDescription = "Chia sẻ video"
+            textSize = 20f
         }
-        styleWideButton(share)
-        queueShareRow.addView(share, LinearLayout.LayoutParams(0, dp(42), 1f).apply {
-            marginEnd = dp(4)
-        })
+        queueActions.addView(share, LinearLayout.LayoutParams(dp(48), dp(46)))
+        content.addView(queueActions)
 
-        val queueHint = TextView(this).apply {
-            tag = "youtube_queue_hint"
-            text = "Đang phát • " + (queueIndex + 1) + "/" + queue.size
-            setTextColor(AndroidColor.rgb(145, 145, 158))
-            textSize = 11f
-            gravity = Gravity.CENTER
-            maxLines = 1
-            ellipsize = android.text.TextUtils.TruncateAt.END
-        }
-        queueShareRow.addView(queueHint, LinearLayout.LayoutParams(0, dp(42), 1f))
-        content.addView(queueShareRow)
         val scroll = ScrollView(this).apply {
             isFillViewport = true
-            setBackgroundColor(AndroidColor.BLACK)
+            setBackgroundColor(AndroidColor.rgb(8, 9, 12))
+            clipToPadding = false
             addView(content)
         }
-
         root.addView(scroll, FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT
@@ -465,16 +436,15 @@ class YouTubePlayerActivity : ComponentActivity() {
             isIndeterminate = false
             visibility = View.GONE
         }
-        root.addView(
-            loadingBar,
-            FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                dp(3),
-                Gravity.TOP
-            )
-        )
+        root.addView(loadingBar, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            dp(3),
+            Gravity.TOP
+        ))
 
         setContentView(root)
+        updateActionState()
+        updateQueueModeButtons()
     }
 
     private fun actionButton(label: String, onClick: () -> Unit): Button =
@@ -890,14 +860,14 @@ class YouTubePlayerActivity : ComponentActivity() {
 
     private fun updateQueueModeButtons() {
         root.findViewWithTag<Button>("youtube_shuffle_button")?.apply {
-            text = if (youtubeShuffleEnabled) "🔀  Ngẫu nhiên ✓" else "🔀  Ngẫu nhiên"
+            text = if (youtubeShuffleEnabled) "🔀\nTrộn ✓" else "🔀\nTrộn"
             styleModeButton(this, youtubeShuffleEnabled)
         }
         root.findViewWithTag<Button>("youtube_repeat_button")?.apply {
             text = when (youtubeRepeatMode) {
-                1 -> "🔁  Lặp hàng đợi"
-                2 -> "🔂  Lặp bài"
-                else -> "🔁  Lặp"
+                1 -> "🔁\nLặp hàng đợi"
+                2 -> "🔂\nLặp bài"
+                else -> "🔁\nLặp"
             }
             styleModeButton(this, youtubeRepeatMode != 0)
         }
@@ -1142,8 +1112,8 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun updateActionState() {
-        if (::favoriteButton.isInitialized) favoriteButton.text = if (isFavorite()) "♥  Yêu thích" else "♡  Yêu thích"
-        if (::watchLaterButton.isInitialized) watchLaterButton.text = if (isWatchLater()) "✓  Xem sau" else "🔖  Xem sau"
+        if (::favoriteButton.isInitialized) favoriteButton.text = if (isFavorite()) "♥\nYêu thích" else "♡\nYêu thích"
+        if (::watchLaterButton.isInitialized) watchLaterButton.text = if (isWatchLater()) "✓\nXem sau" else "🔖\nXem sau"
 
         val canNavigate = queue.size > 1
         if (::previousButton.isInitialized) {
