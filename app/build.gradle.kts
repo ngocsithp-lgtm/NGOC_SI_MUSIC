@@ -14,6 +14,9 @@ android {
     val ciStorePassword = System.getenv("CI_KEYSTORE_PASSWORD").orEmpty()
     val ciKeyAlias = System.getenv("CI_KEY_ALIAS").orEmpty()
     val ciKeyPassword = System.getenv("CI_KEY_PASSWORD").orEmpty()
+    // Preview builds use a distinct package so they can be installed side-by-side
+    // with the production 5.38 PRO app and cannot replace it accidentally.
+    val youtubePreviewBuild = providers.gradleProperty("youtubePreview").orNull == "true"
 
     signingConfigs {
         if (ciKeystorePath.isNotBlank() && ciStorePassword.isNotBlank() && ciKeyAlias.isNotBlank() && ciKeyPassword.isNotBlank()) {
@@ -27,11 +30,13 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.ngocsi.music"
+        applicationId = if (youtubePreviewBuild) "com.ngocsi.music.youtubepreview" else "com.ngocsi.music"
         minSdk = 26
         targetSdk = 36
         versionCode = 58
-        versionName = "5.38"
+        versionName = if (youtubePreviewBuild) "5.38-youtube-preview" else "5.38"
+        manifestPlaceholders["appLabel"] =
+            if (youtubePreviewBuild) "NGỌC SĨ MUSIC YOUTUBE PREVIEW" else "NGỌC SĨ MUSIC"
         buildConfigField("String", "YOUTUBE_API_KEY", "\"$youtubeApiKey\"")
         buildConfigField("String", "DRIVE_API_KEY", "\"$driveApiKey\"")
     }
