@@ -232,6 +232,60 @@ class YouTubePlayerActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+
+        // A new search result can target this existing Activity because the
+        // caller uses SINGLE_TOP/REORDER_TO_FRONT. Update the current queue and
+        // player instead of silently keeping the previously selected video.
+        val incomingVideoId = sanitizeVideoId(intent.getStringExtra(EXTRA_VIDEO_ID).orEmpty())
+        if (incomingVideoId.isNotBlank()) {
+            val incomingQueueJson = intent.getStringExtra(EXTRA_QUEUE_JSON)
+            if (!incomingQueueJson.isNullOrBlank()) {
+                parseQueue(incomingQueueJson)
+            }
+
+            if (queue.none { it.videoId == incomingVideoId }) {
+                queue.add(
+                    0,
+                    QueueItem(
+                        incomingVideoId,
+                        intent.getStringExtra(EXTRA_TITLE).orEmpty().ifBlank { "Video YouTube" },
+                        intent.getStringExtra(EXTRA_CHANNEL).orEmpty().ifBlank { "YouTube" },
+                        "https://i.ytimg.com/vi/$incomingVideoId/hqdefault.jpg"
+                    )
+                )
+                queueIndex = 0
+            } else {
+                val requestedIndex = intent.getIntExtra(EXTRA_QUEUE_INDEX, -1)
+                queueIndex = if (requestedIndex in queue.indices &&
+                    queue[requestedIndex].videoId == incomingVideoId
+                ) requestedIndex else queue.indexOfFirst { it.videoId == incomingVideoId }
+            }
+
+            queueIndex = queueIndex.coerceIn(0, queue.lastIndex.coerceAtLeast(0))
+            val selected = queue.getOrNull(queueIndex)
+            if (selected != null) {
+                // Prefer the metadata from the newly requested item, falling back
+                // to the queue entry if the caller did not provide a title/channel.
+                selected.let {
+                    videoId = incomingVideoId
+                    title = intent.getStringExtra(EXTRA_TITLE).orEmpty().ifBlank { it.title }
+                    channel = intent.getStringExtra(EXTRA_CHANNEL).orEmpty().ifBlank { it.channelTitle }
+                }
+                titleView.text = title
+                channelView.text = channel
+                updateActionState()
+                updateQueueButton()
+                updateQueueModeButtons()
+                if (youtubePlayerReady && webView != null) {
+                    // loadQueueItem() saves the outgoing video's position before
+                    // switching, and also handles the not-yet-ready player path.
+                    loadQueueItem()
+                } else {
+                    createPlayer()
+                }
+            }
+        }
+
         intent.getStringExtra(EXTRA_AI_ACTION)?.let { action ->
             pendingAiAction = action
             executePendingAiAction()
