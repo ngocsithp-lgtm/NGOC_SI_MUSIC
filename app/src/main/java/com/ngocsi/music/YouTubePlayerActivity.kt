@@ -53,6 +53,8 @@ class YouTubePlayerActivity : ComponentActivity() {
     private lateinit var root: FrameLayout
     private lateinit var playerContainer: FrameLayout
     private var webView: WebView? = null
+    // Invalidates callbacks originating from an old/destroyed WebView instance.
+    private var playerGeneration = 0
     private var customView: View? = null
     private var customViewCallback: WebChromeClient.CustomViewCallback? = null
     private var videoId: String = ""
@@ -92,10 +94,14 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
     }
 
-    private inner class YoutubeJsBridge {
+    private inner class YoutubeJsBridge(private val generation: Int) {
+        private fun isCurrentGeneration(): Boolean =
+            generation == playerGeneration && !isFinishing && !isDestroyed
+
         @JavascriptInterface
         fun onReady() {
             runOnUiThread {
+                if (!isCurrentGeneration()) return@runOnUiThread
                 youtubePlayerReady = true
                 updatePlaybackButton()
                 restoreSavedPlaybackPosition()
@@ -106,6 +112,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         @JavascriptInterface
         fun onStateChanged(state: Int) {
             runOnUiThread {
+                if (!isCurrentGeneration()) return@runOnUiThread
                 youtubePlayerState = state
                 updatePlaybackButton()
                 if (state == 0 && queue.isNotEmpty()) {
@@ -121,28 +128,20 @@ class YouTubePlayerActivity : ComponentActivity() {
         @JavascriptInterface
         fun onError(code: Int) {
             runOnUiThread {
-                showError(
-                    when (code) {
-                        153 -> "YouTube không xác thực được trình phát (Error 153). Hãy bấm THỬ LẠI."
-                        152 -> "YouTube báo lỗi xác thực/trình phát (Error 152). Hãy bấm THỬ LẠI."
-                        101, 150 -> "Video này không cho phép phát trong trình phát nhúng."
-                        100 -> "Video không tồn tại hoặc đã bị gỡ."
-                        else -> "YouTube báo lỗi trình phát ($code). Hãy bấm THỬ LẠI."
-                    }
-                )
+                if (!isCurrentGeneration()) return@runOnUiThread
+                showError(YouTubePlaybackRules.errorMessage(code))
             }
         }
 
         @JavascriptInterface
         fun onAutoplayBlocked() {
             runOnUiThread {
+                if (!isCurrentGeneration()) return@runOnUiThread
                 youtubePlayerState = -1
                 updatePlaybackButton()
             }
         }
     }
-
-    private val youtubeJsBridge = YoutubeJsBridge()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -1105,6 +1104,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
     private fun createPlayer() {
         removePlayer()
+        val generation = playerGeneration
         pageErrorVisible = false
         youtubePlayerReady = false
         youtubePlayerState = -1
@@ -1164,6 +1164,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 ): Boolean = false
 
                 override fun onPageFinished(view: WebView, url: String) {
+                    if (view !== webView || generation != playerGeneration) return
                     super.onPageFinished(view, url)
                     if (!pageErrorVisible) {
                         errorView?.visibility = View.GONE
@@ -1179,6 +1180,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                     request: WebResourceRequest,
                     error: WebResourceError
                 ) {
+                    if (view !== webView || generation != playerGeneration) return
                     if (request.isForMainFrame) {
                         showError("Không tải được trình phát YouTube.")
                     }
@@ -1189,6 +1191,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                     request: WebResourceRequest,
                     errorResponse: android.webkit.WebResourceResponse
                 ) {
+                    if (view !== webView || generation != playerGeneration) return
                     super.onReceivedHttpError(view, request, errorResponse)
                     if (request.isForMainFrame && errorResponse.statusCode >= 400) {
                         showError("YouTube từ chối tải trình phát (HTTP " + errorResponse.statusCode + ").")
@@ -1199,6 +1202,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                     view: WebView,
                     detail: RenderProcessGoneDetail
                 ): Boolean {
+                    if (generation != playerGeneration) return true
                     showError(
                         if (detail.didCrash()) {
                             "Trình render WebView gặp lỗi. Hãy thử lại."
@@ -1212,12 +1216,14 @@ class YouTubePlayerActivity : ComponentActivity() {
 
             webChromeClient = object : WebChromeClient() {
                 override fun onProgressChanged(view: WebView, newProgress: Int) {
+                    if (view !== webView || generation != playerGeneration) return
                     super.onProgressChanged(view, newProgress)
                     loadingBar?.progress = newProgress
                     loadingBar?.visibility = if (newProgress in 1..99) View.VISIBLE else View.GONE
                 }
 
                 override fun onConsoleMessage(consoleMessage: android.webkit.ConsoleMessage): Boolean {
+                    if (generation != playerGeneration) return true
                     val message = consoleMessage.message().orEmpty()
                     val lower = message.lowercase()
                     if (lower.contains("error 153") ||
@@ -1259,7 +1265,7 @@ class YouTubePlayerActivity : ComponentActivity() {
 
             isFocusable = true
             isFocusableInTouchMode = true
-            addJavascriptInterface(youtubeJsBridge, "AndroidBridge")
+            addJavascriptInterface(YoutubeJsBridge(generation), "AndroidBridge")
 
             // YouTube requires an HTTP Referer (or equivalent API client identity)
             // for embedded players in WebView. For local HTML, loadDataWithBaseURL()
@@ -1515,7 +1521,11 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun removePlayer() {
-        webView?.let { view ->
+        // Invalidate pending page/JavaScript callbacks before destroying the WebView.
+        playerGeneration++
+        val oldWebView = webView
+        webView = null
+        oldWebView?.let { view ->
             try {
                 view.stopLoading()
                 view.loadUrl("about:blank")
@@ -1525,7 +1535,6 @@ class YouTubePlayerActivity : ComponentActivity() {
             } catch (_: Exception) {
             }
         }
-        webView = null
         playerContainer.takeIf { ::playerContainer.isInitialized }?.removeAllViews()
     }
 
@@ -1554,7 +1563,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun sanitizeVideoId(value: String): String =
-        value.filter { it.isLetterOrDigit() || it == '-' || it == '_' }.take(32)
+        YouTubePlaybackRules.sanitizeVideoId(value)
 
     private fun dp(value: Int): Int =
         (value * resources.displayMetrics.density).toInt()
