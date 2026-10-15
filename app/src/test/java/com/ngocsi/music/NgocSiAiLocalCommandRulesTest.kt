@@ -829,6 +829,13 @@ class NgocSiAiLocalCommandRulesTest {
         assertEquals(true, isNgocSiAiStopVoiceControlPhrase("tắt điều khiển giọng nói"))
         assertEquals(true, isNgocSiAiStopVoiceControlPhrase("Ngừng nghe từ khóa"))
 
+        // Voice-control exit phrases must not be reclassified as music playback pause.
+        assertNull(classifyNgocSiAiLocalCommand("AI, tạm dừng giọng nói"))
+        assertNull(classifyNgocSiAiLocalCommand("tạm dừng nghe"))
+        assertEquals(
+            NgocSiAiLocalCommand.PAUSE,
+            classifyNgocSiAiLocalCommand("tạm dừng nhạc")
+        )
         assertEquals(false, isNgocSiAiStopVoiceControlPhrase("nghe giọng nói"))
         assertEquals(false, isNgocSiAiStopVoiceControlPhrase("AI"))
         assertEquals(false, isNgocSiAiStopVoiceControlPhrase("tạm dừng"))
