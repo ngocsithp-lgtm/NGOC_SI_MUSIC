@@ -99,21 +99,16 @@ jobs:
         with:
           gradle-version: "8.11.1"
 
-      - name: Prepare offline speaker verification runtime and model
+      - name: Prepare offline Vietnamese ASR runtime and model
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p app/libs app/src/main/assets
           AAR="app/libs/sherpa-onnx-1.13.8.aar"
-          MODEL="app/src/main/assets/3dspeaker_speech_campplus_sv_zh-cn_16k-common.onnx"
           curl --fail --location --retry 3 --retry-delay 2 --connect-timeout 30 --max-time 600 \
             "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-1.13.8.aar" \
             --output "$AAR"
-          curl --fail --location --retry 3 --retry-delay 2 --connect-timeout 30 --max-time 600 \
-            "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/3dspeaker_speech_campplus_sv_zh-cn_16k-common.onnx" \
-            --output "$MODEL"
           test "$(stat -c%s "$AAR")" -gt 40000000
-          test "$(stat -c%s "$MODEL")" -gt 20000000
           unzip -tq "$AAR"
           unzip -l "$AAR" | grep -F "jni/arm64-v8a/libsherpa-onnx-jni.so" >/dev/null
           ASR_MODEL_NAME="sherpa-onnx-zipformer-vi-30M-int8-2026-02-09"
@@ -138,7 +133,7 @@ jobs:
           test "$(stat -c%s "$ASR_MODEL_DIR/tokens.txt")" -gt 10000
           echo "Prepared on-device Vietnamese ASR model."
           unzip -l "$AAR" | grep -F "classes.jar" >/dev/null
-          echo "Prepared local speaker runtime and on-device model. Raw audio is not included in the APK."
+          echo "Prepared local Vietnamese ASR runtime and model; owner voice verification remains disabled in Preview."
 
       - name: Android lint
         run: gradle :app:lintDebug --no-daemon

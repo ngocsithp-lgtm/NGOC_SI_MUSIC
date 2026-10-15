@@ -72,7 +72,7 @@ jobs:
             exit 1
           fi
           echo "Firebase project, production app, and preview app IDs match expected configuration (values hidden)."
-      - name: Prepare offline speaker verification runtime and model
+      - name: Prepare offline Vietnamese ASR runtime and model
         shell: bash
         run: |
           set -euo pipefail
@@ -80,11 +80,7 @@ jobs:
           curl --fail --location --retry 3 --retry-delay 2 --connect-timeout 30 --max-time 600 \
             "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-1.13.8.aar" \
             --output "app/libs/sherpa-onnx-1.13.8.aar"
-          curl --fail --location --retry 3 --retry-delay 2 --connect-timeout 30 --max-time 600 \
-            "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/3dspeaker_speech_campplus_sv_zh-cn_16k-common.onnx" \
-            --output "app/src/main/assets/3dspeaker_speech_campplus_sv_zh-cn_16k-common.onnx"
           test "$(stat -c%s app/libs/sherpa-onnx-1.13.8.aar)" -gt 40000000
-          test "$(stat -c%s app/src/main/assets/3dspeaker_speech_campplus_sv_zh-cn_16k-common.onnx)" -gt 20000000
           unzip -tq app/libs/sherpa-onnx-1.13.8.aar
           unzip -l app/libs/sherpa-onnx-1.13.8.aar | grep -F "jni/arm64-v8a/libsherpa-onnx-jni.so" >/dev/null
           ASR_MODEL_NAME="sherpa-onnx-zipformer-vi-30M-int8-2026-02-09"
@@ -107,7 +103,7 @@ jobs:
           test "$(stat -c%s "$ASR_MODEL_DIR/decoder.onnx")" -gt 4000000
           test "$(stat -c%s "$ASR_MODEL_DIR/joiner.int8.onnx")" -gt 500000
           test "$(stat -c%s "$ASR_MODEL_DIR/tokens.txt")" -gt 10000
-          echo "Prepared on-device Vietnamese ASR model."
+          echo "Prepared on-device Vietnamese ASR model; unused owner speaker-verification model omitted."
       - name: Android lint (no APK packaging)
         run: gradle :app:lintDebug --no-daemon
       - name: Unit tests (no APK packaging)

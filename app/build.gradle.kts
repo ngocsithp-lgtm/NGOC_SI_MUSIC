@@ -48,7 +48,7 @@ android {
         applicationId = "com.ngocsi.music"
         minSdk = 26
         targetSdk = 36
-        // Preview's neural speaker-verification runtime is built for current ARM64 phones.
+        // Preview keeps the local Vietnamese ASR fallback for ARM64 phones; owner voice verification is disabled.
         // Stable production ABI settings are untouched on main.
         ndk {
             abiFilters += listOf("arm64-v8a")
@@ -102,7 +102,7 @@ android {
 
 dependencies {
     // Downloaded by the Preview-only GitHub Actions workflow before lint/build.
-    // It supplies the local sherpa-onnx neural speaker embedding runtime.
+    // It supplies the local sherpa-onnx runtime for the Vietnamese offline ASR fallback.
     implementation(files("libs/sherpa-onnx-1.13.8.aar"))
     // Firebase AI Logic client; missing Firebase settings deliberately leave preview offline.
     implementation(platform("com.google.firebase:firebase-bom:35.0.0"))
