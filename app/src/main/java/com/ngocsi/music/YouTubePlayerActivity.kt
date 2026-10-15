@@ -91,6 +91,9 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var positionRestoreAttempts = 0
     private var pendingAiAction: String? = null
     private var queueTransitionInFlight = false
+    // If the user selects another item while a queue transition is saving position,
+    // queue the latest request and apply it after the current transition completes.
+    private var pendingQueueLoad = false
     private var lastHandledEndedVideoId: String? = null
     private var youtubeShuffleEnabled = false
     private var youtubeRepeatMode = 0 // 0=tắt, 1=lặp hàng đợi, 2=lặp một bài
@@ -967,7 +970,10 @@ class YouTubePlayerActivity : ComponentActivity() {
             return
         }
 
-        if (queueTransitionInFlight) return
+        if (queueTransitionInFlight) {
+            pendingQueueLoad = true
+            return
+        }
         queueTransitionInFlight = true
 
         val previousVideoId = videoId
@@ -996,7 +1002,16 @@ class YouTubePlayerActivity : ComponentActivity() {
                 saveLastPlayedState()
 
                 val safeId = sanitizeVideoId(videoId)
-                webView?.evaluateJavascript("loadVideoById('$safeId');", null)
+                webView?.evaluateJavascript("loadVideoById('$safeId');") {
+                    if (pendingQueueLoad && !isFinishing && !isDestroyed) {
+                        pendingQueueLoad = false
+                        // Let the IFrame accept the current load command before
+                        // saving position and applying the newest queued selection.
+                        playbackPositionHandler.postDelayed({
+                            if (!isFinishing && !isDestroyed) loadQueueItem()
+                        }, 350L)
+                    }
+                }
             }
         }
     }
