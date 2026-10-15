@@ -405,36 +405,6 @@ class YouTubePlayerActivity : ComponentActivity() {
             marginEnd = dp(8)
         })
 
-        // Compliant hand-off: YouTube embedded playback must not be kept running
-        // in a minimized/closed app window. Let the official YouTube app handle
-        // playback and any account-eligible background features.
-        val officialYouTube = actionButton("▶\nYouTube") {
-            saveCurrentPlaybackPosition()
-            saveLastPlayedState()
-            val youtubeIntent = Intent(
-                Intent.ACTION_VIEW,
-                Uri.parse("https://www.youtube.com/watch?v=" + sanitizeVideoId(videoId))
-            )
-            runCatching {
-                startActivity(youtubeIntent)
-            }.onFailure {
-                Toast.makeText(
-                    this@YouTubePlayerActivity,
-                    "Không mở được video YouTube.",
-                    Toast.LENGTH_SHORT
-                ).show()
-            }
-        }.apply {
-            contentDescription = "Mở video trong ứng dụng YouTube"
-            textSize = 11f
-        }
-        queueActions.addView(
-            officialYouTube,
-            LinearLayout.LayoutParams(dp(76), dp(46)).apply {
-                marginEnd = dp(8)
-            }
-        )
-
         val share = actionButton("↗") {
             val shareIntent = Intent(Intent.ACTION_SEND).apply {
                 type = "text/plain"
