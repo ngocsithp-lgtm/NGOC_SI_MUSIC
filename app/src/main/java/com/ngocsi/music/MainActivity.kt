@@ -5094,8 +5094,15 @@ class MainActivity : ComponentActivity() {
                     ProHomeQuickTile("♫", "Nhạc trên máy", onOpenLibrary, Modifier.weight(1f))
                     ProHomeQuickTile("▶", "YouTube", onOpenYouTube, Modifier.weight(1f))
                     ProHomeQuickTile("☁", "Google Drive", onOpenDrive, Modifier.weight(1f))
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(9.dp)
+                ) {
                     ProHomeQuickTile("◉", "Radio", onOpenRadio, Modifier.weight(1f))
                     ProHomeQuickTile("▣", "TV", onOpenTv, Modifier.weight(1f))
+                    Spacer(Modifier.weight(1f))
                 }
             }
 
