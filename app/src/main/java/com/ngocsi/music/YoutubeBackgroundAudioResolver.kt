@@ -49,7 +49,11 @@ internal object BackgroundAudioMatchRules {
     fun normalize(value: String): String {
         val unmarked = Normalizer.normalize(value, Normalizer.Form.NFD)
             .replace(Regex("""\p{Mn}+"""), "")
-        return nonWord.replace(unmarked.lowercase(Locale.ROOT), " ")
+        // Unicode decomposition removes Vietnamese tone marks, but it does not
+        // decompose the Vietnamese letter đ. Transliterate it before stripping
+        // non-ASCII characters so song and artist matching keeps the initial "d".
+        val normalized = unmarked.lowercase(Locale.ROOT).replace('đ', 'd')
+        return nonWord.replace(normalized, " ")
             .trim()
             .replace(whitespace, " ")
     }
@@ -135,6 +139,25 @@ internal object BackgroundAudioMatchRules {
             return title >= maxOf(minimumTitleScore, 0.96)
         }
         return artistScore(expectedTitle, expectedArtist, candidateArtist) >= 0.50
+    }
+
+    /**
+     * Ranks otherwise valid matches by both title and artist. This avoids choosing a
+     * same-title cover/remix over the artist named by the YouTube result.
+     */
+    fun rankingScore(
+        expectedTitle: String,
+        expectedArtist: String,
+        candidateTitle: String,
+        candidateArtist: String
+    ): Double {
+        val title = titleScore(expectedTitle, candidateTitle)
+        val expectedArtistKnown = normalizeArtist(expectedArtist).isNotBlank() ||
+            separators.split(cleanTitle(expectedTitle)).size >= 2
+        val candidateArtistKnown = normalizeArtist(candidateArtist).isNotBlank()
+        if (!expectedArtistKnown || !candidateArtistKnown) return title
+        val artist = artistScore(expectedTitle, expectedArtist, candidateArtist)
+        return (title * 0.75 + artist * 0.25).coerceIn(0.0, 1.0)
     }
 
     fun normalizeArtist(value: String): String {
@@ -387,7 +410,9 @@ object YoutubeBackgroundAudioResolver {
             sourceLabel = sourceLabel,
             licenseLabel = licenseLabel,
             landingUrl = landingUrl,
-            matchScore = BackgroundAudioMatchRules.titleScore(expectedTitle, candidateTitle)
+            matchScore = BackgroundAudioMatchRules.rankingScore(
+                expectedTitle, expectedArtist, candidateTitle, candidateArtist
+            )
         )
     }
 
