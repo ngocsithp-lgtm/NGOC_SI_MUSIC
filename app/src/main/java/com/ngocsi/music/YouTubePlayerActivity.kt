@@ -54,7 +54,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.Executors
 
-@OptIn(UnstableApi::class)
+@UnstableApi
 class YouTubePlayerActivity : ComponentActivity() {
 
     companion object {
