@@ -815,6 +815,9 @@ class NgocSiAiLocalCommandRulesTest {
     @Test
     fun recognizesTheExplicitVoiceControlStopPhraseWithoutStoppingMusicCommands() {
         assertEquals(true, isNgocSiAiStopVoiceControlPhrase("tạm dừng AI"))
+        assertEquals(true, isNgocSiAiStopVoiceControlPhrase("AI, tạm dừng"))
+        assertEquals(true, isNgocSiAiStopVoiceControlPhrase("AI, tạm dừng đi"))
+        assertEquals(true, isNgocSiAiStopVoiceControlPhrase("Ngọc Sĩ, tạm dừng"))
         assertEquals(true, isNgocSiAiStopVoiceControlPhrase("AI, tạm dừng AI đi"))
         assertEquals(true, isNgocSiAiStopVoiceControlPhrase("dừng AI"))
         assertEquals(true, isNgocSiAiStopVoiceControlPhrase("AI, ngừng lắng nghe"))
@@ -824,6 +827,7 @@ class NgocSiAiLocalCommandRulesTest {
         assertEquals(true, isNgocSiAiStopVoiceControlPhrase("Ngừng nghe từ khóa"))
 
         assertEquals(false, isNgocSiAiStopVoiceControlPhrase("AI"))
+        assertEquals(false, isNgocSiAiStopVoiceControlPhrase("tạm dừng"))
         assertEquals(false, isNgocSiAiStopVoiceControlPhrase("tạm dừng nhạc"))
         assertEquals(false, isNgocSiAiStopVoiceControlPhrase("dừng nghe nhạc"))
         assertEquals(false, isNgocSiAiStopVoiceControlPhrase("tắt nhạc sau 15 phút"))

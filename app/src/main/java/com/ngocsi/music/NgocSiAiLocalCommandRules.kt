@@ -228,6 +228,13 @@ private fun trimNgocSiAiNormalizedCommandFillers(input: String): String {
  */
 internal fun isNgocSiAiStopVoiceControlPhrase(input: String): Boolean {
     var phrase = normalizeNgocSiAiVoicePhrase(input)
+    // Remember whether the user explicitly addressed the assistant. This lets
+    // "AI, tạm dừng" stop hands-free listening without making a bare "tạm dừng"
+    // disable the assistant when it was intended as a music playback command.
+    val explicitlyAddressedAssistant = listOf(
+        "hey ngoc si ", "ok ngoc si ", "alo ngoc si ", "ngoc si oi ", "ngoc si ",
+        "hey ai ", "ok ai ", "alo ai ", "ai oi ", "ai "
+    ).any { phrase.startsWith(it) }
     val prefixes = listOf(
         "hey ngoc si ", "ok ngoc si ", "alo ngoc si ", "ngoc si oi ", "ngoc si ",
         "hey ai ", "ok ai ", "alo ai ", "ai oi ", "ai ",
@@ -238,6 +245,7 @@ internal fun isNgocSiAiStopVoiceControlPhrase(input: String): Boolean {
         phrase = phrase.removePrefix(prefix).trim()
     }
     phrase = trimNgocSiAiNormalizedCommandFillers(phrase)
+    if (explicitlyAddressedAssistant && phrase == "tam dung") return true
     return phrase in setOf(
         "tam dung ai",
         "dung ai",
