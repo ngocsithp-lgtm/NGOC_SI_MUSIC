@@ -264,23 +264,27 @@ class YouTubePlayerActivity : ComponentActivity() {
             queueIndex = queueIndex.coerceIn(0, queue.lastIndex.coerceAtLeast(0))
             val selected = queue.getOrNull(queueIndex)
             if (selected != null) {
-                // Prefer the metadata from the newly requested item, falling back
-                // to the queue entry if the caller did not provide a title/channel.
-                selected.let {
-                    videoId = incomingVideoId
-                    title = intent.getStringExtra(EXTRA_TITLE).orEmpty().ifBlank { it.title }
-                    channel = intent.getStringExtra(EXTRA_CHANNEL).orEmpty().ifBlank { it.channelTitle }
-                }
-                titleView.text = title
-                channelView.text = channel
-                updateActionState()
+                val incomingTitle = intent.getStringExtra(EXTRA_TITLE).orEmpty()
+                val incomingChannel = intent.getStringExtra(EXTRA_CHANNEL).orEmpty()
+                // Keep queue metadata in sync with the selected result.
+                queue[queueIndex] = selected.copy(
+                    title = incomingTitle.ifBlank { selected.title },
+                    channelTitle = incomingChannel.ifBlank { selected.channelTitle }
+                )
                 updateQueueButton()
                 updateQueueModeButtons()
                 if (youtubePlayerReady && webView != null) {
-                    // loadQueueItem() saves the outgoing video's position before
-                    // switching, and also handles the not-yet-ready player path.
+                    // Do not overwrite videoId before this call: loadQueueItem()
+                    // must save the outgoing video's position against its own ID.
                     loadQueueItem()
                 } else {
+                    val next = queue[queueIndex]
+                    videoId = next.videoId
+                    title = next.title
+                    channel = next.channelTitle
+                    titleView.text = title
+                    channelView.text = channel
+                    updateActionState()
                     createPlayer()
                 }
             }
