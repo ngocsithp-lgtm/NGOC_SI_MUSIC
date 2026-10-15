@@ -25,6 +25,24 @@ internal object YouTubePlaybackRules {
             .orEmpty()
     }
 
+    /**
+     * Accept a player event if it has no video ID yet or is for the active video.
+     * Events with a different, known video ID are stale and must be ignored.
+     */
+    fun eventBelongsToActiveVideo(activeVideoId: String, eventVideoId: String?): Boolean {
+        val active = sanitizeVideoId(activeVideoId)
+        if (active.isBlank()) return false
+        val reported = sanitizeVideoId(eventVideoId.orEmpty())
+        return reported.isBlank() || reported == active
+    }
+
+    /** Only advance the queue when the player explicitly reports the active video ended. */
+    fun isEndedEventForActiveVideo(activeVideoId: String, eventVideoId: String?): Boolean {
+        val active = sanitizeVideoId(activeVideoId)
+        val reported = sanitizeVideoId(eventVideoId.orEmpty())
+        return active.isNotBlank() && reported == active
+    }
+
     fun errorMessage(code: Int): String = when (code) {
         153 -> "YouTube không xác thực được trình phát (Error 153). Hãy bấm THỬ LẠI."
         152 -> "YouTube báo lỗi xác thực/trình phát (Error 152). Hãy bấm THỬ LẠI."
