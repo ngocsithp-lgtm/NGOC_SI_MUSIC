@@ -1,15 +1,20 @@
 package com.ngocsi.music
 
+import android.app.PictureInPictureParams
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.net.Uri
 import android.graphics.BitmapFactory
 import android.graphics.Bitmap
 import android.graphics.Color as AndroidColor
 import android.content.res.ColorStateList
 import android.graphics.drawable.GradientDrawable
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Rational
 import android.view.View
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
@@ -61,6 +66,11 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var title: String = "YouTube"
     private var channel: String = "YouTube"
     private lateinit var titleView: TextView
+    private var pipHeader: View? = null
+    private var pipInfo: View? = null
+    private var pipTransport: View? = null
+    private var pipUtilityRow: View? = null
+    private var pipQueueActions: View? = null
     private lateinit var channelView: TextView
     private lateinit var favoriteButton: Button
     private lateinit var watchLaterButton: Button
@@ -101,6 +111,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             runOnUiThread {
                 youtubePlayerReady = true
                 updatePlaybackButton()
+                updatePipParamsIfSupported()
                 restoreSavedPlaybackPosition()
                 startPlaybackPositionSaver()
                 executePendingAiAction()
@@ -112,6 +123,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             runOnUiThread {
                 youtubePlayerState = state
                 updatePlaybackButton()
+                updatePipParamsIfSupported()
                 if (state == 0 && queue.isNotEmpty()) {
                     val endedId = sanitizeVideoId(videoId)
                     if (endedId.isNotBlank() && lastHandledEndedVideoId != endedId) {
@@ -279,6 +291,8 @@ class YouTubePlayerActivity : ComponentActivity() {
             0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
         ))
 
+        pipHeader = header
+
         playerContainer = FrameLayout(this).apply {
             setBackgroundColor(AndroidColor.BLACK)
             contentDescription = "Trình phát video YouTube"
@@ -302,6 +316,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             setPadding(dp(16), dp(13), dp(16), dp(5))
             setBackgroundColor(AndroidColor.rgb(11, 12, 16))
         }
+        pipInfo = info
         val nowPlaying = TextView(this).apply {
             text = "●  ĐANG PHÁT"
             setTextColor(AndroidColor.rgb(143, 214, 148))
@@ -339,6 +354,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             gravity = Gravity.CENTER
             setPadding(dp(12), dp(10), dp(12), dp(8))
         }
+        pipTransport = transport
         previousButton = actionButton("⏮") { playPrevious() }
         playPauseButton = actionButton("▶") { toggleYoutubePlayback() }
         nextButton = actionButton("⏭") { playNext() }
@@ -363,6 +379,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(10), dp(1), dp(10), dp(3))
         }
+        pipUtilityRow = utilityRow
         favoriteButton = actionButton("♡\nYêu thích") { toggleFavorite() }.apply {
             textSize = 11f
             contentDescription = "Yêu thích"
@@ -394,6 +411,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(10), dp(8), dp(10), dp(3))
         }
+        pipQueueActions = queueActions
         val queueButton = Button(this).apply {
             text = "☷  Hàng đợi  •  " + (queueIndex + 1) + "/" + queue.size
             tag = "queue_button"
@@ -1501,6 +1519,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         // the foreground. This does not attempt to bypass YouTube background-
         // playback restrictions; it only makes foreground recovery reliable.
         webView?.onResume()
+        updatePipParamsIfSupported()
         // onPause()/onStop() stop the periodic position saver. Restart it when
         // returning to an already-ready player; onReady() only fires on initial
         // player setup, so relying on that callback loses periodic saves after
@@ -1510,11 +1529,57 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
     }
 
+    private fun buildPipParams(): PictureInPictureParams {
+        val builder = PictureInPictureParams.Builder()
+            .setAspectRatio(Rational(16, 9))
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            builder.setAutoEnterEnabled(youtubePlayerReady && youtubePlayerState == 1)
+        }
+        return builder.build()
+    }
+
+    private fun updatePipParamsIfSupported() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
+            !packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
+        ) return
+        runCatching { setPictureInPictureParams(buildPipParams()) }
+    }
+
+    override fun onPictureInPictureModeChanged(
+        isInPictureInPictureMode: Boolean,
+        newConfig: Configuration
+    ) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        val visibility = if (isInPictureInPictureMode) View.GONE else View.VISIBLE
+        listOf(pipHeader, pipInfo, pipTransport, pipUtilityRow, pipQueueActions)
+            .forEach { it?.visibility = visibility }
+        if (isInPictureInPictureMode) loadingBar?.visibility = View.GONE
+        if (::playerContainer.isInitialized) {
+            playerContainer.post {
+                val width = playerContainer.width
+                if (width <= 0) return@post
+                val params = playerContainer.layoutParams as? LinearLayout.LayoutParams ?: return@post
+                params.height = if (isInPictureInPictureMode) {
+                    (width * 9f / 16f).toInt().coerceAtLeast(dp(100))
+                } else {
+                    (resources.displayMetrics.widthPixels * 9f / 16f).toInt().coerceAtLeast(dp(200))
+                }
+                playerContainer.layoutParams = params
+            }
+        }
+    }
+
     override fun onUserLeaveHint() {
-        // Persist the active YouTube item whenever the user leaves the Activity
-        // (Home, task switcher, notification shade, etc.).
+        // Persist playback state, then use PiP as a visible fallback on Android 8–11.
         saveLastPlayedState()
         super.onUserLeaveHint()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.S &&
+            youtubePlayerReady && youtubePlayerState == 1 &&
+            packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
+        ) {
+            runCatching { enterPictureInPictureMode(buildPipParams()) }
+        }
     }
 
     override fun onPause() {
