@@ -4886,8 +4886,6 @@ class MainActivity : ComponentActivity() {
         duration: Long,
         onOpenLibrary: () -> Unit,
         onOpenYouTube: () -> Unit,
-        onOpenRadio: () -> Unit,
-        onOpenTv: () -> Unit,
         onOpenDrive: () -> Unit,
         onOpenQueue: () -> Unit,
         onOpenPlaylists: () -> Unit,
