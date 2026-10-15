@@ -39,6 +39,28 @@ class YouTubePlaybackRulesTest {
     }
 
     @Test
+    fun rejectsStaleEventsWhenThePlayerReportsAnotherQueueItem() {
+        assertTrue(
+            !YouTubePlaybackRules.eventBelongsToActiveVideo(
+                "dQw4w9WgXcQ",
+                "M7lc1UVf-VE"
+            )
+        )
+        assertTrue(
+            !YouTubePlaybackRules.isEndedEventForActiveVideo(
+                "dQw4w9WgXcQ",
+                "M7lc1UVf-VE"
+            )
+        )
+        assertTrue(
+            YouTubePlaybackRules.isEndedEventForActiveVideo(
+                "dQw4w9WgXcQ",
+                "dQw4w9WgXcQ"
+            )
+        )
+    }
+
+    @Test
     fun mapsCommonIframeErrorsToActionableVietnameseMessages() {
         assertTrue(YouTubePlaybackRules.errorMessage(153).contains("Error 153"))
         assertTrue(YouTubePlaybackRules.errorMessage(152).contains("Error 152"))
