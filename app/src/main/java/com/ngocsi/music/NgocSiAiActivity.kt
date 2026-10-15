@@ -2036,6 +2036,34 @@ private fun NgocSiAiPreviewScreen(
     fun sendMessage(text: String) {
         val clean = text.trim()
         if (clean.isBlank()) return
+        // Voice-control exit phrases are handled before music-command classification
+        // or Gemini so "AI, tạm dừng giọng nói" never becomes a music-pause request.
+        if (isNgocSiAiStopVoiceControlPhrase(clean)) {
+            val wasListening = isWakeWordListening
+            messages.add(AiPreviewMessage(true, clean))
+            if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
+            input = ""
+            if (wasListening) onToggleWakeWord()
+            val voiceControlReply = if (wasListening) {
+                "Đã tắt điều khiển giọng nói. Nhạc vẫn tiếp tục phát."
+            } else {
+                "Điều khiển giọng nói hiện đã tắt; nhạc không bị ảnh hưởng."
+            }
+            messages.add(AiPreviewMessage(false, voiceControlReply))
+            if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
+            if (!isSending) {
+                conversation.add(NgocSiAiMessage(role = "user", content = clean))
+                conversation.add(NgocSiAiMessage(role = "assistant", content = voiceControlReply))
+                while (conversation.size > NGOC_SI_AI_MAX_HISTORY_MESSAGES) {
+                    conversation.removeAt(0)
+                    if (conversation.firstOrNull()?.role == "assistant") conversation.removeAt(0)
+                }
+            }
+            persistChatState()
+            onVoiceReply(voiceControlReply)
+            return
+        }
+
         // All allowlisted on-device commands and short local replies stay responsive
         // while an unrelated Gemini request is still in flight.
         val explicitStop = isNgocSiAiExplicitStopPhrase(clean)
