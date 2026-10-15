@@ -985,9 +985,18 @@ class YouTubePlayerActivity : ComponentActivity() {
                 queueTransitionInFlight = false
                 if (isFinishing || isDestroyed) return@runOnUiThread
 
-                videoId = selected.videoId
-                title = selected.title
-                channel = selected.channelTitle
+                // A new search result may have changed queueIndex while the outgoing
+                // position was being saved. Apply the newest selection directly so
+                // we don't briefly load a stale item or persist mismatched metadata.
+                val target = if (pendingQueueLoad) {
+                    pendingQueueLoad = false
+                    queue.getOrNull(queueIndex) ?: selected
+                } else {
+                    selected
+                }
+                videoId = target.videoId
+                title = target.title
+                channel = target.channelTitle
                 restoredPositionVideoId = null
                 positionRestoreAttempts = 0
                 lastHandledEndedVideoId = null
@@ -1002,16 +1011,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 saveLastPlayedState()
 
                 val safeId = sanitizeVideoId(videoId)
-                webView?.evaluateJavascript("loadVideoById('$safeId');") {
-                    if (pendingQueueLoad && !isFinishing && !isDestroyed) {
-                        pendingQueueLoad = false
-                        // Let the IFrame accept the current load command before
-                        // saving position and applying the newest queued selection.
-                        playbackPositionHandler.postDelayed({
-                            if (!isFinishing && !isDestroyed) loadQueueItem()
-                        }, 350L)
-                    }
-                }
+                webView?.evaluateJavascript("loadVideoById('$safeId');", null)
             }
         }
     }
