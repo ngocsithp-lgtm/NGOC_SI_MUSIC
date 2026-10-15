@@ -51,7 +51,7 @@ internal object BackgroundAudioMatchRules {
             .replace(Regex("""\p{Mn}+"""), "")
         return nonWord.replace(unmarked.lowercase(Locale.ROOT), " ")
             .trim()
-            .let(whitespace::replace)
+            .replace(whitespace, " ")
     }
 
     fun cleanTitle(value: String): String = value
