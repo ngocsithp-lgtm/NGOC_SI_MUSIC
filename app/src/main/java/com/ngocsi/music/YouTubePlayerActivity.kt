@@ -1170,7 +1170,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             append(candidate.artist)
             append("\n\nNguồn: ")
             append(candidate.sourceLabel)
-            append("\nĐộ khớp tên bài: ")
+            append("\nĐộ khớp bài hát/nghệ sĩ: ")
             append(percent)
             append("%")
             if (candidate.licenseLabel.isNotBlank()) {
