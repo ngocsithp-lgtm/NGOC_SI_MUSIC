@@ -2,11 +2,8 @@ package com.ngocsi.music
 
 import android.content.ComponentName
 import android.content.Context
-import android.media.session.PlaybackState
 import android.service.notification.NotificationListenerService
-import androidx.media.session.MediaButtonReceiver
 import android.media.session.MediaSessionManager
-import android.media.session.MediaController as PlatformMediaController
 
 /**
  * Minimal bridge to Morphe's standard Android media session.
