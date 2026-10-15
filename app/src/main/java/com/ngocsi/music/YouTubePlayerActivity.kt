@@ -38,18 +38,18 @@ import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewFeature
 import androidx.webkit.WebViewMediaIntegrityApiStatusConfig
 import androidx.activity.ComponentActivity
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.OnBackPressedCallback
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.lifecycleScope
+import android.provider.OpenableColumns
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
-import kotlinx.coroutines.launch
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.Executors
@@ -171,6 +171,12 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private val youtubeJsBridge = YoutubeJsBridge()
+
+    private val backgroundAudioPicker = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) onBackgroundAudioSelected(uri)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -417,13 +423,14 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
         content.addView(utilityRow)
 
-        // Searches for a separately hosted audio track; it never extracts audio from a YouTube video.
-        val backgroundButton = actionButton("🎧  TÌM BẢN ÂM THANH ĐỂ NGHE NỀN") {
-            findBackgroundAudio()
+        // Let the user choose an independent audio file; do not extract or search for
+        // a separate copy of the YouTube video's audio.
+        val backgroundButton = actionButton("🎧  CHỌN NHẠC CÓ SẴN ĐỂ NGHE NỀN") {
+            pickBackgroundAudioFile()
         }.apply {
             tag = "youtube_background_audio_button"
             textSize = 12f
-            contentDescription = "Tìm bản âm thanh độc lập có tên bài và nghệ sĩ khớp để phát nền"
+            contentDescription = "Chọn tệp âm thanh bạn có quyền sử dụng để phát nền; không tách âm thanh từ video YouTube"
         }
         styleWideButton(backgroundButton, emphasized = true)
         backgroundButton.setTextColor(AndroidColor.BLACK)
@@ -1108,98 +1115,48 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
 
-    private fun findBackgroundAudio() {
-        val button = backgroundAudioSearchButton
-        if (button?.isEnabled == false) return
-        button?.isEnabled = false
-        button?.text = "ĐANG TÌM BẢN KHỚP…"
-
-        lifecycleScope.launch {
-            try {
-                val candidate = YoutubeBackgroundAudioResolver.findBest(
-                    this@YouTubePlayerActivity,
-                    title,
-                    channel
-                )
-                if (isFinishing || isDestroyed) return@launch
-
-                if (candidate == null) {
-                    android.app.AlertDialog.Builder(this@YouTubePlayerActivity)
-                        .setTitle("Chưa tìm thấy bản nghe nền phù hợp")
-                        .setMessage(
-                            "Ứng dụng không tìm thấy bản âm thanh độc lập có tên bài và nghệ sĩ khớp đủ cao trong nhạc trên thiết bị, hàng đợi đã lưu hoặc kho âm thanh công khai. " +
-                                "Ứng dụng không tách âm thanh trực tiếp từ video YouTube. Bạn vẫn có thể xem video trong trình phát YouTube hoặc dùng PiP."
-                        )
-                        .setPositiveButton("MỞ YOUTUBE") { _, _ ->
-                            runCatching {
-                                startActivity(
-                                    Intent(
-                                        Intent.ACTION_VIEW,
-                                        Uri.parse("https://www.youtube.com/watch?v=" + sanitizeVideoId(videoId))
-                                    )
-                                )
-                            }
-                        }
-                        .setNegativeButton("ĐÓNG", null)
-                        .show()
-                } else {
-                    showBackgroundAudioCandidate(candidate)
-                }
-            } catch (_: Exception) {
-                if (!isFinishing && !isDestroyed) {
-                    Toast.makeText(
-                        this@YouTubePlayerActivity,
-                        "Không thể tìm bản nghe nền lúc này. Hãy thử lại khi có kết nối mạng.",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
-            } finally {
-                if (!isFinishing && !isDestroyed) {
-                    button?.isEnabled = true
-                    button?.text = "🎧  TÌM BẢN ÂM THANH ĐỂ NGHE NỀN"
-                }
-            }
-        }
+    private fun pickBackgroundAudioFile() {
+        backgroundAudioPicker.launch(arrayOf("audio/*"))
     }
 
-    private fun showBackgroundAudioCandidate(candidate: BackgroundAudioCandidate) {
-        val percent = (candidate.matchScore * 100).toInt().coerceIn(0, 100)
-        val details = buildString {
-            append(candidate.title)
-            append("\n")
-            append(candidate.artist)
-            append("\n\nNguồn: ")
-            append(candidate.sourceLabel)
-            append("\nĐộ khớp bài hát/nghệ sĩ: ")
-            append(percent)
-            append("%")
-            if (candidate.licenseLabel.isNotBlank()) {
-                append("\nThông tin quyền sử dụng: ")
-                append(candidate.licenseLabel)
-            }
-            append("\n\nĐây là bản âm thanh độc lập từ nguồn khác, không phải âm thanh trích xuất từ video YouTube.")
+    private fun onBackgroundAudioSelected(uri: Uri) {
+        // Persist access so MusicService can continue reading the selected document
+        // after this Activity goes to the background or the screen is locked.
+        runCatching {
+            contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
         }
-        val dialog = android.app.AlertDialog.Builder(this)
-            .setTitle("BẢN CÓ THỂ NGHE NỀN")
-            .setMessage(details)
-            .setPositiveButton("PHÁT NỀN") { _, _ -> startBackgroundPlayback(candidate) }
-            .setNegativeButton("HỦY", null)
-            .apply {
-                if (!candidate.landingUrl.isNullOrBlank()) {
-                    setNeutralButton("XEM NGUỒN") { _, _ ->
-                        runCatching {
-                            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(candidate.landingUrl)))
-                        }.onFailure {
-                            Toast.makeText(this@YouTubePlayerActivity, "Không mở được trang nguồn.", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                }
-            }
-            .create()
-        dialog.show()
+
+        val displayName = runCatching {
+            contentResolver.query(
+                uri,
+                arrayOf(OpenableColumns.DISPLAY_NAME),
+                null,
+                null,
+                null
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) cursor.getString(0).orEmpty() else ""
+            }.orEmpty()
+        }.getOrDefault("")
+        val fileName = displayName.substringAfterLast('/')
+        val selectedTitle = fileName.substringBeforeLast('.', fileName)
+            .trim()
+            .ifBlank { "Nhạc đã chọn" }
+
+        startBackgroundPlayback(
+            audioUri = uri,
+            selectedTitle = selectedTitle,
+            selectedArtist = "Tệp âm thanh đã chọn"
+        )
     }
 
-    private fun startBackgroundPlayback(candidate: BackgroundAudioCandidate) {
+    private fun startBackgroundPlayback(
+        audioUri: Uri,
+        selectedTitle: String,
+        selectedArtist: String
+    ) {
         val token = SessionToken(this, android.content.ComponentName(this, MusicService::class.java))
         val future = MediaController.Builder(this, token).buildAsync()
         future.addListener({
@@ -1217,18 +1174,15 @@ class YouTubePlayerActivity : ComponentActivity() {
                 }
 
                 runCatching {
-                    val metadataBuilder = MediaMetadata.Builder()
-                        .setTitle(candidate.title)
-                        .setArtist(candidate.artist.ifBlank { candidate.sourceLabel })
-                        .setDescription(
-                            "Nguồn: " + candidate.sourceLabel +
-                                if (candidate.licenseLabel.isBlank()) "" else " • " + candidate.licenseLabel
-                        )
-                    candidate.artworkUri?.let { metadataBuilder.setArtworkUri(it) }
+                    val metadata = MediaMetadata.Builder()
+                        .setTitle(selectedTitle)
+                        .setArtist(selectedArtist.ifBlank { "Tệp âm thanh đã chọn" })
+                        .setDescription("Nguồn: tệp âm thanh do người dùng chọn")
+                        .build()
                     val item = MediaItem.Builder()
-                        .setMediaId(candidate.uri.toString())
-                        .setUri(candidate.uri)
-                        .setMediaMetadata(metadataBuilder.build())
+                        .setMediaId(audioUri.toString())
+                        .setUri(audioUri)
+                        .setMediaMetadata(metadata)
                         .build()
 
                     // Insert after the active track so the existing queue is retained.
@@ -1247,12 +1201,12 @@ class YouTubePlayerActivity : ComponentActivity() {
                     webView?.evaluateJavascript("pauseVideo()", null)
                     Toast.makeText(
                         this,
-                        "Đã gửi bản âm thanh độc lập sang dịch vụ phát nền. Có thể tắt màn hình để thử nghe.",
+                        "Đã chuyển tệp nhạc bạn chọn sang dịch vụ phát nền. Có thể khóa màn hình để thử nghe.",
                         Toast.LENGTH_LONG
                     ).show()
                 }.onFailure {
                     controller.release()
-                    Toast.makeText(this, "Không phát được bản âm thanh vừa chọn.", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, "Không phát được tệp âm thanh đã chọn.", Toast.LENGTH_LONG).show()
                 }
             }
         }, ContextCompat.getMainExecutor(this))
