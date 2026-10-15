@@ -4927,7 +4927,7 @@ class MainActivity : ComponentActivity() {
                         Text(
                             "MUSIC • VIDEO • RADIO",
                             color = Color(0xFF858B9C),
-                            fontSize = 9.sp,
+                            fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.15.sp
                         )
@@ -5020,7 +5020,7 @@ class MainActivity : ComponentActivity() {
                                         Text(
                                             currentSong.source,
                                             color = Color(0xFF777F91),
-                                            fontSize = 9.sp,
+                                            fontSize = 10.sp,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
@@ -5259,7 +5259,7 @@ class MainActivity : ComponentActivity() {
                 Text(
                     label,
                     color = if (selected) NgocSiVisuals.Text else Color(0xFF7A8394),
-                    fontSize = 9.sp,
+                    fontSize = 10.sp,
                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
                 )
             }
@@ -5280,7 +5280,7 @@ class MainActivity : ComponentActivity() {
             Text(
                 title,
                 color = Color(0xFFD7D9E1),
-                fontSize = 9.sp,
+                fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(horizontal = 7.dp, vertical = 8.dp),
                 maxLines = 1
@@ -5926,9 +5926,9 @@ class MainActivity : ComponentActivity() {
                             Text(
                                 "HOME",
                                 color = NgocSiVisuals.Secondary,
-                                fontSize = 7.sp,
+                                fontSize = 9.sp,
                                 fontWeight = FontWeight.Black,
-                                lineHeight = 8.sp
+                                lineHeight = 10.sp
                             )
                         }
                     }
@@ -5967,7 +5967,7 @@ class MainActivity : ComponentActivity() {
                     Text(
                         subtitle,
                         color = Color(0xFF777F8E),
-                        fontSize = 9.5.sp,
+                        fontSize = 11.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -5980,7 +5980,7 @@ class MainActivity : ComponentActivity() {
                         Text(
                             "PRO",
                             color = NgocSiVisuals.Secondary,
-                            fontSize = 8.sp,
+                            fontSize = 10.sp,
                             fontWeight = FontWeight.Black,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
                         )
@@ -6002,7 +6002,7 @@ class MainActivity : ComponentActivity() {
             Text(
                 "PHÁT NHẠC",
                 color = Color(0xFF858B9C),
-                fontSize = 9.sp,
+                fontSize = 11.sp,
                 fontWeight = FontWeight.Black,
                 letterSpacing = 1.2.sp,
                 modifier = Modifier.padding(start = 2.dp, top = 2.dp)
