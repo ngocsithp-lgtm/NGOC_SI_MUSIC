@@ -46,6 +46,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import kotlinx.coroutines.launch
@@ -53,6 +54,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.Executors
 
+@OptIn(UnstableApi::class)
 class YouTubePlayerActivity : ComponentActivity() {
 
     companion object {
