@@ -18,6 +18,7 @@ internal fun classifyNgocSiAiQuotaCooldown(message: String): NgocSiAiQuotaCooldo
     val upper = message.uppercase()
     return when {
         "AI_FREE_TIER_PROJECT_RESTRICTED" in upper -> NgocSiAiQuotaCooldownKind.PROJECT_FREE_TIER_RESTRICTED
+        "AI_PAID_TIER_REQUIRED" in upper -> NgocSiAiQuotaCooldownKind.PAID_TIER
         "AI_QUOTA_429_PROJECT_OR_CAPACITY" in upper -> NgocSiAiQuotaCooldownKind.PROJECT_OR_CAPACITY
         "AI_QUOTA_429_DAILY" in upper -> NgocSiAiQuotaCooldownKind.DAILY
         "AI_QUOTA_429_FREE_TIER" in upper -> NgocSiAiQuotaCooldownKind.FREE_TIER
@@ -87,6 +88,9 @@ internal fun classifyNgocSiAiQuotaErrorDetails(message: String): NgocSiAiQuotaCo
         "too many requests", "overloaded", "capacity"
     ).any { it in details }
 
+    // A provider can return 403/permission-denied for a model requiring billing,
+    // without any 429/quota wording. Classify that explicitly instead of calling it App Check.
+    if (paidTierRequired) return NgocSiAiQuotaCooldownKind.PAID_TIER
     if (!quotaOrCapacity) return null
     return when {
         minuteLimit -> NgocSiAiQuotaCooldownKind.RATE
@@ -143,7 +147,14 @@ internal fun ngocSiAiQuotaDiagnosticCode(message: String): String? {
     if (isAmbiguousNgocSiAiProjectQuotaError(message)) {
         return "AI_QUOTA_429_PROJECT_OR_CAPACITY"
     }
-    return when (classifyNgocSiAiQuotaErrorDetails(message)) {
+    val kind = classifyNgocSiAiQuotaErrorDetails(message)
+    if (kind == NgocSiAiQuotaCooldownKind.PAID_TIER) {
+        val details = message.lowercase(java.util.Locale.ROOT)
+        val hasQuotaResponse = listOf("429", "resource_exhausted", "quota", "too many requests")
+            .any { it in details }
+        if (!hasQuotaResponse) return "AI_PAID_TIER_REQUIRED"
+    }
+    return when (kind) {
         NgocSiAiQuotaCooldownKind.DAILY -> "AI_QUOTA_429_DAILY"
         NgocSiAiQuotaCooldownKind.RATE -> "AI_QUOTA_429_RATE"
         NgocSiAiQuotaCooldownKind.PAID_TIER -> "AI_QUOTA_429_PAID_TIER"
@@ -172,6 +183,8 @@ internal fun ngocSiAiQuotaStatusNotice(message: String): String? {
     return when {
         "AI_FREE_TIER_PROJECT_RESTRICTED" in upper ->
             "Quyền Gemini miễn phí của dự án đang bị nhà cung cấp hạn chế; lệnh trên điện thoại vẫn hoạt động, không bật thanh toán."
+        "AI_PAID_TIER_REQUIRED" in upper ->
+            "Mô hình chat trực tuyến này yêu cầu quyền truy cập trả phí; ứng dụng không bật thanh toán, lệnh nhạc trên điện thoại vẫn hoạt động."
         "AI_QUOTA_429_PROJECT_OR_CAPACITY" in upper ->
             "Chat trực tuyến đang bị giới hạn ở phía dự án Gemini; lệnh nhạc trên điện thoại vẫn hoạt động."
         "AI_QUOTA_429" in upper || "AI_QUOTA_COOLDOWN" in upper ->

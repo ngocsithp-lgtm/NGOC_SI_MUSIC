@@ -133,6 +133,26 @@ class NgocSiAiQuotaRulesTest {
     }
 
     @Test
+    fun identifiesPaidTierRequiredWithout429QuotaWording() {
+        val message =
+            "PERMISSION_DENIED: This model is not available on free tier; billing must be enabled."
+
+        assertEquals(
+            NgocSiAiQuotaCooldownKind.PAID_TIER,
+            classifyNgocSiAiQuotaErrorDetails(message)
+        )
+        assertEquals("AI_PAID_TIER_REQUIRED", ngocSiAiQuotaDiagnosticCode(message))
+        assertEquals(
+            NgocSiAiQuotaCooldownKind.PAID_TIER,
+            classifyNgocSiAiQuotaCooldown("Mã chẩn đoán: AI_PAID_TIER_REQUIRED")
+        )
+        assertTrue(
+            ngocSiAiQuotaStatusNotice("AI_PAID_TIER_REQUIRED")
+                ?.contains("lệnh nhạc trên điện thoại vẫn hoạt động") == true
+        )
+    }
+
+    @Test
     fun classifiesDailyFreeTierAndTemporaryQuotaErrors() {
         assertEquals(
             NgocSiAiQuotaCooldownKind.DAILY,

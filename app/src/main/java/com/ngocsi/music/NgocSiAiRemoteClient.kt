@@ -190,6 +190,8 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 "Bạn đã chạm giới hạn yêu cầu trong thời gian ngắn. Mã chẩn đoán: AI_QUOTA_429_RATE. Hãy chờ trước khi hỏi tiếp."
             quotaDiagnosticCode == "AI_QUOTA_429_PAID_TIER" ->
                 "Mô hình hoặc tính năng này yêu cầu gói trả phí. Mã chẩn đoán: AI_QUOTA_429_PAID_TIER. Bản Preview vẫn giữ chế độ không thanh toán."
+            quotaDiagnosticCode == "AI_PAID_TIER_REQUIRED" ->
+                "Google báo mô hình hoặc tính năng này yêu cầu quyền truy cập trả phí. Mã chẩn đoán: AI_PAID_TIER_REQUIRED. Bản Preview không bật thanh toán; các lệnh cục bộ vẫn hoạt động."
             quotaDiagnosticCode == "AI_QUOTA_429_FREE_TIER" ->
                 "Hạn mức miễn phí của mô hình Gemini có thể đã hết. Mã chẩn đoán: AI_QUOTA_429_FREE_TIER. Không gửi lại liên tục; ứng dụng vẫn giữ chế độ không thanh toán."
             quotaDiagnosticCode == "AI_QUOTA_429_PROJECT_OR_CAPACITY" ->
