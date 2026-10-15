@@ -607,7 +607,7 @@ class NgocSiWakeWordService : Service() {
     private fun processRecognizedPhrases(phrases: List<String>) {
         // Handle the explicit exit command before wake-word or playback classification.
         // It disables only the microphone listener and never pauses the music player.
-        val stopVoicePhrase = phrases.firstOrNull { isNgocSiAiStopVoiceControlPhrase(it) }
+        val stopVoicePhrase = selectNgocSiAiStopVoiceControlCandidate(phrases)
         if (stopVoicePhrase != null) {
             stopVoiceControlByCommand(stopVoicePhrase)
             return

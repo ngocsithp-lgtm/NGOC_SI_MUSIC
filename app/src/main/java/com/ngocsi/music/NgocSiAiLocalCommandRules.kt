@@ -756,6 +756,24 @@ internal fun selectNgocSiAiActivatedCommandCandidate(candidates: List<String>): 
         ?: cleaned.firstOrNull()
 }
 
+/**
+ * Select a voice-control exit only when no higher-ranked alternative is already
+ * a recognized app/playback command. Android returns alternatives in recognition
+ * order; a weak “stop listening” hypothesis must not override a clear music command.
+ */
+internal fun selectNgocSiAiStopVoiceControlCandidate(candidates: List<String>): String? {
+    val cleaned = candidates.map { it.trim() }.filter { it.isNotBlank() }
+    val stopIndex = cleaned.indexOfFirst(::isNgocSiAiStopVoiceControlPhrase)
+    if (stopIndex < 0) return null
+
+    val earlierActionableCommand = cleaned.take(stopIndex).any { candidate ->
+        classifyNgocSiAiWakePhrase(candidate) != null ||
+            classifyNgocSiAiActivatedCommand(candidate) != null ||
+            classifyNgocSiAiLocalCommand(candidate) != null
+    }
+    return if (earlierActionableCommand) null else cleaned[stopIndex]
+}
+
 /** Wake-word mode must keep its stricter explicit “AI” requirement. */
 internal fun selectNgocSiAiWakePhraseCandidate(candidates: List<String>): String? {
     val cleaned = candidates.map { it.trim() }.filter { it.isNotBlank() }

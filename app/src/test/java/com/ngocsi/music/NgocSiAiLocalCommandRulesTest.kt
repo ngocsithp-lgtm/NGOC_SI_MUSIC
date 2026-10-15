@@ -726,6 +726,32 @@ class NgocSiAiLocalCommandRulesTest {
 
 
     @Test
+    fun stopVoiceCandidateDoesNotOverrideAnEarlierPlaybackCommand() {
+        assertNull(
+            selectNgocSiAiStopVoiceControlCandidate(
+                listOf("tạm dừng nhạc", "tạm dừng AI")
+            )
+        )
+        assertNull(
+            selectNgocSiAiStopVoiceControlCandidate(
+                listOf("mở YouTube", "tắt điều khiển giọng nói")
+            )
+        )
+    }
+
+    @Test
+    fun explicitStopVoiceCandidateStillWinsWhenItRanksFirst() {
+        assertEquals(
+            "tạm dừng AI",
+            selectNgocSiAiStopVoiceControlCandidate(
+                listOf("tạm dừng AI", "tạm dừng nhạc")
+            )
+        )
+        assertNull(selectNgocSiAiStopVoiceControlCandidate(listOf("tạm dừng nhạc")))
+        assertNull(selectNgocSiAiStopVoiceControlCandidate(emptyList()))
+    }
+
+    @Test
     fun acceptsPoliteVoiceFillersWithoutLosingNamedQueries() {
         assertEquals(
             NgocSiAiLocalCommand.PLAY,
