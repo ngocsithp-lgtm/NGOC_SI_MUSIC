@@ -92,6 +92,14 @@ import kotlin.math.max
 
 data class Song(val id: Long, val title: String, val artist: String, val duration: Long, val uri: Uri, val source: String = "Thiết bị", val albumId: Long = -1L, val artworkUri: Uri? = null, val folder: String = "")
 
+private fun isRetainedMusicSource(source: String): Boolean {
+    val normalized = source.trim()
+    return normalized.equals("Thiết bị", ignoreCase = true) ||
+        normalized.equals("Google Drive", ignoreCase = true) ||
+        normalized.startsWith("Google Drive •", ignoreCase = true) ||
+        normalized.startsWith("Chia sẻ •", ignoreCase = true)
+}
+
 @Stable
 private data class QueueRenderState(
     val activeQueueIndex: Int,
@@ -314,7 +322,7 @@ class MainActivity : ComponentActivity() {
     private val onlineFavoriteSet = mutableSetOf<String>()
     private var audiusLoading by mutableStateOf(false)
     private var onlineSearchActive by mutableStateOf(false)
-    private var onlineHubTab by mutableStateOf("Tất cả")
+    private var onlineHubTab by mutableStateOf("YouTube")
     private var onlineSort by mutableStateOf("Tên A-Z")
     private var onlineVisibleCount by mutableIntStateOf(30)
     private val youtubeHistory = mutableStateListOf<String>()
@@ -4559,16 +4567,14 @@ class MainActivity : ComponentActivity() {
         val filteredSongs by remember(searchQuery, selectedLibrary, libraryView) {
             derivedStateOf {
                 val q = searchQuery.trim()
-                val byText = if (q.isBlank()) songs.toList() else songs.filter {
+                val retainedSongs = songs.filter { isRetainedMusicSource(it.source) }
+                val byText = if (q.isBlank()) retainedSongs else retainedSongs.filter {
                     it.title.contains(q, true) || it.artist.contains(q, true) || it.source.contains(q, true)
                 }
                 val bySource = when {
                     selectedLibrary == "Yêu thích" -> byText.filter { favorites[it.id] == true }
                     selectedLibrary == "Tất cả" -> byText
                     selectedLibrary == "Thiết bị" -> byText.filter { it.source == "Thiết bị" }
-                    selectedLibrary == "Online" -> byText.filter {
-                        it.source in setOf("Online", "Jamendo", "Audius", "Radio Việt Nam")
-                    }
                     else -> byText.filter { it.source == selectedLibrary }
                 }
                 when (libraryView) {
@@ -4638,10 +4644,6 @@ class MainActivity : ComponentActivity() {
                                 selectedSection = "Online"
                                 onlineHubTab = "YouTube"
                             },
-                            onOpenRadio = {
-                                selectedSection = "Radio"
-                            },
-                            onOpenTv = { selectedSection = "TV" },
                             onOpenDrive = {
                                 selectedSection = "Online"
                                 onlineHubTab = "Drive"
@@ -5087,10 +5089,9 @@ class MainActivity : ComponentActivity() {
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(9.dp)
                 ) {
-                    ProHomeQuickTile("♫", "Thư viện", onOpenLibrary, Modifier.weight(1f))
+                    ProHomeQuickTile("♫", "Nhạc trên máy", onOpenLibrary, Modifier.weight(1f))
                     ProHomeQuickTile("▶", "YouTube", onOpenYouTube, Modifier.weight(1f))
-                    ProHomeQuickTile("◉", "Radio", onOpenRadio, Modifier.weight(1f))
-                    ProHomeQuickTile("▣", "TV", onOpenTv, Modifier.weight(1f))
+                    ProHomeQuickTile("☁", "Google Drive", onOpenDrive, Modifier.weight(1f))
                 }
             }
 
@@ -5565,7 +5566,7 @@ class MainActivity : ComponentActivity() {
             derivedStateOf {
                 songs.asSequence()
                     .map { it.source }
-                    .filter { it.isNotBlank() }
+                    .filter { it.isNotBlank() && isRetainedMusicSource(it) }
                     .distinct()
                     .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it })
                     .toList()
@@ -5575,7 +5576,7 @@ class MainActivity : ComponentActivity() {
             derivedStateOf {
                 buildMap {
                     songs.forEach { song ->
-                        if (song.source.isNotBlank()) {
+                        if (song.source.isNotBlank() && isRetainedMusicSource(song.source)) {
                             put(song.source, (get(song.source) ?: 0) + 1)
                         }
                     }
@@ -5632,7 +5633,7 @@ class MainActivity : ComponentActivity() {
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(7.dp)
             ) {
-                listOf("Tất cả", "Thiết bị", "Online", "Yêu thích").forEach { filter ->
+                listOf("Tất cả", "Thiết bị", "Yêu thích").forEach { filter ->
                     FilterChip(
                         selected = selectedLibrary == filter,
                         onClick = { selectedLibrary = filter },
@@ -5822,10 +5823,6 @@ class MainActivity : ComponentActivity() {
                             showMore = false
                             showPlaylists = true
                         })
-                        ProHomeNavChip("▣ TV", {
-                            showMore = false
-                            selectedSection = "TV"
-                        })
                         ProHomeNavChip("⚙ Cài đặt", {
                             showMore = false
                             selectedSection = "Cài đặt"
@@ -5863,9 +5860,10 @@ class MainActivity : ComponentActivity() {
                         selectedSection = "Online"
                         onlineHubTab = "YouTube"
                     }
-                    ProHomeNavItem("◉", "Radio", selectedSection == "Radio") {
+                    ProHomeNavItem("☁", "Drive", selectedSection == "Online" && onlineHubTab == "Drive") {
                         showMore = false
-                        selectedSection = "Radio"
+                        selectedSection = "Online"
+                        onlineHubTab = "Drive"
                     }
                     ProHomeNavItem("＋", "Thêm", showMore) {
                         showMore = !showMore
@@ -6048,11 +6046,6 @@ class MainActivity : ComponentActivity() {
                 selectedSection = "Online"
                 onlineHubTab = "Drive"
             }
-            SettingsRow(
-                "📺",
-                "TV",
-                (TvCatalog.builtIn.size + customTvSources.size).toString() + " nguồn TV"
-            ) { selectedSection = "TV" }
             SettingsRow(
                 "♫",
                 "Playlist",
@@ -9126,12 +9119,12 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             }
             Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf("Tất cả", "YouTube", "Drive", "Nhạc online", "Yêu thích").forEach { tab ->
+                listOf("YouTube", "Drive", "Yêu thích").forEach { tab ->
                     FilterChip(selected = onlineHubTab == tab, onClick = { onlineHubTab = tab }, label = { Text(tab) })
                 }
             }
             Spacer(Modifier.height(10.dp))
-            if (onlineHubTab == "Tất cả" || onlineHubTab == "Nhạc online") {
+            if (false) { // Third-party online music sources are intentionally removed from the UI.
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
                     value = jamendoQuery,
@@ -9224,13 +9217,13 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             }
             val onlineResults = buildList {
                 val seen = mutableSetOf<String>()
-                if (onlineHubTab == "Tất cả" || onlineHubTab == "Nhạc online") {
+                if (false) { // Third-party online music sources are intentionally removed from the UI.
                     audiusTracks.forEachIndexed { index, track ->
                         val key = track.title.trim().lowercase() + "|" + track.artist.trim().lowercase()
                         if (seen.add(key)) add(OnlineSearchItem("Audius", index, track.title, track.artist, track.duration))
                     }
                 }
-                if (onlineHubTab == "Tất cả" || onlineHubTab == "Nhạc online") {
+                if (false) { // Third-party online music sources are intentionally removed from the UI.
                     jamendoTracks.forEachIndexed { index, track ->
                         val key = track.title.trim().lowercase() + "|" + track.artist.trim().lowercase()
                         if (seen.add(key)) add(OnlineSearchItem("Jamendo", index, track.title, track.artist, track.duration))
