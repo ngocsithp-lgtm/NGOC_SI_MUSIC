@@ -1501,6 +1501,13 @@ class YouTubePlayerActivity : ComponentActivity() {
         // the foreground. This does not attempt to bypass YouTube background-
         // playback restrictions; it only makes foreground recovery reliable.
         webView?.onResume()
+        // onPause()/onStop() stop the periodic position saver. Restart it when
+        // returning to an already-ready player; onReady() only fires on initial
+        // player setup, so relying on that callback loses periodic saves after
+        // the first background/foreground transition.
+        if (youtubePlayerReady && webView != null) {
+            startPlaybackPositionSaver()
+        }
     }
 
     override fun onUserLeaveHint() {
