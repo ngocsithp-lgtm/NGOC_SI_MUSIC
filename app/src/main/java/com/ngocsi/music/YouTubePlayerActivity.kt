@@ -276,11 +276,14 @@ class YouTubePlayerActivity : ComponentActivity() {
                 )
                 updateQueueButton()
                 updateQueueModeButtons()
-                if (youtubePlayerReady && webView != null) {
-                    // Do not overwrite videoId before this call: loadQueueItem()
-                    // must save the outgoing video's position against its own ID.
+                if (youtubePlayerReady && webView != null &&
+                    incomingVideoId != sanitizeVideoId(videoId)
+                ) {
+                    // Only reload when the target actually changes. Re-loading the
+                    // same video for a pause/play voice command can race the command
+                    // against the IFrame player's ready state.
                     loadQueueItem()
-                } else {
+                } else if (!youtubePlayerReady || webView == null) {
                     val next = queue[queueIndex]
                     videoId = next.videoId
                     title = next.title
@@ -1191,12 +1194,20 @@ class YouTubePlayerActivity : ComponentActivity() {
             "play" -> webView?.evaluateJavascript("playVideo()", null)
             "pause" -> webView?.evaluateJavascript("pauseVideo()", null)
             "next" -> {
-                if (queue.size > 1) playNext()
-                else Toast.makeText(this, "Hàng đợi YouTube chưa có video tiếp theo.", Toast.LENGTH_SHORT).show()
+                if (queue.size > 1) {
+                    playNext()
+                } else {
+                    // A single saved video is not a queue. Ask the YouTube IFrame
+                    // player to advance to the next available video instead of doing nothing.
+                    webView?.evaluateJavascript("nextVideo()", null)
+                }
             }
             "previous" -> {
-                if (queue.size > 1) playPrevious()
-                else Toast.makeText(this, "Hàng đợi YouTube chưa có video trước đó.", Toast.LENGTH_SHORT).show()
+                if (queue.size > 1) {
+                    playPrevious()
+                } else {
+                    webView?.evaluateJavascript("previousVideo()", null)
+                }
             }
             "shuffle_on" -> if (!youtubeShuffleEnabled) toggleYoutubeShuffle()
             "shuffle_off" -> if (youtubeShuffleEnabled) toggleYoutubeShuffle()
