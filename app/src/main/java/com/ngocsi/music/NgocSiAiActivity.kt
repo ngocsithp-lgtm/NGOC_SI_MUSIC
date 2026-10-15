@@ -2181,11 +2181,12 @@ private fun NgocSiAiPreviewScreen(
                 val visibleReply = fallbackReply ?: errorReply
                 val quotaNotice = ngocSiAiQuotaStatusNotice(errorReply)
                 quotaNote = when {
-                    fallbackReply != null && quotaNotice != null ->
-                        "Chat trực tuyến đang bị giới hạn; đã trả lời dự phòng trên máy, không phát sinh phí."
+                    // Do not hide the provider's precise quota/eligibility diagnosis just
+                    // because a safe local fallback answered this turn.
+                    quotaNotice != null -> quotaNotice
                     fallbackReply != null ->
                         "Đã trả lời dự phòng trên máy do kết nối AI gặp lỗi; không phát sinh phí."
-                    else -> quotaNotice.orEmpty()
+                    else -> ""
                 }
                 messages.add(AiPreviewMessage(false, visibleReply))
                 if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
