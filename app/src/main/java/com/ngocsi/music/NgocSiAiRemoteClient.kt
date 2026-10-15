@@ -13,6 +13,8 @@ import com.google.firebase.appcheck.FirebaseAppCheck
 import com.google.firebase.appcheck.debug.DebugAppCheckProviderFactory
 import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.Locale
 
 internal data class NgocSiAiMessage(
@@ -43,7 +45,12 @@ internal class NgocSiAiRemoteClient(context: Context) {
     val isConfigured: Boolean
         get() = firebaseApp != null
 
-    suspend fun send(messages: List<NgocSiAiMessage>): NgocSiAiReply {
+    // Chat UI and hands-free voice can create separate clients. Serialize all calls so
+    // a second request re-checks the persisted cooldown after the first request fails.
+    suspend fun send(messages: List<NgocSiAiMessage>): NgocSiAiReply =
+        REMOTE_REQUEST_MUTEX.withLock { sendSerialized(messages) }
+
+    private suspend fun sendSerialized(messages: List<NgocSiAiMessage>): NgocSiAiReply {
         val app = firebaseApp
             ?: throw NgocSiAiRemoteException("Firebase AI Logic chưa được cấu hình cho bản thử này.")
 
@@ -225,6 +232,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
 
     companion object {
         private val FIREBASE_APP_INITIALIZATION_LOCK = Any()
+        private val REMOTE_REQUEST_MUTEX = Mutex()
         private var appCheckProviderInstalled = false
 
         private const val FIREBASE_APP_NAME = "ngocSiAi"
