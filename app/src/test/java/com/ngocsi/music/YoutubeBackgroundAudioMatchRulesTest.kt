@@ -19,6 +19,30 @@ class YoutubeBackgroundAudioMatchRulesTest {
     }
 
     @Test
+    fun transliteratesVietnameseDStrokeBeforeRemovingNonAsciiCharacters() {
+        assertEquals("duong dem", BackgroundAudioMatchRules.normalize("Đường Đêm"))
+        assertEquals(
+            1.0,
+            BackgroundAudioMatchRules.titleScore("Đường Đêm", "Duong Dem"),
+            0.0001
+        )
+    }
+
+    @Test
+    fun ranksSameTitleHigherWhenArtistMatches() {
+        val expectedTitle = "Ngọc Sĩ - Bài hát"
+        val expectedArtist = "Ngọc Sĩ"
+        val exactArtistScore = BackgroundAudioMatchRules.rankingScore(
+            expectedTitle, expectedArtist, "Bài hát", "Ngọc Sĩ"
+        )
+        val nearMatchArtistScore = BackgroundAudioMatchRules.rankingScore(
+            expectedTitle, expectedArtist, "Bài hát", "Ngọc Sĩ Live"
+        )
+
+        assertTrue(exactArtistScore > nearMatchArtistScore)
+    }
+
+    @Test
     fun normalizesTopicSuffixForArtistMatch() {
         assertEquals(
             1.0,
