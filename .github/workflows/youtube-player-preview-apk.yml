@@ -62,8 +62,8 @@ jobs:
           {
             echo "## YouTube Preview APK"
             echo ""
-            echo "- Package: `com.ngocsi.music.youtubepreview`"
-            echo "- Version: `5.38-youtube-preview`"
+            echo "- Package: com.ngocsi.music.youtubepreview"
+            echo "- Version: 5.38-youtube-preview"
             echo "- Build type: debug; separate from production package"
           } >> "$GITHUB_STEP_SUMMARY"
 
