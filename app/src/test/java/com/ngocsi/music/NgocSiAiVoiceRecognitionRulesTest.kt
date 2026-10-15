@@ -5,6 +5,28 @@ import org.junit.Test
 
 class NgocSiAiVoiceRecognitionRulesTest {
     @Test
+    fun explicitVoiceControlStopDoesNotLookLikeOfflineRecognizerFailure() {
+        assertFalse(
+            shouldShowNgocSiWakeWordStoppedWarning(
+                wasListening = true,
+                stoppedByCommand = true
+            )
+        )
+        assertTrue(
+            shouldShowNgocSiWakeWordStoppedWarning(
+                wasListening = true,
+                stoppedByCommand = false
+            )
+        )
+        assertFalse(
+            shouldShowNgocSiWakeWordStoppedWarning(
+                wasListening = false,
+                stoppedByCommand = false
+            )
+        )
+    }
+
+    @Test
     fun prefersNativeOfflineRecognitionWhenAvailableAndVerificationIsOff() {
         assertEquals(
             NgocSiAiSpeechRecognitionPath.ANDROID_ON_DEVICE,
