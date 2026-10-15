@@ -52,6 +52,8 @@ class NgocSiWakeWordService : Service() {
     private var conversationActive = false
     private var conversationSpeechStarted = false
     private val conversationHistory = mutableListOf<NgocSiAiMessage>()
+    // Keep the last answer actually shown/spoken, including quota errors not saved as model history.
+    private var lastAssistantReplyForFallback: String? = null
     private var speechRecognizer: SpeechRecognizer? = null
     private var speechRecognitionPath = NgocSiAiSpeechRecognitionPath.ANDROID_ON_DEVICE
     private var musicController: MediaController? = null
@@ -641,7 +643,10 @@ class NgocSiWakeWordService : Service() {
             dispatchNgocSiAiCommandWhenReady(command, recognized)
         } else if (isNgocSiAiWakeWordOnly(recognized)) {
             // Keep the hands-free session active until idle; later turns don't need the wake word.
-            if (!conversationActive) conversationHistory.clear()
+            if (!conversationActive) {
+                conversationHistory.clear()
+                lastAssistantReplyForFallback = null
+            }
             conversationActive = true
             conversationSpeechStarted = false
             cancelConversationTimeout()
@@ -688,9 +693,8 @@ class NgocSiWakeWordService : Service() {
         aiScope.launch {
             try {
                 val client = NgocSiAiRemoteClient(applicationContext)
-                val previousAssistantReply = conversationHistory
-                    .lastOrNull { it.role == "assistant" }
-                    ?.content
+                val previousAssistantReply = lastAssistantReplyForFallback
+                    ?: conversationHistory.lastOrNull { it.role == "assistant" }?.content
 
                 // Handle common turns on-device first; this avoids spending the free
                 // Gemini allowance for greetings, quick help and known local responses.
@@ -739,6 +743,10 @@ class NgocSiWakeWordService : Service() {
                     ?: errorFallback
                     ?: remoteError?.takeIf { it.isNotBlank() }
                     ?: "Tôi đã nghe câu hỏi nhưng hiện chưa lấy được câu trả lời. Hãy thử lại sau."
+
+                // Preserve conversational context even when an error reply is intentionally
+                // excluded from Gemini history, so follow-ups like “Tại sao?” stay on topic.
+                lastAssistantReplyForFallback = answer
 
                 val keepTurnInHistory =
                     localFallback != null || !remoteAnswer.isNullOrBlank() || errorFallback != null
@@ -878,6 +886,7 @@ class NgocSiWakeWordService : Service() {
             awaitingCommand = false
             awaitingCommandUntilMillis = 0L
             conversationHistory.clear()
+            lastAssistantReplyForFallback = null
             updateNotification("Phiên trò chuyện đã kết thúc do im lặng · nói “AI” để gọi lại")
         }
     }
@@ -1129,6 +1138,7 @@ class NgocSiWakeWordService : Service() {
         conversationActive = false
         conversationSpeechStarted = false
         conversationHistory.clear()
+        lastAssistantReplyForFallback = null
         cancelConversationTimeout()
         mainHandler.removeCallbacks(restartListening)
         mainHandler.removeCallbacks(partialRecognitionFallback)
@@ -1609,6 +1619,7 @@ class NgocSiWakeWordService : Service() {
         conversationActive = false
         conversationSpeechStarted = false
         conversationHistory.clear()
+        lastAssistantReplyForFallback = null
         awaitingCommand = false
         awaitingCommandUntilMillis = 0L
         mainHandler.removeCallbacksAndMessages(null)
@@ -1635,6 +1646,7 @@ class NgocSiWakeWordService : Service() {
         conversationActive = false
         conversationSpeechStarted = false
         conversationHistory.clear()
+        lastAssistantReplyForFallback = null
         aiScope.cancel()
         awaitingCommand = false
         awaitingCommandUntilMillis = 0L
