@@ -110,13 +110,20 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
 
         @JavascriptInterface
-        fun onStateChanged(state: Int) {
+        fun onStateChanged(state: Int, reportedVideoId: String?) {
             runOnUiThread {
                 if (!isCurrentGeneration()) return@runOnUiThread
+                if (!YouTubePlaybackRules.eventBelongsToActiveVideo(videoId, reportedVideoId)) {
+                    return@runOnUiThread
+                }
                 youtubePlayerState = state
                 updatePlaybackButton()
-                if (state == 0 && queue.isNotEmpty()) {
-                    val endedId = sanitizeVideoId(videoId)
+                if (
+                    state == 0 &&
+                    queue.isNotEmpty() &&
+                    YouTubePlaybackRules.isEndedEventForActiveVideo(videoId, reportedVideoId)
+                ) {
+                    val endedId = sanitizeVideoId(reportedVideoId.orEmpty())
                     if (endedId.isNotBlank() && lastHandledEndedVideoId != endedId) {
                         lastHandledEndedVideoId = endedId
                         advanceAfterYoutubeEnded()
@@ -126,17 +133,23 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
 
         @JavascriptInterface
-        fun onError(code: Int) {
+        fun onError(code: Int, reportedVideoId: String?) {
             runOnUiThread {
                 if (!isCurrentGeneration()) return@runOnUiThread
+                if (!YouTubePlaybackRules.eventBelongsToActiveVideo(videoId, reportedVideoId)) {
+                    return@runOnUiThread
+                }
                 showError(YouTubePlaybackRules.errorMessage(code))
             }
         }
 
         @JavascriptInterface
-        fun onAutoplayBlocked() {
+        fun onAutoplayBlocked(reportedVideoId: String?) {
             runOnUiThread {
                 if (!isCurrentGeneration()) return@runOnUiThread
+                if (!YouTubePlaybackRules.eventBelongsToActiveVideo(videoId, reportedVideoId)) {
+                    return@runOnUiThread
+                }
                 youtubePlayerState = -1
                 updatePlaybackButton()
             }
@@ -1297,6 +1310,15 @@ class YouTubePlayerActivity : ComponentActivity() {
                     <script>
                         var lamPlayer = null;
 
+                        function getCurrentVideoId() {
+                            try {
+                                if (lamPlayer && typeof lamPlayer.getVideoData === 'function') {
+                                    return String(lamPlayer.getVideoData().video_id || '');
+                                }
+                            } catch (_) {}
+                            return '';
+                        }
+
                         function onYouTubeIframeAPIReady() {
                             lamPlayer = new YT.Player('player', {
                                 width: '100%',
@@ -1318,13 +1340,13 @@ class YouTubePlayerActivity : ComponentActivity() {
                                         try { AndroidBridge.onReady(); } catch (_) {}
                                     },
                                     onStateChange: function(event) {
-                                        try { AndroidBridge.onStateChanged(Number(event.data)); } catch (_) {}
+                                        try { AndroidBridge.onStateChanged(Number(event.data), getCurrentVideoId()); } catch (_) {}
                                     },
                                     onError: function(event) {
-                                        try { AndroidBridge.onError(Number(event.data)); } catch (_) {}
+                                        try { AndroidBridge.onError(Number(event.data), getCurrentVideoId()); } catch (_) {}
                                     },
                                     onAutoplayBlocked: function() {
-                                        try { AndroidBridge.onAutoplayBlocked(); } catch (_) {}
+                                        try { AndroidBridge.onAutoplayBlocked(getCurrentVideoId()); } catch (_) {}
                                     }
                                 }
                             });
