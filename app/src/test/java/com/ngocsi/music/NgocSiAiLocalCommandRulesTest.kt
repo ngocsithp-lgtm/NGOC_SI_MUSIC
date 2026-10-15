@@ -823,9 +823,13 @@ class NgocSiAiLocalCommandRulesTest {
         assertEquals(true, isNgocSiAiStopVoiceControlPhrase("AI, ngừng lắng nghe"))
         assertEquals(true, isNgocSiAiStopVoiceControlPhrase("tắt micro"))
         assertEquals(true, isNgocSiAiStopVoiceControlPhrase("AI, ngừng nhận lệnh giọng nói"))
+        assertEquals(true, isNgocSiAiStopVoiceControlPhrase("AI, tạm dừng giọng nói"))
+        assertEquals(true, isNgocSiAiStopVoiceControlPhrase("tạm dừng nghe"))
+        assertEquals(true, isNgocSiAiStopVoiceControlPhrase("Ngọc Sĩ, tắt giọng nói"))
         assertEquals(true, isNgocSiAiStopVoiceControlPhrase("tắt điều khiển giọng nói"))
         assertEquals(true, isNgocSiAiStopVoiceControlPhrase("Ngừng nghe từ khóa"))
 
+        assertEquals(false, isNgocSiAiStopVoiceControlPhrase("nghe giọng nói"))
         assertEquals(false, isNgocSiAiStopVoiceControlPhrase("AI"))
         assertEquals(false, isNgocSiAiStopVoiceControlPhrase("tạm dừng"))
         assertEquals(false, isNgocSiAiStopVoiceControlPhrase("tạm dừng nhạc"))
