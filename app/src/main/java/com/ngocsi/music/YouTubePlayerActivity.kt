@@ -42,6 +42,13 @@ import androidx.activity.OnBackPressedCallback
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
+import kotlinx.coroutines.launch
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.Executors
@@ -71,6 +78,9 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var pipTransport: View? = null
     private var pipUtilityRow: View? = null
     private var pipQueueActions: View? = null
+    private var pipBackgroundAudioButton: View? = null
+    private var backgroundAudioSearchButton: Button? = null
+    private var backgroundAudioController: MediaController? = null
     private lateinit var channelView: TextView
     private lateinit var favoriteButton: Button
     private lateinit var watchLaterButton: Button
@@ -404,6 +414,28 @@ class YouTubePlayerActivity : ComponentActivity() {
             })
         }
         content.addView(utilityRow)
+
+        // Searches for a separately hosted audio track; it never extracts audio from a YouTube video.
+        val backgroundButton = actionButton("🎧  TÌM BẢN ÂM THANH ĐỂ NGHE NỀN") {
+            findBackgroundAudio()
+        }.apply {
+            tag = "youtube_background_audio_button"
+            textSize = 12f
+            contentDescription = "Tìm bản âm thanh độc lập có tên bài và nghệ sĩ khớp để phát nền"
+        }
+        styleWideButton(backgroundButton, emphasized = true)
+        backgroundButton.setTextColor(AndroidColor.BLACK)
+        backgroundAudioSearchButton = backgroundButton
+        pipBackgroundAudioButton = backgroundButton
+        content.addView(backgroundButton, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            dp(46)
+        ).apply {
+            leftMargin = dp(12)
+            rightMargin = dp(12)
+            topMargin = dp(3)
+            bottomMargin = dp(5)
+        })
 
         // Queue is one clear entry point; share stays available but no longer competes as a large button.
         val queueActions = LinearLayout(this).apply {
@@ -1073,6 +1105,157 @@ class YouTubePlayerActivity : ComponentActivity() {
         updateActionState()
     }
 
+
+    private fun findBackgroundAudio() {
+        val button = backgroundAudioSearchButton
+        if (button?.isEnabled == false) return
+        button?.isEnabled = false
+        button?.text = "ĐANG TÌM BẢN KHỚP…"
+
+        lifecycleScope.launch {
+            try {
+                val candidate = YoutubeBackgroundAudioResolver.findBest(
+                    this@YouTubePlayerActivity,
+                    title,
+                    channel
+                )
+                if (isFinishing || isDestroyed) return@launch
+
+                if (candidate == null) {
+                    android.app.AlertDialog.Builder(this@YouTubePlayerActivity)
+                        .setTitle("Chưa tìm thấy bản nghe nền phù hợp")
+                        .setMessage(
+                            "Ứng dụng không tìm thấy bản âm thanh độc lập có tên bài và nghệ sĩ khớp đủ cao trong nhạc trên thiết bị, hàng đợi đã lưu hoặc kho âm thanh công khai. " +
+                                "Ứng dụng không tách âm thanh trực tiếp từ video YouTube. Bạn vẫn có thể xem video trong trình phát YouTube hoặc dùng PiP."
+                        )
+                        .setPositiveButton("MỞ YOUTUBE") { _, _ ->
+                            runCatching {
+                                startActivity(
+                                    Intent(
+                                        Intent.ACTION_VIEW,
+                                        Uri.parse("https://www.youtube.com/watch?v=" + sanitizeVideoId(videoId))
+                                    )
+                                )
+                            }
+                        }
+                        .setNegativeButton("ĐÓNG", null)
+                        .show()
+                } else {
+                    showBackgroundAudioCandidate(candidate)
+                }
+            } catch (_: Exception) {
+                if (!isFinishing && !isDestroyed) {
+                    Toast.makeText(
+                        this@YouTubePlayerActivity,
+                        "Không thể tìm bản nghe nền lúc này. Hãy thử lại khi có kết nối mạng.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            } finally {
+                if (!isFinishing && !isDestroyed) {
+                    button?.isEnabled = true
+                    button?.text = "🎧  TÌM BẢN ÂM THANH ĐỂ NGHE NỀN"
+                }
+            }
+        }
+    }
+
+    private fun showBackgroundAudioCandidate(candidate: BackgroundAudioCandidate) {
+        val percent = (candidate.matchScore * 100).toInt().coerceIn(0, 100)
+        val details = buildString {
+            append(candidate.title)
+            append("\n")
+            append(candidate.artist)
+            append("\n\nNguồn: ")
+            append(candidate.sourceLabel)
+            append("\nĐộ khớp tên bài: ")
+            append(percent)
+            append("%")
+            if (candidate.licenseLabel.isNotBlank()) {
+                append("\nThông tin quyền sử dụng: ")
+                append(candidate.licenseLabel)
+            }
+            append("\n\nĐây là bản âm thanh độc lập từ nguồn khác, không phải âm thanh trích xuất từ video YouTube.")
+        }
+        val dialog = android.app.AlertDialog.Builder(this)
+            .setTitle("BẢN CÓ THỂ NGHE NỀN")
+            .setMessage(details)
+            .setPositiveButton("PHÁT NỀN") { _, _ -> startBackgroundPlayback(candidate) }
+            .setNegativeButton("HỦY", null)
+            .apply {
+                if (!candidate.landingUrl.isNullOrBlank()) {
+                    setNeutralButton("XEM NGUỒN") { _, _ ->
+                        runCatching {
+                            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(candidate.landingUrl)))
+                        }.onFailure {
+                            Toast.makeText(this@YouTubePlayerActivity, "Không mở được trang nguồn.", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            }
+            .create()
+        dialog.show()
+    }
+
+    private fun startBackgroundPlayback(candidate: BackgroundAudioCandidate) {
+        val token = SessionToken(this, android.content.ComponentName(this, MusicService::class.java))
+        val future = MediaController.Builder(this, token).buildAsync()
+        future.addListener({
+            val controller = runCatching { future.get() }.getOrNull()
+            runOnUiThread {
+                if (controller == null) {
+                    if (!isFinishing && !isDestroyed) {
+                        Toast.makeText(this, "Không kết nối được dịch vụ phát nhạc nền.", Toast.LENGTH_LONG).show()
+                    }
+                    return@runOnUiThread
+                }
+                if (isFinishing || isDestroyed) {
+                    controller.release()
+                    return@runOnUiThread
+                }
+
+                runCatching {
+                    val metadataBuilder = MediaMetadata.Builder()
+                        .setTitle(candidate.title)
+                        .setArtist(candidate.artist.ifBlank { candidate.sourceLabel })
+                        .setDescription(
+                            "Nguồn: " + candidate.sourceLabel +
+                                if (candidate.licenseLabel.isBlank()) "" else " • " + candidate.licenseLabel
+                        )
+                    candidate.artworkUri?.let { metadataBuilder.setArtworkUri(it) }
+                    val item = MediaItem.Builder()
+                        .setMediaId(candidate.uri.toString())
+                        .setUri(candidate.uri)
+                        .setMediaMetadata(metadataBuilder.build())
+                        .build()
+
+                    // Insert after the active track so the existing queue is retained.
+                    val insertAt = if (controller.mediaItemCount > 0) {
+                        (controller.currentMediaItemIndex + 1).coerceIn(0, controller.mediaItemCount)
+                    } else {
+                        0
+                    }
+                    controller.addMediaItem(insertAt, item)
+                    controller.seekTo(insertAt, 0L)
+                    controller.prepare()
+                    controller.play()
+
+                    backgroundAudioController?.release()
+                    backgroundAudioController = controller
+                    webView?.evaluateJavascript("pauseVideo()", null)
+                    Toast.makeText(
+                        this,
+                        "Đã gửi bản âm thanh độc lập sang dịch vụ phát nền. Có thể tắt màn hình để thử nghe.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }.onFailure {
+                    controller.release()
+                    Toast.makeText(this, "Không phát được bản âm thanh vừa chọn.", Toast.LENGTH_LONG).show()
+                }
+            }
+        }, ContextCompat.getMainExecutor(this))
+    }
+
     private fun toggleYoutubePlayback() {
         if (!youtubePlayerReady) return
         val command = if (youtubePlayerState == 1) "pauseVideo()" else "playVideo()"
@@ -1551,7 +1734,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     ) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         val visibility = if (isInPictureInPictureMode) View.GONE else View.VISIBLE
-        listOf(pipHeader, pipInfo, pipTransport, pipUtilityRow, pipQueueActions)
+        listOf(pipHeader, pipInfo, pipTransport, pipUtilityRow, pipQueueActions, pipBackgroundAudioButton)
             .forEach { it?.visibility = visibility }
         if (isInPictureInPictureMode) loadingBar?.visibility = View.GONE
         if (::playerContainer.isInitialized) {
@@ -1662,6 +1845,9 @@ class YouTubePlayerActivity : ComponentActivity() {
         thumbnailExecutor.shutdownNow()
         youtubeThumbnailCache.evictAll()
         stopPlaybackPositionSaver()
+        backgroundAudioController?.release()
+        backgroundAudioController = null
+        backgroundAudioSearchButton = null
         loadingBar = null
         super.onDestroy()
     }
