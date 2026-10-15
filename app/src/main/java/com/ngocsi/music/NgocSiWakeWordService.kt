@@ -194,7 +194,10 @@ class NgocSiWakeWordService : Service() {
 
         startForegroundCompat(buildNotification("Chuẩn bị nhận lệnh offline…"))
         getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit().putBoolean(KEY_ENABLED, true).apply()
+            .edit()
+            .putBoolean(KEY_STOPPED_BY_COMMAND, false)
+            .putBoolean(KEY_ENABLED, true)
+            .apply()
 
         val ownerVoiceLockEnabled = NgocSiVoiceProfile.isLockEnabled(this)
         val platformOfflineAsrAvailable =
@@ -1135,6 +1138,8 @@ class NgocSiWakeWordService : Service() {
         currentAudioBuffer.reset()
         closeOwnerVoiceAudioSource()
 
+        getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit().putBoolean(KEY_STOPPED_BY_COMMAND, true).apply()
         updateNotification("Đã nhận lệnh tạm dừng AI · đang tắt điều khiển giọng nói")
         if (ttsReady && textToSpeech != null) {
             stopVoiceControlAfterReply = true
@@ -1669,6 +1674,7 @@ class NgocSiWakeWordService : Service() {
         const val ACTION_ENROLL_OWNER_VOICE = "com.ngocsi.music.action.ENROLL_OWNER_VOICE"
         const val PREFS_NAME = "ngoc_si_wake_word"
         const val KEY_ENABLED = "enabled"
+        const val KEY_STOPPED_BY_COMMAND = "stopped_by_command"
         private const val CHANNEL_ID = "ngoc_si_wake_word"
         private const val NOTIFICATION_ID = 5871
         private const val STOP_REQUEST_CODE = 5872
