@@ -20,3 +20,9 @@ internal fun selectNgocSiAiSpeechRecognitionPath(
 } else {
     NgocSiAiSpeechRecognitionPath.ANDROID_ON_DEVICE
 }
+
+/** Show the recognizer warning only when listening stopped unexpectedly. */
+internal fun shouldShowNgocSiWakeWordStoppedWarning(
+    wasListening: Boolean,
+    stoppedByCommand: Boolean
+): Boolean = wasListening && !stoppedByCommand
