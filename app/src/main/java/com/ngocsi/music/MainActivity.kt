@@ -6035,7 +6035,7 @@ class MainActivity : ComponentActivity() {
             Text(
                 "NGUỒN & TIỆN ÍCH",
                 color = Color(0xFF858B9C),
-                fontSize = 9.sp,
+                fontSize = 11.sp,
                 fontWeight = FontWeight.Black,
                 letterSpacing = 1.2.sp,
                 modifier = Modifier.padding(start = 2.dp)
@@ -6082,7 +6082,7 @@ class MainActivity : ComponentActivity() {
                         Text(
                             "Xóa các bài Drive đã nhập khỏi thư viện ứng dụng.",
                             color = Color(0xFF8E838A),
-                            fontSize = 9.sp
+                            fontSize = 11.sp
                         )
                     }
                     TextButton(
