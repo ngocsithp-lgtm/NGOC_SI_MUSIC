@@ -1750,7 +1750,7 @@ class NgocSiAiActivity : ComponentActivity() {
             partialSpeechTranscript = "Đang chờ giọng nói…"
             Toast.makeText(
                 this,
-                "Bảo vệ giọng đang bật · nhận dạng tiếng Việt trên điện thoại.",
+                "Nhận dạng tiếng Việt ngoại tuyến trên điện thoại.",
                 Toast.LENGTH_SHORT
             ).show()
             startOwnerVoiceCaptureAndTranscribe()
