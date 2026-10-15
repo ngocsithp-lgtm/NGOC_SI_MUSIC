@@ -206,6 +206,28 @@ class NgocSiAiQuotaRulesTest {
     }
 
     @Test
+    fun preciseProviderQuotaCauseSurvivesWhenLocalFallbackAnswered() {
+        val status = ngocSiAiQuotaUiNotice(
+            "AI_FREE_TIER_PROJECT_RESTRICTED",
+            localFallbackUsed = true
+        )
+
+        assertEquals(
+            "Quyền Gemini miễn phí của dự án đang bị nhà cung cấp hạn chế; lệnh trên điện thoại vẫn hoạt động, không bật thanh toán.",
+            status
+        )
+    }
+
+    @Test
+    fun nonQuotaFailureStillExplainsLocalFallback() {
+        assertEquals(
+            "Đã trả lời dự phòng trên máy do kết nối AI gặp lỗi; không phát sinh phí.",
+            ngocSiAiQuotaUiNotice("NETWORK", localFallbackUsed = true)
+        )
+        assertEquals("", ngocSiAiQuotaUiNotice("NETWORK", localFallbackUsed = false))
+    }
+
+    @Test
     fun ambiguousProjectQuotaGetsBoundedCooldownAndClearReason() {
         val message = ngocSiAiQuotaCooldownNotice(
             NgocSiAiQuotaCooldownKind.PROJECT_OR_CAPACITY,
