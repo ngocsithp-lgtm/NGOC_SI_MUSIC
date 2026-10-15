@@ -38,18 +38,11 @@ import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewFeature
 import androidx.webkit.WebViewMediaIntegrityApiStatusConfig
 import androidx.activity.ComponentActivity
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.OnBackPressedCallback
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import androidx.core.content.ContextCompat
-import android.provider.OpenableColumns
-import androidx.media3.common.MediaItem
-import androidx.media3.common.MediaMetadata
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.session.MediaController
-import androidx.media3.session.SessionToken
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.Executors
@@ -80,9 +73,6 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var pipTransport: View? = null
     private var pipUtilityRow: View? = null
     private var pipQueueActions: View? = null
-    private var pipBackgroundAudioButton: View? = null
-    private var backgroundAudioSearchButton: Button? = null
-    private var backgroundAudioController: MediaController? = null
     private lateinit var channelView: TextView
     private lateinit var favoriteButton: Button
     private lateinit var watchLaterButton: Button
@@ -171,12 +161,6 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private val youtubeJsBridge = YoutubeJsBridge()
-
-    private val backgroundAudioPicker = registerForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        if (uri != null) onBackgroundAudioSelected(uri)
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -422,29 +406,6 @@ class YouTubePlayerActivity : ComponentActivity() {
             })
         }
         content.addView(utilityRow)
-
-        // Let the user choose an independent audio file; do not extract or search for
-        // a separate copy of the YouTube video's audio.
-        val backgroundButton = actionButton("🎧  CHỌN NHẠC CÓ SẴN ĐỂ NGHE NỀN") {
-            pickBackgroundAudioFile()
-        }.apply {
-            tag = "youtube_background_audio_button"
-            textSize = 12f
-            contentDescription = "Chọn tệp âm thanh bạn có quyền sử dụng để phát nền; không tách âm thanh từ video YouTube"
-        }
-        styleWideButton(backgroundButton, emphasized = true)
-        backgroundButton.setTextColor(AndroidColor.BLACK)
-        backgroundAudioSearchButton = backgroundButton
-        pipBackgroundAudioButton = backgroundButton
-        content.addView(backgroundButton, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            dp(46)
-        ).apply {
-            leftMargin = dp(12)
-            rightMargin = dp(12)
-            topMargin = dp(3)
-            bottomMargin = dp(5)
-        })
 
         // Queue is one clear entry point; share stays available but no longer competes as a large button.
         val queueActions = LinearLayout(this).apply {
@@ -1115,103 +1076,6 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
 
-    private fun pickBackgroundAudioFile() {
-        backgroundAudioPicker.launch(arrayOf("audio/*"))
-    }
-
-    private fun onBackgroundAudioSelected(uri: Uri) {
-        // Persist access so MusicService can continue reading the selected document
-        // after this Activity goes to the background or the screen is locked.
-        runCatching {
-            contentResolver.takePersistableUriPermission(
-                uri,
-                Intent.FLAG_GRANT_READ_URI_PERMISSION
-            )
-        }
-
-        val displayName = runCatching {
-            contentResolver.query(
-                uri,
-                arrayOf(OpenableColumns.DISPLAY_NAME),
-                null,
-                null,
-                null
-            )?.use { cursor ->
-                if (cursor.moveToFirst()) cursor.getString(0).orEmpty() else ""
-            }.orEmpty()
-        }.getOrDefault("")
-        val fileName = displayName.substringAfterLast('/')
-        val selectedTitle = fileName.substringBeforeLast('.', fileName)
-            .trim()
-            .ifBlank { "Nhạc đã chọn" }
-
-        startBackgroundPlayback(
-            audioUri = uri,
-            selectedTitle = selectedTitle,
-            selectedArtist = "Tệp âm thanh đã chọn"
-        )
-    }
-
-    private fun startBackgroundPlayback(
-        audioUri: Uri,
-        selectedTitle: String,
-        selectedArtist: String
-    ) {
-        val token = SessionToken(this, android.content.ComponentName(this, MusicService::class.java))
-        val future = MediaController.Builder(this, token).buildAsync()
-        future.addListener({
-            val controller = runCatching { future.get() }.getOrNull()
-            runOnUiThread {
-                if (controller == null) {
-                    if (!isFinishing && !isDestroyed) {
-                        Toast.makeText(this, "Không kết nối được dịch vụ phát nhạc nền.", Toast.LENGTH_LONG).show()
-                    }
-                    return@runOnUiThread
-                }
-                if (isFinishing || isDestroyed) {
-                    controller.release()
-                    return@runOnUiThread
-                }
-
-                runCatching {
-                    val metadata = MediaMetadata.Builder()
-                        .setTitle(selectedTitle)
-                        .setArtist(selectedArtist.ifBlank { "Tệp âm thanh đã chọn" })
-                        .setDescription("Nguồn: tệp âm thanh do người dùng chọn")
-                        .build()
-                    val item = MediaItem.Builder()
-                        .setMediaId(audioUri.toString())
-                        .setUri(audioUri)
-                        .setMediaMetadata(metadata)
-                        .build()
-
-                    // Insert after the active track so the existing queue is retained.
-                    val insertAt = if (controller.mediaItemCount > 0) {
-                        (controller.currentMediaItemIndex + 1).coerceIn(0, controller.mediaItemCount)
-                    } else {
-                        0
-                    }
-                    controller.addMediaItem(insertAt, item)
-                    controller.seekTo(insertAt, 0L)
-                    controller.prepare()
-                    controller.play()
-
-                    backgroundAudioController?.release()
-                    backgroundAudioController = controller
-                    webView?.evaluateJavascript("pauseVideo()", null)
-                    Toast.makeText(
-                        this,
-                        "Đã chuyển tệp nhạc bạn chọn sang dịch vụ phát nền. Có thể khóa màn hình để thử nghe.",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }.onFailure {
-                    controller.release()
-                    Toast.makeText(this, "Không phát được tệp âm thanh đã chọn.", Toast.LENGTH_LONG).show()
-                }
-            }
-        }, ContextCompat.getMainExecutor(this))
-    }
-
     private fun toggleYoutubePlayback() {
         if (!youtubePlayerReady) return
         val command = if (youtubePlayerState == 1) "pauseVideo()" else "playVideo()"
@@ -1690,7 +1554,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     ) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         val visibility = if (isInPictureInPictureMode) View.GONE else View.VISIBLE
-        listOf(pipHeader, pipInfo, pipTransport, pipUtilityRow, pipQueueActions, pipBackgroundAudioButton)
+        listOf(pipHeader, pipInfo, pipTransport, pipUtilityRow, pipQueueActions)
             .forEach { it?.visibility = visibility }
         if (isInPictureInPictureMode) loadingBar?.visibility = View.GONE
         if (::playerContainer.isInitialized) {
@@ -1801,9 +1665,6 @@ class YouTubePlayerActivity : ComponentActivity() {
         thumbnailExecutor.shutdownNow()
         youtubeThumbnailCache.evictAll()
         stopPlaybackPositionSaver()
-        backgroundAudioController?.release()
-        backgroundAudioController = null
-        backgroundAudioSearchButton = null
         loadingBar = null
         super.onDestroy()
     }
