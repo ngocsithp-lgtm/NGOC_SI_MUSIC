@@ -4648,6 +4648,8 @@ class MainActivity : ComponentActivity() {
                                 selectedSection = "Online"
                                 onlineHubTab = "Drive"
                             },
+                            onOpenRadio = { selectedSection = "Radio" },
+                            onOpenTv = { selectedSection = "TV" },
                             onOpenQueue = { showQueue = true },
                             onOpenPlaylists = { showPlaylists = true },
                             onOpenSettings = { selectedSection = "Cài đặt" },
@@ -4887,6 +4889,8 @@ class MainActivity : ComponentActivity() {
         onOpenLibrary: () -> Unit,
         onOpenYouTube: () -> Unit,
         onOpenDrive: () -> Unit,
+        onOpenRadio: () -> Unit,
+        onOpenTv: () -> Unit,
         onOpenQueue: () -> Unit,
         onOpenPlaylists: () -> Unit,
         onOpenSettings: () -> Unit,
@@ -5090,6 +5094,8 @@ class MainActivity : ComponentActivity() {
                     ProHomeQuickTile("♫", "Nhạc trên máy", onOpenLibrary, Modifier.weight(1f))
                     ProHomeQuickTile("▶", "YouTube", onOpenYouTube, Modifier.weight(1f))
                     ProHomeQuickTile("☁", "Google Drive", onOpenDrive, Modifier.weight(1f))
+                    ProHomeQuickTile("◉", "Radio", onOpenRadio, Modifier.weight(1f))
+                    ProHomeQuickTile("▣", "TV", onOpenTv, Modifier.weight(1f))
                 }
             }
 
@@ -5813,6 +5819,14 @@ class MainActivity : ComponentActivity() {
                             onlineHubTab = "Drive"
                             driveSharedStatus = "Mở trung tâm Google Drive"
                         })
+                        ProHomeNavChip("◉ Radio", {
+                            showMore = false
+                            selectedSection = "Radio"
+                        })
+                        ProHomeNavChip("▣ TV", {
+                            showMore = false
+                            selectedSection = "TV"
+                        })
                         ProHomeNavChip("☷ Hàng đợi", {
                             showMore = false
                             showQueue = true
@@ -5858,10 +5872,9 @@ class MainActivity : ComponentActivity() {
                         selectedSection = "Online"
                         onlineHubTab = "YouTube"
                     }
-                    ProHomeNavItem("☁", "Drive", selectedSection == "Online" && onlineHubTab == "Drive") {
+                    ProHomeNavItem("◉", "Radio", selectedSection == "Radio") {
                         showMore = false
-                        selectedSection = "Online"
-                        onlineHubTab = "Drive"
+                        selectedSection = "Radio"
                     }
                     ProHomeNavItem("＋", "Thêm", showMore) {
                         showMore = !showMore
@@ -6044,6 +6057,16 @@ class MainActivity : ComponentActivity() {
                 selectedSection = "Online"
                 onlineHubTab = "Drive"
             }
+            SettingsRow(
+                "▣",
+                "TV",
+                (TvCatalog.builtIn.size + customTvSources.size).toString() + " nguồn TV"
+            ) { selectedSection = "TV" }
+            SettingsRow(
+                "◉",
+                "Radio",
+                "Mở các đài phát thanh"
+            ) { selectedSection = "Radio" }
             SettingsRow(
                 "♫",
                 "Playlist",
