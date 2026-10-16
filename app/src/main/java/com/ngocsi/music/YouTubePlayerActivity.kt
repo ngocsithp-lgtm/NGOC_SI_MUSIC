@@ -485,8 +485,8 @@ class YouTubePlayerActivity : ComponentActivity() {
         // A browser may keep its own audio session alive in background on some devices;
         // this is separate from the embedded WebView player and is not guaranteed.
         val browserPlaybackButton = Button(this).apply {
-            text = "MỞ VIDEO BẰNG TRÌNH DUYỆT • THỬ PHÁT NỀN"
-            contentDescription = "Mở video YouTube hiện tại bằng trình duyệt để thử phát nền"
+            text = "MỞ VIDEO BẰNG CHROME • THỬ PHÁT NỀN"
+            contentDescription = "Mở video YouTube hiện tại bằng Chrome để thử phát nền"
             setOnClickListener { openCurrentVideoInBrowser() }
         }
         styleWideButton(browserPlaybackButton)
@@ -1323,9 +1323,10 @@ class YouTubePlayerActivity : ComponentActivity() {
 
         val url = Uri.parse("https://www.youtube.com/watch?v=$safeVideoId")
         // Prefer installed full browsers instead of the embedded WebView or YouTube app.
+        // Prefer Chrome first, then other installed full browsers; do not open the embedded WebView.
         val browserPackages = listOf(
-            "com.sec.android.app.sbrowser",
             "com.android.chrome",
+            "com.sec.android.app.sbrowser",
             "org.mozilla.firefox",
             "com.brave.browser"
         )
