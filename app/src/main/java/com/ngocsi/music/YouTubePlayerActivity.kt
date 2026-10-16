@@ -129,7 +129,6 @@ class YouTubePlayerActivity : ComponentActivity() {
         fun onStateChanged(state: Int) {
             runOnUiThread {
                 youtubePlayerState = state
-                syncYoutubeBackgroundService(state)
                 updatePlaybackButton()
                 updatePipParamsIfSupported()
                 // The IFrame API can report onReady before the video is seekable.
@@ -1625,27 +1624,6 @@ class YouTubePlayerActivity : ComponentActivity() {
             "Không mở được YouTube bên ngoài trên thiết bị này."
     }
 
-    /**
-     * Experimental Preview-only keep-alive. It does not extract media or guarantee
-     * that YouTube's embedded player permits screen-off playback; device testing is required.
-     */
-    private fun syncYoutubeBackgroundService(state: Int) {
-        if (state == 1 && !isFinishing) {
-            val serviceIntent = Intent(this, YoutubeBackgroundKeepAliveService::class.java).apply {
-                putExtra(EXTRA_VIDEO_ID, videoId)
-                putExtra(EXTRA_TITLE, title)
-                putExtra(EXTRA_CHANNEL, channel)
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(serviceIntent)
-            } else {
-                startService(serviceIntent)
-            }
-        } else if (state == 2 || state == 0 || state == -1) {
-            stopService(Intent(this, YoutubeBackgroundKeepAliveService::class.java))
-        }
-    }
-
     override fun onResume() {
         super.onResume()
         // Re-arm WebView media/JS processing whenever the Activity returns to
@@ -1790,9 +1768,6 @@ class YouTubePlayerActivity : ComponentActivity() {
         (value * resources.displayMetrics.density).toInt()
 
     override fun onDestroy() {
-        if (isFinishing) {
-            stopService(Intent(this, YoutubeBackgroundKeepAliveService::class.java))
-        }
         if (customView != null) exitFullscreen(notifyCallback = false)
         removePlayer()
         thumbnailExecutor.shutdownNow()
