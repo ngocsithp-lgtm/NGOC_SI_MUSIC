@@ -1198,16 +1198,14 @@ class YouTubePlayerActivity : ComponentActivity() {
                 if (queue.size > 1) {
                     playNext()
                 } else {
-                    // A single saved video is not a queue. Ask the YouTube IFrame
-                    // player to advance to the next available video instead of doing nothing.
-                    webView?.evaluateJavascript("nextVideo()", null)
+                    Toast.makeText(this, "Hãy thêm video vào hàng đợi để phát bài tiếp theo.", Toast.LENGTH_SHORT).show()
                 }
             }
             "previous" -> {
                 if (queue.size > 1) {
                     playPrevious()
                 } else {
-                    webView?.evaluateJavascript("previousVideo()", null)
+                    Toast.makeText(this, "Chưa có video trước trong hàng đợi.", Toast.LENGTH_SHORT).show()
                 }
             }
             "shuffle_on" -> if (!youtubeShuffleEnabled) toggleYoutubeShuffle()
