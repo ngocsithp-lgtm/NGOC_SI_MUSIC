@@ -174,6 +174,9 @@ class YouTubePlayerActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+        // Remember that the selected playback source is YouTube so the compact
+        // player routes play/pause here instead of toggling the local Media3 player.
+        prefs.edit().putBoolean("youtube_active_source", true).apply()
         youtubeShuffleEnabled = savedInstanceState?.getBoolean(
             "youtube_shuffle",
             prefs.getBoolean("youtube_shuffle", false)
