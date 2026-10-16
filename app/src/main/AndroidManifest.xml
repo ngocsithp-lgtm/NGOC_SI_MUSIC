@@ -108,6 +108,13 @@
             </intent-filter>
         </service>
 
+        <!-- Preview-only experimental keep-alive for in-app YouTube playback. -->
+        <service
+            android:name=".YoutubeBackgroundKeepAliveService"
+            android:exported="false"
+            android:stopWithTask="false"
+            android:foregroundServiceType="mediaPlayback" />
+
         <!-- Media3 Music Service -->
         <receiver
             android:name="androidx.media3.session.MediaButtonReceiver"
