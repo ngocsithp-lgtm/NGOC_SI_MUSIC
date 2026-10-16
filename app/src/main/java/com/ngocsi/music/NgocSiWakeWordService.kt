@@ -1333,13 +1333,6 @@ class NgocSiWakeWordService : Service() {
                 NgocSiAiLocalCommand.YOUTUBE_WATCH_LATER -> "watch_later"
                 else -> null
             }
-            // If Morphe publishes an active Android media session, route basic transport
-            // commands there before falling back to the app's own embedded YouTube player.
-            val morpheControlReply = youtubeAction?.let {
-                MorpheMediaSessionBridge.tryControl(this, it)
-            }
-            if (morpheControlReply != null) return morpheControlReply
-
             val missingYouTubeHistory = !hasSavedYouTubeVideo && command in setOf(
                 NgocSiAiLocalCommand.RESUME_YOUTUBE,
                 NgocSiAiLocalCommand.PAUSE_YOUTUBE,
