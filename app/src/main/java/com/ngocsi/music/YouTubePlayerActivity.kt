@@ -57,6 +57,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         const val EXTRA_QUEUE_JSON = "youtube_queue_json"
         const val EXTRA_QUEUE_INDEX = "youtube_queue_index"
         const val EXTRA_AI_ACTION = "youtube_ai_action"
+        private const val MORPHE_PACKAGE = "app.morphe.android.youtube"
     }
 
     private lateinit var root: FrameLayout
@@ -469,11 +470,20 @@ class YouTubePlayerActivity : ComponentActivity() {
             textSize = 11f
             contentDescription = "Chế độ lặp hàng đợi YouTube"
         }
-        listOf(favoriteButton, watchLaterButton, shuffleButton, repeatButton).forEachIndexed { index, button ->
-            utilityRow.addView(button, LinearLayout.LayoutParams(0, dp(50), 1f).apply {
-                if (index < 3) marginEnd = dp(5)
-            })
+        // Morphe is a separate patched YouTube app, not an embeddable player SDK.
+        // Keep the in-app IFrame player unchanged and offer Morphe as an explicit
+        // background-playback route for users who already installed it.
+        val morpheBackgroundButton = actionButton("♫\nNền Morphe") { playInMorphe() }.apply {
+            tag = "morphe_background_button"
+            textSize = 10f
+            contentDescription = "Mở video bằng YouTube Morphe đã vá để phát nền"
         }
+        listOf(favoriteButton, watchLaterButton, shuffleButton, repeatButton, morpheBackgroundButton)
+            .forEachIndexed { index, button ->
+                utilityRow.addView(button, LinearLayout.LayoutParams(0, dp(50), 1f).apply {
+                    if (index < 4) marginEnd = dp(4)
+                })
+            }
         content.addView(utilityRow)
 
         // Queue is one clear entry point; share stays available but no longer competes as a large button.
@@ -1538,6 +1548,40 @@ class YouTubePlayerActivity : ComponentActivity() {
         root.findViewWithTag<ProgressBar>("queue_progress")?.apply {
             max = queue.size.coerceAtLeast(1)
             progress = (queueIndex + 1).coerceIn(0, max)
+        }
+    }
+
+    /**
+     * Open the currently selected video in the user's already-installed Morphe
+     * build. The patched background-playback behavior remains inside Morphe;
+     * this app does not copy, extract, or embed YouTube/Morphe APK code.
+     */
+    private fun playInMorphe() {
+        val safeId = sanitizeVideoId(videoId)
+        if (safeId.isBlank()) {
+            Toast.makeText(this, "Không xác định được video YouTube.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val morpheIntent = Intent(
+            Intent.ACTION_VIEW,
+            Uri.parse("https://www.youtube.com/watch?v=$safeId")
+        ).setPackage(MORPHE_PACKAGE)
+
+        try {
+            startActivity(morpheIntent)
+        } catch (_: android.content.ActivityNotFoundException) {
+            Toast.makeText(
+                this,
+                "Chưa tìm thấy YouTube Morphe. Trình phát trong app vẫn được giữ nguyên.",
+                Toast.LENGTH_LONG
+            ).show()
+        } catch (_: Exception) {
+            Toast.makeText(
+                this,
+                "Không mở được video bằng Morphe. Bạn vẫn có thể dùng trình phát trong app.",
+                Toast.LENGTH_LONG
+            ).show()
         }
     }
 
