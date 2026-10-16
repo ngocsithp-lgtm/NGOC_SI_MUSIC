@@ -1228,6 +1228,14 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun updatePlaybackButton() {
+        if (youtubePlayerReady) {
+            // Shared state lets the PRO mini-player send play/pause to YouTube,
+            // rather than accidentally toggling the separate Media3 music player.
+            getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+                .edit()
+                .putBoolean("youtube_is_playing", youtubePlayerState == 1)
+                .apply()
+        }
         if (!::playPauseButton.isInitialized) return
         playPauseButton.text = when {
             !youtubePlayerReady -> "…"
