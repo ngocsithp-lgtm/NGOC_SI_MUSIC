@@ -679,8 +679,11 @@ class MainActivity : ComponentActivity() {
         // The UI is attached early so startup never appears as a blank window while
         // library/Drive state is being restored in the background.
         prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
-        // Restore selected playback engine after Activity/process recreation.
+        // Restore selected playback engine and its matching YouTube item after
+        // Activity/process recreation. Without loading the persisted track here,
+        // the compact player's click can fall through to local Media3 playback.
         youtubeIsActiveSource = prefs.getBoolean("youtube_active_source", false)
+        loadYouTubeLibraryState()
         driveSourcePrefs = getSharedPreferences("ngocsi_music_drive_sources", MODE_PRIVATE)
         migrateDrivePersistence()
         driveOAuthManager = DriveOAuthManager(this)
@@ -3762,9 +3765,18 @@ class MainActivity : ComponentActivity() {
         // while the state object still reflects an older local-player snapshot.
         val youtubeSourceSelected = youtubeIsActiveSource ||
             prefs.getBoolean("youtube_active_source", false)
-        if (youtubeSourceSelected && youtubeLastPlayed != null) {
-            setYouTubeActiveSource(true)
-            playLastYouTube("play")
+        if (youtubeSourceSelected) {
+            // Recover the persisted last video lazily too, in case this click
+            // happens before startup/library restoration has populated Compose state.
+            if (youtubeLastPlayed == null) loadYouTubeLibraryState()
+            if (youtubeLastPlayed != null) {
+                setYouTubeActiveSource(true)
+                playLastYouTube("play")
+                return
+            }
+            // Do not silently switch to local music when YouTube was the selected
+            // source but its track metadata is missing. Show a recoverable message.
+            errorMessage = "Chưa khôi phục được video YouTube gần nhất. Mở mục YouTube và chọn video lại."
             return
         }
         invalidatePendingPlaybackAuthorization()
