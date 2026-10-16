@@ -51,6 +51,11 @@
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
             android:supportsPictureInPicture="true" />
 
+        <!-- Broadcast action keeps PiP play/pause inside the floating window. -->
+        <receiver
+            android:name=".YouTubePipActionReceiver"
+            android:exported="false" />
+
         <!-- Dedicated TV player keeps live-video rendering away from Compose dialogs. -->
         <activity
             android:name=".TvPlayerActivity"
