@@ -128,7 +128,11 @@ class ProMainActivity : ComponentActivity() {
                 position = position,
                 duration = duration,
                 artworkUri = artworkUri,
-                onMusic = { openLegacy("library") },
+                onMusic = {
+                    getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
+                        .putBoolean("youtube_active_source", false).apply()
+                    openLegacy("library")
+                },
                 onYouTube = { openLegacy("youtube") },
                 onDrive = { openLegacy("drive") },
                 onRadio = { openLegacy("radio") },
