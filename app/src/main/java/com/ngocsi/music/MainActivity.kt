@@ -8175,7 +8175,10 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     putExtra(YouTubePlayerActivity.EXTRA_CHANNEL, track.channelTitle)
                     putExtra(YouTubePlayerActivity.EXTRA_QUEUE_JSON, queueJson)
                     putExtra(YouTubePlayerActivity.EXTRA_QUEUE_INDEX, selectedIndex)
-                    aiAction?.let { putExtra(YouTubePlayerActivity.EXTRA_AI_ACTION, it) }
+                    // Reopening the app's YouTube mini-player must explicitly
+                    // resume the embedded YouTube player, not just bring a stale
+                    // Activity to the front after screen-off interruption.
+                    putExtra(YouTubePlayerActivity.EXTRA_AI_ACTION, aiAction ?: "play")
                     addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                 }
             )
