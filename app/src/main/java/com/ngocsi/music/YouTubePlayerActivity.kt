@@ -1075,7 +1075,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
 
         webView?.evaluateJavascript(
-            "(function(){try{return JSON.stringify({id:String(lamPlayer.getVideoData().video_id||''),p:Math.floor(lamPlayer.getCurrentTime()*1000)});}catch(e){return '{}';}})();"
+            "(function(){try{var v=document.querySelector('video');var m=location.href.match(/[?&]v=([A-Za-z0-9_-]+)/);return JSON.stringify({id:m?m[1]:'',p:v?Math.floor(v.currentTime*1000):0});}catch(e){return '{}';}})();"
         ) { value ->
             val payload = runCatching {
                 org.json.JSONObject(value.trim('"').replace("\\\"", "\""))
@@ -1112,7 +1112,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         positionRestoreAttempts++
         val seconds = positionMs / 1000.0
         webView?.evaluateJavascript(
-            "(function(){try{var s=lamPlayer.getPlayerState();if(s!==1&&s!==5)return 'wait';lamPlayer.seekTo($seconds,true);return 'ok';}catch(e){return 'wait';}})();"
+            "(function(){try{var v=document.querySelector('video');if(!v||!isFinite(v.duration))return 'wait';v.currentTime=$seconds;return 'ok';}catch(e){return 'wait';}})();"
         ) { result ->
             if (isFinishing || isDestroyed || safeId != sanitizeVideoId(videoId)) return@evaluateJavascript
             if (result?.contains("ok") == true) {
@@ -1372,6 +1372,32 @@ class YouTubePlayerActivity : ComponentActivity() {
                     loadingBar?.visibility = View.GONE
                     view.requestLayout()
                     view.invalidate()
+                    // Preview experiment: use YouTube's mobile website in the app's
+                    // Chromium WebView instead of the IFrame API player.
+                    view.evaluateJavascript("""
+                        (function installNgocSiBridge() {
+                          if (window.__ngocSiBridgeInstalled) return;
+                          var v = document.querySelector('video');
+                          if (!v) { setTimeout(installNgocSiBridge, 700); return; }
+                          window.__ngocSiBridgeInstalled = true;
+                          window.playVideo = function(){ var e=document.querySelector('video'); if(e) e.play().catch(function(){}); };
+                          window.pauseVideo = function(){ var e=document.querySelector('video'); if(e) e.pause(); };
+                          window.getCurrentTime = function(){ var e=document.querySelector('video'); return e ? e.currentTime : 0; };
+                          window.seekTo = function(t){ var e=document.querySelector('video'); if(e) e.currentTime=t; };
+                          window.loadVideoById = function(id){ location.href='https://m.youtube.com/watch?v='+encodeURIComponent(id); };
+                          try { AndroidBridge.onReady(); } catch(e) {}
+                          var lastState = -99;
+                          setInterval(function(){
+                            var e=document.querySelector('video');
+                            if(!e) return;
+                            var state = e.ended ? 0 : (e.paused ? 2 : 1);
+                            if(state !== lastState) {
+                              lastState = state;
+                              try { AndroidBridge.onStateChanged(state); } catch(e) {}
+                            }
+                          }, 900);
+                        })();
+                    """.trimIndent(), null)
                 }
 
                 override fun onReceivedError(
@@ -1461,105 +1487,11 @@ class YouTubePlayerActivity : ComponentActivity() {
             isFocusableInTouchMode = true
             addJavascriptInterface(youtubeJsBridge, "AndroidBridge")
 
-            // YouTube requires an HTTP Referer (or equivalent API client identity)
-            // for embedded players in WebView. For local HTML, loadDataWithBaseURL()
-            // supplies the Referer from baseUrl. Use the app package as the stable identity
-            // instead of youtube.com as the referring page.
+            // Preview experiment: load YouTube's mobile site inside this WebView.
+            // This keeps navigation inside NGỌC SĨ MUSIC and uses the site's own
+            // Chromium-compatible HTML5 player controls. Background playback is not guaranteed.
             val safeId = sanitizeVideoId(videoId)
-            val appIdentityUrl = "https://com.ngocsi.music/"
-            val origin = appIdentityUrl
-
-            val html = """
-                <!doctype html>
-                <html lang="vi">
-                <head>
-                    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-                    <meta name="referrer" content="strict-origin-when-cross-origin">
-                    <style>
-                        html, body, #player {
-                            margin: 0;
-                            padding: 0;
-                            width: 100%;
-                            height: 100%;
-                            background: #000;
-                            overflow: hidden;
-                        }
-                    </style>
-                </head>
-                <body>
-                    <div id="player"></div>
-                    <script>
-                        var lamPlayer = null;
-
-                        function onYouTubeIframeAPIReady() {
-                            lamPlayer = new YT.Player('player', {
-                                width: '100%',
-                                height: '100%',
-                                videoId: '$safeId',
-                                playerVars: {
-                                    playsinline: 1,
-                                    autoplay: 0,
-                                    rel: 0,
-                                    controls: 1,
-                                    fs: 1,
-                                    hl: 'vi',
-                                    cc_lang_pref: 'vi',
-                                    origin: '$origin',
-                                    widget_referrer: '$origin'
-                                },
-                                events: {
-                                    onReady: function() {
-                                        try { AndroidBridge.onReady(); } catch (_) {}
-                                    },
-                                    onStateChange: function(event) {
-                                        try { AndroidBridge.onStateChanged(Number(event.data)); } catch (_) {}
-                                    },
-                                    onError: function(event) {
-                                        try { AndroidBridge.onError(Number(event.data)); } catch (_) {}
-                                    },
-                                    onAutoplayBlocked: function() {
-                                        try { AndroidBridge.onAutoplayBlocked(); } catch (_) {}
-                                    }
-                                }
-                            });
-                        }
-
-                        function playVideo() {
-                            if (lamPlayer && typeof lamPlayer.playVideo === 'function') lamPlayer.playVideo();
-                        }
-
-                        function pauseVideo() {
-                            if (lamPlayer && typeof lamPlayer.pauseVideo === 'function') lamPlayer.pauseVideo();
-                        }
-
-                        function seekTo(seconds, allowSeekAhead) {
-                            if (lamPlayer && typeof lamPlayer.seekTo === 'function') {
-                                lamPlayer.seekTo(seconds, allowSeekAhead);
-                            }
-                        }
-
-                        function getCurrentTime() {
-                            if (lamPlayer && typeof lamPlayer.getCurrentTime === 'function') {
-                                return lamPlayer.getCurrentTime();
-                            }
-                            return 0;
-                        }
-
-                        function loadVideoById(id) {
-                            if (!lamPlayer || typeof lamPlayer.loadVideoById !== 'function') return;
-                            try {
-                                lamPlayer.loadVideoById({videoId: id});
-                            } catch (_) {
-                                try { lamPlayer.loadVideoById(id); } catch (_) {}
-                            }
-                        }
-                    </script>
-                    <script src="https://www.youtube.com/iframe_api"></script>
-                </body>
-                </html>
-            """.trimIndent()
-
-            loadDataWithBaseURL(appIdentityUrl, html, "text/html", "UTF-8", appIdentityUrl)
+            loadUrl("https://m.youtube.com/watch?v=" + safeId)
         }
 
         webView = player
