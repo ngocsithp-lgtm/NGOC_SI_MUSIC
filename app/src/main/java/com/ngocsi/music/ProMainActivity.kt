@@ -144,11 +144,7 @@ class ProMainActivity : ComponentActivity() {
                         c.play()
                     }
                 },
-                onTogglePlayback = {
-                    withController { c ->
-                        if (c.isPlaying) c.pause() else c.play()
-                    }
-                },
+                onTogglePlayback = { toggleSelectedSourcePlayback() },
                 onNext = {
                     withController { c ->
                         c.seekToNextMediaItem()
@@ -164,6 +160,37 @@ class ProMainActivity : ComponentActivity() {
                 onProgressTick = { syncProgress() }
             )
         }
+    }
+
+    /**
+     * Route the PRO mini-player to the source the user last selected.
+     * YouTube playback lives in YouTubePlayerActivity, not in the Media3 MusicService.
+     */
+    private fun toggleSelectedSourcePlayback() {
+        val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+        if (prefs.getBoolean("youtube_active_source", false)) {
+            val videoId = prefs.getString("youtube_last_played_video_id", null).orEmpty()
+            if (videoId.isBlank()) {
+                openLegacy("youtube")
+                return
+            }
+            val currentlyPlaying = prefs.getBoolean("youtube_is_playing", false)
+            val action = if (currentlyPlaying) "pause" else "play"
+            val queueJson = prefs.getString("youtube_last_played_queue_json", null)
+            val index = prefs.getInt("youtube_last_played_queue_index", 0)
+            controller?.pause()
+            startActivity(Intent(this, YouTubePlayerActivity::class.java).apply {
+                putExtra(YouTubePlayerActivity.EXTRA_VIDEO_ID, videoId)
+                putExtra(YouTubePlayerActivity.EXTRA_TITLE, prefs.getString("youtube_last_played_title", "YouTube"))
+                putExtra(YouTubePlayerActivity.EXTRA_CHANNEL, prefs.getString("youtube_last_played_channel", "YouTube"))
+                if (!queueJson.isNullOrBlank()) putExtra(YouTubePlayerActivity.EXTRA_QUEUE_JSON, queueJson)
+                putExtra(YouTubePlayerActivity.EXTRA_QUEUE_INDEX, index)
+                putExtra(YouTubePlayerActivity.EXTRA_AI_ACTION, action)
+                addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            })
+            return
+        }
+        withController { c -> if (c.isPlaying) c.pause() else c.play() }
     }
 
     private fun withController(action: (MediaController) -> Unit) {
