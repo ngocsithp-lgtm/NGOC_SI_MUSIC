@@ -1214,12 +1214,14 @@ class NgocSiWakeWordService : Service() {
     private fun launchMainAppRoute(
         destination: String,
         response: String,
-        trackQuery: String? = null
+        trackQuery: String? = null,
+        youtubeAction: String? = null
     ): String {
         return runCatching {
             val intent = Intent(this, MainActivity::class.java).apply {
                 putExtra("pro_destination", destination)
                 trackQuery?.let { putExtra("ai_track_query", it) }
+                youtubeAction?.let { putExtra("ai_youtube_action", it) }
                 addFlags(
                     Intent.FLAG_ACTIVITY_NEW_TASK or
                         Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
@@ -1237,10 +1239,28 @@ class NgocSiWakeWordService : Service() {
             return "Tôi có thể điều khiển nhạc điện thoại và YouTube riêng biệt; phát bài theo tên; tìm nhạc trên Jamendo, Audius và YouTube; mở thư viện, Drive, từng đài Radio, kênh TV; tạo/phát playlist; điều chỉnh phát ngẫu nhiên, lặp, hẹn giờ và lưu video yêu thích/xem sau."
         }
 
-        val hasSavedYouTubeVideo = getSharedPreferences("ngoc_si_music", Context.MODE_PRIVATE)
+        val youtubePrefs = getSharedPreferences("ngoc_si_music", Context.MODE_PRIVATE)
+        val hasSavedYouTubeVideo = !youtubePrefs
             .getString("youtube_last_played_video_id", null)
             .isNullOrBlank()
-            .not()
+
+        // If the YouTube player is on screen, bare next/previous commands belong to
+        // its queue, not the native local/Drive Media3 queue.
+        if (youtubePrefs.getBoolean("youtube_player_foreground", false) && hasSavedYouTubeVideo) {
+            when (command) {
+                NgocSiAiLocalCommand.NEXT -> return launchMainAppRoute(
+                    destination = "youtube_command",
+                    response = "Đang chuyển video YouTube tiếp theo.",
+                    youtubeAction = "next"
+                )
+                NgocSiAiLocalCommand.PREVIOUS -> return launchMainAppRoute(
+                    destination = "youtube_command",
+                    response = "Đang chuyển video YouTube trước.",
+                    youtubeAction = "previous"
+                )
+                else -> Unit
+            }
+        }
         val destination = when (command) {
             NgocSiAiLocalCommand.OPEN_HOME -> "home"
             NgocSiAiLocalCommand.OPEN_LIBRARY -> "library"
