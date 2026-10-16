@@ -61,6 +61,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         const val EXTRA_QUEUE_INDEX = "youtube_queue_index"
         const val EXTRA_AI_ACTION = "youtube_ai_action"
         private const val ACTION_PIP_PLAY_PAUSE = "com.ngocsi.music.action.YOUTUBE_PIP_PLAY_PAUSE"
+        private const val ACTION_PIP_PLAY_PAUSE_INTERNAL = "com.ngocsi.music.action.YOUTUBE_PIP_PLAY_PAUSE_INTERNAL"
     }
 
     private lateinit var root: FrameLayout
@@ -173,9 +174,30 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private val youtubeJsBridge = YoutubeJsBridge()
+    private var pipActionReceiverRegistered = false
+    private val pipActionReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context?, intent: Intent?) {
+            if (intent?.action != ACTION_PIP_PLAY_PAUSE_INTERNAL) return
+            // Handle the PiP action in-place. A PendingIntent to an Activity would
+            // expand PiP back to the full player before the play command can run.
+            if (youtubePlayerReady && webView != null) {
+                val command = if (youtubePlayerState == 1) "pauseVideo()" else "playVideo()"
+                webView?.evaluateJavascript(command, null)
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        val pipFilter = android.content.IntentFilter(ACTION_PIP_PLAY_PAUSE_INTERNAL)
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(pipActionReceiver, pipFilter, android.content.Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("DEPRECATION")
+            registerReceiver(pipActionReceiver, pipFilter)
+        }
+        pipActionReceiverRegistered = true
 
         val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
         // Remember that the selected playback source is YouTube so the compact
@@ -1673,11 +1695,10 @@ class YouTubePlayerActivity : ComponentActivity() {
         // to local music rather than this WebView-based YouTube player.
         if (youtubePlayerReady) {
             val playing = youtubePlayerState == 1
-            val actionIntent = Intent(this, YouTubePlayerActivity::class.java).apply {
+            val actionIntent = Intent(this, YouTubePipActionReceiver::class.java).apply {
                 action = ACTION_PIP_PLAY_PAUSE
-                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
             }
-            val pendingIntent = PendingIntent.getActivity(
+            val pendingIntent = PendingIntent.getBroadcast(
                 this,
                 7101,
                 actionIntent,
@@ -1823,7 +1844,26 @@ class YouTubePlayerActivity : ComponentActivity() {
         thumbnailExecutor.shutdownNow()
         youtubeThumbnailCache.evictAll()
         stopPlaybackPositionSaver()
+        if (pipActionReceiverRegistered) {
+            runCatching { unregisterReceiver(pipActionReceiver) }
+            pipActionReceiverRegistered = false
+        }
         loadingBar = null
         super.onDestroy()
+    }
+}
+
+/**
+ * Receives the PiP transport tap without launching/bringing the Activity to the
+ * foreground, then forwards it to the still-live PiP Activity using a package-
+ * scoped broadcast.
+ */
+class YouTubePipActionReceiver : android.content.BroadcastReceiver() {
+    override fun onReceive(context: android.content.Context, intent: Intent?) {
+        if (intent?.action != "com.ngocsi.music.action.YOUTUBE_PIP_PLAY_PAUSE") return
+        context.sendBroadcast(
+            Intent("com.ngocsi.music.action.YOUTUBE_PIP_PLAY_PAUSE_INTERNAL")
+                .setPackage(context.packageName)
+        )
     }
 }
