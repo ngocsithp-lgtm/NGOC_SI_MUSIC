@@ -334,6 +334,8 @@ class MainActivity : ComponentActivity() {
     private var youtubeShelf by mutableStateOf("Khám phá")
     private var youtubeNextPageToken by mutableStateOf<String?>(null)
     private var youtubeSelectedVideoId by mutableStateOf<String?>(null)
+    // Tracks which playback engine the compact play control should resume.
+    private var youtubeIsActiveSource by mutableStateOf(false)
     private var youtubeLastPlayed by mutableStateOf<YouTubeTrack?>(null)
     private var youtubeLastQueueJson by mutableStateOf<String?>(null)
     private var youtubeLastQueueIndex by mutableIntStateOf(0)
@@ -3744,6 +3746,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun togglePlayPause() {
+        // If YouTube was the last explicitly selected source, the compact
+        // play control must resume that YouTube session, not Media3 local audio.
+        if (youtubeIsActiveSource) {
+            playLastYouTube("play")
+            return
+        }
         invalidatePendingPlaybackAuthorization()
         val c = controller ?: return
         if (queueSongs.isNotEmpty() && !isControllerQueueInSync(c)) {
@@ -3788,6 +3796,7 @@ class MainActivity : ComponentActivity() {
         savePlaybackState()
     }
     private fun playNext(song: Song) {
+        youtubeIsActiveSource = false
         val c = controller ?: run {
             errorMessage = "Trình phát đang khởi động, thử lại sau."
             return
@@ -3897,6 +3906,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun playQueueAt(queueIndex: Int) {
+        youtubeIsActiveSource = false
         invalidatePendingPlaybackAuthorization()
         val c = controller ?: return
         if (queueIndex !in queueSongs.indices) return
@@ -3916,6 +3926,7 @@ class MainActivity : ComponentActivity() {
         errorMessage = "Đang phát từ vị trí " + (queueIndex + 1) + " trong hàng đợi."
     }
     private fun playQueueFromStart() {
+        youtubeIsActiveSource = false
         invalidatePendingPlaybackAuthorization()
         val c = controller ?: return
         if (queueSongs.isEmpty()) {
@@ -7915,6 +7926,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         // local/Drive playback first so the local session cannot keep playing
         // underneath or appear to take over when the YouTube Activity opens.
         controller?.pause()
+        youtubeIsActiveSource = true
         youtubeSelectedVideoId = track.videoId
         youtubeQuery = youtubeQuery.ifBlank { track.title }
         rememberYouTubeHistory(track.title)
@@ -8172,9 +8184,9 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         }.getOrDefault(0)
 
         // The YouTube mini-player is not backed by the Media3 local player.
-        // Pause Media3 before reopening YouTube to avoid the wrong audio source
-        // continuing when the embedded player has been interrupted by screen-off.
+        // Pause Media3 and route the compact play control back to YouTube.
         controller?.pause()
+        youtubeIsActiveSource = true
         runCatching {
             startActivity(
                 Intent(this, YouTubePlayerActivity::class.java).apply {
@@ -8208,6 +8220,9 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 thumbnailUrl = item.optString("thumbnailUrl")
             )
             if (targetTrack.videoId.isBlank()) return@runCatching
+            controller?.pause()
+            youtubeIsActiveSource = true
+            youtubeSelectedVideoId = targetTrack.videoId
             startActivity(
                 Intent(this, YouTubePlayerActivity::class.java).apply {
                     putExtra(YouTubePlayerActivity.EXTRA_VIDEO_ID, targetTrack.videoId)
