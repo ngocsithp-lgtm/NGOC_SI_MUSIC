@@ -1,11 +1,14 @@
 package com.ngocsi.music
 
 import android.app.PictureInPictureParams
+import android.app.PendingIntent
+import android.app.RemoteAction
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.net.Uri
 import android.graphics.BitmapFactory
+import android.graphics.drawable.Icon
 import android.graphics.Bitmap
 import android.graphics.Color as AndroidColor
 import android.content.res.ColorStateList
@@ -57,6 +60,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         const val EXTRA_QUEUE_JSON = "youtube_queue_json"
         const val EXTRA_QUEUE_INDEX = "youtube_queue_index"
         const val EXTRA_AI_ACTION = "youtube_ai_action"
+        private const val ACTION_PIP_PLAY_PAUSE = "com.ngocsi.music.action.YOUTUBE_PIP_PLAY_PAUSE"
     }
 
     private lateinit var root: FrameLayout
@@ -297,6 +301,14 @@ class YouTubePlayerActivity : ComponentActivity() {
                     createPlayer()
                 }
             }
+        }
+
+        if (intent.action == ACTION_PIP_PLAY_PAUSE) {
+            // PiP transport actions must control the embedded YouTube player directly,
+            // not the separate Media3 session used for local music.
+            toggleYoutubePlayback()
+            updatePipParamsIfSupported()
+            return
         }
 
         intent.getStringExtra(EXTRA_AI_ACTION)?.let { action ->
@@ -1655,6 +1667,30 @@ class YouTubePlayerActivity : ComponentActivity() {
     private fun buildPipParams(): PictureInPictureParams {
         val builder = PictureInPictureParams.Builder()
             .setAspectRatio(Rational(16, 9))
+
+        // Give the PiP window its own explicit play/pause action. Without this,
+        // Android may expose the app's active Media3 session controls, which belong
+        // to local music rather than this WebView-based YouTube player.
+        if (youtubePlayerReady) {
+            val playing = youtubePlayerState == 1
+            val actionIntent = Intent(this, YouTubePlayerActivity::class.java).apply {
+                action = ACTION_PIP_PLAY_PAUSE
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
+            }
+            val pendingIntent = PendingIntent.getActivity(
+                this,
+                7101,
+                actionIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            val iconRes = if (playing) android.R.drawable.ic_media_pause
+                else android.R.drawable.ic_media_play
+            val label = if (playing) "Tạm dừng YouTube" else "Phát YouTube"
+            builder.setActions(listOf(
+                RemoteAction(Icon.createWithResource(this, iconRes), label, label, pendingIntent)
+            ))
+        }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             builder.setAutoEnterEnabled(youtubePlayerReady && youtubePlayerState == 1)
         }
