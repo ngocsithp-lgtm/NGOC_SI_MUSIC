@@ -1433,10 +1433,9 @@ class MainActivity : ComponentActivity() {
 
     private fun play(index: Int, driveTokenReady: Boolean = false) {
         if (index !in songs.indices) return
-        // An explicit local/Drive/Radio song selection switches the compact
-        // transport back to Media3. Do not clear this flag for background
-        // restoration or merely because the MediaController reconnects.
-        setYouTubeActiveSource(false)
+        // This method is also used by restoration/reconnect paths, so it must not
+        // decide the active engine. Explicit user selections switch the source
+        // at their call sites; restoration must preserve a selected YouTube source.
         val requestGeneration = if (driveTokenReady) playbackIntentGeneration else ++playbackIntentGeneration
         val requestedUri = songs[index].uri.toString()
         val requestedSource = songs[index].source
@@ -2831,7 +2830,10 @@ class MainActivity : ComponentActivity() {
             val index = songs.indexOfFirst {
                 it.uri == song.uri && it.source == song.source
             }
-            if (index >= 0) play(index)
+            if (index >= 0) {
+                setYouTubeActiveSource(false)
+                play(index)
+            }
             showDriveBrowser = false
         } else {
             errorMessage = "Đã thêm “" + item.name + "” vào thư viện Google Drive."
@@ -3309,6 +3311,7 @@ class MainActivity : ComponentActivity() {
         }
 
         syncControllerQueue()
+        setYouTubeActiveSource(false)
         play(index)
         if (isRadio) {
             // Arm the watchdog for stations that remain buffering without
@@ -3488,6 +3491,7 @@ class MainActivity : ComponentActivity() {
             queueSongs.add(songs[index])
         }
         syncControllerQueue()
+        setYouTubeActiveSource(false)
         play(index)
     }
 
@@ -3576,6 +3580,7 @@ class MainActivity : ComponentActivity() {
             queueSongs.add(songs[index])
         }
         syncControllerQueue()
+        setYouTubeActiveSource(false)
         play(index)
     }
 
@@ -4862,7 +4867,11 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
-                    currentSong?.let { MiniPlayer(it) }
+                    if (youtubeIsActiveSource && youtubeLastPlayed != null) {
+                        YouTubeMiniPlayer(youtubeLastPlayed!!)
+                    } else {
+                        currentSong?.let { MiniPlayer(it) }
+                    }
                     BottomNav()
                 }
             }
@@ -5529,7 +5538,7 @@ class MainActivity : ComponentActivity() {
             Modifier.fillMaxWidth()
                 .clip(RoundedCornerShape(14.dp))
                 .background(if (selected) Color(0xFF211B31) else Color.Transparent)
-                .clickable { play(index) }
+                .clickable { setYouTubeActiveSource(false); play(index) }
                 .padding(horizontal = 6.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -10395,6 +10404,81 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
     }
 
     @Composable
+    private fun YouTubeMiniPlayer(track: YouTubeTrack) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 5.dp),
+            shape = RoundedCornerShape(18.dp),
+            color = Color(0xFF11151D),
+            tonalElevation = 5.dp,
+            shadowElevation = 5.dp,
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF3A2630))
+        ) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 9.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OnlineArtwork(
+                    track.thumbnailUrl,
+                    Modifier.size(54.dp).clip(RoundedCornerShape(12.dp))
+                )
+                Spacer(Modifier.width(10.dp))
+                Column(
+                    Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text(
+                        "YOUTUBE • NGUỒN ĐANG CHỌN",
+                        color = Color(0xFFFF7A86),
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Black,
+                        maxLines = 1
+                    )
+                    Text(
+                        track.title,
+                        color = Color.White,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        track.channelTitle.ifBlank { "YouTube" },
+                        color = Color(0xFFA0A7B7),
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                IconButton(onClick = { playStoredYouTubeOffset(-1) }) {
+                    Text("⏮", color = Color(0xFFB8B3C7), fontSize = 16.sp)
+                }
+                Surface(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .clickable { playLastYouTube("play") },
+                    shape = CircleShape,
+                    color = Color(0xFFFF6678)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            "▶",
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                    }
+                }
+                IconButton(onClick = { playStoredYouTubeOffset(1) }) {
+                    Text("⏭", color = Color(0xFFB8B3C7), fontSize = 16.sp)
+                }
+            }
+        }
+    }
+
+    @Composable
     private fun MiniPlayer(song: Song) {
         val totalDuration = max(duration, song.duration).coerceAtLeast(1L)
         val progress = (position.toFloat() / totalDuration.toFloat()).coerceIn(0f, 1f)
@@ -10823,7 +10907,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             Modifier.fillMaxWidth()
                 .clip(RoundedCornerShape(18.dp))
                 .background(if (selected) Color(0xFF28203D) else Color(0xFF14161D))
-                .clickable { play(index) }
+                .clickable { setYouTubeActiveSource(false); play(index) }
                 .padding(horizontal = 10.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
