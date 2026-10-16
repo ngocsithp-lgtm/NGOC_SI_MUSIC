@@ -191,12 +191,12 @@ class YouTubePlayerActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         val pipFilter = android.content.IntentFilter(ACTION_PIP_PLAY_PAUSE_INTERNAL)
-        if (Build.VERSION.SDK_INT >= 33) {
-            registerReceiver(pipActionReceiver, pipFilter, android.content.Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            @Suppress("DEPRECATION")
-            registerReceiver(pipActionReceiver, pipFilter)
-        }
+        androidx.core.content.ContextCompat.registerReceiver(
+            this,
+            pipActionReceiver,
+            pipFilter,
+            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
+        )
         pipActionReceiverRegistered = true
 
         val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
