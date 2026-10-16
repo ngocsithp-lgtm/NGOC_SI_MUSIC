@@ -1430,6 +1430,10 @@ class MainActivity : ComponentActivity() {
 
     private fun play(index: Int, driveTokenReady: Boolean = false) {
         if (index !in songs.indices) return
+        // An explicit local/Drive/Radio song selection switches the compact
+        // transport back to Media3. Do not clear this flag for background
+        // restoration or merely because the MediaController reconnects.
+        setYouTubeActiveSource(false)
         val requestGeneration = if (driveTokenReady) playbackIntentGeneration else ++playbackIntentGeneration
         val requestedUri = songs[index].uri.toString()
         val requestedSource = songs[index].source
@@ -3753,9 +3757,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun togglePlayPause() {
-        // If YouTube was the last explicitly selected source, the compact
-        // play control must resume that YouTube session, not Media3 local audio.
-        if (youtubeIsActiveSource) {
+        // Read the persisted source at click time as well as Compose state.
+        // A compact-player tap can arrive after Activity/process recreation,
+        // while the state object still reflects an older local-player snapshot.
+        val youtubeSourceSelected = youtubeIsActiveSource ||
+            prefs.getBoolean("youtube_active_source", false)
+        if (youtubeSourceSelected && youtubeLastPlayed != null) {
+            setYouTubeActiveSource(true)
             playLastYouTube("play")
             return
         }
