@@ -1624,6 +1624,9 @@ class YouTubePlayerActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        // Let wake-word commands follow the currently foregrounded YouTube player.
+        getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+            .edit().putBoolean("youtube_player_foreground", true).apply()
         // Re-arm WebView media/JS processing whenever the Activity returns to
         // the foreground. This does not attempt to bypass YouTube background-
         // playback restrictions; it only makes foreground recovery reliable.
@@ -1701,6 +1704,8 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     override fun onStop() {
+        getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+            .edit().putBoolean("youtube_player_foreground", false).apply()
         // Keep the last queue/index and playback position durable across process
         // pressure and relaunch. This does not keep YouTube playing in background.
         saveCurrentPlaybackPosition()
