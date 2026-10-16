@@ -7911,6 +7911,10 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
     }
 
     private fun playYouTube(track: YouTubeTrack) {
+        // YouTube uses its own embedded player, separate from Media3. Pause
+        // local/Drive playback first so the local session cannot keep playing
+        // underneath or appear to take over when the YouTube Activity opens.
+        controller?.pause()
         youtubeSelectedVideoId = track.videoId
         youtubeQuery = youtubeQuery.ifBlank { track.title }
         rememberYouTubeHistory(track.title)
@@ -8167,6 +8171,10 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             youtubeLastQueueIndex.coerceIn(0, (array.length() - 1).coerceAtLeast(0))
         }.getOrDefault(0)
 
+        // The YouTube mini-player is not backed by the Media3 local player.
+        // Pause Media3 before reopening YouTube to avoid the wrong audio source
+        // continuing when the embedded player has been interrupted by screen-off.
+        controller?.pause()
         runCatching {
             startActivity(
                 Intent(this, YouTubePlayerActivity::class.java).apply {
