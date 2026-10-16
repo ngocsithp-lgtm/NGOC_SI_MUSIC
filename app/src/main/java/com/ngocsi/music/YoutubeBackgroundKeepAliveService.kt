@@ -11,12 +11,14 @@ import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
+import androidx.media3.common.util.UnstableApi
 
 /**
  * Preview-only experiment to keep the app process alive while an in-app YouTube
  * IFrame is playing. This service cannot guarantee that YouTube/WebView allows
  * background playback and deliberately does not extract or proxy media streams.
  */
+@UnstableApi
 class YoutubeBackgroundKeepAliveService : Service() {
 
     private var wakeLock: PowerManager.WakeLock? = null
