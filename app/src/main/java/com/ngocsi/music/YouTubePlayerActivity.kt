@@ -481,21 +481,8 @@ class YouTubePlayerActivity : ComponentActivity() {
         transport.addView(nextButton, LinearLayout.LayoutParams(dp(58), dp(48)))
         content.addView(transport)
 
-        // Experimental fallback: hand the current video to a real browser.
-        // A browser may keep its own audio session alive in background on some devices;
-        // this is separate from the embedded WebView player and is not guaranteed.
-        val browserPlaybackButton = Button(this).apply {
-            text = "MỞ VIDEO BẰNG CHROME • THỬ PHÁT NỀN"
-            contentDescription = "Mở video YouTube hiện tại bằng Chrome để thử phát nền"
-            setOnClickListener { openCurrentVideoInBrowser() }
-        }
-        styleWideButton(browserPlaybackButton)
-        browserPlaybackButton.textSize = 11f
-        content.addView(browserPlaybackButton, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, dp(44)
-        ).apply {
-            setMargins(dp(12), dp(0), dp(12), dp(6))
-        })
+        // Keep YouTube playback inside the app's embedded player.
+        // Do not hand off to an external browser: this screen must remain the app player.
 
         // Secondary actions are compact and visually subordinate to play/pause.
         val utilityRow = LinearLayout(this).apply {
@@ -1314,43 +1301,6 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
         updatePlaybackButton()
     }
-    private fun openCurrentVideoInBrowser() {
-        val safeVideoId = sanitizeVideoId(videoId)
-        if (safeVideoId.isBlank()) {
-            Toast.makeText(this, "Chưa có video YouTube để mở.", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        val url = Uri.parse("https://www.youtube.com/watch?v=$safeVideoId")
-        // Prefer installed full browsers instead of the embedded WebView or YouTube app.
-        // Prefer Chrome first, then other installed full browsers; do not open the embedded WebView.
-        val browserPackages = listOf(
-            "com.android.chrome",
-            "com.sec.android.app.sbrowser",
-            "org.mozilla.firefox",
-            "com.brave.browser"
-        )
-        val browserIntent = Intent(Intent.ACTION_VIEW, url).addCategory(Intent.CATEGORY_BROWSABLE)
-        val installedBrowserIntent = browserPackages
-            .asSequence()
-            .map { packageName -> Intent(browserIntent).setPackage(packageName) }
-            .firstOrNull { it.resolveActivity(packageManager) != null }
-
-        runCatching {
-            if (installedBrowserIntent != null) {
-                startActivity(installedBrowserIntent)
-            } else {
-                startActivity(Intent.createChooser(browserIntent, "Mở YouTube bằng trình duyệt"))
-            }
-        }.onFailure {
-            Toast.makeText(
-                this,
-                "Không tìm thấy trình duyệt phù hợp để mở video.",
-                Toast.LENGTH_LONG
-            ).show()
-        }
-    }
-
     private fun createPlayer() {
         removePlayer()
         pageErrorVisible = false
