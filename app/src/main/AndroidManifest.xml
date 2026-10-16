@@ -96,26 +96,7 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/music_widget_info" />
         </receiver>
-
-        <!-- Optional notification access lets Preview discover only Morphe's active media session. -->
-        <service
-            android:name=".MorpheMediaSessionNotificationListener"
-            android:label="NGỌC SĨ AI Preview · điều khiển Morphe"
-            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.service.notification.NotificationListenerService" />
-            </intent-filter>
-        </service>
-
-        <!-- Preview-only experimental keep-alive for in-app YouTube playback. -->
-        <service
-            android:name=".YoutubeBackgroundKeepAliveService"
-            android:exported="false"
-            android:stopWithTask="false"
-            android:foregroundServiceType="mediaPlayback" />
-
-        <!-- Media3 Music Service -->
+<!-- Media3 Music Service -->
         <receiver
             android:name="androidx.media3.session.MediaButtonReceiver"
             android:exported="true">
