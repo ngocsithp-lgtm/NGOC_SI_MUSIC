@@ -4497,6 +4497,10 @@ class MainActivity : ComponentActivity() {
         // The player writes favorites/watch-later directly to SharedPreferences,
         // so the PRO/YouTube surface must reload them without requiring an app restart.
         if (::prefs.isInitialized) {
+            // YouTubePlayerActivity writes the selected source directly to SharedPreferences.
+            // Refresh the Compose source flag when returning from that Activity; otherwise
+            // the UI can keep showing the local Media3 mini-player even though YouTube is active.
+            youtubeIsActiveSource = prefs.getBoolean("youtube_active_source", false)
             loadYouTubeLibraryState()
             loadYouTubeWatchLater()
         }
