@@ -1563,19 +1563,50 @@ class YouTubePlayerActivity : ComponentActivity() {
             return
         }
 
-        val morpheIntent = Intent(
+        // Use YouTube's multi-video queue URL when the app already has a queue,
+        // so Morphe has a chance to expose the next-track action to Android.
+        // Keep the URL short and start with the currently selected video.
+        val followingIds = queue
+            .drop((queueIndex + 1).coerceAtMost(queue.size))
+            .asSequence()
+            .map { sanitizeVideoId(it.videoId) }
+            .filter { it.isNotBlank() }
+            .take(39)
+            .toList()
+        val morpheUrl = if (followingIds.isNotEmpty()) {
+            "https://www.youtube.com/watch_videos?video_ids=" +
+                (listOf(safeId) + followingIds).joinToString(",")
+        } else {
+            "https://www.youtube.com/watch?v=$safeId"
+        }
+
+        fun createMorpheIntent(url: String) = Intent(
             Intent.ACTION_VIEW,
-            Uri.parse("https://www.youtube.com/watch?v=$safeId")
+            Uri.parse(url)
         ).setPackage(MORPHE_PACKAGE)
 
         try {
-            startActivity(morpheIntent)
+            startActivity(createMorpheIntent(morpheUrl))
         } catch (_: android.content.ActivityNotFoundException) {
-            Toast.makeText(
-                this,
-                "Chưa tìm thấy YouTube Morphe. Trình phát trong app vẫn được giữ nguyên.",
-                Toast.LENGTH_LONG
-            ).show()
+            // Some Morphe/YouTube versions may not expose watch_videos as an
+            // app link. Fall back to the current video without losing playback.
+            if (followingIds.isNotEmpty()) {
+                runCatching {
+                    startActivity(createMorpheIntent("https://www.youtube.com/watch?v=$safeId"))
+                }.onSuccess { return }.onFailure {
+                    Toast.makeText(
+                        this,
+                        "Chưa tìm thấy YouTube Morphe. Trình phát trong app vẫn được giữ nguyên.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            } else {
+                Toast.makeText(
+                    this,
+                    "Chưa tìm thấy YouTube Morphe. Trình phát trong app vẫn được giữ nguyên.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
         } catch (_: Exception) {
             Toast.makeText(
                 this,
