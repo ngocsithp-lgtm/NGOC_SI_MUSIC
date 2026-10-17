@@ -1718,9 +1718,14 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     override fun onUserLeaveHint() {
-        // Capture the pre-transition state before Android/WebView can report a
-        // pause caused by shrinking the page into the PiP window.
-        resumeVideoAfterPipEntry = youtubePlayerReady && youtubePlayerState == 1
+        // Capture playback before Android/WebView can report a pause caused by
+        // PiP resizing. The JS state poll can lag by up to one interval, so use
+        // the last observed player state as a fallback, but never override an
+        // explicit paused state reported by the player.
+        val lastObservedPlaying = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+            .getBoolean("youtube_playback_is_playing", false)
+        resumeVideoAfterPipEntry = youtubePlayerReady &&
+            (youtubePlayerState == 1 || (youtubePlayerState < 0 && lastObservedPlaying))
         // Persist playback state, then use PiP as a visible fallback on Android 8–11.
         saveLastPlayedState()
         super.onUserLeaveHint()
