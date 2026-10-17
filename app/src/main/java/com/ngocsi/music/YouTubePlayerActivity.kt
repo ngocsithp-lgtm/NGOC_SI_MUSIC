@@ -1375,10 +1375,13 @@ class YouTubePlayerActivity : ComponentActivity() {
                     // Preview experiment: use YouTube's mobile website in the app's
                     // Chromium WebView instead of the IFrame API player.
                     view.evaluateJavascript("""
-                        (function installNgocSiBridge() {
+                        (function installNgocSiBridge(retries) {
                           if (window.__ngocSiBridgeInstalled) return;
                           var v = document.querySelector('video');
-                          if (!v) { setTimeout(installNgocSiBridge, 700); return; }
+                          if (!v) {
+                            if (retries < 30) setTimeout(function(){ installNgocSiBridge(retries + 1); }, 700);
+                            return;
+                          }
                           window.__ngocSiBridgeInstalled = true;
                           window.playVideo = function(){ var e=document.querySelector('video'); if(e) e.play().catch(function(){}); };
                           window.pauseVideo = function(){ var e=document.querySelector('video'); if(e) e.pause(); };
@@ -1396,7 +1399,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                               try { AndroidBridge.onStateChanged(state); } catch(e) {}
                             }
                           }, 900);
-                        })();
+                        })(0);
                     """.trimIndent(), null)
                 }
 
