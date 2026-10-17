@@ -1784,8 +1784,13 @@ class YouTubePlayerActivity : ComponentActivity() {
 
     override fun onDestroy() {
         if (isFinishing) {
+            // When the YouTube Activity is actually closed (Back/finish), it no
+            // longer owns a live WebView playback session. Clear both flags so
+            // the compact player's next tap cannot route to a destroyed player
+            // and unexpectedly relaunch YouTube instead of controlling local music.
             getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
                 .putBoolean("youtube_playback_is_playing", false)
+                .putBoolean("youtube_active_source", false)
                 .apply()
         }
         if (customView != null) exitFullscreen(notifyCallback = false)
