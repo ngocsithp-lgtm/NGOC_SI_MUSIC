@@ -134,6 +134,12 @@ class YouTubePlayerActivity : ComponentActivity() {
         fun onStateChanged(state: Int) {
             runOnUiThread {
                 youtubePlayerState = state
+                // Persist the actual embedded YouTube playback state so the
+                // compact player's button can pause/resume YouTube instead of
+                // accidentally toggling the independent Media3 local player.
+                getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
+                    .putBoolean("youtube_playback_is_playing", state == 1)
+                    .apply()
                 updatePlaybackButton()
                 updatePipParamsIfSupported()
                 // The IFrame API can report onReady before the video is seekable.
@@ -1777,6 +1783,11 @@ class YouTubePlayerActivity : ComponentActivity() {
         (value * resources.displayMetrics.density).toInt()
 
     override fun onDestroy() {
+        if (isFinishing) {
+            getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
+                .putBoolean("youtube_playback_is_playing", false)
+                .apply()
+        }
         if (customView != null) exitFullscreen(notifyCallback = false)
         removePlayer()
         thumbnailExecutor.shutdownNow()
