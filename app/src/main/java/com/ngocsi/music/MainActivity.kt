@@ -3776,7 +3776,11 @@ class MainActivity : ComponentActivity() {
             if (youtubeLastPlayed == null) loadYouTubeLibraryState()
             if (youtubeLastPlayed != null) {
                 setYouTubeActiveSource(true)
-                playLastYouTube("play")
+                // Toggle the source that is actually selected. The compact
+                // button must pause/resume YouTube, never fall through to the
+                // independent Media3 player or always issue "play".
+                val youtubeIsPlaying = prefs.getBoolean("youtube_playback_is_playing", false)
+                playLastYouTube(if (youtubeIsPlaying) "pause" else "play")
                 return
             }
             // Do not silently switch to local music when YouTube was the selected
