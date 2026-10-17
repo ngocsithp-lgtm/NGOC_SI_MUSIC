@@ -181,6 +181,9 @@ class YouTubePlayerActivity : ComponentActivity() {
 
     private val youtubeJsBridge = YoutubeJsBridge()
     private var pipActionReceiverRegistered = false
+    // Remember that playback was active before Android shrinks this Activity into PiP.
+    // YouTube's mobile page may pause its HTML5 video during the resize transition.
+    private var resumeVideoAfterPipEntry = false
     private val pipActionReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: android.content.Context?, intent: Intent?) {
             if (intent?.action != ACTION_PIP_PLAY_PAUSE_INTERNAL) return
@@ -1677,7 +1680,28 @@ class YouTubePlayerActivity : ComponentActivity() {
         val visibility = if (isInPictureInPictureMode) View.GONE else View.VISIBLE
         listOf(pipHeader, pipInfo, pipTransport, pipUtilityRow, pipQueueActions)
             .forEach { it?.visibility = visibility }
-        if (isInPictureInPictureMode) loadingBar?.visibility = View.GONE
+        if (isInPictureInPictureMode) {
+            loadingBar?.visibility = View.GONE
+            // PiP can pause the mobile site's HTML5 video while Android resizes the
+            // WebView. Re-arm WebView and retry play only if it was playing before
+            // the transition; never override an intentional user pause.
+            if (resumeVideoAfterPipEntry) {
+                webView?.onResume()
+                val recoverPlayback = Runnable {
+                    if (!isFinishing && !isDestroyed && isInPictureInPictureMode && webView != null) {
+                        webView?.evaluateJavascript(
+                            "(function(){try{var v=document.querySelector('video');if(v&&v.paused){var p=v.play();if(p&&p.catch)p.catch(function(){});}return v&&!v.paused;}catch(e){return false;}})();",
+                            null
+                        )
+                    }
+                }
+                playerContainer.postDelayed(recoverPlayback, 250L)
+                playerContainer.postDelayed(recoverPlayback, 850L)
+                playerContainer.postDelayed(recoverPlayback, 1600L)
+            }
+        } else {
+            resumeVideoAfterPipEntry = false
+        }
         if (::playerContainer.isInitialized) {
             playerContainer.post {
                 val width = playerContainer.width
@@ -1694,6 +1718,9 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     override fun onUserLeaveHint() {
+        // Capture the pre-transition state before Android/WebView can report a
+        // pause caused by shrinking the page into the PiP window.
+        resumeVideoAfterPipEntry = youtubePlayerReady && youtubePlayerState == 1
         // Persist playback state, then use PiP as a visible fallback on Android 8–11.
         saveLastPlayedState()
         super.onUserLeaveHint()
