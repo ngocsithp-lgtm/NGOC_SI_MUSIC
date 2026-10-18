@@ -2194,14 +2194,10 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun updateWebViewPipPresentation(inPip: Boolean) {
-        // Let Android resize the existing native WebView/container for PiP. Avoid
-        // rewriting YouTube's internal DOM/CSS during window transitions because
-        // this can stall Chromium's video surface (both picture and audio).
-        // Also clear stale PiP styles if a previous page instance left them behind.
-        webView?.evaluateJavascript(
-            "window.__ngocSiPipModeRequested = false; if (window.__ngocSiSetPipMode) window.__ngocSiSetPipMode(false);",
-            null
-        )
+        // Intentionally do not execute JavaScript during PiP enter/exit.
+        // Even a "reset" helper can rewrite YouTube's DOM/CSS while Chromium is
+        // resizing the video surface, which can leave PiP black and media controls
+        // unable to resume. Keep the original page and native WebView surface intact.
     }
 
     /**
