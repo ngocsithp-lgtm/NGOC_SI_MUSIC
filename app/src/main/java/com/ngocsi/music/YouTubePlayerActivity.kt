@@ -1403,8 +1403,13 @@ class YouTubePlayerActivity : ComponentActivity() {
 
                 if (!video.paused && !video.ended && video.readyState >= 2) return 'playing';
 
-                // Call the player's own API if exposed, then the selected HTML5 video.
-                // If the Promise is rejected, use the site's visible Play control as fallback.
+                // Prefer the provider's visible Play control first. In Android PiP,
+                // evaluateJavascript may not carry the original touch's user-activation
+                // token, so a direct HTMLMediaElement.play() can be rejected even though
+                // the PiP action itself was tapped by the user.
+                clickPlayButton();
+                // Then explicitly resume the selected video element; the visible control
+                // may update player state asynchronously, so keep the retry path below.
                 try { if (api && typeof api.playVideo === 'function') api.playVideo(); } catch (_) {}
                 try {
                   var promise = video.play();
