@@ -20,7 +20,6 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Rational
 import android.view.View
-import android.view.ViewGroup
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.RenderProcessGoneDetail
@@ -83,8 +82,6 @@ class YouTubePlayerActivity : ComponentActivity() {
     // Keep a handle to the page scroll container so PiP always frames the video,
     // rather than an off-screen section of the watch page.
     private var contentScrollView: ScrollView? = null
-    // PiP gets a dedicated full-window WebView surface instead of cropping the watch-page ScrollView.
-    private var pipSurfaceAttached = false
     private var pipScrollY = 0
     private lateinit var channelView: TextView
     private lateinit var favoriteButton: Button
@@ -1875,18 +1872,26 @@ class YouTubePlayerActivity : ComponentActivity() {
         newConfig: Configuration
     ) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
-        val visibility = if (isInPictureInPictureMode) View.GONE else View.VISIBLE
-        listOf(pipHeader, pipInfo, pipTransport, pipUtilityRow, pipQueueActions)
-            .forEach { it?.visibility = visibility }
 
         if (isInPictureInPictureMode) {
             loadingBar?.visibility = View.GONE
+            pipScrollY = contentScrollView?.scrollY ?: 0
 
-            // Android PiP may keep the nested ScrollView/WebView's old full-screen viewport.
-            // Reparent WebView directly to the Activity root so it is measured to the PiP bounds;
-            // otherwise the small window can show only a narrow strip of the web page.
-            attachWebViewToPipSurface(true)
-            root.requestLayout()
+            // Keep the WebView attached to its original parent. Reparenting a WebView
+            // during PiP can detach Chromium's video compositor surface, producing a
+            // black window or audio-only playback on some Samsung devices.
+            val content = contentScrollView?.getChildAt(0) as? ViewGroup
+            content?.let { column ->
+                for (i in 0 until column.childCount) {
+                    val child = column.getChildAt(i)
+                    child.visibility = if (child === playerContainer) View.VISIBLE else View.GONE
+                }
+            }
+            contentScrollView?.scrollTo(0, 0)
+            contentScrollView?.clipChildren = true
+            contentScrollView?.clipToPadding = true
+            playerContainer.visibility = View.VISIBLE
+            resizePlayerContainerForPip(true)
             webView?.onResume()
             webView?.resumeTimers()
 
@@ -1929,7 +1934,14 @@ class YouTubePlayerActivity : ComponentActivity() {
             }
         } else {
             resumeVideoAfterPipEntry = false
-            attachWebViewToPipSurface(false)
+            val content = contentScrollView?.getChildAt(0) as? ViewGroup
+            content?.let { column ->
+                for (i in 0 until column.childCount) {
+                    column.getChildAt(i).visibility = View.VISIBLE
+                }
+            }
+            contentScrollView?.visibility = View.VISIBLE
+            contentScrollView?.post { contentScrollView?.scrollTo(0, pipScrollY) }
             webView?.onResume()
             resizePlayerContainerForPip(false)
         }
@@ -1937,65 +1949,30 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     /**
-     * Use the WebView as a direct child of the Activity root while in PiP.
-     * This avoids the stale full-width viewport produced by ScrollView -> LinearLayout nesting.
-     */
-    private fun attachWebViewToPipSurface(inPip: Boolean) {
-        if (!::root.isInitialized || !::playerContainer.isInitialized) return
-        val player = webView ?: return
-        if (inPip) {
-            if (pipSurfaceAttached) return
-            pipScrollY = contentScrollView?.scrollY ?: 0
-            contentScrollView?.visibility = View.GONE
-            (player.parent as? ViewGroup)?.removeView(player)
-            playerContainer.visibility = View.GONE
-            root.addView(
-                player,
-                0,
-                FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    FrameLayout.LayoutParams.MATCH_PARENT
-                )
-            )
-            pipSurfaceAttached = true
-            player.requestLayout()
-            root.requestLayout()
-        } else {
-            if (!pipSurfaceAttached) {
-                contentScrollView?.visibility = View.VISIBLE
-                return
-            }
-            (player.parent as? ViewGroup)?.removeView(player)
-            playerContainer.visibility = View.VISIBLE
-            playerContainer.addView(
-                player,
-                FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    FrameLayout.LayoutParams.MATCH_PARENT
-                )
-            )
-            pipSurfaceAttached = false
-            contentScrollView?.visibility = View.VISIBLE
-            playerContainer.requestLayout()
-            root.requestLayout()
-            contentScrollView?.post { contentScrollView?.scrollTo(0, pipScrollY) }
-        }
-    }
-
-    /**
-     * Restore the normal watch-page video height after PiP.
-     * While in PiP, the WebView is attached directly to root and fills the PiP window.
+     * Resize the existing video container without detaching WebView from Chromium's
+     * video surface. In PiP, derive the video height from the actual small-window width.
      */
     private fun resizePlayerContainerForPip(inPip: Boolean, remainingAttempts: Int = 8) {
-        if (inPip || !::playerContainer.isInitialized) return
+        if (!::playerContainer.isInitialized) return
         playerContainer.post {
+            val width = playerContainer.width.takeIf { it > 0 }
+                ?: contentScrollView?.width?.takeIf { it > 0 }
+                ?: root.width
+            if (width <= 0 && remainingAttempts > 0 && !isFinishing && !isDestroyed) {
+                playerContainer.postDelayed({ resizePlayerContainerForPip(inPip, remainingAttempts - 1) }, 80L)
+                return@post
+            }
             val params = playerContainer.layoutParams as? LinearLayout.LayoutParams ?: return@post
-            params.height = (resources.displayMetrics.widthPixels * 9f / 16f)
-                .toInt().coerceAtLeast(dp(200))
+            params.height = if (inPip) {
+                (width * 9f / 16f).toInt().coerceAtLeast(dp(90))
+            } else {
+                (resources.displayMetrics.widthPixels * 9f / 16f).toInt().coerceAtLeast(dp(200))
+            }
             playerContainer.layoutParams = params
             playerContainer.requestLayout()
             webView?.requestLayout()
             playerContainer.invalidate()
+            contentScrollView?.requestLayout()
         }
     }
 
