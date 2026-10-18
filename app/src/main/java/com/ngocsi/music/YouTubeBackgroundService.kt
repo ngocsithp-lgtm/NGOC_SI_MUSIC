@@ -307,7 +307,12 @@ class YouTubeBackgroundService : Service() {
 
     override fun onDestroy() {
         releaseWakeLock()
-        mediaSession?.runCatching { isActive = false; release() }
+        runCatching {
+            mediaSession?.apply {
+                isActive = false
+                release()
+            }
+        }
         mediaSession = null
         super.onDestroy()
     }
