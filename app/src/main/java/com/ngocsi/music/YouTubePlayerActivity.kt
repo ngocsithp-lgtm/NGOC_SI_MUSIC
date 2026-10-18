@@ -1659,6 +1659,11 @@ class YouTubePlayerActivity : ComponentActivity() {
                               return true;
                             };
 
+                            // Carry the native PiP state across a full YouTube page navigation.
+                            if (window.__ngocSiPipModeRequested === true) {
+                              window.__ngocSiSetPipMode(true);
+                            }
+
                             try { AndroidBridge.onReady(); } catch(e) {}
                             var lastState = -99;
                             setInterval(function(){
@@ -2058,7 +2063,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     private fun updateWebViewPipPresentation(inPip: Boolean) {
         val value = if (inPip) "true" else "false"
         webView?.evaluateJavascript(
-            "window.__ngocSiSetPipMode && window.__ngocSiSetPipMode($value);",
+            "window.__ngocSiPipModeRequested = $value; if (window.__ngocSiSetPipMode) window.__ngocSiSetPipMode($value);",
             null
         )
     }
