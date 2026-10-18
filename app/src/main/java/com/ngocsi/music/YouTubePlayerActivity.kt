@@ -1450,7 +1450,11 @@ class YouTubePlayerActivity : ComponentActivity() {
                   return 'paused';
                 }
 
-                if (!video.paused && !video.ended && video.readyState >= 2) return 'playing';
+                // Do not short-circuit an explicit play request just because the DOM says
+                // "playing": after PiP resize Chromium can report an unpaused element while
+                // the media pipeline is stalled. Reissue playVideo()/video.play() for recovery.
+                if ('$safeCommand' !== 'play' &&
+                    !video.paused && !video.ended && video.readyState >= 2) return 'playing';
 
                 // Prefer the provider's visible Play control first. In Android PiP,
                 // evaluateJavascript may not carry the original touch's user-activation
@@ -2225,11 +2229,16 @@ class YouTubePlayerActivity : ComponentActivity() {
                         webView?.evaluateJavascript(youtubePlaybackScript("play")) { result ->
                             val accepted = result?.contains("playing") == true ||
                                 result?.contains("buffering") == true
-                            if (!accepted && attempts < 16 && !isFinishing &&
+                            // Even when HTMLMediaElement reports "playing", the first
+                            // frame/audio pipeline can remain stalled after an Activity resize.
+                            // Reassert playback a few times during the PiP transition; an
+                            // explicit user pause clears resumeVideoAfterPipEntry and cancels
+                            // this recovery loop.
+                            if (attempts < 8 && !isFinishing &&
                                 !isDestroyed && isInPictureInPictureMode &&
                                 resumeVideoAfterPipEntry
                             ) {
-                                webView?.postDelayed(this, 500L)
+                                webView?.postDelayed(this, if (accepted) 650L else 500L)
                             }
                         }
                     }
