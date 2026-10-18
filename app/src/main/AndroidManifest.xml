@@ -109,6 +109,14 @@
             </intent-filter>
         </receiver>
 
+        <!-- Isolated foreground service for the user-started YouTube WebView session.
+             It does not replace or control the separate local/Drive Media3 player. -->
+        <service
+            android:name=".YouTubeBackgroundService"
+            android:exported="false"
+            android:stopWithTask="false"
+            android:foregroundServiceType="mediaPlayback" />
+
         <service
             android:name=".MusicService"
             android:exported="true"
