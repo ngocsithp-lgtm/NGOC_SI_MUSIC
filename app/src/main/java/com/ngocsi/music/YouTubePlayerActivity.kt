@@ -1681,8 +1681,10 @@ class YouTubePlayerActivity : ComponentActivity() {
                     """.trimIndent(), null)
                     // A queue navigation can finish while PiP is already active.
                     if (isInPictureInPictureMode) {
+                        // Set a durable flag first: the new YouTube page may not have
+                        // a video element yet, so the bridge/style installer can run later.
                         view.evaluateJavascript(
-                            "window.__ngocSiSetPipMode && window.__ngocSiSetPipMode(true);",
+                            "window.__ngocSiPipModeRequested = true; if (window.__ngocSiSetPipMode) window.__ngocSiSetPipMode(true);",
                             null
                         )
                     }
