@@ -198,7 +198,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 ACTION_PIP_PLAY_PAUSE_INTERNAL -> {
                     // Honor the exact action shown in the PiP overlay. Do not toggle a
                     // possibly stale/hidden video element when the user explicitly taps Play.
-                    if (youtubePlayerReady && webView != null) {
+                    if (webView != null && !isFinishing && !isDestroyed) {
                         when (intent.getStringExtra(EXTRA_PIP_COMMAND)) {
                             "play" -> requestYouTubePlayback()
                             "pause" -> pauseYouTubePlayback()
@@ -1494,7 +1494,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun requestYouTubePlayback() {
-        if (!youtubePlayerReady || webView == null || isFinishing || isDestroyed) return
+        if (webView == null || isFinishing || isDestroyed) return
         fun attempt(remaining: Int) {
             if (isFinishing || isDestroyed || webView == null) return
             webView?.evaluateJavascript(youtubePlaybackScript("play")) { result ->
@@ -1720,94 +1720,31 @@ class YouTubePlayerActivity : ComponentActivity() {
                             return rendered[0] || videos[0] || null;
                           }
                           window.__ngocSiFindActiveVideo = findActiveVideo;
-                          function installNgocSiBridge(retries) {
-                            if (window.__ngocSiBridgeInstalled) return;
-                            var v = findActiveVideo();
-                            if (!v) {
-                              if (retries < 30) setTimeout(function(){ installNgocSiBridge(retries + 1); }, 700);
-                              return;
-                            }
-                            window.__ngocSiBridgeInstalled = true;
-                            window.playVideo = function(){ var e=findActiveVideo(); if(e) e.play().catch(function(){}); };
-                            window.pauseVideo = function(){ var e=findActiveVideo(); if(e) e.pause(); };
-                            window.getCurrentTime = function(){ var e=findActiveVideo(); return e ? e.currentTime : 0; };
-                            window.seekTo = function(t){ var e=findActiveVideo(); if(e) e.currentTime=t; };
-                            window.loadVideoById = function(id){ location.href='https://m.youtube.com/watch?v='+encodeURIComponent(id); };
-
-                            // Focus the actual mobile YouTube player while PiP is active;
-                            // restore the surrounding watch page when the PiP window closes.
-                            window.__ngocSiSetPipMode = function(enabled) {
-                              var styleId = 'ngocsi-pip-style';
-                              var hiddenClass = 'ngocsi-pip-hidden';
-                              var focusClass = 'ngocsi-pip-video-container';
-                              var restore = window.__ngocSiPipHiddenElements || [];
+                          // PiP presentation changes only the webpage scroll position. Never
+                          // add CSS classes or hide YouTube DOM nodes around the playing video.
+                          window.__ngocSiPipOriginalScrollY = null;
+                          window.__ngocSiFocusVideoForPip = function(enabled) {
+                            try {
                               if (!enabled) {
-                                restore.forEach(function(el){ if (el && el.classList) el.classList.remove(hiddenClass); });
-                                window.__ngocSiPipHiddenElements = [];
-                                document.querySelectorAll('.' + focusClass).forEach(function(el){ el.classList.remove(focusClass); });
-                                document.documentElement.classList.remove('ngocsi-pip-active');
-                                var oldStyle = document.getElementById(styleId);
-                                if (oldStyle) oldStyle.remove();
-                                return true;
+                                var saved = window.__ngocSiPipOriginalScrollY;
+                                window.__ngocSiPipOriginalScrollY = null;
+                                if (typeof saved === 'number') window.scrollTo(0, saved);
+                                return 'restored';
                               }
-
-                              restore.forEach(function(el){ if (el && el.classList) el.classList.remove(hiddenClass); });
-                              window.__ngocSiPipHiddenElements = [];
-                              document.querySelectorAll('.' + focusClass).forEach(function(el){ el.classList.remove(focusClass); });
-
-                              var player = document.querySelector('.player-container') ||
-                                           document.querySelector('#player-container-id') ||
-                                           document.querySelector('#player') ||
-                                           document.querySelector('ytm-player') ||
-                                           document.querySelector('.html5-video-player');
-                              if (!player) return false;
-
-                              var hidden = [];
-                              var current = player;
-                              while (current && current.parentElement && current.parentElement !== document.documentElement) {
-                                var parent = current.parentElement;
-                                Array.prototype.forEach.call(parent.children, function(sibling) {
-                                  if (sibling !== current && !sibling.classList.contains(hiddenClass)) {
-                                    sibling.classList.add(hiddenClass);
-                                    hidden.push(sibling);
-                                  }
-                                });
-                                current = parent;
+                              if (typeof window.__ngocSiPipOriginalScrollY !== 'number') {
+                                window.__ngocSiPipOriginalScrollY = window.scrollY || window.pageYOffset || 0;
                               }
-                              window.__ngocSiPipHiddenElements = hidden;
-                              player.classList.add(focusClass);
-                              document.documentElement.classList.add('ngocsi-pip-active');
-
-                              var style = document.getElementById(styleId);
-                              if (!style) {
-                                style = document.createElement('style');
-                                style.id = styleId;
-                                document.head.appendChild(style);
-                              }
-                              style.textContent = [
-                                '.' + hiddenClass + '{display:none!important;}',
-                                'html.ngocsi-pip-active,html.ngocsi-pip-active body,html.ngocsi-pip-active ytm-app{' +
-                                  'width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;' +
-                                  'overflow:hidden!important;margin:0!important;padding:0!important;background:#000!important;}',
-                                '.' + focusClass + '{position:fixed!important;top:0!important;right:0!important;bottom:0!important;left:0!important;' +
-                                  'display:block!important;width:100vw!important;height:100vh!important;min-width:0!important;min-height:0!important;' +
-                                  'max-width:none!important;max-height:none!important;margin:0!important;padding:0!important;overflow:hidden!important;' +
-                                  'background:#000!important;z-index:2147483647!important;}',
-                                '.' + focusClass + ' ytm-player,.' + focusClass + ' #player,.' + focusClass + ' #player-container-id,' +
-                                  '.' + focusClass + ' .html5-video-player,.' + focusClass + ' .html5-video-container,.' + focusClass + ' video{' +
-                                  'position:absolute!important;top:0!important;right:0!important;bottom:0!important;left:0!important;' +
-                                  'width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;' +
-                                  'max-width:none!important;max-height:none!important;margin:0!important;padding:0!important;}',
-                                '.' + focusClass + ' video{object-fit:contain!important;background:#000!important;}'
-                              ].join('');
-                              return true;
-                            };
-
-                            // Carry the native PiP state across a full YouTube page navigation.
-                            if (window.__ngocSiPipModeRequested === true) {
-                              window.__ngocSiSetPipMode(true);
+                              var video = findActiveVideo();
+                              if (!video || !video.isConnected) return 'wait';
+                              var rect = video.getBoundingClientRect();
+                              if (rect.width < 2 || rect.height < 2) return 'wait';
+                              var targetY = (window.scrollY || window.pageYOffset || 0) + rect.top;
+                              window.scrollTo(0, Math.max(0, targetY));
+                              return 'focused';
+                            } catch (_) {
+                              return 'wait';
                             }
-
+                          };
                             try { AndroidBridge.onReady(); } catch(e) {}
                             var lastState = -99;
                             setInterval(function(){
@@ -1824,14 +1761,9 @@ class YouTubePlayerActivity : ComponentActivity() {
                         })();
                     """.trimIndent(), null)
                     // A queue navigation can finish while PiP is already active.
-                    if (isInPictureInPictureMode) {
-                        // Preserve YouTube's own layout during navigation in PiP.
-                        // Rewriting the player DOM/CSS at this point can stall Chromium's
-                        // video compositor and stop both picture and audio.
-                        view.evaluateJavascript(
-                            "window.__ngocSiPipModeRequested = false; if (window.__ngocSiSetPipMode) window.__ngocSiSetPipMode(false);",
-                            null
-                        )
+                    // Move the page viewport to the active video, without DOM/CSS surgery.
+                    if (isInPictureInPictureMode && customView == null) {
+                        updateWebViewPipPresentation(true)
                     }
                 }
 
@@ -2064,8 +1996,10 @@ class YouTubePlayerActivity : ComponentActivity() {
         // Tell Android which on-screen region is the actual video surface. This
         // avoids animating/cropping the whole watch page into the PiP window.
         if (::playerContainer.isInitialized) {
+            val sourceView = customView ?: playerContainer
             val sourceRect = Rect()
-            if (playerContainer.getGlobalVisibleRect(sourceRect) &&
+            if (sourceView.visibility == View.VISIBLE &&
+                sourceView.getGlobalVisibleRect(sourceRect) &&
                 sourceRect.width() > 0 && sourceRect.height() > 0
             ) {
                 builder.setSourceRectHint(sourceRect)
@@ -2118,12 +2052,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             loadingBar?.visibility = View.GONE
             pipScrollY = contentScrollView?.scrollY ?: 0
 
-            // The mobile YouTube page may be in its separate fullscreen custom view.
-            // Remove that overlay before showing only the inline WebView in PiP.
-            if (customView != null) exitFullscreen()
-
-            // PiP can pause the HTML5 video while Chromium resizes its surface.
-            // Preserve playback intent before any state callback reports that pause.
+            // Preserve playback intent before WebView/Chromium reports a transition pause.
             if (!resumeVideoAfterPipEntry) {
                 val lastObservedPlaying = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
                     .getBoolean("youtube_playback_is_playing", false)
@@ -2131,28 +2060,45 @@ class YouTubePlayerActivity : ComponentActivity() {
                     (youtubePlayerState < 0 && lastObservedPlaying)
             }
 
-            // Keep the WebView attached to its original parent. Reparenting a WebView
-            // during PiP can detach Chromium's video compositor surface, producing a
-            // black window or audio-only playback on some Samsung devices.
-            val content = contentScrollView?.getChildAt(0) as? ViewGroup
-            content?.let { column ->
-                for (i in 0 until column.childCount) {
-                    val child = column.getChildAt(i)
-                    child.visibility = if (child === playerContainer) View.VISIBLE else View.GONE
+            val fullscreenVideo = customView
+            if (fullscreenVideo != null) {
+                // CRITICAL: WebChromeClient's custom view can be the actual video SurfaceView.
+                // Do not call exitFullscreen() here: that removes the video surface and leaves
+                // PiP with a black/empty inline WebView. Keep the same view attached to root.
+                contentScrollView?.visibility = View.GONE
+                fullscreenVideo.visibility = View.VISIBLE
+                (fullscreenVideo.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
+                    params.width = FrameLayout.LayoutParams.MATCH_PARENT
+                    params.height = FrameLayout.LayoutParams.MATCH_PARENT
+                    fullscreenVideo.layoutParams = params
                 }
+                fullscreenVideo.requestLayout()
+            } else {
+                // Inline mode: keep the WebView attached to its original parent so Chromium's
+                // video compositor surface is not detached during PiP.
+                val content = contentScrollView?.getChildAt(0) as? ViewGroup
+                content?.let { column ->
+                    for (i in 0 until column.childCount) {
+                        val child = column.getChildAt(i)
+                        child.visibility = if (child === playerContainer) View.VISIBLE else View.GONE
+                    }
+                }
+                contentScrollView?.visibility = View.VISIBLE
+                contentScrollView?.scrollTo(0, 0)
+                contentScrollView?.clipChildren = true
+                contentScrollView?.clipToPadding = true
+                playerContainer.visibility = View.VISIBLE
+                val pipWindowWidthPx = newConfig.screenWidthDp
+                    .takeIf { it > 0 }
+                    ?.let { (it * resources.displayMetrics.density).toInt() }
+                    ?: 0
+                resizePlayerContainerForPip(true, pipWindowWidthPx = pipWindowWidthPx)
+                webView?.onResume()
+                webView?.resumeTimers()
+                // Scroll the web page's viewport to the video after Android finishes resizing.
+                // This changes scroll position only; it never rewrites YouTube's player DOM/CSS.
+                updateWebViewPipPresentation(true)
             }
-            contentScrollView?.scrollTo(0, 0)
-            contentScrollView?.clipChildren = true
-            contentScrollView?.clipToPadding = true
-            playerContainer.visibility = View.VISIBLE
-            val pipWindowWidthPx = newConfig.screenWidthDp
-                .takeIf { it > 0 }
-                ?.let { (it * resources.displayMetrics.density).toInt() }
-                ?: 0
-            resizePlayerContainerForPip(true, pipWindowWidthPx = pipWindowWidthPx)
-            webView?.onResume()
-            webView?.resumeTimers()
-            updateWebViewPipPresentation(true)
 
             if (resumeVideoAfterPipEntry) {
                 val recoverPlayback = object : Runnable {
@@ -2160,9 +2106,6 @@ class YouTubePlayerActivity : ComponentActivity() {
                     override fun run() {
                         if (isFinishing || isDestroyed || !isInPictureInPictureMode || webView == null) return
                         attempts++
-                        // Use the exact same active-video selection and provider-control
-                        // fallback as the PiP Play action. A second, older script here used
-                        // the first <video> element and could repeatedly wake a stale element.
                         webView?.evaluateJavascript(youtubePlaybackScript("play")) { result ->
                             val accepted = result?.contains("playing") == true ||
                                 result?.contains("buffering") == true
@@ -2186,18 +2129,53 @@ class YouTubePlayerActivity : ComponentActivity() {
             }
             contentScrollView?.visibility = View.VISIBLE
             contentScrollView?.post { contentScrollView?.scrollTo(0, pipScrollY) }
-            updateWebViewPipPresentation(false)
-            webView?.onResume()
-            resizePlayerContainerForPip(false)
+
+            if (customView != null) {
+                // If PiP started from YouTube fullscreen, keep the same video surface.
+                playerContainer.visibility = View.GONE
+                customView?.visibility = View.VISIBLE
+            } else {
+                playerContainer.visibility = View.VISIBLE
+                updateWebViewPipPresentation(false)
+                webView?.onResume()
+                resizePlayerContainerForPip(false)
+            }
         }
         updatePipParamsIfSupported()
     }
 
-    private fun updateWebViewPipPresentation(inPip: Boolean) {
-        // Intentionally do not execute JavaScript during PiP enter/exit.
-        // Even a "reset" helper can rewrite YouTube's DOM/CSS while Chromium is
-        // resizing the video surface, which can leave PiP black and media controls
-        // unable to resume. Keep the original page and native WebView surface intact.
+    /**
+     * Focus the inline video's viewport for PiP using page scrolling only. CSS/DOM mutation
+     * around an active HTML5 video can invalidate Chromium's compositor surface.
+     */
+    private fun updateWebViewPipPresentation(inPip: Boolean, attempt: Int = 0) {
+        if (customView != null) return
+        val player = webView ?: return
+        val script = if (inPip) {
+            """(function(){
+                try {
+                  if (typeof window.__ngocSiFocusVideoForPip !== 'function') return 'wait';
+                  return window.__ngocSiFocusVideoForPip(true);
+                } catch (_) { return 'wait'; }
+            })();"""
+        } else {
+            """(function(){
+                try {
+                  if (typeof window.__ngocSiFocusVideoForPip !== 'function') return 'restored';
+                  return window.__ngocSiFocusVideoForPip(false);
+                } catch (_) { return 'restored'; }
+            })();"""
+        }
+        player.postDelayed({
+            if (isFinishing || isDestroyed || (inPip != isInPictureInPictureMode)) return@postDelayed
+            player.evaluateJavascript(script) { result ->
+                if (inPip && result?.contains("wait") == true && attempt < 6 &&
+                    !isFinishing && !isDestroyed && isInPictureInPictureMode
+                ) {
+                    updateWebViewPipPresentation(true, attempt + 1)
+                }
+            }
+        }, if (inPip) 220L else 0L)
     }
 
     /**
