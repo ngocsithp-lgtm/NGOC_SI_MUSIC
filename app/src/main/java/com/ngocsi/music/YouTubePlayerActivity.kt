@@ -99,6 +99,9 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var pageErrorVisible = false
     private var youtubePlayerReady = false
     private var youtubePlayerState = -1
+    // New play/pause requests invalidate older delayed retries so PiP controls
+    // cannot leave multiple competing playback loops active at the same time.
+    private var playbackRequestGeneration = 0
     private var restoredPositionVideoId: String? = null
     private var positionRestoreAttempts = 0
     private var pendingAiAction: String? = null
@@ -1349,8 +1352,10 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun pauseYouTubePlayback() {
-        // An explicit user pause overrides the automatic PiP-resume intent.
+        // An explicit user pause overrides automatic PiP recovery and cancels
+        // every pending play retry before the pause command is sent.
         resumeVideoAfterPipEntry = false
+        playbackRequestGeneration++
         getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
             .edit().putBoolean("youtube_playback_is_playing", false).apply()
         runYoutubePlaybackCommand("pause")
@@ -1456,11 +1461,11 @@ class YouTubePlayerActivity : ComponentActivity() {
                   return 'paused';
                 }
 
-                // Do not short-circuit an explicit play request just because the DOM says
-                // "playing": after PiP resize Chromium can report an unpaused element while
-                // the media pipeline is stalled. Reissue playVideo()/video.play() for recovery.
-                if ('$safeCommand' !== 'play' &&
-                    !video.paused && !video.ended && video.readyState >= 2) return 'playing';
+                // Never repeatedly restart an already-running HTML5 media element.
+                // Repeated playVideo()/video.play() calls during PiP were competing with
+                // Chromium's audio pipeline and caused stuttering/ineffective Play controls.
+                // A single bounded retry remains available when the video is actually paused.
+                if (!video.paused && !video.ended && video.readyState >= 2) return 'playing';
 
                 // Prefer the provider's visible Play control first. In Android PiP,
                 // evaluateJavascript may not carry the original touch's user-activation
@@ -1533,6 +1538,7 @@ class YouTubePlayerActivity : ComponentActivity() {
 
     private fun requestYouTubePlayback() {
         if (webView == null || isFinishing || isDestroyed) return
+        val requestGeneration = ++playbackRequestGeneration
         // A PiP Play tap explicitly opts back into playback and its resume guard.
         if (isInPictureInPictureMode) {
             resumeVideoAfterPipEntry = true
@@ -1542,17 +1548,22 @@ class YouTubePlayerActivity : ComponentActivity() {
             webView?.resumeTimers()
         }
         fun attempt(remaining: Int) {
-            if (isFinishing || isDestroyed || webView == null) return
+            if (requestGeneration != playbackRequestGeneration ||
+                isFinishing || isDestroyed || webView == null
+            ) return
             webView?.evaluateJavascript(youtubePlaybackScript("play")) { result ->
+                if (requestGeneration != playbackRequestGeneration) return@evaluateJavascript
                 val accepted = result?.contains("playing") == true ||
                     result?.contains("buffering") == true
-                if (!accepted && remaining > 0 && !isFinishing && !isDestroyed) {
-                    playbackPositionHandler.postDelayed({ attempt(remaining - 1) }, 450L)
+                if (!accepted && remaining > 0 && !isFinishing && !isDestroyed &&
+                    requestGeneration == playbackRequestGeneration
+                ) {
+                    playbackPositionHandler.postDelayed({ attempt(remaining - 1) }, 800L)
                 }
             }
         }
-        // Retry only when play is not accepted; never send repeated play calls during buffering.
-        attempt(12)
+        // One bounded retry loop only; Play/Pause taps supersede any older loop.
+        attempt(5)
     }
 
     /**
@@ -1820,74 +1831,22 @@ class YouTubePlayerActivity : ComponentActivity() {
                             try { AndroidBridge.onReady(); } catch(e) {}
                             var lastState = -99;
                             var lastVideo = null;
-                            var lastPlaybackTime = -1;
-                            var stalledTicks = 0;
                             setInterval(function(){
                               var e = findActiveVideo();
                               if (!e) return;
                               if (e !== lastVideo) {
                                 lastVideo = e;
                                 lastState = -99;
-                                lastPlaybackTime = e.currentTime || 0;
-                                stalledTicks = 0;
                               }
                               var state = e.ended ? 0 : (e.paused ? 2 : 1);
                               if (state !== lastState) {
                                 lastState = state;
                                 try { AndroidBridge.onStateChanged(state); } catch(e) {}
                               }
-
-                              // Android WebView may keep showing the last decoded frame after
-                              // entering PiP while YouTube has paused its HTML5 video. Maintain
-                              // playback only when PiP entry captured an active-play intent.
-                              // An explicit PiP Pause clears this flag on the Android side.
-                              var shouldResume = false;
-                              try { shouldResume = AndroidBridge.shouldResumeAfterPip(); } catch(e) {}
-                              if (shouldResume && !e.ended) {
-                                var timeNow = Number(e.currentTime || 0);
-                                if (e.paused) {
-                                  try {
-                                    var api = document.querySelector('#movie_player') ||
-                                              document.querySelector('.html5-video-player') ||
-                                              document.querySelector('ytm-player');
-                                    if (api && typeof api.playVideo === 'function') api.playVideo();
-                                  } catch(e) {}
-                                  try {
-                                    var promise = e.play();
-                                    if (promise && typeof promise.catch === 'function') {
-                                      promise.catch(function(){});
-                                    }
-                                  } catch(e) {}
-                                } else if (e.readyState >= 2 &&
-                                           Math.abs(timeNow - lastPlaybackTime) < 0.02) {
-                                  stalledTicks++;
-                                  // Reassert playback once if the media clock stopped while
-                                  // the element still claims to be playing (stale PiP state).
-                                  if (stalledTicks >= 8) {
-                                    try {
-                                      var playerApi = document.querySelector('#movie_player') ||
-                                                      document.querySelector('.html5-video-player') ||
-                                                      document.querySelector('ytm-player');
-                                      if (playerApi && typeof playerApi.playVideo === 'function') {
-                                        playerApi.playVideo();
-                                      }
-                                    } catch(e) {}
-                                    try {
-                                      var retry = e.play();
-                                      if (retry && typeof retry.catch === 'function') {
-                                        retry.catch(function(){});
-                                      }
-                                    } catch(e) {}
-                                    stalledTicks = 0;
-                                  }
-                                } else {
-                                  stalledTicks = 0;
-                                }
-                                lastPlaybackTime = timeNow;
-                              } else {
-                                stalledTicks = 0;
-                                lastPlaybackTime = Number(e.currentTime || 0);
-                              }
+                              // This loop only reports state. Playback commands are sent by
+                              // one bounded Android retry path or an explicit user tap. Keeping
+                              // a second auto-play loop here repeatedly restarted media in PiP,
+                              // producing audio stutter and racing the native Play/Pause action.
                             }, 500);
                           }
                           installNgocSiBridge(0);
@@ -2281,31 +2240,15 @@ class YouTubePlayerActivity : ComponentActivity() {
             }
 
             if (resumeVideoAfterPipEntry) {
-                val recoverPlayback = object : Runnable {
-                    private var attempts = 0
-                    override fun run() {
-                        if (isFinishing || isDestroyed || !isInPictureInPictureMode ||
-                            !resumeVideoAfterPipEntry || webView == null
-                        ) return
-                        attempts++
-                        webView?.evaluateJavascript(youtubePlaybackScript("play")) { result ->
-                            val accepted = result?.contains("playing") == true ||
-                                result?.contains("buffering") == true
-                            // Even when HTMLMediaElement reports "playing", the first
-                            // frame/audio pipeline can remain stalled after an Activity resize.
-                            // Reassert playback a few times during the PiP transition; an
-                            // explicit user pause clears resumeVideoAfterPipEntry and cancels
-                            // this recovery loop.
-                            if (attempts < 8 && !isFinishing &&
-                                !isDestroyed && isInPictureInPictureMode &&
-                                resumeVideoAfterPipEntry
-                            ) {
-                                webView?.postDelayed(this, if (accepted) 650L else 500L)
-                            }
-                        }
+                // Use the same single, bounded request path as the PiP Play button.
+                // Do not run a second independent timer beside the WebView state poll.
+                webView?.postDelayed({
+                    if (!isFinishing && !isDestroyed && isInPictureInPictureMode &&
+                        resumeVideoAfterPipEntry
+                    ) {
+                        requestYouTubePlayback()
                     }
-                }
-                webView?.post(recoverPlayback)
+                }, 350L)
             }
         } else {
             resumeVideoAfterPipEntry = false
