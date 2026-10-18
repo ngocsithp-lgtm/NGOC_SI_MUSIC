@@ -583,6 +583,14 @@ class YouTubePlayerActivity : ComponentActivity() {
             marginEnd = dp(8)
         })
 
+        val pipButton = actionButton("▣ PiP") { enterYouTubePip() }.apply {
+            contentDescription = "Mở trình phát YouTube thu nhỏ"
+            textSize = 12f
+        }
+        queueActions.addView(pipButton, LinearLayout.LayoutParams(dp(72), dp(46)).apply {
+            marginEnd = dp(8)
+        })
+
         val share = actionButton("↗") {
             val shareIntent = Intent(Intent.ACTION_SEND).apply {
                 type = "text/plain"
@@ -1745,17 +1753,37 @@ class YouTubePlayerActivity : ComponentActivity() {
                               return 'wait';
                             }
                           };
+
+                          // Install the Android bridge only after YouTube has created a video
+                          // element. A previous edit left a stray closing brace here, making the
+                          // entire script fail to parse: onReady/state callbacks never ran, so
+                          // PiP parameters and the background media service were never enabled.
+                          function installNgocSiBridge(retries) {
+                            if (window.__ngocSiBridgeInstalled) return;
+                            var initialVideo = findActiveVideo();
+                            if (!initialVideo) {
+                              if (retries < 30) {
+                                setTimeout(function(){ installNgocSiBridge(retries + 1); }, 700);
+                              }
+                              return;
+                            }
+                            window.__ngocSiBridgeInstalled = true;
                             try { AndroidBridge.onReady(); } catch(e) {}
                             var lastState = -99;
+                            var lastVideo = null;
                             setInterval(function(){
-                              var e=findActiveVideo();
-                              if(!e) return;
+                              var e = findActiveVideo();
+                              if (!e) return;
+                              if (e !== lastVideo) {
+                                lastVideo = e;
+                                lastState = -99;
+                              }
                               var state = e.ended ? 0 : (e.paused ? 2 : 1);
-                              if(state !== lastState) {
+                              if (state !== lastState) {
                                 lastState = state;
                                 try { AndroidBridge.onStateChanged(state); } catch(e) {}
                               }
-                            }, 900);
+                            }, 500);
                           }
                           installNgocSiBridge(0);
                         })();
@@ -1996,6 +2024,25 @@ class YouTubePlayerActivity : ComponentActivity() {
                     }
                 }, 500L)
             }
+        }
+    }
+
+    private fun enterYouTubePip() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
+            !packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
+        ) {
+            Toast.makeText(this, "Thiết bị không hỗ trợ PiP.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (isFinishing || isDestroyed || webView == null) {
+            Toast.makeText(this, "Trình phát YouTube chưa sẵn sàng.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        runCatching {
+            updatePipParamsIfSupported()
+            enterPictureInPictureMode(buildPipParams())
+        }.onFailure {
+            Toast.makeText(this, "Không mở được PiP. Kiểm tra quyền Hình trong hình của ứng dụng.", Toast.LENGTH_LONG).show()
         }
     }
 
