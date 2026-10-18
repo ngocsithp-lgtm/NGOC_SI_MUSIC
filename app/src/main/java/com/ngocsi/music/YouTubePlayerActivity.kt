@@ -191,15 +191,15 @@ class YouTubePlayerActivity : ComponentActivity() {
                 ACTION_PIP_PLAY_PAUSE_INTERNAL -> {
                     // PiP transport controls the embedded YouTube player in place.
                     if (youtubePlayerReady && webView != null) {
-                        val command = if (youtubePlayerState == 1) "pauseVideo()" else "playVideo()"
+                        val command = if (youtubePlayerState == 1) "(function(){try{var v=document.querySelector(\u0027video\u0027);if(v)v.pause();return \u0027paused\u0027;}catch(e){return \u0027error\u0027;}})();" else "(function(){try{var v=document.querySelector(\u0027video\u0027);if(!v)return \u0027no-video\u0027;var p=v.play();if(p&&p.catch)p.catch(function(){});return \u0027requested\u0027;}catch(e){return \u0027error\u0027;}})();"
                         webView?.evaluateJavascript(command, null)
                     }
                 }
                 YouTubeBackgroundService.ACTION_CONTROL -> {
                     if (!youtubePlayerReady || webView == null) return
                     when (intent.getStringExtra(YouTubeBackgroundService.EXTRA_CONTROL)) {
-                        "play" -> webView?.evaluateJavascript("playVideo()", null)
-                        "pause" -> webView?.evaluateJavascript("pauseVideo()", null)
+                        "play" -> webView?.evaluateJavascript("(function(){try{var v=document.querySelector(\u0027video\u0027);if(!v)return \u0027no-video\u0027;var p=v.play();if(p&&p.catch)p.catch(function(){});return \u0027requested\u0027;}catch(e){return \u0027error\u0027;}})();", null)
+                        "pause" -> webView?.evaluateJavascript("(function(){try{var v=document.querySelector(\u0027video\u0027);if(v)v.pause();return \u0027paused\u0027;}catch(e){return \u0027error\u0027;}})();", null)
                         "next" -> playNext()
                         "previous" -> playPrevious()
                     }
@@ -1118,7 +1118,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 saveLastPlayedState()
 
                 val safeId = sanitizeVideoId(videoId)
-                webView?.evaluateJavascript("loadVideoById('$safeId');", null)
+                webView?.loadUrl("https://m.youtube.com/watch?v=" + safeId)
             }
         }
     }
@@ -1279,7 +1279,7 @@ class YouTubePlayerActivity : ComponentActivity() {
 
     private fun toggleYoutubePlayback() {
         if (!youtubePlayerReady) return
-        val command = if (youtubePlayerState == 1) "pauseVideo()" else "playVideo()"
+        val command = if (youtubePlayerState == 1) "(function(){try{var v=document.querySelector(\u0027video\u0027);if(v)v.pause();return \u0027paused\u0027;}catch(e){return \u0027error\u0027;}})();" else "(function(){try{var v=document.querySelector(\u0027video\u0027);if(!v)return \u0027no-video\u0027;var p=v.play();if(p&&p.catch)p.catch(function(){});return \u0027requested\u0027;}catch(e){return \u0027error\u0027;}})();"
         webView?.evaluateJavascript(command, null)
     }
 
@@ -1357,7 +1357,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             // is ready to accept play(). Retry instead of swallowing the first
             // rejected play() promise and leaving the play button ineffective.
             "play" -> requestYouTubePlayback()
-            "pause" -> webView?.evaluateJavascript("pauseVideo()", null)
+            "pause" -> webView?.evaluateJavascript("(function(){try{var v=document.querySelector(\u0027video\u0027);if(v)v.pause();return \u0027paused\u0027;}catch(e){return \u0027error\u0027;}})();", null)
             "next" -> {
                 if (queue.size > 1) {
                     playNext()
