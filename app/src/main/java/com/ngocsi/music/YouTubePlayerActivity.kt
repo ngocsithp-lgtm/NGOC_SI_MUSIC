@@ -195,8 +195,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 ACTION_PIP_PLAY_PAUSE_INTERNAL -> {
                     // PiP transport controls the embedded YouTube player in place.
                     if (youtubePlayerReady && webView != null) {
-                        val command = if (youtubePlayerState == 1) "(function(){try{var v=document.querySelector(\u0027video\u0027);if(v)v.pause();return \u0027paused\u0027;}catch(e){return \u0027error\u0027;}})();" else "(function(){try{var v=document.querySelector(\u0027video\u0027);if(!v)return \u0027no-video\u0027;var p=v.play();if(p&&p.catch)p.catch(function(){});return \u0027requested\u0027;}catch(e){return \u0027error\u0027;}})();"
-                        webView?.evaluateJavascript(command, null)
+                        toggleYoutubePlayback()
                     }
                 }
                 YouTubeBackgroundService.ACTION_CONTROL -> {
@@ -1294,9 +1293,27 @@ class YouTubePlayerActivity : ComponentActivity() {
 
 
     private fun toggleYoutubePlayback() {
-        if (!youtubePlayerReady) return
-        val command = if (youtubePlayerState == 1) "(function(){try{var v=document.querySelector(\u0027video\u0027);if(v)v.pause();return \u0027paused\u0027;}catch(e){return \u0027error\u0027;}})();" else "(function(){try{var v=document.querySelector(\u0027video\u0027);if(!v)return \u0027no-video\u0027;var p=v.play();if(p&&p.catch)p.catch(function(){});return \u0027requested\u0027;}catch(e){return \u0027error\u0027;}})();"
-        webView?.evaluateJavascript(command, null)
+        if (!youtubePlayerReady || webView == null) return
+        if (youtubePlayerState == 1) {
+            webView?.evaluateJavascript(
+                """(function(){
+                    try {
+                      var v=document.querySelector('video.html5-main-video') ||
+                            document.querySelector('#movie_player video') ||
+                            document.querySelector('video');
+                      if (v) { v.pause(); return 'paused'; }
+                      var b=document.querySelector('.ytp-play-button[aria-label*="Pause"],button[aria-label*="Pause"],button[aria-label*="Tạm dừng"]');
+                      if (b) { b.click(); return 'pause-clicked'; }
+                      return 'no-video';
+                    } catch(e) { return 'error'; }
+                })();""".trimIndent(),
+                null
+            )
+        } else {
+            // PiP transport taps can arrive while WebView is still relaying out.
+            // Retry briefly and target YouTube's actual main video before generic video tags.
+            requestYouTubePlayback()
+        }
     }
 
     /**
@@ -1330,9 +1347,11 @@ class YouTubePlayerActivity : ComponentActivity() {
         val resumeScript = """
             (function(){
               try {
-                var v = document.querySelector('video');
+                var v = document.querySelector('video.html5-main-video') ||
+                        document.querySelector('#movie_player video') ||
+                        document.querySelector('video');
                 if (!v) return 'no-video';
-                if (!v.paused && !v.ended) return 'playing';
+                if (!v.paused && !v.ended && v.readyState >= 2) return 'playing';
                 var p = v.play();
                 if (p && p.catch) p.catch(function(){
                   try {
