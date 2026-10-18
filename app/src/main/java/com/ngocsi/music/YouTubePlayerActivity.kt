@@ -1111,10 +1111,21 @@ class YouTubePlayerActivity : ComponentActivity() {
                 // Keep one IFrame player alive while moving through the queue.
                 // This reduces WebView churn and makes next/previous transitions
                 // much less prone to blank surfaces or repeated player handshakes.
+                // The mobile site navigates to a fresh document for each queue item.
+                // Clear the previous video's ready/playing state so commands do not target
+                // a stale HTMLVideoElement while the next page is still loading.
+                youtubePlayerReady = false
+                youtubePlayerState = -1
+                getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
+                    .putBoolean("youtube_playback_is_playing", false)
+                    .putBoolean("youtube_is_playing", false)
+                    .apply()
+
                 titleView.text = title
                 channelView.text = channel
                 updateActionState()
                 updateQueueButton()
+                updatePlaybackButton()
                 saveLastPlayedState()
 
                 val safeId = sanitizeVideoId(videoId)
@@ -1337,7 +1348,10 @@ class YouTubePlayerActivity : ComponentActivity() {
                 }
             }
         }
-        attempt(4)
+        // YouTube mobile pages can take several seconds to settle after returning
+        // from another screen. Keep retrying long enough for the video element's
+        // play state to catch up, rather than stopping after roughly two seconds.
+        attempt(12)
     }
 
     /**
