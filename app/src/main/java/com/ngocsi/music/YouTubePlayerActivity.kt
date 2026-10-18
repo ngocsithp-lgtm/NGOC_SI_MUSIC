@@ -144,11 +144,20 @@ class YouTubePlayerActivity : ComponentActivity() {
                 // Persist the actual embedded YouTube playback state so the
                 // compact player's button can pause/resume YouTube instead of
                 // accidentally toggling the independent Media3 local player.
-                getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
-                    .putBoolean("youtube_playback_is_playing", state == 1)
-                    .apply()
+                val preservePipResumeIntent =
+                    state == 2 && resumeVideoAfterPipEntry
+                // Chromium/YouTube can emit a transient pause while Android changes the
+                // Activity into PiP. Do not erase the pre-transition "was playing" signal
+                // or publish a false paused session before the PiP recovery call can run.
+                if (!preservePipResumeIntent) {
+                    getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
+                        .putBoolean("youtube_playback_is_playing", state == 1)
+                        .apply()
+                }
                 updatePlaybackButton()
-                syncYouTubeBackgroundPlayback(state)
+                if (!preservePipResumeIntent) {
+                    syncYouTubeBackgroundPlayback(state)
+                }
                 updatePipParamsIfSupported()
                 // The IFrame API can report onReady before the video is seekable.
                 // Retry position restoration when the item becomes cued or starts.
@@ -1334,6 +1343,10 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun pauseYouTubePlayback() {
+        // An explicit user pause overrides the automatic PiP-resume intent.
+        resumeVideoAfterPipEntry = false
+        getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+            .edit().putBoolean("youtube_playback_is_playing", false).apply()
         runYoutubePlaybackCommand("pause")
     }
 
@@ -1503,6 +1516,8 @@ class YouTubePlayerActivity : ComponentActivity() {
 
     private fun requestYouTubePlayback() {
         if (webView == null || isFinishing || isDestroyed) return
+        // A PiP Play tap explicitly opts back into playback and its resume guard.
+        if (isInPictureInPictureMode) resumeVideoAfterPipEntry = true
         fun attempt(remaining: Int) {
             if (isFinishing || isDestroyed || webView == null) return
             webView?.evaluateJavascript(youtubePlaybackScript("play")) { result ->
@@ -2087,7 +2102,9 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            builder.setAutoEnterEnabled(youtubePlayerReady && youtubePlayerState == 1)
+            builder.setAutoEnterEnabled(
+                youtubePlayerReady && (youtubePlayerState == 1 || resumeVideoAfterPipEntry)
+            )
         }
         return builder.build()
     }
@@ -2113,8 +2130,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             if (!resumeVideoAfterPipEntry) {
                 val lastObservedPlaying = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
                     .getBoolean("youtube_playback_is_playing", false)
-                resumeVideoAfterPipEntry = youtubePlayerState == 1 ||
-                    (youtubePlayerState < 0 && lastObservedPlaying)
+                resumeVideoAfterPipEntry = youtubePlayerState == 1 || lastObservedPlaying
             }
 
             val fullscreenVideo = customView
@@ -2295,8 +2311,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         // The WebView bridge state can lag behind the HTML5 video during a
         // PiP transition. Prefer the persisted last-playing signal as a fallback,
         // and do not require the bridge-ready flag just to remember playback intent.
-        resumeVideoAfterPipEntry =
-            (youtubePlayerState == 1 || (youtubePlayerState < 0 && lastObservedPlaying))
+        resumeVideoAfterPipEntry = youtubePlayerState == 1 || lastObservedPlaying
         // Persist playback state, then use PiP as a visible fallback on Android 8–11.
         saveLastPlayedState()
         super.onUserLeaveHint()
