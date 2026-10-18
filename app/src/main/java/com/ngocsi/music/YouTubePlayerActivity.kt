@@ -125,6 +125,11 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private inner class YoutubeJsBridge {
+        // Called by the WebView polling loop. The explicit PiP Play/Pause receiver
+        // updates this intent, so recovery never overrides a deliberate user pause.
+        @JavascriptInterface
+        fun shouldResumeAfterPip(): Boolean = resumeVideoAfterPipEntry
+
         @JavascriptInterface
         fun onReady() {
             runOnUiThread {
@@ -200,6 +205,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var pipActionReceiverRegistered = false
     // Remember that playback was active before Android shrinks this Activity into PiP.
     // YouTube's mobile page may pause its HTML5 video during the resize transition.
+    @Volatile
     private var resumeVideoAfterPipEntry = false
     private val pipActionReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: android.content.Context?, intent: Intent?) {
@@ -1814,17 +1820,73 @@ class YouTubePlayerActivity : ComponentActivity() {
                             try { AndroidBridge.onReady(); } catch(e) {}
                             var lastState = -99;
                             var lastVideo = null;
+                            var lastPlaybackTime = -1;
+                            var stalledTicks = 0;
                             setInterval(function(){
                               var e = findActiveVideo();
                               if (!e) return;
                               if (e !== lastVideo) {
                                 lastVideo = e;
                                 lastState = -99;
+                                lastPlaybackTime = e.currentTime || 0;
+                                stalledTicks = 0;
                               }
                               var state = e.ended ? 0 : (e.paused ? 2 : 1);
                               if (state !== lastState) {
                                 lastState = state;
                                 try { AndroidBridge.onStateChanged(state); } catch(e) {}
+                              }
+
+                              // Android WebView may keep showing the last decoded frame after
+                              // entering PiP while YouTube has paused its HTML5 video. Maintain
+                              // playback only when PiP entry captured an active-play intent.
+                              // An explicit PiP Pause clears this flag on the Android side.
+                              var shouldResume = false;
+                              try { shouldResume = AndroidBridge.shouldResumeAfterPip(); } catch(e) {}
+                              if (shouldResume && !e.ended) {
+                                var timeNow = Number(e.currentTime || 0);
+                                if (e.paused) {
+                                  try {
+                                    var api = document.querySelector('#movie_player') ||
+                                              document.querySelector('.html5-video-player') ||
+                                              document.querySelector('ytm-player');
+                                    if (api && typeof api.playVideo === 'function') api.playVideo();
+                                  } catch(e) {}
+                                  try {
+                                    var promise = e.play();
+                                    if (promise && typeof promise.catch === 'function') {
+                                      promise.catch(function(){});
+                                    }
+                                  } catch(e) {}
+                                } else if (e.readyState >= 2 &&
+                                           Math.abs(timeNow - lastPlaybackTime) < 0.02) {
+                                  stalledTicks++;
+                                  // Reassert playback once if the media clock stopped while
+                                  // the element still claims to be playing (stale PiP state).
+                                  if (stalledTicks >= 8) {
+                                    try {
+                                      var playerApi = document.querySelector('#movie_player') ||
+                                                      document.querySelector('.html5-video-player') ||
+                                                      document.querySelector('ytm-player');
+                                      if (playerApi && typeof playerApi.playVideo === 'function') {
+                                        playerApi.playVideo();
+                                      }
+                                    } catch(e) {}
+                                    try {
+                                      var retry = e.play();
+                                      if (retry && typeof retry.catch === 'function') {
+                                        retry.catch(function(){});
+                                      }
+                                    } catch(e) {}
+                                    stalledTicks = 0;
+                                  }
+                                } else {
+                                  stalledTicks = 0;
+                                }
+                                lastPlaybackTime = timeNow;
+                              } else {
+                                stalledTicks = 0;
+                                lastPlaybackTime = Number(e.currentTime || 0);
                               }
                             }, 500);
                           }
