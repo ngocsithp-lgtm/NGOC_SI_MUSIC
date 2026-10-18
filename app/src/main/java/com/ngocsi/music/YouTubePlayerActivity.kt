@@ -2053,10 +2053,26 @@ class YouTubePlayerActivity : ComponentActivity() {
             Toast.makeText(this, "Trình phát YouTube chưa sẵn sàng.", Toast.LENGTH_SHORT).show()
             return
         }
+        // Capture playback intent BEFORE asking Android to enter PiP. The WebView may
+        // report a transient pause during the transition; if we wait until
+        // onPictureInPictureModeChanged(), that callback can already have overwritten
+        // the last-playing preference and the video then freezes as a still frame.
+        val wasPlaying = youtubePlayerState == 1 ||
+            getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+                .getBoolean("youtube_playback_is_playing", false)
+        resumeVideoAfterPipEntry = wasPlaying
+        if (wasPlaying) {
+            getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
+                .putBoolean("youtube_playback_is_playing", true)
+                .apply()
+        }
+        webView?.onResume()
+        webView?.resumeTimers()
         runCatching {
             updatePipParamsIfSupported()
             enterPictureInPictureMode(buildPipParams())
         }.onFailure {
+            resumeVideoAfterPipEntry = false
             Toast.makeText(this, "Không mở được PiP. Kiểm tra quyền Hình trong hình của ứng dụng.", Toast.LENGTH_LONG).show()
         }
     }
