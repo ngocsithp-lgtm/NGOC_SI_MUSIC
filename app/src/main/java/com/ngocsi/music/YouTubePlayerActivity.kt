@@ -20,6 +20,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Rational
 import android.view.View
+import android.view.ViewGroup
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.RenderProcessGoneDetail
