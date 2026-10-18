@@ -8917,7 +8917,36 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
                     if (youtubeTracks.isNotEmpty()) {
                         item {
-                            SectionTitle("KẾT QUẢ", youtubeTracks.size.toString() + " video")
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    SectionTitle("KẾT QUẢ TÌM KIẾM", youtubeTracks.size.toString() + " video")
+                                    Text(
+                                        "Chạm ảnh hoặc tên để phát • ♡ yêu thích • 🔖 xem sau",
+                                        color = Color(0xFF858B9A),
+                                        fontSize = 9.sp,
+                                        maxLines = 2,
+                                        lineHeight = 12.sp
+                                    )
+                                }
+                                if (youtubeTracks.size > 1) {
+                                    OutlinedButton(
+                                        onClick = { playYouTube(youtubeTracks.first()) },
+                                        modifier = Modifier.padding(start = 6.dp),
+                                        shape = RoundedCornerShape(12.dp),
+                                        contentPadding = PaddingValues(horizontal = 9.dp, vertical = 7.dp)
+                                    ) {
+                                        Text(
+                                            "▶ PHÁT TẤT CẢ",
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+                            }
                         }
                         items(
                             items = youtubeTracks.take(30),
@@ -9114,10 +9143,10 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
     private fun YouTubeShelfRow(title: String, subtitle: String, thumbnailUrl: String, primaryAction: () -> Unit, secondaryIcon: String, secondaryAction: () -> Unit) {
         Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(15.dp), color = Color(0xFF15161D)) {
             Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                OnlineArtwork(thumbnailUrl, Modifier.size(88.dp, 50.dp).clip(RoundedCornerShape(8.dp)).clickable(onClick = primaryAction))
-                Spacer(Modifier.width(9.dp))
-                Column(Modifier.weight(1f).clickable(onClick = primaryAction), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(title, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                OnlineArtwork(thumbnailUrl, Modifier.size(96.dp, 54.dp).clip(RoundedCornerShape(9.dp)).clickable(onClick = primaryAction))
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f).clickable(onClick = primaryAction), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(title, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(subtitle, color = Color(0xFF8F8F9A), fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 IconButton(onClick = secondaryAction, modifier = Modifier.size(38.dp)) {
