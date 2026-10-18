@@ -62,6 +62,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         const val EXTRA_QUEUE_JSON = "youtube_queue_json"
         const val EXTRA_QUEUE_INDEX = "youtube_queue_index"
         const val EXTRA_AI_ACTION = "youtube_ai_action"
+        const val EXTRA_PIP_COMMAND = "youtube_pip_command"
         private const val ACTION_PIP_PLAY_PAUSE = "com.ngocsi.music.action.YOUTUBE_PIP_PLAY_PAUSE"
         private const val ACTION_PIP_PLAY_PAUSE_INTERNAL = "com.ngocsi.music.action.YOUTUBE_PIP_PLAY_PAUSE_INTERNAL"
     }
@@ -195,16 +196,21 @@ class YouTubePlayerActivity : ComponentActivity() {
         override fun onReceive(context: android.content.Context?, intent: Intent?) {
             when (intent?.action) {
                 ACTION_PIP_PLAY_PAUSE_INTERNAL -> {
-                    // PiP transport controls the embedded YouTube player in place.
+                    // Honor the exact action shown in the PiP overlay. Do not toggle a
+                    // possibly stale/hidden video element when the user explicitly taps Play.
                     if (youtubePlayerReady && webView != null) {
-                        toggleYoutubePlayback()
+                        when (intent.getStringExtra(EXTRA_PIP_COMMAND)) {
+                            "play" -> requestYouTubePlayback()
+                            "pause" -> pauseYouTubePlayback()
+                            else -> toggleYoutubePlayback()
+                        }
                     }
                 }
                 YouTubeBackgroundService.ACTION_CONTROL -> {
                     if (!youtubePlayerReady || webView == null) return
                     when (intent.getStringExtra(YouTubeBackgroundService.EXTRA_CONTROL)) {
-                        "play" -> webView?.evaluateJavascript("(function(){try{var v=document.querySelector(\u0027video\u0027);if(!v)return \u0027no-video\u0027;var p=v.play();if(p&&p.catch)p.catch(function(){});return \u0027requested\u0027;}catch(e){return \u0027error\u0027;}})();", null)
-                        "pause" -> webView?.evaluateJavascript("(function(){try{var v=document.querySelector(\u0027video\u0027);if(v)v.pause();return \u0027paused\u0027;}catch(e){return \u0027error\u0027;}})();", null)
+                        "play" -> requestYouTubePlayback()
+                        "pause" -> pauseYouTubePlayback()
                         "next" -> playNext()
                         "previous" -> playPrevious()
                     }
@@ -1295,35 +1301,142 @@ class YouTubePlayerActivity : ComponentActivity() {
 
 
     private fun toggleYoutubePlayback() {
-        if (!youtubePlayerReady || webView == null || isFinishing || isDestroyed) return
-        val toggleScript = """
+        runYoutubePlaybackCommand("toggle")
+    }
+
+    private fun pauseYouTubePlayback() {
+        runYoutubePlaybackCommand("pause")
+    }
+
+    /**
+     * All WebView playback paths use the same active-video selection. The YouTube mobile
+     * page can keep a hidden/stale video element, which made a PiP Play tap target the wrong
+     * element or accidentally pause instead of play.
+     */
+    private fun youtubePlaybackScript(command: String): String {
+        val safeCommand = when (command) {
+            "play" -> "play"
+            "pause" -> "pause"
+            else -> "toggle"
+        }
+        return """
             (function(){
               try {
-                var v = document.querySelector('video.html5-main-video') ||
-                        document.querySelector('#movie_player video') ||
-                        document.querySelector('video');
-                if (!v) return 'no-video';
-                if (!v.paused && !v.ended) {
-                  v.pause();
+                function isVisibleVideo(video) {
+                  if (!video || !video.isConnected) return false;
+                  var rect = video.getBoundingClientRect();
+                  if (rect.width < 2 || rect.height < 2) return false;
+                  var node = video;
+                  while (node && node.nodeType === 1 && node !== document.documentElement) {
+                    var style = window.getComputedStyle(node);
+                    if (style.display === 'none' || style.visibility === 'hidden' ||
+                        Number(style.opacity || 1) === 0) return false;
+                    node = node.parentElement;
+                  }
+                  return true;
+                }
+                function findVideo() {
+                  try {
+                    if (typeof window.__ngocSiFindActiveVideo === 'function') {
+                      var current = window.__ngocSiFindActiveVideo();
+                      if (current && current.isConnected) return current;
+                    }
+                  } catch (_) {}
+                  var videos = Array.prototype.slice.call(document.querySelectorAll('video'));
+                  var visible = videos.filter(isVisibleVideo);
+                  function score(video) {
+                    var rect = video.getBoundingClientRect();
+                    var value = rect.width * rect.height;
+                    if (!video.paused && !video.ended) value += 100000000;
+                    if (video.readyState >= 2) value += 1000000;
+                    if (video.currentTime > 0) value += 100000;
+                    if (video.classList.contains('html5-main-video')) value += 500000;
+                    return value;
+                  }
+                  visible.sort(function(a,b){ return score(b) - score(a); });
+                  return visible[0] || videos[0] || null;
+                }
+                function getPlayerApi() {
+                  return document.querySelector('#movie_player') ||
+                         document.querySelector('.html5-video-player') ||
+                         document.querySelector('ytm-player');
+                }
+                function clickPlayButton() {
+                  var selectors = [
+                    '.ytp-play-button[aria-label*="Play"]',
+                    '.ytp-play-button[aria-label*="Phát"]',
+                    'button[aria-label*="Play"]',
+                    'button[aria-label*="Phát"]',
+                    'button[aria-label*="Resume"]',
+                    'button[aria-label*="Tiếp tục"]',
+                    '[role="button"][aria-label*="Play"]',
+                    '[role="button"][aria-label*="Phát"]',
+                    'button[title*="Play"]',
+                    'button[title*="Phát"]'
+                  ];
+                  for (var i = 0; i < selectors.length; i++) {
+                    var buttons = document.querySelectorAll(selectors[i]);
+                    for (var j = 0; j < buttons.length; j++) {
+                      var button = buttons[j];
+                      var rect = button.getBoundingClientRect();
+                      if (rect.width < 2 || rect.height < 2) continue;
+                      var label = ((button.getAttribute('aria-label') || '') + ' ' +
+                                   (button.getAttribute('title') || '')).toLowerCase();
+                      if (label.indexOf('pause') >= 0 || label.indexOf('tạm dừng') >= 0) continue;
+                      try { button.click(); return true; } catch (_) {}
+                    }
+                  }
+                  return false;
+                }
+
+                var video = findVideo();
+                if (!video) return 'no-video';
+                var api = getPlayerApi();
+                var wantsPause = '$safeCommand' === 'pause' ||
+                    ('$safeCommand' === 'toggle' && !video.paused && !video.ended);
+
+                if (wantsPause) {
+                  try { if (api && typeof api.pauseVideo === 'function') api.pauseVideo(); } catch (_) {}
+                  try { video.pause(); } catch (_) {}
                   return 'paused';
                 }
-                var p = v.play();
-                if (p && p.catch) p.catch(function(){
-                  try {
-                    var b = document.querySelector('.ytp-play-button[aria-label*="Play"],.ytp-play-button[aria-label*="Phát"],button[aria-label*="Play"],button[aria-label*="Phát"]');
-                    if (b) b.click();
-                  } catch (_) {}
-                });
-                // "buffering" means play() was accepted; do not spam play() while data buffers.
-                return !v.paused ? (v.readyState >= 2 ? 'playing' : 'buffering') : 'retry';
-              } catch (_) { return 'error'; }
+
+                if (!video.paused && !video.ended && video.readyState >= 2) return 'playing';
+
+                // Call the player's own API if exposed, then the selected HTML5 video.
+                // If the Promise is rejected, use the site's visible Play control as fallback.
+                try { if (api && typeof api.playVideo === 'function') api.playVideo(); } catch (_) {}
+                try {
+                  var promise = video.play();
+                  if (promise && typeof promise.catch === 'function') {
+                    promise.catch(function(){
+                      try { if (api && typeof api.playVideo === 'function') api.playVideo(); } catch (_) {}
+                      clickPlayButton();
+                    });
+                  }
+                } catch (_) {
+                  try { if (api && typeof api.playVideo === 'function') api.playVideo(); } catch (_) {}
+                  clickPlayButton();
+                }
+                return !video.paused ? (video.readyState >= 2 ? 'playing' : 'buffering') : 'retry';
+              } catch (_) {
+                return 'error';
+              }
             })();
         """.trimIndent()
-        webView?.evaluateJavascript(toggleScript) { result ->
+    }
+
+    private fun runYoutubePlaybackCommand(command: String) {
+        if (!youtubePlayerReady || webView == null || isFinishing || isDestroyed) return
+        webView?.evaluateJavascript(youtubePlaybackScript(command)) { result ->
             if ((result?.contains("retry") == true || result?.contains("no-video") == true) &&
-                !isFinishing && !isDestroyed
+                !isFinishing && !isDestroyed && command != "pause"
             ) {
-                playbackPositionHandler.postDelayed({ requestYouTubePlayback() }, 300L)
+                playbackPositionHandler.postDelayed({
+                    if (!isFinishing && !isDestroyed) {
+                        webView?.evaluateJavascript(youtubePlaybackScript(command), null)
+                    }
+                }, 350L)
             }
         }
     }
@@ -1356,28 +1469,9 @@ class YouTubePlayerActivity : ComponentActivity() {
 
     private fun requestYouTubePlayback() {
         if (!youtubePlayerReady || webView == null || isFinishing || isDestroyed) return
-        val resumeScript = """
-            (function(){
-              try {
-                var v = document.querySelector('video.html5-main-video') ||
-                        document.querySelector('#movie_player video') ||
-                        document.querySelector('video');
-                if (!v) return 'no-video';
-                if (!v.paused && !v.ended) return v.readyState >= 2 ? 'playing' : 'buffering';
-                var p = v.play();
-                if (p && p.catch) p.catch(function(){
-                  try {
-                    var b = document.querySelector('.ytp-play-button[aria-label*="Play"],.ytp-play-button[aria-label*="Phát"],button[aria-label*="Play"],button[aria-label*="Phát"]');
-                    if (b) b.click();
-                  } catch (_) {}
-                });
-                return !v.paused ? (v.readyState >= 2 ? 'playing' : 'buffering') : 'retry';
-              } catch (_) { return 'error'; }
-            })();
-        """.trimIndent()
         fun attempt(remaining: Int) {
             if (isFinishing || isDestroyed || webView == null) return
-            webView?.evaluateJavascript(resumeScript) { result ->
+            webView?.evaluateJavascript(youtubePlaybackScript("play")) { result ->
                 val accepted = result?.contains("playing") == true ||
                     result?.contains("buffering") == true
                 if (!accepted && remaining > 0 && !isFinishing && !isDestroyed) {
@@ -1385,7 +1479,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 }
             }
         }
-        // Retry only until play() is accepted. Do not issue repeated play() calls while buffering.
+        // Retry only when play is not accepted; never send repeated play calls during buffering.
         attempt(12)
     }
 
@@ -1406,7 +1500,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             // is ready to accept play(). Retry instead of swallowing the first
             // rejected play() promise and leaving the play button ineffective.
             "play" -> requestYouTubePlayback()
-            "pause" -> webView?.evaluateJavascript("(function(){try{var v=document.querySelector(\u0027video\u0027);if(v)v.pause();return \u0027paused\u0027;}catch(e){return \u0027error\u0027;}})();", null)
+            "pause" -> pauseYouTubePlayback()
             "next" -> {
                 if (queue.size > 1) {
                     playNext()
@@ -1572,10 +1666,34 @@ class YouTubePlayerActivity : ComponentActivity() {
                           // Keep state tracking and transport commands bound to the same
                           // active YouTube video element to avoid controlling a stale/hidden video.
                           function findActiveVideo() {
-                            return document.querySelector('video.html5-main-video') ||
-                                   document.querySelector('#movie_player video') ||
-                                   document.querySelector('video');
+                            var videos = Array.prototype.slice.call(document.querySelectorAll('video'));
+                            function visible(video) {
+                              if (!video || !video.isConnected) return false;
+                              var rect = video.getBoundingClientRect();
+                              if (rect.width < 2 || rect.height < 2) return false;
+                              var node = video;
+                              while (node && node.nodeType === 1 && node !== document.documentElement) {
+                                var style = window.getComputedStyle(node);
+                                if (style.display === 'none' || style.visibility === 'hidden' ||
+                                    Number(style.opacity || 1) === 0) return false;
+                                node = node.parentElement;
+                              }
+                              return true;
+                            }
+                            var rendered = videos.filter(visible);
+                            function score(video) {
+                              var rect = video.getBoundingClientRect();
+                              var value = rect.width * rect.height;
+                              if (!video.paused && !video.ended) value += 100000000;
+                              if (video.readyState >= 2) value += 1000000;
+                              if (video.currentTime > 0) value += 100000;
+                              if (video.classList.contains('html5-main-video')) value += 500000;
+                              return value;
+                            }
+                            rendered.sort(function(a,b){ return score(b) - score(a); });
+                            return rendered[0] || videos[0] || null;
                           }
+                          window.__ngocSiFindActiveVideo = findActiveVideo;
                           function installNgocSiBridge(retries) {
                             if (window.__ngocSiBridgeInstalled) return;
                             var v = findActiveVideo();
@@ -1934,6 +2052,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             val playing = youtubePlayerState == 1
             val actionIntent = Intent(this, YouTubePipActionReceiver::class.java).apply {
                 action = ACTION_PIP_PLAY_PAUSE
+                putExtra(EXTRA_PIP_COMMAND, if (playing) "pause" else "play")
             }
             val pendingIntent = PendingIntent.getBroadcast(
                 this,
@@ -2258,6 +2377,7 @@ class YouTubePipActionReceiver : android.content.BroadcastReceiver() {
         context.sendBroadcast(
             Intent("com.ngocsi.music.action.YOUTUBE_PIP_PLAY_PAUSE_INTERNAL")
                 .setPackage(context.packageName)
+                .putExtra("youtube_pip_command", intent.getStringExtra("youtube_pip_command") ?: "toggle")
         )
     }
 }
