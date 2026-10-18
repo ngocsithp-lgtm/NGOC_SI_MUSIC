@@ -2178,13 +2178,16 @@ class YouTubePlayerActivity : ComponentActivity() {
                 val recoverPlayback = object : Runnable {
                     private var attempts = 0
                     override fun run() {
-                        if (isFinishing || isDestroyed || !isInPictureInPictureMode || webView == null) return
+                        if (isFinishing || isDestroyed || !isInPictureInPictureMode ||
+                            !resumeVideoAfterPipEntry || webView == null
+                        ) return
                         attempts++
                         webView?.evaluateJavascript(youtubePlaybackScript("play")) { result ->
                             val accepted = result?.contains("playing") == true ||
                                 result?.contains("buffering") == true
                             if (!accepted && attempts < 16 && !isFinishing &&
-                                !isDestroyed && isInPictureInPictureMode
+                                !isDestroyed && isInPictureInPictureMode &&
+                                resumeVideoAfterPipEntry
                             ) {
                                 webView?.postDelayed(this, 500L)
                             }
