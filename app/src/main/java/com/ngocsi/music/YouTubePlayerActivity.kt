@@ -1309,6 +1309,37 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
     }
 
+    private fun requestYouTubePlayback() {
+        if (!youtubePlayerReady || webView == null || isFinishing || isDestroyed) return
+        val resumeScript = """
+            (function(){
+              try {
+                var v = document.querySelector('video');
+                if (!v) return 'no-video';
+                if (!v.paused && !v.ended) return 'playing';
+                var p = v.play();
+                if (p && p.catch) p.catch(function(){
+                  try {
+                    var b = document.querySelector('.ytp-play-button, button[aria-label*="Play"], button[aria-label*="Phát"]');
+                    if (b) b.click();
+                  } catch (_) {}
+                });
+                return 'requested';
+              } catch (_) { return 'error'; }
+            })();
+        """.trimIndent()
+        fun attempt(remaining: Int) {
+            if (isFinishing || isDestroyed || webView == null) return
+            webView?.evaluateJavascript(resumeScript) { result ->
+                val started = result?.contains("playing") == true
+                if (!started && remaining > 0 && !isFinishing && !isDestroyed) {
+                    playbackPositionHandler.postDelayed({ attempt(remaining - 1) }, 450L)
+                }
+            }
+        }
+        attempt(4)
+    }
+
     /**
      * Explicit voice actions are idempotent: "play" always plays and "pause" always pauses.
      * The request is held until the embedded player reports ready.
@@ -1321,7 +1352,11 @@ class YouTubePlayerActivity : ComponentActivity() {
         intent.removeExtra(EXTRA_AI_ACTION)
 
         when (action) {
-            "play" -> webView?.evaluateJavascript("playVideo()", null)
+            // Reopening the compact YouTube player destroys/recreates the WebView
+            // after Back, so the mobile site's video element may exist before it
+            // is ready to accept play(). Retry instead of swallowing the first
+            // rejected play() promise and leaving the play button ineffective.
+            "play" -> requestYouTubePlayback()
             "pause" -> webView?.evaluateJavascript("pauseVideo()", null)
             "next" -> {
                 if (queue.size > 1) {
