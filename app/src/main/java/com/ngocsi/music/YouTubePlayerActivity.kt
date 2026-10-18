@@ -10,6 +10,7 @@ import android.net.Uri
 import android.graphics.BitmapFactory
 import android.graphics.drawable.Icon
 import android.graphics.Bitmap
+import android.graphics.Rect
 import android.graphics.Color as AndroidColor
 import android.content.res.ColorStateList
 import android.graphics.drawable.GradientDrawable
@@ -78,6 +79,9 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var pipTransport: View? = null
     private var pipUtilityRow: View? = null
     private var pipQueueActions: View? = null
+    // Keep a handle to the page scroll container so PiP always frames the video,
+    // rather than an off-screen section of the watch page.
+    private var contentScrollView: ScrollView? = null
     private lateinit var channelView: TextView
     private lateinit var favoriteButton: Button
     private lateinit var watchLaterButton: Button
@@ -618,6 +622,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             clipToPadding = false
             addView(content)
         }
+        contentScrollView = scroll
         root.addView(scroll, FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT
@@ -1787,6 +1792,17 @@ class YouTubePlayerActivity : ComponentActivity() {
         val builder = PictureInPictureParams.Builder()
             .setAspectRatio(Rational(16, 9))
 
+        // Tell Android which on-screen region is the actual video surface. This
+        // avoids animating/cropping the whole watch page into the PiP window.
+        if (::playerContainer.isInitialized) {
+            val sourceRect = Rect()
+            if (playerContainer.getGlobalVisibleRect(sourceRect) &&
+                sourceRect.width() > 0 && sourceRect.height() > 0
+            ) {
+                builder.setSourceRectHint(sourceRect)
+            }
+        }
+
         // Give the PiP window its own explicit play/pause action. Without this,
         // Android may expose the app's active Media3 session controls, which belong
         // to local music rather than this WebView-based YouTube player.
@@ -1832,16 +1848,22 @@ class YouTubePlayerActivity : ComponentActivity() {
             .forEach { it?.visibility = visibility }
         if (isInPictureInPictureMode) {
             loadingBar?.visibility = View.GONE
-            // PiP can pause the mobile site's HTML5 video while Android resizes the
-            // WebView. Re-arm WebView and retry play only if it was playing before
-            // the transition; never override an intentional user pause.
+
+            // The watch page is a ScrollView. If the user had scrolled down before
+            // minimizing, PiP would otherwise capture a blank/non-video region.
+            contentScrollView?.scrollTo(0, 0)
+            contentScrollView?.requestLayout()
+            root.requestLayout()
+
+            // Re-arm WebView timers for the PiP transition even when playback was
+            // already paused. Resuming the WebView does not issue a play command.
+            webView?.onResume()
+            webView?.resumeTimers()
+
+            // Retry playback only when it was active before PiP. Do not override an
+            // intentional pause. A single play() attempt is often rejected while
+            // Android resizes the WebView surface, so verify and retry briefly.
             if (resumeVideoAfterPipEntry) {
-                // PiP transitions can suspend the mobile site's video element for
-                // longer than one frame. Resume WebView timers and retry until the
-                // element reports that playback really started; a fire-and-forget
-                // play() call can be rejected while the window is resizing.
-                webView?.onResume()
-                webView?.resumeTimers()
                 val recoverPlayback = object : Runnable {
                     private var attempts = 0
                     override fun run() {
@@ -1850,9 +1872,11 @@ class YouTubePlayerActivity : ComponentActivity() {
                         webView?.evaluateJavascript(
                             """(function(){
                                 try {
-                                  var v=document.querySelector('video');
+                                  var v=document.querySelector('video.html5-main-video') ||
+                                        document.querySelector('#movie_player video') ||
+                                        document.querySelector('video');
                                   if(!v) return 'no-video';
-                                  if(!v.paused && !v.ended) return 'playing';
+                                  if(!v.paused && !v.ended && v.readyState >= 2) return 'playing';
                                   var p=v.play();
                                   if(p && p.catch) p.catch(function(){
                                     try {
@@ -1865,8 +1889,8 @@ class YouTubePlayerActivity : ComponentActivity() {
                             })();""".trimIndent()
                         ) { result ->
                             val started = result?.contains("playing") == true
-                            if (!started && attempts < 12 && !isFinishing && !isDestroyed && isInPictureInPictureMode) {
-                                playerContainer.postDelayed(this, 650L)
+                            if (!started && attempts < 16 && !isFinishing && !isDestroyed && isInPictureInPictureMode) {
+                                playerContainer.postDelayed(this, 500L)
                             }
                         }
                     }
@@ -1875,19 +1899,39 @@ class YouTubePlayerActivity : ComponentActivity() {
             }
         } else {
             resumeVideoAfterPipEntry = false
+            webView?.onResume()
         }
-        if (::playerContainer.isInitialized) {
-            playerContainer.post {
-                val width = playerContainer.width
-                if (width <= 0) return@post
-                val params = playerContainer.layoutParams as? LinearLayout.LayoutParams ?: return@post
-                params.height = if (isInPictureInPictureMode) {
-                    (width * 9f / 16f).toInt().coerceAtLeast(dp(100))
-                } else {
-                    (resources.displayMetrics.widthPixels * 9f / 16f).toInt().coerceAtLeast(dp(200))
-                }
-                playerContainer.layoutParams = params
+        resizePlayerContainerForPip(isInPictureInPictureMode)
+    }
+
+    /**
+     * Resize the video surface only after Android has applied the PiP window bounds.
+     * Some devices briefly report a zero-width WebView during the transition.
+     */
+    private fun resizePlayerContainerForPip(inPip: Boolean, remainingAttempts: Int = 8) {
+        if (!::playerContainer.isInitialized) return
+        playerContainer.post {
+            val width = playerContainer.width
+            val params = playerContainer.layoutParams as? LinearLayout.LayoutParams
+            if ((width <= 0 || params == null) && remainingAttempts > 0 &&
+                !isFinishing && !isDestroyed
+            ) {
+                playerContainer.postDelayed({
+                    resizePlayerContainerForPip(inPip, remainingAttempts - 1)
+                }, 80L)
+                return@post
             }
+            if (width <= 0 || params == null) return@post
+            params.height = if (inPip) {
+                (width * 9f / 16f).toInt().coerceAtLeast(dp(100))
+            } else {
+                (resources.displayMetrics.widthPixels * 9f / 16f).toInt().coerceAtLeast(dp(200))
+            }
+            playerContainer.layoutParams = params
+            playerContainer.requestLayout()
+            webView?.requestLayout()
+            playerContainer.invalidate()
+            updatePipParamsIfSupported()
         }
     }
 
