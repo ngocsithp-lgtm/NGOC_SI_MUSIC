@@ -1161,7 +1161,17 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
 
         webView?.evaluateJavascript(
-            "(function(){try{var v=document.querySelector('video');var m=location.href.match(/[?&]v=([A-Za-z0-9_-]+)/);return JSON.stringify({id:m?m[1]:'',p:v?Math.floor(v.currentTime*1000):0});}catch(e){return '{}';}})();"
+            """(function(){
+                try {
+                  var v = (typeof window.__ngocSiFindActiveVideo === 'function')
+                    ? window.__ngocSiFindActiveVideo()
+                    : (document.querySelector('video.html5-main-video') ||
+                       document.querySelector('#movie_player video') ||
+                       document.querySelector('video'));
+                  var m = location.href.match(/[?&]v=([A-Za-z0-9_-]+)/);
+                  return JSON.stringify({id:m?m[1]:'',p:v?Math.floor(v.currentTime*1000):0});
+                } catch(e) { return '{}'; }
+            })();""".trimIndent()
         ) { value ->
             val payload = runCatching {
                 org.json.JSONObject(value.trim('"').replace("\\\"", "\""))
@@ -1198,7 +1208,18 @@ class YouTubePlayerActivity : ComponentActivity() {
         positionRestoreAttempts++
         val seconds = positionMs / 1000.0
         webView?.evaluateJavascript(
-            "(function(){try{var v=document.querySelector('video');if(!v||!isFinite(v.duration))return 'wait';v.currentTime=$seconds;return 'ok';}catch(e){return 'wait';}})();"
+            """(function(){
+                try {
+                  var v = (typeof window.__ngocSiFindActiveVideo === 'function')
+                    ? window.__ngocSiFindActiveVideo()
+                    : (document.querySelector('video.html5-main-video') ||
+                       document.querySelector('#movie_player video') ||
+                       document.querySelector('video'));
+                  if(!v || !isFinite(v.duration)) return 'wait';
+                  v.currentTime = $seconds;
+                  return 'ok';
+                } catch(e) { return 'wait'; }
+            })();""".trimIndent()
         ) { result ->
             if (isFinishing || isDestroyed || safeId != sanitizeVideoId(videoId)) return@evaluateJavascript
             if (result?.contains("ok") == true) {
@@ -2138,25 +2159,10 @@ class YouTubePlayerActivity : ComponentActivity() {
                     override fun run() {
                         if (isFinishing || isDestroyed || !isInPictureInPictureMode || webView == null) return
                         attempts++
-                        webView?.evaluateJavascript(
-                            """(function(){
-                                try {
-                                  var v=document.querySelector('video.html5-main-video') ||
-                                        document.querySelector('#movie_player video') ||
-                                        document.querySelector('video');
-                                  if(!v) return 'no-video';
-                                  if(!v.paused && !v.ended) return v.readyState >= 2 ? 'playing' : 'buffering';
-                                  var p=v.play();
-                                  if(p && p.catch) p.catch(function(){
-                                    try {
-                                      var b=document.querySelector('.ytp-play-button[aria-label*="Play"],.ytp-play-button[aria-label*="Phát"],button[aria-label*="Play"],button[aria-label*="Phát"]');
-                                      if(b) b.click();
-                                    } catch(e) {}
-                                  });
-                                  return !v.paused ? (v.readyState >= 2 ? 'playing' : 'buffering') : 'retry';
-                                } catch(e) { return 'error'; }
-                            })();""".trimIndent()
-                        ) { result ->
+                        // Use the exact same active-video selection and provider-control
+                        // fallback as the PiP Play action. A second, older script here used
+                        // the first <video> element and could repeatedly wake a stale element.
+                        webView?.evaluateJavascript(youtubePlaybackScript("play")) { result ->
                             val accepted = result?.contains("playing") == true ||
                                 result?.contains("buffering") == true
                             if (!accepted && attempts < 16 && !isFinishing &&
