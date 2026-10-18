@@ -1974,18 +1974,28 @@ class YouTubePlayerActivity : ComponentActivity() {
         // Let wake-word commands follow the currently foregrounded YouTube player.
         getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
             .edit().putBoolean("youtube_player_foreground", true).apply()
-        // Re-arm WebView media/JS processing whenever the Activity returns to
-        // the foreground. This does not attempt to bypass YouTube background-
-        // playback restrictions; it only makes foreground recovery reliable.
+        // Chromium can leave the HTML5 video element paused after screen-off/unlock.
+        // Resume the existing WebView first; never reload the video just to recover.
         webView?.onResume()
+        webView?.resumeTimers()
         updatePipParamsIfSupported()
-        // onPause()/onStop() stop the periodic position saver. Restart it when
-        // returning to an already-ready player; onReady() only fires on initial
-        // player setup, so relying on that callback loses periodic saves after
-        // the first background/foreground transition.
         if (youtubePlayerReady && webView != null) {
             startPlaybackPositionSaver()
-            if (youtubePlayerState == 1) syncYouTubeBackgroundPlayback(youtubePlayerState)
+            val wasPlaying = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+                .getBoolean("youtube_playback_is_playing", false)
+            if (youtubePlayerState == 1) {
+                syncYouTubeBackgroundPlayback(youtubePlayerState)
+            } else if (wasPlaying && !isInPictureInPictureMode) {
+                // Wait for WebView to become visible after unlock, then request play
+                // on the current video. requestYouTubePlayback retries rejected calls.
+                webView?.postDelayed({
+                    if (!isFinishing && !isDestroyed && !isInPictureInPictureMode &&
+                        youtubePlayerReady && webView != null
+                    ) {
+                        requestYouTubePlayback()
+                    }
+                }, 500L)
+            }
         }
     }
 
