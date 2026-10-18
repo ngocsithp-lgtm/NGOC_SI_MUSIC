@@ -435,11 +435,13 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
         pipInfo = info
         val nowPlaying = TextView(this).apply {
-            text = "●  ĐANG PHÁT"
-            setTextColor(AndroidColor.rgb(143, 214, 148))
+            tag = "youtube_playback_status"
+            text = "●  ĐANG KẾT NỐI YOUTUBE"
+            setTextColor(AndroidColor.rgb(171, 175, 188))
             textSize = 10f
             typeface = android.graphics.Typeface.DEFAULT_BOLD
             letterSpacing = 0.06f
+            contentDescription = "Trạng thái phát video YouTube"
         }
         titleView = TextView(this).apply {
             text = title
@@ -457,9 +459,19 @@ class YouTubePlayerActivity : ComponentActivity() {
             maxLines = 2
             ellipsize = android.text.TextUtils.TruncateAt.END
         }
+        val queueHint = TextView(this).apply {
+            tag = "youtube_queue_hint"
+            text = "HÀNG ĐỢI • " + (queueIndex + 1) + "/" + queue.size.coerceAtLeast(1)
+            setTextColor(AndroidColor.rgb(141, 238, 255))
+            textSize = 10f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            letterSpacing = 0.03f
+            setPadding(0, dp(8), 0, 0)
+        }
         info.addView(nowPlaying)
         info.addView(titleView)
         info.addView(channelView)
+        info.addView(queueHint)
         content.addView(info, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
@@ -557,6 +569,32 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
         queueActions.addView(share, LinearLayout.LayoutParams(dp(48), dp(46)))
         content.addView(queueActions)
+
+        // A slim position indicator makes the current place in the YouTube queue
+        // visible without competing with the video or the primary transport buttons.
+        val queueProgress = ProgressBar(
+            this,
+            null,
+            android.R.attr.progressBarStyleHorizontal
+        ).apply {
+            tag = "queue_progress"
+            isIndeterminate = false
+            max = queue.size.coerceAtLeast(1)
+            progress = (queueIndex + 1).coerceIn(0, max)
+            progressTintList = ColorStateList.valueOf(AndroidColor.rgb(141, 238, 255))
+            progressBackgroundTintList = ColorStateList.valueOf(AndroidColor.rgb(39, 43, 53))
+        }
+        content.addView(
+            queueProgress,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(3)
+            ).apply {
+                leftMargin = dp(16)
+                rightMargin = dp(16)
+                topMargin = dp(2)
+            }
+        )
 
         val scroll = ScrollView(this).apply {
             isFillViewport = true
@@ -1285,11 +1323,26 @@ class YouTubePlayerActivity : ComponentActivity() {
                 .putBoolean("youtube_is_playing", youtubePlayerState == 1)
                 .apply()
         }
-        if (!::playPauseButton.isInitialized) return
-        playPauseButton.text = when {
-            !youtubePlayerReady -> "…"
-            youtubePlayerState == 1 -> "⏸"
-            else -> "▶"
+        if (::playPauseButton.isInitialized) {
+            playPauseButton.text = when {
+                !youtubePlayerReady -> "…"
+                youtubePlayerState == 1 -> "⏸"
+                else -> "▶"
+            }
+        }
+
+        root.findViewWithTag<TextView>("youtube_playback_status")?.apply {
+            val status = when {
+                !youtubePlayerReady -> "●  ĐANG KẾT NỐI YOUTUBE" to AndroidColor.rgb(171, 175, 188)
+                youtubePlayerState == 1 -> "●  ĐANG PHÁT" to AndroidColor.rgb(143, 214, 148)
+                youtubePlayerState == 2 -> "Ⅱ  ĐANG TẠM DỪNG" to AndroidColor.rgb(255, 198, 109)
+                youtubePlayerState == 3 -> "◌  ĐANG TẢI VIDEO" to AndroidColor.rgb(141, 238, 255)
+                youtubePlayerState == 0 -> "✓  VIDEO ĐÃ KẾT THÚC" to AndroidColor.rgb(171, 175, 188)
+                youtubePlayerState == 5 -> "●  VIDEO ĐÃ SẴN SÀNG" to AndroidColor.rgb(141, 238, 255)
+                else -> "●  TRÌNH PHÁT YOUTUBE" to AndroidColor.rgb(171, 175, 188)
+            }
+            text = status.first
+            setTextColor(status.second)
         }
     }
 
