@@ -141,6 +141,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                     .putBoolean("youtube_playback_is_playing", state == 1)
                     .apply()
                 updatePlaybackButton()
+                syncYouTubeBackgroundPlayback(state)
                 updatePipParamsIfSupported()
                 // The IFrame API can report onReady before the video is seekable.
                 // Retry position restoration when the item becomes cued or starts.
@@ -186,20 +187,35 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var resumeVideoAfterPipEntry = false
     private val pipActionReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: android.content.Context?, intent: Intent?) {
-            if (intent?.action != ACTION_PIP_PLAY_PAUSE_INTERNAL) return
-            // Handle the PiP action in-place. A PendingIntent to an Activity would
-            // expand PiP back to the full player before the play command can run.
-            if (youtubePlayerReady && webView != null) {
-                val command = if (youtubePlayerState == 1) "pauseVideo()" else "playVideo()"
-                webView?.evaluateJavascript(command, null)
+            when (intent?.action) {
+                ACTION_PIP_PLAY_PAUSE_INTERNAL -> {
+                    // PiP transport controls the embedded YouTube player in place.
+                    if (youtubePlayerReady && webView != null) {
+                        val command = if (youtubePlayerState == 1) "pauseVideo()" else "playVideo()"
+                        webView?.evaluateJavascript(command, null)
+                    }
+                }
+                YouTubeBackgroundService.ACTION_CONTROL -> {
+                    if (!youtubePlayerReady || webView == null) return
+                    when (intent.getStringExtra(YouTubeBackgroundService.EXTRA_CONTROL)) {
+                        "play" -> webView?.evaluateJavascript("playVideo()", null)
+                        "pause" -> webView?.evaluateJavascript("pauseVideo()", null)
+                        "next" -> playNext()
+                        "previous" -> playPrevious()
+                    }
+                }
             }
         }
     }
+    private var youtubeBackgroundServiceStarted = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val pipFilter = android.content.IntentFilter(ACTION_PIP_PLAY_PAUSE_INTERNAL)
+        val pipFilter = android.content.IntentFilter().apply {
+            addAction(ACTION_PIP_PLAY_PAUSE_INTERNAL)
+            addAction(YouTubeBackgroundService.ACTION_CONTROL)
+        }
         androidx.core.content.ContextCompat.registerReceiver(
             this,
             pipActionReceiver,
@@ -1268,6 +1284,32 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     /**
+     * Promotes user-started in-app YouTube playback to a media foreground service.
+     * The HTML5 video remains the audio renderer; the service preserves process
+     * priority, holds a partial wake lock while it reports playing, and publishes
+     * its own lock-screen controls instead of reusing the local/Drive Media3 session.
+     */
+    private fun syncYouTubeBackgroundPlayback(state: Int) {
+        val serviceIntent = Intent(this, YouTubeBackgroundService::class.java).apply {
+            action = YouTubeBackgroundService.ACTION_UPDATE
+            putExtra(YouTubeBackgroundService.EXTRA_VIDEO_ID, videoId)
+            putExtra(YouTubeBackgroundService.EXTRA_TITLE, title)
+            putExtra(YouTubeBackgroundService.EXTRA_CHANNEL, channel)
+            putExtra(YouTubeBackgroundService.EXTRA_QUEUE_JSON, buildQueueJson())
+            putExtra(YouTubeBackgroundService.EXTRA_QUEUE_INDEX, queueIndex)
+            putExtra(YouTubeBackgroundService.EXTRA_PLAYER_STATE, state)
+            putExtra(YouTubeBackgroundService.EXTRA_IS_PLAYING, state == 1)
+        }
+
+        if (state == 1 && !youtubeBackgroundServiceStarted) {
+            androidx.core.content.ContextCompat.startForegroundService(this, serviceIntent)
+            youtubeBackgroundServiceStarted = true
+        } else if (youtubeBackgroundServiceStarted) {
+            startService(serviceIntent)
+        }
+    }
+
+    /**
      * Explicit voice actions are idempotent: "play" always plays and "pause" always pauses.
      * The request is held until the embedded player reports ready.
      */
@@ -1374,6 +1416,11 @@ class YouTubePlayerActivity : ComponentActivity() {
 
         val player = WebView(this).apply {
             setBackgroundColor(AndroidColor.BLACK)
+            // Bound renderer priority reduces WebView renderer eviction while the
+            // user-started media session continues in the background.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_BOUND, true)
+            }
             settings.apply {
                 javaScriptEnabled = true
                 domStorageEnabled = true
@@ -1683,6 +1730,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         // the first background/foreground transition.
         if (youtubePlayerReady && webView != null) {
             startPlaybackPositionSaver()
+            if (youtubePlayerState == 1) syncYouTubeBackgroundPlayback(youtubePlayerState)
         }
     }
 
@@ -1869,6 +1917,10 @@ class YouTubePlayerActivity : ComponentActivity() {
 
     override fun onDestroy() {
         if (isFinishing) {
+            stopService(
+                Intent(this, YouTubeBackgroundService::class.java)
+                    .setAction(YouTubeBackgroundService.ACTION_STOP)
+            )
             // Finishing destroys the WebView, so it cannot still be considered
             // actively playing. Keep YouTube selected as the user's last source,
             // however: the compact play button can reopen the saved video and
