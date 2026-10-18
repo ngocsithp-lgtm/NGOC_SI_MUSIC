@@ -7,7 +7,6 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
-import android.graphics.drawable.Icon
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
 import android.os.Build
@@ -72,6 +71,9 @@ class YouTubeBackgroundService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> {
+                // A user tapping Close in the media notification must not leave
+                // the hidden WebView playing without its foreground service.
+                dispatchControl("pause")
                 stopPlaybackService()
                 return START_NOT_STICKY
             }
