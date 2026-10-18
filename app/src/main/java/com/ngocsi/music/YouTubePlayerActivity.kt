@@ -1386,13 +1386,21 @@ class YouTubePlayerActivity : ComponentActivity() {
                   } catch (_) {}
                   var videos = Array.prototype.slice.call(document.querySelectorAll('video'));
                   var visible = videos.filter(isVisibleVideo);
+                  // Lock onto the actual YouTube player video first. Do not let a playing
+                  // ad/preview video outrank the paused main video during PiP.
+                  var primary = visible.find(function(video) {
+                    return video.classList.contains('html5-main-video') ||
+                      !!video.closest('#movie_player') ||
+                      !!video.closest('.html5-video-player') ||
+                      !!video.closest('ytm-player');
+                  });
+                  if (primary) return primary;
                   function score(video) {
                     var rect = video.getBoundingClientRect();
                     var value = rect.width * rect.height;
                     if (!video.paused && !video.ended) value += 100000000;
                     if (video.readyState >= 2) value += 1000000;
                     if (video.currentTime > 0) value += 100000;
-                    if (video.classList.contains('html5-main-video')) value += 500000;
                     return value;
                   }
                   visible.sort(function(a,b){ return score(b) - score(a); });
@@ -1405,16 +1413,15 @@ class YouTubePlayerActivity : ComponentActivity() {
                 }
                 function clickPlayButton() {
                   var selectors = [
-                    '.ytp-play-button[aria-label*="Play"]',
-                    '.ytp-play-button[aria-label*="Phát"]',
-                    'button[aria-label*="Play"]',
-                    'button[aria-label*="Phát"]',
-                    'button[aria-label*="Resume"]',
-                    'button[aria-label*="Tiếp tục"]',
-                    '[role="button"][aria-label*="Play"]',
-                    '[role="button"][aria-label*="Phát"]',
-                    'button[title*="Play"]',
-                    'button[title*="Phát"]'
+                    '.ytp-play-button',
+                    'button[aria-label*="play" i]',
+                    'button[aria-label*="phát" i]',
+                    'button[aria-label*="resume" i]',
+                    'button[aria-label*="tiếp tục" i]',
+                    '[role="button"][aria-label*="play" i]',
+                    '[role="button"][aria-label*="phát" i]',
+                    'button[title*="play" i]',
+                    'button[title*="phát" i]'
                   ];
                   for (var i = 0; i < selectors.length; i++) {
                     var buttons = document.querySelectorAll(selectors[i]);
@@ -1517,7 +1524,13 @@ class YouTubePlayerActivity : ComponentActivity() {
     private fun requestYouTubePlayback() {
         if (webView == null || isFinishing || isDestroyed) return
         // A PiP Play tap explicitly opts back into playback and its resume guard.
-        if (isInPictureInPictureMode) resumeVideoAfterPipEntry = true
+        if (isInPictureInPictureMode) {
+            resumeVideoAfterPipEntry = true
+            // Keep Chromium's media and JavaScript timers resumed when the PiP
+            // transport action arrives while the Activity is backgrounded.
+            webView?.onResume()
+            webView?.resumeTimers()
+        }
         fun attempt(remaining: Int) {
             if (isFinishing || isDestroyed || webView == null) return
             webView?.evaluateJavascript(youtubePlaybackScript("play")) { result ->
@@ -1730,13 +1743,24 @@ class YouTubePlayerActivity : ComponentActivity() {
                               return true;
                             }
                             var rendered = videos.filter(visible);
+                            // Always bind commands/state to YouTube's real primary video before
+                            // considering other video elements (ads, previews or hidden players).
+                            // A secondary element can still be "playing" while the main video is
+                            // paused during the Android PiP transition; score-only selection then
+                            // targets the wrong element and leaves the PiP image frozen.
+                            var primary = rendered.find(function(video) {
+                              return video.classList.contains('html5-main-video') ||
+                                !!video.closest('#movie_player') ||
+                                !!video.closest('.html5-video-player') ||
+                                !!video.closest('ytm-player');
+                            });
+                            if (primary) return primary;
                             function score(video) {
                               var rect = video.getBoundingClientRect();
                               var value = rect.width * rect.height;
                               if (!video.paused && !video.ended) value += 100000000;
                               if (video.readyState >= 2) value += 1000000;
                               if (video.currentTime > 0) value += 100000;
-                              if (video.classList.contains('html5-main-video')) value += 500000;
                               return value;
                             }
                             rendered.sort(function(a,b){ return score(b) - score(a); });
