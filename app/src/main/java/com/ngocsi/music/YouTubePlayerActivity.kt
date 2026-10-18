@@ -11,6 +11,9 @@ import android.widget.Toast
 import android.net.Uri
 import android.graphics.BitmapFactory
 import android.graphics.Bitmap
+import android.media.MediaMetadata as PlatformMediaMetadata
+import android.media.session.MediaSession as PlatformMediaSession
+import android.media.session.PlaybackState as PlatformPlaybackState
 import android.graphics.Color as AndroidColor
 import android.content.res.ColorStateList
 import android.graphics.drawable.GradientDrawable
@@ -63,6 +66,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     private lateinit var contentScroll: ScrollView
     private var normalPlayerHeight = 0
     private var inPlayerPipPresentation = false
+    private var youtubeMediaSession: PlatformMediaSession? = null
     private lateinit var pipButton: Button
     private var webView: WebView? = null
     // Invalidates callbacks originating from an old/destroyed WebView instance.
@@ -116,6 +120,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 if (!isCurrentGeneration()) return@runOnUiThread
                 youtubePlayerReady = true
                 updatePlaybackButton()
+                updateYoutubeMediaSession()
                 updatePictureInPictureParams()
                 restoreSavedPlaybackPosition()
                 startPlaybackPositionSaver()
@@ -131,6 +136,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 }
                 youtubePlayerState = state
                 updatePlaybackButton()
+                updateYoutubeMediaSession()
                 updatePictureInPictureParams()
                 if (
                     state == 0 &&
@@ -165,6 +171,8 @@ class YouTubePlayerActivity : ComponentActivity() {
                     return@runOnUiThread
                 }
                 youtubePlayerState = -1
+                updatePlaybackButton()
+                updateYoutubeMediaSession()
                 updatePictureInPictureParams()
             }
         }
@@ -228,6 +236,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 }
             }
         })
+        createYoutubeMediaSession()
         createPlayer()
     }
 
@@ -958,6 +967,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 channelView.text = channel
                 updateActionState()
                 updateQueueButton()
+                updateYoutubeMediaSession()
                 saveLastPlayedState()
 
                 val safeId = sanitizeVideoId(videoId)
@@ -1528,6 +1538,88 @@ class YouTubePlayerActivity : ComponentActivity() {
         webView?.onResume()
     }
 
+    private fun createYoutubeMediaSession() {
+        if (youtubeMediaSession != null) return
+        youtubeMediaSession = PlatformMediaSession(this, "NGOC_SI_YOUTUBE").apply {
+            setFlags(
+                PlatformMediaSession.FLAG_HANDLES_MEDIA_BUTTONS or
+                    PlatformMediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS
+            )
+            setCallback(object : PlatformMediaSession.Callback() {
+                override fun onPlay() {
+                    runYoutubePlayerCommand("playVideo();")
+                }
+
+                override fun onPause() {
+                    runYoutubePlayerCommand("pauseVideo();")
+                }
+
+                override fun onStop() {
+                    runYoutubePlayerCommand("pauseVideo();")
+                }
+
+                override fun onSkipToNext() {
+                    playNext()
+                }
+
+                override fun onSkipToPrevious() {
+                    playPrevious()
+                }
+            })
+        }
+        updateYoutubeMediaSession()
+    }
+
+    private fun runYoutubePlayerCommand(script: String) {
+        runOnUiThread {
+            if (isFinishing || isDestroyed) return@runOnUiThread
+            webView?.evaluateJavascript(script, null)
+        }
+    }
+
+    private fun updateYoutubeMediaSession() {
+        val session = youtubeMediaSession ?: return
+        val state = when (youtubePlayerState) {
+            1 -> PlatformPlaybackState.STATE_PLAYING
+            2 -> PlatformPlaybackState.STATE_PAUSED
+            3 -> PlatformPlaybackState.STATE_BUFFERING
+            0 -> PlatformPlaybackState.STATE_STOPPED
+            else -> PlatformPlaybackState.STATE_NONE
+        }
+        var actions = PlatformPlaybackState.ACTION_PLAY or
+            PlatformPlaybackState.ACTION_PAUSE or
+            PlatformPlaybackState.ACTION_PLAY_PAUSE or
+            PlatformPlaybackState.ACTION_STOP
+        if (queue.size > 1) {
+            actions = actions or PlatformPlaybackState.ACTION_SKIP_TO_NEXT or
+                PlatformPlaybackState.ACTION_SKIP_TO_PREVIOUS
+        }
+        session.setMetadata(
+            PlatformMediaMetadata.Builder()
+                .putString(PlatformMediaMetadata.METADATA_KEY_TITLE, title)
+                .putString(PlatformMediaMetadata.METADATA_KEY_ARTIST, channel)
+                .putString(PlatformMediaMetadata.METADATA_KEY_DISPLAY_TITLE, title)
+                .build()
+        )
+        session.setPlaybackState(
+            PlatformPlaybackState.Builder()
+                .setActions(actions)
+                .setState(state, 0L, if (state == PlatformPlaybackState.STATE_PLAYING) 1f else 0f)
+                .build()
+        )
+        session.isActive = youtubePlayerReady &&
+            state != PlatformPlaybackState.STATE_NONE &&
+            !isFinishing && !isDestroyed
+    }
+
+    private fun releaseYoutubeMediaSession() {
+        youtubeMediaSession?.runCatching {
+            isActive = false
+            release()
+        }
+        youtubeMediaSession = null
+    }
+
     private fun isYoutubeActivelyPlaying(): Boolean =
         youtubePlayerReady && youtubePlayerState == 1 && !isFinishing && !isDestroyed
 
@@ -1571,6 +1663,9 @@ class YouTubePlayerActivity : ComponentActivity() {
             Toast.makeText(this, "Hãy phát video YouTube trước khi thu nhỏ PiP.", Toast.LENGTH_SHORT).show()
             return
         }
+        // If YouTube is currently using its fullscreen custom view, return to the
+        // inline WebView surface before moving that surface into the PiP window.
+        if (customView != null) exitFullscreen()
         val params = buildPictureInPictureParams(autoEnter = false) ?: return
         runCatching {
             enterPictureInPictureMode(params)
@@ -1724,6 +1819,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         (value * resources.displayMetrics.density).toInt()
 
     override fun onDestroy() {
+        releaseYoutubeMediaSession()
         if (customView != null) exitFullscreen(notifyCallback = false)
         removePlayer()
         thumbnailExecutor.shutdownNow()
