@@ -44,8 +44,10 @@
         <activity
             android:name=".YouTubePlayerActivity"
             android:exported="false"
+            android:resizeableActivity="true"
+            android:supportsPictureInPicture="true"
             android:screenOrientation="unspecified"
-            android:configChanges="orientation|screenSize|keyboardHidden" />
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden" />
 
         <!-- Dedicated TV player keeps live-video rendering away from Compose dialogs. -->
         <activity
