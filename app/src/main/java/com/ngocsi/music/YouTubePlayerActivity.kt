@@ -1578,7 +1578,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     private fun updateQueueButton() {
         val positionText = (queueIndex + 1).coerceAtLeast(1).toString() + "/" + queue.size.coerceAtLeast(1)
         root.findViewWithTag<Button>("queue_button")?.text = "☷  HÀNG ĐỢI  •  " + positionText
-        root.findViewWithTag<TextView>("youtube_queue_hint")?.text = "Đang phát • " + positionText
+        root.findViewWithTag<TextView>("youtube_queue_hint")?.text = "Hàng đợi YouTube • " + positionText
         root.findViewWithTag<ProgressBar>("queue_progress")?.apply {
             max = queue.size.coerceAtLeast(1)
             progress = (queueIndex + 1).coerceIn(0, max)
