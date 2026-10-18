@@ -1613,11 +1613,14 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun releaseYoutubeMediaSession() {
-        youtubeMediaSession?.runCatching {
-            isActive = false
-            release()
-        }
+        val session = youtubeMediaSession
         youtubeMediaSession = null
+        if (session != null) {
+            runCatching {
+                session.isActive = false
+                session.release()
+            }
+        }
     }
 
     private fun isYoutubeActivelyPlaying(): Boolean =
