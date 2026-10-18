@@ -1878,6 +1878,19 @@ class YouTubePlayerActivity : ComponentActivity() {
             loadingBar?.visibility = View.GONE
             pipScrollY = contentScrollView?.scrollY ?: 0
 
+            // The mobile YouTube page may be in its separate fullscreen custom view.
+            // Remove that overlay before showing only the inline WebView in PiP.
+            if (customView != null) exitFullscreen()
+
+            // PiP can pause the HTML5 video while Chromium resizes its surface.
+            // Preserve playback intent before any state callback reports that pause.
+            if (!resumeVideoAfterPipEntry) {
+                val lastObservedPlaying = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+                    .getBoolean("youtube_playback_is_playing", false)
+                resumeVideoAfterPipEntry = youtubePlayerState == 1 ||
+                    (youtubePlayerState < 0 && lastObservedPlaying)
+            }
+
             // Keep the WebView attached to its original parent. Reparenting a WebView
             // during PiP can detach Chromium's video compositor surface, producing a
             // black window or audio-only playback on some Samsung devices.
@@ -1892,7 +1905,11 @@ class YouTubePlayerActivity : ComponentActivity() {
             contentScrollView?.clipChildren = true
             contentScrollView?.clipToPadding = true
             playerContainer.visibility = View.VISIBLE
-            resizePlayerContainerForPip(true)
+            val pipWindowWidthPx = newConfig.screenWidthDp
+                .takeIf { it > 0 }
+                ?.let { (it * resources.displayMetrics.density).toInt() }
+                ?: 0
+            resizePlayerContainerForPip(true, pipWindowWidthPx = pipWindowWidthPx)
             webView?.onResume()
             webView?.resumeTimers()
 
@@ -1953,14 +1970,34 @@ class YouTubePlayerActivity : ComponentActivity() {
      * Resize the existing video container without detaching WebView from Chromium's
      * video surface. In PiP, derive the video height from the actual small-window width.
      */
-    private fun resizePlayerContainerForPip(inPip: Boolean, remainingAttempts: Int = 8) {
+    private fun resizePlayerContainerForPip(
+        inPip: Boolean,
+        pipWindowWidthPx: Int = 0,
+        remainingAttempts: Int = 8
+    ) {
         if (!::playerContainer.isInitialized) return
         playerContainer.post {
-            val width = playerContainer.width.takeIf { it > 0 }
-                ?: contentScrollView?.width?.takeIf { it > 0 }
-                ?: root.width
+            // A View can still report its previous full-screen width immediately
+            // after the Activity enters PiP. Prefer the PiP Configuration width,
+            // then the container's parent/root, and only then the stale child width.
+            val width = if (inPip) {
+                pipWindowWidthPx.takeIf { it > 0 }
+                    ?: contentScrollView?.width?.takeIf { it > 0 }
+                    ?: root.width.takeIf { it > 0 }
+                    ?: playerContainer.width
+            } else {
+                resources.displayMetrics.widthPixels.takeIf { it > 0 }
+                    ?: root.width.takeIf { it > 0 }
+                    ?: playerContainer.width
+            }
             if (width <= 0 && remainingAttempts > 0 && !isFinishing && !isDestroyed) {
-                playerContainer.postDelayed({ resizePlayerContainerForPip(inPip, remainingAttempts - 1) }, 80L)
+                playerContainer.postDelayed({
+                    resizePlayerContainerForPip(
+                        inPip = inPip,
+                        pipWindowWidthPx = pipWindowWidthPx,
+                        remainingAttempts = remainingAttempts - 1
+                    )
+                }, 80L)
                 return@post
             }
             val params = playerContainer.layoutParams as? LinearLayout.LayoutParams ?: return@post
