@@ -22,6 +22,7 @@ import android.os.PowerManager
  * back to the live YouTubePlayerActivity and never to the independent Media3
  * local/Drive player.
  */
+@OptIn(androidx.media3.common.util.UnstableApi::class)
 class YouTubeBackgroundService : Service() {
 
     companion object {
