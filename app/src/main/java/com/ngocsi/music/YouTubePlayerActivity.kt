@@ -1589,6 +1589,76 @@ class YouTubePlayerActivity : ComponentActivity() {
                             window.getCurrentTime = function(){ var e=findActiveVideo(); return e ? e.currentTime : 0; };
                             window.seekTo = function(t){ var e=findActiveVideo(); if(e) e.currentTime=t; };
                             window.loadVideoById = function(id){ location.href='https://m.youtube.com/watch?v='+encodeURIComponent(id); };
+
+                            // Focus the actual mobile YouTube player while PiP is active;
+                            // restore the surrounding watch page when the PiP window closes.
+                            window.__ngocSiSetPipMode = function(enabled) {
+                              var styleId = 'ngocsi-pip-style';
+                              var hiddenClass = 'ngocsi-pip-hidden';
+                              var focusClass = 'ngocsi-pip-video-container';
+                              var restore = window.__ngocSiPipHiddenElements || [];
+                              if (!enabled) {
+                                restore.forEach(function(el){ if (el && el.classList) el.classList.remove(hiddenClass); });
+                                window.__ngocSiPipHiddenElements = [];
+                                document.querySelectorAll('.' + focusClass).forEach(function(el){ el.classList.remove(focusClass); });
+                                document.documentElement.classList.remove('ngocsi-pip-active');
+                                var oldStyle = document.getElementById(styleId);
+                                if (oldStyle) oldStyle.remove();
+                                return true;
+                              }
+
+                              restore.forEach(function(el){ if (el && el.classList) el.classList.remove(hiddenClass); });
+                              window.__ngocSiPipHiddenElements = [];
+                              document.querySelectorAll('.' + focusClass).forEach(function(el){ el.classList.remove(focusClass); });
+
+                              var player = document.querySelector('.player-container') ||
+                                           document.querySelector('#player-container-id') ||
+                                           document.querySelector('#player') ||
+                                           document.querySelector('ytm-player') ||
+                                           document.querySelector('.html5-video-player');
+                              if (!player) return false;
+
+                              var hidden = [];
+                              var current = player;
+                              while (current && current.parentElement && current.parentElement !== document.documentElement) {
+                                var parent = current.parentElement;
+                                Array.prototype.forEach.call(parent.children, function(sibling) {
+                                  if (sibling !== current && !sibling.classList.contains(hiddenClass)) {
+                                    sibling.classList.add(hiddenClass);
+                                    hidden.push(sibling);
+                                  }
+                                });
+                                current = parent;
+                              }
+                              window.__ngocSiPipHiddenElements = hidden;
+                              player.classList.add(focusClass);
+                              document.documentElement.classList.add('ngocsi-pip-active');
+
+                              var style = document.getElementById(styleId);
+                              if (!style) {
+                                style = document.createElement('style');
+                                style.id = styleId;
+                                document.head.appendChild(style);
+                              }
+                              style.textContent = [
+                                '.' + hiddenClass + '{display:none!important;}',
+                                'html.ngocsi-pip-active,html.ngocsi-pip-active body,html.ngocsi-pip-active ytm-app{' +
+                                  'width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;' +
+                                  'overflow:hidden!important;margin:0!important;padding:0!important;background:#000!important;}',
+                                '.' + focusClass + '{position:fixed!important;top:0!important;right:0!important;bottom:0!important;left:0!important;' +
+                                  'display:block!important;width:100vw!important;height:100vh!important;min-width:0!important;min-height:0!important;' +
+                                  'max-width:none!important;max-height:none!important;margin:0!important;padding:0!important;overflow:hidden!important;' +
+                                  'background:#000!important;z-index:2147483647!important;}',
+                                '.' + focusClass + ' ytm-player,.' + focusClass + ' #player,.' + focusClass + ' #player-container-id,' +
+                                  '.' + focusClass + ' .html5-video-player,.' + focusClass + ' .html5-video-container,.' + focusClass + ' video{' +
+                                  'position:absolute!important;top:0!important;right:0!important;bottom:0!important;left:0!important;' +
+                                  'width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;' +
+                                  'max-width:none!important;max-height:none!important;margin:0!important;padding:0!important;}',
+                                '.' + focusClass + ' video{object-fit:contain!important;background:#000!important;}'
+                              ].join('');
+                              return true;
+                            };
+
                             try { AndroidBridge.onReady(); } catch(e) {}
                             var lastState = -99;
                             setInterval(function(){
@@ -1604,6 +1674,13 @@ class YouTubePlayerActivity : ComponentActivity() {
                           installNgocSiBridge(0);
                         })();
                     """.trimIndent(), null)
+                    // A queue navigation can finish while PiP is already active.
+                    if (isInPictureInPictureMode) {
+                        view.evaluateJavascript(
+                            "window.__ngocSiSetPipMode && window.__ngocSiSetPipMode(true);",
+                            null
+                        )
+                    }
                 }
 
                 override fun onReceivedError(
@@ -1922,6 +1999,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             resizePlayerContainerForPip(true, pipWindowWidthPx = pipWindowWidthPx)
             webView?.onResume()
             webView?.resumeTimers()
+            updateWebViewPipPresentation(true)
 
             if (resumeVideoAfterPipEntry) {
                 val recoverPlayback = object : Runnable {
@@ -1970,10 +2048,19 @@ class YouTubePlayerActivity : ComponentActivity() {
             }
             contentScrollView?.visibility = View.VISIBLE
             contentScrollView?.post { contentScrollView?.scrollTo(0, pipScrollY) }
+            updateWebViewPipPresentation(false)
             webView?.onResume()
             resizePlayerContainerForPip(false)
         }
         updatePipParamsIfSupported()
+    }
+
+    private fun updateWebViewPipPresentation(inPip: Boolean) {
+        val value = if (inPip) "true" else "false"
+        webView?.evaluateJavascript(
+            "window.__ngocSiSetPipMode && window.__ngocSiSetPipMode($value);",
+            null
+        )
     }
 
     /**
