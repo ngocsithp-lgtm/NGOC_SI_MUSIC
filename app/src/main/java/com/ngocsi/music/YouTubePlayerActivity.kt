@@ -2149,12 +2149,13 @@ class YouTubePlayerActivity : ComponentActivity() {
                     .takeIf { it > 0 }
                     ?.let { (it * resources.displayMetrics.density).toInt() }
                     ?: 0
-                resizePlayerContainerForPip(true, pipWindowWidthPx = pipWindowWidthPx)
+                // Keep the WebView's existing video surface/layout intact during the PiP
+                // transition. Resizing the nested WebView container and scrolling the page
+                // at the same time can detach Chromium's hardware video layer, yielding a
+                // black PiP window with no audio. The YouTube watch page places the player
+                // at the top, so the 16:9 PiP viewport naturally clips to the video region.
                 webView?.onResume()
                 webView?.resumeTimers()
-                // Scroll the web page's viewport to the video after Android finishes resizing.
-                // This changes scroll position only; it never rewrites YouTube's player DOM/CSS.
-                updateWebViewPipPresentation(true)
             }
 
             if (resumeVideoAfterPipEntry) {
@@ -2195,6 +2196,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 playerContainer.visibility = View.VISIBLE
                 updateWebViewPipPresentation(false)
                 webView?.onResume()
+                // Restore the standard player ratio only after PiP has ended.
                 resizePlayerContainerForPip(false)
             }
         }
