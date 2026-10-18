@@ -1568,31 +1568,41 @@ class YouTubePlayerActivity : ComponentActivity() {
                     // Preview experiment: use YouTube's mobile website in the app's
                     // Chromium WebView instead of the IFrame API player.
                     view.evaluateJavascript("""
-                        (function installNgocSiBridge(retries) {
-                          if (window.__ngocSiBridgeInstalled) return;
-                          var v = document.querySelector('video');
-                          if (!v) {
-                            if (retries < 30) setTimeout(function(){ installNgocSiBridge(retries + 1); }, 700);
-                            return;
+                        (function(){
+                          // Keep state tracking and transport commands bound to the same
+                          // active YouTube video element to avoid controlling a stale/hidden video.
+                          function findActiveVideo() {
+                            return document.querySelector('video.html5-main-video') ||
+                                   document.querySelector('#movie_player video') ||
+                                   document.querySelector('video');
                           }
-                          window.__ngocSiBridgeInstalled = true;
-                          window.playVideo = function(){ var e=document.querySelector('video'); if(e) e.play().catch(function(){}); };
-                          window.pauseVideo = function(){ var e=document.querySelector('video'); if(e) e.pause(); };
-                          window.getCurrentTime = function(){ var e=document.querySelector('video'); return e ? e.currentTime : 0; };
-                          window.seekTo = function(t){ var e=document.querySelector('video'); if(e) e.currentTime=t; };
-                          window.loadVideoById = function(id){ location.href='https://m.youtube.com/watch?v='+encodeURIComponent(id); };
-                          try { AndroidBridge.onReady(); } catch(e) {}
-                          var lastState = -99;
-                          setInterval(function(){
-                            var e=document.querySelector('video');
-                            if(!e) return;
-                            var state = e.ended ? 0 : (e.paused ? 2 : 1);
-                            if(state !== lastState) {
-                              lastState = state;
-                              try { AndroidBridge.onStateChanged(state); } catch(e) {}
+                          function installNgocSiBridge(retries) {
+                            if (window.__ngocSiBridgeInstalled) return;
+                            var v = findActiveVideo();
+                            if (!v) {
+                              if (retries < 30) setTimeout(function(){ installNgocSiBridge(retries + 1); }, 700);
+                              return;
                             }
-                          }, 900);
-                        })(0);
+                            window.__ngocSiBridgeInstalled = true;
+                            window.playVideo = function(){ var e=findActiveVideo(); if(e) e.play().catch(function(){}); };
+                            window.pauseVideo = function(){ var e=findActiveVideo(); if(e) e.pause(); };
+                            window.getCurrentTime = function(){ var e=findActiveVideo(); return e ? e.currentTime : 0; };
+                            window.seekTo = function(t){ var e=findActiveVideo(); if(e) e.currentTime=t; };
+                            window.loadVideoById = function(id){ location.href='https://m.youtube.com/watch?v='+encodeURIComponent(id); };
+                            try { AndroidBridge.onReady(); } catch(e) {}
+                            var lastState = -99;
+                            setInterval(function(){
+                              var e=findActiveVideo();
+                              if(!e) return;
+                              var state = e.ended ? 0 : (e.paused ? 2 : 1);
+                              if(state !== lastState) {
+                                lastState = state;
+                                try { AndroidBridge.onStateChanged(state); } catch(e) {}
+                              }
+                            }, 900);
+                          }
+                          installNgocSiBridge(0);
+                        })();
                     """.trimIndent(), null)
                 }
 
