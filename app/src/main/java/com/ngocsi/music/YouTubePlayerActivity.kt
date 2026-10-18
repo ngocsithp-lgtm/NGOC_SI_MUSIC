@@ -1,6 +1,13 @@
 package com.ngocsi.music
 
+import android.app.PictureInPictureParams
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.content.res.Configuration
+import android.graphics.Rect
+import android.util.Rational
+import android.view.ViewGroup
+import android.widget.Toast
 import android.net.Uri
 import android.graphics.BitmapFactory
 import android.graphics.Bitmap
@@ -52,6 +59,11 @@ class YouTubePlayerActivity : ComponentActivity() {
 
     private lateinit var root: FrameLayout
     private lateinit var playerContainer: FrameLayout
+    private lateinit var playerContent: LinearLayout
+    private lateinit var contentScroll: ScrollView
+    private var normalPlayerHeight = 0
+    private var inPlayerPipPresentation = false
+    private lateinit var pipButton: Button
     private var webView: WebView? = null
     // Invalidates callbacks originating from an old/destroyed WebView instance.
     private var playerGeneration = 0
@@ -104,6 +116,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 if (!isCurrentGeneration()) return@runOnUiThread
                 youtubePlayerReady = true
                 updatePlaybackButton()
+                updatePictureInPictureParams()
                 restoreSavedPlaybackPosition()
                 startPlaybackPositionSaver()
             }
@@ -118,6 +131,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 }
                 youtubePlayerState = state
                 updatePlaybackButton()
+                updatePictureInPictureParams()
                 if (
                     state == 0 &&
                     queue.isNotEmpty() &&
@@ -151,7 +165,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                     return@runOnUiThread
                 }
                 youtubePlayerState = -1
-                updatePlaybackButton()
+                updatePictureInPictureParams()
             }
         }
     }
@@ -226,6 +240,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(AndroidColor.BLACK)
         }
+        playerContent = content
 
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -327,7 +342,8 @@ class YouTubePlayerActivity : ComponentActivity() {
         // Keep the embedded player at the standard 16:9 video ratio instead of
         // stretching it to fill the entire remaining screen. This gives a more
         // predictable phone layout while fullscreen remains available from YouTube.
-        val playerHeight = (resources.displayMetrics.widthPixels * 9f / 16f).toInt()
+        normalPlayerHeight = (resources.displayMetrics.widthPixels * 9f / 16f).toInt()
+        val playerHeight = normalPlayerHeight
         content.addView(playerContainer, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             playerHeight.coerceAtLeast(dp(200))
@@ -340,16 +356,21 @@ class YouTubePlayerActivity : ComponentActivity() {
         previousButton = actionButton("⏮") { playPrevious() }
         playPauseButton = actionButton("▶") { toggleYoutubePlayback() }
         nextButton = actionButton("⏭") { playNext() }
+        pipButton = actionButton("▣ PiP") { enterPlayerPip() }
         styleWideButton(playPauseButton, emphasized = true)
         previousButton.contentDescription = "Video trước"
         nextButton.contentDescription = "Video tiếp theo"
+        pipButton.contentDescription = "Thu nhỏ trình phát YouTube thành cửa sổ PiP"
         transport.addView(previousButton, LinearLayout.LayoutParams(dp(50), dp(44)).apply {
             marginEnd = dp(8)
         })
         transport.addView(playPauseButton, LinearLayout.LayoutParams(dp(62), dp(46)).apply {
             marginEnd = dp(8)
         })
-        transport.addView(nextButton, LinearLayout.LayoutParams(dp(50), dp(44)))
+        transport.addView(nextButton, LinearLayout.LayoutParams(dp(50), dp(44)).apply {
+            marginEnd = dp(7)
+        })
+        transport.addView(pipButton, LinearLayout.LayoutParams(dp(70), dp(44)))
         content.addView(transport)
 
         val utilityRow = LinearLayout(this).apply {
@@ -451,6 +472,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             setBackgroundColor(AndroidColor.BLACK)
             addView(content)
         }
+        contentScroll = scroll
 
         root.addView(scroll, FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
@@ -1506,10 +1528,121 @@ class YouTubePlayerActivity : ComponentActivity() {
         webView?.onResume()
     }
 
+    private fun isYoutubeActivelyPlaying(): Boolean =
+        youtubePlayerReady && youtubePlayerState == 1 && !isFinishing && !isDestroyed
+
+    private fun buildPictureInPictureParams(autoEnter: Boolean): PictureInPictureParams? {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.O ||
+            !packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
+        ) {
+            return null
+        }
+
+        val builder = PictureInPictureParams.Builder()
+            .setAspectRatio(Rational(16, 9))
+        val sourceRect = Rect()
+        if (::playerContainer.isInitialized &&
+            playerContainer.isAttachedToWindow &&
+            playerContainer.getGlobalVisibleRect(sourceRect) &&
+            !sourceRect.isEmpty
+        ) {
+            builder.setSourceRectHint(sourceRect)
+        }
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            builder.setAutoEnterEnabled(autoEnter)
+        }
+        return builder.build()
+    }
+
+    private fun updatePictureInPictureParams() {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.O) return
+        val params = buildPictureInPictureParams(autoEnter = isYoutubeActivelyPlaying()) ?: return
+        runCatching { setPictureInPictureParams(params) }
+    }
+
+    private fun enterPlayerPip() {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.O ||
+            !packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
+        ) {
+            Toast.makeText(this, "Thiết bị chưa hỗ trợ PiP cho ứng dụng này.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (!isYoutubeActivelyPlaying()) {
+            Toast.makeText(this, "Hãy phát video YouTube trước khi thu nhỏ PiP.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val params = buildPictureInPictureParams(autoEnter = false) ?: return
+        runCatching {
+            enterPictureInPictureMode(params)
+        }.onFailure {
+            Toast.makeText(this, "Không thể mở cửa sổ PiP. Hãy kiểm tra quyền Hình trong hình của ứng dụng.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    override fun onPictureInPictureModeChanged(
+        isInPictureInPictureMode: Boolean,
+        newConfig: Configuration
+    ) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        if (!::root.isInitialized || !::playerContainer.isInitialized ||
+            !::playerContent.isInitialized || !::contentScroll.isInitialized
+        ) {
+            return
+        }
+
+        if (isInPictureInPictureMode) {
+            if (inPlayerPipPresentation) return
+            inPlayerPipPresentation = true
+
+            // Put the actual WebView surface in the PiP window by itself.
+            // Scaling the entire page would leave the video clipped or too small.
+            (playerContainer.parent as? ViewGroup)?.removeView(playerContainer)
+            root.removeView(contentScroll)
+            loadingBar?.visibility = View.GONE
+            errorView?.visibility = View.GONE
+            root.addView(
+                playerContainer,
+                0,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    Gravity.CENTER
+                )
+            )
+        } else {
+            if (!inPlayerPipPresentation) return
+            inPlayerPipPresentation = false
+            root.removeView(playerContainer)
+            playerContent.addView(
+                playerContainer,
+                1.coerceAtMost(playerContent.childCount),
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    normalPlayerHeight.coerceAtLeast(dp(200))
+                )
+            )
+            root.addView(
+                contentScroll,
+                0,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                )
+            )
+            updatePictureInPictureParams()
+        }
+    }
+
     override fun onUserLeaveHint() {
-        // Persist the active YouTube item whenever the user leaves the Activity
-        // (Home, task switcher, notification shade, etc.).
+        // Persist the active YouTube item whenever the user leaves the Activity.
         saveLastPlayedState()
+        // Android 11 and earlier need an explicit transition; Android 12+ uses
+        // auto-enter PiP params updated when playback actually starts.
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S &&
+            isYoutubeActivelyPlaying()
+        ) {
+            enterPlayerPip()
+        }
         super.onUserLeaveHint()
     }
 
