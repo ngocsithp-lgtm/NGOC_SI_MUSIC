@@ -20,6 +20,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Rational
 import android.view.View
+import android.view.ViewGroup
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.RenderProcessGoneDetail
@@ -82,6 +83,9 @@ class YouTubePlayerActivity : ComponentActivity() {
     // Keep a handle to the page scroll container so PiP always frames the video,
     // rather than an off-screen section of the watch page.
     private var contentScrollView: ScrollView? = null
+    // PiP gets a dedicated full-window WebView surface instead of cropping the watch-page ScrollView.
+    private var pipSurfaceAttached = false
+    private var pipScrollY = 0
     private lateinit var channelView: TextView
     private lateinit var favoriteButton: Button
     private lateinit var watchLaterButton: Button
@@ -1293,26 +1297,36 @@ class YouTubePlayerActivity : ComponentActivity() {
 
 
     private fun toggleYoutubePlayback() {
-        if (!youtubePlayerReady || webView == null) return
-        if (youtubePlayerState == 1) {
-            webView?.evaluateJavascript(
-                """(function(){
-                    try {
-                      var v=document.querySelector('video.html5-main-video') ||
-                            document.querySelector('#movie_player video') ||
-                            document.querySelector('video');
-                      if (v) { v.pause(); return 'paused'; }
-                      var b=document.querySelector('.ytp-play-button[aria-label*="Pause"],button[aria-label*="Pause"],button[aria-label*="Tạm dừng"]');
-                      if (b) { b.click(); return 'pause-clicked'; }
-                      return 'no-video';
-                    } catch(e) { return 'error'; }
-                })();""".trimIndent(),
-                null
-            )
-        } else {
-            // PiP transport taps can arrive while WebView is still relaying out.
-            // Retry briefly and target YouTube's actual main video before generic video tags.
-            requestYouTubePlayback()
+        if (!youtubePlayerReady || webView == null || isFinishing || isDestroyed) return
+        val toggleScript = """
+            (function(){
+              try {
+                var v = document.querySelector('video.html5-main-video') ||
+                        document.querySelector('#movie_player video') ||
+                        document.querySelector('video');
+                if (!v) return 'no-video';
+                if (!v.paused && !v.ended) {
+                  v.pause();
+                  return 'paused';
+                }
+                var p = v.play();
+                if (p && p.catch) p.catch(function(){
+                  try {
+                    var b = document.querySelector('.ytp-play-button[aria-label*="Play"],.ytp-play-button[aria-label*="Phát"],button[aria-label*="Play"],button[aria-label*="Phát"]');
+                    if (b) b.click();
+                  } catch (_) {}
+                });
+                // "buffering" means play() was accepted; do not spam play() while data buffers.
+                return !v.paused ? (v.readyState >= 2 ? 'playing' : 'buffering') : 'retry';
+              } catch (_) { return 'error'; }
+            })();
+        """.trimIndent()
+        webView?.evaluateJavascript(toggleScript) { result ->
+            if ((result?.contains("retry") == true || result?.contains("no-video") == true) &&
+                !isFinishing && !isDestroyed
+            ) {
+                playbackPositionHandler.postDelayed({ requestYouTubePlayback() }, 300L)
+            }
         }
     }
 
@@ -1351,30 +1365,29 @@ class YouTubePlayerActivity : ComponentActivity() {
                         document.querySelector('#movie_player video') ||
                         document.querySelector('video');
                 if (!v) return 'no-video';
-                if (!v.paused && !v.ended && v.readyState >= 2) return 'playing';
+                if (!v.paused && !v.ended) return v.readyState >= 2 ? 'playing' : 'buffering';
                 var p = v.play();
                 if (p && p.catch) p.catch(function(){
                   try {
-                    var b = document.querySelector('.ytp-play-button, button[aria-label*="Play"], button[aria-label*="Phát"]');
+                    var b = document.querySelector('.ytp-play-button[aria-label*="Play"],.ytp-play-button[aria-label*="Phát"],button[aria-label*="Play"],button[aria-label*="Phát"]');
                     if (b) b.click();
                   } catch (_) {}
                 });
-                return 'requested';
+                return !v.paused ? (v.readyState >= 2 ? 'playing' : 'buffering') : 'retry';
               } catch (_) { return 'error'; }
             })();
         """.trimIndent()
         fun attempt(remaining: Int) {
             if (isFinishing || isDestroyed || webView == null) return
             webView?.evaluateJavascript(resumeScript) { result ->
-                val started = result?.contains("playing") == true
-                if (!started && remaining > 0 && !isFinishing && !isDestroyed) {
+                val accepted = result?.contains("playing") == true ||
+                    result?.contains("buffering") == true
+                if (!accepted && remaining > 0 && !isFinishing && !isDestroyed) {
                     playbackPositionHandler.postDelayed({ attempt(remaining - 1) }, 450L)
                 }
             }
         }
-        // YouTube mobile pages can take several seconds to settle after returning
-        // from another screen. Keep retrying long enough for the video element's
-        // play state to catch up, rather than stopping after roughly two seconds.
+        // Retry only until play() is accepted. Do not issue repeated play() calls while buffering.
         attempt(12)
     }
 
@@ -1865,23 +1878,18 @@ class YouTubePlayerActivity : ComponentActivity() {
         val visibility = if (isInPictureInPictureMode) View.GONE else View.VISIBLE
         listOf(pipHeader, pipInfo, pipTransport, pipUtilityRow, pipQueueActions)
             .forEach { it?.visibility = visibility }
+
         if (isInPictureInPictureMode) {
             loadingBar?.visibility = View.GONE
 
-            // The watch page is a ScrollView. If the user had scrolled down before
-            // minimizing, PiP would otherwise capture a blank/non-video region.
-            contentScrollView?.scrollTo(0, 0)
-            contentScrollView?.requestLayout()
+            // Android PiP may keep the nested ScrollView/WebView's old full-screen viewport.
+            // Reparent WebView directly to the Activity root so it is measured to the PiP bounds;
+            // otherwise the small window can show only a narrow strip of the web page.
+            attachWebViewToPipSurface(true)
             root.requestLayout()
-
-            // Re-arm WebView timers for the PiP transition even when playback was
-            // already paused. Resuming the WebView does not issue a play command.
             webView?.onResume()
             webView?.resumeTimers()
 
-            // Retry playback only when it was active before PiP. Do not override an
-            // intentional pause. A single play() attempt is often rejected while
-            // Android resizes the WebView surface, so verify and retry briefly.
             if (resumeVideoAfterPipEntry) {
                 val recoverPlayback = object : Runnable {
                     private var attempts = 0
@@ -1895,62 +1903,99 @@ class YouTubePlayerActivity : ComponentActivity() {
                                         document.querySelector('#movie_player video') ||
                                         document.querySelector('video');
                                   if(!v) return 'no-video';
-                                  if(!v.paused && !v.ended && v.readyState >= 2) return 'playing';
+                                  if(!v.paused && !v.ended) return v.readyState >= 2 ? 'playing' : 'buffering';
                                   var p=v.play();
                                   if(p && p.catch) p.catch(function(){
                                     try {
-                                      var b=document.querySelector('.ytp-play-button,button[aria-label*="Play"],button[aria-label*="Phát"]');
+                                      var b=document.querySelector('.ytp-play-button[aria-label*="Play"],.ytp-play-button[aria-label*="Phát"],button[aria-label*="Play"],button[aria-label*="Phát"]');
                                       if(b) b.click();
                                     } catch(e) {}
                                   });
-                                  return 'requested';
+                                  return !v.paused ? (v.readyState >= 2 ? 'playing' : 'buffering') : 'retry';
                                 } catch(e) { return 'error'; }
                             })();""".trimIndent()
                         ) { result ->
-                            val started = result?.contains("playing") == true
-                            if (!started && attempts < 16 && !isFinishing && !isDestroyed && isInPictureInPictureMode) {
-                                playerContainer.postDelayed(this, 500L)
+                            val accepted = result?.contains("playing") == true ||
+                                result?.contains("buffering") == true
+                            if (!accepted && attempts < 16 && !isFinishing &&
+                                !isDestroyed && isInPictureInPictureMode
+                            ) {
+                                webView?.postDelayed(this, 500L)
                             }
                         }
                     }
                 }
-                playerContainer.post(recoverPlayback)
+                webView?.post(recoverPlayback)
             }
         } else {
             resumeVideoAfterPipEntry = false
+            attachWebViewToPipSurface(false)
             webView?.onResume()
+            resizePlayerContainerForPip(false)
         }
-        resizePlayerContainerForPip(isInPictureInPictureMode)
+        updatePipParamsIfSupported()
     }
 
     /**
-     * Resize the video surface only after Android has applied the PiP window bounds.
-     * Some devices briefly report a zero-width WebView during the transition.
+     * Use the WebView as a direct child of the Activity root while in PiP.
+     * This avoids the stale full-width viewport produced by ScrollView -> LinearLayout nesting.
+     */
+    private fun attachWebViewToPipSurface(inPip: Boolean) {
+        if (!::root.isInitialized || !::playerContainer.isInitialized) return
+        val player = webView ?: return
+        if (inPip) {
+            if (pipSurfaceAttached) return
+            pipScrollY = contentScrollView?.scrollY ?: 0
+            contentScrollView?.visibility = View.GONE
+            (player.parent as? ViewGroup)?.removeView(player)
+            playerContainer.visibility = View.GONE
+            root.addView(
+                player,
+                0,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                )
+            )
+            pipSurfaceAttached = true
+            player.requestLayout()
+            root.requestLayout()
+        } else {
+            if (!pipSurfaceAttached) {
+                contentScrollView?.visibility = View.VISIBLE
+                return
+            }
+            (player.parent as? ViewGroup)?.removeView(player)
+            playerContainer.visibility = View.VISIBLE
+            playerContainer.addView(
+                player,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                )
+            )
+            pipSurfaceAttached = false
+            contentScrollView?.visibility = View.VISIBLE
+            playerContainer.requestLayout()
+            root.requestLayout()
+            contentScrollView?.post { contentScrollView?.scrollTo(0, pipScrollY) }
+        }
+    }
+
+    /**
+     * Restore the normal watch-page video height after PiP.
+     * While in PiP, the WebView is attached directly to root and fills the PiP window.
      */
     private fun resizePlayerContainerForPip(inPip: Boolean, remainingAttempts: Int = 8) {
-        if (!::playerContainer.isInitialized) return
+        if (inPip || !::playerContainer.isInitialized) return
         playerContainer.post {
-            val width = playerContainer.width
-            val params = playerContainer.layoutParams as? LinearLayout.LayoutParams
-            if ((width <= 0 || params == null) && remainingAttempts > 0 &&
-                !isFinishing && !isDestroyed
-            ) {
-                playerContainer.postDelayed({
-                    resizePlayerContainerForPip(inPip, remainingAttempts - 1)
-                }, 80L)
-                return@post
-            }
-            if (width <= 0 || params == null) return@post
-            params.height = if (inPip) {
-                (width * 9f / 16f).toInt().coerceAtLeast(dp(100))
-            } else {
-                (resources.displayMetrics.widthPixels * 9f / 16f).toInt().coerceAtLeast(dp(200))
-            }
+            val params = playerContainer.layoutParams as? LinearLayout.LayoutParams ?: return@post
+            params.height = (resources.displayMetrics.widthPixels * 9f / 16f)
+                .toInt().coerceAtLeast(dp(200))
             playerContainer.layoutParams = params
             playerContainer.requestLayout()
             webView?.requestLayout()
             playerContainer.invalidate()
-            updatePipParamsIfSupported()
         }
     }
 
