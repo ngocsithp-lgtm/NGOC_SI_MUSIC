@@ -1836,18 +1836,42 @@ class YouTubePlayerActivity : ComponentActivity() {
             // WebView. Re-arm WebView and retry play only if it was playing before
             // the transition; never override an intentional user pause.
             if (resumeVideoAfterPipEntry) {
+                // PiP transitions can suspend the mobile site's video element for
+                // longer than one frame. Resume WebView timers and retry until the
+                // element reports that playback really started; a fire-and-forget
+                // play() call can be rejected while the window is resizing.
                 webView?.onResume()
-                val recoverPlayback = Runnable {
-                    if (!isFinishing && !isDestroyed && isInPictureInPictureMode && webView != null) {
+                WebView.resumeTimers()
+                val recoverPlayback = object : Runnable {
+                    private var attempts = 0
+                    override fun run() {
+                        if (isFinishing || isDestroyed || !isInPictureInPictureMode || webView == null) return
+                        attempts++
                         webView?.evaluateJavascript(
-                            "(function(){try{var v=document.querySelector('video');if(v&&v.paused){var p=v.play();if(p&&p.catch)p.catch(function(){});}return v&&!v.paused;}catch(e){return false;}})();",
-                            null
-                        )
+                            """(function(){
+                                try {
+                                  var v=document.querySelector('video');
+                                  if(!v) return 'no-video';
+                                  if(!v.paused && !v.ended) return 'playing';
+                                  var p=v.play();
+                                  if(p && p.catch) p.catch(function(){
+                                    try {
+                                      var b=document.querySelector('.ytp-play-button,button[aria-label*="Play"],button[aria-label*="Phát"]');
+                                      if(b) b.click();
+                                    } catch(e) {}
+                                  });
+                                  return 'requested';
+                                } catch(e) { return 'error'; }
+                            })();""".trimIndent()
+                        ) { result ->
+                            val started = result?.contains("playing") == true
+                            if (!started && attempts < 12 && !isFinishing && !isDestroyed && isInPictureInPictureMode) {
+                                playerContainer.postDelayed(this, 650L)
+                            }
+                        }
                     }
                 }
-                playerContainer.postDelayed(recoverPlayback, 250L)
-                playerContainer.postDelayed(recoverPlayback, 850L)
-                playerContainer.postDelayed(recoverPlayback, 1600L)
+                playerContainer.post(recoverPlayback)
             }
         } else {
             resumeVideoAfterPipEntry = false
@@ -1874,7 +1898,10 @@ class YouTubePlayerActivity : ComponentActivity() {
         // explicit paused state reported by the player.
         val lastObservedPlaying = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
             .getBoolean("youtube_playback_is_playing", false)
-        resumeVideoAfterPipEntry = youtubePlayerReady &&
+        // The WebView bridge state can lag behind the HTML5 video during a
+        // PiP transition. Prefer the persisted last-playing signal as a fallback,
+        // and do not require the bridge-ready flag just to remember playback intent.
+        resumeVideoAfterPipEntry =
             (youtubePlayerState == 1 || (youtubePlayerState < 0 && lastObservedPlaying))
         // Persist playback state, then use PiP as a visible fallback on Android 8–11.
         saveLastPlayedState()
