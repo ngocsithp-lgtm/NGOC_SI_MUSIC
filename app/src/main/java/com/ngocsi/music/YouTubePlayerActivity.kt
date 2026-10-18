@@ -1841,7 +1841,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 // element reports that playback really started; a fire-and-forget
                 // play() call can be rejected while the window is resizing.
                 webView?.onResume()
-                WebView.resumeTimers()
+                webView?.resumeTimers()
                 val recoverPlayback = object : Runnable {
                     private var attempts = 0
                     override fun run() {
