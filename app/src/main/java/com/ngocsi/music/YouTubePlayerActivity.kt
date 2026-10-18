@@ -1825,10 +1825,11 @@ class YouTubePlayerActivity : ComponentActivity() {
                     """.trimIndent(), null)
                     // A queue navigation can finish while PiP is already active.
                     if (isInPictureInPictureMode) {
-                        // Set a durable flag first: the new YouTube page may not have
-                        // a video element yet, so the bridge/style installer can run later.
+                        // Preserve YouTube's own layout during navigation in PiP.
+                        // Rewriting the player DOM/CSS at this point can stall Chromium's
+                        // video compositor and stop both picture and audio.
                         view.evaluateJavascript(
-                            "window.__ngocSiPipModeRequested = true; if (window.__ngocSiSetPipMode) window.__ngocSiSetPipMode(true);",
+                            "window.__ngocSiPipModeRequested = false; if (window.__ngocSiSetPipMode) window.__ngocSiSetPipMode(false);",
                             null
                         )
                     }
@@ -2193,9 +2194,12 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun updateWebViewPipPresentation(inPip: Boolean) {
-        val value = if (inPip) "true" else "false"
+        // Let Android resize the existing native WebView/container for PiP. Avoid
+        // rewriting YouTube's internal DOM/CSS during window transitions because
+        // this can stall Chromium's video surface (both picture and audio).
+        // Also clear stale PiP styles if a previous page instance left them behind.
         webView?.evaluateJavascript(
-            "window.__ngocSiPipModeRequested = $value; if (window.__ngocSiSetPipMode) window.__ngocSiSetPipMode($value);",
+            "window.__ngocSiPipModeRequested = false; if (window.__ngocSiSetPipMode) window.__ngocSiSetPipMode(false);",
             null
         )
     }
