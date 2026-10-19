@@ -1554,10 +1554,17 @@ class YouTubePlayerActivity : ComponentActivity() {
             ) return
             webView?.evaluateJavascript(youtubePlaybackScript(playbackCommand)) { result ->
                 if (requestGeneration != playbackRequestGeneration) return@evaluateJavascript
+                // The JS command returns requested-api/button/video when a playback
+                // request was successfully dispatched but the media element has not yet
+                // changed state. Treat these as accepted; retrying them as failures sent
+                // up to six overlapping play commands and caused audio stutter/freeze.
                 val accepted = result?.contains("playing") == true ||
-                    result?.contains("buffering") == true
-                // For PiP resume, allow exactly one delayed reassertion even if the
-                // DOM reports "playing": that status may describe a frozen media pipeline.
+                    result?.contains("buffering") == true ||
+                    result?.contains("requested-api") == true ||
+                    result?.contains("requested-button") == true ||
+                    result?.contains("requested-video") == true
+                // PiP resume retains its single bounded reassertion because Android may
+                // freeze the WebView compositor even when the HTML video reports playing.
                 val shouldRetry = if (playbackCommand == "resume") {
                     remaining > 0
                 } else {
