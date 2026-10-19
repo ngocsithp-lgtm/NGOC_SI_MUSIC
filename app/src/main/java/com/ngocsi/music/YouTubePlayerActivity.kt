@@ -1462,34 +1462,30 @@ class YouTubePlayerActivity : ComponentActivity() {
                   return 'paused';
                 }
 
-                // Never repeatedly restart an already-running HTML5 media element.
-                // Repeated playVideo()/video.play() calls during PiP were competing with
-                // Chromium's audio pipeline and caused stuttering/ineffective Play controls.
-                // A single bounded retry remains available when the video is actually paused.
+                // PiP was audibly stuttering because one tap triggered three overlapping
+                // playback mechanisms (DOM click, YouTube player API, and video.play()).
+                // Choose exactly one mechanism per request. The YouTube player API is the
+                // preferred path; only use the visible button or HTML media API when it is
+                // unavailable. Never start a second path from a rejected play promise.
                 if ('$safeCommand' !== 'resume' &&
                     !video.paused && !video.ended && video.readyState >= 2) return 'playing';
 
-                // Prefer the provider's visible Play control first. In Android PiP,
-                // evaluateJavascript may not carry the original touch's user-activation
-                // token, so a direct HTMLMediaElement.play() can be rejected even though
-                // the PiP action itself was tapped by the user.
-                clickPlayButton();
-                // Then explicitly resume the selected video element; the visible control
-                // may update player state asynchronously, so keep the retry path below.
-                try { if (api && typeof api.playVideo === 'function') api.playVideo(); } catch (_) {}
+                if (api && typeof api.playVideo === 'function') {
+                  try {
+                    api.playVideo();
+                    return 'requested-api';
+                  } catch (_) {}
+                }
+                if (clickPlayButton()) return 'requested-button';
                 try {
                   var promise = video.play();
                   if (promise && typeof promise.catch === 'function') {
-                    promise.catch(function(){
-                      try { if (api && typeof api.playVideo === 'function') api.playVideo(); } catch (_) {}
-                      clickPlayButton();
-                    });
+                    promise.catch(function(){});
                   }
+                  return !video.paused ? (video.readyState >= 2 ? 'playing' : 'buffering') : 'requested-video';
                 } catch (_) {
-                  try { if (api && typeof api.playVideo === 'function') api.playVideo(); } catch (_) {}
-                  clickPlayButton();
+                  return 'retry';
                 }
-                return !video.paused ? (video.readyState >= 2 ? 'playing' : 'buffering') : 'retry';
               } catch (_) {
                 return 'error';
               }
