@@ -65,8 +65,6 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var title: String = "YouTube"
     private var channel: String = "YouTube"
     private lateinit var titleView: TextView
-    // Keep a handle to the page scroll container so PiP always frames the video,
-    // rather than an off-screen section of the watch page.
     private lateinit var channelView: TextView
     private lateinit var favoriteButton: Button
     private lateinit var watchLaterButton: Button
@@ -81,8 +79,8 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var pageErrorVisible = false
     private var youtubePlayerReady = false
     private var youtubePlayerState = -1
-    // New play/pause requests invalidate older delayed retries so PiP controls
-    // cannot leave multiple competing playback loops active at the same time.
+    // New play/pause requests invalidate older delayed retries so native and voice
+    // controls cannot leave multiple competing playback loops active at the same time.
     private var playbackRequestGeneration = 0
     private var restoredPositionVideoId: String? = null
     private var positionRestoreAttempts = 0
@@ -1319,8 +1317,8 @@ class YouTubePlayerActivity : ComponentActivity() {
 
     /**
      * All WebView playback paths use the same active-video selection. The YouTube mobile
-     * page can keep a hidden/stale video element, which made a PiP Play tap target the wrong
-     * element or accidentally pause instead of play.
+     * page can keep a hidden/stale video element, which previously made playback controls
+     * target the wrong element or accidentally pause instead of play.
      */
     private fun youtubePlaybackScript(command: String): String {
         val safeCommand = when (command) {
@@ -1354,7 +1352,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                   var videos = Array.prototype.slice.call(document.querySelectorAll('video'));
                   var visible = videos.filter(isVisibleVideo);
                   // Lock onto the actual YouTube player video first. Do not let a playing
-                  // ad/preview video outrank the paused main video during PiP.
+                  // ad/preview video outrank the main video.
                   var primary = visible.find(function(video) {
                     return video.classList.contains('html5-main-video') ||
                       !!video.closest('#movie_player') ||
@@ -1418,11 +1416,9 @@ class YouTubePlayerActivity : ComponentActivity() {
                   return 'paused';
                 }
 
-                // PiP was audibly stuttering because one tap triggered three overlapping
-                // playback mechanisms (DOM click, YouTube player API, and video.play()).
-                // Choose exactly one mechanism per request. The YouTube player API is the
-                // preferred path; only use the visible button or HTML media API when it is
-                // unavailable. Never start a second path from a rejected play promise.
+                // Multiple simultaneous playback mechanisms caused stutter. Use one mechanism
+                // per request: prefer the YouTube player API, then the visible button or HTML
+                // media API only when the preferred mechanism is unavailable.
                 if ('$safeCommand' === 'play' &&
                     !video.paused && !video.ended && video.readyState >= 2) return 'playing';
 
@@ -1715,8 +1711,8 @@ class YouTubePlayerActivity : ComponentActivity() {
                             // Always bind commands/state to YouTube's real primary video before
                             // considering other video elements (ads, previews or hidden players).
                             // A secondary element can still be "playing" while the main video is
-                            // paused during the Android PiP transition; score-only selection then
-                            // targets the wrong element and leaves the PiP image frozen.
+                            // temporarily paused during page lifecycle changes; score-only selection
+                            // can then target the wrong element and leave the video surface frozen.
                             var primary = rendered.find(function(video) {
                               return video.classList.contains('html5-main-video') ||
                                 !!video.closest('#movie_player') ||
@@ -1736,9 +1732,8 @@ class YouTubePlayerActivity : ComponentActivity() {
                             return rendered[0] || videos[0] || null;
                           }
                           window.__ngocSiFindActiveVideo = findActiveVideo;
-                          // PiP presentation changes only the webpage scroll position. Never
-                          // add CSS classes or hide YouTube DOM nodes around the playing video.
-                          window.__ngocSiPipOriginalScrollY = null;
+                          // Do not change page layout or hide YouTube DOM nodes around the
+                          // playing video; those changes can detach its rendering surface.
                           // Install the Android bridge only after YouTube creates a video element.
                           // The bridge reports state and avoids automatic pause/play watchdogs
                           // that can restart a buffering stream repeatedly.
