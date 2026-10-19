@@ -1461,7 +1461,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                     video.readyState >= 2 && Number(video.currentTime) > 0;
                 var lastProgressAt = Number(window.__ngocSiVideoLastProgressAt || 0);
                 var stalledInPip = '$safeCommand' === 'resume' && mediaIsPlaying &&
-                    lastProgressAt > 0 && (Date.now() - lastProgressAt) >= 1300;
+                    lastProgressAt > 0 && (Date.now() - lastProgressAt) >= 850;
                 if ('$safeCommand' === 'resume' && mediaIsPlaying && !stalledInPip) {
                   return 'playing';
                 }
@@ -1880,7 +1880,8 @@ class YouTubePlayerActivity : ComponentActivity() {
                             setInterval(function(){
                               var e = findActiveVideo();
                               if (!e) return;
-                              if (e !== lastVideo) {
+                              var videoChanged = e !== lastVideo;
+                              if (videoChanged) {
                                 lastVideo = e;
                                 lastState = -99;
                               }
@@ -1889,7 +1890,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                               // the PiP video surface has stopped advancing.
                               var mediaTime = Number(e.currentTime) || 0;
                               var trackedTime = Number(window.__ngocSiVideoLastTime);
-                              if (e !== lastVideo || !Number.isFinite(trackedTime)) {
+                              if (videoChanged || !Number.isFinite(trackedTime)) {
                                 window.__ngocSiVideoLastProgressAt = Date.now();
                               } else if (mediaTime > trackedTime + 0.04 ||
                                          mediaTime < trackedTime - 0.1) {
