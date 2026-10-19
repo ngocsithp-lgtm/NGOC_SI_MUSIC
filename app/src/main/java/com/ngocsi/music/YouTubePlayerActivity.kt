@@ -171,9 +171,10 @@ class YouTubePlayerActivity : ComponentActivity() {
                 // to fire against the same WebView can restart the stream twice.
                 val recoverInsidePip =
                     isInPictureInPictureMode && resumeVideoAfterPipEntry
-                val recoverAfterPipExit =
-                    !isInPictureInPictureMode && resumeVideoAfterPipExit
-                if ((recoverInsidePip || recoverAfterPipExit) && pipRecoveryAttempts < 2) {
+                // After PiP exits, recovery is owned by the dedicated exit timers below.
+                // Do not let this one-shot JS watchdog race those timers or consume the
+                // retry budget before the first post-exit recovery has had time to work.
+                if (recoverInsidePip && pipRecoveryAttempts < 2) {
                     pipRecoveryAttempts++
                     webView?.postDelayed({
                         // The media-clock watchdog may report a stall after the first
@@ -2506,10 +2507,8 @@ class YouTubePlayerActivity : ComponentActivity() {
             // Restore playback intent only if it was active before PiP closed. Force recovery
             // after the layout transition so stale "playing" flags cannot swallow the request.
             if (shouldResumeAfterPipExit) {
+                // First recovery waits for Android's PiP-exit transition to settle.
                 webView?.postDelayed({
-                    // Do not force-resume if the media clock already advanced (which
-                    // clears this guard) or if the user explicitly paused meanwhile.
-                    // This is the sole automatic recovery path after PiP exits.
                     if (!isFinishing && !isDestroyed && !isInPictureInPictureMode &&
                         resumeVideoAfterPipExit && webView != null
                     ) {
@@ -2518,6 +2517,19 @@ class YouTubePlayerActivity : ComponentActivity() {
                         requestYouTubePlayback(forcePlaybackRecovery = true)
                     }
                 }, 750L)
+                // A rejected play() promise can leave the WebView reporting a stale
+                // "playing" state without advancing currentTime. Give that failure one
+                // final bounded retry; the media-clock bridge clears this guard as soon
+                // as playback really advances, and explicit Pause clears it immediately.
+                webView?.postDelayed({
+                    if (!isFinishing && !isDestroyed && !isInPictureInPictureMode &&
+                        resumeVideoAfterPipExit && webView != null
+                    ) {
+                        webView?.onResume()
+                        webView?.resumeTimers()
+                        requestYouTubePlayback(forcePlaybackRecovery = true)
+                    }
+                }, 2400L)
             }
         }
         updatePipParamsIfSupported()
