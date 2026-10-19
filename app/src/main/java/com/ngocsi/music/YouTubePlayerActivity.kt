@@ -1527,7 +1527,10 @@ class YouTubePlayerActivity : ComponentActivity() {
                 var progressAge = lastProgressAt > 0 ? Date.now() - lastProgressAt : 999999;
                 var mediaIsPlaying = !video.paused && !video.ended &&
                     video.readyState >= 2;
-                var progressIsFresh = progressAge < 1400;
+                // A recently replaced DOM video element is not proof that playback advanced.
+                // Only a measured forward media-clock movement confirms that its stream is live.
+                var progressAdvanced = window.__ngocSiVideoHasAdvancedSinceChange === true;
+                var progressIsFresh = progressAge < 1400 && progressAdvanced;
                 var stalledInPip = mediaIsPlaying && !progressIsFresh;
 
                 if ('$safeCommand' === 'force-resume') {
@@ -1996,11 +1999,16 @@ class YouTubePlayerActivity : ComponentActivity() {
                               var trackedTime = Number(window.__ngocSiVideoLastTime);
                               var mediaAdvancedThisTick = false;
                               if (videoChanged || !Number.isFinite(trackedTime)) {
+                                // PiP can replace the DOM node while its playback clock is frozen.
+                                // Reset the movement proof, but do not treat the replacement as progress.
                                 window.__ngocSiVideoLastProgressAt = Date.now();
-                              } else if (mediaTime > trackedTime + 0.04 ||
-                                         mediaTime < trackedTime - 0.1) {
+                                window.__ngocSiVideoHasAdvancedSinceChange = false;
+                              } else if (mediaTime > trackedTime + 0.04) {
+                                // Only forward media-clock movement proves playback is progressing;
+                                // seeking backward alone must not clear a stall.
                                 mediaAdvancedThisTick = true;
                                 window.__ngocSiVideoLastProgressAt = Date.now();
+                                window.__ngocSiVideoHasAdvancedSinceChange = true;
                               }
                               window.__ngocSiVideoLastTime = mediaTime;
                               var state = e.ended ? 0 : (e.paused ? 2 : 1);
@@ -2015,7 +2023,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                               var stalledInRecovery = shouldResumeForRecovery && !e.ended &&
                                 e.readyState >= 2 &&
                                 ((e.paused && progressAge >= 1200) ||
-                                 (!e.paused && progressAge >= 3500));
+                                 (!e.paused && progressAge >= 2500));
                               if (stalledInRecovery) state = 2;
                               if (state === 1 && mediaAdvancedThisTick) {
                                 window.__ngocSiPipRecoverySent = false;
@@ -2441,17 +2449,9 @@ class YouTubePlayerActivity : ComponentActivity() {
                 updateWebViewPipPresentation(true)
             }
 
-            if (resumeVideoAfterPipEntry) {
-                // Use the same single, bounded request path as the PiP Play button.
-                // Do not run a second independent timer beside the WebView state poll.
-                webView?.postDelayed({
-                    if (!isFinishing && !isDestroyed && isInPictureInPictureMode &&
-                        resumeVideoAfterPipEntry
-                    ) {
-                        requestYouTubePlayback(forcePlaybackRecovery = true)
-                    }
-                }, 650L)
-            }
+            // Do not force a pause/play cycle merely because PiP opened. The media-clock
+            // watchdog above recovers only if the stream actually stalls; an unconditional
+            // restart here was competing with that watchdog and caused audible stutter.
         } else {
             // Keep the pre-exit playback intent before clearing the PiP recovery flag.
             // Without this, returning from PiP can leave the WebView video frozen/paused
