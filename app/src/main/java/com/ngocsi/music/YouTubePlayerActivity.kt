@@ -2021,12 +2021,14 @@ class YouTubePlayerActivity : ComponentActivity() {
                               } catch (_) {}
                               var progressAge = Date.now() -
                                 Number(window.__ngocSiVideoLastProgressAt || Date.now());
-                              // Let ordinary YouTube buffering recover naturally. Repeatedly
-                              // forcing play after 1.5 seconds competed with the audio pipeline.
+                              // Let ordinary YouTube buffering recover naturally. A still-playing
+                              // element can pause its media clock briefly while the stream refills;
+                              // recovering at 2.5s restarted healthy streams and caused audible stutter.
+                              // A truly paused element still gets the shorter transition-recovery path.
                               var stalledInRecovery = shouldResumeForRecovery && !e.ended &&
                                 e.readyState >= 2 &&
                                 ((e.paused && progressAge >= 1200) ||
-                                 (!e.paused && progressAge >= 2500));
+                                 (!e.paused && progressAge >= 4000));
                               if (stalledInRecovery) state = 2;
                               if (state === 1 && mediaAdvancedThisTick) {
                                 window.__ngocSiPipRecoverySent = false;
