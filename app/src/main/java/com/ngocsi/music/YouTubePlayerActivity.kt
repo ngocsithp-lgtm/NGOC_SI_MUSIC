@@ -218,7 +218,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                     // possibly stale/hidden video element when the user explicitly taps Play.
                     if (webView != null && !isFinishing && !isDestroyed) {
                         when (intent.getStringExtra(EXTRA_PIP_COMMAND)) {
-                            "play" -> requestYouTubePlayback()
+                            "play" -> requestYouTubePlayback(forcePipRecovery = true)
                             "pause" -> pauseYouTubePlayback()
                             else -> toggleYoutubePlayback()
                         }
@@ -1370,6 +1370,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         val safeCommand = when (command) {
             "play" -> "play"
             "resume" -> "resume"
+            "force-resume" -> "force-resume"
             "pause" -> "pause"
             else -> "toggle"
         }
@@ -1453,6 +1454,25 @@ class YouTubePlayerActivity : ComponentActivity() {
                 var video = findVideo();
                 if (!video) return 'no-video';
                 var api = getPlayerApi();
+
+                // An explicit Play tap inside PiP must not be swallowed by a stale
+                // "already playing" flag. Restart the same active media element exactly
+                // once; do not also call the YouTube API, which would create overlapping
+                // playback requests and cause audio stutter.
+                if ('$safeCommand' === 'force-resume') {
+                  try { video.pause(); } catch (_) {}
+                  window.setTimeout(function(){
+                    try {
+                      if (video.isConnected && findVideo() === video) {
+                        var forcedPromise = video.play();
+                        if (forcedPromise && typeof forcedPromise.catch === 'function') {
+                          forcedPromise.catch(function(){});
+                        }
+                      }
+                    } catch (_) {}
+                  }, 140);
+                  return 'restart-requested';
+                }
 
                 // WebView can report "playing" while the PiP surface is frozen.
                 // Only recover when the media clock has genuinely stopped advancing;
@@ -1563,13 +1583,16 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
     }
 
-    private fun requestYouTubePlayback() {
+    private fun requestYouTubePlayback(forcePipRecovery: Boolean = false) {
         if (webView == null || isFinishing || isDestroyed) return
         val requestGeneration = ++playbackRequestGeneration
-        // PiP can show a frozen last frame while Chromium still reports the HTML5
-        // element as "playing". Use a forced resume command there so the play API is
-        // reasserted once, instead of returning early on the stale state.
-        val playbackCommand = if (isInPictureInPictureMode) "resume" else "play"
+        // Automatic transition recovery is conservative; an explicit PiP Play tap is
+        // stronger because the user has directly requested playback after a stall.
+        val playbackCommand = when {
+            isInPictureInPictureMode && forcePipRecovery -> "force-resume"
+            isInPictureInPictureMode -> "resume"
+            else -> "play"
+        }
         if (isInPictureInPictureMode) {
             resumeVideoAfterPipEntry = true
             // Keep Chromium's media and JavaScript timers resumed when the PiP
@@ -1599,7 +1622,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 val shouldRetry = if (playbackCommand == "resume") {
                     remaining > 0 && !didRestartStalledMedia
                 } else {
-                    !accepted && remaining > 0
+                    playbackCommand != "force-resume" && !accepted && remaining > 0
                 }
                 if (shouldRetry && !isFinishing && !isDestroyed &&
                     requestGeneration == playbackRequestGeneration
