@@ -2270,9 +2270,11 @@ class YouTubePlayerActivity : ComponentActivity() {
                 .getBoolean("youtube_playback_is_playing", false)
             if (youtubePlayerState == 1) {
                 syncYouTubeBackgroundPlayback(youtubePlayerState)
-            } else if (wasPlaying && !isInPictureInPictureMode) {
-                // Wait for WebView to become visible after unlock, then request play
-                // on the current video. requestYouTubePlayback retries rejected calls.
+            } else if (wasPlaying && !isInPictureInPictureMode &&
+                !resumeVideoAfterPipEntry && !resumeVideoAfterPipExit
+            ) {
+                // Ordinary screen-off/unlock recovery only. PiP exit has its own single,
+                // force-resume path; running both timers together can stutter the stream.
                 webView?.postDelayed({
                     if (!isFinishing && !isDestroyed && !isInPictureInPictureMode &&
                         youtubePlayerReady && webView != null
