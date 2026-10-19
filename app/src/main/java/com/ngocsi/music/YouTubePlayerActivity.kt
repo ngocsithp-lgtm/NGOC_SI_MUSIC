@@ -1369,6 +1369,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     private fun youtubePlaybackScript(command: String): String {
         val safeCommand = when (command) {
             "play" -> "play"
+            "resume" -> "resume"
             "pause" -> "pause"
             else -> "toggle"
         }
@@ -1465,7 +1466,8 @@ class YouTubePlayerActivity : ComponentActivity() {
                 // Repeated playVideo()/video.play() calls during PiP were competing with
                 // Chromium's audio pipeline and caused stuttering/ineffective Play controls.
                 // A single bounded retry remains available when the video is actually paused.
-                if (!video.paused && !video.ended && video.readyState >= 2) return 'playing';
+                if ('$safeCommand' !== 'resume' &&
+                    !video.paused && !video.ended && video.readyState >= 2) return 'playing';
 
                 // Prefer the provider's visible Play control first. In Android PiP,
                 // evaluateJavascript may not carry the original touch's user-activation
@@ -1539,7 +1541,10 @@ class YouTubePlayerActivity : ComponentActivity() {
     private fun requestYouTubePlayback() {
         if (webView == null || isFinishing || isDestroyed) return
         val requestGeneration = ++playbackRequestGeneration
-        // A PiP Play tap explicitly opts back into playback and its resume guard.
+        // PiP can show a frozen last frame while Chromium still reports the HTML5
+        // element as "playing". Use a forced resume command there so the play API is
+        // reasserted once, instead of returning early on the stale state.
+        val playbackCommand = if (isInPictureInPictureMode) "resume" else "play"
         if (isInPictureInPictureMode) {
             resumeVideoAfterPipEntry = true
             // Keep Chromium's media and JavaScript timers resumed when the PiP
@@ -1551,19 +1556,26 @@ class YouTubePlayerActivity : ComponentActivity() {
             if (requestGeneration != playbackRequestGeneration ||
                 isFinishing || isDestroyed || webView == null
             ) return
-            webView?.evaluateJavascript(youtubePlaybackScript("play")) { result ->
+            webView?.evaluateJavascript(youtubePlaybackScript(playbackCommand)) { result ->
                 if (requestGeneration != playbackRequestGeneration) return@evaluateJavascript
                 val accepted = result?.contains("playing") == true ||
                     result?.contains("buffering") == true
-                if (!accepted && remaining > 0 && !isFinishing && !isDestroyed &&
+                // For PiP resume, allow exactly one delayed reassertion even if the
+                // DOM reports "playing": that status may describe a frozen media pipeline.
+                val shouldRetry = if (playbackCommand == "resume") {
+                    remaining > 0
+                } else {
+                    !accepted && remaining > 0
+                }
+                if (shouldRetry && !isFinishing && !isDestroyed &&
                     requestGeneration == playbackRequestGeneration
                 ) {
-                    playbackPositionHandler.postDelayed({ attempt(remaining - 1) }, 800L)
+                    playbackPositionHandler.postDelayed({ attempt(remaining - 1) }, 750L)
                 }
             }
         }
-        // One bounded retry loop only; Play/Pause taps supersede any older loop.
-        attempt(5)
+        // PiP gets two bounded resume attempts; normal playback retries only on rejection.
+        attempt(if (playbackCommand == "resume") 1 else 5)
     }
 
     /**
