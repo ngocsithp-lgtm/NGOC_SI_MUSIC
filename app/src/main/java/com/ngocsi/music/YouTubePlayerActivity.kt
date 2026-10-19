@@ -158,7 +158,8 @@ class YouTubePlayerActivity : ComponentActivity() {
                 if (!hasResumeIntent || isFinishing || isDestroyed) return@runOnUiThread
                 // The HTML media clock, rather than the stale paused/playing flag,
                 // identified a real PiP stall. Publish a paused state so Android shows
-                // Play (not Pause) and attempt a bounded, single recovery.
+                // Play (not Pause). The native retry budget is never reset by a transient
+                // "playing" state, preventing repeated pause/play cycles on a frozen stream.
                 youtubePlayerState = 2
                 getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
                     .putBoolean("youtube_playback_is_playing", false)
@@ -210,11 +211,11 @@ class YouTubePlayerActivity : ComponentActivity() {
         fun onStateChanged(state: Int) {
             runOnUiThread {
                 youtubePlayerState = state
-                if (state == 1 && isInPictureInPictureMode) {
-                    // Recovered state inside PiP may reset the bounded retry count. The
-                    // post-exit recovery guard is cleared only by onRecoveryClockAdvanced().
-                    pipRecoveryAttempts = 0
-                }
+                // Do NOT reset pipRecoveryAttempts just because YouTube reports state=1.
+                // The iframe can report "playing" while currentTime advances briefly and
+                // then freezes again; resetting here makes the watchdog restart forever.
+                // Recovery attempts stay bounded for the entire PiP session and are reset
+                // only when Android enters a new PiP session.
                 // Persist the actual embedded YouTube playback state so the
                 // compact player's button can pause/resume YouTube instead of
                 // accidentally toggling the independent Media3 local player.
@@ -2409,6 +2410,9 @@ class YouTubePlayerActivity : ComponentActivity() {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
 
         if (isInPictureInPictureMode) {
+            // Start a fresh, bounded recovery budget only for a new PiP entry.
+            // Transient "playing" callbacks must never reset it.
+            pipRecoveryAttempts = 0
             loadingBar?.visibility = View.GONE
             pipScrollY = contentScrollView?.scrollY ?: 0
 
