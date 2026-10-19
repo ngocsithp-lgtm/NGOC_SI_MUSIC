@@ -2266,6 +2266,10 @@ class YouTubePlayerActivity : ComponentActivity() {
                 }, 350L)
             }
         } else {
+            // Keep the pre-exit playback intent before clearing the PiP recovery flag.
+            // Without this, returning from PiP can leave the WebView video frozen/paused
+            // even though the user never pressed Pause.
+            val shouldResumeAfterPipExit = resumeVideoAfterPipEntry
             resumeVideoAfterPipEntry = false
             val content = contentScrollView?.getChildAt(0) as? ViewGroup
             content?.let { column ->
@@ -2286,6 +2290,18 @@ class YouTubePlayerActivity : ComponentActivity() {
                 webView?.onResume()
                 // Restore the standard player ratio only after PiP has ended.
                 resizePlayerContainerForPip(false)
+            }
+
+            // Reassert playback only if it was active before PiP closed. An explicit
+            // PiP Pause clears resumeVideoAfterPipEntry, so it will not be overridden.
+            if (shouldResumeAfterPipExit) {
+                webView?.postDelayed({
+                    if (!isFinishing && !isDestroyed && !isInPictureInPictureMode) {
+                        webView?.onResume()
+                        webView?.resumeTimers()
+                        requestYouTubePlayback()
+                    }
+                }, 300L)
             }
         }
         updatePipParamsIfSupported()
