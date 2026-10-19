@@ -132,14 +132,16 @@ class YouTubePlayerActivity : ComponentActivity() {
         // updates this intent, so recovery never overrides a deliberate user pause.
         @JavascriptInterface
         fun shouldResumeAfterPip(): Boolean =
-            isInPictureInPictureMode && resumeVideoAfterPipEntry
+            (isInPictureInPictureMode && resumeVideoAfterPipEntry) ||
+                resumeVideoAfterPipExit
 
         @JavascriptInterface
         fun onPipPlaybackStalled() {
             runOnUiThread {
-                if (!isInPictureInPictureMode || !resumeVideoAfterPipEntry ||
-                    isFinishing || isDestroyed
-                ) return@runOnUiThread
+                val hasResumeIntent =
+                    (isInPictureInPictureMode && resumeVideoAfterPipEntry) ||
+                        resumeVideoAfterPipExit
+                if (!hasResumeIntent || isFinishing || isDestroyed) return@runOnUiThread
                 // The HTML media clock, rather than the stale paused/playing flag,
                 // identified a real PiP stall. Publish a paused state so Android shows
                 // Play (not Pause) and attempt a bounded, single recovery.
@@ -152,24 +154,17 @@ class YouTubePlayerActivity : ComponentActivity() {
                 updatePipParamsIfSupported()
                 if (pipRecoveryAttempts < 2) {
                     pipRecoveryAttempts++
+                    // Keep only one recovery timer per detected stall. Paired timers could
+                    // pause/play twice in quick succession and introduce audible stutter.
                     webView?.postDelayed({
-                        if (!isFinishing && !isDestroyed && isInPictureInPictureMode &&
-                            resumeVideoAfterPipEntry && youtubePlayerState != 1
+                        val shouldRecover = (isInPictureInPictureMode && resumeVideoAfterPipEntry) ||
+                            resumeVideoAfterPipExit
+                        if (!isFinishing && !isDestroyed && shouldRecover &&
+                            youtubePlayerState != 1
                         ) {
-                            requestYouTubePlayback(forcePipRecovery = true)
+                            requestYouTubePlayback(forcePlaybackRecovery = true)
                         }
-                    }, 350L)
-                    // If the first play request is accepted but the WebView does not
-                    // actually advance its media clock, allow one final bounded recovery.
-                    playbackPositionHandler.postDelayed({
-                        if (!isFinishing && !isDestroyed && isInPictureInPictureMode &&
-                            resumeVideoAfterPipEntry && youtubePlayerState != 1 &&
-                            pipRecoveryAttempts < 2
-                        ) {
-                            pipRecoveryAttempts++
-                            requestYouTubePlayback(forcePipRecovery = true)
-                        }
-                    }, 1500L)
+                    }, 450L)
                 }
             }
         }
@@ -190,15 +185,16 @@ class YouTubePlayerActivity : ComponentActivity() {
         fun onStateChanged(state: Int) {
             runOnUiThread {
                 youtubePlayerState = state
-                if (state == 1 && isInPictureInPictureMode) {
-                    // Progress from the media-clock watchdog means playback recovered.
+                if (state == 1 && (isInPictureInPictureMode || resumeVideoAfterPipExit)) {
+                    // The watchdog reports state 1 only after the media clock advances again.
                     pipRecoveryAttempts = 0
+                    resumeVideoAfterPipExit = false
                 }
                 // Persist the actual embedded YouTube playback state so the
                 // compact player's button can pause/resume YouTube instead of
                 // accidentally toggling the independent Media3 local player.
                 val preservePipResumeIntent =
-                    state == 2 && resumeVideoAfterPipEntry
+                    state == 2 && (resumeVideoAfterPipEntry || resumeVideoAfterPipExit)
                 // Chromium/YouTube can emit a transient pause while Android changes the
                 // Activity into PiP. Do not erase the pre-transition "was playing" signal
                 // or publish a false paused session before the PiP recovery call can run.
@@ -255,8 +251,10 @@ class YouTubePlayerActivity : ComponentActivity() {
     // YouTube's mobile page may pause its HTML5 video during the resize transition.
     @Volatile
     private var resumeVideoAfterPipEntry = false
-    // Allow no more than two automatic recovery attempts per PiP stall. A real
-    // advancing media clock resets the budget in onStateChanged.
+    // Remains active after PiP closes until the HTML media clock advances again.
+    @Volatile
+    private var resumeVideoAfterPipExit = false
+    // Bound recovery calls so transient buffering does not trigger rapid play/pause cycles.
     private var pipRecoveryAttempts = 0
     private val pipActionReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: android.content.Context?, intent: Intent?) {
@@ -266,7 +264,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                     // possibly stale/hidden video element when the user explicitly taps Play.
                     if (webView != null && !isFinishing && !isDestroyed) {
                         when (intent.getStringExtra(EXTRA_PIP_COMMAND)) {
-                            "play" -> requestYouTubePlayback(forcePipRecovery = true)
+                            "play" -> requestYouTubePlayback(forcePlaybackRecovery = true)
                             "pause" -> pauseYouTubePlayback()
                             else -> toggleYoutubePlayback()
                         }
@@ -275,7 +273,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 YouTubeBackgroundService.ACTION_CONTROL -> {
                     if (!youtubePlayerReady || webView == null) return
                     when (intent.getStringExtra(YouTubeBackgroundService.EXTRA_CONTROL)) {
-                        "play" -> requestYouTubePlayback(forcePipRecovery = isInPictureInPictureMode)
+                        "play" -> requestYouTubePlayback(forcePlaybackRecovery = isInPictureInPictureMode)
                         "pause" -> pauseYouTubePlayback()
                         "next" -> playNext()
                         "previous" -> playPrevious()
@@ -1403,6 +1401,8 @@ class YouTubePlayerActivity : ComponentActivity() {
         // An explicit user pause overrides automatic PiP recovery and cancels
         // every pending play retry before the pause command is sent.
         resumeVideoAfterPipEntry = false
+        resumeVideoAfterPipExit = false
+        pipRecoveryAttempts = 0
         playbackRequestGeneration++
         getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
             .edit().putBoolean("youtube_playback_is_playing", false).apply()
@@ -1517,6 +1517,9 @@ class YouTubePlayerActivity : ComponentActivity() {
                 var stalledInPip = mediaIsPlaying && !progressIsFresh;
 
                 if ('$safeCommand' === 'force-resume') {
+                  // Refresh native controls after actual media time moves, even if the
+                  // element's paused/playing flag stayed unchanged through PiP.
+                  window.__ngocSiForceStateRefresh = true;
                   if (mediaIsPlaying && progressIsFresh) return 'playing';
                   if (video.paused || video.ended || video.readyState < 2) {
                     try {
@@ -1647,13 +1650,13 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
     }
 
-    private fun requestYouTubePlayback(forcePipRecovery: Boolean = false) {
+    private fun requestYouTubePlayback(forcePlaybackRecovery: Boolean = false) {
         if (webView == null || isFinishing || isDestroyed) return
         val requestGeneration = ++playbackRequestGeneration
-        // Automatic transition recovery is conservative; an explicit PiP Play tap is
-        // stronger because the user has directly requested playback after a stall.
+        // Use the same guarded force-resume path for explicit PiP Play and returning
+        // to the app after PiP. Normal Play requests remain non-disruptive.
         val playbackCommand = when {
-            isInPictureInPictureMode && forcePipRecovery -> "force-resume"
+            forcePlaybackRecovery -> "force-resume"
             isInPictureInPictureMode -> "resume"
             else -> "play"
         }
@@ -1977,26 +1980,35 @@ class YouTubePlayerActivity : ComponentActivity() {
                               // the PiP video surface has stopped advancing.
                               var mediaTime = Number(e.currentTime) || 0;
                               var trackedTime = Number(window.__ngocSiVideoLastTime);
+                              var mediaAdvancedThisTick = false;
                               if (videoChanged || !Number.isFinite(trackedTime)) {
                                 window.__ngocSiVideoLastProgressAt = Date.now();
                               } else if (mediaTime > trackedTime + 0.04 ||
                                          mediaTime < trackedTime - 0.1) {
+                                mediaAdvancedThisTick = true;
                                 window.__ngocSiVideoLastProgressAt = Date.now();
                               }
                               window.__ngocSiVideoLastTime = mediaTime;
                               var state = e.ended ? 0 : (e.paused ? 2 : 1);
-                              var shouldResumeInPip = false;
+                              var shouldResumeForRecovery = false;
                               try {
-                                shouldResumeInPip = AndroidBridge.shouldResumeAfterPip() === true;
+                                shouldResumeForRecovery = AndroidBridge.shouldResumeAfterPip() === true;
                               } catch (_) {}
                               var progressAge = Date.now() -
                                 Number(window.__ngocSiVideoLastProgressAt || Date.now());
-                              var stalledInPip = shouldResumeInPip && !e.ended &&
+                              // Let ordinary YouTube buffering recover naturally. Repeatedly
+                              // forcing play after 1.5 seconds competed with the audio pipeline.
+                              var stalledInRecovery = shouldResumeForRecovery && !e.ended &&
                                 e.readyState >= 2 &&
-                                (e.paused || progressAge >= 1500);
-                              if (stalledInPip) state = 2;
-                              if (state === 1 && progressAge < 1000) {
+                                ((e.paused && progressAge >= 1200) ||
+                                 (!e.paused && progressAge >= 3500));
+                              if (stalledInRecovery) state = 2;
+                              if (state === 1 && mediaAdvancedThisTick) {
                                 window.__ngocSiPipRecoverySent = false;
+                                if (window.__ngocSiForceStateRefresh) {
+                                  window.__ngocSiForceStateRefresh = false;
+                                  lastState = -99;
+                                }
                               }
                               if (state !== lastState) {
                                 lastState = state;
@@ -2005,7 +2017,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                               // A transition can finish with paused=false while currentTime
                               // remains frozen. Notify native only once per stall; native code
                               // publishes the correct PiP Play action and uses a bounded retry.
-                              if (stalledInPip && !window.__ngocSiPipRecoverySent) {
+                              if (stalledInRecovery && !window.__ngocSiPipRecoverySent) {
                                 window.__ngocSiPipRecoverySent = true;
                                 try { AndroidBridge.onPipPlaybackStalled(); } catch (_) {}
                               }
@@ -2419,7 +2431,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                     if (!isFinishing && !isDestroyed && isInPictureInPictureMode &&
                         resumeVideoAfterPipEntry
                     ) {
-                        requestYouTubePlayback(forcePipRecovery = true)
+                        requestYouTubePlayback(forcePlaybackRecovery = true)
                     }
                 }, 650L)
             }
@@ -2429,6 +2441,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             // even though the user never pressed Pause.
             val shouldResumeAfterPipExit = resumeVideoAfterPipEntry
             resumeVideoAfterPipEntry = false
+            resumeVideoAfterPipExit = shouldResumeAfterPipExit
             val content = contentScrollView?.getChildAt(0) as? ViewGroup
             content?.let { column ->
                 for (i in 0 until column.childCount) {
@@ -2444,22 +2457,28 @@ class YouTubePlayerActivity : ComponentActivity() {
                 customView?.visibility = View.VISIBLE
             } else {
                 playerContainer.visibility = View.VISIBLE
-                updateWebViewPipPresentation(false)
                 webView?.onResume()
-                // Restore the standard player ratio only after PiP has ended.
-                resizePlayerContainerForPip(false)
+                webView?.resumeTimers()
+                // Avoid moving/resizing the WebView surface during Android's PiP exit
+                // animation. Restore the normal page viewport only after the window settles.
+                webView?.postDelayed({
+                    if (!isFinishing && !isDestroyed && !isInPictureInPictureMode) {
+                        updateWebViewPipPresentation(false)
+                        resizePlayerContainerForPip(false)
+                    }
+                }, 350L)
             }
 
-            // Reassert playback only if it was active before PiP closed. An explicit
-            // PiP Pause clears resumeVideoAfterPipEntry, so it will not be overridden.
+            // Restore playback intent only if it was active before PiP closed. Force recovery
+            // after the layout transition so stale "playing" flags cannot swallow the request.
             if (shouldResumeAfterPipExit) {
                 webView?.postDelayed({
                     if (!isFinishing && !isDestroyed && !isInPictureInPictureMode) {
                         webView?.onResume()
                         webView?.resumeTimers()
-                        requestYouTubePlayback()
+                        requestYouTubePlayback(forcePlaybackRecovery = true)
                     }
-                }, 300L)
+                }, 750L)
             }
         }
         updatePipParamsIfSupported()
