@@ -2249,6 +2249,13 @@ class YouTubePlayerActivity : ComponentActivity() {
                 // at the top, so the 16:9 PiP viewport naturally clips to the video region.
                 webView?.onResume()
                 webView?.resumeTimers()
+                // Bring the actual YouTube video into the PiP viewport immediately.
+                // The outer app scroll and the mobile YouTube page scroll are separate;
+                // restore the video region before the bounded playback reassertion.
+                contentScrollView?.post {
+                    contentScrollView?.scrollTo(0, playerContainer.top.coerceAtLeast(0))
+                }
+                updateWebViewPipPresentation(true)
             }
 
             if (resumeVideoAfterPipEntry) {
