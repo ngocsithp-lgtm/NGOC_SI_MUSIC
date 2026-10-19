@@ -166,14 +166,17 @@ class YouTubePlayerActivity : ComponentActivity() {
                 updatePlaybackButton()
                 syncYouTubeBackgroundPlayback(2)
                 updatePipParamsIfSupported()
-                if (pipRecoveryAttempts < 2) {
+                // While PiP is open, this watchdog owns stall recovery. Once PiP has
+                // closed, the dedicated exit timer owns recovery; allowing both paths
+                // to fire against the same WebView can restart the stream twice.
+                if (isInPictureInPictureMode && resumeVideoAfterPipEntry &&
+                    pipRecoveryAttempts < 2
+                ) {
                     pipRecoveryAttempts++
-                    // Keep only one recovery timer per detected stall. Paired timers could
-                    // pause/play twice in quick succession and introduce audible stutter.
                     webView?.postDelayed({
-                        val shouldRecover = (isInPictureInPictureMode && resumeVideoAfterPipEntry) ||
-                            resumeVideoAfterPipExit
-                        if (!isFinishing && !isDestroyed && shouldRecover &&
+                        val shouldRecoverInPip =
+                            isInPictureInPictureMode && resumeVideoAfterPipEntry
+                        if (!isFinishing && !isDestroyed && shouldRecoverInPip &&
                             youtubePlayerState != 1
                         ) {
                             requestYouTubePlayback(forcePlaybackRecovery = true)
@@ -2284,7 +2287,12 @@ class YouTubePlayerActivity : ComponentActivity() {
                 // Ordinary screen-off/unlock recovery only. PiP exit has its own single,
                 // force-resume path; running both timers together can stutter the stream.
                 webView?.postDelayed({
+                    // onResume can run before onPictureInPictureModeChanged(false).
+                    // Re-check both PiP recovery guards when the timer fires, otherwise
+                    // this normal retry races the dedicated PiP-exit force-resume and
+                    // produces a pause/play stutter or leaves the page paused.
                     if (!isFinishing && !isDestroyed && !isInPictureInPictureMode &&
+                        !resumeVideoAfterPipEntry && !resumeVideoAfterPipExit &&
                         youtubePlayerReady && webView != null
                     ) {
                         requestYouTubePlayback()
@@ -2490,7 +2498,12 @@ class YouTubePlayerActivity : ComponentActivity() {
             // after the layout transition so stale "playing" flags cannot swallow the request.
             if (shouldResumeAfterPipExit) {
                 webView?.postDelayed({
-                    if (!isFinishing && !isDestroyed && !isInPictureInPictureMode) {
+                    // Do not force-resume if the media clock already advanced (which
+                    // clears this guard) or if the user explicitly paused meanwhile.
+                    // This is the sole automatic recovery path after PiP exits.
+                    if (!isFinishing && !isDestroyed && !isInPictureInPictureMode &&
+                        resumeVideoAfterPipExit && webView != null
+                    ) {
                         webView?.onResume()
                         webView?.resumeTimers()
                         requestYouTubePlayback(forcePlaybackRecovery = true)
