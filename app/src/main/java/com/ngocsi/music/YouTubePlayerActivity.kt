@@ -159,6 +159,17 @@ class YouTubePlayerActivity : ComponentActivity() {
                             requestYouTubePlayback(forcePipRecovery = true)
                         }
                     }, 350L)
+                    // If the first play request is accepted but the WebView does not
+                    // actually advance its media clock, allow one final bounded recovery.
+                    playbackPositionHandler.postDelayed({
+                        if (!isFinishing && !isDestroyed && isInPictureInPictureMode &&
+                            resumeVideoAfterPipEntry && youtubePlayerState != 1 &&
+                            pipRecoveryAttempts < 2
+                        ) {
+                            pipRecoveryAttempts++
+                            requestYouTubePlayback(forcePipRecovery = true)
+                        }
+                    }, 1500L)
                 }
             }
         }
