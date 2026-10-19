@@ -1453,6 +1453,35 @@ class YouTubePlayerActivity : ComponentActivity() {
                 var video = findVideo();
                 if (!video) return 'no-video';
                 var api = getPlayerApi();
+
+                // WebView can report "playing" while the PiP surface is frozen.
+                // Only recover when the media clock has genuinely stopped advancing;
+                // never pause/play a healthy stream just because PiP was entered.
+                var mediaIsPlaying = !video.paused && !video.ended &&
+                    video.readyState >= 2 && Number(video.currentTime) > 0;
+                var lastProgressAt = Number(window.__ngocSiVideoLastProgressAt || 0);
+                var stalledInPip = '$safeCommand' === 'resume' && mediaIsPlaying &&
+                    lastProgressAt > 0 && (Date.now() - lastProgressAt) >= 1300;
+                if ('$safeCommand' === 'resume' && mediaIsPlaying && !stalledInPip) {
+                  return 'playing';
+                }
+                if (stalledInPip) {
+                  // A frozen frame may leave video.paused=false, so a plain play()
+                  // is a no-op. Perform one bounded media-element restart instead.
+                  try { video.pause(); } catch (_) {}
+                  window.setTimeout(function(){
+                    try {
+                      if (video.isConnected && findVideo() === video) {
+                        var resumePromise = video.play();
+                        if (resumePromise && typeof resumePromise.catch === 'function') {
+                          resumePromise.catch(function(){});
+                        }
+                      }
+                    } catch (_) {}
+                  }, 120);
+                  return 'restart-requested';
+                }
+
                 var wantsPause = '$safeCommand' === 'pause' ||
                     ('$safeCommand' === 'toggle' && !video.paused && !video.ended);
 
@@ -1562,11 +1591,13 @@ class YouTubePlayerActivity : ComponentActivity() {
                     result?.contains("buffering") == true ||
                     result?.contains("requested-api") == true ||
                     result?.contains("requested-button") == true ||
-                    result?.contains("requested-video") == true
-                // PiP resume retains its single bounded reassertion because Android may
-                // freeze the WebView compositor even when the HTML video reports playing.
+                    result?.contains("requested-video") == true ||
+                    result?.contains("restart-requested") == true
+                // Recheck PiP once after the transition, but stop after a media-clock
+                // recovery so a second play command cannot interrupt the restarted stream.
+                val didRestartStalledMedia = result?.contains("restart-requested") == true
                 val shouldRetry = if (playbackCommand == "resume") {
-                    remaining > 0
+                    remaining > 0 && !didRestartStalledMedia
                 } else {
                     !accepted && remaining > 0
                 }
@@ -1853,6 +1884,18 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 lastVideo = e;
                                 lastState = -99;
                               }
+                              // Track actual media-clock progress separately from the
+                              // paused/playing flag; WebView may keep that flag true even when
+                              // the PiP video surface has stopped advancing.
+                              var mediaTime = Number(e.currentTime) || 0;
+                              var trackedTime = Number(window.__ngocSiVideoLastTime);
+                              if (e !== lastVideo || !Number.isFinite(trackedTime)) {
+                                window.__ngocSiVideoLastProgressAt = Date.now();
+                              } else if (mediaTime > trackedTime + 0.04 ||
+                                         mediaTime < trackedTime - 0.1) {
+                                window.__ngocSiVideoLastProgressAt = Date.now();
+                              }
+                              window.__ngocSiVideoLastTime = mediaTime;
                               var state = e.ended ? 0 : (e.paused ? 2 : 1);
                               if (state !== lastState) {
                                 lastState = state;
