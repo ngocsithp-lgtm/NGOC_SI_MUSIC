@@ -44,18 +44,14 @@
         android:supportsRtl="true"
         android:usesCleartextTraffic="false">
 
-        <!-- Trình phát YouTube: giữ WebView khi xoay màn hình để tránh tải lại video -->
+        <!-- In-app YouTube browser/player. PiP is intentionally disabled; background playback
+             uses the dedicated media foreground service and notification controls. -->
         <activity
             android:name=".YouTubePlayerActivity"
             android:exported="false"
             android:screenOrientation="unspecified"
-            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
-            android:supportsPictureInPicture="true" />
-
-        <!-- Broadcast action keeps PiP play/pause inside the floating window. -->
-        <receiver
-            android:name=".YouTubePipActionReceiver"
-            android:exported="false" />
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:supportsPictureInPicture="false" />
 
         <!-- Dedicated TV player keeps live-video rendering away from Compose dialogs. -->
         <activity
