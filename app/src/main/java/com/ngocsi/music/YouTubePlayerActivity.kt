@@ -182,9 +182,11 @@ class YouTubePlayerActivity : ComponentActivity() {
                         // post-exit resume has already run. Give that exit path one
                         // bounded follow-up, but never run it after an explicit Pause,
                         // a new PiP transition, or successful clock advancement.
+                        // This delayed retry belongs only to the live PiP session.
+                        // Once PiP has closed, cancel it; the dedicated 750/2400 ms exit
+                        // timers are the only owners of post-exit playback recovery.
                         val stillNeedsRecovery =
-                            (isInPictureInPictureMode && resumeVideoAfterPipEntry) ||
-                                (!isInPictureInPictureMode && resumeVideoAfterPipExit)
+                            isInPictureInPictureMode && resumeVideoAfterPipEntry
                         if (!isFinishing && !isDestroyed && stillNeedsRecovery &&
                             youtubePlayerState != 1
                         ) {
