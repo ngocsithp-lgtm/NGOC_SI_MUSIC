@@ -136,6 +136,20 @@ class YouTubePlayerActivity : ComponentActivity() {
                 resumeVideoAfterPipExit
 
         @JavascriptInterface
+        fun onRecoveryClockAdvanced() {
+            runOnUiThread {
+                // Do not clear the post-PiP recovery guard just because YouTube says
+                // "playing"; wait until the HTML media clock really advances.
+                if (!isFinishing && !isDestroyed && !isInPictureInPictureMode &&
+                    resumeVideoAfterPipExit
+                ) {
+                    resumeVideoAfterPipExit = false
+                    pipRecoveryAttempts = 0
+                }
+            }
+        }
+
+        @JavascriptInterface
         fun onPipPlaybackStalled() {
             runOnUiThread {
                 val hasResumeIntent =
@@ -185,10 +199,10 @@ class YouTubePlayerActivity : ComponentActivity() {
         fun onStateChanged(state: Int) {
             runOnUiThread {
                 youtubePlayerState = state
-                if (state == 1 && (isInPictureInPictureMode || resumeVideoAfterPipExit)) {
-                    // The watchdog reports state 1 only after the media clock advances again.
+                if (state == 1 && isInPictureInPictureMode) {
+                    // Recovered state inside PiP may reset the bounded retry count. The
+                    // post-exit recovery guard is cleared only by onRecoveryClockAdvanced().
                     pipRecoveryAttempts = 0
-                    resumeVideoAfterPipExit = false
                 }
                 // Persist the actual embedded YouTube playback state so the
                 // compact player's button can pause/resume YouTube instead of
@@ -2008,6 +2022,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 if (window.__ngocSiForceStateRefresh) {
                                   window.__ngocSiForceStateRefresh = false;
                                   lastState = -99;
+                                  try { AndroidBridge.onRecoveryClockAdvanced(); } catch (_) {}
                                 }
                               }
                               if (state !== lastState) {
