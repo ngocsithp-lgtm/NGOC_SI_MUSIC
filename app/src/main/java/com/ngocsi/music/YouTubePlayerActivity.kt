@@ -169,14 +169,21 @@ class YouTubePlayerActivity : ComponentActivity() {
                 // While PiP is open, this watchdog owns stall recovery. Once PiP has
                 // closed, the dedicated exit timer owns recovery; allowing both paths
                 // to fire against the same WebView can restart the stream twice.
-                if (isInPictureInPictureMode && resumeVideoAfterPipEntry &&
-                    pipRecoveryAttempts < 2
-                ) {
+                val recoverInsidePip =
+                    isInPictureInPictureMode && resumeVideoAfterPipEntry
+                val recoverAfterPipExit =
+                    !isInPictureInPictureMode && resumeVideoAfterPipExit
+                if ((recoverInsidePip || recoverAfterPipExit) && pipRecoveryAttempts < 2) {
                     pipRecoveryAttempts++
                     webView?.postDelayed({
-                        val shouldRecoverInPip =
-                            isInPictureInPictureMode && resumeVideoAfterPipEntry
-                        if (!isFinishing && !isDestroyed && shouldRecoverInPip &&
+                        // The media-clock watchdog may report a stall after the first
+                        // post-exit resume has already run. Give that exit path one
+                        // bounded follow-up, but never run it after an explicit Pause,
+                        // a new PiP transition, or successful clock advancement.
+                        val stillNeedsRecovery =
+                            (isInPictureInPictureMode && resumeVideoAfterPipEntry) ||
+                                (!isInPictureInPictureMode && resumeVideoAfterPipExit)
+                        if (!isFinishing && !isDestroyed && stillNeedsRecovery &&
                             youtubePlayerState != 1
                         ) {
                             requestYouTubePlayback(forcePlaybackRecovery = true)
