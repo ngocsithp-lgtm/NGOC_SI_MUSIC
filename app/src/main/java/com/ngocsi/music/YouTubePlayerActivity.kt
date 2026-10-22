@@ -469,12 +469,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             textSize = 18f
             contentDescription = "Video tiếp theo"
         }
-        val fullscreenButton = actionButton("⛶") {
-            requestYoutubeFullscreen()
-        }.apply {
-            textSize = 21f
-            contentDescription = "Phát toàn màn hình"
-        }
+        // YouTube's own player already provides fullscreen; do not duplicate it here.
         styleWideButton(playPauseButton, emphasized = true)
 
         transport.addView(previousButton, LinearLayout.LayoutParams(dp(54), dp(44)).apply {
@@ -483,10 +478,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         transport.addView(playPauseButton, LinearLayout.LayoutParams(dp(66), dp(46)).apply {
             marginEnd = dp(8)
         })
-        transport.addView(nextButton, LinearLayout.LayoutParams(dp(54), dp(44)).apply {
-            marginEnd = dp(8)
-        })
-        transport.addView(fullscreenButton, LinearLayout.LayoutParams(dp(48), dp(44)))
+        transport.addView(nextButton, LinearLayout.LayoutParams(dp(54), dp(44)))
         content.addView(transport)
 
         // One compact action row replaces four large utility buttons.
@@ -1316,6 +1308,9 @@ class YouTubePlayerActivity : ComponentActivity() {
             return
         }
 
+        // This button only enables background playback; it must not navigate away,
+        // open another player, or start a paused video. The user leaves the screen
+        // or locks the phone separately when they want background audio.
         inAppBackgroundPlaybackEnabled = true
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             webView?.setRendererPriorityPolicy(
@@ -1330,19 +1325,12 @@ class YouTubePlayerActivity : ComponentActivity() {
 
         if (youtubePlayerState == 1) {
             syncYouTubeBackgroundPlayback(1)
-            Toast.makeText(
-                this,
-                "Đã bật giữ phát nền trong NGỌC SĨ MUSIC. Bạn có thể về màn hình chính hoặc khóa màn hình.",
-                Toast.LENGTH_LONG
-            ).show()
-        } else {
-            requestYouTubePlayback()
-            Toast.makeText(
-                this,
-                "Đã bật chế độ nền trong app. Bấm Phát nếu video đang tạm dừng.",
-                Toast.LENGTH_LONG
-            ).show()
         }
+        Toast.makeText(
+            this,
+            "Đã bật phát nền. Video vẫn ở màn hình hiện tại; hãy về màn hình chính hoặc khóa màn hình để nghe nền.",
+            Toast.LENGTH_LONG
+        ).show()
     }
 
     /**
