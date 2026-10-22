@@ -2466,6 +2466,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         var previousPosition: Double? = null
         var playRequested = false
         var fallbackNudgeSent = false
+        var pageReloadFallbackUsed = false
 
         // Re-arm foreground WebView processing after the orientation/layout transition.
         webView?.onResume()
@@ -2563,10 +2564,38 @@ class YouTubePlayerActivity : ComponentActivity() {
                 }
                 if (currentPosition != null) previousPosition = currentPosition
 
-                if (number < 11 && state != "NO_VIDEO" && !isFinishing && !isDestroyed) {
+                if (number < 11 && !isFinishing && !isDestroyed) {
                     playbackPositionHandler.postDelayed({ attempt(number + 1) }, 650L)
-                } else if (number < 11 && !isFinishing && !isDestroyed) {
-                    playbackPositionHandler.postDelayed({ attempt(number + 1) }, 650L)
+                    return@evaluateJavascript
+                }
+
+                // If the WebView's media surface is still frozen after bounded, non-repeating
+                // play attempts, recreate the YouTube page once at the last known timestamp.
+                // This is a last resort: preserve the selected video and approximate position
+                // instead of leaving a silent frozen surface with no way to recover.
+                if (!pageReloadFallbackUsed && !isFinishing && !isDestroyed) {
+                    pageReloadFallbackUsed = true
+                    val currentUrl = webView?.url
+                    val seconds = ((currentPosition ?: previousPosition ?: 0.0).toInt())
+                        .coerceAtLeast(0)
+                    if (!currentUrl.isNullOrBlank() &&
+                        (currentUrl.contains("youtube.com/watch") ||
+                         currentUrl.contains("youtube.com/shorts/"))
+                    ) {
+                        val restoredUrl = Uri.parse(currentUrl)
+                            .buildUpon()
+                            .clearQuery()
+                            .appendQueryParameter("v", sanitizeVideoId(videoId))
+                            .appendQueryParameter("t", "${seconds}s")
+                            .build()
+                            .toString()
+                        youtubePlayerReady = false
+                        webView?.postDelayed({
+                            if (!isFinishing && !isDestroyed && webView != null) {
+                                webView?.loadUrl(restoredUrl)
+                            }
+                        }, 300L)
+                    }
                 }
             }
         }
