@@ -1333,6 +1333,12 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
 
         inAppBackgroundPlaybackEnabled = true
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            webView?.setRendererPriorityPolicy(
+                WebView.RENDERER_PRIORITY_IMPORTANT,
+                false
+            )
+        }
         getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
             .putBoolean("youtube_background_playback_enabled", true)
             .apply()
@@ -1738,10 +1744,19 @@ class YouTubePlayerActivity : ComponentActivity() {
 
         val player = BackgroundAudioWebView(this).apply {
             setBackgroundColor(AndroidColor.BLACK)
-            // Bound renderer priority reduces WebView renderer eviction while the
-            // user-started media session continues in the background.
+            // Background playback needs the WebView renderer to remain important while
+            // the player window is hidden. The default "waive when not visible" policy
+            // makes renderer eviction more likely during background playback.
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_BOUND, true)
+                val priority = if (inAppBackgroundPlaybackEnabled) {
+                    WebView.RENDERER_PRIORITY_IMPORTANT
+                } else {
+                    WebView.RENDERER_PRIORITY_BOUND
+                }
+                setRendererPriorityPolicy(
+                    priority,
+                    waivedWhenNotVisible = !inAppBackgroundPlaybackEnabled
+                )
             }
             settings.apply {
                 javaScriptEnabled = true
