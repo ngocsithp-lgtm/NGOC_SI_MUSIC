@@ -627,8 +627,7 @@ class YouTubePlayerActivity : ComponentActivity() {
               }
               return 'missing';
             })();
-            """.trimIndent(),
-            null
+            """.trimIndent()
         ) { result ->
             if (result == "\"missing\"" && customView == null) {
                 Toast.makeText(
