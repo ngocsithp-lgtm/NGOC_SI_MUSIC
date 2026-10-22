@@ -2184,10 +2184,10 @@ class YouTubePlayerActivity : ComponentActivity() {
                 }
 
                 override fun onHideCustomView() {
-                    // Complete the WebChromeClient fullscreen handoff. Without notifying
-                    // the saved callback, Chromium can retain the custom video surface
-                    // after returning inline, producing a frozen frame and dead Play control.
-                    exitFullscreen(notifyCallback = true)
+                    // WebChromeClient is already notifying us that its custom view is hidden.
+                    // Do not call CustomViewCallback.onCustomViewHidden() a second time here:
+                    // that callback is reserved for the host initiating dismissal.
+                    exitFullscreen(notifyCallback = false)
                 }
             }
 
@@ -2435,6 +2435,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         // handoff. Always probe the same video after layout settles; the recovery routine
         // only requests Play when the actual HTML5 video reports paused.
         val shouldRecoverPlayback = true
+        val shouldRecreateInlinePlayer = wasPlayingBeforeFullscreen && customView != null
         wasPlayingBeforeFullscreen = false
 
         if (isCssFullscreen) {
@@ -2477,9 +2478,59 @@ class YouTubePlayerActivity : ComponentActivity() {
                 webView?.evaluateJavascript("window.dispatchEvent(new Event('resize'));", null)
                 if (shouldRecoverPlayback) {
                     // Wait for Android orientation and WebView layout to settle before recovery.
-                    webView?.postDelayed({ recoverFullscreenPlayback() }, 850L)
+                    webView?.postDelayed({
+                        if (shouldRecreateInlinePlayer) {
+                            reloadInlinePlayerAfterFullscreen()
+                        } else {
+                            recoverFullscreenPlayback()
+                        }
+                    }, 850L)
                 }
             }
+        }
+    }
+
+    /**
+     * YouTube's mobile HTML5 video can leave a dead media surface after the
+     * fullscreen custom view is dismissed on some WebView versions. If it was
+     * playing before fullscreen, recreate the same inline page at its last
+     * reachable timestamp rather than repeatedly issuing Play to a frozen node.
+     */
+    private fun reloadInlinePlayerAfterFullscreen() {
+        if (isFinishing || isDestroyed || webView == null) return
+        val currentWebView = webView ?: return
+        currentWebView.evaluateJavascript(
+            """
+            (function() {
+              var videos = Array.prototype.slice.call(document.querySelectorAll('video'));
+              var video = videos.find(function(v) {
+                return v.isConnected && v.getBoundingClientRect().width > 2 &&
+                  v.getBoundingClientRect().height > 2;
+              }) || videos[0];
+              return video ? Math.max(0, Math.floor(video.currentTime || 0)) : 0;
+            })();
+            """.trimIndent()
+        ) { rawPosition ->
+            if (isFinishing || isDestroyed || webView !== currentWebView) return@evaluateJavascript
+            val seconds = rawPosition.orEmpty().trim('"').toDoubleOrNull()?.toInt()?.coerceAtLeast(0) ?: 0
+            val targetId = sanitizeVideoId(videoId)
+            if (targetId.isBlank()) {
+                recoverFullscreenPlayback()
+                return@evaluateJavascript
+            }
+            val url = Uri.parse("https://m.youtube.com/watch")
+                .buildUpon()
+                .appendQueryParameter("v", targetId)
+                .appendQueryParameter("t", "${seconds}s")
+                .appendQueryParameter("autoplay", "1")
+                .appendQueryParameter("playsinline", "1")
+                .build()
+                .toString()
+            recoverAfterPageReload = true
+            youtubePlayerReady = false
+            currentWebView.onResume()
+            currentWebView.resumeTimers()
+            currentWebView.loadUrl(url)
         }
     }
 
