@@ -2467,8 +2467,18 @@ class YouTubePlayerActivity : ComponentActivity() {
             )
             isCssFullscreen = false
         }
-        customView?.let { root.removeView(it) }
+        // Detach the fullscreen custom view from whichever parent currently owns it.
+        // Chromium/rotation can change the callback order; removing only from root may
+        // leave the fullscreen surface attached as an extra layer over the inline UI.
+        val fullscreenView = customView
         customView = null
+        fullscreenView?.let { view ->
+            (view.parent as? ViewGroup)?.removeView(view)
+            if (view.parent != null) {
+                (view.parent as? ViewGroup)?.removeView(view)
+            }
+            view.visibility = View.GONE
+        }
         if (notifyCallback) {
             customViewCallback?.onCustomViewHidden()
         }
