@@ -2317,9 +2317,27 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun exitFullscreen(notifyCallback: Boolean = true) {
+        // Snapshot playback before Android changes orientation/layout. The WebView's
+        // HTML5 video may keep the old landscape geometry and become paused after
+        // fullscreen closes, so restore layout first and only then resume if it was playing.
+        val shouldResumePlayback = youtubePlayerState == 1 ||
+            getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+                .getBoolean("youtube_playback_is_playing", false)
+
         if (isCssFullscreen) {
             webView?.evaluateJavascript(
-                "document.getElementById('ngocsi-css-fullscreen')?.remove();",
+                """
+                (function() {
+                  var style = document.getElementById('ngocsi-css-fullscreen');
+                  if (style) style.remove();
+                  document.documentElement.style.removeProperty('width');
+                  document.documentElement.style.removeProperty('height');
+                  document.body.style.removeProperty('width');
+                  document.body.style.removeProperty('height');
+                  window.dispatchEvent(new Event('resize'));
+                  return 'layout-restored';
+                })();
+                """.trimIndent(),
                 null
             )
             isCssFullscreen = false
@@ -2335,6 +2353,53 @@ class YouTubePlayerActivity : ComponentActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, true)
         WindowInsetsControllerCompat(window, window.decorView)
             .show(WindowInsetsCompat.Type.systemBars())
+
+        // Recalculate the in-app 16:9 player after rotation; never reload the video.
+        playerContainer.post {
+            if (isFinishing || isDestroyed || webView == null) return@post
+            webView?.evaluateJavascript(
+                """
+                (function() {
+                  var player = document.querySelector('ytm-player');
+                  if (player) {
+                    player.style.setProperty('position', 'relative', 'important');
+                    player.style.setProperty('inset', 'auto', 'important');
+                    player.style.setProperty('width', '100%', 'important');
+                    player.style.setProperty('min-width', '0', 'important');
+                    player.style.setProperty('max-width', '100%', 'important');
+                    player.style.setProperty('height', 'auto', 'important');
+                    player.style.setProperty('aspect-ratio', '16 / 9', 'important');
+                  }
+                  var containers = document.querySelectorAll(
+                    '.html5-video-player,.html5-video-container'
+                  );
+                  containers.forEach(function(node) {
+                    node.style.setProperty('inset', '0', 'important');
+                    node.style.setProperty('width', '100%', 'important');
+                    node.style.setProperty('height', '100%', 'important');
+                  });
+                  var videos = document.querySelectorAll('ytm-player video,video.html5-main-video');
+                  videos.forEach(function(video) {
+                    video.style.setProperty('left', '0', 'important');
+                    video.style.setProperty('top', '0', 'important');
+                    video.style.setProperty('width', '100%', 'important');
+                    video.style.setProperty('height', '100%', 'important');
+                    video.style.setProperty('max-width', '100%', 'important');
+                    video.style.setProperty('max-height', '100%', 'important');
+                    video.style.setProperty('object-fit', 'contain', 'important');
+                    video.style.setProperty('object-position', 'center', 'important');
+                  });
+                  window.dispatchEvent(new Event('resize'));
+                  return 'restored';
+                })();
+                """.trimIndent(),
+                null
+            ) {
+                if (shouldResumePlayback && !isFinishing && !isDestroyed) {
+                    webView?.postDelayed({ requestYouTubePlayback() }, 350L)
+                }
+            }
+        }
     }
 
     /**
