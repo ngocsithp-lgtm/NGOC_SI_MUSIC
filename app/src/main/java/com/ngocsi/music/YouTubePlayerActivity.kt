@@ -2171,9 +2171,10 @@ class YouTubePlayerActivity : ComponentActivity() {
 
                     customView = view
                     customViewCallback = callback
-                    // Use the standard WebChromeClient fullscreen handoff: detach the inline
-                    // surface from view composition while the fullscreen video surface is shown.
-                    // Keeping both surfaces visible can cause a frozen/silent duplicate surface.
+                    // Keep the original WebView attached beneath the fullscreen custom view.
+                    // Chromium redirects drawing to this custom view during fullscreen;
+                    // hiding the host container can trigger a visibility transition and
+                    // leave inline media frozen when returning to the app player.
                     playerContainer.visibility = View.VISIBLE
                     root.addView(
                         view,
