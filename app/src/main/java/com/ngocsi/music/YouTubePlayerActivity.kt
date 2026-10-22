@@ -2428,10 +2428,10 @@ class YouTubePlayerActivity : ComponentActivity() {
         // Fullscreen transitions can leave the JS/player state stale even when playback
         // was active immediately before rotation. Always run bounded recovery on return;
         // the recovery routine checks the real media clock and avoids repeated play commands.
-        val shouldResumePlayback = wasPlayingBeforeFullscreen ||
-            youtubePlayerState == 1 ||
-            getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
-                .getBoolean("youtube_playback_is_playing", false)
+        // A WebView/YouTube state callback can be stale after the fullscreen surface
+        // handoff. Always probe the same video after layout settles; the recovery routine
+        // only requests Play when the actual HTML5 video reports paused.
+        val shouldRecoverPlayback = true
         wasPlayingBeforeFullscreen = false
 
         if (isCssFullscreen) {
@@ -2472,7 +2472,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             webView?.post {
                 if (isFinishing || isDestroyed || webView == null) return@post
                 webView?.evaluateJavascript("window.dispatchEvent(new Event('resize'));", null)
-                if (shouldResumePlayback) {
+                if (shouldRecoverPlayback) {
                     // Wait for Android orientation and WebView layout to settle before recovery.
                     webView?.postDelayed({ recoverFullscreenPlayback() }, 850L)
                 }
