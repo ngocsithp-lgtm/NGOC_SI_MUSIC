@@ -1653,7 +1653,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         val requestGeneration = ++playbackRequestGeneration
         fun attempt(remaining: Int) {
             if (requestGeneration != playbackRequestGeneration ||
-                isFinishing || isDestroyed || webView == null || !youtubePlayerReady
+                isFinishing || isDestroyed || webView == null
             ) return
             webView?.evaluateJavascript(youtubePlaybackScript("play")) { result ->
                 if (requestGeneration != playbackRequestGeneration) return@evaluateJavascript
@@ -2470,7 +2470,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun recoverFullscreenPlayback() {
-        if (isFinishing || isDestroyed || webView == null || !youtubePlayerReady) return
+        if (isFinishing || isDestroyed || webView == null) return
         val generation = ++fullscreenRecoveryGeneration
         var previousPosition: Double? = null
         var playRequested = false
