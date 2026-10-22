@@ -2243,6 +2243,34 @@ class YouTubePlayerActivity : ComponentActivity() {
             "Không mở được YouTube bên ngoài trên thiết bị này."
     }
 
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+
+        // The manifest handles orientation changes without recreating this Activity.
+        // Recompute the native 16:9 WebView host when returning from landscape fullscreen,
+        // but never resize the separate fullscreen custom view itself.
+        if (!::playerContainer.isInitialized || customView != null || isCssFullscreen) return
+
+        playerContainer.post {
+            if (isFinishing || isDestroyed || customView != null || isCssFullscreen) return@post
+            val availableWidth = root.width.takeIf { it > 0 }
+                ?: resources.displayMetrics.widthPixels
+            playerContainer.layoutParams = playerContainer.layoutParams.apply {
+                height = (availableWidth * 9f / 16f).toInt().coerceAtLeast(dp(200))
+            }
+            playerContainer.requestLayout()
+            webView?.postDelayed({
+                if (isFinishing || isDestroyed || webView == null ||
+                    customView != null || isCssFullscreen
+                ) return@postDelayed
+                webView?.evaluateJavascript(
+                    "window.dispatchEvent(new Event('resize'));",
+                    null
+                )
+            }, 120L)
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
