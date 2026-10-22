@@ -1478,7 +1478,9 @@ class YouTubePlayerActivity : ComponentActivity() {
                   try {
                     if (typeof window.__ngocSiFindActiveVideo === 'function') {
                       var current = window.__ngocSiFindActiveVideo();
-                      if (current && current.isConnected) return current;
+                      // Fullscreen transitions can leave an old but still-connected video
+                      // node behind. Never send transport commands to that hidden/stale node.
+                      if (current && isVisibleVideo(current)) return current;
                     }
                   } catch (_) {}
                   var videos = Array.prototype.slice.call(document.querySelectorAll('video'));
@@ -1501,7 +1503,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                     return value;
                   }
                   visible.sort(function(a,b){ return score(b) - score(a); });
-                  return visible[0] || videos[0] || null;
+                  return visible[0] || null;
                 }
                 function getPlayerApi() {
                   return document.querySelector('#movie_player') ||
@@ -2023,7 +2025,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                               return value;
                             }
                             rendered.sort(function(a,b){ return score(b) - score(a); });
-                            return rendered[0] || videos[0] || null;
+                            return rendered[0] || null;
                           }
                           window.__ngocSiFindActiveVideo = findActiveVideo;
                           // Do not change page layout or hide YouTube DOM nodes around the
@@ -2155,7 +2157,9 @@ class YouTubePlayerActivity : ComponentActivity() {
 
                     customView = view
                     customViewCallback = callback
-                    playerContainer.visibility = View.GONE
+                    // Keep the original WebView host attached and visible underneath the
+                    // fullscreen surface. Hiding it with GONE can suspend Chromium's media
+                    // element and leave the inline player silent/frozen after fullscreen exit.
                     root.addView(
                         view,
                         FrameLayout.LayoutParams(
@@ -2494,10 +2498,29 @@ class YouTubePlayerActivity : ComponentActivity() {
                       if (typeof window.__ngocSiFindActiveVideo === 'function')
                         video = window.__ngocSiFindActiveVideo();
                     } catch (_) {}
-                    if (!video || !video.isConnected)
-                      video = document.querySelector('video.html5-main-video') ||
-                              document.querySelector('ytm-player video') ||
-                              document.querySelector('video');
+                    function isRenderable(candidate) {
+                      if (!candidate || !candidate.isConnected) return false;
+                      var rect = candidate.getBoundingClientRect();
+                      if (rect.width < 2 || rect.height < 2) return false;
+                      var node = candidate;
+                      while (node && node.nodeType === 1 && node !== document.documentElement) {
+                        var style = window.getComputedStyle(node);
+                        if (style.display === 'none' || style.visibility === 'hidden' ||
+                            Number(style.opacity || 1) === 0) return false;
+                        node = node.parentElement;
+                      }
+                      return true;
+                    }
+                    if (!isRenderable(video)) {
+                      var candidates = Array.prototype.slice.call(document.querySelectorAll('video'));
+                      video = candidates.find(function(candidate) {
+                        return isRenderable(candidate) &&
+                          (candidate.classList.contains('html5-main-video') ||
+                           !!candidate.closest('#movie_player') ||
+                           !!candidate.closest('.html5-video-player') ||
+                           !!candidate.closest('ytm-player'));
+                      }) || candidates.find(isRenderable) || null;
+                    }
                     if (!video) return 'NO_VIDEO|0|0';
 
                     var position = Number(video.currentTime || 0);
