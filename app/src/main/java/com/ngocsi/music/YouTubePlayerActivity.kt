@@ -35,8 +35,6 @@ import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewFeature
 import androidx.webkit.WebViewMediaIntegrityApiStatusConfig
 import androidx.activity.ComponentActivity
-import androidx.browser.customtabs.CustomTabsClient
-import androidx.browser.customtabs.CustomTabsIntent
 import androidx.activity.OnBackPressedCallback
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -124,19 +122,22 @@ class YouTubePlayerActivity : ComponentActivity() {
         @JavascriptInterface
         fun onStateChanged(state: Int) {
             runOnUiThread {
-                if (browserBackgroundHandoffInProgress) {
-                    // The embedded WebView is intentionally being paused while Chrome
-                    // takes ownership of audio. A stale "playing" callback must not
-                    // set its state back to playing or restart the WebView media service.
-                    if (state != 1) {
-                        youtubePlayerState = state
-                        getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
-                            .putBoolean("youtube_playback_is_playing", false)
-                            .apply()
-                        updatePlaybackButton()
-                    }
+                val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+                val isForeground = prefs.getBoolean("youtube_player_foreground", true)
+                val keepBackgroundPlayback = prefs.getBoolean(
+                    "youtube_background_playback_enabled", false
+                )
+                // Some WebView/YouTube page lifecycles pause the HTML5 element when the
+                // Activity goes behind another app. Keep the media session marked as
+                // playing while the user has explicitly enabled in-app background mode,
+                // and make a bounded set of recovery attempts instead of a tight retry loop.
+                if (state == 2 && !isForeground && keepBackgroundPlayback &&
+                    youtubePlayerState == 1
+                ) {
+                    scheduleBackgroundPlaybackRecovery()
                     return@runOnUiThread
                 }
+                if (state == 1) backgroundPlaybackRecoveryGeneration++
                 youtubePlayerState = state
                 getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
                     .putBoolean("youtube_playback_is_playing", state == 1)
@@ -179,11 +180,6 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private val youtubeJsBridge = YoutubeJsBridge()
-    // True while the current video is handed to Chrome's Custom Tab. WebView has no
-    // reliable background-audio guarantee on Android; Chrome owns the audible playback
-    // after this handoff. Ignore late WebView callbacks so they cannot revive its session.
-    @Volatile
-    private var browserBackgroundHandoffInProgress = false
     private var youtubeBackgroundControlReceiverRegistered = false
     private val youtubeBackgroundControlReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: android.content.Context?, intent: Intent?) {
@@ -199,6 +195,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
     }
     private var youtubeBackgroundServiceStarted = false
+    private var backgroundPlaybackRecoveryGeneration = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -549,8 +546,8 @@ class YouTubePlayerActivity : ComponentActivity() {
             marginEnd = dp(8)
         })
 
-        val backgroundButton = actionButton("🌐 Nền") { startYouTubeInBackground() }.apply {
-            contentDescription = "Chuyển video hiện tại sang Chrome để phát nền"
+        val backgroundButton = actionButton("🎧 Nền") { enableInAppBackgroundPlayback() }.apply {
+            contentDescription = "Bật phát nền ngay trong NGỌC SĨ MUSIC"
             textSize = 12f
         }
         queueActions.addView(backgroundButton, LinearLayout.LayoutParams(dp(82), dp(46)).apply {
@@ -1298,100 +1295,116 @@ class YouTubePlayerActivity : ComponentActivity() {
         runYoutubePlaybackCommand("toggle")
     }
 
-    private fun startYouTubeInBackground() {
+    /**
+     * Enables bounded recovery for the current YouTube HTML5 video while this Activity
+     * is backgrounded. Playback stays in this WebView; no external browser is launched.
+     */
+    private fun enableInAppBackgroundPlayback() {
         if (isFinishing || isDestroyed || webView == null || !youtubePlayerReady) {
             Toast.makeText(this, "Trình phát YouTube chưa sẵn sàng.", Toast.LENGTH_SHORT).show()
             return
         }
-        if (browserBackgroundHandoffInProgress) return
-
         val safeId = sanitizeVideoId(videoId)
         if (safeId.isBlank()) {
             Toast.makeText(this, "Không xác định được video YouTube hiện tại.", Toast.LENGTH_SHORT).show()
             return
         }
 
-        // WebView can lose audible HTML5 playback when its Activity is backgrounded;
-        // a foreground service alone supplies process priority, not an audio renderer.
-        // Transfer the selected video to Chrome's browser engine for background playback.
-        browserBackgroundHandoffInProgress = true
-        playbackRequestGeneration++
-        saveCurrentPlaybackPosition {
-            if (isFinishing || isDestroyed || webView == null) return@saveCurrentPlaybackPosition
+        getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
+            .putBoolean("youtube_background_playback_enabled", true)
+            .apply()
+        backgroundPlaybackRecoveryGeneration++
+        webView?.evaluateJavascript(
+            "window.__ngocSiBackgroundPlaybackEnabled = true;", null
+        )
 
-            val positionSeconds = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
-                .getLong("youtube_position_ms_" + safeId, 0L)
-                .coerceAtLeast(0L) / 1000L
-            val url = buildString {
-                append("https://www.youtube.com/watch?v=")
-                append(safeId)
-                append("&autoplay=1")
-                if (positionSeconds > 0L) {
-                    append("&t=")
-                    append(positionSeconds)
-                    append("s")
-                }
-            }
-            val targetUri = Uri.parse(url)
-
-            // Pause the embedded renderer before launching Chrome to avoid two audio
-            // sessions playing the same video at the same time.
-            webView?.evaluateJavascript(youtubePlaybackScript("pause")) {
-                runOnUiThread {
-                    if (isFinishing || isDestroyed) return@runOnUiThread
-
-                    youtubePlayerState = 2
-                    getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
-                        .putBoolean("youtube_playback_is_playing", false)
-                        .apply()
-                    updatePlaybackButton()
-
-                    // This service only mirrors WebView state and keeps a wake lock; it
-                    // cannot render the YouTube audio itself. Chrome will own the media
-                    // session and sound after this handoff.
-                    stopService(Intent(this, YouTubeBackgroundService::class.java))
-                    youtubeBackgroundServiceStarted = false
-                    saveLastPlayedState()
-
-                    try {
-                        val chromePackage = CustomTabsClient.getPackageName(
-                            this,
-                            listOf("com.android.chrome")
-                        )
-                        val customTab = CustomTabsIntent.Builder()
-                            .setShowTitle(true)
-                            .build()
-                        if (!chromePackage.isNullOrBlank()) {
-                            customTab.intent.setPackage(chromePackage)
-                        }
-                        customTab.launchUrl(this, targetUri)
-                        Toast.makeText(
-                            this,
-                            "Đã chuyển video sang tab Chrome. Nếu video chưa tự chạy, nhấn Phát trong Chrome rồi mới khóa màn hình.",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    } catch (_: Exception) {
-                        browserBackgroundHandoffInProgress = false
-                        runCatching {
-                            startActivity(Intent(Intent.ACTION_VIEW, targetUri))
-                        }.onFailure {
-                            Toast.makeText(
-                                this,
-                                "Không mở được Chrome/trình duyệt để phát nền.",
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
-                    }
-                }
-            }
+        if (youtubePlayerState == 1) {
+            syncYouTubeBackgroundPlayback(1)
+            Toast.makeText(
+                this,
+                "Đã bật giữ phát nền trong NGỌC SĨ MUSIC. Bạn có thể về màn hình chính hoặc khóa màn hình.",
+                Toast.LENGTH_LONG
+            ).show()
+        } else {
+            requestYouTubePlayback()
+            Toast.makeText(
+                this,
+                "Đã bật chế độ nền trong app. Bấm Phát nếu video đang tạm dừng.",
+                Toast.LENGTH_LONG
+            ).show()
         }
     }
 
+    /**
+     * A hidden YouTube page sometimes pauses its HTML5 video when Android backgrounds the
+     * Activity. Try restoring that same element a maximum of three times, with delays.
+     * Explicit Pause disables this recovery, so lock-screen Pause is respected.
+     */
+    private fun scheduleBackgroundPlaybackRecovery() {
+        val generation = ++backgroundPlaybackRecoveryGeneration
+        fun attempt(index: Int) {
+            if (index >= 3 || generation != backgroundPlaybackRecoveryGeneration ||
+                isFinishing || isDestroyed
+            ) return
+
+            val delay = when (index) {
+                0 -> 800L
+                1 -> 1500L
+                else -> 2500L
+            }
+            playbackPositionHandler.postDelayed({
+                val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+                if (generation != backgroundPlaybackRecoveryGeneration ||
+                    isFinishing || isDestroyed || webView == null ||
+                    prefs.getBoolean("youtube_player_foreground", true) ||
+                    !prefs.getBoolean("youtube_background_playback_enabled", false)
+                ) return@postDelayed
+
+                val script = """
+                    (function(){
+                      try {
+                        var v = (typeof window.__ngocSiFindActiveVideo === 'function')
+                          ? window.__ngocSiFindActiveVideo()
+                          : (document.querySelector('video.html5-main-video') ||
+                             document.querySelector('#movie_player video') ||
+                             document.querySelector('video'));
+                        if (!v || v.ended) return 'no-video';
+                        if (!v.paused && !v.ended) return 'already-playing';
+                        var p = document.querySelector('#movie_player') ||
+                                document.querySelector('.html5-video-player') ||
+                                document.querySelector('ytm-player');
+                        try { if (p && typeof p.playVideo === 'function') p.playVideo(); } catch (_) {}
+                        try {
+                          var promise = v.play();
+                          if (promise && typeof promise.catch === 'function') promise.catch(function(){});
+                        } catch (_) {}
+                        return 'play-requested';
+                      } catch(e) { return 'recovery-error'; }
+                    })();
+                """.trimIndent()
+                webView?.evaluateJavascript(script) { result ->
+                    if (result?.contains("already-playing") == true) {
+                        backgroundPlaybackRecoveryGeneration++
+                    } else if (index < 2) {
+                        attempt(index + 1)
+                    }
+                }
+            }, delay)
+        }
+        attempt(0)
+    }
+
     private fun pauseYouTubePlayback() {
-        // Invalidate any delayed Play retry before honoring a deliberate pause.
+        // An explicit Pause must cancel background recovery and never auto-resume.
         playbackRequestGeneration++
-        getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
-            .edit().putBoolean("youtube_playback_is_playing", false).apply()
+        backgroundPlaybackRecoveryGeneration++
+        getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
+            .putBoolean("youtube_playback_is_playing", false)
+            .putBoolean("youtube_background_playback_enabled", false)
+            .apply()
+        webView?.evaluateJavascript(
+            "window.__ngocSiBackgroundPlaybackEnabled = false;", null
+        )
         runYoutubePlaybackCommand("pause")
     }
 
@@ -1938,9 +1951,8 @@ class YouTubePlayerActivity : ComponentActivity() {
             isFocusableInTouchMode = true
             addJavascriptInterface(youtubeJsBridge, "AndroidBridge")
 
-            // Preview experiment: load YouTube's mobile site inside this WebView.
-            // This keeps navigation inside NGỌC SĨ MUSIC and uses the site's own
-            // Chromium-compatible HTML5 player controls. Background playback is not guaranteed.
+            // Load YouTube's mobile site in this embedded WebView. Background mode
+            // keeps this same player alive and uses bounded recovery if the page pauses.
             val safeId = sanitizeVideoId(videoId)
             loadUrl("https://m.youtube.com/watch?v=" + safeId)
         }
@@ -2055,9 +2067,6 @@ class YouTubePlayerActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Returning from Chrome hands control back to the in-app WebView. It remains
-        // paused until the user presses Play in NGỌC SĨ AI.
-        browserBackgroundHandoffInProgress = false
         getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
             .edit().putBoolean("youtube_player_foreground", true).apply()
 
@@ -2084,6 +2093,9 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     override fun onPause() {
+        // Mark the app as backgrounded before the page can report its visibility pause.
+        getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+            .edit().putBoolean("youtube_player_foreground", false).apply()
         // Keep WebView media lifecycle untouched here. Calling WebView.onPause()
         // would explicitly suspend WebView media/JS and can make recovery worse.
         saveCurrentPlaybackPosition()
