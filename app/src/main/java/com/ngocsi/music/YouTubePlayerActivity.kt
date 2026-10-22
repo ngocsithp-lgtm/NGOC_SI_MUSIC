@@ -1307,10 +1307,18 @@ class YouTubePlayerActivity : ComponentActivity() {
             Toast.makeText(this, "Không xác định được video YouTube hiện tại.", Toast.LENGTH_SHORT).show()
             return
         }
+        if (youtubePlayerState != 1) {
+            Toast.makeText(
+                this,
+                "Video YouTube chưa phát. Hãy bấm Phát trước rồi bấm Nền.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
 
-        // This button only enables background playback; it must not navigate away,
-        // open another player, or start a paused video. The user leaves the screen
-        // or locks the phone separately when they want background audio.
+        // Keep this Activity and its WebView alive: finish() would destroy the
+        // HTML5 video element. Move the app task behind other apps after the
+        // foreground media service is updated, so the same YouTube session keeps playing.
         inAppBackgroundPlaybackEnabled = true
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             webView?.setRendererPriorityPolicy(
@@ -1320,17 +1328,26 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
         getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
             .putBoolean("youtube_background_playback_enabled", true)
+            .putBoolean("youtube_active_source", true)
+            .putBoolean("youtube_playback_is_playing", true)
+            .putBoolean("youtube_is_playing", true)
             .apply()
         backgroundPlaybackRecoveryGeneration++
+        syncYouTubeBackgroundPlayback(1)
 
-        if (youtubePlayerState == 1) {
-            syncYouTubeBackgroundPlayback(1)
-        }
         Toast.makeText(
             this,
-            "Đã bật phát nền. Video vẫn ở màn hình hiện tại; hãy về màn hình chính hoặc khóa màn hình để nghe nền.",
-            Toast.LENGTH_LONG
+            "Đã bật phát nền. YouTube tiếp tục phát khi ứng dụng được thu nhỏ.",
+            Toast.LENGTH_SHORT
         ).show()
+
+        // Do not call finish(): onDestroy() intentionally stops the service and
+        // destroys WebView. Task-to-background hides the player without destroying it.
+        root.postDelayed({
+            if (!isFinishing && !isDestroyed) {
+                moveTaskToBack(true)
+            }
+        }, 250L)
     }
 
     /**
