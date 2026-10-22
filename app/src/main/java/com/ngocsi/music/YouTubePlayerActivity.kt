@@ -1755,7 +1755,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 }
                 setRendererPriorityPolicy(
                     priority,
-                    waivedWhenNotVisible = !inAppBackgroundPlaybackEnabled
+                    !inAppBackgroundPlaybackEnabled
                 )
             }
             settings.apply {
