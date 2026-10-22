@@ -2184,7 +2184,10 @@ class YouTubePlayerActivity : ComponentActivity() {
                 }
 
                 override fun onHideCustomView() {
-                    exitFullscreen(notifyCallback = false)
+                    // Complete the WebChromeClient fullscreen handoff. Without notifying
+                    // the saved callback, Chromium can retain the custom video surface
+                    // after returning inline, producing a frozen frame and dead Play control.
+                    exitFullscreen(notifyCallback = true)
                 }
             }
 
