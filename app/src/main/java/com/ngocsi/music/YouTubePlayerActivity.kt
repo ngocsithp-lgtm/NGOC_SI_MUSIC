@@ -80,6 +80,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
     private var customView: View? = null
     private var customViewCallback: WebChromeClient.CustomViewCallback? = null
+    private var isCssFullscreen = false
     private var videoId: String = ""
     private var title: String = "YouTube"
     private var channel: String = "YouTube"
@@ -285,7 +286,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         buildUi()
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (customView != null) {
+                if (customView != null || isCssFullscreen) {
                     exitFullscreen()
                 } else {
                     finish()
@@ -594,47 +595,38 @@ class YouTubePlayerActivity : ComponentActivity() {
             Toast.makeText(this, "Trình phát chưa sẵn sàng.", Toast.LENGTH_SHORT).show()
             return
         }
+
+        if (isCssFullscreen) {
+            exitFullscreen()
+            return
+        }
+
+        // Keep the existing YouTube WebView/media element alive. Do not invoke
+        // YouTube's native fullscreen button or video.webkitEnterFullscreen(),
+        // which can hand playback to a separate custom view and pause the stream.
         player.evaluateJavascript(
             """
             (function() {
-              var selectors = [
-                '.ytp-fullscreen-button',
-                '#fullscreen-button',
-                'button[aria-label*="Toàn màn hình"]',
-                'button[aria-label*="Fullscreen"]',
-                'button[aria-label*="full screen"]',
-                'ytm-fullscreen-button-renderer button'
-              ];
-              for (var i = 0; i < selectors.length; i++) {
-                var buttons = document.querySelectorAll(selectors[i]);
-                for (var j = 0; j < buttons.length; j++) {
-                  var button = buttons[j];
-                  if (button && button.getBoundingClientRect().width > 0) {
-                    button.click();
-                    return 'clicked';
-                  }
-                }
+              var style = document.getElementById('ngocsi-css-fullscreen');
+              if (!style) {
+                style = document.createElement('style');
+                style.id = 'ngocsi-css-fullscreen';
+                document.head.appendChild(style);
               }
-              var video = document.querySelector('video');
-              if (video && typeof video.webkitEnterFullscreen === 'function') {
-                video.webkitEnterFullscreen();
-                return 'video';
-              }
-              var target = document.querySelector('#movie_player, .html5-video-player, ytm-player');
-              if (target && typeof target.requestFullscreen === 'function') {
-                target.requestFullscreen();
-                return 'request';
-              }
-              return 'missing';
+              style.textContent =
+                'html,body { width:100%!important;height:100%!important;overflow:hidden!important;background:#000!important;margin:0!important;padding:0!important; }' +
+                'ytm-mobile-topbar-renderer,ytm-pivot-bar-renderer,ytm-slim-video-metadata-section-renderer,ytm-watch-metadata,#masthead-container { display:none!important; }' +
+                'ytm-player { position:fixed!important; inset:0!important; width:100vw!important;height:100vh!important;max-width:none!important;z-index:2147483647!important;background:#000!important;margin:0!important;padding:0!important; }' +
+                'ytm-player video,video.html5-main-video,.html5-video-container { width:100%!important;height:100%!important;max-width:100vw!important;max-height:100vh!important;object-fit:contain!important; }';
+              return 'ok';
             })();
             """.trimIndent()
         ) { result ->
-            if (result == "\"missing\"" && customView == null) {
-                Toast.makeText(
-                    this,
-                    "Hãy chạm nút toàn màn hình ngay trên video YouTube.",
-                    Toast.LENGTH_LONG
-                ).show()
+            if (result == "\"ok\"") {
+                isCssFullscreen = true
+                enterFullscreen()
+            } else {
+                Toast.makeText(this, "Không thể mở toàn màn hình. Hãy thử lại.", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -2289,6 +2281,13 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun exitFullscreen(notifyCallback: Boolean = true) {
+        if (isCssFullscreen) {
+            webView?.evaluateJavascript(
+                "document.getElementById('ngocsi-css-fullscreen')?.remove();",
+                null
+            )
+            isCssFullscreen = false
+        }
         customView?.let { root.removeView(it) }
         customView = null
         if (notifyCallback) {
