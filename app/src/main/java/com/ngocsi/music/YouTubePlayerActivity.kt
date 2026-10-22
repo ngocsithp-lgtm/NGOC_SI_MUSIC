@@ -2157,9 +2157,10 @@ class YouTubePlayerActivity : ComponentActivity() {
 
                     customView = view
                     customViewCallback = callback
-                    // Keep the original WebView host attached and visible underneath the
-                    // fullscreen surface. Hiding it with GONE can suspend Chromium's media
-                    // element and leave the inline player silent/frozen after fullscreen exit.
+                    // Use the standard WebChromeClient fullscreen handoff: detach the inline
+                    // surface from view composition while the fullscreen video surface is shown.
+                    // Keeping both surfaces visible can cause a frozen/silent duplicate surface.
+                    playerContainer.visibility = View.GONE
                     root.addView(
                         view,
                         FrameLayout.LayoutParams(
@@ -2412,10 +2413,14 @@ class YouTubePlayerActivity : ComponentActivity() {
         // Keep the existing WebView/video element and currentTime. Do not write persistent
         // inline width/height/inset values to YouTube's internal video nodes; they survive
         // removal of the fullscreen stylesheet and can break playback after rotation.
+        // Fullscreen transitions can leave the JS/player state stale even when playback
+        // was active immediately before rotation. Always run bounded recovery on return;
+        // the recovery routine checks the real media clock and avoids repeated play commands.
         val shouldResumePlayback = wasPlayingBeforeFullscreen ||
             youtubePlayerState == 1 ||
             getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
-                .getBoolean("youtube_playback_is_playing", false)
+                .getBoolean("youtube_playback_is_playing", false) ||
+            youtubePlayerReady
         wasPlayingBeforeFullscreen = false
 
         if (isCssFullscreen) {
