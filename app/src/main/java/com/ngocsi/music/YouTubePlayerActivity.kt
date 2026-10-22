@@ -2626,6 +2626,10 @@ class YouTubePlayerActivity : ComponentActivity() {
                             .clearQuery()
                             .appendQueryParameter("v", sanitizeVideoId(videoId))
                             .appendQueryParameter("t", "${seconds}s")
+                            // Request inline autoplay on the one-time page recreation. Without
+                            // these parameters YouTube can reload a frozen frame but remain paused.
+                            .appendQueryParameter("autoplay", "1")
+                            .appendQueryParameter("playsinline", "1")
                             .build()
                             .toString()
                         recoverAfterPageReload = true
