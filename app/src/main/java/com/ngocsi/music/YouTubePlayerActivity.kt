@@ -84,6 +84,8 @@ class YouTubePlayerActivity : ComponentActivity() {
     // Preserve the pre-fullscreen playback state even if YouTube reports PAUSED while rotating.
     private var wasPlayingBeforeFullscreen = false
     private var fullscreenRecoveryGeneration = 0
+    // A single post-reload recovery is allowed after fullscreen playback stalls.
+    private var recoverAfterPageReload = false
     private var playbackCommandGeneration = 0
     private var videoId: String = ""
     private var title: String = "YouTube"
@@ -139,6 +141,16 @@ class YouTubePlayerActivity : ComponentActivity() {
                 restoreSavedPlaybackPosition()
                 startPlaybackPositionSaver()
                 executePendingAiAction()
+                if (recoverAfterPageReload) {
+                    recoverAfterPageReload = false
+                    playbackPositionHandler.postDelayed({
+                        if (!isFinishing && !isDestroyed && webView != null) {
+                            // The page reload already used the one allowed reload fallback.
+                            // Probe and recover once more without starting a reload loop.
+                            recoverFullscreenPlayback(allowPageReloadFallback = false)
+                        }
+                    }, 900L)
+                }
             }
         }
 
@@ -1591,7 +1603,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun runYoutubePlaybackCommand(command: String) {
-        if (!youtubePlayerReady || webView == null || isFinishing || isDestroyed) return
+        if (webView == null || isFinishing || isDestroyed) return
         val generation = ++playbackCommandGeneration
         // A button press sends one playback command. Do not repeatedly call playVideo()
         // while YouTube is buffering: repeated commands can cause stutter and stop playback.
@@ -1599,7 +1611,7 @@ class YouTubePlayerActivity : ComponentActivity() {
 
         webView?.evaluateJavascript(youtubePlaybackScript(command)) { result ->
             if (generation != playbackCommandGeneration ||
-                !youtubePlayerReady || webView == null || isFinishing || isDestroyed
+                webView == null || isFinishing || isDestroyed
             ) return@evaluateJavascript
             val response = result.orEmpty()
             val accepted = response.contains("playing") ||
@@ -1613,7 +1625,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             if (!accepted && rejected && command != "pause") {
                 playbackPositionHandler.postDelayed({
                     if (generation == playbackCommandGeneration &&
-                        !isFinishing && !isDestroyed && youtubePlayerReady && webView != null
+                        !isFinishing && !isDestroyed && webView != null
                     ) {
                         webView?.evaluateJavascript(youtubePlaybackScript(retryCommand), null)
                     }
@@ -2419,8 +2431,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         val shouldResumePlayback = wasPlayingBeforeFullscreen ||
             youtubePlayerState == 1 ||
             getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
-                .getBoolean("youtube_playback_is_playing", false) ||
-            youtubePlayerReady
+                .getBoolean("youtube_playback_is_playing", false)
         wasPlayingBeforeFullscreen = false
 
         if (isCssFullscreen) {
@@ -2469,13 +2480,13 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
     }
 
-    private fun recoverFullscreenPlayback() {
+    private fun recoverFullscreenPlayback(allowPageReloadFallback: Boolean = true) {
         if (isFinishing || isDestroyed || webView == null) return
         val generation = ++fullscreenRecoveryGeneration
         var previousPosition: Double? = null
         var playRequested = false
         var fallbackNudgeSent = false
-        var pageReloadFallbackUsed = false
+        var pageReloadFallbackUsed = !allowPageReloadFallback
 
         // Re-arm foreground WebView processing after the orientation/layout transition.
         webView?.onResume()
@@ -2483,7 +2494,7 @@ class YouTubePlayerActivity : ComponentActivity() {
 
         fun attempt(number: Int) {
             if (generation != fullscreenRecoveryGeneration ||
-                isFinishing || isDestroyed || webView == null || !youtubePlayerReady
+                isFinishing || isDestroyed || webView == null
             ) return
 
             // One normal Play request if the element is paused, then only observe currentTime.
@@ -2617,6 +2628,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                             .appendQueryParameter("t", "${seconds}s")
                             .build()
                             .toString()
+                        recoverAfterPageReload = true
                         youtubePlayerReady = false
                         webView?.postDelayed({
                             if (!isFinishing && !isDestroyed && webView != null) {
