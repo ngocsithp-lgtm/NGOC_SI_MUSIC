@@ -40,6 +40,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.media3.common.util.UnstableApi
+import java.io.ByteArrayInputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.Executors
@@ -1815,6 +1816,25 @@ class YouTubePlayerActivity : ComponentActivity() {
             }
 
             webViewClient = object : WebViewClient() {
+                override fun shouldInterceptRequest(
+                    view: WebView,
+                    request: WebResourceRequest
+                ): android.webkit.WebResourceResponse? {
+                    if (isKnownYouTubeAdvertisingRequest(request.url)) {
+                        // Block only recognizable ad-serving hosts/endpoints. Never block
+                        // googlevideo.com: it also delivers the actual video/audio streams.
+                        return android.webkit.WebResourceResponse(
+                            "text/plain",
+                            "UTF-8",
+                            204,
+                            "No Content",
+                            mapOf("Cache-Control" to "no-store"),
+                            ByteArrayInputStream(ByteArray(0))
+                        )
+                    }
+                    return super.shouldInterceptRequest(view, request)
+                }
+
                 override fun shouldOverrideUrlLoading(
                     view: WebView,
                     request: WebResourceRequest
@@ -1833,6 +1853,84 @@ class YouTubePlayerActivity : ComponentActivity() {
                     // Chromium WebView instead of the IFrame API player.
                     view.evaluateJavascript("""
                         (function(){
+                          // Best-effort removal of visible ad slots and mute-to-unmute prompt
+                          // inside this WebView. Video delivery hosts are not filtered.
+                          try {
+                            if (!document.getElementById('ngocsi-youtube-cleanup-style')) {
+                              var cleanupStyle = document.createElement('style');
+                              cleanupStyle.id = 'ngocsi-youtube-cleanup-style';
+                              cleanupStyle.textContent =
+                                'ytm-ad-slot-renderer, ytm-promoted-sparkles-web-renderer, ' +
+                                'ytm-promoted-sparkles-text-search-renderer, ytm-companion-slot, ' +
+                                'ytd-ad-slot-renderer, ytd-display-ad-renderer, ' +
+                                'ytd-promoted-sparkles-web-renderer, .video-ads, .ytp-ad-module, ' +
+                                '.ytp-ad-player-overlay, .ytp-ad-overlay-container, ' +
+                                '.ytp-ad-image-overlay, .ytp-ad-text-overlay {' +
+                                'display:none!important;visibility:hidden!important;' +
+                                'pointer-events:none!important;max-height:0!important;}';
+                              (document.head || document.documentElement).appendChild(cleanupStyle);
+                            }
+                          } catch (_) {}
+
+                          var ngocSiUnmuteAttempts = 0;
+                          function removeMutePromptAndTrySound() {
+                            ngocSiUnmuteAttempts++;
+                            var playerRoot = document.querySelector(
+                              'ytm-player, #movie_player, .html5-video-player, ytm-watch'
+                            ) || document;
+                            var candidates = playerRoot.querySelectorAll(
+                              'button,[role="button"],[aria-label],ytm-button-renderer,' +
+                              '.ytp-unmute,.ytp-cued-thumbnail-overlay'
+                            );
+                            for (var i = 0; i < candidates.length; i++) {
+                              var el = candidates[i];
+                              var label = ((el.getAttribute('aria-label') || '') + ' ' +
+                                (el.innerText || el.textContent || '')).toLowerCase()
+                                .replace(/\\s+/g, ' ').trim();
+                              var isUnmutePrompt =
+                                label.indexOf('nhấn để bật tiếng') >= 0 ||
+                                label.indexOf('nhan de bat tieng') >= 0 ||
+                                label.indexOf('tap to unmute') >= 0 ||
+                                label.indexOf('click to unmute') >= 0 ||
+                                label.indexOf('unmute video') >= 0;
+                              if (!isUnmutePrompt) continue;
+                              // Trigger YouTube's own unmute action before hiding its prompt.
+                              try { el.click(); } catch (_) {}
+                              try {
+                                el.style.setProperty('visibility', 'hidden', 'important');
+                                el.style.setProperty('opacity', '0', 'important');
+                                el.style.setProperty('pointer-events', 'none', 'important');
+                                if (el.parentElement &&
+                                    (el.parentElement.innerText || '').toLowerCase()
+                                      .indexOf('nhấn để bật tiếng') >= 0) {
+                                  el.parentElement.style.setProperty('visibility', 'hidden', 'important');
+                                  el.parentElement.style.setProperty('opacity', '0', 'important');
+                                }
+                              } catch (_) {}
+                            }
+
+                            // WebView is configured for playback without a second gesture.
+                            // Try to clear autoplay mute without reloading/replacing the video.
+                            var video = window.__ngocSiFindActiveVideo
+                              ? window.__ngocSiFindActiveVideo()
+                              : playerRoot.querySelector('video');
+                            if (video && (video.muted || video.volume === 0)) {
+                              try {
+                                video.muted = false;
+                                video.defaultMuted = false;
+                                video.removeAttribute('muted');
+                                video.volume = 1;
+                              } catch (_) {}
+                            }
+                            if (ngocSiUnmuteAttempts >= 30 && window.__ngocSiUnmuteTimer) {
+                              clearInterval(window.__ngocSiUnmuteTimer);
+                              window.__ngocSiUnmuteTimer = null;
+                            }
+                          }
+                          if (window.__ngocSiUnmuteTimer) clearInterval(window.__ngocSiUnmuteTimer);
+                          removeMutePromptAndTrySound();
+                          window.__ngocSiUnmuteTimer = setInterval(removeMutePromptAndTrySound, 700);
+
                           // Keep state tracking and transport commands bound to the same
                           // active YouTube video element to avoid controlling a stale/hidden video.
                           function findActiveVideo() {
@@ -2213,6 +2311,35 @@ class YouTubePlayerActivity : ComponentActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, true)
         WindowInsetsControllerCompat(window, window.decorView)
             .show(WindowInsetsCompat.Type.systemBars())
+    }
+
+    /**
+     * Best-effort ad request filtering for the embedded YouTube WebView.
+     * Do not filter googlevideo.com or broad Google/YouTube hosts because they
+     * serve actual video/audio, player code, thumbnails and captions as well.
+     */
+    private fun isKnownYouTubeAdvertisingRequest(uri: Uri): Boolean {
+        val host = uri.host?.lowercase().orEmpty()
+        val path = uri.path?.lowercase().orEmpty()
+        fun isHostOrSubdomain(domain: String): Boolean =
+            host == domain || host.endsWith(".$domain")
+
+        val knownAdDomains = listOf(
+            "doubleclick.net",
+            "googlesyndication.com",
+            "googleadservices.com",
+            "adservice.google.com"
+        )
+        if (knownAdDomains.any(::isHostOrSubdomain)) return true
+
+        // Target clearly ad-specific endpoints on YouTube itself; avoid generic
+        // player/search APIs that are required for normal playback.
+        return isHostOrSubdomain("youtube.com") && (
+            path.contains("/pagead/") ||
+                path.contains("/get_midroll_info") ||
+                path.contains("/youtubei/v1/player/ad_break") ||
+                path.contains("/youtubei/v1/ad_break")
+            )
     }
 
     private fun sanitizeVideoId(value: String): String =
