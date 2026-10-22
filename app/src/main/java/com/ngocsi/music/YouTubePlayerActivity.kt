@@ -1886,7 +1886,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                               var el = candidates[i];
                               var label = ((el.getAttribute('aria-label') || '') + ' ' +
                                 (el.innerText || el.textContent || '')).toLowerCase()
-                                .replace(/\\s+/g, ' ').trim();
+                                .replace(/\s+/g, ' ').trim();
                               var isUnmutePrompt =
                                 label.indexOf('nhấn để bật tiếng') >= 0 ||
                                 label.indexOf('nhan de bat tieng') >= 0 ||
@@ -2328,7 +2328,8 @@ class YouTubePlayerActivity : ComponentActivity() {
             "doubleclick.net",
             "googlesyndication.com",
             "googleadservices.com",
-            "adservice.google.com"
+            "adservice.google.com",
+            "adservice.google.com.vn"
         )
         if (knownAdDomains.any(::isHostOrSubdomain)) return true
 
