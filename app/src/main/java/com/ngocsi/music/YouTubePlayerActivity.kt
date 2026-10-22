@@ -84,6 +84,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     // Preserve the pre-fullscreen playback state even if YouTube reports PAUSED while rotating.
     private var wasPlayingBeforeFullscreen = false
     private var fullscreenRecoveryGeneration = 0
+    private var playbackCommandGeneration = 0
     private var videoId: String = ""
     private var title: String = "YouTube"
     private var channel: String = "YouTube"
@@ -1507,6 +1508,16 @@ class YouTubePlayerActivity : ComponentActivity() {
                          document.querySelector('.html5-video-player') ||
                          document.querySelector('ytm-player');
                 }
+                function isActuallyPlaying(video) {
+                  if (!video || video.paused || video.ended || video.readyState < 2) return false;
+                  if (window.__ngocSiTrackedVideo === video &&
+                      typeof window.__ngocSiPlaybackActuallyPlaying === 'boolean') {
+                    var progressAt = Number(window.__ngocSiPlaybackProgressAt || 0);
+                    return window.__ngocSiPlaybackActuallyPlaying &&
+                      progressAt > 0 && Date.now() - progressAt < 1800;
+                  }
+                  return true;
+                }
                 function clickPlayButton() {
                   var selectors = [
                     '.ytp-play-button',
@@ -1538,8 +1549,9 @@ class YouTubePlayerActivity : ComponentActivity() {
                 if (!video) return 'no-video';
                 var api = getPlayerApi();
 
+                var actuallyPlaying = isActuallyPlaying(video);
                 var wantsPause = '$safeCommand' === 'pause' ||
-                    ('$safeCommand' === 'toggle' && !video.paused && !video.ended);
+                    ('$safeCommand' === 'toggle' && actuallyPlaying);
 
                 if (wantsPause) {
                   try { if (api && typeof api.pauseVideo === 'function') api.pauseVideo(); } catch (_) {}
@@ -1550,8 +1562,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 // Multiple simultaneous playback mechanisms caused stutter. Use one mechanism
                 // per request: prefer the YouTube player API, then the visible button or HTML
                 // media API only when the preferred mechanism is unavailable.
-                if ('$safeCommand' === 'play' &&
-                    !video.paused && !video.ended && video.readyState >= 2) return 'playing';
+                if ('$safeCommand' === 'play' && isActuallyPlaying(video)) return 'playing';
 
                 if (api && typeof api.playVideo === 'function') {
                   try {
@@ -1565,7 +1576,8 @@ class YouTubePlayerActivity : ComponentActivity() {
                   if (promise && typeof promise.catch === 'function') {
                     promise.catch(function(){});
                   }
-                  return !video.paused ? (video.readyState >= 2 ? 'playing' : 'buffering') : 'requested-video';
+                  return isActuallyPlaying(video) ? 'playing' :
+                    (!video.paused ? 'buffering' : 'requested-video');
                 } catch (_) {
                   return 'retry';
                 }
@@ -1578,17 +1590,32 @@ class YouTubePlayerActivity : ComponentActivity() {
 
     private fun runYoutubePlaybackCommand(command: String) {
         if (!youtubePlayerReady || webView == null || isFinishing || isDestroyed) return
-        webView?.evaluateJavascript(youtubePlaybackScript(command)) { result ->
-            if ((result?.contains("retry") == true || result?.contains("no-video") == true) &&
-                !isFinishing && !isDestroyed && command != "pause"
-            ) {
-                playbackPositionHandler.postDelayed({
-                    if (!isFinishing && !isDestroyed) {
-                        webView?.evaluateJavascript(youtubePlaybackScript(command), null)
-                    }
-                }, 350L)
+        val generation = ++playbackCommandGeneration
+        // A toggle that didn't pause was a Play request. Follow-up attempts must be
+        // idempotent Play commands; repeating "toggle" can immediately pause the video.
+        val retryCommand = if (command == "toggle") "play" else command
+
+        fun attempt(number: Int) {
+            if (generation != playbackCommandGeneration ||
+                !youtubePlayerReady || webView == null || isFinishing || isDestroyed
+            ) return
+            val effectiveCommand = if (number == 0) command else retryCommand
+            webView?.evaluateJavascript(youtubePlaybackScript(effectiveCommand)) { result ->
+                if (generation != playbackCommandGeneration) return@evaluateJavascript
+                val confirmed = if (effectiveCommand == "pause") {
+                    result?.contains("paused") == true
+                } else {
+                    result?.contains("playing") == true
+                }
+                if (!confirmed && effectiveCommand != "pause" && number < 5 &&
+                    !isFinishing && !isDestroyed
+                ) {
+                    playbackPositionHandler.postDelayed({ attempt(number + 1) }, 450L)
+                }
             }
         }
+
+        attempt(0)
     }
 
     /**
@@ -2015,16 +2042,33 @@ class YouTubePlayerActivity : ComponentActivity() {
                             try { AndroidBridge.onReady(); } catch(e) {}
                             var lastState = -99;
                             var lastVideo = null;
+                            var lastCurrentTime = NaN;
+                            var lastProgressAt = 0;
                             setInterval(function(){
                               var e = findActiveVideo();
                               if (!e) return;
                               if (e !== lastVideo) {
                                 lastVideo = e;
                                 lastState = -99;
+                                lastCurrentTime = Number(e.currentTime || 0);
+                                lastProgressAt = 0;
                               }
-                              // Report browser state only. Do not force pause/play when
-                              // the media clock pauses briefly; YouTube may simply buffer.
-                              var state = e.ended ? 0 : (e.paused ? 2 : 1);
+                              var currentTime = Number(e.currentTime || 0);
+                              if (!e.paused && !e.ended && e.readyState >= 2 &&
+                                  Number.isFinite(lastCurrentTime) && currentTime > lastCurrentTime + 0.025) {
+                                lastProgressAt = Date.now();
+                              }
+                              lastCurrentTime = currentTime;
+                              var clockAdvancing = lastProgressAt > 0 &&
+                                Date.now() - lastProgressAt < 1800 &&
+                                !e.paused && !e.ended && e.readyState >= 2;
+                              window.__ngocSiTrackedVideo = e;
+                              window.__ngocSiPlaybackProgressAt = lastProgressAt;
+                              window.__ngocSiPlaybackActuallyPlaying = clockAdvancing;
+                              // Distinguish a stalled/buffering media element from one whose
+                              // currentTime is really advancing. A stale "playing" flag used
+                              // to make the Play button issue pauseVideo() after fullscreen.
+                              var state = e.ended ? 0 : (e.paused ? 2 : (clockAdvancing ? 1 : 3));
                               if (state !== lastState) {
                                 lastState = state;
                                 try { AndroidBridge.onStateChanged(state); } catch (_) {}
@@ -2450,6 +2494,10 @@ class YouTubePlayerActivity : ComponentActivity() {
         if (isFinishing || isDestroyed || webView == null || !youtubePlayerReady) return
         val generation = ++fullscreenRecoveryGeneration
 
+        // Re-arm foreground WebView processing after the orientation/layout transition.
+        webView?.onResume()
+        webView?.resumeTimers()
+
         fun attempt(number: Int) {
             if (generation != fullscreenRecoveryGeneration ||
                 isFinishing || isDestroyed || webView == null || !youtubePlayerReady
@@ -2468,8 +2516,17 @@ class YouTubePlayerActivity : ComponentActivity() {
                               document.querySelector('ytm-player video') ||
                               document.querySelector('video');
                     if (!video) return 'no-video';
-                    if (!video.paused && !video.ended)
-                      return video.readyState >= 2 ? 'playing' : 'buffering';
+
+                    var progressAt = Number(window.__ngocSiPlaybackProgressAt || 0);
+                    var clockAdvancing =
+                      window.__ngocSiTrackedVideo === video &&
+                      window.__ngocSiPlaybackActuallyPlaying === true &&
+                      progressAt > 0 && Date.now() - progressAt < 1800 &&
+                      !video.paused && !video.ended && video.readyState >= 2;
+                    if (clockAdvancing) return 'playing';
+
+                    // Retry on both PAUSED and stalled/buffering states. A non-paused
+                    // HTML5 element is not proof that the video is actually moving.
                     var player = document.querySelector('#movie_player') ||
                                  document.querySelector('.html5-video-player') ||
                                  document.querySelector('ytm-player');
@@ -2488,10 +2545,9 @@ class YouTubePlayerActivity : ComponentActivity() {
 
             webView?.evaluateJavascript(script) { result ->
                 if (generation != fullscreenRecoveryGeneration) return@evaluateJavascript
-                val active = result?.contains("playing") == true ||
-                    result?.contains("buffering") == true
-                if (!active && number < 4) {
-                    playbackPositionHandler.postDelayed({ attempt(number + 1) }, 850L)
+                val reallyPlaying = result?.contains("playing") == true
+                if (!reallyPlaying && number < 8) {
+                    playbackPositionHandler.postDelayed({ attempt(number + 1) }, 750L)
                 }
             }
         }
@@ -2499,11 +2555,6 @@ class YouTubePlayerActivity : ComponentActivity() {
         attempt(0)
     }
 
-    /**
-     * Best-effort ad request filtering for the embedded YouTube WebView.
-     * Do not filter googlevideo.com or broad Google/YouTube hosts because they
-     * serve actual video/audio, player code, thumbnails and captions as well.
-     */
     private fun isKnownYouTubeAdvertisingRequest(uri: Uri): Boolean {
         val host = uri.host?.lowercase().orEmpty()
         val path = uri.path?.lowercase().orEmpty()
