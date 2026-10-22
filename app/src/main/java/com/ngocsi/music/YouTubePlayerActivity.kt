@@ -1591,31 +1591,33 @@ class YouTubePlayerActivity : ComponentActivity() {
     private fun runYoutubePlaybackCommand(command: String) {
         if (!youtubePlayerReady || webView == null || isFinishing || isDestroyed) return
         val generation = ++playbackCommandGeneration
-        // A toggle that didn't pause was a Play request. Follow-up attempts must be
-        // idempotent Play commands; repeating "toggle" can immediately pause the video.
+        // A button press sends one playback command. Do not repeatedly call playVideo()
+        // while YouTube is buffering: repeated commands can cause stutter and stop playback.
         val retryCommand = if (command == "toggle") "play" else command
 
-        fun attempt(number: Int) {
+        webView?.evaluateJavascript(youtubePlaybackScript(command)) { result ->
             if (generation != playbackCommandGeneration ||
                 !youtubePlayerReady || webView == null || isFinishing || isDestroyed
-            ) return
-            val effectiveCommand = if (number == 0) command else retryCommand
-            webView?.evaluateJavascript(youtubePlaybackScript(effectiveCommand)) { result ->
-                if (generation != playbackCommandGeneration) return@evaluateJavascript
-                val confirmed = if (effectiveCommand == "pause") {
-                    result?.contains("paused") == true
-                } else {
-                    result?.contains("playing") == true
-                }
-                if (!confirmed && effectiveCommand != "pause" && number < 5 &&
-                    !isFinishing && !isDestroyed
-                ) {
-                    playbackPositionHandler.postDelayed({ attempt(number + 1) }, 450L)
-                }
+            ) return@evaluateJavascript
+            val response = result.orEmpty()
+            val accepted = response.contains("playing") ||
+                response.contains("buffering") ||
+                response.contains("requested-api") ||
+                response.contains("requested-button") ||
+                response.contains("requested-video") ||
+                response.contains("paused")
+            val rejected = response.contains("retry") || response.contains("no-video") ||
+                response.contains("error")
+            if (!accepted && rejected && command != "pause") {
+                playbackPositionHandler.postDelayed({
+                    if (generation == playbackCommandGeneration &&
+                        !isFinishing && !isDestroyed && youtubePlayerReady && webView != null
+                    ) {
+                        webView?.evaluateJavascript(youtubePlaybackScript(retryCommand), null)
+                    }
+                }, 700L)
             }
         }
-
-        attempt(0)
     }
 
     /**
@@ -2403,9 +2405,9 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun exitFullscreen(notifyCallback: Boolean = true) {
-        // Snapshot playback before Android changes orientation/layout. The WebView's
-        // HTML5 video may keep the old landscape geometry and become paused after
-        // fullscreen closes, so restore layout first and only then resume if it was playing.
+        // Keep the existing WebView/video element and currentTime. Do not write persistent
+        // inline width/height/inset values to YouTube's internal video nodes; they survive
+        // removal of the fullscreen stylesheet and can break playback after rotation.
         val shouldResumePlayback = wasPlayingBeforeFullscreen ||
             youtubePlayerState == 1 ||
             getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
@@ -2442,49 +2444,17 @@ class YouTubePlayerActivity : ComponentActivity() {
         WindowInsetsControllerCompat(window, window.decorView)
             .show(WindowInsetsCompat.Type.systemBars())
 
-        // Recalculate the in-app 16:9 player after rotation; never reload the video.
+        // Resize only the native host after rotation. Let YouTube restore its own DOM layout;
+        // persistent forced CSS on internal player nodes is intentionally avoided.
         playerContainer.post {
             if (isFinishing || isDestroyed || webView == null) return@post
-            webView?.evaluateJavascript(
-                """
-                (function() {
-                  var player = document.querySelector('ytm-player');
-                  if (player) {
-                    player.style.setProperty('position', 'relative', 'important');
-                    player.style.removeProperty('inset');
-                    // Let the normal player CSS size it against the WebView viewport,
-                    // not the page's possibly narrow/stale flex parent.
-                    ['width','min-width','max-width','height','min-height','aspect-ratio']
-                      .forEach(function(name){ player.style.removeProperty(name); });
-                  }
-                  var containers = document.querySelectorAll(
-                    '.html5-video-player,.html5-video-container'
-                  );
-                  containers.forEach(function(node) {
-                    node.style.setProperty('inset', '0', 'important');
-                    node.style.setProperty('width', '100%', 'important');
-                    node.style.setProperty('height', '100%', 'important');
-                  });
-                  var videos = document.querySelectorAll('ytm-player video,video.html5-main-video');
-                  videos.forEach(function(video) {
-                    video.style.setProperty('left', '0', 'important');
-                    video.style.setProperty('top', '0', 'important');
-                    video.style.setProperty('width', '100%', 'important');
-                    video.style.setProperty('height', '100%', 'important');
-                    video.style.setProperty('max-width', '100%', 'important');
-                    video.style.setProperty('max-height', '100%', 'important');
-                    video.style.setProperty('object-fit', 'contain', 'important');
-                    video.style.setProperty('object-position', 'center', 'important');
-                  });
-                  window.dispatchEvent(new Event('resize'));
-                  return 'restored';
-                })();
-                """.trimIndent()
-            ) {
-                if (shouldResumePlayback && !isFinishing && !isDestroyed) {
-                    // Orientation restoration can complete after this layout callback.
-                    // Retry only while the actual HTML5 video remains paused.
-                    webView?.postDelayed({ recoverFullscreenPlayback() }, 500L)
+            playerContainer.requestLayout()
+            webView?.post {
+                if (isFinishing || isDestroyed || webView == null) return@post
+                webView?.evaluateJavascript("window.dispatchEvent(new Event('resize'));", null)
+                if (shouldResumePlayback) {
+                    // Wait for Android orientation and WebView layout to settle before recovery.
+                    webView?.postDelayed({ recoverFullscreenPlayback() }, 850L)
                 }
             }
         }
@@ -2493,6 +2463,9 @@ class YouTubePlayerActivity : ComponentActivity() {
     private fun recoverFullscreenPlayback() {
         if (isFinishing || isDestroyed || webView == null || !youtubePlayerReady) return
         val generation = ++fullscreenRecoveryGeneration
+        var previousPosition: Double? = null
+        var playRequested = false
+        var fallbackNudgeSent = false
 
         // Re-arm foreground WebView processing after the orientation/layout transition.
         webView?.onResume()
@@ -2503,8 +2476,17 @@ class YouTubePlayerActivity : ComponentActivity() {
                 isFinishing || isDestroyed || webView == null || !youtubePlayerReady
             ) return
 
+            // One normal Play request if the element is paused, then only observe currentTime.
+            // If it remains stalled for ~3 seconds, allow one (and only one) fallback nudge.
+            val mode = when {
+                number == 0 && !playRequested -> "initial"
+                number >= 5 && !fallbackNudgeSent -> "fallback"
+                else -> "probe"
+            }
+            if (mode == "fallback") fallbackNudgeSent = true
+
             val script = """
-                (function() {
+                (function(mode) {
                   try {
                     var video = null;
                     try {
@@ -2515,39 +2497,76 @@ class YouTubePlayerActivity : ComponentActivity() {
                       video = document.querySelector('video.html5-main-video') ||
                               document.querySelector('ytm-player video') ||
                               document.querySelector('video');
-                    if (!video) return 'no-video';
+                    if (!video) return 'NO_VIDEO|0|0';
 
-                    var progressAt = Number(window.__ngocSiPlaybackProgressAt || 0);
-                    var clockAdvancing =
-                      window.__ngocSiTrackedVideo === video &&
-                      window.__ngocSiPlaybackActuallyPlaying === true &&
-                      progressAt > 0 && Date.now() - progressAt < 1800 &&
-                      !video.paused && !video.ended && video.readyState >= 2;
-                    if (clockAdvancing) return 'playing';
+                    var position = Number(video.currentTime || 0);
+                    var ready = Number(video.readyState || 0);
+                    if (video.ended) return 'ENDED|' + position + '|' + ready;
 
-                    // Retry on both PAUSED and stalled/buffering states. A non-paused
-                    // HTML5 element is not proof that the video is actually moving.
                     var player = document.querySelector('#movie_player') ||
                                  document.querySelector('.html5-video-player') ||
                                  document.querySelector('ytm-player');
-                    if (player && typeof player.playVideo === 'function') {
-                      try { player.playVideo(); return 'requested-api'; } catch (_) {}
+
+                    if (mode === 'initial' && video.paused) {
+                      if (player && typeof player.playVideo === 'function') {
+                        try { player.playVideo(); return 'REQUESTED|' + position + '|' + ready; } catch (_) {}
+                      }
+                      try {
+                        var firstPromise = video.play();
+                        if (firstPromise && typeof firstPromise.catch === 'function')
+                          firstPromise.catch(function(){});
+                        return 'REQUESTED|' + position + '|' + ready;
+                      } catch (_) {}
                     }
-                    try {
-                      var promise = video.play();
-                      if (promise && typeof promise.catch === 'function')
-                        promise.catch(function(){});
-                      return 'requested-video';
-                    } catch (_) { return 'retry'; }
-                  } catch (_) { return 'retry'; }
-                })();
+
+                    if (mode === 'fallback') {
+                      if (player && typeof player.playVideo === 'function') {
+                        try { player.playVideo(); return 'NUDGED|' + position + '|' + ready; } catch (_) {}
+                      }
+                      if (video.paused) {
+                        try {
+                          var fallbackPromise = video.play();
+                          if (fallbackPromise && typeof fallbackPromise.catch === 'function')
+                            fallbackPromise.catch(function(){});
+                          return 'NUDGED|' + position + '|' + ready;
+                        } catch (_) {}
+                      }
+                    }
+
+                    return (video.paused ? 'PAUSED' : 'ACTIVE') + '|' + position + '|' + ready;
+                  } catch (_) {
+                    return 'ERROR|0|0';
+                  }
+                })('$mode');
             """.trimIndent()
 
             webView?.evaluateJavascript(script) { result ->
                 if (generation != fullscreenRecoveryGeneration) return@evaluateJavascript
-                val reallyPlaying = result?.contains("playing") == true
-                if (!reallyPlaying && number < 8) {
-                    playbackPositionHandler.postDelayed({ attempt(number + 1) }, 750L)
+                val fields = result.orEmpty().trim('"').split('|')
+                val state = fields.getOrNull(0).orEmpty()
+                val currentPosition = fields.getOrNull(1)?.toDoubleOrNull()
+
+                if (state == "ENDED") return@evaluateJavascript
+                if (state == "REQUESTED") playRequested = true
+
+                // Confirm recovery only when the actual media clock advances. "ACTIVE" or
+                // "buffering" alone is not enough and must not trigger more Play commands.
+                val previous = previousPosition
+                if (previous != null && currentPosition != null &&
+                    currentPosition > previous + 0.04
+                ) {
+                    getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
+                        .putBoolean("youtube_playback_is_playing", true)
+                        .putBoolean("youtube_is_playing", true)
+                        .apply()
+                    return@evaluateJavascript
+                }
+                if (currentPosition != null) previousPosition = currentPosition
+
+                if (number < 11 && state != "NO_VIDEO" && !isFinishing && !isDestroyed) {
+                    playbackPositionHandler.postDelayed({ attempt(number + 1) }, 650L)
+                } else if (number < 11 && !isFinishing && !isDestroyed) {
+                    playbackPositionHandler.postDelayed({ attempt(number + 1) }, 650L)
                 }
             }
         }
