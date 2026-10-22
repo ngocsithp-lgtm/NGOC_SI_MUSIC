@@ -8930,7 +8930,9 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     Text(
                                         "Chạm thẻ để phát • ♥ yêu thích • 🔖 xem sau",
                                         color = Color(0xFF858B9A),
-                                        fontSize = 10.sp,$1maxLines = 2,$2lineHeight = 13.sp
+                                        fontSize = 10.sp,
+                                         maxLines = 2,
+                                         lineHeight = 13.sp
                                     )
                                 }
                                 if (youtubeTracks.size > 1) {
