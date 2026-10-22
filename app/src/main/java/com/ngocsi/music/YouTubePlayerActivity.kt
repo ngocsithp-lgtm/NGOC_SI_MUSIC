@@ -1341,11 +1341,16 @@ class YouTubePlayerActivity : ComponentActivity() {
             Toast.LENGTH_SHORT
         ).show()
 
-        // Do not call finish(): onDestroy() intentionally stops the service and
-        // destroys WebView. Task-to-background hides the player without destroying it.
+        // Return to the main NGỌC SĨ MUSIC screen without finishing this Activity.
+        // FLAG_ACTIVITY_REORDER_TO_FRONT reuses MainActivity if it is already in the task;
+        // this YouTube Activity remains underneath, keeping the same WebView/video alive.
+        // Calling finish() would destroy the HTML5 media element and stop playback.
         root.postDelayed({
             if (!isFinishing && !isDestroyed) {
-                moveTaskToBack(true)
+                startActivity(
+                    Intent(this, MainActivity::class.java)
+                        .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+                )
             }
         }, 250L)
     }
