@@ -8551,15 +8551,15 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             Spacer(Modifier.width(10.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(
-                                    "NGỌC SĨ YOUTUBE MUSIC",
+                                    "NGỌC SĨ YOUTUBE",
                                     color = Color.White,
                                     fontSize = 18.sp,
                                     fontWeight = FontWeight.Black,
-                                    letterSpacing = 0.6.sp
+                                    letterSpacing = 0.45.sp
                                 )
                                 Text(
-                                    "Tìm kiếm • hàng đợi • trình phát tích hợp",
-                                    color = Color(0xFF8F8F9A),
+                                    "Tìm kiếm • phát trong app • hàng đợi",
+                                    color = Color(0xFFB0B4C0),
                                     fontSize = 11.sp
                                 )
                             }
@@ -8569,7 +8569,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     color = Color(0xFF17261E)
                                 ) {
                                     Text(
-                                        "CÓ BÀI GẦN NHẤT",
+                                        "ĐÃ PHÁT GẦN ĐÂY",
                                         color = Color(0xFF8FD694),
                                         fontSize = 8.sp,
                                         fontWeight = FontWeight.Black,
@@ -8618,40 +8618,44 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             }
 
             item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(7.dp)
-                ) {
-                    listOf(
-                        "Nhạc Việt",
-                        "Bolero",
-                        "Trữ tình",
-                        "Nhạc trẻ",
-                        "Nhạc xưa"
-                    ).forEach { preset ->
-                        Surface(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable {
-                                    youtubeQuery = preset
-                                    searchYouTube()
-                                },
-                            shape = RoundedCornerShape(12.dp),
-                            color = Color(0xFF181A22),
-                            border = androidx.compose.foundation.BorderStroke(
-                                1.dp,
-                                Color(0xFF292D38)
-                            )
-                        ) {
-                            Text(
-                                preset,
-                                color = Color(0xFFC4C7D2),
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.padding(horizontal = 11.dp, vertical = 8.dp)
-                            )
+                Column {
+                    SectionTitle("KHÁM PHÁ THEO THỂ LOẠI", "5 gợi ý")
+                    Spacer(Modifier.height(7.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(7.dp)
+                    ) {
+                        listOf(
+                            "Nhạc Việt",
+                            "Bolero",
+                            "Trữ tình",
+                            "Nhạc trẻ",
+                            "Nhạc xưa"
+                        ).forEach { preset ->
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable {
+                                        youtubeQuery = preset
+                                        searchYouTube()
+                                    },
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color(0xFF181A22),
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp,
+                                    Color(0xFF292D38)
+                                )
+                            ) {
+                                Text(
+                                    preset,
+                                    color = Color(0xFFD5D7E0),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -8659,7 +8663,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
             item {
                 Text(
-                    "TÌM KIẾM YOUTUBE",
+                    "TÌM BÀI HÁT, NGHỆ SĨ HOẶC VIDEO",
                     color = Color(0xFF858B9C),
                     fontSize = 9.sp,
                     fontWeight = FontWeight.Black,
@@ -8679,7 +8683,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         singleLine = true,
                         placeholder = {
                             Text(
-                                "Tìm tên bài hát, nghệ sĩ, video...",
+                                "Nhập tên bài hát hoặc nghệ sĩ...",
                                 color = Color(0xFF747A89)
                             )
                         },
@@ -8924,11 +8928,9 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 Column(Modifier.weight(1f)) {
                                     SectionTitle("KẾT QUẢ TÌM KIẾM", youtubeTracks.size.toString() + " video")
                                     Text(
-                                        "Chạm ảnh hoặc tên để phát • ♡ yêu thích • 🔖 xem sau",
+                                        "Chạm thẻ để phát • ♥ yêu thích • 🔖 xem sau",
                                         color = Color(0xFF858B9A),
-                                        fontSize = 9.sp,
-                                        maxLines = 2,
-                                        lineHeight = 12.sp
+                                        fontSize = 10.sp,$1maxLines = 2,$2lineHeight = 13.sp
                                     )
                                 }
                                 if (youtubeTracks.size > 1) {
@@ -8956,9 +8958,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             val isWatchLater = youtubeWatchLater.any { it.videoId == track.videoId }
                             val isCurrent = youtubeLastPlayed?.videoId == track.videoId
                             Surface(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { playYouTube(track) },
                                 shape = RoundedCornerShape(16.dp),
-                                color = if (isCurrent) Color(0xFF20171A) else Color(0xFF15161D),
+                                color = if (isCurrent) Color(0xFF25171C) else Color(0xFF171922),
                                 border = androidx.compose.foundation.BorderStroke(
                                     1.dp,
                                     if (isCurrent) Color(0xFF5B2C35) else Color(0xFF232733)
@@ -8970,7 +8974,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 ) {
                                     Box(
                                         Modifier
-                                            .size(124.dp, 70.dp)
+                                            .size(120.dp, 76.dp)
                                             .clip(RoundedCornerShape(10.dp))
                                             .clickable { playYouTube(track) }
                                     ) {
@@ -8978,7 +8982,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         Surface(
                                             modifier = Modifier
                                                 .align(Alignment.Center)
-                                                .size(34.dp),
+                                                .size(38.dp),
                                             shape = CircleShape,
                                             color = Color(0xCC0A0C11)
                                         ) {
@@ -8999,11 +9003,9 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                             color = Color(0xCC0A0C11)
                                         ) {
                                             Text(
-                                                if (isCurrent) "TIẾP TỤC" else "YOUTUBE",
+                                                if (isCurrent) "ĐANG PHÁT" else "YOUTUBE",
                                                 color = if (isCurrent) Color(0xFFFF7A87) else Color.White,
-                                                fontSize = 7.sp,
-                                                fontWeight = FontWeight.Black,
-                                                modifier = Modifier.padding(
+                                                fontSize = 8.sp,$1fontWeight = FontWeight.Black,$2modifier = Modifier.padding(
                                                     horizontal = 5.dp,
                                                     vertical = 3.dp
                                                 )
@@ -9018,27 +9020,17 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         Text(
                                             track.title,
                                             color = Color.White,
-                                            fontSize = 13.sp,
-                                            lineHeight = 17.sp,
-                                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold,
+                                            fontSize = 14.sp,$1lineHeight = 18.sp,$2fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold,
                                             maxLines = 2,
                                             overflow = TextOverflow.Ellipsis
                                         )
                                         Text(
                                             track.channelTitle,
-                                            color = Color(0xFF8F8F9A),
-                                            fontSize = 10.sp,
+                                            color = Color(0xFF9DA2B0),
+                                            fontSize = 11.sp,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
-                                        if (isCurrent) {
-                                            Text(
-                                                "TIẾP TỤC",
-                                                color = Color(0xFFFF7A87),
-                                                fontSize = 8.sp,
-                                                fontWeight = FontWeight.Black
-                                            )
-                                        }
                                     }
                                     Row(
                                         horizontalArrangement = Arrangement.spacedBy(1.dp),
@@ -9046,7 +9038,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     ) {
                                         IconButton(
                                             onClick = { toggleYouTubeFavorite(track) },
-                                            modifier = Modifier.size(36.dp)
+                                            modifier = Modifier.size(34.dp)
                                         ) {
                                             Text(
                                                 if (isFavorite) "♥" else "♡",
@@ -9056,7 +9048,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         }
                                         IconButton(
                                             onClick = { toggleYouTubeWatchLater(track) },
-                                            modifier = Modifier.size(36.dp)
+                                            modifier = Modifier.size(34.dp)
                                         ) {
                                             Text(
                                                 if (isWatchLater) "✓" else "🔖",
