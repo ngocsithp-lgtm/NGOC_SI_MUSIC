@@ -9005,7 +9005,9 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                             Text(
                                                 if (isCurrent) "ĐANG PHÁT" else "YOUTUBE",
                                                 color = if (isCurrent) Color(0xFFFF7A87) else Color.White,
-                                                fontSize = 8.sp,$1fontWeight = FontWeight.Black,$2modifier = Modifier.padding(
+                                                fontSize = 8.sp,
+                                                fontWeight = FontWeight.Black,
+                                                modifier = Modifier.padding(
                                                     horizontal = 5.dp,
                                                     vertical = 3.dp
                                                 )
@@ -9020,7 +9022,9 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         Text(
                                             track.title,
                                             color = Color.White,
-                                            fontSize = 14.sp,$1lineHeight = 18.sp,$2fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold,
+                                            fontSize = 14.sp,
+                                            lineHeight = 18.sp,
+                                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold,
                                             maxLines = 2,
                                             overflow = TextOverflow.Ellipsis
                                         )
