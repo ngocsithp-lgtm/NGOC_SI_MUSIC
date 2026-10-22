@@ -1853,17 +1853,20 @@ class YouTubePlayerActivity : ComponentActivity() {
                     // Chromium WebView instead of the IFrame API player.
                     view.evaluateJavascript("""
                         (function(){
-                          // Best-effort removal of visible ad slots and mute-to-unmute prompt
-                          // inside this WebView. Video delivery hosts are not filtered.
+                          // Best-effort removal of common mobile/desktop YouTube ad-slot elements
+                          // and the mute prompt inside this WebView. Video delivery hosts are not filtered.
                           try {
                             if (!document.getElementById('ngocsi-youtube-cleanup-style')) {
                               var cleanupStyle = document.createElement('style');
                               cleanupStyle.id = 'ngocsi-youtube-cleanup-style';
                               cleanupStyle.textContent =
                                 'ytm-ad-slot-renderer, ytm-promoted-sparkles-web-renderer, ' +
-                                'ytm-promoted-sparkles-text-search-renderer, ytm-companion-slot, ' +
-                                'ytd-ad-slot-renderer, ytd-display-ad-renderer, ' +
-                                'ytd-promoted-sparkles-web-renderer, .video-ads, .ytp-ad-module, ' +
+                                'ytm-promoted-sparkles-text-search-renderer, ytm-promoted-video-renderer, ' +
+                                'ytm-companion-slot, ytm-companion-ad-renderer, ytm-in-feed-ad-layout-renderer, ' +
+                                'ytd-ad-slot-renderer, ytd-display-ad-renderer, ytd-promoted-video-renderer, ' +
+                                'ytd-promoted-sparkles-web-renderer, ytd-in-feed-ad-layout-renderer, ' +
+                                'ytd-banner-promo-renderer, ytd-action-companion-ad-renderer, ' +
+                                '#player-ads, #masthead-ad, .video-ads, .ytp-ad-module, ' +
                                 '.ytp-ad-player-overlay, .ytp-ad-overlay-container, ' +
                                 '.ytp-ad-image-overlay, .ytp-ad-text-overlay {' +
                                 'display:none!important;visibility:hidden!important;' +
