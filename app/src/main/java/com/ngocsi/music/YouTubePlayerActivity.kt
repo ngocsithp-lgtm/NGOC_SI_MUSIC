@@ -451,11 +451,17 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
         val nowPlaying = TextView(this).apply {
             tag = "youtube_playback_status"
-            text = "●  ĐANG KẾT NỐI YOUTUBE"
-            setTextColor(AndroidColor.rgb(171, 175, 188))
+            text = "●  YOUTUBE  •  TRÌNH PHÁT TÍCH HỢP"
+            setTextColor(AndroidColor.rgb(255, 139, 155))
             textSize = 10f
             typeface = android.graphics.Typeface.DEFAULT_BOLD
             letterSpacing = 0.06f
+            background = roundedButtonDrawable(
+                fill = AndroidColor.rgb(39, 24, 30),
+                stroke = AndroidColor.rgb(83, 45, 56),
+                radius = dp(9)
+            )
+            setPadding(dp(9), dp(6), dp(9), dp(6))
             contentDescription = "Trạng thái phát video YouTube"
         }
         titleView = TextView(this).apply {
@@ -476,12 +482,17 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
         val queueHint = TextView(this).apply {
             tag = "youtube_queue_hint"
-            text = "HÀNG ĐỢI • " + (queueIndex + 1) + "/" + queue.size.coerceAtLeast(1)
-            setTextColor(AndroidColor.rgb(141, 238, 255))
+            text = "☷  HÀNG ĐỢI  •  " + (queueIndex + 1) + "/" + queue.size.coerceAtLeast(1)
+            setTextColor(AndroidColor.rgb(164, 225, 255))
             textSize = 10f
             typeface = android.graphics.Typeface.DEFAULT_BOLD
-            letterSpacing = 0.03f
-            setPadding(0, dp(8), 0, 0)
+            letterSpacing = 0.04f
+            background = roundedButtonDrawable(
+                fill = AndroidColor.rgb(20, 29, 43),
+                stroke = AndroidColor.rgb(42, 65, 91),
+                radius = dp(10)
+            )
+            setPadding(dp(10), dp(7), dp(10), dp(7))
         }
         info.addView(nowPlaying)
         info.addView(titleView)
@@ -2015,7 +2026,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     private fun updateQueueButton() {
         val positionText = (queueIndex + 1).coerceAtLeast(1).toString() + "/" + queue.size.coerceAtLeast(1)
         root.findViewWithTag<Button>("queue_button")?.text = "☷  HÀNG ĐỢI  •  " + positionText
-        root.findViewWithTag<TextView>("youtube_queue_hint")?.text = "Hàng đợi YouTube • " + positionText
+        root.findViewWithTag<TextView>("youtube_queue_hint")?.text = "☷  HÀNG ĐỢI  •  " + positionText
         root.findViewWithTag<ProgressBar>("queue_progress")?.apply {
             max = queue.size.coerceAtLeast(1)
             progress = (queueIndex + 1).coerceIn(0, max)
