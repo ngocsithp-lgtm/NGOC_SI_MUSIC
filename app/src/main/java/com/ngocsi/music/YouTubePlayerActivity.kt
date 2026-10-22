@@ -85,11 +85,10 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var channel: String = "YouTube"
     private lateinit var titleView: TextView
     private lateinit var channelView: TextView
-    private lateinit var favoriteButton: Button
-    private lateinit var watchLaterButton: Button
     private lateinit var previousButton: Button
     private lateinit var nextButton: Button
     private lateinit var playPauseButton: Button
+    private lateinit var moreButton: Button
     private data class QueueItem(val videoId: String, val title: String, val channelTitle: String, val thumbnailUrl: String)
     private val queue = mutableListOf<QueueItem>()
     private var queueIndex = 0
@@ -374,58 +373,35 @@ class YouTubePlayerActivity : ComponentActivity() {
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(AndroidColor.rgb(8, 9, 12))
-            setPadding(0, 0, 0, dp(12))
+            setPadding(0, 0, 0, dp(4))
         }
 
-        // Minimal app bar: keep navigation, but remove the redundant HOME button.
+        // Compact header: one navigation control and one title, without duplicated branding.
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(10), dp(5), dp(16), dp(5))
-            setBackgroundColor(AndroidColor.rgb(17, 18, 23))
+            setPadding(dp(10), dp(3), dp(12), dp(3))
+            setBackgroundColor(AndroidColor.rgb(15, 16, 20))
         }
 
-        val backButton = Button(this).apply {
-            text = "‹"
-            isAllCaps = false
-            textSize = 28f
-            setTextColor(AndroidColor.WHITE)
-            background = roundedButtonDrawable(
-                fill = AndroidColor.rgb(24, 26, 33),
-                stroke = AndroidColor.rgb(42, 46, 56),
-                radius = dp(13)
-            )
-            backgroundTintList = null
+        val backButton = actionButton("‹") {
+            if (customView != null) exitFullscreen() else finish()
+        }.apply {
+            textSize = 27f
             contentDescription = "Quay lại"
-            setOnClickListener {
-                if (customView != null) exitFullscreen() else finish()
-            }
         }
-        header.addView(backButton, LinearLayout.LayoutParams(dp(44), dp(44)))
+        header.addView(backButton, LinearLayout.LayoutParams(dp(42), dp(42)))
 
-        val headerInfo = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(12), 0, 0, 0)
-        }
         val headerTitle = TextView(this).apply {
             text = "YouTube"
             setTextColor(AndroidColor.WHITE)
-            textSize = 15f
+            textSize = 16f
             typeface = android.graphics.Typeface.DEFAULT_BOLD
+            setPadding(dp(12), 0, 0, 0)
         }
-        val headerSubtitle = TextView(this).apply {
-            text = "NGỌC SĨ MUSIC"
-            setTextColor(AndroidColor.rgb(145, 148, 160))
-            textSize = 10f
-            letterSpacing = 0.08f
-        }
-        headerInfo.addView(headerTitle)
-        headerInfo.addView(headerSubtitle)
-        header.addView(headerInfo, LinearLayout.LayoutParams(
+        header.addView(headerTitle, LinearLayout.LayoutParams(
             0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
         ))
-
 
         playerContainer = FrameLayout(this).apply {
             setBackgroundColor(AndroidColor.BLACK)
@@ -437,196 +413,115 @@ class YouTubePlayerActivity : ComponentActivity() {
             LinearLayout.LayoutParams.WRAP_CONTENT
         ))
 
-        // Preserve the native 16:9 video ratio.
-        val playerHeight = (resources.displayMetrics.widthPixels * 9f / 16f).toInt()
+        // Keep the in-app player at 16:9 in portrait; YouTube's native fullscreen
+        // custom view takes over the entire display when fullscreen is requested.
+        val metrics = resources.displayMetrics
+        val playerHeight = (metrics.widthPixels * 9f / 16f).toInt()
         content.addView(playerContainer, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             playerHeight.coerceAtLeast(dp(200))
         ))
 
-        // Separate metadata from navigation so the video remains the visual focus.
         val info = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(13), dp(16), dp(5))
-            setBackgroundColor(AndroidColor.rgb(11, 12, 16))
-        }
-        val nowPlaying = TextView(this).apply {
-            tag = "youtube_playback_status"
-            text = "●  YOUTUBE  •  TRÌNH PHÁT TÍCH HỢP"
-            setTextColor(AndroidColor.rgb(255, 139, 155))
-            textSize = 10f
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-            letterSpacing = 0.06f
-            background = roundedButtonDrawable(
-                fill = AndroidColor.rgb(39, 24, 30),
-                stroke = AndroidColor.rgb(83, 45, 56),
-                radius = dp(9)
-            )
-            setPadding(dp(9), dp(6), dp(9), dp(6))
-            contentDescription = "Trạng thái phát video YouTube"
+            setPadding(dp(14), dp(8), dp(14), dp(3))
+            setBackgroundColor(AndroidColor.rgb(8, 9, 12))
         }
         titleView = TextView(this).apply {
             text = title
             setTextColor(AndroidColor.WHITE)
-            textSize = 18f
+            textSize = 16f
             typeface = android.graphics.Typeface.DEFAULT_BOLD
             maxLines = 2
             ellipsize = android.text.TextUtils.TruncateAt.END
-            setPadding(0, dp(4), 0, dp(3))
+            setPadding(0, 0, 0, dp(2))
         }
         channelView = TextView(this).apply {
             text = channel
             setTextColor(AndroidColor.rgb(158, 160, 171))
-            textSize = 13f
-            maxLines = 2
+            textSize = 12f
+            maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
         }
-        val queueHint = TextView(this).apply {
-            tag = "youtube_queue_hint"
-            text = "☷  HÀNG ĐỢI  •  " + (queueIndex + 1) + "/" + queue.size.coerceAtLeast(1)
-            setTextColor(AndroidColor.rgb(164, 225, 255))
-            textSize = 10f
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-            letterSpacing = 0.04f
-            background = roundedButtonDrawable(
-                fill = AndroidColor.rgb(20, 29, 43),
-                stroke = AndroidColor.rgb(42, 65, 91),
-                radius = dp(10)
-            )
-            setPadding(dp(10), dp(7), dp(10), dp(7))
-        }
-        info.addView(nowPlaying)
         info.addView(titleView)
         info.addView(channelView)
-        info.addView(queueHint)
         content.addView(info, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
         ))
 
-        // The three essential transport actions get the strongest visual emphasis.
+        // Keep only the essential playback controls visible.
         val transport = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setPadding(dp(12), dp(10), dp(12), dp(8))
+            setPadding(dp(8), dp(5), dp(8), dp(5))
         }
-        previousButton = actionButton("⏮") { playPrevious() }
-        playPauseButton = actionButton("▶") { toggleYoutubePlayback() }
-        nextButton = actionButton("⏭") { playNext() }
+        previousButton = actionButton("⏮") { playPrevious() }.apply {
+            textSize = 18f
+            contentDescription = "Video trước"
+        }
+        playPauseButton = actionButton("▶") { toggleYoutubePlayback() }.apply {
+            textSize = 21f
+            contentDescription = "Phát hoặc tạm dừng"
+        }
+        nextButton = actionButton("⏭") { playNext() }.apply {
+            textSize = 18f
+            contentDescription = "Video tiếp theo"
+        }
+        val fullscreenButton = actionButton("⛶") {
+            requestYoutubeFullscreen()
+        }.apply {
+            textSize = 21f
+            contentDescription = "Phát toàn màn hình"
+        }
         styleWideButton(playPauseButton, emphasized = true)
-        previousButton.contentDescription = "Video trước"
-        nextButton.contentDescription = "Video tiếp theo"
-        previousButton.textSize = 19f
-        playPauseButton.textSize = 22f
-        nextButton.textSize = 19f
-        transport.addView(previousButton, LinearLayout.LayoutParams(dp(58), dp(48)).apply {
-            marginEnd = dp(12)
+
+        transport.addView(previousButton, LinearLayout.LayoutParams(dp(54), dp(44)).apply {
+            marginEnd = dp(8)
         })
-        transport.addView(playPauseButton, LinearLayout.LayoutParams(dp(72), dp(52)).apply {
-            marginEnd = dp(12)
+        transport.addView(playPauseButton, LinearLayout.LayoutParams(dp(66), dp(46)).apply {
+            marginEnd = dp(8)
         })
-        transport.addView(nextButton, LinearLayout.LayoutParams(dp(58), dp(48)))
+        transport.addView(nextButton, LinearLayout.LayoutParams(dp(54), dp(44)).apply {
+            marginEnd = dp(8)
+        })
+        transport.addView(fullscreenButton, LinearLayout.LayoutParams(dp(48), dp(44)))
         content.addView(transport)
 
-        // Keep YouTube playback inside the app's embedded player.
-        // Do not hand off to an external browser: this screen must remain the app player.
-
-        // Secondary actions are compact and visually subordinate to play/pause.
-        val utilityRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(10), dp(1), dp(10), dp(3))
-        }
-        favoriteButton = actionButton("♡\nYêu thích") { toggleFavorite() }.apply {
-            textSize = 11f
-            contentDescription = "Yêu thích"
-        }
-        watchLaterButton = actionButton("🔖\nXem sau") { toggleWatchLater() }.apply {
-            textSize = 11f
-            contentDescription = "Lưu vào danh sách xem sau"
-        }
-        val shuffleButton = actionButton("🔀\nTrộn") { toggleYoutubeShuffle() }.apply {
-            tag = "youtube_shuffle_button"
-            textSize = 11f
-            contentDescription = "Phát ngẫu nhiên hàng đợi YouTube"
-        }
-        val repeatButton = actionButton("🔁\nLặp") { toggleYoutubeRepeat() }.apply {
-            tag = "youtube_repeat_button"
-            textSize = 11f
-            contentDescription = "Chế độ lặp hàng đợi YouTube"
-        }
-        listOf(favoriteButton, watchLaterButton, shuffleButton, repeatButton)
-            .forEachIndexed { index, button ->
-                utilityRow.addView(button, LinearLayout.LayoutParams(0, dp(50), 1f).apply {
-                    if (index < 4) marginEnd = dp(4)
-                })
-            }
-        content.addView(utilityRow)
-
-        // Queue is one clear entry point; share stays available but no longer competes as a large button.
+        // One compact action row replaces four large utility buttons.
         val queueActions = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(10), dp(8), dp(10), dp(3))
+            setPadding(dp(10), dp(3), dp(10), dp(3))
         }
-        val queueButton = Button(this).apply {
-            text = "☷  Hàng đợi  •  " + (queueIndex + 1) + "/" + queue.size
+        val queueButton = actionButton(
+            "☷  Hàng đợi  •  " + (queueIndex + 1) + "/" + queue.size.coerceAtLeast(1)
+        ) { showQueueDialog() }.apply {
             tag = "queue_button"
-            setOnClickListener { showQueueDialog() }
+            textSize = 13f
+            contentDescription = "Mở hàng đợi YouTube"
         }
         styleWideButton(queueButton)
-        queueButton.textSize = 14f
-        queueActions.addView(queueButton, LinearLayout.LayoutParams(0, dp(46), 1f).apply {
-            marginEnd = dp(8)
+        queueActions.addView(queueButton, LinearLayout.LayoutParams(0, dp(42), 1f).apply {
+            marginEnd = dp(7)
         })
 
-        val backgroundButton = actionButton("🎧 Nền") { enableInAppBackgroundPlayback() }.apply {
-            contentDescription = "Bật phát nền ngay trong NGỌC SĨ MUSIC"
+        val backgroundButton = actionButton("🎧 Nền") {
+            enableInAppBackgroundPlayback()
+        }.apply {
+            contentDescription = "Bật phát nền trong ứng dụng"
             textSize = 12f
         }
-        queueActions.addView(backgroundButton, LinearLayout.LayoutParams(dp(82), dp(46)).apply {
-            marginEnd = dp(8)
+        queueActions.addView(backgroundButton, LinearLayout.LayoutParams(dp(78), dp(42)).apply {
+            marginEnd = dp(7)
         })
 
-        val share = actionButton("↗") {
-            val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                type = "text/plain"
-                putExtra(Intent.EXTRA_TEXT, "https://www.youtube.com/watch?v=" + videoId)
-                putExtra(Intent.EXTRA_TITLE, title)
-            }
-            startActivity(Intent.createChooser(shareIntent, "Chia sẻ video"))
-        }.apply {
-            contentDescription = "Chia sẻ video"
-            textSize = 20f
+        moreButton = actionButton("⋯") { showMoreOptions(moreButton) }.apply {
+            contentDescription = "Tùy chọn YouTube"
+            textSize = 22f
         }
-        queueActions.addView(share, LinearLayout.LayoutParams(dp(48), dp(46)))
+        queueActions.addView(moreButton, LinearLayout.LayoutParams(dp(46), dp(42)))
         content.addView(queueActions)
-
-        // A slim position indicator makes the current place in the YouTube queue
-        // visible without competing with the video or the primary transport buttons.
-        val queueProgress = ProgressBar(
-            this,
-            null,
-            android.R.attr.progressBarStyleHorizontal
-        ).apply {
-            tag = "queue_progress"
-            isIndeterminate = false
-            max = queue.size.coerceAtLeast(1)
-            progress = (queueIndex + 1).coerceIn(0, max)
-            progressTintList = ColorStateList.valueOf(AndroidColor.rgb(141, 238, 255))
-            progressBackgroundTintList = ColorStateList.valueOf(AndroidColor.rgb(39, 43, 53))
-        }
-        content.addView(
-            queueProgress,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(3)
-            ).apply {
-                leftMargin = dp(16)
-                rightMargin = dp(16)
-                topMargin = dp(2)
-            }
-        )
 
         val scroll = ScrollView(this).apply {
             isFillViewport = true
@@ -654,6 +549,95 @@ class YouTubePlayerActivity : ComponentActivity() {
         setContentView(root)
         updateActionState()
         updateQueueModeButtons()
+    }
+
+    private fun showMoreOptions(anchor: View) {
+        val popup = android.widget.PopupMenu(this, anchor)
+        popup.menu.add(0, 1, 0, if (isFavorite()) "♥  Bỏ yêu thích" else "♡  Yêu thích")
+        popup.menu.add(0, 2, 1, if (isWatchLater()) "✓  Bỏ khỏi xem sau" else "🔖  Lưu xem sau")
+        popup.menu.add(0, 3, 2, if (youtubeShuffleEnabled) "🔀  Tắt phát trộn" else "🔀  Bật phát trộn")
+        popup.menu.add(0, 4, 3, when (youtubeRepeatMode) {
+            1 -> "🔁  Lặp hàng đợi (đang bật)"
+            2 -> "🔂  Lặp bài (đang bật)"
+            else -> "🔁  Chế độ lặp: tắt"
+        })
+        popup.menu.add(0, 5, 4, "🎧  Bật phát nền trong ứng dụng")
+        popup.menu.add(0, 6, 5, "↗  Chia sẻ video")
+        popup.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                1 -> toggleFavorite()
+                2 -> toggleWatchLater()
+                3 -> toggleYoutubeShuffle()
+                4 -> toggleYoutubeRepeat()
+                5 -> enableInAppBackgroundPlayback()
+                6 -> shareCurrentVideo()
+                else -> return@setOnMenuItemClickListener false
+            }
+            updateQueueModeButtons()
+            true
+        }
+        popup.show()
+    }
+
+    private fun shareCurrentVideo() {
+        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, "https://www.youtube.com/watch?v=" + videoId)
+            putExtra(Intent.EXTRA_TITLE, title)
+        }
+        startActivity(Intent.createChooser(shareIntent, "Chia sẻ video"))
+    }
+
+    private fun requestYoutubeFullscreen() {
+        val player = webView
+        if (player == null) {
+            Toast.makeText(this, "Trình phát chưa sẵn sàng.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        player.evaluateJavascript(
+            """
+            (function() {
+              var selectors = [
+                '.ytp-fullscreen-button',
+                '#fullscreen-button',
+                'button[aria-label*="Toàn màn hình"]',
+                'button[aria-label*="Fullscreen"]',
+                'button[aria-label*="full screen"]',
+                'ytm-fullscreen-button-renderer button'
+              ];
+              for (var i = 0; i < selectors.length; i++) {
+                var buttons = document.querySelectorAll(selectors[i]);
+                for (var j = 0; j < buttons.length; j++) {
+                  var button = buttons[j];
+                  if (button && button.getBoundingClientRect().width > 0) {
+                    button.click();
+                    return 'clicked';
+                  }
+                }
+              }
+              var video = document.querySelector('video');
+              if (video && typeof video.webkitEnterFullscreen === 'function') {
+                video.webkitEnterFullscreen();
+                return 'video';
+              }
+              var target = document.querySelector('#movie_player, .html5-video-player, ytm-player');
+              if (target && typeof target.requestFullscreen === 'function') {
+                target.requestFullscreen();
+                return 'request';
+              }
+              return 'missing';
+            })();
+            """.trimIndent(),
+            null
+        ) { result ->
+            if (result == "\"missing\"" && customView == null) {
+                Toast.makeText(
+                    this,
+                    "Hãy chạm nút toàn màn hình ngay trên video YouTube.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
     }
 
     private fun actionButton(label: String, onClick: () -> Unit): Button =
@@ -1068,17 +1052,14 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun updateQueueModeButtons() {
-        root.findViewWithTag<Button>("youtube_shuffle_button")?.apply {
-            text = if (youtubeShuffleEnabled) "🔀\nTrộn ✓" else "🔀\nTrộn"
-            styleModeButton(this, youtubeShuffleEnabled)
-        }
-        root.findViewWithTag<Button>("youtube_repeat_button")?.apply {
-            text = when (youtubeRepeatMode) {
-                1 -> "🔁\nLặp hàng đợi"
-                2 -> "🔂\nLặp bài"
-                else -> "🔁\nLặp"
+        if (::moreButton.isInitialized) {
+            val shuffleState = if (youtubeShuffleEnabled) "bật" else "tắt"
+            val repeatState = when (youtubeRepeatMode) {
+                1 -> "lặp hàng đợi"
+                2 -> "lặp bài"
+                else -> "không lặp"
             }
-            styleModeButton(this, youtubeRepeatMode != 0)
+            moreButton.contentDescription = "Tùy chọn YouTube; trộn $shuffleState; $repeatState"
         }
     }
 
@@ -1729,9 +1710,6 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun updateActionState() {
-        if (::favoriteButton.isInitialized) favoriteButton.text = if (isFavorite()) "♥\nYêu thích" else "♡\nYêu thích"
-        if (::watchLaterButton.isInitialized) watchLaterButton.text = if (isWatchLater()) "✓\nXem sau" else "🔖\nXem sau"
-
         val canNavigate = queue.size > 1
         if (::previousButton.isInitialized) {
             previousButton.isEnabled = canNavigate && (
@@ -2293,7 +2271,8 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun enterFullscreen() {
-        requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR
+        // Landscape guarantees the fullscreen video uses the long edge of the phone.
+        requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).apply {
             hide(WindowInsetsCompat.Type.systemBars())
