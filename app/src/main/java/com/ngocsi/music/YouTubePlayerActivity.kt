@@ -1871,12 +1871,18 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 'display:none!important;visibility:hidden!important;' +
                                 'pointer-events:none!important;max-height:0!important;} ' +
                                 'html,body,ytm-app,ytm-watch {background:#000!important;margin:0!important;padding:0!important;overflow-x:hidden!important;} ' +
-                                'ytm-player {display:block!important;box-sizing:border-box!important;width:100%!important;' +
-                                'max-width:100%!important;height:auto!important;aspect-ratio:16/9!important;' +
+                                'ytm-player {display:block!important;position:relative!important;box-sizing:border-box!important;' +
+                                'width:100%!important;min-width:100%!important;max-width:100%!important;' +
+                                'height:auto!important;min-height:0!important;aspect-ratio:16/9!important;' +
                                 'overflow:hidden!important;margin:0!important;padding:0!important;background:#000!important;} ' +
-                                'ytm-player video,video.html5-main-video,.html5-video-container {' +
+                                '.html5-video-player,.html5-video-container {position:absolute!important;inset:0!important;' +
                                 'display:block!important;width:100%!important;height:100%!important;' +
-                                'max-width:100%!important;max-height:100%!important;' +
+                                'min-width:0!important;min-height:0!important;max-width:100%!important;max-height:100%!important;' +
+                                'margin:0!important;padding:0!important;overflow:hidden!important;background:#000!important;} ' +
+                                'ytm-player video,video.html5-main-video {' +
+                                'position:absolute!important;inset:0!important;display:block!important;' +
+                                'width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;' +
+                                'max-width:100%!important;max-height:100%!important;transform:none!important;' +
                                 'object-fit:contain!important;object-position:center center!important;}';
                               (document.head || document.documentElement).appendChild(cleanupStyle);
                             }
