@@ -607,9 +607,16 @@ class YouTubePlayerActivity : ComponentActivity() {
               }
               style.textContent =
                 'html,body { width:100%!important;height:100%!important;overflow:hidden!important;background:#000!important;margin:0!important;padding:0!important; }' +
-                'ytm-mobile-topbar-renderer,ytm-pivot-bar-renderer,ytm-slim-video-metadata-section-renderer,ytm-watch-metadata,#masthead-container { display:none!important; }' +
-                'ytm-player { position:fixed!important; inset:0!important; width:100vw!important;height:100vh!important;max-width:none!important;z-index:2147483647!important;background:#000!important;margin:0!important;padding:0!important; }' +
-                'ytm-player video,video.html5-main-video,.html5-video-container { width:100%!important;height:100%!important;max-width:100vw!important;max-height:100vh!important;object-fit:contain!important; }';
+                'ytm-mobile-topbar-renderer,ytm-pivot-bar-renderer,ytm-slim-video-metadata-section-renderer,ytm-watch-metadata,#masthead-container,' +
+                'ytm-comments-entry-point-header-renderer,ytm-comments-entry-point-teaser-renderer,' +
+                'ytm-comment-section-renderer,ytm-comment-renderer,ytm-comment-thread-renderer,' +
+                'ytm-comments-entry-point-renderer,ytm-comment-simplebox-renderer,' +
+                '.ytp-title,.ytp-title-text,.ytp-title-link,.ytp-chrome-top,.ytp-pause-overlay,' +
+                '.ytp-pause-overlay-container,.ytp-cards-teaser,.ytp-ce-element,.ytp-gradient-top,' +
+                '.ytp-show-cards-title,ytm-player-overlay-renderer,ytm-video-overlay-renderer,' +
+                'ytm-mobile-player-overlay-renderer { display:none!important; }' +
+                'ytm-player { position:fixed!important; inset:0!important; width:100vw!important;height:100vh!important;max-width:none!important;aspect-ratio:auto!important;z-index:2147483647!important;background:#000!important;overflow:hidden!important;margin:0!important;padding:0!important; }' +
+                'ytm-player video,video.html5-main-video,.html5-video-container { display:block!important;width:100%!important;height:100%!important;max-width:100vw!important;max-height:100vh!important;object-fit:contain!important;object-position:center center!important; }';
               return 'ok';
             })();
             """.trimIndent()
@@ -1844,20 +1851,33 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 'ytm-mobile-topbar-renderer, ytm-pivot-bar-renderer, ytm-app-header, ' +
                                 '#masthead-container, ytm-slim-video-metadata-section-renderer, ' +
                                 'ytm-watch-metadata, ytm-video-description-infocontainer-renderer, ' +
+                                'ytm-comments-entry-point-header-renderer, ytm-comments-entry-point-teaser-renderer, ' +
+                                'ytm-comment-section-renderer, ytm-comment-renderer, ytm-comment-thread-renderer, ' +
+                                'ytm-comments-entry-point-renderer, ytm-comment-simplebox-renderer, ' +
+                                'ytm-comments-entry-point-teaser, ytm-comment-section, ' +
                                 'ytm-ad-slot-renderer, ytm-promoted-sparkles-web-renderer, ' +
                                 'ytm-promoted-sparkles-text-search-renderer, ytm-promoted-video-renderer, ' +
                                 'ytm-companion-slot, ytm-companion-ad-renderer, ytm-in-feed-ad-layout-renderer, ' +
                                 'ytd-ad-slot-renderer, ytd-display-ad-renderer, ytd-promoted-video-renderer, ' +
                                 'ytd-promoted-sparkles-web-renderer, ytd-in-feed-ad-layout-renderer, ' +
                                 'ytd-banner-promo-renderer, ytd-action-companion-ad-renderer, ' +
+                                'ytm-player-overlay-renderer, ytm-video-overlay-renderer, ytm-mobile-player-overlay-renderer, ' +
+                                '.ytp-title, .ytp-title-text, .ytp-title-link, .ytp-chrome-top, ' +
+                                '.ytp-pause-overlay, .ytp-pause-overlay-container, .ytp-cards-teaser, ' +
+                                '.ytp-ce-element, .ytp-gradient-top, .ytp-show-cards-title, ' +
                                 '#player-ads, #masthead-ad, .video-ads, .ytp-ad-module, ' +
                                 '.ytp-ad-player-overlay, .ytp-ad-overlay-container, ' +
                                 '.ytp-ad-image-overlay, .ytp-ad-text-overlay {' +
                                 'display:none!important;visibility:hidden!important;' +
                                 'pointer-events:none!important;max-height:0!important;} ' +
-                                'html,body,ytm-app,ytm-watch {background:#000!important;} ' +
-                                'ytm-player {display:block!important;width:100vw!important;' +
-                                'max-width:100%!important;margin:0!important;padding:0!important;}';
+                                'html,body,ytm-app,ytm-watch {background:#000!important;margin:0!important;padding:0!important;overflow-x:hidden!important;} ' +
+                                'ytm-player {display:block!important;box-sizing:border-box!important;width:100%!important;' +
+                                'max-width:100%!important;height:auto!important;aspect-ratio:16/9!important;' +
+                                'overflow:hidden!important;margin:0!important;padding:0!important;background:#000!important;} ' +
+                                'ytm-player video,video.html5-main-video,.html5-video-container {' +
+                                'display:block!important;width:100%!important;height:100%!important;' +
+                                'max-width:100%!important;max-height:100%!important;' +
+                                'object-fit:contain!important;object-position:center center!important;}';
                               (document.head || document.documentElement).appendChild(cleanupStyle);
                             }
                           } catch (_) {}
