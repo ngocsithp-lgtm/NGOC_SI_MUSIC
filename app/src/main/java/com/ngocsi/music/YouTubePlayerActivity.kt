@@ -59,6 +59,24 @@ class YouTubePlayerActivity : ComponentActivity() {
     private lateinit var root: FrameLayout
     private lateinit var playerContainer: FrameLayout
     private var webView: WebView? = null
+    private var inAppBackgroundPlaybackEnabled = false
+
+    /**
+     * WebView normally receives GONE when its Activity goes to the background.
+     * Chromium may then suspend the HTML5 media element. When the user enables
+     * background audio, keep the renderer's window-visibility state alive.
+     */
+    private inner class BackgroundAudioWebView(context: android.content.Context) : WebView(context) {
+        override fun onWindowVisibilityChanged(visibility: Int) {
+            if (inAppBackgroundPlaybackEnabled) {
+                if (visibility != View.GONE) {
+                    super.onWindowVisibilityChanged(View.VISIBLE)
+                }
+                return
+            }
+            super.onWindowVisibilityChanged(visibility)
+        }
+    }
     private var customView: View? = null
     private var customViewCallback: WebChromeClient.CustomViewCallback? = null
     private var videoId: String = ""
@@ -132,6 +150,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 // playing while the user has explicitly enabled in-app background mode,
                 // and make a bounded set of recovery attempts instead of a tight retry loop.
                 if ((state == 2 || state == 3) && !isForeground && keepBackgroundPlayback &&
+                    prefs.getBoolean("youtube_playback_is_playing", false) &&
                     youtubePlayerState == 1
                 ) {
                     scheduleBackgroundPlaybackRecovery()
@@ -212,6 +231,9 @@ class YouTubePlayerActivity : ComponentActivity() {
         youtubeBackgroundControlReceiverRegistered = true
 
         val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+        inAppBackgroundPlaybackEnabled = prefs.getBoolean(
+            "youtube_background_playback_enabled", false
+        )
         // Remember that the selected playback source is YouTube so the compact
         // player routes play/pause here instead of toggling the local Media3 player.
         prefs.edit().putBoolean("youtube_active_source", true).apply()
@@ -1310,13 +1332,11 @@ class YouTubePlayerActivity : ComponentActivity() {
             return
         }
 
+        inAppBackgroundPlaybackEnabled = true
         getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
             .putBoolean("youtube_background_playback_enabled", true)
             .apply()
         backgroundPlaybackRecoveryGeneration++
-        webView?.evaluateJavascript(
-            "window.__ngocSiBackgroundPlaybackEnabled = true;", null
-        )
 
         if (youtubePlayerState == 1) {
             syncYouTubeBackgroundPlayback(1)
@@ -1406,11 +1426,9 @@ class YouTubePlayerActivity : ComponentActivity() {
         backgroundPlaybackRecoveryGeneration++
         getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
             .putBoolean("youtube_playback_is_playing", false)
-            .putBoolean("youtube_background_playback_enabled", false)
             .apply()
-        webView?.evaluateJavascript(
-            "window.__ngocSiBackgroundPlaybackEnabled = false;", null
-        )
+        // Keep background mode enabled across a deliberate pause; the playback flag
+        // prevents recovery until the user presses Play again.
         runYoutubePlaybackCommand("pause")
     }
 
@@ -1718,7 +1736,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         positionRestoreAttempts = 0
         lastHandledEndedVideoId = null
 
-        val player = WebView(this).apply {
+        val player = BackgroundAudioWebView(this).apply {
             setBackgroundColor(AndroidColor.BLACK)
             // Bound renderer priority reduces WebView renderer eviction while the
             // user-started media session continues in the background.
