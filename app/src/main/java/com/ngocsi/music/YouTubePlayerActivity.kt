@@ -410,6 +410,8 @@ class YouTubePlayerActivity : ComponentActivity() {
         playerContainer = FrameLayout(this).apply {
             setBackgroundColor(AndroidColor.BLACK)
             contentDescription = "Trình phát video YouTube"
+            clipChildren = true
+            clipToPadding = true
         }
 
         content.addView(header, LinearLayout.LayoutParams(
@@ -425,6 +427,32 @@ class YouTubePlayerActivity : ComponentActivity() {
             LinearLayout.LayoutParams.MATCH_PARENT,
             playerHeight.coerceAtLeast(dp(200))
         ))
+        playerContainer.addOnLayoutChangeListener { view, left, top, right, bottom, _, _, _, _ ->
+            if (customView == null && !isCssFullscreen && webView != null) {
+                val measuredWidth = (right - left).coerceAtLeast(1)
+                val measuredHeight = (bottom - top).coerceAtLeast(1)
+                webView?.evaluateJavascript(
+                    """
+                    (function() {
+                      var w = ${measuredWidth};
+                      var h = ${measuredHeight};
+                      var style = document.getElementById('ngocsi-inline-fit') ||
+                                  document.createElement('style');
+                      style.id = 'ngocsi-inline-fit';
+                      style.textContent =
+                        'html,body,ytm-app,ytm-watch {width:100%!important;max-width:100%!important;margin:0!important;padding:0!important;overflow-x:hidden!important;}' +
+                        'ytm-player {display:block!important;position:relative!important;left:0!important;top:0!important;width:100%!important;min-width:0!important;max-width:100%!important;height:100%!important;min-height:0!important;aspect-ratio:auto!important;margin:0!important;padding:0!important;overflow:hidden!important;box-sizing:border-box!important;}' +
+                        '.html5-video-player,.html5-video-container {position:absolute!important;inset:0!important;width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;max-width:100%!important;max-height:100%!important;margin:0!important;padding:0!important;overflow:hidden!important;box-sizing:border-box!important;}' +
+                        'ytm-player video,video.html5-main-video {position:absolute!important;left:0!important;top:0!important;width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;max-width:100%!important;max-height:100%!important;object-fit:contain!important;object-position:center center!important;transform:none!important;}';
+                      (document.head || document.documentElement).appendChild(style);
+                      window.dispatchEvent(new Event('resize'));
+                      return w + 'x' + h;
+                    })();
+                    """.trimIndent(),
+                    null
+                )
+            }
+        }
 
         val info = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
