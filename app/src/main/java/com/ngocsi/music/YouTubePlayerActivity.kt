@@ -2392,8 +2392,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                   window.dispatchEvent(new Event('resize'));
                   return 'restored';
                 })();
-                """.trimIndent(),
-                null
+                """.trimIndent()
             ) {
                 if (shouldResumePlayback && !isFinishing && !isDestroyed) {
                     webView?.postDelayed({ requestYouTubePlayback() }, 350L)
