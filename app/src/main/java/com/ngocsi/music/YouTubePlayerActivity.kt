@@ -81,6 +81,9 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var customView: View? = null
     private var customViewCallback: WebChromeClient.CustomViewCallback? = null
     private var isCssFullscreen = false
+    // Preserve the pre-fullscreen playback state even if YouTube reports PAUSED while rotating.
+    private var wasPlayingBeforeFullscreen = false
+    private var fullscreenRecoveryGeneration = 0
     private var videoId: String = ""
     private var title: String = "YouTube"
     private var channel: String = "YouTube"
@@ -386,7 +389,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
 
         val backButton = actionButton("‹") {
-            if (customView != null) exitFullscreen() else finish()
+            if (customView != null || isCssFullscreen) exitFullscreen() else finish()
         }.apply {
             textSize = 27f
             contentDescription = "Quay lại"
@@ -592,6 +595,10 @@ class YouTubePlayerActivity : ComponentActivity() {
             exitFullscreen()
             return
         }
+
+        wasPlayingBeforeFullscreen = youtubePlayerState == 1 ||
+            getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+                .getBoolean("youtube_playback_is_playing", false)
 
         // Keep the existing YouTube WebView/media element alive. Do not invoke
         // YouTube's native fullscreen button or video.webkitEnterFullscreen(),
@@ -1870,13 +1877,14 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 '.ytp-ad-image-overlay, .ytp-ad-text-overlay {' +
                                 'display:none!important;visibility:hidden!important;' +
                                 'pointer-events:none!important;max-height:0!important;} ' +
-                                'html,body,ytm-app,ytm-watch {background:#000!important;margin:0!important;padding:0!important;overflow-x:hidden!important;} ' +
+                                'html,body,ytm-app,ytm-watch {display:block!important;width:100vw!important;min-width:100vw!important;max-width:100vw!important;' +
+                                'background:#000!important;margin:0!important;padding:0!important;overflow-x:hidden!important;} ' +
                                 'ytm-player {display:block!important;position:relative!important;box-sizing:border-box!important;' +
-                                'width:100%!important;min-width:100%!important;max-width:100%!important;' +
-                                'height:auto!important;min-height:0!important;aspect-ratio:16/9!important;' +
+                                'width:100vw!important;min-width:100vw!important;max-width:100vw!important;' +
+                                'height:56.25vw!important;min-height:0!important;aspect-ratio:auto!important;' +
                                 'overflow:hidden!important;margin:0!important;padding:0!important;background:#000!important;} ' +
-                                '.html5-video-player,.html5-video-container {position:absolute!important;inset:0!important;' +
-                                'display:block!important;width:100%!important;height:100%!important;' +
+                                '.html5-video-player,.html5-video-container {position:absolute!important;left:0!important;top:0!important;right:0!important;bottom:0!important;' +
+                                'display:block!important;width:100%!important;height:100%!important;box-sizing:border-box!important;' +
                                 'min-width:0!important;min-height:0!important;max-width:100%!important;max-height:100%!important;' +
                                 'margin:0!important;padding:0!important;overflow:hidden!important;background:#000!important;} ' +
                                 'ytm-player video,video.html5-main-video {' +
@@ -2092,6 +2100,12 @@ class YouTubePlayerActivity : ComponentActivity() {
                         callback.onCustomViewHidden()
                         return
                     }
+
+                    // Capture state before WebChromeClient hides the inline player.
+                    wasPlayingBeforeFullscreen = wasPlayingBeforeFullscreen ||
+                        youtubePlayerState == 1 ||
+                        getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+                            .getBoolean("youtube_playback_is_playing", false)
 
                     customView = view
                     customViewCallback = callback
@@ -2320,9 +2334,11 @@ class YouTubePlayerActivity : ComponentActivity() {
         // Snapshot playback before Android changes orientation/layout. The WebView's
         // HTML5 video may keep the old landscape geometry and become paused after
         // fullscreen closes, so restore layout first and only then resume if it was playing.
-        val shouldResumePlayback = youtubePlayerState == 1 ||
+        val shouldResumePlayback = wasPlayingBeforeFullscreen ||
+            youtubePlayerState == 1 ||
             getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
                 .getBoolean("youtube_playback_is_playing", false)
+        wasPlayingBeforeFullscreen = false
 
         if (isCssFullscreen) {
             webView?.evaluateJavascript(
@@ -2363,12 +2379,11 @@ class YouTubePlayerActivity : ComponentActivity() {
                   var player = document.querySelector('ytm-player');
                   if (player) {
                     player.style.setProperty('position', 'relative', 'important');
-                    player.style.setProperty('inset', 'auto', 'important');
-                    player.style.setProperty('width', '100%', 'important');
-                    player.style.setProperty('min-width', '0', 'important');
-                    player.style.setProperty('max-width', '100%', 'important');
-                    player.style.setProperty('height', 'auto', 'important');
-                    player.style.setProperty('aspect-ratio', '16 / 9', 'important');
+                    player.style.removeProperty('inset');
+                    // Let the normal player CSS size it against the WebView viewport,
+                    // not the page's possibly narrow/stale flex parent.
+                    ['width','min-width','max-width','height','min-height','aspect-ratio']
+                      .forEach(function(name){ player.style.removeProperty(name); });
                   }
                   var containers = document.querySelectorAll(
                     '.html5-video-player,.html5-video-container'
@@ -2395,10 +2410,65 @@ class YouTubePlayerActivity : ComponentActivity() {
                 """.trimIndent()
             ) {
                 if (shouldResumePlayback && !isFinishing && !isDestroyed) {
-                    webView?.postDelayed({ requestYouTubePlayback() }, 350L)
+                    // Orientation restoration can complete after this layout callback.
+                    // Retry only while the actual HTML5 video remains paused.
+                    webView?.postDelayed({ recoverFullscreenPlayback() }, 500L)
                 }
             }
         }
+    }
+
+    private fun recoverFullscreenPlayback() {
+        if (isFinishing || isDestroyed || webView == null || !youtubePlayerReady) return
+        val generation = ++fullscreenRecoveryGeneration
+
+        fun attempt(number: Int) {
+            if (generation != fullscreenRecoveryGeneration ||
+                isFinishing || isDestroyed || webView == null || !youtubePlayerReady
+            ) return
+
+            val script = """
+                (function() {
+                  try {
+                    var video = null;
+                    try {
+                      if (typeof window.__ngocSiFindActiveVideo === 'function')
+                        video = window.__ngocSiFindActiveVideo();
+                    } catch (_) {}
+                    if (!video || !video.isConnected)
+                      video = document.querySelector('video.html5-main-video') ||
+                              document.querySelector('ytm-player video') ||
+                              document.querySelector('video');
+                    if (!video) return 'no-video';
+                    if (!video.paused && !video.ended)
+                      return video.readyState >= 2 ? 'playing' : 'buffering';
+                    var player = document.querySelector('#movie_player') ||
+                                 document.querySelector('.html5-video-player') ||
+                                 document.querySelector('ytm-player');
+                    if (player && typeof player.playVideo === 'function') {
+                      try { player.playVideo(); return 'requested-api'; } catch (_) {}
+                    }
+                    try {
+                      var promise = video.play();
+                      if (promise && typeof promise.catch === 'function')
+                        promise.catch(function(){});
+                      return 'requested-video';
+                    } catch (_) { return 'retry'; }
+                  } catch (_) { return 'retry'; }
+                })();
+            """.trimIndent()
+
+            webView?.evaluateJavascript(script) { result ->
+                if (generation != fullscreenRecoveryGeneration) return@evaluateJavascript
+                val active = result?.contains("playing") == true ||
+                    result?.contains("buffering") == true
+                if (!active && number < 4) {
+                    playbackPositionHandler.postDelayed({ attempt(number + 1) }, 850L)
+                }
+            }
+        }
+
+        attempt(0)
     }
 
     /**
