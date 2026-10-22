@@ -2174,7 +2174,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                     // Use the standard WebChromeClient fullscreen handoff: detach the inline
                     // surface from view composition while the fullscreen video surface is shown.
                     // Keeping both surfaces visible can cause a frozen/silent duplicate surface.
-                    playerContainer.visibility = View.GONE
+                    playerContainer.visibility = View.VISIBLE
                     root.addView(
                         view,
                         FrameLayout.LayoutParams(
