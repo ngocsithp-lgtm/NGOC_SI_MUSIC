@@ -2555,6 +2555,11 @@ class YouTubePlayerActivity : ComponentActivity() {
         attempt(0)
     }
 
+    /**
+     * Best-effort ad request filtering for the embedded YouTube WebView.
+     * Do not filter googlevideo.com or broad Google/YouTube hosts because they
+     * serve actual video/audio, player code, thumbnails and captions as well.
+     */
     private fun isKnownYouTubeAdvertisingRequest(uri: Uri): Boolean {
         val host = uri.host?.lowercase().orEmpty()
         val path = uri.path?.lowercase().orEmpty()
