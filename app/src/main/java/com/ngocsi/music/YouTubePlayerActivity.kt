@@ -84,6 +84,8 @@ class YouTubePlayerActivity : ComponentActivity() {
     // Preserve the pre-fullscreen playback state even if YouTube reports PAUSED while rotating.
     private var wasPlayingBeforeFullscreen = false
     private var fullscreenRecoveryGeneration = 0
+    // Coalesce duplicate fullscreen-dismiss callbacks so only one recovery cycle runs.
+    private var fullscreenExitGeneration = 0
     // A single post-reload recovery is allowed after fullscreen playback stalls.
     private var recoverAfterPageReload = false
     private var playbackCommandGeneration = 0
@@ -2425,6 +2427,12 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun exitFullscreen(notifyCallback: Boolean = true) {
+        // A hardware Back/custom-view callback can report the same exit twice. Ignore
+        // duplicate exits; they otherwise schedule competing recovery/reload attempts.
+        if (customView == null && !isCssFullscreen) return
+        val exitGeneration = ++fullscreenExitGeneration
+        // Cancel any stale probe loop before scheduling the one recovery for this exit.
+        fullscreenRecoveryGeneration++
         // Keep the existing WebView/video element and currentTime. Do not write persistent
         // inline width/height/inset values to YouTube's internal video nodes; they survive
         // removal of the fullscreen stylesheet and can break playback after rotation.
@@ -2435,7 +2443,6 @@ class YouTubePlayerActivity : ComponentActivity() {
         // handoff. Always probe the same video after layout settles; the recovery routine
         // only requests Play when the actual HTML5 video reports paused.
         val shouldRecoverPlayback = true
-        val shouldRecreateInlinePlayer = wasPlayingBeforeFullscreen && customView != null
         wasPlayingBeforeFullscreen = false
 
         if (isCssFullscreen) {
@@ -2479,58 +2486,15 @@ class YouTubePlayerActivity : ComponentActivity() {
                 if (shouldRecoverPlayback) {
                     // Wait for Android orientation and WebView layout to settle before recovery.
                     webView?.postDelayed({
-                        if (shouldRecreateInlinePlayer) {
-                            reloadInlinePlayerAfterFullscreen()
-                        } else {
-                            recoverFullscreenPlayback()
-                        }
+                        if (exitGeneration != fullscreenExitGeneration) return@postDelayed
+                        // First recover the existing media element. Recreating the page
+                        // on every exit can restart buffering and cause intermittent audio
+                        // loss. The bounded recovery loop will reload only if the media
+                        // clock still cannot advance after several checks.
+                        recoverFullscreenPlayback()
                     }, 850L)
                 }
             }
-        }
-    }
-
-    /**
-     * YouTube's mobile HTML5 video can leave a dead media surface after the
-     * fullscreen custom view is dismissed on some WebView versions. If it was
-     * playing before fullscreen, recreate the same inline page at its last
-     * reachable timestamp rather than repeatedly issuing Play to a frozen node.
-     */
-    private fun reloadInlinePlayerAfterFullscreen() {
-        if (isFinishing || isDestroyed || webView == null) return
-        val currentWebView = webView ?: return
-        currentWebView.evaluateJavascript(
-            """
-            (function() {
-              var videos = Array.prototype.slice.call(document.querySelectorAll('video'));
-              var video = videos.find(function(v) {
-                return v.isConnected && v.getBoundingClientRect().width > 2 &&
-                  v.getBoundingClientRect().height > 2;
-              }) || videos[0];
-              return video ? Math.max(0, Math.floor(video.currentTime || 0)) : 0;
-            })();
-            """.trimIndent()
-        ) { rawPosition ->
-            if (isFinishing || isDestroyed || webView !== currentWebView) return@evaluateJavascript
-            val seconds = rawPosition.orEmpty().trim('"').toDoubleOrNull()?.toInt()?.coerceAtLeast(0) ?: 0
-            val targetId = sanitizeVideoId(videoId)
-            if (targetId.isBlank()) {
-                recoverFullscreenPlayback()
-                return@evaluateJavascript
-            }
-            val url = Uri.parse("https://m.youtube.com/watch")
-                .buildUpon()
-                .appendQueryParameter("v", targetId)
-                .appendQueryParameter("t", "${seconds}s")
-                .appendQueryParameter("autoplay", "1")
-                .appendQueryParameter("playsinline", "1")
-                .build()
-                .toString()
-            recoverAfterPageReload = true
-            youtubePlayerReady = false
-            currentWebView.onResume()
-            currentWebView.resumeTimers()
-            currentWebView.loadUrl(url)
         }
     }
 
