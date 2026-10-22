@@ -131,7 +131,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 // Activity goes behind another app. Keep the media session marked as
                 // playing while the user has explicitly enabled in-app background mode,
                 // and make a bounded set of recovery attempts instead of a tight retry loop.
-                if (state == 2 && !isForeground && keepBackgroundPlayback &&
+                if ((state == 2 || state == 3) && !isForeground && keepBackgroundPlayback &&
                     youtubePlayerState == 1
                 ) {
                     scheduleBackgroundPlaybackRecovery()
@@ -1373,12 +1373,18 @@ class YouTubePlayerActivity : ComponentActivity() {
                         var p = document.querySelector('#movie_player') ||
                                 document.querySelector('.html5-video-player') ||
                                 document.querySelector('ytm-player');
-                        try { if (p && typeof p.playVideo === 'function') p.playVideo(); } catch (_) {}
+                        // Use only one playback path per attempt to avoid overlapping
+                        // play requests that previously caused stutter on this device.
+                        if (p && typeof p.playVideo === 'function') {
+                          try { p.playVideo(); return 'requested-api'; } catch (_) {}
+                        }
                         try {
                           var promise = v.play();
                           if (promise && typeof promise.catch === 'function') promise.catch(function(){});
-                        } catch (_) {}
-                        return 'play-requested';
+                          return 'requested-video';
+                        } catch (_) {
+                          return 'recovery-error';
+                        }
                       } catch(e) { return 'recovery-error'; }
                     })();
                 """.trimIndent()
