@@ -1830,13 +1830,18 @@ class YouTubePlayerActivity : ComponentActivity() {
                     // Chromium WebView instead of the IFrame API player.
                     view.evaluateJavascript("""
                         (function(){
-                          // Best-effort removal of common mobile/desktop YouTube ad-slot elements
-                          // and the mute prompt inside this WebView. Video delivery hosts are not filtered.
+                          // Best-effort removal of the duplicate mobile masthead, title row,
+                          // common ad slots, and mute prompt. Video delivery hosts are not filtered.
                           try {
                             if (!document.getElementById('ngocsi-youtube-cleanup-style')) {
                               var cleanupStyle = document.createElement('style');
                               cleanupStyle.id = 'ngocsi-youtube-cleanup-style';
                               cleanupStyle.textContent =
+                                // Remove the duplicate YouTube mobile browser chrome and title row
+                                // highlighted by the user. Native app controls remain outside WebView.
+                                'ytm-mobile-topbar-renderer, ytm-pivot-bar-renderer, ytm-app-header, ' +
+                                '#masthead-container, ytm-slim-video-metadata-section-renderer, ' +
+                                'ytm-watch-metadata, ytm-video-description-infocontainer-renderer, ' +
                                 'ytm-ad-slot-renderer, ytm-promoted-sparkles-web-renderer, ' +
                                 'ytm-promoted-sparkles-text-search-renderer, ytm-promoted-video-renderer, ' +
                                 'ytm-companion-slot, ytm-companion-ad-renderer, ytm-in-feed-ad-layout-renderer, ' +
@@ -1847,7 +1852,10 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 '.ytp-ad-player-overlay, .ytp-ad-overlay-container, ' +
                                 '.ytp-ad-image-overlay, .ytp-ad-text-overlay {' +
                                 'display:none!important;visibility:hidden!important;' +
-                                'pointer-events:none!important;max-height:0!important;}';
+                                'pointer-events:none!important;max-height:0!important;} ' +
+                                'html,body,ytm-app,ytm-watch {background:#000!important;} ' +
+                                'ytm-player {display:block!important;width:100vw!important;' +
+                                'max-width:100%!important;margin:0!important;padding:0!important;}';
                               (document.head || document.documentElement).appendChild(cleanupStyle);
                             }
                           } catch (_) {}
