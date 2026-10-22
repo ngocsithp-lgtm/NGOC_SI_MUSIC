@@ -2442,7 +2442,10 @@ class YouTubePlayerActivity : ComponentActivity() {
         // A WebView/YouTube state callback can be stale after the fullscreen surface
         // handoff. Always probe the same video after layout settles; the recovery routine
         // only requests Play when the actual HTML5 video reports paused.
-        val shouldRecoverPlayback = true
+        // Preserve intentional pause: only run the recovery loop if playback was active
+        // before fullscreen. The recovery script can call playVideo(), so running it for a
+        // deliberately paused video would unexpectedly restart it on return.
+        val shouldRecoverPlayback = wasPlayingBeforeFullscreen
         wasPlayingBeforeFullscreen = false
 
         if (isCssFullscreen) {
