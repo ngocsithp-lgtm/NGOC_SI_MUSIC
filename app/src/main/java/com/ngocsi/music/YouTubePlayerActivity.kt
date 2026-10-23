@@ -1928,23 +1928,11 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 '.ytp-ad-image-overlay, .ytp-ad-text-overlay {' +
                                 'display:none!important;visibility:hidden!important;' +
                                 'pointer-events:none!important;max-height:0!important;} ' +
-                                'html,body,ytm-app,ytm-watch {display:block!important;width:100%!important;height:100%!important;' +
-                                'min-width:0!important;max-width:none!important;min-height:100%!important;' +
-                                'background:#000!important;margin:0!important;padding:0!important;overflow:hidden!important;} ' +
-                                'ytm-player {display:block!important;position:fixed!important;inset:0!important;' +
-                                'box-sizing:border-box!important;width:auto!important;height:auto!important;' +
-                                'min-width:0!important;min-height:0!important;max-width:none!important;max-height:none!important;' +
-                                'aspect-ratio:auto!important;overflow:hidden!important;margin:0!important;padding:0!important;' +
-                                'background:#000!important;z-index:2147483647!important;} ' +
-                                '.html5-video-player,.html5-video-container {position:absolute!important;left:0!important;top:0!important;right:0!important;bottom:0!important;' +
-                                'display:block!important;width:100%!important;height:100%!important;box-sizing:border-box!important;' +
-                                'min-width:0!important;min-height:0!important;max-width:100%!important;max-height:100%!important;' +
-                                'margin:0!important;padding:0!important;overflow:hidden!important;background:#000!important;} ' +
-                                'ytm-player video,video.html5-main-video {' +
-                                'position:absolute!important;inset:0!important;display:block!important;' +
-                                'width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;' +
-                                'max-width:100%!important;max-height:100%!important;transform:none!important;' +
-                                'object-fit:contain!important;object-position:center center!important;}';
+                                // Do not force fullscreen positioning in this always-on cleanup stylesheet.
+                                // Fullscreen sizing is applied only while the fullscreen mode is active;
+                                // keeping these rules global clips the inline player and can freeze it
+                                // when Chromium restores the video surface after rotation.
+                                'html,body,ytm-app,ytm-watch {max-width:100%!important;background:#000!important;}';
                               (document.head || document.documentElement).appendChild(cleanupStyle);
                             }
                             // Keep the inline player in normal document flow. Fixed positioning
