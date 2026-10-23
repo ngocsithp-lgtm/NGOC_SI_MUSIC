@@ -1327,13 +1327,38 @@ class YouTubePlayerActivity : ComponentActivity() {
                     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
                     <meta name="referrer" content="strict-origin-when-cross-origin">
                     <style>
-                        html, body, #player {
+                        html, body {
                             margin: 0;
                             padding: 0;
                             width: 100%;
                             height: 100%;
+                            min-width: 100%;
+                            min-height: 100%;
                             background: #000;
                             overflow: hidden;
+                        }
+                        body {
+                            position: relative;
+                        }
+                        #player {
+                            position: absolute;
+                            inset: 0;
+                            width: 100% !important;
+                            height: 100% !important;
+                            margin: 0;
+                            padding: 0;
+                            background: #000;
+                            overflow: hidden;
+                        }
+                        #player iframe,
+                        iframe#player,
+                        .html5-video-player {
+                            position: absolute !important;
+                            inset: 0 !important;
+                            width: 100% !important;
+                            height: 100% !important;
+                            max-width: 100% !important;
+                            max-height: 100% !important;
                         }
                     </style>
                 </head>
