@@ -63,6 +63,26 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var inAppBackgroundPlaybackEnabled = false
 
     /**
+     * A responsive inline video host. Its height is derived from the measured width,
+     * not displayMetrics, so Android and the WebView always share the same 16:9 box.
+     */
+    private inner class InlinePlayerFrameLayout(context: android.content.Context) :
+        FrameLayout(context) {
+        override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+            val width = View.MeasureSpec.getSize(widthMeasureSpec)
+            if (width > 0) {
+                val exactHeight = View.MeasureSpec.makeMeasureSpec(
+                    (width * 9f / 16f).toInt().coerceAtLeast(1),
+                    View.MeasureSpec.EXACTLY
+                )
+                super.onMeasure(widthMeasureSpec, exactHeight)
+            } else {
+                super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+            }
+        }
+    }
+
+    /**
      * WebView normally receives GONE when its Activity goes to the background.
      * Chromium may then suspend the HTML5 media element. When the user enables
      * background audio, keep the renderer's window-visibility state alive.
@@ -424,7 +444,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
         ))
 
-        playerContainer = FrameLayout(this).apply {
+        playerContainer = InlinePlayerFrameLayout(this).apply {
             setBackgroundColor(AndroidColor.BLACK)
             contentDescription = "Trình phát video YouTube"
         }
@@ -434,13 +454,11 @@ class YouTubePlayerActivity : ComponentActivity() {
             LinearLayout.LayoutParams.WRAP_CONTENT
         ))
 
-        // Keep the in-app player at 16:9 in portrait; YouTube's native fullscreen
-        // custom view takes over the entire display when fullscreen is requested.
-        val metrics = resources.displayMetrics
-        val playerHeight = (metrics.widthPixels * 9f / 16f).toInt()
+        // The host frame measures its own actual width and enforces 16:9.
+        // This avoids stale physical-screen measurements after rotation or inset changes.
         content.addView(playerContainer, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
-            playerHeight.coerceAtLeast(dp(200))
+            LinearLayout.LayoutParams.WRAP_CONTENT
         ))
 
         val info = LinearLayout(this).apply {
@@ -2443,21 +2461,8 @@ class YouTubePlayerActivity : ComponentActivity() {
                     isFinishing || isDestroyed || customView != null || isCssFullscreen
                 ) return
 
-                // Prefer the current configuration width over a View width that may
-                // still reflect the previous orientation during the first layout pass.
-                val configuredWidth = resources.configuration.screenWidthDp
-                    .takeIf { it > 0 }
-                    ?.let { dp(it) }
-                val availableWidth = configuredWidth
-                    ?: root.width.takeIf { it > 0 }
-                    ?: playerContainer.width.takeIf { it > 0 }
-                    ?: resources.displayMetrics.widthPixels
-                val targetHeight = (availableWidth * 9f / 16f).toInt().coerceAtLeast(dp(200))
-                val params = playerContainer.layoutParams
-                if (params.height != targetHeight) {
-                    params.height = targetHeight
-                    playerContainer.layoutParams = params
-                }
+                // The aspect-ratio host derives height from its measured width.
+                // Do not write a second height from screen/configuration metrics here.
                 root.requestLayout()
                 playerContainer.requestLayout()
 
