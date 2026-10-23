@@ -1991,9 +1991,12 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 '.ytp-next-button,.ytp-prev-button,.ytp-next-button-container,' +
                                 '.ytp-prev-button-container,.ytp-endscreen-content,' +
                                 '.ytp-endscreen-previous,.ytp-endscreen-next,.ytp-ce-covering-overlay,' +
-                                '.ytp-cards-teaser,.ytp-ce-element,ytm-player-overlay-renderer,' +
-                                'ytm-video-overlay-renderer,ytm-mobile-player-overlay-renderer,' +
-                                'ytm-play-button-renderer';
+                                '.ytp-cards-teaser,.ytp-ce-element,.ytp-overlay-button,' +
+                                'ytm-player-overlay-renderer,ytm-video-overlay-renderer,' +
+                                'ytm-mobile-player-overlay-renderer,ytm-play-button-renderer,' +
+                                'ytm-large-play-button-renderer,ytm-player-overlay,' +
+                                '[class*="large-play-button"],[class*="center-play-button"],' +
+                                '[class*="central-play-button"],[class*="next-button-overlay"]';
                               var rules = selectors +
                                 '{display:none!important;visibility:hidden!important;opacity:0!important;' +
                                 'pointer-events:none!important;max-height:0!important;}';
@@ -2026,7 +2029,11 @@ class YouTubePlayerActivity : ComponentActivity() {
                                   var playerRect = getPlayerRect(rootNode);
                                   if (!playerRect || playerRect.width < 10 || playerRect.height < 10) return;
                                   var buttons = rootNode.querySelectorAll(
-                                    'button,[role="button"],ytm-button-renderer,.ytp-button'
+                                    'button,[role="button"],ytm-button-renderer,.ytp-button,' +
+                                    '.ytp-large-play-button,.ytp-overlay-button,.ytp-next-button,' +
+                                    'ytm-large-play-button-renderer,[class*="large-play-button"],' +
+                                    '[class*="center-play-button"],[class*="central-play-button"],' +
+                                    '[class*="next-button-overlay"]'
                                   );
                                   for (var i = 0; i < buttons.length; i++) {
                                     var button = buttons[i];
@@ -2034,7 +2041,15 @@ class YouTubePlayerActivity : ComponentActivity() {
                                       (button.getAttribute('title') || '') + ' ' +
                                       (button.innerText || button.textContent || '')).toLowerCase()
                                       .replace(/\s+/g, ' ').trim();
-                                    if (!/(^|\b)(play|phát|resume|tiếp tục|next|tiếp theo|video kế tiếp)(\b|$)/i.test(label)) continue;
+                                    var classHint = '';
+                                    try {
+                                      classHint = String(button.className && button.className.baseVal
+                                        ? button.className.baseVal : button.className || '') + ' ' +
+                                        String(button.id || '');
+                                    } catch (_) {}
+                                    var hasCenterControlClass = /large-play-button|center-play-button|central-play-button|next-button-overlay|ytp-overlay-button/i.test(classHint);
+                                    if (!hasCenterControlClass &&
+                                        !/(^|\b)(play|phát|resume|tiếp tục|next|tiếp theo|video kế tiếp)(\b|$)/i.test(label)) continue;
                                     var rect = button.getBoundingClientRect();
                                     if (rect.width < 3 || rect.height < 3) continue;
                                     var x = (rect.left + rect.width / 2 - playerRect.left) / playerRect.width;
