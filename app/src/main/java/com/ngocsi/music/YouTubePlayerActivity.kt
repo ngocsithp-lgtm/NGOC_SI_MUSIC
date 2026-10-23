@@ -108,6 +108,8 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var fullscreenExitGeneration = 0
     // Coalesce orientation/layout syncs so stale delayed callbacks cannot overwrite newer sizes.
     private var inlineLayoutSyncGeneration = 0
+    // Track bounded layout/recovery work during CSS fullscreen rotation.
+    private var fullscreenViewportSyncGeneration = 0
     // A single post-reload recovery is allowed after fullscreen playback stalls.
     private var recoverAfterPageReload = false
     private var playbackCommandGeneration = 0
@@ -662,7 +664,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 '.ytp-show-cards-title,ytm-player-overlay-renderer,ytm-video-overlay-renderer,' +
                 'ytm-mobile-player-overlay-renderer { display:none!important; }' +
                 'ytm-player { position:fixed!important; inset:0!important; width:auto!important;height:auto!important;min-width:0!important;min-height:0!important;max-width:none!important;max-height:none!important;aspect-ratio:auto!important;z-index:2147483647!important;background:#000!important;overflow:hidden!important;margin:0!important;padding:0!important; }' +
-                'ytm-player video,video.html5-main-video,.html5-video-container { display:block!important;position:absolute!important;inset:0!important;width:100%!important;height:100%!important;min-width:100%!important;min-height:100%!important;max-width:100vw!important;max-height:100vh!important;object-fit:contain!important;object-position:center center!important;margin:0!important;padding:0!important; }';
+                'ytm-player video,video.html5-main-video,.html5-video-container { box-sizing:border-box!important;display:block!important;position:absolute!important;inset:0!important;width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;max-width:100%!important;max-height:100%!important;object-fit:contain!important;object-position:center center!important;margin:0!important;padding:0!important; }';
               return 'ok';
             })();
             """.trimIndent()
@@ -2634,11 +2636,88 @@ class YouTubePlayerActivity : ComponentActivity() {
         root.postDelayed(sync, 700L)
     }
 
+    /**
+     * Re-fit the same YouTube surface to the latest WebView viewport during CSS fullscreen.
+     * On Android, configuration callbacks can arrive before Chromium has committed its new
+     * viewport. A few delayed measurements avoid retaining the previous portrait dimensions.
+     */
+    private fun scheduleCssFullscreenLayoutSync() {
+        if (!::root.isInitialized || !::playerContainer.isInitialized) return
+        val player = webView ?: return
+        val generation = ++fullscreenViewportSyncGeneration
+        val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+        val shouldRecover = wasPlayingBeforeFullscreen ||
+            prefs.getBoolean("youtube_playback_is_playing", false)
+
+        val sync = object : Runnable {
+            override fun run() {
+                if (generation != fullscreenViewportSyncGeneration ||
+                    isFinishing || isDestroyed || !isCssFullscreen || webView !== player
+                ) return
+
+                root.requestLayout()
+                playerContainer.requestLayout()
+                player.requestLayout()
+                player.evaluateJavascript(
+                    """
+                    (function() {
+                      try {
+                        var width = Math.max(1, document.documentElement.clientWidth || window.innerWidth || 1);
+                        var height = Math.max(1, document.documentElement.clientHeight || window.innerHeight || 1);
+                        var target = document.querySelector('ytm-player') ||
+                                     document.querySelector('#movie_player') ||
+                                     document.querySelector('#player');
+                        if (target) {
+                          target.style.setProperty('position', 'fixed', 'important');
+                          target.style.setProperty('left', '0', 'important');
+                          target.style.setProperty('right', '0', 'important');
+                          target.style.setProperty('top', '0', 'important');
+                          target.style.setProperty('bottom', '0', 'important');
+                          target.style.setProperty('width', width + 'px', 'important');
+                          target.style.setProperty('height', height + 'px', 'important');
+                          target.style.setProperty('max-width', '100%', 'important');
+                          target.style.setProperty('max-height', '100%', 'important');
+                        }
+                        if (typeof window.__ngocSiFitPlayerResizeHandler === 'function') {
+                          window.__ngocSiFitPlayerResizeHandler();
+                        } else {
+                          window.dispatchEvent(new Event('resize'));
+                        }
+                        return width + 'x' + height;
+                      } catch (_) { return 'layout-error'; }
+                    })();
+                    """.trimIndent(),
+                    null
+                )
+            }
+        }
+        root.post(sync)
+        root.postDelayed(sync, 140L)
+        root.postDelayed(sync, 380L)
+        root.postDelayed(sync, 720L)
+
+        if (shouldRecover) {
+            player.postDelayed({
+                if (generation == fullscreenViewportSyncGeneration &&
+                    !isFinishing && !isDestroyed && isCssFullscreen && webView === player
+                ) {
+                    // Recovery probes the existing media element and does not reload the page.
+                    recoverFullscreenPlayback(allowPageReloadFallback = false)
+                }
+            }, 900L)
+        }
+    }
+
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
 
         // The manifest handles orientation changes without recreating this Activity.
         if (!::playerContainer.isInitialized || !::root.isInitialized) return
+
+        if (isCssFullscreen) {
+            scheduleCssFullscreenLayoutSync()
+            return
+        }
 
         // Chromium's fullscreen custom view is a separate surface. Re-layout it after
         // configuration changes instead of leaving its original portrait measurements.
@@ -2672,8 +2751,6 @@ class YouTubePlayerActivity : ComponentActivity() {
             }
             return
         }
-        if (isCssFullscreen) return
-
         scheduleInlinePlayerLayoutSync()
     }
 
