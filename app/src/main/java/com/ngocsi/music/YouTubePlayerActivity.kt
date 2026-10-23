@@ -1947,6 +1947,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 'html,body,ytm-app,ytm-watch {width:100%!important;max-width:none!important;}' +
                                 'ytm-player,#player-container,#player,#movie_player,.html5-video-player,' +
                                 '.html5-video-container {box-sizing:border-box!important;width:100%!important;' +
+                                'height:100%!important;min-height:0!important;max-height:none!important;' +
                                 'max-width:none!important;margin-left:0!important;margin-right:0!important;}';
                               (document.head || document.documentElement).appendChild(fitStyle);
                             }
@@ -1973,7 +1974,8 @@ class YouTubePlayerActivity : ComponentActivity() {
                                   root.style.removeProperty(p);
                                 });
                                 root.style.setProperty('width','100%','important');
-                                root.style.setProperty('height',Math.round(viewportWidth*9/16)+'px','important');
+                                var inlineWidth = Math.max(1, root.getBoundingClientRect().width || root.clientWidth || viewportWidth);
+                                root.style.setProperty('height',Math.round(inlineWidth*9/16)+'px','important');
                               }
                               root.style.setProperty('max-width','none','important');
                               // Leave the actual HTML5 video element's geometry to YouTube.
