@@ -637,8 +637,8 @@ class YouTubePlayerActivity : ComponentActivity() {
                 '.ytp-pause-overlay-container,.ytp-cards-teaser,.ytp-ce-element,.ytp-gradient-top,' +
                 '.ytp-show-cards-title,ytm-player-overlay-renderer,ytm-video-overlay-renderer,' +
                 'ytm-mobile-player-overlay-renderer { display:none!important; }' +
-                'ytm-player { position:fixed!important; inset:0!important; width:100vw!important;height:100vh!important;max-width:none!important;aspect-ratio:auto!important;z-index:2147483647!important;background:#000!important;overflow:hidden!important;margin:0!important;padding:0!important; }' +
-                'ytm-player video,video.html5-main-video,.html5-video-container { display:block!important;width:100%!important;height:100%!important;max-width:100vw!important;max-height:100vh!important;object-fit:contain!important;object-position:center center!important; }';
+                'ytm-player { position:fixed!important; inset:0!important; width:100vw!important;height:100vh!important;min-width:100vw!important;min-height:100vh!important;max-width:none!important;max-height:none!important;aspect-ratio:auto!important;z-index:2147483647!important;background:#000!important;overflow:hidden!important;margin:0!important;padding:0!important; }' +
+                'ytm-player video,video.html5-main-video,.html5-video-container { display:block!important;position:absolute!important;inset:0!important;width:100%!important;height:100%!important;min-width:100%!important;min-height:100%!important;max-width:100vw!important;max-height:100vh!important;object-fit:contain!important;object-position:center center!important;margin:0!important;padding:0!important; }';
               return 'ok';
             })();
             """.trimIndent()
