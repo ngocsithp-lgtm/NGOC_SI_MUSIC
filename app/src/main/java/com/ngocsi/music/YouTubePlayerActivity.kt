@@ -2849,55 +2849,12 @@ class YouTubePlayerActivity : ComponentActivity() {
                     // time to detach/settle before touching the underlying WebView.
                     webView?.postDelayed({
                         if (exitGeneration != fullscreenExitGeneration) return@postDelayed
-                        if (wasNativeFullscreen && shouldResumeAfterNativeFullscreen) {
-                            // Chromium can keep the audio clock running after dismissing its
-                            // fullscreen surface while the inline video surface stays blank.
-                            // In that case checking currentTime alone falsely reports success.
-                            // Recreate the same watch page once at its saved timestamp to
-                            // rebuild the video compositor surface, then recover autoplay.
-                            val savedMs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
-                                .getLong("youtube_position_ms_" + sanitizeVideoId(videoId), 0L)
-                            val currentUrl = webView?.url
-                            webView?.evaluateJavascript(
-                                "(function(){var v=document.querySelector('video.html5-main-video')||document.querySelector('#movie_player video')||document.querySelector('video');return v?String(Math.max(0,Math.floor(v.currentTime||0))):'';})();"
-                            ) { rawPosition ->
-                                if (exitGeneration != fullscreenExitGeneration ||
-                                    isFinishing || isDestroyed || webView == null
-                                ) return@evaluateJavascript
-                                val liveSeconds = rawPosition.orEmpty().trim('"').toDoubleOrNull()
-                                    ?.toInt()?.coerceAtLeast(0) ?: 0
-                                val savedSeconds = (savedMs / 1000L).toInt().coerceAtLeast(0)
-                                val seconds = if (liveSeconds > 0) liveSeconds else savedSeconds
-                                if (!currentUrl.isNullOrBlank() &&
-                                    (currentUrl.contains("youtube.com/watch") ||
-                                     currentUrl.contains("youtube.com/shorts/"))
-                                ) {
-                                    val restoredUrl = Uri.parse(currentUrl).buildUpon()
-                                        .clearQuery()
-                                        .appendQueryParameter("v", sanitizeVideoId(videoId))
-                                        .appendQueryParameter("t", "${seconds}s")
-                                        .appendQueryParameter("autoplay", "1")
-                                        .appendQueryParameter("playsinline", "1")
-                                        .build().toString()
-                                    recoverAfterPageReload = true
-                                    youtubePlayerReady = false
-                                    youtubePlayerState = -1
-                                    getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
-                                        .putBoolean("youtube_playback_is_playing", true)
-                                        .putBoolean("youtube_is_playing", true)
-                                        .apply()
-                                    webView?.postDelayed({
-                                        if (exitGeneration == fullscreenExitGeneration &&
-                                            !isFinishing && !isDestroyed && webView != null
-                                        ) webView?.loadUrl(restoredUrl)
-                                    }, 180L)
-                                } else {
-                                    recoverFullscreenPlayback()
-                                }
-                            }
-                        } else {
-                            recoverFullscreenPlayback()
-                        }
+                        // Preserve the current WebView and media element after fullscreen exit.
+                        // Reloading the watch URL here on every rotation can destroy the decoder,
+                        // lose the active audio session, and leave the inline player frozen.
+                        // Probe the existing element first; the recovery routine is bounded and
+                        // only uses its reload fallback if the same player truly remains stalled.
+                        recoverFullscreenPlayback()
                     }, 850L)
                 }
             }
