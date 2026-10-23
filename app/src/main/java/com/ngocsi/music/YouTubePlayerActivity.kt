@@ -2000,6 +2000,56 @@ class YouTubePlayerActivity : ComponentActivity() {
                               var observedRoots = window.__ngocSiObservedOverlayRoots ||
                                 (window.__ngocSiObservedOverlayRoots = new WeakSet());
 
+                              function getPlayerRect(rootNode) {
+                                try {
+                                  var player = rootNode.querySelector(
+                                    'ytm-player,#movie_player,.html5-video-player,#player-container-inner'
+                                  );
+                                  if (player) return player.getBoundingClientRect();
+                                  var host = rootNode.host || null;
+                                  while (host) {
+                                    if (host.matches && host.matches(
+                                      'ytm-player,#movie_player,.html5-video-player,#player-container-inner'
+                                    )) return host.getBoundingClientRect();
+                                    if (host.parentElement) {
+                                      host = host.parentElement;
+                                    } else {
+                                      var enclosingRoot = host.getRootNode();
+                                      host = enclosingRoot && enclosingRoot.host ? enclosingRoot.host : null;
+                                    }
+                                  }
+                                } catch (_) {}
+                                return null;
+                              }
+                              function hideCenterLabeledControls(rootNode) {
+                                try {
+                                  var playerRect = getPlayerRect(rootNode);
+                                  if (!playerRect || playerRect.width < 10 || playerRect.height < 10) return;
+                                  var buttons = rootNode.querySelectorAll(
+                                    'button,[role="button"],ytm-button-renderer,.ytp-button'
+                                  );
+                                  for (var i = 0; i < buttons.length; i++) {
+                                    var button = buttons[i];
+                                    var label = ((button.getAttribute('aria-label') || '') + ' ' +
+                                      (button.getAttribute('title') || '') + ' ' +
+                                      (button.innerText || button.textContent || '')).toLowerCase()
+                                      .replace(/\\s+/g, ' ').trim();
+                                    if (!/(^|\\b)(play|phát|resume|tiếp tục|next|tiếp theo|video kế tiếp)(\\b|$)/i.test(label)) continue;
+                                    var rect = button.getBoundingClientRect();
+                                    if (rect.width < 3 || rect.height < 3) continue;
+                                    var x = (rect.left + rect.width / 2 - playerRect.left) / playerRect.width;
+                                    var y = (rect.top + rect.height / 2 - playerRect.top) / playerRect.height;
+                                    // Keep the regular bottom transport row usable; only hide
+                                    // play/next controls placed over the central video area.
+                                    if (x >= 0.25 && x <= 0.75 && y >= 0.18 && y <= 0.82) {
+                                      button.style.setProperty('display','none','important');
+                                      button.style.setProperty('visibility','hidden','important');
+                                      button.style.setProperty('opacity','0','important');
+                                      button.style.setProperty('pointer-events','none','important');
+                                    }
+                                  }
+                                } catch (_) {}
+                              }
                               function visitNode(node) {
                                 if (!node || node.nodeType !== 1) return;
                                 try {
@@ -2029,10 +2079,12 @@ class YouTubePlayerActivity : ComponentActivity() {
                                           visitNode(records[r].addedNodes[n]);
                                         }
                                       }
+                                      hideCenterLabeledControls(rootNode);
                                     });
                                     observer.observe(rootNode, {childList:true, subtree:true});
                                   } catch (_) {}
                                 }
+                                hideCenterLabeledControls(rootNode);
                                 try {
                                   var nodes = rootNode.querySelectorAll('*');
                                   for (var j = 0; j < nodes.length; j++) {
