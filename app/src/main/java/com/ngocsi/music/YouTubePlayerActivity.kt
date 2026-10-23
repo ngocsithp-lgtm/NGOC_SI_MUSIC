@@ -2529,10 +2529,6 @@ class YouTubePlayerActivity : ComponentActivity() {
                 (function() {
                   var style = document.getElementById('ngocsi-css-fullscreen');
                   if (style) style.remove();
-                  if (window.__ngocSiFitPlayerTimer) {
-                    clearInterval(window.__ngocSiFitPlayerTimer);
-                    window.__ngocSiFitPlayerTimer = null;
-                  }
                   document.documentElement.style.removeProperty('width');
                   document.documentElement.style.removeProperty('height');
                   document.body.style.removeProperty('width');
