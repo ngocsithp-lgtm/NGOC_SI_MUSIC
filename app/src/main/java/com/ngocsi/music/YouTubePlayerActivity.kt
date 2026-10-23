@@ -2048,8 +2048,9 @@ class YouTubePlayerActivity : ComponentActivity() {
                                         String(button.id || '');
                                     } catch (_) {}
                                     var hasCenterControlClass = /large-play-button|center-play-button|central-play-button|next-button-overlay|ytp-overlay-button/i.test(classHint);
-                                    if (!hasCenterControlClass &&
-                                        !/(^|\b)(play|phát|resume|tiếp tục|next|tiếp theo|video kế tiếp)(\b|$)/i.test(label)) continue;
+                                    // YouTube sometimes leaves a translucent central control with no
+                                    // accessible label or recognizable class. The center-position
+                                    // check below is the reliable discriminator; don't require text.
                                     var rect = button.getBoundingClientRect();
                                     if (rect.width < 3 || rect.height < 3) continue;
                                     var x = (rect.left + rect.width / 2 - playerRect.left) / playerRect.width;
