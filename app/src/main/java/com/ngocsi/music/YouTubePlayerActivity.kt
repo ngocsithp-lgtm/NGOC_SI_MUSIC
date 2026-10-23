@@ -657,7 +657,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 '.ytp-pause-overlay-container,.ytp-large-play-button,.ytp-cued-thumbnail-overlay,' +
                 '.ytp-next-button,.ytp-prev-button,.ytp-next-button-container,.ytp-prev-button-container,' +
                 '.ytp-endscreen-content,.ytp-endscreen-previous,.ytp-endscreen-next,.ytp-ce-covering-overlay,' +
-                '.ytp-cards-teaser,.ytp-ce-element,.ytp-gradient-top,ytm-player-controls-overlay-renderer,' +
+                '.ytp-cards-teaser,.ytp-ce-element,.ytp-gradient-top,' +
                 'ytm-play-button-renderer,' +
                 '.ytp-show-cards-title,ytm-player-overlay-renderer,ytm-video-overlay-renderer,' +
                 'ytm-mobile-player-overlay-renderer { display:none!important; }' +
@@ -1964,7 +1964,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 '.ytp-next-button-container, .ytp-prev-button-container, ' +
                                 '.ytp-endscreen-content, .ytp-endscreen-previous, .ytp-endscreen-next, ' +
                                 '.ytp-ce-covering-overlay, .ytp-cards-teaser, ' +
-                                'ytm-player-controls-overlay-renderer, ytm-play-button-renderer, ' +
+                                ' ytm-play-button-renderer, ' +
                                 '.ytp-ce-element, .ytp-gradient-top, .ytp-show-cards-title, ' +
                                 '#player-ads, #masthead-ad, .video-ads, .ytp-ad-module, ' +
                                 '.ytp-ad-player-overlay, .ytp-ad-overlay-container, ' +
@@ -1993,7 +1993,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 '.ytp-endscreen-previous,.ytp-endscreen-next,.ytp-ce-covering-overlay,' +
                                 '.ytp-cards-teaser,.ytp-ce-element,ytm-player-overlay-renderer,' +
                                 'ytm-video-overlay-renderer,ytm-mobile-player-overlay-renderer,' +
-                                'ytm-player-controls-overlay-renderer,ytm-play-button-renderer';
+                                'ytm-play-button-renderer';
                               var rules = selectors +
                                 '{display:none!important;visibility:hidden!important;opacity:0!important;' +
                                 'pointer-events:none!important;max-height:0!important;}';
@@ -2601,7 +2601,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                         ) {
                             webView?.onResume()
                             webView?.resumeTimers()
-                            requestYouTubePlayback()
+                            resumeVideoAfterFullscreenRotation()
                         }
                     }, 500L)
                 }
@@ -2838,6 +2838,72 @@ class YouTubePlayerActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    /**
+     * Resume the same HTML5 video after the native YouTube fullscreen surface rotates.
+     * Do not use the normal visible-video selector here: Chrome may temporarily move
+     * rendering into WebChromeClient's custom view, leaving the DOM video's bounds at zero.
+     * This is a single bounded request and never reloads the page or changes the video ID.
+     */
+    private fun resumeVideoAfterFullscreenRotation() {
+        if (isFinishing || isDestroyed || webView == null) return
+        webView?.evaluateJavascript(
+            """
+            (function() {
+              try {
+                var video = document.querySelector('video.html5-main-video') ||
+                            document.querySelector('#movie_player video') ||
+                            document.querySelector('ytm-player video') ||
+                            document.querySelector('video');
+                var player = document.querySelector('#movie_player') ||
+                             document.querySelector('.html5-video-player') ||
+                             document.querySelector('ytm-player');
+                if (!video) {
+                  if (player && typeof player.playVideo === 'function') {
+                    player.playVideo();
+                    return 'requested-api';
+                  }
+                  return 'no-video';
+                }
+
+                var progressAt = Number(window.__ngocSiPlaybackProgressAt || 0);
+                var clockStalled = !video.paused &&
+                  (!progressAt || Date.now() - progressAt > 1800);
+                if (!video.paused && !clockStalled) return 'already-playing';
+
+                // If Chromium left the media element logically playing with a frozen clock,
+                // reset only that same element's media pipeline. Avoid calling both API and
+                // video.play() for the same request, which caused stutter in prior versions.
+                if (clockStalled) {
+                  try { video.pause(); } catch (_) {}
+                  try {
+                    var promise = video.play();
+                    if (promise && typeof promise.catch === 'function') promise.catch(function(){});
+                    return 'requested-video';
+                  } catch (_) {}
+                }
+
+                if (player && typeof player.playVideo === 'function') {
+                  player.playVideo();
+                  return 'requested-api';
+                }
+                try {
+                  var fallbackPromise = video.play();
+                  if (fallbackPromise && typeof fallbackPromise.catch === 'function') {
+                    fallbackPromise.catch(function(){});
+                  }
+                  return 'requested-video';
+                } catch (_) {
+                  return 'play-rejected';
+                }
+              } catch (_) {
+                return 'recovery-error';
+              }
+            })();
+            """.trimIndent(),
+            null
+        )
     }
 
     private fun recoverFullscreenPlayback(allowPageReloadFallback: Boolean = true) {
