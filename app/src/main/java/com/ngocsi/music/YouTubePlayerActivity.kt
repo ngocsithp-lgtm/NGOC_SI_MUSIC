@@ -1993,6 +1993,11 @@ class YouTubePlayerActivity : ComponentActivity() {
                             if (window.__ngocSiFitPlayerResizeHandler) {
                               window.removeEventListener('resize', window.__ngocSiFitPlayerResizeHandler);
                               window.removeEventListener('orientationchange', window.__ngocSiFitPlayerResizeHandler);
+                              if (window.visualViewport) {
+                                window.visualViewport.removeEventListener('resize', window.__ngocSiFitPlayerResizeHandler);
+                              }
+                              if (ngocSiFitFrame) cancelAnimationFrame(ngocSiFitFrame);
+                              if (ngocSiFitSettleTimer) clearTimeout(ngocSiFitSettleTimer);
                             }
                             var ngocSiFitFrame = 0;
                             var ngocSiFitSettleTimer = 0;
@@ -2015,6 +2020,9 @@ class YouTubePlayerActivity : ComponentActivity() {
                             ngocSiFitPlayerToViewport();
                             window.addEventListener('resize', window.__ngocSiFitPlayerResizeHandler, {passive:true});
                             window.addEventListener('orientationchange', window.__ngocSiFitPlayerResizeHandler, {passive:true});
+                            if (window.visualViewport) {
+                              window.visualViewport.addEventListener('resize', window.__ngocSiFitPlayerResizeHandler, {passive:true});
+                            }
                           } catch (_) {}
 
                           var ngocSiUnmuteAttempts = 0;
@@ -2419,7 +2427,13 @@ class YouTubePlayerActivity : ComponentActivity() {
                     isFinishing || isDestroyed || customView != null || isCssFullscreen
                 ) return
 
-                val availableWidth = root.width.takeIf { it > 0 }
+                // Prefer the current configuration width over a View width that may
+                // still reflect the previous orientation during the first layout pass.
+                val configuredWidth = resources.configuration.screenWidthDp
+                    .takeIf { it > 0 }
+                    ?.let { dp(it) }
+                val availableWidth = configuredWidth
+                    ?: root.width.takeIf { it > 0 }
                     ?: playerContainer.width.takeIf { it > 0 }
                     ?: resources.displayMetrics.widthPixels
                 val targetHeight = (availableWidth * 9f / 16f).toInt().coerceAtLeast(dp(200))
