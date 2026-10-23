@@ -110,6 +110,9 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var inlineLayoutSyncGeneration = 0
     // Track bounded layout/recovery work during CSS fullscreen rotation.
     private var fullscreenViewportSyncGeneration = 0
+    // Preserve playback intent while orientation changes temporarily report PAUSED.
+    private var resumePlaybackOnNextOrientationChange = false
+    private var orientationRecoveryWindowUntilMs = 0L
     // A single post-reload recovery is allowed after fullscreen playback stalls.
     private var recoverAfterPageReload = false
     private var playbackCommandGeneration = 0
@@ -199,7 +202,17 @@ class YouTubePlayerActivity : ComponentActivity() {
                     scheduleBackgroundPlaybackRecovery()
                     return@runOnUiThread
                 }
-                if (state == 1) backgroundPlaybackRecoveryGeneration++
+                if (state == 1) {
+                    backgroundPlaybackRecoveryGeneration++
+                    resumePlaybackOnNextOrientationChange = true
+                } else if ((state == 2 || state == 0) &&
+                    System.currentTimeMillis() > orientationRecoveryWindowUntilMs
+                ) {
+                    // Do not erase the playing intent when Chromium transiently pauses during
+                    // the short orientation handoff window. Outside that window a real pause
+                    // or end state should be respected.
+                    resumePlaybackOnNextOrientationChange = false
+                }
                 youtubePlayerState = state
                 getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
                     .putBoolean("youtube_playback_is_playing", state == 1)
@@ -636,6 +649,9 @@ class YouTubePlayerActivity : ComponentActivity() {
         wasPlayingBeforeFullscreen = youtubePlayerState == 1 ||
             getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
                 .getBoolean("youtube_playback_is_playing", false)
+        resumePlaybackOnNextOrientationChange = wasPlayingBeforeFullscreen ||
+            resumePlaybackOnNextOrientationChange
+        orientationRecoveryWindowUntilMs = System.currentTimeMillis() + 2500L
 
         // Keep the existing YouTube WebView/media element alive. Do not invoke
         // YouTube's native fullscreen button or video.webkitEnterFullscreen(),
@@ -1476,7 +1492,9 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun pauseYouTubePlayback() {
-        // An explicit Pause must cancel background recovery and never auto-resume.
+        // An explicit Pause must cancel background and rotation recovery.
+        resumePlaybackOnNextOrientationChange = false
+        orientationRecoveryWindowUntilMs = 0L
         playbackRequestGeneration++
         backgroundPlaybackRecoveryGeneration++
         getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
@@ -1694,6 +1712,7 @@ class YouTubePlayerActivity : ComponentActivity() {
 
     private fun requestYouTubePlayback() {
         if (!youtubePlayerReady || webView == null || isFinishing || isDestroyed) return
+        resumePlaybackOnNextOrientationChange = true
         val requestGeneration = ++playbackRequestGeneration
         fun attempt(remaining: Int) {
             if (requestGeneration != playbackRequestGeneration ||
@@ -2437,6 +2456,9 @@ class YouTubePlayerActivity : ComponentActivity() {
                         youtubePlayerState == 1 ||
                         getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
                             .getBoolean("youtube_playback_is_playing", false)
+                    resumePlaybackOnNextOrientationChange = wasPlayingBeforeFullscreen ||
+                        resumePlaybackOnNextOrientationChange
+                    orientationRecoveryWindowUntilMs = System.currentTimeMillis() + 2500L
 
                     customView = view
                     customViewCallback = callback
@@ -2646,8 +2668,8 @@ class YouTubePlayerActivity : ComponentActivity() {
         val player = webView ?: return
         val generation = ++fullscreenViewportSyncGeneration
         val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
-        val shouldRecover = wasPlayingBeforeFullscreen ||
-            prefs.getBoolean("youtube_playback_is_playing", false)
+        val shouldRecover = resumePlaybackOnNextOrientationChange ||
+            wasPlayingBeforeFullscreen || prefs.getBoolean("youtube_playback_is_playing", false)
 
         val sync = object : Runnable {
             override fun run() {
@@ -2710,6 +2732,7 @@ class YouTubePlayerActivity : ComponentActivity() {
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
+        orientationRecoveryWindowUntilMs = System.currentTimeMillis() + 1800L
 
         // The manifest handles orientation changes without recreating this Activity.
         if (!::playerContainer.isInitialized || !::root.isInitialized) return
@@ -2752,6 +2775,26 @@ class YouTubePlayerActivity : ComponentActivity() {
             return
         }
         scheduleInlinePlayerLayoutSync()
+        val player = webView
+        val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+        if (player != null && (resumePlaybackOnNextOrientationChange ||
+                prefs.getBoolean("youtube_playback_is_playing", false))) {
+            val generation = ++fullscreenViewportSyncGeneration
+            player.postDelayed({
+                if (generation != fullscreenViewportSyncGeneration ||
+                    isFinishing || isDestroyed || webView !== player ||
+                    customView != null || isCssFullscreen
+                ) return@postDelayed
+                if (resumePlaybackOnNextOrientationChange ||
+                    getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+                        .getBoolean("youtube_playback_is_playing", false)
+                ) {
+                    // Orientation changes can pause the same video element without ending it.
+                    // Restore playback only when the pre-rotation state was active.
+                    recoverFullscreenPlayback(allowPageReloadFallback = false)
+                }
+            }, 850L)
+        }
     }
 
     override fun onResume() {
@@ -2846,6 +2889,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         // duplicate exits; they otherwise schedule competing recovery/reload attempts.
         if (customView == null && !isCssFullscreen) return
         val exitGeneration = ++fullscreenExitGeneration
+        orientationRecoveryWindowUntilMs = System.currentTimeMillis() + 2200L
         // Cancel any stale probe loop before scheduling the one recovery for this exit.
         fullscreenRecoveryGeneration++
         // Keep the existing WebView/video element and currentTime. Do not write persistent
