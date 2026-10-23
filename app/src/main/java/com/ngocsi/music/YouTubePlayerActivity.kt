@@ -654,8 +654,11 @@ class YouTubePlayerActivity : ComponentActivity() {
                 'ytm-comment-section-renderer,ytm-comment-renderer,ytm-comment-thread-renderer,' +
                 'ytm-comments-entry-point-renderer,ytm-comment-simplebox-renderer,' +
                 '.ytp-title,.ytp-title-text,.ytp-title-link,.ytp-chrome-top,.ytp-pause-overlay,' +
-                '.ytp-pause-overlay-container,.ytp-large-play-button,.ytp-next-button,.ytp-prev-button,' +
-                '.ytp-next-button-container,.ytp-prev-button-container,.ytp-cards-teaser,.ytp-ce-element,.ytp-gradient-top,' +
+                '.ytp-pause-overlay-container,.ytp-large-play-button,.ytp-cued-thumbnail-overlay,' +
+                '.ytp-next-button,.ytp-prev-button,.ytp-next-button-container,.ytp-prev-button-container,' +
+                '.ytp-endscreen-content,.ytp-endscreen-previous,.ytp-endscreen-next,.ytp-ce-covering-overlay,' +
+                '.ytp-cards-teaser,.ytp-ce-element,.ytp-gradient-top,ytm-player-controls-overlay-renderer,' +
+                'ytm-play-button-renderer,' +
                 '.ytp-show-cards-title,ytm-player-overlay-renderer,ytm-video-overlay-renderer,' +
                 'ytm-mobile-player-overlay-renderer { display:none!important; }' +
                 'ytm-player { position:fixed!important; inset:0!important; width:auto!important;height:auto!important;min-width:0!important;min-height:0!important;max-width:none!important;max-height:none!important;aspect-ratio:auto!important;z-index:2147483647!important;background:#000!important;overflow:hidden!important;margin:0!important;padding:0!important; }' +
@@ -1957,8 +1960,11 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 'ytm-player-overlay-renderer, ytm-video-overlay-renderer, ytm-mobile-player-overlay-renderer, ' +
                                 '.ytp-title, .ytp-title-text, .ytp-title-link, .ytp-chrome-top, ' +
                                 '.ytp-pause-overlay, .ytp-pause-overlay-container, ' +
-                                '.ytp-large-play-button, .ytp-next-button, .ytp-prev-button, ' +
-                                '.ytp-next-button-container, .ytp-prev-button-container, .ytp-cards-teaser, ' +
+                                '.ytp-large-play-button, .ytp-cued-thumbnail-overlay, .ytp-next-button, .ytp-prev-button, ' +
+                                '.ytp-next-button-container, .ytp-prev-button-container, ' +
+                                '.ytp-endscreen-content, .ytp-endscreen-previous, .ytp-endscreen-next, ' +
+                                '.ytp-ce-covering-overlay, .ytp-cards-teaser, ' +
+                                'ytm-player-controls-overlay-renderer, ytm-play-button-renderer, ' +
                                 '.ytp-ce-element, .ytp-gradient-top, .ytp-show-cards-title, ' +
                                 '#player-ads, #masthead-ad, .video-ads, .ytp-ad-module, ' +
                                 '.ytp-ad-player-overlay, .ytp-ad-overlay-container, ' +
@@ -1975,6 +1981,68 @@ class YouTubePlayerActivity : ComponentActivity() {
                             // Keep the inline player in normal document flow. Fixed positioning
                             // across orientation changes can leave Chromium's video surface frozen
                             // when the fullscreen custom view is dismissed.
+                            // The YouTube mobile page can place its central controls inside
+                            // an open shadow root. Page-level CSS cannot style those nodes, so add
+                            // the same narrowly-scoped hide rules to every open player shadow root
+                            // and re-apply them when YouTube inserts/replaces overlay nodes.
+                            (function installNgocSiCenterControlHider() {
+                              var selectors =
+                                '.ytp-large-play-button,.ytp-cued-thumbnail-overlay,' +
+                                '.ytp-next-button,.ytp-prev-button,.ytp-next-button-container,' +
+                                '.ytp-prev-button-container,.ytp-endscreen-content,' +
+                                '.ytp-endscreen-previous,.ytp-endscreen-next,.ytp-ce-covering-overlay,' +
+                                '.ytp-cards-teaser,.ytp-ce-element,ytm-player-overlay-renderer,' +
+                                'ytm-video-overlay-renderer,ytm-mobile-player-overlay-renderer,' +
+                                'ytm-player-controls-overlay-renderer,ytm-play-button-renderer';
+                              var rules = selectors +
+                                '{display:none!important;visibility:hidden!important;opacity:0!important;' +
+                                'pointer-events:none!important;max-height:0!important;}';
+                              var observedRoots = window.__ngocSiObservedOverlayRoots ||
+                                (window.__ngocSiObservedOverlayRoots = new WeakSet());
+
+                              function visitNode(node) {
+                                if (!node || node.nodeType !== 1) return;
+                                try {
+                                  if (node.shadowRoot) protectRoot(node.shadowRoot);
+                                  var descendants = node.querySelectorAll ? node.querySelectorAll('*') : [];
+                                  for (var i = 0; i < descendants.length; i++) {
+                                    if (descendants[i].shadowRoot) protectRoot(descendants[i].shadowRoot);
+                                  }
+                                } catch (_) {}
+                              }
+                              function protectRoot(rootNode) {
+                                if (!rootNode || !rootNode.querySelectorAll) return;
+                                try {
+                                  if (!rootNode.querySelector('#ngocsi-center-controls-shadow-style')) {
+                                    var overlayStyle = document.createElement('style');
+                                    overlayStyle.id = 'ngocsi-center-controls-shadow-style';
+                                    overlayStyle.textContent = rules;
+                                    rootNode.appendChild(overlayStyle);
+                                  }
+                                } catch (_) {}
+                                if (!observedRoots.has(rootNode)) {
+                                  observedRoots.add(rootNode);
+                                  try {
+                                    var observer = new MutationObserver(function(records) {
+                                      for (var r = 0; r < records.length; r++) {
+                                        for (var n = 0; n < records[r].addedNodes.length; n++) {
+                                          visitNode(records[r].addedNodes[n]);
+                                        }
+                                      }
+                                    });
+                                    observer.observe(rootNode, {childList:true, subtree:true});
+                                  } catch (_) {}
+                                }
+                                try {
+                                  var nodes = rootNode.querySelectorAll('*');
+                                  for (var j = 0; j < nodes.length; j++) {
+                                    if (nodes[j].shadowRoot) protectRoot(nodes[j].shadowRoot);
+                                  }
+                                } catch (_) {}
+                              }
+                              protectRoot(document);
+                            })();
+
                             if (!document.getElementById('ngocsi-player-viewport-fix')) {
                               var fitStyle = document.createElement('style');
                               fitStyle.id = 'ngocsi-player-viewport-fix';
@@ -2521,6 +2589,21 @@ class YouTubePlayerActivity : ComponentActivity() {
                     root.requestLayout()
                     fullscreenView.requestLayout()
                     root.bringChildToFront(fullscreenView)
+
+                    // Switching to landscape can pause the HTML5 video even though the
+                    // fullscreen custom view is still attached. If it was playing before
+                    // fullscreen, request one bounded Play recovery after the new surface
+                    // has settled instead of making the user tap Play a second time.
+                    val shouldResume = wasPlayingBeforeFullscreen
+                    fullscreenView.postDelayed({
+                        if (customView === fullscreenView && shouldResume &&
+                            !isFinishing && !isDestroyed && webView != null
+                        ) {
+                            webView?.onResume()
+                            webView?.resumeTimers()
+                            requestYouTubePlayback()
+                        }
+                    }, 500L)
                 }
             }
             return
