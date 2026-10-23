@@ -1945,10 +1945,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 'html,body,ytm-app,ytm-watch {width:100%!important;max-width:none!important;}' +
                                 'ytm-player,#player-container,#player,#movie_player,.html5-video-player,' +
                                 '.html5-video-container {box-sizing:border-box!important;width:100%!important;' +
-                                'max-width:none!important;margin-left:0!important;margin-right:0!important;}' +
-                                'video.html5-main-video,ytm-player video,#movie_player video {' +
-                                'width:100%!important;height:100%!important;max-width:none!important;' +
-                                'max-height:100%!important;object-fit:contain!important;object-position:center center!important;}';
+                                'max-width:none!important;margin-left:0!important;margin-right:0!important;}';
                               (document.head || document.documentElement).appendChild(fitStyle);
                             }
                             function ngocSiFitPlayerToViewport() {
@@ -1977,24 +1974,11 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 root.style.setProperty('height',Math.round(viewportWidth*9/16)+'px','important');
                               }
                               root.style.setProperty('max-width','none','important');
-                              var video = document.querySelector('video.html5-main-video') ||
-                                root.querySelector('video') || document.querySelector('#movie_player video');
-                              if (video) {
-                                if (isFullscreen) {
-                                  video.style.setProperty('position','absolute','important');
-                                  video.style.setProperty('left','0','important');
-                                  video.style.setProperty('top','0','important');
-                                } else {
-                                  video.style.removeProperty('position');
-                                  video.style.removeProperty('left');
-                                  video.style.removeProperty('top');
-                                }
-                                video.style.setProperty('width','100%','important');
-                                video.style.setProperty('height','100%','important');
-                                video.style.setProperty('max-width','none','important');
-                                video.style.setProperty('object-fit','contain','important');
-                                video.style.setProperty('object-position','center center','important');
-                              }
+                              // Leave the actual HTML5 video element's geometry to YouTube.
+                              // Forcing inline width/height/position here can detach its
+                              // compositor surface after fullscreen exits: audio continues
+                              // while the video frame becomes invisible.
+
                             }
                             if (window.__ngocSiFitPlayerTimer) clearInterval(window.__ngocSiFitPlayerTimer);
                             ngocSiFitPlayerToViewport();
