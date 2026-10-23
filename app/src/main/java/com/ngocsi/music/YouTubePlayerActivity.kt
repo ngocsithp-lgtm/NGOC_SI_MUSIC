@@ -1945,15 +1945,18 @@ class YouTubePlayerActivity : ComponentActivity() {
                               fitStyle.id = 'ngocsi-player-viewport-fix';
                               fitStyle.textContent =
                                 'html,body,ytm-app,ytm-watch {width:100%!important;max-width:none!important;}' +
-                                'ytm-player,#player-container,#player,#movie_player,.html5-video-player,' +
+                                'ytm-player {box-sizing:border-box!important;display:block!important;width:100%!important;' +
+                                'height:auto!important;min-height:0!important;max-height:none!important;' +
+                                'aspect-ratio:16/9!important;max-width:none!important;margin:0!important;padding:0!important;overflow:hidden!important;}' +
+                                '#player-container,#player-container-id,#player,#movie_player,.html5-video-player,' +
                                 '.html5-video-container {box-sizing:border-box!important;width:100%!important;' +
                                 'height:100%!important;min-height:0!important;max-height:none!important;' +
-                                'max-width:none!important;margin-left:0!important;margin-right:0!important;}' +
-                                // Fill the native video viewport to avoid thin letterbox bands.
-                                // Do not force video position/width/height inline; WebView can
-                                // lose its compositor surface after fullscreen dismissal.
+                                'max-width:none!important;margin:0!important;padding:0!important;overflow:hidden!important;}' +
+                                // Apply crop to the actual video surface and remove intrinsic aspect-ratio caps.
+                                // Avoid changing its position or explicit dimensions to protect WebView playback.
                                 'ytm-player video,video.html5-main-video,.html5-video-player video {' +
-                                'object-fit:cover!important;object-position:center center!important;}';
+                                'object-fit:cover!important;object-position:50% 50%!important;' +
+                                'max-width:none!important;max-height:none!important;}';
                               (document.head || document.documentElement).appendChild(fitStyle);
                             }
                             function ngocSiFitPlayerToViewport() {
