@@ -1987,16 +1987,13 @@ class YouTubePlayerActivity : ComponentActivity() {
                             // and re-apply them when YouTube inserts/replaces overlay nodes.
                             (function installNgocSiCenterControlHider() {
                               var selectors =
-                                '.ytp-large-play-button,.ytp-cued-thumbnail-overlay,' +
-                                '.ytp-next-button,.ytp-prev-button,.ytp-next-button-container,' +
-                                '.ytp-prev-button-container,.ytp-endscreen-content,' +
-                                '.ytp-endscreen-previous,.ytp-endscreen-next,.ytp-ce-covering-overlay,' +
-                                '.ytp-cards-teaser,.ytp-ce-element,.ytp-overlay-button,' +
+                                '.ytp-cued-thumbnail-overlay,.ytp-next-button,.ytp-prev-button,' +
+                                '.ytp-next-button-container,.ytp-prev-button-container,' +
+                                '.ytp-endscreen-content,.ytp-endscreen-previous,.ytp-endscreen-next,' +
+                                '.ytp-ce-covering-overlay,.ytp-cards-teaser,.ytp-ce-element,' +
                                 'ytm-player-overlay-renderer,ytm-video-overlay-renderer,' +
-                                'ytm-mobile-player-overlay-renderer,ytm-play-button-renderer,' +
-                                'ytm-large-play-button-renderer,ytm-player-overlay,' +
-                                '[class*="large-play-button"],[class*="center-play-button"],' +
-                                '[class*="central-play-button"],[class*="next-button-overlay"]';
+                                'ytm-mobile-player-overlay-renderer,ytm-player-overlay,' +
+                                '[class*="next-button-overlay"]';
                               var rules = selectors +
                                 '{display:none!important;visibility:hidden!important;opacity:0!important;' +
                                 'pointer-events:none!important;max-height:0!important;}';
@@ -2030,9 +2027,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                                   if (!playerRect || playerRect.width < 10 || playerRect.height < 10) return;
                                   var buttons = rootNode.querySelectorAll(
                                     'button,[role="button"],ytm-button-renderer,.ytp-button,' +
-                                    '.ytp-large-play-button,.ytp-overlay-button,.ytp-next-button,' +
-                                    'ytm-large-play-button-renderer,[class*="large-play-button"],' +
-                                    '[class*="center-play-button"],[class*="central-play-button"],' +
+                                    '.ytp-next-button,.ytp-prev-button,' +
                                     '[class*="next-button-overlay"]'
                                   );
                                   for (var i = 0; i < buttons.length; i++) {
@@ -2048,16 +2043,17 @@ class YouTubePlayerActivity : ComponentActivity() {
                                         String(button.id || '');
                                     } catch (_) {}
                                     var hasCenterControlClass = /large-play-button|center-play-button|central-play-button|next-button-overlay|ytp-overlay-button/i.test(classHint);
-                                    // YouTube sometimes leaves a translucent central control with no
-                                    // accessible label or recognizable class. The center-position
-                                    // check below is the reliable discriminator; don't require text.
+                                    // Keep YouTube's single central Play/Pause control available in
+                                    // landscape. Hide only duplicate skip/next/previous overlays.
                                     var rect = button.getBoundingClientRect();
                                     if (rect.width < 3 || rect.height < 3) continue;
                                     var x = (rect.left + rect.width / 2 - playerRect.left) / playerRect.width;
                                     var y = (rect.top + rect.height / 2 - playerRect.top) / playerRect.height;
-                                    // Keep the regular bottom transport row usable; only hide
-                                    // play/next controls placed over the central video area.
-                                    if (x >= 0.25 && x <= 0.75 && y >= 0.18 && y <= 0.82) {
+                                    var skipControl = /next|previous|prev|skip|tiếp|trước/i.test(
+                                      label + ' ' + classHint
+                                    );
+                                    if (skipControl && x >= 0.25 && x <= 0.75 &&
+                                        y >= 0.18 && y <= 0.82) {
                                       button.style.setProperty('display','none','important');
                                       button.style.setProperty('visibility','hidden','important');
                                       button.style.setProperty('opacity','0','important');
