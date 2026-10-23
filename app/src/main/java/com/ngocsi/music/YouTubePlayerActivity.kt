@@ -1980,10 +1980,28 @@ class YouTubePlayerActivity : ComponentActivity() {
                               // while the video frame becomes invisible.
 
                             }
-                            if (window.__ngocSiFitPlayerTimer) clearInterval(window.__ngocSiFitPlayerTimer);
+                            // Avoid repeatedly rewriting player dimensions while Chromium is
+                            // handing the video surface between portrait, landscape and inline.
+                            // A recurring timer was racing YouTube's own layout and could leave
+                            // the player at a stale height after the second/third rotation.
+                            if (window.__ngocSiFitPlayerTimer) {
+                              clearInterval(window.__ngocSiFitPlayerTimer);
+                              window.__ngocSiFitPlayerTimer = null;
+                            }
+                            if (window.__ngocSiFitPlayerResizeHandler) {
+                              window.removeEventListener('resize', window.__ngocSiFitPlayerResizeHandler);
+                            }
+                            var ngocSiFitFrame = 0;
+                            window.__ngocSiFitPlayerResizeHandler = function() {
+                              if (ngocSiFitFrame) cancelAnimationFrame(ngocSiFitFrame);
+                              ngocSiFitFrame = requestAnimationFrame(function() {
+                                ngocSiFitFrame = 0;
+                                ngocSiFitPlayerToViewport();
+                              });
+                            };
                             ngocSiFitPlayerToViewport();
-                            window.addEventListener('resize', ngocSiFitPlayerToViewport, {passive:true});
-                            window.__ngocSiFitPlayerTimer = setInterval(ngocSiFitPlayerToViewport, 900);
+                            window.addEventListener('resize', window.__ngocSiFitPlayerResizeHandler, {passive:true});
+                            window.addEventListener('orientationchange', window.__ngocSiFitPlayerResizeHandler, {passive:true});
                           } catch (_) {}
 
                           var ngocSiUnmuteAttempts = 0;
