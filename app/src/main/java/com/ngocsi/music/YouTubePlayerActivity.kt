@@ -1838,7 +1838,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 loadsImagesAutomatically = true
                 mediaPlaybackRequiresUserGesture = false
                 useWideViewPort = true
-                loadWithOverviewMode = true
+                loadWithOverviewMode = false
                 allowContentAccess = true
                 allowFileAccess = false
                 javaScriptCanOpenWindowsAutomatically = true
@@ -1918,6 +1918,20 @@ class YouTubePlayerActivity : ComponentActivity() {
                           // Best-effort removal of the duplicate mobile masthead, title row,
                           // common ad slots, and mute prompt. Video delivery hosts are not filtered.
                           try {
+                            // Keep the mobile page's CSS viewport aligned with the actual WebView.
+                            // Otherwise overview scaling can render the player as a small island
+                            // inside the native 16:9 frame on some Android viewport configurations.
+                            var ngocSiViewport = document.querySelector('meta[name="viewport"]');
+                            if (!ngocSiViewport) {
+                              ngocSiViewport = document.createElement('meta');
+                              ngocSiViewport.name = 'viewport';
+                              (document.head || document.documentElement).appendChild(ngocSiViewport);
+                            }
+                            ngocSiViewport.setAttribute(
+                              'content',
+                              'width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no'
+                            );
+
                             if (!document.getElementById('ngocsi-youtube-cleanup-style')) {
                               var cleanupStyle = document.createElement('style');
                               cleanupStyle.id = 'ngocsi-youtube-cleanup-style';
