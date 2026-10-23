@@ -654,7 +654,8 @@ class YouTubePlayerActivity : ComponentActivity() {
                 'ytm-comment-section-renderer,ytm-comment-renderer,ytm-comment-thread-renderer,' +
                 'ytm-comments-entry-point-renderer,ytm-comment-simplebox-renderer,' +
                 '.ytp-title,.ytp-title-text,.ytp-title-link,.ytp-chrome-top,.ytp-pause-overlay,' +
-                '.ytp-pause-overlay-container,.ytp-cards-teaser,.ytp-ce-element,.ytp-gradient-top,' +
+                '.ytp-pause-overlay-container,.ytp-large-play-button,.ytp-next-button,.ytp-prev-button,' +
+                '.ytp-next-button-container,.ytp-prev-button-container,.ytp-cards-teaser,.ytp-ce-element,.ytp-gradient-top,' +
                 '.ytp-show-cards-title,ytm-player-overlay-renderer,ytm-video-overlay-renderer,' +
                 'ytm-mobile-player-overlay-renderer { display:none!important; }' +
                 'ytm-player { position:fixed!important; inset:0!important; width:auto!important;height:auto!important;min-width:0!important;min-height:0!important;max-width:none!important;max-height:none!important;aspect-ratio:auto!important;z-index:2147483647!important;background:#000!important;overflow:hidden!important;margin:0!important;padding:0!important; }' +
@@ -1955,7 +1956,9 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 'ytd-banner-promo-renderer, ytd-action-companion-ad-renderer, ' +
                                 'ytm-player-overlay-renderer, ytm-video-overlay-renderer, ytm-mobile-player-overlay-renderer, ' +
                                 '.ytp-title, .ytp-title-text, .ytp-title-link, .ytp-chrome-top, ' +
-                                '.ytp-pause-overlay, .ytp-pause-overlay-container, .ytp-cards-teaser, ' +
+                                '.ytp-pause-overlay, .ytp-pause-overlay-container, ' +
+                                '.ytp-large-play-button, .ytp-next-button, .ytp-prev-button, ' +
+                                '.ytp-next-button-container, .ytp-prev-button-container, .ytp-cards-teaser, ' +
                                 '.ytp-ce-element, .ytp-gradient-top, .ytp-show-cards-title, ' +
                                 '#player-ads, #masthead-ad, .video-ads, .ytp-ad-module, ' +
                                 '.ytp-ad-player-overlay, .ytp-ad-overlay-container, ' +
