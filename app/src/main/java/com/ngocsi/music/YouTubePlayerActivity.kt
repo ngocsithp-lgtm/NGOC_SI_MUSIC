@@ -1983,7 +1983,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                               root.style.setProperty('max-width','none','important');
                               // Keep the inline player constrained to its native 16:9
                               // container in portrait; CSS fullscreen uses the full viewport.
-                              root.style.setProperty('height', (document.fullscreenElement ? viewportHeight : Math.round(viewportWidth*9/16))+'px','important');
+                              root.style.setProperty('height', ((document.fullscreenElement || document.getElementById('ngocsi-css-fullscreen')) ? viewportHeight : Math.round(viewportWidth*9/16))+'px','important');
                               var video = document.querySelector('video.html5-main-video') ||
                                 root.querySelector('video') || document.querySelector('#movie_player video');
                               if (video) {
