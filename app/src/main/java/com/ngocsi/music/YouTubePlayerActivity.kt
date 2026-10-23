@@ -86,6 +86,8 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var fullscreenRecoveryGeneration = 0
     // Coalesce duplicate fullscreen-dismiss callbacks so only one recovery cycle runs.
     private var fullscreenExitGeneration = 0
+    // Coalesce orientation/layout syncs so stale delayed callbacks cannot overwrite newer sizes.
+    private var inlineLayoutSyncGeneration = 0
     // A single post-reload recovery is allowed after fullscreen playback stalls.
     private var recoverAfterPageReload = false
     private var playbackCommandGeneration = 0
@@ -1990,14 +1992,25 @@ class YouTubePlayerActivity : ComponentActivity() {
                             }
                             if (window.__ngocSiFitPlayerResizeHandler) {
                               window.removeEventListener('resize', window.__ngocSiFitPlayerResizeHandler);
+                              window.removeEventListener('orientationchange', window.__ngocSiFitPlayerResizeHandler);
                             }
                             var ngocSiFitFrame = 0;
+                            var ngocSiFitSettleTimer = 0;
                             window.__ngocSiFitPlayerResizeHandler = function() {
                               if (ngocSiFitFrame) cancelAnimationFrame(ngocSiFitFrame);
+                              if (ngocSiFitSettleTimer) clearTimeout(ngocSiFitSettleTimer);
+                              // Wait two animation frames for Chromium to commit the new viewport,
+                              // then perform one bounded settling pass after orientation animation.
                               ngocSiFitFrame = requestAnimationFrame(function() {
-                                ngocSiFitFrame = 0;
-                                ngocSiFitPlayerToViewport();
+                                ngocSiFitFrame = requestAnimationFrame(function() {
+                                  ngocSiFitFrame = 0;
+                                  ngocSiFitPlayerToViewport();
+                                });
                               });
+                              ngocSiFitSettleTimer = setTimeout(function() {
+                                ngocSiFitSettleTimer = 0;
+                                ngocSiFitPlayerToViewport();
+                              }, 180);
                             };
                             ngocSiFitPlayerToViewport();
                             window.addEventListener('resize', window.__ngocSiFitPlayerResizeHandler, {passive:true});
@@ -2391,11 +2404,57 @@ class YouTubePlayerActivity : ComponentActivity() {
             "Không mở được YouTube bên ngoài trên thiết bị này."
     }
 
+    /**
+     * Recalculate the inline player after orientation transitions. Android keeps this
+     * Activity alive (configChanges), so a single measurement can still use the previous
+     * orientation's width. A small, bounded series of layout passes lets root/WebView
+     * measurements settle without a recurring timer that races YouTube's compositor.
+     */
+    private fun scheduleInlinePlayerLayoutSync() {
+        if (!::root.isInitialized || !::playerContainer.isInitialized) return
+        val generation = ++inlineLayoutSyncGeneration
+        val sync = object : Runnable {
+            override fun run() {
+                if (generation != inlineLayoutSyncGeneration ||
+                    isFinishing || isDestroyed || customView != null || isCssFullscreen
+                ) return
+
+                val availableWidth = root.width.takeIf { it > 0 }
+                    ?: playerContainer.width.takeIf { it > 0 }
+                    ?: resources.displayMetrics.widthPixels
+                val targetHeight = (availableWidth * 9f / 16f).toInt().coerceAtLeast(dp(200))
+                val params = playerContainer.layoutParams
+                if (params.height != targetHeight) {
+                    params.height = targetHeight
+                    playerContainer.layoutParams = params
+                }
+                root.requestLayout()
+                playerContainer.requestLayout()
+
+                webView?.post {
+                    if (generation != inlineLayoutSyncGeneration ||
+                        isFinishing || isDestroyed || webView == null ||
+                        customView != null || isCssFullscreen
+                    ) return@post
+                    webView?.evaluateJavascript(
+                        "(function(){var h=window.__ngocSiFitPlayerResizeHandler;" +
+                            "if(h){h();}else{window.dispatchEvent(new Event('resize'));}})();",
+                        null
+                    )
+                }
+            }
+        }
+        root.post(sync)
+        root.postDelayed(sync, 120L)
+        root.postDelayed(sync, 360L)
+        root.postDelayed(sync, 700L)
+    }
+
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
 
         // The manifest handles orientation changes without recreating this Activity.
-        if (!::playerContainer.isInitialized) return
+        if (!::playerContainer.isInitialized || !::root.isInitialized) return
 
         // Chromium's fullscreen custom view is a separate surface. Re-layout it after
         // configuration changes instead of leaving its original portrait measurements.
@@ -2416,24 +2475,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
         if (isCssFullscreen) return
 
-        playerContainer.post {
-            if (isFinishing || isDestroyed || customView != null || isCssFullscreen) return@post
-            val availableWidth = root.width.takeIf { it > 0 }
-                ?: resources.displayMetrics.widthPixels
-            playerContainer.layoutParams = playerContainer.layoutParams.apply {
-                height = (availableWidth * 9f / 16f).toInt().coerceAtLeast(dp(200))
-            }
-            playerContainer.requestLayout()
-            webView?.postDelayed({
-                if (isFinishing || isDestroyed || webView == null ||
-                    customView != null || isCssFullscreen
-                ) return@postDelayed
-                webView?.evaluateJavascript(
-                    "window.dispatchEvent(new Event('resize'));",
-                    null
-                )
-            }, 120L)
-        }
+        scheduleInlinePlayerLayoutSync()
     }
 
     override fun onResume() {
@@ -2590,6 +2632,10 @@ class YouTubePlayerActivity : ComponentActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, true)
         WindowInsetsControllerCompat(window, window.decorView)
             .show(WindowInsetsCompat.Type.systemBars())
+
+        // Do not rely on onConfigurationChanged after a fullscreen exit: that callback
+        // may already have run while the fullscreen surface was still attached.
+        scheduleInlinePlayerLayoutSync()
 
         // Resize only the native host after rotation. Let YouTube restore its own DOM layout;
         // persistent forced CSS on internal player nodes is intentionally avoided.
