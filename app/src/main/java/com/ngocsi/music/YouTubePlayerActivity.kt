@@ -1948,7 +1948,12 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 'ytm-player,#player-container,#player,#movie_player,.html5-video-player,' +
                                 '.html5-video-container {box-sizing:border-box!important;width:100%!important;' +
                                 'height:100%!important;min-height:0!important;max-height:none!important;' +
-                                'max-width:none!important;margin-left:0!important;margin-right:0!important;}';
+                                'max-width:none!important;margin-left:0!important;margin-right:0!important;}' +
+                                // Fill the native video viewport to avoid thin letterbox bands.
+                                // Do not force video position/width/height inline; WebView can
+                                // lose its compositor surface after fullscreen dismissal.
+                                'ytm-player video,video.html5-main-video,.html5-video-player video {' +
+                                'object-fit:cover!important;object-position:center center!important;}';
                               (document.head || document.documentElement).appendChild(fitStyle);
                             }
                             function ngocSiFitPlayerToViewport() {
