@@ -1947,49 +1947,60 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 'object-fit:contain!important;object-position:center center!important;}';
                               (document.head || document.documentElement).appendChild(cleanupStyle);
                             }
-                            // Force every mobile YouTube player wrapper to use the real
-                            // WebView viewport. Mobile YouTube can retain a narrow 200px
-                            // player wrapper even when ytm-player itself is full width.
+                            // Keep the inline player in normal document flow. Fixed positioning
+                            // across orientation changes can leave Chromium's video surface frozen
+                            // when the fullscreen custom view is dismissed.
                             if (!document.getElementById('ngocsi-player-viewport-fix')) {
                               var fitStyle = document.createElement('style');
                               fitStyle.id = 'ngocsi-player-viewport-fix';
                               fitStyle.textContent =
                                 'html,body,ytm-app,ytm-watch {width:100%!important;max-width:none!important;}' +
                                 'ytm-player,#player-container,#player,#movie_player,.html5-video-player,' +
-                                '.html5-video-container {box-sizing:border-box!important;width:100vw!important;' +
+                                '.html5-video-container {box-sizing:border-box!important;width:100%!important;' +
                                 'max-width:none!important;margin-left:0!important;margin-right:0!important;}' +
-                                'ytm-player {position:fixed!important;left:0!important;right:0!important;' +
-                                'top:0!important;bottom:0!important;height:100%!important;}' +
-                                '#player-container,#player,#movie_player,.html5-video-player,.html5-video-container {' +
-                                'min-width:100%!important;}' +
                                 'video.html5-main-video,ytm-player video,#movie_player video {' +
                                 'width:100%!important;height:100%!important;max-width:none!important;' +
                                 'max-height:100%!important;object-fit:contain!important;object-position:center center!important;}';
                               (document.head || document.documentElement).appendChild(fitStyle);
                             }
                             function ngocSiFitPlayerToViewport() {
-                              var player = document.querySelector('ytm-player') ||
+                              var root = document.querySelector('ytm-player') ||
                                 document.querySelector('#movie_player') ||
                                 document.querySelector('#player');
-                              if (!player) return;
+                              if (!root) return;
                               var viewportWidth = Math.max(1, document.documentElement.clientWidth || window.innerWidth || 1);
                               var viewportHeight = Math.max(1, document.documentElement.clientHeight || window.innerHeight || 1);
-                              var root = document.querySelector('ytm-player') || player;
-                              root.style.setProperty('position','fixed','important');
-                              root.style.setProperty('left','0','important');
-                              root.style.setProperty('right','0','important');
-                              root.style.setProperty('top','0','important');
-                              root.style.setProperty('width',viewportWidth+'px','important');
+                              var isFullscreen = !!(document.fullscreenElement ||
+                                document.getElementById('ngocsi-css-fullscreen'));
+                              if (isFullscreen) {
+                                root.style.setProperty('position','fixed','important');
+                                root.style.setProperty('left','0','important');
+                                root.style.setProperty('right','0','important');
+                                root.style.setProperty('top','0','important');
+                                root.style.setProperty('bottom','0','important');
+                                root.style.setProperty('width',viewportWidth+'px','important');
+                                root.style.setProperty('height',viewportHeight+'px','important');
+                              } else {
+                                // Return to YouTube's inline layout after shrinking fullscreen.
+                                ['position','left','right','top','bottom'].forEach(function(p) {
+                                  root.style.removeProperty(p);
+                                });
+                                root.style.setProperty('width','100%','important');
+                                root.style.setProperty('height',Math.round(viewportWidth*9/16)+'px','important');
+                              }
                               root.style.setProperty('max-width','none','important');
-                              // Keep the inline player constrained to its native 16:9
-                              // container in portrait; CSS fullscreen uses the full viewport.
-                              root.style.setProperty('height', ((document.fullscreenElement || document.getElementById('ngocsi-css-fullscreen')) ? viewportHeight : Math.round(viewportWidth*9/16))+'px','important');
                               var video = document.querySelector('video.html5-main-video') ||
                                 root.querySelector('video') || document.querySelector('#movie_player video');
                               if (video) {
-                                video.style.setProperty('position','absolute','important');
-                                video.style.setProperty('left','0','important');
-                                video.style.setProperty('top','0','important');
+                                if (isFullscreen) {
+                                  video.style.setProperty('position','absolute','important');
+                                  video.style.setProperty('left','0','important');
+                                  video.style.setProperty('top','0','important');
+                                } else {
+                                  video.style.removeProperty('position');
+                                  video.style.removeProperty('left');
+                                  video.style.removeProperty('top');
+                                }
                                 video.style.setProperty('width','100%','important');
                                 video.style.setProperty('height','100%','important');
                                 video.style.setProperty('max-width','none','important');
@@ -2518,6 +2529,10 @@ class YouTubePlayerActivity : ComponentActivity() {
                 (function() {
                   var style = document.getElementById('ngocsi-css-fullscreen');
                   if (style) style.remove();
+                  if (window.__ngocSiFitPlayerTimer) {
+                    clearInterval(window.__ngocSiFitPlayerTimer);
+                    window.__ngocSiFitPlayerTimer = null;
+                  }
                   document.documentElement.style.removeProperty('width');
                   document.documentElement.style.removeProperty('height');
                   document.body.style.removeProperty('width');
