@@ -1945,9 +1945,15 @@ class YouTubePlayerActivity : ComponentActivity() {
                               fitStyle.id = 'ngocsi-player-viewport-fix';
                               fitStyle.textContent =
                                 'html,body,ytm-app,ytm-watch {width:100%!important;max-width:none!important;}' +
-                                'ytm-player {box-sizing:border-box!important;display:block!important;width:100%!important;' +
+                                'ytm-watch {margin-top:0!important;padding-top:0!important;}' +
+                                'ytm-watch #player-container-outer,ytm-watch #player-container-inner,' +
+                                'ytm-watch .player-container,ytm-watch #player-container-id {' +
+                                'margin-top:0!important;padding-top:0!important;border-top:0!important;}' +
+                                'ytm-player {box-sizing:border-box!important;display:block!important;position:relative!important;' +
+                                'top:0!important;transform:none!important;width:100%!important;' +
                                 'height:auto!important;min-height:0!important;max-height:none!important;' +
-                                'aspect-ratio:16/9!important;max-width:none!important;margin:0!important;padding:0!important;overflow:hidden!important;}' +
+                                'aspect-ratio:16/9!important;max-width:none!important;margin:0!important;padding:0!important;' +
+                                'border:0!important;overflow:hidden!important;}' +
                                 '#player-container,#player-container-id,#player,#movie_player,.html5-video-player,' +
                                 '.html5-video-container {box-sizing:border-box!important;width:100%!important;' +
                                 'height:100%!important;min-height:0!important;max-height:none!important;' +
