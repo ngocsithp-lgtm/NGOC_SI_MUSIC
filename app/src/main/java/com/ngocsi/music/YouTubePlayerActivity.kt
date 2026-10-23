@@ -2033,8 +2033,8 @@ class YouTubePlayerActivity : ComponentActivity() {
                                     var label = ((button.getAttribute('aria-label') || '') + ' ' +
                                       (button.getAttribute('title') || '') + ' ' +
                                       (button.innerText || button.textContent || '')).toLowerCase()
-                                      .replace(/\\s+/g, ' ').trim();
-                                    if (!/(^|\\b)(play|phát|resume|tiếp tục|next|tiếp theo|video kế tiếp)(\\b|$)/i.test(label)) continue;
+                                      .replace(/\s+/g, ' ').trim();
+                                    if (!/(^|\b)(play|phát|resume|tiếp tục|next|tiếp theo|video kế tiếp)(\b|$)/i.test(label)) continue;
                                     var rect = button.getBoundingClientRect();
                                     if (rect.width < 3 || rect.height < 3) continue;
                                     var x = (rect.left + rect.width / 2 - playerRect.left) / playerRect.width;
