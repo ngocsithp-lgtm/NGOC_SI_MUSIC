@@ -2225,10 +2225,26 @@ class YouTubePlayerActivity : ComponentActivity() {
                         view,
                         FrameLayout.LayoutParams(
                             FrameLayout.LayoutParams.MATCH_PARENT,
-                            FrameLayout.LayoutParams.MATCH_PARENT
+                            FrameLayout.LayoutParams.MATCH_PARENT,
+                            Gravity.FILL
                         )
                     )
                     enterFullscreen()
+                    // Orientation and immersive insets settle asynchronously. Re-apply
+                    // MATCH_PARENT after rotation so the Chrome fullscreen surface cannot
+                    // keep the portrait height it measured before the device rotated.
+                    root.postDelayed({
+                        if (!isFinishing && !isDestroyed && customView === view) {
+                            view.layoutParams = FrameLayout.LayoutParams(
+                                FrameLayout.LayoutParams.MATCH_PARENT,
+                                FrameLayout.LayoutParams.MATCH_PARENT,
+                                Gravity.FILL
+                            )
+                            root.requestLayout()
+                            view.requestLayout()
+                            root.bringChildToFront(view)
+                        }
+                    }, 350L)
                 }
 
                 override fun onHideCustomView() {
@@ -2361,9 +2377,26 @@ class YouTubePlayerActivity : ComponentActivity() {
         super.onConfigurationChanged(newConfig)
 
         // The manifest handles orientation changes without recreating this Activity.
-        // Recompute the native 16:9 WebView host when returning from landscape fullscreen,
-        // but never resize the separate fullscreen custom view itself.
-        if (!::playerContainer.isInitialized || customView != null || isCssFullscreen) return
+        if (!::playerContainer.isInitialized) return
+
+        // Chromium's fullscreen custom view is a separate surface. Re-layout it after
+        // configuration changes instead of leaving its original portrait measurements.
+        customView?.let { fullscreenView ->
+            root.post {
+                if (customView === fullscreenView && !isFinishing && !isDestroyed) {
+                    fullscreenView.layoutParams = FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                        Gravity.FILL
+                    )
+                    root.requestLayout()
+                    fullscreenView.requestLayout()
+                    root.bringChildToFront(fullscreenView)
+                }
+            }
+            return
+        }
+        if (isCssFullscreen) return
 
         playerContainer.post {
             if (isFinishing || isDestroyed || customView != null || isCssFullscreen) return@post
@@ -2492,6 +2525,11 @@ class YouTubePlayerActivity : ComponentActivity() {
         // PAUSED even though the user did not pause. Probe/recover after every fullscreen
         // exit instead of relying only on the cached state. Recovery is bounded and checks
         // the actual HTML5 media clock before deciding whether a fallback is needed.
+        val wasNativeFullscreen = customView != null
+        val shouldResumeAfterNativeFullscreen = wasNativeFullscreen &&
+            (wasPlayingBeforeFullscreen ||
+                getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+                    .getBoolean("youtube_playback_is_playing", false))
         val shouldRecoverPlayback = true
         wasPlayingBeforeFullscreen = false
 
@@ -2544,14 +2582,59 @@ class YouTubePlayerActivity : ComponentActivity() {
                 if (isFinishing || isDestroyed || webView == null) return@post
                 webView?.evaluateJavascript("window.dispatchEvent(new Event('resize'));", null)
                 if (shouldRecoverPlayback) {
-                    // Wait for Android orientation and WebView layout to settle before recovery.
+                    // Give the native fullscreen surface and the portrait/inline layout
+                    // time to detach/settle before touching the underlying WebView.
                     webView?.postDelayed({
                         if (exitGeneration != fullscreenExitGeneration) return@postDelayed
-                        // First recover the existing media element. Recreating the page
-                        // on every exit can restart buffering and cause intermittent audio
-                        // loss. The bounded recovery loop will reload only if the media
-                        // clock still cannot advance after several checks.
-                        recoverFullscreenPlayback()
+                        if (wasNativeFullscreen && shouldResumeAfterNativeFullscreen) {
+                            // Chromium can keep the audio clock running after dismissing its
+                            // fullscreen surface while the inline video surface stays blank.
+                            // In that case checking currentTime alone falsely reports success.
+                            // Recreate the same watch page once at its saved timestamp to
+                            // rebuild the video compositor surface, then recover autoplay.
+                            val savedMs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+                                .getLong("youtube_position_ms_" + sanitizeVideoId(videoId), 0L)
+                            val currentUrl = webView?.url
+                            webView?.evaluateJavascript(
+                                "(function(){var v=document.querySelector('video.html5-main-video')||document.querySelector('#movie_player video')||document.querySelector('video');return v?String(Math.max(0,Math.floor(v.currentTime||0))):'';})();"
+                            ) { rawPosition ->
+                                if (exitGeneration != fullscreenExitGeneration ||
+                                    isFinishing || isDestroyed || webView == null
+                                ) return@evaluateJavascript
+                                val liveSeconds = rawPosition.orEmpty().trim('"').toDoubleOrNull()
+                                    ?.toInt()?.coerceAtLeast(0) ?: 0
+                                val savedSeconds = (savedMs / 1000L).toInt().coerceAtLeast(0)
+                                val seconds = if (liveSeconds > 0) liveSeconds else savedSeconds
+                                if (!currentUrl.isNullOrBlank() &&
+                                    (currentUrl.contains("youtube.com/watch") ||
+                                     currentUrl.contains("youtube.com/shorts/"))
+                                ) {
+                                    val restoredUrl = Uri.parse(currentUrl).buildUpon()
+                                        .clearQuery()
+                                        .appendQueryParameter("v", sanitizeVideoId(videoId))
+                                        .appendQueryParameter("t", "${seconds}s")
+                                        .appendQueryParameter("autoplay", "1")
+                                        .appendQueryParameter("playsinline", "1")
+                                        .build().toString()
+                                    recoverAfterPageReload = true
+                                    youtubePlayerReady = false
+                                    youtubePlayerState = -1
+                                    getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
+                                        .putBoolean("youtube_playback_is_playing", true)
+                                        .putBoolean("youtube_is_playing", true)
+                                        .apply()
+                                    webView?.postDelayed({
+                                        if (exitGeneration == fullscreenExitGeneration &&
+                                            !isFinishing && !isDestroyed && webView != null
+                                        ) webView?.loadUrl(restoredUrl)
+                                    }, 180L)
+                                } else {
+                                    recoverFullscreenPlayback()
+                                }
+                            }
+                        } else {
+                            recoverFullscreenPlayback()
+                        }
                     }, 850L)
                 }
             }
