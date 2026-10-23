@@ -71,9 +71,21 @@ class YouTubePlayerActivity : ComponentActivity() {
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
             val width = View.MeasureSpec.getSize(widthMeasureSpec)
             if (width > 0) {
+                val aspectHeight = (width * 9f / 16f).toInt().coerceAtLeast(1)
+                // A 16:9 frame based only on the long landscape width can be taller than
+                // the phone display. Bound its height to the current short-edge viewport;
+                // the WebView then calculates a matching 16:9 width instead of overflowing.
+                val landscape = resources.configuration.orientation ==
+                    android.content.res.Configuration.ORIENTATION_LANDSCAPE
+                val screenHeightPx = (resources.configuration.screenHeightDp *
+                    resources.displayMetrics.density).toInt()
+                val measuredHeight = if (landscape && screenHeightPx > 0) {
+                    minOf(aspectHeight, screenHeightPx)
+                } else {
+                    aspectHeight
+                }
                 val exactHeight = View.MeasureSpec.makeMeasureSpec(
-                    (width * 9f / 16f).toInt().coerceAtLeast(1),
-                    View.MeasureSpec.EXACTLY
+                    measuredHeight.coerceAtLeast(1), View.MeasureSpec.EXACTLY
                 )
                 super.onMeasure(widthMeasureSpec, exactHeight)
             } else {
@@ -2171,13 +2183,21 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 root.style.setProperty('width',viewportWidth+'px','important');
                                 root.style.setProperty('height',viewportHeight+'px','important');
                               } else {
-                                // Return to YouTube's inline layout after shrinking fullscreen.
+                                // Return to a 16:9 inline frame that is no taller than its
+                                // actual WebView viewport. In landscape, preserve the full video
+                                // without forcing a portrait-derived height beyond the display.
                                 ['position','left','right','top','bottom'].forEach(function(p) {
                                   root.style.removeProperty(p);
                                 });
-                                root.style.setProperty('width','100%','important');
-                                var inlineWidth = Math.max(1, root.getBoundingClientRect().width || root.clientWidth || viewportWidth);
-                                root.style.setProperty('height',Math.round(inlineWidth*9/16)+'px','important');
+                                var inlineWidth = Math.max(1, viewportWidth);
+                                var inlineHeight = Math.max(1, Math.min(
+                                  Math.round(inlineWidth * 9 / 16), viewportHeight));
+                                var fittedWidth = Math.max(1, Math.min(
+                                  inlineWidth, Math.round(inlineHeight * 16 / 9)));
+                                root.style.setProperty('width',fittedWidth+'px','important');
+                                root.style.setProperty('height',inlineHeight+'px','important');
+                                root.style.setProperty('margin-left','auto','important');
+                                root.style.setProperty('margin-right','auto','important');
                               }
                               root.style.setProperty('max-width','none','important');
                               // Leave the actual HTML5 video element's geometry to YouTube.
