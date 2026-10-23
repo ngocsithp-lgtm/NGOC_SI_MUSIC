@@ -1532,7 +1532,11 @@ class YouTubePlayerActivity : ComponentActivity() {
                     return window.__ngocSiPlaybackActuallyPlaying &&
                       progressAt > 0 && Date.now() - progressAt < 1800;
                   }
-                  return true;
+                  // A media element can remain paused=false while its clock is frozen after
+                  // a fullscreen handoff. Without recent clock-progress evidence, treat it as
+                  // unknown/stalled rather than "playing"; otherwise Toggle can pause a frozen
+                  // video and the user's Play tap appears to do nothing.
+                  return false;
                 }
                 function clickPlayButton() {
                   var selectors = [
@@ -2580,9 +2584,20 @@ class YouTubePlayerActivity : ComponentActivity() {
                                  document.querySelector('.html5-video-player') ||
                                  document.querySelector('ytm-player');
 
-                    if (mode === 'initial' && video.paused) {
-                      if (player && typeof player.playVideo === 'function') {
+                    var progressAt = Number(window.__ngocSiPlaybackProgressAt || 0);
+                    var clockAdvancing = window.__ngocSiTrackedVideo === video &&
+                      window.__ngocSiPlaybackActuallyPlaying === true &&
+                      progressAt > 0 && Date.now() - progressAt < 1800;
+
+                    // After returning from fullscreen, Chromium can leave a media element
+                    // logically "playing" while currentTime no longer advances. Recover both
+                    // a genuinely paused element and a stalled, non-paused one.
+                    if (mode === 'initial' && (video.paused || !clockAdvancing)) {
+                      if (video.paused && player && typeof player.playVideo === 'function') {
                         try { player.playVideo(); return 'REQUESTED|' + position + '|' + ready; } catch (_) {}
+                      }
+                      if (!video.paused && !clockAdvancing) {
+                        try { video.pause(); } catch (_) {}
                       }
                       try {
                         var firstPromise = video.play();
@@ -2594,16 +2609,17 @@ class YouTubePlayerActivity : ComponentActivity() {
 
                     if (mode === 'fallback') {
                       if (player && typeof player.playVideo === 'function') {
-                        try { player.playVideo(); return 'NUDGED|' + position + '|' + ready; } catch (_) {}
+                        try { player.playVideo(); } catch (_) {}
                       }
-                      if (video.paused) {
-                        try {
-                          var fallbackPromise = video.play();
-                          if (fallbackPromise && typeof fallbackPromise.catch === 'function')
-                            fallbackPromise.catch(function(){});
-                          return 'NUDGED|' + position + '|' + ready;
-                        } catch (_) {}
-                      }
+                      // One bounded media-pipeline nudge for a frozen element. Calling play()
+                      // alone is insufficient when paused=false but currentTime is stuck.
+                      try {
+                        if (!video.paused) video.pause();
+                        var fallbackPromise = video.play();
+                        if (fallbackPromise && typeof fallbackPromise.catch === 'function')
+                          fallbackPromise.catch(function(){});
+                        return 'NUDGED|' + position + '|' + ready;
+                      } catch (_) {}
                     }
 
                     return (video.paused ? 'PAUSED' : 'ACTIVE') + '|' + position + '|' + ready;
