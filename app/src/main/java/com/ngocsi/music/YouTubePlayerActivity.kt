@@ -219,6 +219,9 @@ class YouTubePlayerActivity : ComponentActivity() {
                 if (state == 1) {
                     backgroundPlaybackRecoveryGeneration++
                     resumePlaybackOnNextOrientationChange = true
+                    if (customView != null || isCssFullscreen) {
+                        wasPlayingBeforeFullscreen = true
+                    }
                 } else if ((state == 2 || state == 0) &&
                     System.currentTimeMillis() > orientationRecoveryWindowUntilMs
                 ) {
@@ -226,6 +229,9 @@ class YouTubePlayerActivity : ComponentActivity() {
                     // the short orientation handoff window. Outside that window a real pause
                     // or end state should be respected.
                     resumePlaybackOnNextOrientationChange = false
+                    if (customView != null || isCssFullscreen) {
+                        wasPlayingBeforeFullscreen = false
+                    }
                 }
                 youtubePlayerState = state
                 getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
@@ -3026,11 +3032,19 @@ class YouTubePlayerActivity : ComponentActivity() {
         // exit instead of relying only on the cached state. Recovery is bounded and checks
         // the actual HTML5 media clock before deciding whether a fallback is needed.
         val wasNativeFullscreen = customView != null
-        val shouldResumeAfterNativeFullscreen = wasNativeFullscreen &&
-            (wasPlayingBeforeFullscreen ||
-                getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
-                    .getBoolean("youtube_playback_is_playing", false))
-        val shouldRecoverPlayback = true
+        val persistedPlaybackIntent = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+            .getBoolean("youtube_playback_is_playing", false)
+        val playbackIntentBeforeExit = wasPlayingBeforeFullscreen ||
+            resumePlaybackOnNextOrientationChange ||
+            persistedPlaybackIntent
+        val shouldResumeAfterNativeFullscreen =
+            wasNativeFullscreen && playbackIntentBeforeExit
+        val shouldResumeAfterCssFullscreen =
+            isCssFullscreen && playbackIntentBeforeExit
+        // Only recover playback when it was intended to be active. An explicit user Pause
+        // must not be turned into an automatic Play by the fullscreen-dismiss callback.
+        val shouldRecoverPlayback =
+            shouldResumeAfterNativeFullscreen || shouldResumeAfterCssFullscreen
         wasPlayingBeforeFullscreen = false
 
         if (isCssFullscreen) {
@@ -3091,12 +3105,18 @@ class YouTubePlayerActivity : ComponentActivity() {
                     webView?.postDelayed({
                         if (exitGeneration != fullscreenExitGeneration) return@postDelayed
                         fullscreenExitRecoveryPending = false
-                        // Preserve the current WebView and media element after fullscreen exit.
-                        // Reloading the watch URL here on every rotation can destroy the decoder,
-                        // lose the active audio session, and leave the inline player frozen.
-                        // Probe the existing element first; the recovery routine is bounded and
-                        // only uses its reload fallback if the same player truly remains stalled.
-                        recoverFullscreenPlayback()
+                        if (shouldRecoverPlayback) {
+                            // First try one state-aware resume against the same HTML5 video.
+                            // This immediately nudges a frozen-but-unpaused surface once the new
+                            // viewport is committed; the bounded clock probe remains the fallback.
+                            resumeVideoAfterFullscreenRotation()
+                            webView?.postDelayed({
+                                if (exitGeneration != fullscreenExitGeneration ||
+                                    isFinishing || isDestroyed || webView == null
+                                ) return@postDelayed
+                                recoverFullscreenPlayback()
+                            }, 350L)
+                        }
                     }, 500L)
                 }
             }
