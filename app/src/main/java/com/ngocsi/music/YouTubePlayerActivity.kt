@@ -2397,6 +2397,15 @@ class YouTubePlayerActivity : ComponentActivity() {
                               var rules = selectors +
                                 '{display:none!important;visibility:hidden!important;opacity:0!important;' +
                                 'pointer-events:none!important;max-height:0!important;}';
+                              // The mobile YouTube player lives partly in open shadow roots.
+                              // Document CSS cannot reset those wrappers, so the root's own
+                              // stylesheet must pin each player layer to the same 0,0 origin.
+                              var viewportRules =
+                                ':host(ytm-app){display:block!important;position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;margin:0!important;padding:0!important;overflow:hidden!important;transform:none!important;}' +
+                                ':host(ytm-watch){display:block!important;position:absolute!important;inset:0!important;width:100%!important;height:100%!important;margin:0!important;padding:0!important;overflow:hidden!important;transform:none!important;}' +
+                                ':host(ytm-player),:host(#movie_player),:host(#player){box-sizing:border-box!important;display:block!important;position:absolute!important;inset:0!important;width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;max-width:none!important;max-height:none!important;aspect-ratio:auto!important;margin:0!important;padding:0!important;border:0!important;overflow:hidden!important;transform:none!important;}' +
+                                '#player-container-outer,#player-container-inner,#player-container-id,#player-container,#player,#movie_player,.html5-video-player,.html5-video-container {box-sizing:border-box!important;position:absolute!important;inset:0!important;width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;max-width:none!important;max-height:none!important;aspect-ratio:auto!important;margin:0!important;padding:0!important;border:0!important;overflow:hidden!important;transform:none!important;}' +
+                                'video,video.html5-main-video {box-sizing:border-box!important;position:absolute!important;inset:0!important;width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;max-width:none!important;max-height:none!important;margin:0!important;padding:0!important;transform:none!important;object-fit:contain!important;object-position:50% 50%!important;}';
                               var observedRoots = window.__ngocSiObservedOverlayRoots ||
                                 (window.__ngocSiObservedOverlayRoots = new WeakSet());
 
@@ -2481,6 +2490,12 @@ class YouTubePlayerActivity : ComponentActivity() {
                                     overlayStyle.textContent = rules;
                                     rootNode.appendChild(overlayStyle);
                                   }
+                                  if (!rootNode.querySelector('#ngocsi-player-viewport-shadow-style')) {
+                                    var viewportStyle = document.createElement('style');
+                                    viewportStyle.id = 'ngocsi-player-viewport-shadow-style';
+                                    viewportStyle.textContent = viewportRules;
+                                    rootNode.appendChild(viewportStyle);
+                                  }
                                 } catch (_) {}
                                 if (!observedRoots.has(rootNode)) {
                                   observedRoots.add(rootNode);
@@ -2511,21 +2526,25 @@ class YouTubePlayerActivity : ComponentActivity() {
                               var fitStyle = document.createElement('style');
                               fitStyle.id = 'ngocsi-player-viewport-fix';
                               fitStyle.textContent =
-                                'html,body,ytm-app,ytm-watch {width:100%!important;height:100%!important;max-width:none!important;margin:0!important;padding:0!important;}' +
-                                'ytm-app {position:relative!important;overflow:hidden!important;}' +
-                                'ytm-watch {position:relative!important;display:block!important;inset:auto!important;top:auto!important;left:auto!important;right:auto!important;bottom:auto!important;transform:none!important;margin:0!important;padding:0!important;overflow:hidden!important;}' +
+                                // Anchor the YouTube app shell to the *WebView viewport*, not its
+                                // page-flow position. Hiding the mobile top bar changes document
+                                // flow asynchronously; that was leaving a black strip above the
+                                // player and shifting the picture down inside the native frame.
+                                'html,body {display:block!important;box-sizing:border-box!important;width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;max-width:none!important;max-height:none!important;margin:0!important;padding:0!important;overflow:hidden!important;background:#000!important;}' +
+                                'ytm-app {display:block!important;box-sizing:border-box!important;position:fixed!important;inset:0!important;top:0!important;left:0!important;right:0!important;bottom:0!important;width:100vw!important;height:100vh!important;min-width:0!important;min-height:0!important;max-width:none!important;max-height:none!important;margin:0!important;padding:0!important;overflow:hidden!important;transform:none!important;background:#000!important;}' +
+                                'ytm-watch {display:block!important;box-sizing:border-box!important;position:absolute!important;inset:0!important;top:0!important;left:0!important;right:0!important;bottom:0!important;width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;max-width:none!important;max-height:none!important;transform:none!important;margin:0!important;padding:0!important;overflow:hidden!important;background:#000!important;}' +
                                 'ytm-watch #player-container-outer,ytm-watch #player-container-inner,' +
                                 'ytm-watch .player-container,ytm-watch #player-container-id {' +
-                                'margin-top:0!important;padding-top:0!important;border-top:0!important;}' +
+                                'position:absolute!important;inset:0!important;width:100%!important;height:100%!important;margin:0!important;padding:0!important;border:0!important;transform:none!important;overflow:hidden!important;}' +
                                 'ytm-player {box-sizing:border-box!important;display:block!important;position:absolute!important;' +
                                 'top:0!important;left:0!important;right:0!important;bottom:0!important;transform:none!important;width:100%!important;' +
                                 'height:100%!important;min-height:0!important;max-height:none!important;' +
                                 'aspect-ratio:auto!important;max-width:none!important;margin:0!important;padding:0!important;' +
                                 'border:0!important;overflow:hidden!important;}' +
                                 '#player-container,#player-container-id,#player,#movie_player,.html5-video-player,' +
-                                '.html5-video-container {box-sizing:border-box!important;width:100%!important;' +
-                                'height:100%!important;min-height:0!important;max-height:none!important;' +
-                                'max-width:none!important;margin:0!important;padding:0!important;overflow:hidden!important;}' +
+                                '.html5-video-container {box-sizing:border-box!important;position:absolute!important;inset:0!important;width:100%!important;' +
+                                'height:100%!important;min-width:0!important;min-height:0!important;max-width:none!important;max-height:none!important;' +
+                                'aspect-ratio:auto!important;margin:0!important;padding:0!important;border:0!important;overflow:hidden!important;transform:none!important;}' +
                                 // Apply crop to the actual video surface and remove intrinsic aspect-ratio caps.
                                 // Avoid changing its position or explicit dimensions to protect WebView playback.
                                 'ytm-player video,video.html5-main-video,.html5-video-player video {' +
