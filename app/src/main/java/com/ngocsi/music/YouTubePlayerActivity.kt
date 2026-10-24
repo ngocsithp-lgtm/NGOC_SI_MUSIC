@@ -2505,8 +2505,11 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 // Apply crop to the actual video surface and remove intrinsic aspect-ratio caps.
                                 // Avoid changing its position or explicit dimensions to protect WebView playback.
                                 'ytm-player video,video.html5-main-video,.html5-video-player video {' +
+                                'position:absolute!important;inset:0!important;top:0!important;left:0!important;' +
+                                'width:100%!important;height:100%!important;transform:none!important;' +
                                 'object-fit:contain!important;object-position:50% 50%!important;' +
-                                'max-width:none!important;max-height:none!important;}';
+                                'max-width:none!important;max-height:none!important;} ' +
+                                'ytm-player,.html5-video-container {position:relative!important;overflow:hidden!important;}';
                               (document.head || document.documentElement).appendChild(fitStyle);
                             }
                             function ngocSiFitPlayerToViewport() {
@@ -3190,6 +3193,32 @@ class YouTubePlayerActivity : ComponentActivity() {
                            document.querySelector('#movie_player') ||
                            document.querySelector('#player');
                 if (!root) return 'WAIT';
+                // On initial load YouTube can retain a stale vertical offset on the HTML5 video
+                // even when its outer player is at y=0. Anchor the video to its measured surface.
+                var video = root.querySelector ? root.querySelector('video.html5-main-video,video') : null;
+                if (video && video.style) {
+                  var videoHost = video.closest('.html5-video-container') || video.parentElement || root;
+                  if (videoHost && videoHost.style) {
+                    videoHost.style.setProperty('position','relative','important');
+                    videoHost.style.setProperty('width','100%','important');
+                    videoHost.style.setProperty('height','100%','important');
+                    videoHost.style.setProperty('margin','0','important');
+                    videoHost.style.setProperty('padding','0','important');
+                    videoHost.style.setProperty('overflow','hidden','important');
+                  }
+                  ['position','top','left','right','bottom','inset','width','height','transform','margin','padding'].forEach(function(prop) {
+                    video.style.removeProperty(prop);
+                  });
+                  video.style.setProperty('position','absolute','important');
+                  video.style.setProperty('inset','0','important');
+                  video.style.setProperty('top','0','important');
+                  video.style.setProperty('left','0','important');
+                  video.style.setProperty('width','100%','important');
+                  video.style.setProperty('height','100%','important');
+                  video.style.setProperty('transform','none','important');
+                  video.style.setProperty('object-fit','contain','important');
+                  video.style.setProperty('object-position','50% 50%','important');
+                }
                 // The hidden mobile header leaves a few YouTube page wrappers with stale
                 // top spacing. Clear only top spacing on known player wrappers.
                 var wrappers = [
