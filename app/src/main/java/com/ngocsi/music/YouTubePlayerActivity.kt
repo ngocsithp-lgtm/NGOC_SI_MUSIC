@@ -3873,7 +3873,6 @@ class YouTubePlayerActivity : ComponentActivity() {
                 // exit. Share one fallback budget across all inspectors so a persistently bad
                 // WebView surface never creates a reload loop.
                 if (geometryReloadFallbackAttemptedForCurrentPage) return@evaluateJavascript
-                geometryReloadFallbackAttemptedForCurrentPage = true
 
                 val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
                 val shouldAutoplay = shouldResumePlayback &&
@@ -3884,6 +3883,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                     !(currentUrl.contains("youtube.com/watch") ||
                       currentUrl.contains("youtube.com/shorts/"))
                 ) return@evaluateJavascript
+                geometryReloadFallbackAttemptedForCurrentPage = true
 
                 val seconds = (info?.optDouble("position", 0.0) ?: 0.0)
                     .takeIf { it.isFinite() && it >= 0.0 }
