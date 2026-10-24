@@ -1827,13 +1827,13 @@ class YouTubePlayerActivity : ComponentActivity() {
                             })();
                         """.trimIndent()
                         webView?.evaluateJavascript(verifyScript) { verifyResult ->
-                            if (requestGeneration == playbackRequestGeneration &&
-                                !isFinishing && !isDestroyed && !fullscreenExitRecoveryPending
-                            ) {
-                                val mediaStatus = verifyResult.orEmpty().trim('"')
-                                if (mediaStatus == "PAUSED" || mediaStatus == "STALLED") {
-                                    recoverFullscreenPlayback()
-                                }
+                            if (requestGeneration != playbackRequestGeneration ||
+                                isFinishing || isDestroyed || fullscreenExitRecoveryPending
+                            ) return@evaluateJavascript
+
+                            val mediaStatus = verifyResult.orEmpty().trim('"')
+                            if (mediaStatus == "PAUSED" || mediaStatus == "STALLED") {
+                                recoverFullscreenPlayback()
                             }
                         }
                     }, 1800L)
