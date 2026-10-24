@@ -40,7 +40,6 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.media3.common.util.UnstableApi
-import java.io.ByteArrayInputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.Executors
@@ -2201,18 +2200,9 @@ class YouTubePlayerActivity : ComponentActivity() {
                     view: WebView,
                     request: WebResourceRequest
                 ): android.webkit.WebResourceResponse? {
-                    if (isKnownYouTubeAdvertisingRequest(request.url)) {
-                        // Block only recognizable ad-serving hosts/endpoints. Never block
-                        // googlevideo.com: it also delivers the actual video/audio streams.
-                        return android.webkit.WebResourceResponse(
-                            "text/plain",
-                            "UTF-8",
-                            204,
-                            "No Content",
-                            mapOf("Cache-Control" to "no-store"),
-                            ByteArrayInputStream(ByteArray(0))
-                        )
-                    }
+                    // Do not intercept YouTube requests, including ad-break control requests.
+                    // Blocking player/session endpoints can stop an otherwise healthy video
+                    // when YouTube transitions between the main stream and a mid-roll break.
                     return super.shouldInterceptRequest(view, request)
                 }
 
