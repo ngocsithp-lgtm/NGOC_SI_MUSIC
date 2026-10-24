@@ -45,7 +45,6 @@
             android:name=".YouTubePlayerActivity"
             android:exported="false"
             android:resizeableActivity="true"
-            android:supportsPictureInPicture="true"
             android:screenOrientation="unspecified"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden" />
 
