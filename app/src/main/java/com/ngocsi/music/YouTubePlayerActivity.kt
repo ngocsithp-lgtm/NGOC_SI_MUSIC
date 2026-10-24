@@ -3803,7 +3803,17 @@ class YouTubePlayerActivity : ComponentActivity() {
             player.evaluateJavascript(geometryScript) { raw ->
                 if (!checkIsCurrent()) return@evaluateJavascript
                 val info = decodeGeometry(raw)
-                if (!isGeometryBroken(info, shouldResumePlayback)) return@evaluateJavascript
+                if (!isGeometryBroken(info, shouldResumePlayback)) {
+                    if (allowOneLayoutRepair && shouldResumePlayback) {
+                        // A healthy geometry snapshot cannot prove the compositor is still
+                        // delivering new frames. Probe once more after another 850 ms so the
+                        // frame-age check catches a freeze that begins just after the first read.
+                        player.postDelayed({
+                            inspectAndRecover(allowOneLayoutRepair = false)
+                        }, 850L)
+                    }
+                    return@evaluateJavascript
+                }
                 if (allowOneLayoutRepair) {
                     // Give Chromium one final chance to re-measure its new portrait viewport
                     // before using the heavier page-recreation fallback.
