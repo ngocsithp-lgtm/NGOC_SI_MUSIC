@@ -259,6 +259,19 @@ class YouTubePlayerActivity : ComponentActivity() {
                 val orientationHandoffActive =
                     System.currentTimeMillis() <= orientationRecoveryWindowUntilMs ||
                     customView != null || isCssFullscreen || fullscreenExitRecoveryPending
+
+                // Do not publish a temporary PAUSED/BUFFERING state to the UI or media
+                // session while the viewport is handing off between portrait and landscape.
+                // The previous code treated this transient state as a real pause, changed the
+                // Play/Pause button, and told the foreground service to release its wake lock.
+                // Keep the last confirmed state until playback advances again or the user pauses.
+                if ((state == 2 || state == 3) && orientationHandoffActive &&
+                    !explicitUserPause &&
+                    prefs.getBoolean("youtube_playback_is_playing", false)
+                ) {
+                    return@runOnUiThread
+                }
+
                 if (state == 1) {
                     explicitUserPause = false
                     orientationPlaybackRecoveryGeneration++
