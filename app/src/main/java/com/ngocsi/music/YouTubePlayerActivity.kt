@@ -113,6 +113,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             runOnUiThread {
                 if (!isCurrentGeneration()) return@runOnUiThread
                 youtubePlayerReady = true
+                scheduleVideoSurfaceResize()
                 updatePlaybackButton()
                 updateYoutubeMediaSession()
                 restoreSavedPlaybackPosition()
@@ -1369,6 +1370,63 @@ class YouTubePlayerActivity : ComponentActivity() {
                             return '';
                         }
 
+                        // Resize only the visible video surface when the WebView's viewport
+                        // changes. Do not recreate the player or reload/seek the active video.
+                        function refreshVideoSurface() {
+                            try {
+                                var root = document.getElementById('player');
+                                var iframe = null;
+                                try {
+                                    if (lamPlayer && typeof lamPlayer.getIframe === 'function') {
+                                        iframe = lamPlayer.getIframe();
+                                    }
+                                } catch (_) {}
+                                if (!iframe && root) iframe = root.querySelector('iframe');
+                                var width = Math.floor(Number(document.documentElement.clientWidth || window.innerWidth));
+                                var height = Math.floor(Number(document.documentElement.clientHeight || window.innerHeight));
+                                if (!isFinite(width) || !isFinite(height) || width <= 0 || height <= 0) return false;
+                                if (root) {
+                                    root.style.width = width + 'px';
+                                    root.style.height = height + 'px';
+                                }
+                                if (lamPlayer && typeof lamPlayer.setSize === 'function') {
+                                    lamPlayer.setSize(width, height);
+                                }
+                                if (iframe && iframe.style) {
+                                    iframe.style.display = 'block';
+                                    iframe.style.visibility = 'visible';
+                                    iframe.style.opacity = '1';
+                                    iframe.style.width = '100%';
+                                    iframe.style.height = '100%';
+                                    iframe.style.maxWidth = '100%';
+                                    iframe.style.maxHeight = '100%';
+                                    iframe.style.transform = 'translate3d(0, 0, 0)';
+                                    iframe.style.backfaceVisibility = 'hidden';
+                                    iframe.getBoundingClientRect();
+                                }
+                                document.body.getBoundingClientRect();
+                                return true;
+                            } catch (_) {
+                                return false;
+                            }
+                        }
+
+                        var resizePending = false;
+                        function resizeVideoSurface() {
+                            if (resizePending) return;
+                            resizePending = true;
+                            requestAnimationFrame(function() {
+                                resizePending = false;
+                                refreshVideoSurface();
+                            });
+                        }
+                        window.resizeVideoSurface = resizeVideoSurface;
+                        window.addEventListener('resize', resizeVideoSurface);
+                        window.addEventListener('orientationchange', resizeVideoSurface);
+                        if (window.visualViewport && window.visualViewport.addEventListener) {
+                            window.visualViewport.addEventListener('resize', resizeVideoSurface);
+                        }
+
                         function onYouTubeIframeAPIReady() {
                             lamPlayer = new YT.Player('player', {
                                 width: '100%',
@@ -1387,6 +1445,9 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 },
                                 events: {
                                     onReady: function() {
+                                        resizeVideoSurface();
+                                        setTimeout(resizeVideoSurface, 120);
+                                        setTimeout(resizeVideoSurface, 420);
                                         try { AndroidBridge.onReady(); } catch (_) {}
                                     },
                                     onStateChange: function(event) {
@@ -1566,6 +1627,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             updateResponsivePlayerLayout()
             webView?.requestLayout()
             webView?.invalidate()
+            scheduleVideoSurfaceResize()
             playerContainer.requestLayout()
             root.requestLayout()
 
@@ -1715,6 +1777,18 @@ class YouTubePlayerActivity : ComponentActivity() {
         playerContainer.takeIf { ::playerContainer.isInitialized }?.removeAllViews()
     }
 
+    private fun scheduleVideoSurfaceResize(target: WebView? = webView) {
+        val player = target ?: return
+        player.evaluateJavascript("resizeVideoSurface();", null)
+        for (delayMs in listOf(120L, 420L)) {
+            playbackPositionHandler.postDelayed({
+                if (!isFinishing && !isDestroyed && player === webView) {
+                    player.evaluateJavascript("resizeVideoSurface();", null)
+                }
+            }, delayMs)
+        }
+    }
+
     private fun calculateNormalPlayerHeight(): Int =
         (resources.displayMetrics.widthPixels * 9f / 16f).toInt().coerceAtLeast(dp(200))
 
@@ -1770,6 +1844,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             playerContainer.visibility = View.VISIBLE
             playerContainer.requestLayout()
             root.requestLayout()
+            scheduleVideoSurfaceResize(activeWebView)
 
             // Keep the same WebView alive across rotation and restore playback only if
             // it was playing before fullscreen was dismissed.
