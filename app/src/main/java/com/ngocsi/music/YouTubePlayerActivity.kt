@@ -129,6 +129,9 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var fullscreenExitGeneration = 0
     // Prevent onConfigurationChanged from starting a second recovery cycle for the same fullscreen exit.
     private var fullscreenExitRecoveryPending = false
+    // Runs one post-rotation geometry verification; a broken video surface can freeze
+    // visually while the HTML5 media clock continues advancing.
+    private var fullscreenExitGeometryCheckGeneration = 0
     // Coalesce orientation/layout syncs so stale delayed callbacks cannot overwrite newer sizes.
     private var inlineLayoutSyncGeneration = 0
     // Track bounded layout/recovery work during CSS fullscreen rotation.
@@ -3402,6 +3405,10 @@ class YouTubePlayerActivity : ComponentActivity() {
         // Do not rely on onConfigurationChanged after a fullscreen exit: that callback
         // may already have run while the fullscreen surface was still attached.
         scheduleInlinePlayerLayoutSync()
+        // Verify both playback recovery and the actual rendered video rectangle. A mobile
+        // YouTube video can keep playing audio while its video surface retains landscape
+        // coordinates, which a media-clock-only recovery cannot detect.
+        scheduleFullscreenExitGeometryCheck(exitGeneration, shouldRecoverPlayback)
 
         // Resize only the native host after rotation. Let YouTube restore its own DOM layout;
         // persistent forced CSS on internal player nodes is intentionally avoided.
@@ -3433,6 +3440,154 @@ class YouTubePlayerActivity : ComponentActivity() {
                 }, 500L)
             }
         }
+    }
+
+    /**
+     * Check the visible HTML5 video's bounds after leaving landscape/fullscreen.
+     * One resize pass is attempted first. If the video remains heavily offset or only
+     * occupies a fraction of the inline WebView, reload the same YouTube URL once at
+     * the last known timestamp. This catches the "audio plays / frame stuck in a corner"
+     * failure which does not necessarily stop currentTime from advancing.
+     */
+    private fun scheduleFullscreenExitGeometryCheck(
+        exitGeneration: Int,
+        shouldResumePlayback: Boolean
+    ) {
+        val player = webView ?: return
+        val checkGeneration = ++fullscreenExitGeometryCheckGeneration
+        val expectedVideoId = sanitizeVideoId(videoId)
+        val geometryScript = """
+            (function() {
+              try {
+                var video = null;
+                try {
+                  if (typeof window.__ngocSiFindActiveVideo === 'function')
+                    video = window.__ngocSiFindActiveVideo();
+                } catch (_) {}
+                if (!video || !video.isConnected) {
+                  video = document.querySelector('video.html5-main-video') ||
+                          document.querySelector('#movie_player video') ||
+                          document.querySelector('ytm-player video') ||
+                          document.querySelector('video');
+                }
+                var viewportWidth = Number(document.documentElement.clientWidth || window.innerWidth || 0);
+                var root = document.querySelector('ytm-player') ||
+                           document.querySelector('#player-container') ||
+                           document.querySelector('#movie_player');
+                if (!video || !root || viewportWidth < 100) return 'WAIT';
+                var vr = video.getBoundingClientRect();
+                var rr = root.getBoundingClientRect();
+                if (vr.width < 2 || rr.width < 2 || Number(video.readyState || 0) < 1)
+                  return 'WAIT';
+                return JSON.stringify({
+                  viewportWidth: viewportWidth,
+                  videoLeft: Number(vr.left || 0),
+                  videoWidth: Number(vr.width || 0),
+                  rootLeft: Number(rr.left || 0),
+                  rootWidth: Number(rr.width || 0),
+                  position: Number(video.currentTime || 0)
+                });
+              } catch (_) { return 'WAIT'; }
+            })();
+        """.trimIndent()
+        val repairLayoutScript = """
+            (function() {
+              try {
+                if (typeof window.__ngocSiFitPlayerResizeHandler === 'function')
+                  window.__ngocSiFitPlayerResizeHandler();
+                window.dispatchEvent(new Event('resize'));
+                if (window.visualViewport)
+                  window.visualViewport.dispatchEvent(new Event('resize'));
+                return 'OK';
+              } catch (_) { return 'ERROR'; }
+            })();
+        """.trimIndent()
+
+        fun checkIsCurrent(): Boolean =
+            checkGeneration == fullscreenExitGeometryCheckGeneration &&
+                exitGeneration == fullscreenExitGeneration &&
+                !isFinishing && !isDestroyed && player === webView &&
+                !isCssFullscreen && customView == null && !explicitUserPause
+
+        fun decodeGeometry(raw: String?): org.json.JSONObject? {
+            val normalized = raw.orEmpty().trim('"').replace("\\\"", "\"")
+            return runCatching { org.json.JSONObject(normalized) }.getOrNull()
+        }
+
+        fun isGeometryBroken(info: org.json.JSONObject?): Boolean {
+            if (info == null) return false
+            val viewportWidth = info.optDouble("viewportWidth", 0.0)
+            val videoWidth = info.optDouble("videoWidth", 0.0)
+            val rootWidth = info.optDouble("rootWidth", 0.0)
+            val videoLeft = info.optDouble("videoLeft", 0.0)
+            val rootLeft = info.optDouble("rootLeft", 0.0)
+            if (viewportWidth < 100.0 || videoWidth < 2.0 || rootWidth < 2.0) return false
+            // Allow small player gutters and letterboxing; flag only the large shift/scale
+            // visible in the reported failure (roughly 40% of the portrait frame is black).
+            return videoWidth < viewportWidth * 0.78 ||
+                videoLeft > viewportWidth * 0.12 ||
+                videoLeft < -viewportWidth * 0.12 ||
+                rootWidth < viewportWidth * 0.78 ||
+                rootLeft > viewportWidth * 0.12 ||
+                rootLeft < -viewportWidth * 0.12
+        }
+
+        fun inspectAndRecover(allowOneLayoutRepair: Boolean) {
+            if (!checkIsCurrent()) return
+            player.evaluateJavascript(geometryScript) { raw ->
+                if (!checkIsCurrent()) return@evaluateJavascript
+                val info = decodeGeometry(raw)
+                if (!isGeometryBroken(info)) return@evaluateJavascript
+                if (allowOneLayoutRepair) {
+                    // Give Chromium one final chance to re-measure its new portrait viewport
+                    // before using the heavier page-recreation fallback.
+                    player.evaluateJavascript(repairLayoutScript, null)
+                    playerContainer.requestLayout()
+                    player.requestLayout()
+                    player.postDelayed({ inspectAndRecover(allowOneLayoutRepair = false) }, 420L)
+                    return@evaluateJavascript
+                }
+
+                val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+                val shouldAutoplay = shouldResumePlayback &&
+                    !explicitUserPause &&
+                    prefs.getBoolean("youtube_playback_is_playing", false)
+                val currentUrl = player.url
+                if (expectedVideoId.isBlank() || currentUrl.isNullOrBlank() ||
+                    !(currentUrl.contains("youtube.com/watch") ||
+                      currentUrl.contains("youtube.com/shorts/"))
+                ) return@evaluateJavascript
+
+                val seconds = (info?.optDouble("position", 0.0) ?: 0.0)
+                    .takeIf { it.isFinite() && it >= 0.0 }
+                    ?.toInt()?.coerceAtLeast(0) ?: 0
+                val builder = Uri.parse(currentUrl).buildUpon()
+                    .clearQuery()
+                    .appendQueryParameter("v", expectedVideoId)
+                    .appendQueryParameter("t", "${seconds}s")
+                    .appendQueryParameter("playsinline", "1")
+                if (shouldAutoplay) builder.appendQueryParameter("autoplay", "1")
+
+                // Invalidate the slower clock recovery before reloading so the old WebView
+                // state cannot send a competing Play/Pause command into the replacement page.
+                fullscreenRecoveryGeneration++
+                fullscreenExitRecoveryPending = false
+                fullscreenExitGeometryCheckGeneration++
+                recoverAfterPageReload = shouldAutoplay
+                youtubePlayerReady = false
+                youtubePlayerState = if (shouldAutoplay) 3 else 2
+                updatePlaybackButton()
+                player.postDelayed({
+                    if (!isFinishing && !isDestroyed && player === webView &&
+                        exitGeneration == fullscreenExitGeneration
+                    ) {
+                        player.loadUrl(builder.build().toString())
+                    }
+                }, 120L)
+            }
+        }
+
+        player.postDelayed({ inspectAndRecover(allowOneLayoutRepair = true) }, 1050L)
     }
 
     /**
