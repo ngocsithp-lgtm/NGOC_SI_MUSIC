@@ -336,6 +336,7 @@ class MainActivity : ComponentActivity() {
     private var youtubeSelectedVideoId by mutableStateOf<String?>(null)
     // Tracks which playback engine the compact play control should resume.
     private var youtubeIsActiveSource by mutableStateOf(false)
+    private var youtubePlaybackIsPlaying by mutableStateOf(false)
     private var youtubeLastPlayed by mutableStateOf<YouTubeTrack?>(null)
     private var youtubeLastQueueJson by mutableStateOf<String?>(null)
     private var youtubeLastQueueIndex by mutableIntStateOf(0)
@@ -4505,6 +4506,7 @@ class MainActivity : ComponentActivity() {
             // Refresh the Compose source flag when returning from that Activity; otherwise
             // the UI can keep showing the local Media3 mini-player even though YouTube is active.
             youtubeIsActiveSource = prefs.getBoolean("youtube_active_source", false)
+            youtubePlaybackIsPlaying = prefs.getBoolean("youtube_playback_is_playing", false)
             loadYouTubeLibraryState()
             loadYouTubeWatchLater()
         }
@@ -4683,7 +4685,10 @@ class MainActivity : ComponentActivity() {
                         ProHomeScreen(
                             modifier = Modifier.weight(1f),
                             currentSong = currentSong,
-                            queueCount = queueSongs.size,
+                            youtubeTrack = youtubeLastPlayed,
+                            isYouTubeActive = youtubeIsActiveSource,
+                            isYouTubePlaying = youtubePlaybackIsPlaying,
+                            queueCount = if (youtubeIsActiveSource) storedYouTubeQueueSize() else queueSongs.size,
                             isPlaying = isPlaying,
                             position = position,
                             duration = duration,
@@ -4702,11 +4707,19 @@ class MainActivity : ComponentActivity() {
                             },
                             onOpenRadio = { selectedSection = "Radio" },
                             onOpenTv = { selectedSection = "TV" },
-                            onOpenQueue = { showQueue = true },
+                            onOpenQueue = {
+                                if (youtubeIsActiveSource && youtubeLastPlayed != null) {
+                                    playLastYouTube("queue")
+                                } else {
+                                    showQueue = true
+                                }
+                            },
                             onOpenPlaylists = { showPlaylists = true },
                             onOpenSettings = { selectedSection = "Cài đặt" },
                             onOpenPlayer = {
-                                if (currentSong != null) {
+                                if (youtubeIsActiveSource && youtubeLastPlayed != null) {
+                                    playLastYouTube("play")
+                                } else if (currentSong != null) {
                                     showNowPlaying = true
                                 } else {
                                     selectedSection = "Thư viện"
@@ -4715,17 +4728,13 @@ class MainActivity : ComponentActivity() {
                                     errorMessage = "Chưa có bài hát đang phát. Hãy chọn một bài hát để mở trình phát."
                                 }
                             },
-                            onPrevious = ::previous,
-                            onTogglePlayback = {
-                                val c = controller
-                                when {
-                                    c == null -> errorMessage = "Trình phát đang khởi động, thử lại sau."
-                                    c.isPlaying -> c.pause()
-                                    currentIndex in songs.indices -> play(currentIndex)
-                                    songs.isNotEmpty() -> play(0)
-                                }
+                            onPrevious = {
+                                if (youtubeIsActiveSource) playStoredYouTubeOffset(-1) else previous()
                             },
-                            onNext = ::next,
+                            onTogglePlayback = ::togglePlayPause,
+                            onNext = {
+                                if (youtubeIsActiveSource) playStoredYouTubeOffset(1) else next()
+                            },
                             onSeek = { target -> controller?.seekTo(target.coerceAtLeast(0L)) },
                             onOpenSleepTimer = { showSleepTimer = true }
                         )
@@ -4875,10 +4884,14 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
-                    if (youtubeIsActiveSource && youtubeLastPlayed != null) {
-                        YouTubeMiniPlayer(youtubeLastPlayed!!)
-                    } else {
-                        currentSong?.let { MiniPlayer(it) }
+                    // The home dashboard already displays the active player controls.
+                    // Show the compact player only on feature pages to avoid duplicate controls.
+                    if (selectedSection != "Trang chủ") {
+                        if (youtubeIsActiveSource && youtubeLastPlayed != null) {
+                            YouTubeMiniPlayer(youtubeLastPlayed!!)
+                        } else {
+                            currentSong?.let { MiniPlayer(it) }
+                        }
                     }
                     BottomNav()
                 }
@@ -4938,6 +4951,9 @@ class MainActivity : ComponentActivity() {
     private fun ProHomeScreen(
         modifier: Modifier = Modifier,
         currentSong: Song?,
+        youtubeTrack: YouTubeTrack?,
+        isYouTubeActive: Boolean,
+        isYouTubePlaying: Boolean,
         queueCount: Int,
         isPlaying: Boolean,
         position: Long,
@@ -4957,8 +4973,22 @@ class MainActivity : ComponentActivity() {
         onSeek: (Long) -> Unit,
         onOpenSleepTimer: () -> Unit
     ) {
-        var homeIsSeeking by remember(currentSong?.uri) { mutableStateOf(false) }
-        var homeSeekPosition by remember(currentSong?.uri) {
+        val displayTitle = if (isYouTubeActive) {
+            youtubeTrack?.title ?: "YouTube"
+        } else {
+            currentSong?.title ?: "Chưa phát nhạc"
+        }
+        val displayArtist = if (isYouTubeActive) {
+            youtubeTrack?.channelTitle ?: "YouTube"
+        } else {
+            currentSong?.artist ?: "Chạm để mở thư viện"
+        }
+        val displaySource = if (isYouTubeActive) "YouTube" else currentSong?.source.orEmpty()
+        val hasActiveItem = if (isYouTubeActive) youtubeTrack != null else currentSong != null
+        val displayIsPlaying = if (isYouTubeActive) isYouTubePlaying else isPlaying
+
+        var homeIsSeeking by remember(currentSong?.uri, isYouTubeActive) { mutableStateOf(false) }
+        var homeSeekPosition by remember(currentSong?.uri, isYouTubeActive) {
             mutableStateOf(position.coerceAtLeast(0L).toFloat())
         }
         LaunchedEffect(position, duration, currentSong?.uri) {
@@ -5040,10 +5070,12 @@ class MainActivity : ComponentActivity() {
                                     color = Color(0xFF202E48),
                                     border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF3F587D))
                                 ) {
-                                    if (currentSong != null) {
-                                        SongArtwork(currentSong, Modifier.fillMaxSize())
-                                    } else {
-                                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                    when {
+                                        isYouTubeActive && youtubeTrack != null ->
+                                            OnlineArtwork(youtubeTrack.thumbnailUrl, Modifier.fillMaxSize())
+                                        !isYouTubeActive && currentSong != null ->
+                                            SongArtwork(currentSong, Modifier.fillMaxSize())
+                                        else -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                             Text("♫", color = Color(0xFF9EEFFF), fontSize = 34.sp)
                                         }
                                     }
@@ -5061,7 +5093,7 @@ class MainActivity : ComponentActivity() {
                                     )
                                     Spacer(Modifier.height(3.dp))
                                     Text(
-                                        currentSong?.title ?: "Chưa phát nhạc",
+                                        displayTitle,
                                         color = Color.White,
                                         fontSize = 18.sp,
                                         fontWeight = FontWeight.ExtraBold,
@@ -5069,16 +5101,16 @@ class MainActivity : ComponentActivity() {
                                         overflow = TextOverflow.Ellipsis
                                     )
                                     Text(
-                                        currentSong?.artist ?: "Chạm để mở thư viện",
+                                        displayArtist,
                                         color = Color(0xFFA6ABBA),
                                         fontSize = 11.sp,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
-                                    if (currentSong != null) {
+                                    if (hasActiveItem) {
                                         Spacer(Modifier.height(4.dp))
                                         Text(
-                                            currentSong.source,
+                                            displaySource,
                                             color = Color(0xFF777F91),
                                             fontSize = 10.sp,
                                             maxLines = 1,
@@ -5090,7 +5122,7 @@ class MainActivity : ComponentActivity() {
 
                             Spacer(Modifier.height(8.dp))
 
-                            if (duration > 0L) {
+                            if (!isYouTubeActive && duration > 0L) {
                                 Slider(
                                     value = homeSeekPosition.coerceIn(0f, duration.toFloat()),
                                     onValueChange = {
@@ -5128,7 +5160,7 @@ class MainActivity : ComponentActivity() {
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
                                         Text(
-                                            if (isPlaying) "⏸" else "▶",
+                                            if (displayIsPlaying) "⏸" else "▶",
                                             color = Color(0xFF061018),
                                             fontSize = 22.sp,
                                             fontWeight = FontWeight.Black
