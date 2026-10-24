@@ -273,9 +273,10 @@ class YouTubePlayerActivity : ComponentActivity() {
                 // Rotation can cause WebView to report PAUSED before Android delivers
                 // onConfigurationChanged. If that callback clears the last confirmed PLAYING
                 // state first, the later orientation recovery has no intent to restore.
-                // Treat PAUSED/BUFFERING immediately after a confirmed active state as a
-                // temporary surface handoff unless the user explicitly pressed Pause.
-                if ((state == 2 || state == 3) &&
+                // A PAUSED callback can arrive just before the orientation callback.
+                // Preserve intent only for that transition; normal BUFFERING state changes
+                // must still reach the media-session/UI state tracker.
+                if (state == 2 &&
                     (youtubePlayerState == 1 || youtubePlayerState == 3) &&
                     !explicitUserPause && playbackIntentStillActive
                 ) {
