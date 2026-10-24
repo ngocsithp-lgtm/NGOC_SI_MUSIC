@@ -1517,6 +1517,11 @@ class YouTubePlayerActivity : ComponentActivity() {
         resumePlaybackOnNextOrientationChange = false
         wasPlayingBeforeFullscreen = false
         orientationRecoveryWindowUntilMs = 0L
+        // Invalidate any delayed fullscreen recovery already queued. Otherwise a pending
+        // post-rotation callback can send Play again just after the user pressed Pause.
+        fullscreenExitGeneration++
+        fullscreenExitRecoveryPending = false
+        fullscreenRecoveryGeneration++
         playbackRequestGeneration++
         backgroundPlaybackRecoveryGeneration++
         getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
