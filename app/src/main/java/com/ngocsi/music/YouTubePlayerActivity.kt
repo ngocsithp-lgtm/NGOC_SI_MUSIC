@@ -2732,6 +2732,22 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 lastCurrentTime = Number(e.currentTime || 0);
                                 lastProgressAt = 0;
                               }
+                              // Track rendered frames separately from currentTime. Chromium can
+                              // keep audio/media time moving while the compositor image is frozen
+                              // after orientation handoff; a media-clock probe alone misses that.
+                              if (typeof e.requestVideoFrameCallback === 'function' &&
+                                  window.__ngocSiFrameTrackedVideo !== e) {
+                                window.__ngocSiFrameTrackedVideo = e;
+                                window.__ngocSiLastVideoFrameAt = 0;
+                                try {
+                                  var trackRenderedFrame = function() {
+                                    if (window.__ngocSiFrameTrackedVideo !== e) return;
+                                    window.__ngocSiLastVideoFrameAt = Date.now();
+                                    try { e.requestVideoFrameCallback(trackRenderedFrame); } catch (_) {}
+                                  };
+                                  e.requestVideoFrameCallback(trackRenderedFrame);
+                                } catch (_) {}
+                              }
                               var currentTime = Number(e.currentTime || 0);
                               if (!e.paused && !e.ended && e.readyState >= 2 &&
                                   Number.isFinite(lastCurrentTime) && currentTime > lastCurrentTime + 0.025) {
@@ -3676,6 +3692,10 @@ class YouTubePlayerActivity : ComponentActivity() {
                   rootHeight: Number(rr.height || 0),
                   mediaWidth: Number(video.videoWidth || 0),
                   mediaHeight: Number(video.videoHeight || 0),
+                  videoPaused: !!video.paused,
+                  hasVideoFrameCallback: typeof video.requestVideoFrameCallback === 'function',
+                  videoFrameAgeMs: Number(window.__ngocSiLastVideoFrameAt || 0) > 0
+                    ? Date.now() - Number(window.__ngocSiLastVideoFrameAt || 0) : -1,
                   position: Number(video.currentTime || 0)
                 });
               } catch (_) { return 'WAIT'; }
@@ -3729,7 +3749,10 @@ class YouTubePlayerActivity : ComponentActivity() {
             return runCatching { org.json.JSONObject(normalized) }.getOrNull()
         }
 
-        fun isGeometryBroken(info: org.json.JSONObject?): Boolean {
+        fun isGeometryBroken(
+            info: org.json.JSONObject?,
+            expectPlayback: Boolean
+        ): Boolean {
             if (info == null) return false
             val viewportWidth = info.optDouble("viewportWidth", 0.0)
             val viewportHeight = info.optDouble("viewportHeight", 0.0)
@@ -3742,6 +3765,9 @@ class YouTubePlayerActivity : ComponentActivity() {
             val rootLeft = info.optDouble("rootLeft", 0.0)
             val mediaWidth = info.optDouble("mediaWidth", 0.0)
             val mediaHeight = info.optDouble("mediaHeight", 0.0)
+            val videoPaused = info.optBoolean("videoPaused", true)
+            val hasFrameCallback = info.optBoolean("hasVideoFrameCallback", false)
+            val videoFrameAgeMs = info.optDouble("videoFrameAgeMs", -1.0)
             if (viewportWidth < 100.0 || viewportHeight < 100.0 ||
                 videoWidth < 2.0 || rootWidth < 2.0
             ) return false
@@ -3757,7 +3783,12 @@ class YouTubePlayerActivity : ComponentActivity() {
             val topThreshold = maxOf(12.0, viewportHeight * 0.025)
             val verticalBroken = scrollY > 2.0 || rootTop > topThreshold ||
                 rootTop < -topThreshold || videoTop > topThreshold + 8.0
-            return verticalBroken || (!portraitMedia && (
+            // If the player claims to be playing but no rendered video frame has arrived
+            // recently, reload the same item once after the layout repair. This covers the
+            // frozen-picture/audio-still-moving case that currentTime-only recovery misses.
+            val renderedFrameStalled = expectPlayback && !videoPaused &&
+                hasFrameCallback && videoFrameAgeMs > 1500.0
+            return renderedFrameStalled || verticalBroken || (!portraitMedia && (
                 videoWidth < viewportWidth * 0.78 ||
                 videoLeft > viewportWidth * 0.12 ||
                 videoLeft < -viewportWidth * 0.12 ||
@@ -3772,7 +3803,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             player.evaluateJavascript(geometryScript) { raw ->
                 if (!checkIsCurrent()) return@evaluateJavascript
                 val info = decodeGeometry(raw)
-                if (!isGeometryBroken(info)) return@evaluateJavascript
+                if (!isGeometryBroken(info, shouldResumePlayback)) return@evaluateJavascript
                 if (allowOneLayoutRepair) {
                     // Give Chromium one final chance to re-measure its new portrait viewport
                     // before using the heavier page-recreation fallback.
