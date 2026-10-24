@@ -298,6 +298,10 @@ class YouTubePlayerActivity : ComponentActivity() {
                 }
 
                 if (state == 1) {
+                    // State 1 is reported only after the JS media clock advances. A
+                    // confirmed healthy playback re-arms the one-shot recovery budget so a
+                    // later, separate rotation stall can be recovered without a reload loop.
+                    geometryReloadFallbackAttemptedForCurrentPage = false
                     explicitUserPause = false
                     orientationPlaybackRecoveryGeneration++
                     backgroundPlaybackRecoveryGeneration++
@@ -1305,6 +1309,9 @@ class YouTubePlayerActivity : ComponentActivity() {
                 saveLastPlayedState()
 
                 val safeId = sanitizeVideoId(videoId)
+                // The one-shot fallback budget belongs to the selected video, not to the
+                // lifetime of this Activity/WebView.
+                geometryReloadFallbackAttemptedForCurrentPage = false
                 webView?.loadUrl("https://m.youtube.com/watch?v=" + safeId)
             }
         }
@@ -2016,6 +2023,10 @@ class YouTubePlayerActivity : ComponentActivity() {
                             ) return@verifyPlaybackCallback
 
                             val mediaStatus = verifyResult.orEmpty().trim('"')
+                            if (mediaStatus == "PLAYING") {
+                                // The real-time JS probe confirmed playback recovered.
+                                geometryReloadFallbackAttemptedForCurrentPage = false
+                            }
                             if (mediaStatus == "PAUSED" || mediaStatus == "STALLED") {
                                 recoverFullscreenPlayback()
                             }
@@ -4183,6 +4194,9 @@ class YouTubePlayerActivity : ComponentActivity() {
                 if (previous != null && currentPosition != null &&
                     currentPosition > previous + 0.04
                 ) {
+                    // Re-arm only after proving that playback time advanced, allowing
+                    // another isolated orientation failure to use the bounded fallback.
+                    geometryReloadFallbackAttemptedForCurrentPage = false
                     getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
                         .putBoolean("youtube_playback_is_playing", true)
                         .putBoolean("youtube_is_playing", true)
