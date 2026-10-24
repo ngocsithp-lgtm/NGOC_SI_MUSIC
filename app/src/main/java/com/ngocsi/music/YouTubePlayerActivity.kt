@@ -2881,6 +2881,20 @@ class YouTubePlayerActivity : ComponentActivity() {
                             if (!isFinishing && !isDestroyed && !isCssFullscreen && webView === view) {
                                 normalizeInlineYoutubeViewport(view)
                                 if (index == 0) scheduleInlinePlayerLayoutSync()
+                                if (index == 2) {
+                                    // Opening YouTube can also leave the actual video surface
+                                    // offset even when document scrollY is zero. Validate the
+                                    // rendered geometry after the initial viewport has settled.
+                                    val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+                                    val expectPlayback = !explicitUserPause && (
+                                        youtubePlayerState == 1 ||
+                                            prefs.getBoolean("youtube_playback_is_playing", false)
+                                        )
+                                    scheduleFullscreenExitGeometryCheck(
+                                        fullscreenExitGeneration,
+                                        expectPlayback
+                                    )
+                                }
                             }
                         }, delay)
                     }
