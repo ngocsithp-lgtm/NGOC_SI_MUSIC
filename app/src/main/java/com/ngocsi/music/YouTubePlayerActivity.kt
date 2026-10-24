@@ -146,6 +146,9 @@ class YouTubePlayerActivity : ComponentActivity() {
     // Keep explicit user pauses separate from temporary WebView surface/viewport pauses.
     private var explicitUserPause = false
     private var orientationPlaybackRecoveryGeneration = 0
+    // Keep unexpected pause/stall recovery isolated from orientation recovery callbacks.
+    private var unexpectedPlaybackRecoveryGeneration = 0
+    private var lastUnexpectedPlaybackRecoveryAtMs = 0L
     private var fullscreenLayoutActive = false
     private var contentContainer: LinearLayout? = null
     private var playerScrollView: ScrollView? = null
@@ -264,27 +267,45 @@ class YouTubePlayerActivity : ComponentActivity() {
                     scheduleBackgroundPlaybackRecovery()
                     return@runOnUiThread
                 }
+                val nowMs = System.currentTimeMillis()
                 val orientationHandoffActive =
-                    System.currentTimeMillis() <= orientationRecoveryWindowUntilMs ||
+                    nowMs <= orientationRecoveryWindowUntilMs ||
                     customView != null || isCssFullscreen || fullscreenExitRecoveryPending
+                val viewportHandoffActive = orientationHandoffActive ||
+                    (nowMs - lastOrientationConfigurationChangeAtMs in 0L..1800L)
                 val playbackIntentStillActive =
                     prefs.getBoolean("youtube_playback_is_playing", false)
 
-                // Rotation can cause WebView to report PAUSED before Android delivers
-                // onConfigurationChanged. If that callback clears the last confirmed PLAYING
-                // state first, the later orientation recovery has no intent to restore.
-                // A PAUSED callback can arrive just before the orientation callback.
-                // Preserve intent only for that transition; normal BUFFERING state changes
-                // must still reach the media-session/UI state tracker.
+                // A media-clock stall can continue indefinitely if YouTube does not emit
+                // another state after entering buffering. Schedule one bounded recovery.
+                if (state == 3 && isForeground && !explicitUserPause &&
+                    playbackIntentStillActive && !viewportHandoffActive
+                ) {
+                    scheduleUnexpectedPlaybackRecovery(
+                        delayMs = 3500L,
+                        allowPageReloadFallback = false
+                    )
+                }
+
+                // Preserve playback intent for an actual fullscreen/orientation handoff only.
+                // Previously every PAUSED transition after PLAYING/BUFFERING was assumed to be
+                // rotation, even in normal playback, so the player could stay frozen forever.
                 if (state == 2 &&
                     (youtubePlayerState == 1 || youtubePlayerState == 3) &&
                     !explicitUserPause && playbackIntentStillActive
                 ) {
-                    orientationRecoveryWindowUntilMs = maxOf(
-                        orientationRecoveryWindowUntilMs,
-                        System.currentTimeMillis() + 5000L
+                    if (viewportHandoffActive) {
+                        orientationRecoveryWindowUntilMs = maxOf(
+                            orientationRecoveryWindowUntilMs,
+                            nowMs + 5000L
+                        )
+                        resumePlaybackOnNextOrientationChange = true
+                        return@runOnUiThread
+                    }
+                    scheduleUnexpectedPlaybackRecovery(
+                        delayMs = 350L,
+                        allowPageReloadFallback = true
                     )
-                    resumePlaybackOnNextOrientationChange = true
                     return@runOnUiThread
                 }
 
@@ -297,6 +318,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 }
 
                 if (state == 1) {
+                    unexpectedPlaybackRecoveryGeneration++
                     explicitUserPause = false
                     orientationPlaybackRecoveryGeneration++
                     backgroundPlaybackRecoveryGeneration++
@@ -306,6 +328,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                     }
                     prefs.edit().putBoolean("youtube_playback_is_playing", true).apply()
                 } else if (state == 0 || (state == 2 && (!orientationHandoffActive || explicitUserPause))) {
+                    unexpectedPlaybackRecoveryGeneration++
                     // ENDED always clears intent. PAUSED clears it only when it is not a viewport
                     // handoff, or when the user explicitly asked to pause the player.
                     if (state == 0) explicitUserPause = false
@@ -1611,6 +1634,49 @@ class YouTubePlayerActivity : ComponentActivity() {
             }, delay)
         }
         attempt(0)
+    }
+
+    /**
+     * Recover a YouTube pause/buffer stall that was not requested by the user.
+     * Each event has a generation token; recovery is bounded and the page reload
+     * fallback is enabled only for a persistent unexpected pause.
+     */
+    private fun scheduleUnexpectedPlaybackRecovery(
+        delayMs: Long,
+        allowPageReloadFallback: Boolean
+    ) {
+        if (isFinishing || isDestroyed || explicitUserPause || webView == null) return
+        val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+        if (!prefs.getBoolean("youtube_playback_is_playing", false)) return
+
+        val expectedVideoId = sanitizeVideoId(videoId)
+        if (expectedVideoId.isBlank()) return
+        val now = System.currentTimeMillis()
+        if (!allowPageReloadFallback && now - lastUnexpectedPlaybackRecoveryAtMs < 2500L) return
+        lastUnexpectedPlaybackRecoveryAtMs = now
+        val generation = ++unexpectedPlaybackRecoveryGeneration
+
+        playbackPositionHandler.postDelayed({
+            if (generation != unexpectedPlaybackRecoveryGeneration ||
+                isFinishing || isDestroyed || explicitUserPause ||
+                webView == null || expectedVideoId != sanitizeVideoId(videoId)
+            ) return@postDelayed
+
+            val currentPrefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+            if (!currentPrefs.getBoolean("youtube_playback_is_playing", false) ||
+                youtubePlayerState == 0
+            ) return@postDelayed
+
+            // Let the dedicated rotation path own recovery during a fullscreen handoff.
+            val currentTime = System.currentTimeMillis()
+            if (currentTime <= orientationRecoveryWindowUntilMs ||
+                customView != null || isCssFullscreen || fullscreenExitRecoveryPending
+            ) return@postDelayed
+
+            recoverFullscreenPlayback(
+                allowPageReloadFallback = allowPageReloadFallback
+            )
+        }, delayMs.coerceAtLeast(0L))
     }
 
     private fun markExplicitPauseIntent() {
