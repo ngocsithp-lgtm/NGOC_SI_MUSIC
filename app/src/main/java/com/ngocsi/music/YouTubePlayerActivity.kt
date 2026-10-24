@@ -1778,11 +1778,12 @@ class YouTubePlayerActivity : ComponentActivity() {
             ) return
             webView?.evaluateJavascript(youtubePlaybackScript("play")) { result ->
                 if (requestGeneration != playbackRequestGeneration) return@evaluateJavascript
-                val accepted = result?.contains("playing") == true ||
-                    result?.contains("buffering") == true ||
-                    result?.contains("requested-api") == true ||
-                    result?.contains("requested-button") == true ||
-                    result?.contains("requested-video") == true
+                val response = result.orEmpty()
+                val accepted = response.contains("playing") ||
+                    response.contains("buffering") ||
+                    response.contains("requested-api") ||
+                    response.contains("requested-button") ||
+                    response.contains("requested-video")
                 // Retry only a rejected request. A valid Play request never starts
                 // a competing forced pause/Play recovery loop.
                 if (!accepted && remaining > 0 && !isFinishing && !isDestroyed &&
