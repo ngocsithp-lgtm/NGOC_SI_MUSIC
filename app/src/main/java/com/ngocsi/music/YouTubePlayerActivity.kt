@@ -1484,10 +1484,13 @@ class YouTubePlayerActivity : ComponentActivity() {
                             return 0;
                         }
 
-                        function loadVideoById(id) {
+                        function loadVideoById(id, startSeconds) {
                             if (!lamPlayer || typeof lamPlayer.loadVideoById !== 'function') return;
+                            var options = {videoId: id};
+                            var start = Number(startSeconds);
+                            if (isFinite(start) && start > 0) options.startSeconds = start;
                             try {
-                                lamPlayer.loadVideoById({videoId: id});
+                                lamPlayer.loadVideoById(options);
                             } catch (_) {
                                 try { lamPlayer.loadVideoById(id); } catch (_) {}
                             }
@@ -1789,6 +1792,83 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Verifies that the YouTube IFrame clock actually advances after fullscreen exit.
+     * If the Android/WebView video surface is stuck, reload the same video at the
+     * last reported position and resume it. This is deliberately a one-shot recovery
+     * per fullscreen exit, not a periodic reload loop.
+     */
+    private fun isFullscreenRecoveryCurrent(
+        player: WebView,
+        expectedVideoId: String,
+        expectedGeneration: Int
+    ): Boolean =
+        !isFinishing &&
+            !isDestroyed &&
+            expectedGeneration == playerGeneration &&
+            player === webView &&
+            videoId == expectedVideoId &&
+            youtubePlayerReady
+
+    private fun verifyAndRecoverFullscreenPlayback(
+        player: WebView,
+        expectedVideoId: String
+    ) {
+        val safeId = sanitizeVideoId(expectedVideoId)
+        if (safeId.isBlank()) return
+        val expectedGeneration = playerGeneration
+        val timeScript =
+            "(function(){try{return Number(lamPlayer.getCurrentTime() || 0);}catch(e){return -1;}})();"
+
+        // Allow the layout and the first play command to settle before sampling.
+        playbackPositionHandler.postDelayed({
+            if (isFullscreenRecoveryCurrent(player, safeId, expectedGeneration)) {
+                player.evaluateJavascript(timeScript) { beforeValue ->
+                    val beforeSeconds = beforeValue?.trim('"')?.toDoubleOrNull()
+                    if (beforeSeconds != null && beforeSeconds.isFinite() && beforeSeconds >= 0.0) {
+                        playbackPositionHandler.postDelayed({
+                            if (isFullscreenRecoveryCurrent(player, safeId, expectedGeneration)) {
+                                player.evaluateJavascript(timeScript) { afterValue ->
+                                    val afterSeconds = afterValue?.trim('"')?.toDoubleOrNull()
+                                    if (afterSeconds != null && afterSeconds.isFinite() && afterSeconds >= 0.0) {
+                                        if (afterSeconds <= beforeSeconds + 0.15) {
+                                            // The IFrame clock did not move: reload this exact
+                                            // video at its current time to rebuild the stuck
+                                            // video surface without changing the queue.
+                                            youtubePlayerState = 3
+                                            updatePlaybackButton()
+                                            updateYoutubeMediaSession()
+                                            player.evaluateJavascript(
+                                                "loadVideoById('$safeId', ${afterSeconds.coerceAtLeast(0.0)});",
+                                                null
+                                            )
+                                            scheduleVideoSurfaceResize(player)
+                                            playbackPositionHandler.postDelayed({
+                                                if (isFullscreenRecoveryCurrent(player, safeId, expectedGeneration)) {
+                                                    player.onResume()
+                                                    player.requestLayout()
+                                                    player.invalidate()
+                                                    scheduleVideoSurfaceResize(player)
+                                                    player.evaluateJavascript("playVideo();", null)
+                                                }
+                                            }, 450L)
+                                        } else {
+                                            // Playback is moving again; synchronize the native
+                                            // controls with the actual IFrame clock.
+                                            youtubePlayerState = 1
+                                            updatePlaybackButton()
+                                            updateYoutubeMediaSession()
+                                        }
+                                    }
+                                }
+                            }
+                        }, 1400L)
+                    }
+                }
+            }
+        }, 500L)
+    }
+
     private fun calculateNormalPlayerHeight(): Int =
         (resources.displayMetrics.widthPixels * 9f / 16f).toInt().coerceAtLeast(dp(200))
 
@@ -1853,14 +1933,19 @@ class YouTubePlayerActivity : ComponentActivity() {
                 activeWebView.requestLayout()
                 activeWebView.invalidate()
                 if (shouldResume) {
+                    // The IFrame API can still report PLAYING while the video surface
+                    // has stopped advancing after Android leaves fullscreen. Show a
+                    // buffering state until playback is verified, rather than leaving
+                    // a misleading pause icon on a frozen frame.
+                    youtubePlayerState = 3
+                    updatePlaybackButton()
+                    updateYoutubeMediaSession()
                     playbackPositionHandler.postDelayed({
-                        if (isFinishing || isDestroyed ||
-                            activeWebView !== webView ||
-                            videoId != expectedVideoId ||
-                            !youtubePlayerReady
-                        ) return@postDelayed
-                        activeWebView.evaluateJavascript("playVideo();", null)
+                        if (isFullscreenRecoveryCurrent(activeWebView, expectedVideoId, playerGeneration)) {
+                            activeWebView.evaluateJavascript("playVideo();", null)
+                        }
                     }, 350L)
+                    verifyAndRecoverFullscreenPlayback(activeWebView, expectedVideoId)
                 }
             }
             fullscreenExitInProgress = false
