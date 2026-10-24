@@ -3602,11 +3602,35 @@ class YouTubePlayerActivity : ComponentActivity() {
         val repairLayoutScript = """
             (function() {
               try {
+                if (document.getElementById('ngocsi-css-fullscreen') || document.fullscreenElement)
+                  return 'FULLSCREEN';
+                var root = document.querySelector('ytm-player') ||
+                           document.querySelector('#movie_player') ||
+                           document.querySelector('#player');
+                if (root) {
+                  ['position','left','right','top','bottom','inset'].forEach(function(prop) {
+                    root.style.removeProperty(prop);
+                  });
+                  ['ytm-watch','ytm-watch-grid','#player-container-outer',
+                   '#player-container-inner','#player-container-id','#player-container','#player']
+                    .forEach(function(selector) {
+                      var node = root.matches && root.matches(selector) ? root : root.closest(selector);
+                      if (node && node.style) {
+                        node.style.setProperty('margin-top','0px','important');
+                        node.style.setProperty('padding-top','0px','important');
+                      }
+                    });
+                }
+                window.scrollTo(0,0);
+                if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
+                document.documentElement.scrollTop = 0;
+                if (document.body) document.body.scrollTop = 0;
                 if (typeof window.__ngocSiFitPlayerResizeHandler === 'function')
                   window.__ngocSiFitPlayerResizeHandler();
                 window.dispatchEvent(new Event('resize'));
                 if (window.visualViewport)
                   window.visualViewport.dispatchEvent(new Event('resize'));
+                requestAnimationFrame(function() { window.scrollTo(0,0); });
                 return 'OK';
               } catch (_) { return 'ERROR'; }
             })();
@@ -3639,21 +3663,23 @@ class YouTubePlayerActivity : ComponentActivity() {
             if (viewportWidth < 100.0 || viewportHeight < 100.0 ||
                 videoWidth < 2.0 || rootWidth < 2.0
             ) return false
-            // Portrait and near-square clips may be narrower by design; do not reload those.
-            if (mediaWidth > 0.0 && mediaHeight > 0.0 && mediaWidth / mediaHeight < 1.15) return false
-            // The user's failure includes vertical drift, not only a width/left offset.
+            // Portrait and near-square clips may be narrower by design. Still check their
+            // vertical placement, because a document scroll offset can push any aspect ratio down.
+            val portraitMedia = mediaWidth > 0.0 && mediaHeight > 0.0 &&
+                mediaWidth / mediaHeight < 1.15
             // Detect the document-scroll restoration and a player root that stays below the
             // top of the newly measured portrait viewport.
             val topThreshold = maxOf(48.0, viewportHeight * 0.10)
             val verticalBroken = scrollY > 24.0 || rootTop > topThreshold ||
                 rootTop < -topThreshold || videoTop > topThreshold * 1.5
-            return verticalBroken ||
+            return verticalBroken || (!portraitMedia && (
                 videoWidth < viewportWidth * 0.78 ||
                 videoLeft > viewportWidth * 0.12 ||
                 videoLeft < -viewportWidth * 0.12 ||
                 rootWidth < viewportWidth * 0.78 ||
                 rootLeft > viewportWidth * 0.12 ||
                 rootLeft < -viewportWidth * 0.12
+            ))
         }
 
         fun inspectAndRecover(allowOneLayoutRepair: Boolean) {
