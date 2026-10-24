@@ -3122,7 +3122,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                                     isFinishing || isDestroyed || webView == null
                                 ) return@postDelayed
                                 recoverFullscreenPlayback()
-                            }, 350L)
+                            }, 900L)
                         }
                     }, 500L)
                 }
