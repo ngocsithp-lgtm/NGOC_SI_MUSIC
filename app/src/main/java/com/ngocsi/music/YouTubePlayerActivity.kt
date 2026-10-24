@@ -85,8 +85,12 @@ class YouTubePlayerActivity : ComponentActivity() {
                     android.content.res.Configuration.ORIENTATION_LANDSCAPE
                 val screenHeightPx = (resources.configuration.screenHeightDp *
                     resources.displayMetrics.density).toInt()
+                // The inline landscape player sits below the native header.
+                // Subtract that header from the available screen height so the frame
+                // cannot extend beyond the physical viewport when the Activity rotates.
+                val availableLandscapeHeight = (screenHeightPx - dp(48)).coerceAtLeast(1)
                 val measuredHeight = if (landscape && screenHeightPx > 0) {
-                    minOf(aspectHeight, screenHeightPx)
+                    minOf(aspectHeight, availableLandscapeHeight)
                 } else {
                     aspectHeight
                 }
@@ -2489,12 +2493,12 @@ class YouTubePlayerActivity : ComponentActivity() {
                               fitStyle.id = 'ngocsi-player-viewport-fix';
                               fitStyle.textContent =
                                 'html,body,ytm-app,ytm-watch {width:100%!important;height:100%!important;max-width:none!important;margin:0!important;padding:0!important;}' +
-                                'ytm-watch {margin-top:0!important;padding-top:0!important;overflow:hidden!important;}' +
+                                'ytm-watch {position:relative!important;top:0!important;left:0!important;transform:none!important;margin-top:0!important;padding-top:0!important;overflow:hidden!important;}' +
                                 'ytm-watch #player-container-outer,ytm-watch #player-container-inner,' +
                                 'ytm-watch .player-container,ytm-watch #player-container-id {' +
                                 'margin-top:0!important;padding-top:0!important;border-top:0!important;}' +
-                                'ytm-player {box-sizing:border-box!important;display:block!important;position:relative!important;' +
-                                'top:0!important;transform:none!important;width:100%!important;' +
+                                'ytm-player {box-sizing:border-box!important;display:block!important;position:absolute!important;' +
+                                'top:0!important;left:0!important;right:0!important;bottom:0!important;transform:none!important;width:100%!important;' +
                                 'height:100%!important;min-height:0!important;max-height:none!important;' +
                                 'aspect-ratio:auto!important;max-width:none!important;margin:0!important;padding:0!important;' +
                                 'border:0!important;overflow:hidden!important;}' +
@@ -2535,17 +2539,19 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 root.style.setProperty('height',viewportHeight+'px','important');
                                 root.style.setProperty('aspect-ratio','auto','important');
                               } else {
-                                // The native InlinePlayerFrameLayout already measures an exact 16:9
-                                // surface. Do not calculate another pixel width/height from the
-                                // WebView viewport: that measurement can lag rotation and leave the
-                                // video inset or below a black strip. Let the WebView's measured
-                                // viewport be the single source of truth for inline dimensions.
-                                ['position','left','right','top','bottom','inset'].forEach(function(p) {
-                                  root.style.removeProperty(p);
-                                });
+                                // Anchor inline playback to the top-left of the measured WebView,
+                                // not to YouTube's collapsing mobile-page flow. The WebView itself
+                                // is the native 16:9 frame, so this removes the top gap without
+                                // allowing the video surface to extend beyond that frame.
+                                root.style.setProperty('position','absolute','important');
+                                root.style.setProperty('left','0px','important');
+                                root.style.setProperty('top','0px','important');
+                                root.style.setProperty('right','0px','important');
+                                root.style.setProperty('bottom','0px','important');
                                 root.style.setProperty('width','100%','important');
                                 root.style.setProperty('height','100%','important');
                                 root.style.setProperty('aspect-ratio','auto','important');
+                                root.style.setProperty('transform','none','important');
                                 root.style.setProperty('margin','0','important');
                                 root.style.setProperty('padding','0','important');
                               }
@@ -3244,11 +3250,10 @@ class YouTubePlayerActivity : ComponentActivity() {
                     node.style.setProperty('border-top-width', '0px', 'important');
                   }
                 });
-                // Drop stale fullscreen/landscape pixel coordinates before measuring the
-                // current WebView. The fit handler writes new dimensions only after the
-                // latest viewport has committed, rather than preserving a one-frame black gap.
-                ['position','left','right','top','bottom','inset','width','height',
-                 'margin-left','margin-right'].forEach(function(prop) {
+                // Keep the player anchored while refreshing it against the latest viewport.
+                // The fit handler below overwrites stale dimensions after orientation settles;
+                // clearing positioning first would expose a frame of the old page-flow offset.
+                ['margin-left','margin-right'].forEach(function(prop) {
                   root.style.removeProperty(prop);
                 });
                 root.style.setProperty('transform', 'none', 'important');
