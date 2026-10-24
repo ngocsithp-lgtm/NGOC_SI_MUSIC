@@ -132,7 +132,6 @@ class YouTubePlayerActivity : ComponentActivity() {
                 }
                 updatePlaybackButton()
                 updateYoutubeMediaSession()
-                updatePictureInPictureParams()
                 if (
                     state == 0 &&
                     queue.isNotEmpty() &&
@@ -168,7 +167,6 @@ class YouTubePlayerActivity : ComponentActivity() {
                 youtubePlayerState = -1
                 updatePlaybackButton()
                 updateYoutubeMediaSession()
-                updatePictureInPictureParams()
             }
         }
     }
