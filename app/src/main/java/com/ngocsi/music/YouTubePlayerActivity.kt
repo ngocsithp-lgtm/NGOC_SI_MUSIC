@@ -40,6 +40,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.media3.common.util.UnstableApi
+import java.io.ByteArrayInputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.Executors
@@ -146,9 +147,6 @@ class YouTubePlayerActivity : ComponentActivity() {
     // Keep explicit user pauses separate from temporary WebView surface/viewport pauses.
     private var explicitUserPause = false
     private var orientationPlaybackRecoveryGeneration = 0
-    // Keep unexpected pause/stall recovery isolated from orientation recovery callbacks.
-    private var unexpectedPlaybackRecoveryGeneration = 0
-    private var lastUnexpectedPlaybackRecoveryAtMs = 0L
     private var fullscreenLayoutActive = false
     private var contentContainer: LinearLayout? = null
     private var playerScrollView: ScrollView? = null
@@ -267,45 +265,27 @@ class YouTubePlayerActivity : ComponentActivity() {
                     scheduleBackgroundPlaybackRecovery()
                     return@runOnUiThread
                 }
-                val nowMs = System.currentTimeMillis()
                 val orientationHandoffActive =
-                    nowMs <= orientationRecoveryWindowUntilMs ||
+                    System.currentTimeMillis() <= orientationRecoveryWindowUntilMs ||
                     customView != null || isCssFullscreen || fullscreenExitRecoveryPending
-                val viewportHandoffActive = orientationHandoffActive ||
-                    (nowMs - lastOrientationConfigurationChangeAtMs in 0L..1800L)
                 val playbackIntentStillActive =
                     prefs.getBoolean("youtube_playback_is_playing", false)
 
-                // A media-clock stall can continue indefinitely if YouTube does not emit
-                // another state after entering buffering. Schedule one bounded recovery.
-                if (state == 3 && isForeground && !explicitUserPause &&
-                    playbackIntentStillActive && !viewportHandoffActive
-                ) {
-                    scheduleUnexpectedPlaybackRecovery(
-                        delayMs = 3500L,
-                        allowPageReloadFallback = false
-                    )
-                }
-
-                // Preserve playback intent for an actual fullscreen/orientation handoff only.
-                // Previously every PAUSED transition after PLAYING/BUFFERING was assumed to be
-                // rotation, even in normal playback, so the player could stay frozen forever.
+                // Rotation can cause WebView to report PAUSED before Android delivers
+                // onConfigurationChanged. If that callback clears the last confirmed PLAYING
+                // state first, the later orientation recovery has no intent to restore.
+                // A PAUSED callback can arrive just before the orientation callback.
+                // Preserve intent only for that transition; normal BUFFERING state changes
+                // must still reach the media-session/UI state tracker.
                 if (state == 2 &&
                     (youtubePlayerState == 1 || youtubePlayerState == 3) &&
                     !explicitUserPause && playbackIntentStillActive
                 ) {
-                    if (viewportHandoffActive) {
-                        orientationRecoveryWindowUntilMs = maxOf(
-                            orientationRecoveryWindowUntilMs,
-                            nowMs + 5000L
-                        )
-                        resumePlaybackOnNextOrientationChange = true
-                        return@runOnUiThread
-                    }
-                    scheduleUnexpectedPlaybackRecovery(
-                        delayMs = 350L,
-                        allowPageReloadFallback = true
+                    orientationRecoveryWindowUntilMs = maxOf(
+                        orientationRecoveryWindowUntilMs,
+                        System.currentTimeMillis() + 5000L
                     )
+                    resumePlaybackOnNextOrientationChange = true
                     return@runOnUiThread
                 }
 
@@ -318,7 +298,6 @@ class YouTubePlayerActivity : ComponentActivity() {
                 }
 
                 if (state == 1) {
-                    unexpectedPlaybackRecoveryGeneration++
                     explicitUserPause = false
                     orientationPlaybackRecoveryGeneration++
                     backgroundPlaybackRecoveryGeneration++
@@ -328,7 +307,6 @@ class YouTubePlayerActivity : ComponentActivity() {
                     }
                     prefs.edit().putBoolean("youtube_playback_is_playing", true).apply()
                 } else if (state == 0 || (state == 2 && (!orientationHandoffActive || explicitUserPause))) {
-                    unexpectedPlaybackRecoveryGeneration++
                     // ENDED always clears intent. PAUSED clears it only when it is not a viewport
                     // handoff, or when the user explicitly asked to pause the player.
                     if (state == 0) explicitUserPause = false
@@ -818,11 +796,13 @@ class YouTubePlayerActivity : ComponentActivity() {
                 'ytm-comment-section-renderer,ytm-comment-renderer,ytm-comment-thread-renderer,' +
                 'ytm-comments-entry-point-renderer,ytm-comment-simplebox-renderer,' +
                 '.ytp-title,.ytp-title-text,.ytp-title-link,.ytp-chrome-top,.ytp-pause-overlay,' +
-                '.ytp-pause-overlay-container,' +
+                '.ytp-pause-overlay-container,.ytp-large-play-button,.ytp-cued-thumbnail-overlay,' +
                 '.ytp-next-button,.ytp-prev-button,.ytp-next-button-container,.ytp-prev-button-container,' +
                 '.ytp-endscreen-content,.ytp-endscreen-previous,.ytp-endscreen-next,.ytp-ce-covering-overlay,' +
                 '.ytp-cards-teaser,.ytp-ce-element,.ytp-gradient-top,' +
-                 '.ytp-show-cards-title { display:none!important; }' +
+                'ytm-play-button-renderer,' +
+                '.ytp-show-cards-title,ytm-player-overlay-renderer,ytm-video-overlay-renderer,' +
+                'ytm-mobile-player-overlay-renderer { display:none!important; }' +
                 'ytm-player { position:fixed!important; inset:0!important; width:auto!important;height:auto!important;min-width:0!important;min-height:0!important;max-width:none!important;max-height:none!important;aspect-ratio:auto!important;z-index:2147483647!important;background:#000!important;overflow:hidden!important;margin:0!important;padding:0!important; }' +
                 'ytm-player,#player-container,#player-container-inner,#movie_player,.html5-video-player,.html5-video-container { box-sizing:border-box!important;max-width:100%!important;max-height:100%!important;overflow:hidden!important;margin:0!important;padding:0!important; }' +
                 'ytm-player video,video.html5-main-video { object-fit:contain!important;object-position:center center!important;max-width:100%!important;max-height:100%!important; }';
@@ -1636,49 +1616,6 @@ class YouTubePlayerActivity : ComponentActivity() {
         attempt(0)
     }
 
-    /**
-     * Recover a YouTube pause/buffer stall that was not requested by the user.
-     * Each event has a generation token; recovery is bounded and the page reload
-     * fallback is enabled only for a persistent unexpected pause.
-     */
-    private fun scheduleUnexpectedPlaybackRecovery(
-        delayMs: Long,
-        allowPageReloadFallback: Boolean
-    ) {
-        if (isFinishing || isDestroyed || explicitUserPause || webView == null) return
-        val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
-        if (!prefs.getBoolean("youtube_playback_is_playing", false)) return
-
-        val expectedVideoId = sanitizeVideoId(videoId)
-        if (expectedVideoId.isBlank()) return
-        val now = System.currentTimeMillis()
-        if (!allowPageReloadFallback && now - lastUnexpectedPlaybackRecoveryAtMs < 2500L) return
-        lastUnexpectedPlaybackRecoveryAtMs = now
-        val generation = ++unexpectedPlaybackRecoveryGeneration
-
-        playbackPositionHandler.postDelayed({
-            if (generation != unexpectedPlaybackRecoveryGeneration ||
-                isFinishing || isDestroyed || explicitUserPause ||
-                webView == null || expectedVideoId != sanitizeVideoId(videoId)
-            ) return@postDelayed
-
-            val currentPrefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
-            if (!currentPrefs.getBoolean("youtube_playback_is_playing", false) ||
-                youtubePlayerState == 0
-            ) return@postDelayed
-
-            // Let the dedicated rotation path own recovery during a fullscreen handoff.
-            val currentTime = System.currentTimeMillis()
-            if (currentTime <= orientationRecoveryWindowUntilMs ||
-                customView != null || isCssFullscreen || fullscreenExitRecoveryPending
-            ) return@postDelayed
-
-            recoverFullscreenPlayback(
-                allowPageReloadFallback = allowPageReloadFallback
-            )
-        }, delayMs.coerceAtLeast(0L))
-    }
-
     private fun markExplicitPauseIntent() {
         explicitUserPause = true
         resumePlaybackOnNextOrientationChange = false
@@ -2264,18 +2201,16 @@ class YouTubePlayerActivity : ComponentActivity() {
                     view: WebView,
                     request: WebResourceRequest
                 ): android.webkit.WebResourceResponse? {
-                    val uri = request.url
-                    if (isKnownYouTubeAdvertisingRequest(uri)) {
-                        // Return an empty no-content response only for known ad endpoints.
-                        // Keep video/audio CDN hosts and the normal YouTube player/session APIs
-                        // untouched so content playback and mid-stream state can continue.
+                    if (isKnownYouTubeAdvertisingRequest(request.url)) {
+                        // Block only recognizable ad-serving hosts/endpoints. Never block
+                        // googlevideo.com: it also delivers the actual video/audio streams.
                         return android.webkit.WebResourceResponse(
                             "text/plain",
                             "UTF-8",
                             204,
                             "No Content",
-                            emptyMap(),
-                            java.io.ByteArrayInputStream(ByteArray(0))
+                            mapOf("Cache-Control" to "no-store"),
+                            ByteArrayInputStream(ByteArray(0))
                         )
                     }
                     return super.shouldInterceptRequest(view, request)
@@ -2299,9 +2234,8 @@ class YouTubePlayerActivity : ComponentActivity() {
                     // Chromium WebView instead of the IFrame API player.
                     view.evaluateJavascript("""
                         (function(){
-                          // Remove duplicate mobile chrome, title/comments and unrelated page sections.
-                          // Do not hide YouTube ad containers or player overlays: YouTube may
-                          // need them to complete a mid-roll transition and resume the stream.
+                          // Best-effort removal of the duplicate mobile masthead, title row,
+                          // common ad slots, and mute prompt. Video delivery hosts are not filtered.
                           try {
                             // Keep the mobile page's CSS viewport aligned with the actual WebView.
                             // Otherwise overview scaling can render the player as a small island
@@ -2383,13 +2317,24 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 'ytm-comments-entry-point-teaser, ytm-comment-section, ytm-item-section-renderer,' +
                                 'ytm-engagement-panel, ytm-engagement-panel-section-list-renderer, ' +
                                 'ytm-rich-section-renderer, ' +
+                                'ytm-ad-slot-renderer, ytm-promoted-sparkles-web-renderer, ' +
+                                'ytm-promoted-sparkles-text-search-renderer, ytm-promoted-video-renderer, ' +
+                                'ytm-companion-slot, ytm-companion-ad-renderer, ytm-in-feed-ad-layout-renderer, ' +
+                                'ytd-ad-slot-renderer, ytd-display-ad-renderer, ytd-promoted-video-renderer, ' +
+                                'ytd-promoted-sparkles-web-renderer, ytd-in-feed-ad-layout-renderer, ' +
+                                'ytd-banner-promo-renderer, ytd-action-companion-ad-renderer, ' +
+                                'ytm-player-overlay-renderer, ytm-video-overlay-renderer, ytm-mobile-player-overlay-renderer, ' +
                                 '.ytp-title, .ytp-title-text, .ytp-title-link, .ytp-chrome-top, ' +
                                 '.ytp-pause-overlay, .ytp-pause-overlay-container, ' +
-                                '.ytp-next-button, .ytp-prev-button, ' +
+                                '.ytp-large-play-button, .ytp-cued-thumbnail-overlay, .ytp-next-button, .ytp-prev-button, ' +
                                 '.ytp-next-button-container, .ytp-prev-button-container, ' +
                                 '.ytp-endscreen-content, .ytp-endscreen-previous, .ytp-endscreen-next, ' +
                                 '.ytp-ce-covering-overlay, .ytp-cards-teaser, ' +
-                                '.ytp-ce-element, .ytp-gradient-top, .ytp-show-cards-title {' +
+                                ' ytm-play-button-renderer, ' +
+                                '.ytp-ce-element, .ytp-gradient-top, .ytp-show-cards-title, ' +
+                                '#player-ads, #masthead-ad, .video-ads, .ytp-ad-module, ' +
+                                '.ytp-ad-player-overlay, .ytp-ad-overlay-container, ' +
+                                '.ytp-ad-image-overlay, .ytp-ad-text-overlay {' +
                                 'display:none!important;visibility:hidden!important;' +
                                 'pointer-events:none!important;max-height:0!important;} ' +
                                 // Do not force fullscreen positioning in this always-on cleanup stylesheet.
@@ -2408,10 +2353,12 @@ class YouTubePlayerActivity : ComponentActivity() {
                             // and re-apply them when YouTube inserts/replaces overlay nodes.
                             (function installNgocSiCenterControlHider() {
                               var selectors =
-                                '.ytp-next-button,.ytp-prev-button,' +
+                                '.ytp-cued-thumbnail-overlay,.ytp-next-button,.ytp-prev-button,' +
                                 '.ytp-next-button-container,.ytp-prev-button-container,' +
                                 '.ytp-endscreen-content,.ytp-endscreen-previous,.ytp-endscreen-next,' +
                                 '.ytp-ce-covering-overlay,.ytp-cards-teaser,.ytp-ce-element,' +
+                                'ytm-player-overlay-renderer,ytm-video-overlay-renderer,' +
+                                'ytm-mobile-player-overlay-renderer,ytm-player-overlay,' +
                                 '[class*="next-button-overlay"]';
                               var rules = selectors +
                                 '{display:none!important;visibility:hidden!important;opacity:0!important;' +
@@ -3665,10 +3612,14 @@ class YouTubePlayerActivity : ComponentActivity() {
                             // It checks real media-clock progress and keeps page reload as last resort.
                             webView?.postDelayed({
                                 if (exitGeneration != fullscreenExitGeneration ||
-                                    isFinishing || isDestroyed || webView == null
+                                    isFinishing || isDestroyed || webView == null ||
+                                    !youtubePlayerReady || geometryReloadFallbackAttemptedForCurrentPage
                                 ) return@postDelayed
+                                // Let the geometry checker finish its two layout/frame probes first.
+                                // If it reloads the page, onReady owns recovery; do not send a second
+                                // play command into the old/new media surface during that handoff.
                                 recoverFullscreenPlayback(allowPageReloadFallback = true)
-                            }, 900L)
+                            }, 2300L)
                         }
                     }, 500L)
                 }
