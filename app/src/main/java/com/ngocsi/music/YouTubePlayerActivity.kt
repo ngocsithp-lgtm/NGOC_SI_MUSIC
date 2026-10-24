@@ -1512,8 +1512,10 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun pauseYouTubePlayback() {
-        // An explicit Pause must cancel background and rotation recovery.
+        // An explicit Pause must cancel background and rotation recovery, including
+        // the pre-fullscreen snapshot that would otherwise request Play on exit.
         resumePlaybackOnNextOrientationChange = false
+        wasPlayingBeforeFullscreen = false
         orientationRecoveryWindowUntilMs = 0L
         playbackRequestGeneration++
         backgroundPlaybackRecoveryGeneration++
