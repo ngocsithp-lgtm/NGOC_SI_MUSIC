@@ -4188,22 +4188,20 @@ class YouTubePlayerActivity : ComponentActivity() {
                     !geometryReloadFallbackAttemptedForCurrentPage &&
                     !isFinishing && !isDestroyed
                 ) {
-                    pageReloadFallbackUsed = true
-                    geometryReloadFallbackAttemptedForCurrentPage = true
                     val currentUrl = webView?.url
-                    val seconds = ((currentPosition ?: previousPosition ?: 0.0).toInt())
-                        .coerceAtLeast(0)
                     if (!currentUrl.isNullOrBlank() &&
                         (currentUrl.contains("youtube.com/watch") ||
                          currentUrl.contains("youtube.com/shorts/"))
                     ) {
+                        pageReloadFallbackUsed = true
+                        geometryReloadFallbackAttemptedForCurrentPage = true
+                        val seconds = ((currentPosition ?: previousPosition ?: 0.0).toInt())
+                            .coerceAtLeast(0)
                         val restoredUrl = Uri.parse(currentUrl)
                             .buildUpon()
                             .clearQuery()
                             .appendQueryParameter("v", sanitizeVideoId(videoId))
                             .appendQueryParameter("t", "${seconds}s")
-                            // Request inline autoplay on the one-time page recreation. Without
-                            // these parameters YouTube can reload a frozen frame but remain paused.
                             .appendQueryParameter("autoplay", "1")
                             .appendQueryParameter("playsinline", "1")
                             .build()
