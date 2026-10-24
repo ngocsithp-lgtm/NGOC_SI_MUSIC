@@ -2556,12 +2556,46 @@ class YouTubePlayerActivity : ComponentActivity() {
                               (document.head || document.documentElement).appendChild(fitStyle);
                             }
                             function ngocSiFitPlayerToViewport() {
+                              // Re-measure all three levels (app shell -> watch page -> player)
+                              // against the current WebView viewport. CSS 100vh can keep a stale
+                              // value across Android rotation, so write concrete pixel dimensions
+                              // on each settled resize instead of relying on the old page-flow box.
+                              var viewportWidth = Math.max(1, document.documentElement.clientWidth || window.innerWidth || 1);
+                              var viewportHeight = Math.max(1, document.documentElement.clientHeight || window.innerHeight || 1);
+                              var appShell = document.querySelector('ytm-app');
+                              if (appShell) {
+                                appShell.style.setProperty('display','block','important');
+                                appShell.style.setProperty('position','fixed','important');
+                                appShell.style.setProperty('left','0px','important');
+                                appShell.style.setProperty('top','0px','important');
+                                appShell.style.setProperty('right','0px','important');
+                                appShell.style.setProperty('bottom','0px','important');
+                                appShell.style.setProperty('width',viewportWidth+'px','important');
+                                appShell.style.setProperty('height',viewportHeight+'px','important');
+                                appShell.style.setProperty('margin','0','important');
+                                appShell.style.setProperty('padding','0','important');
+                                appShell.style.setProperty('transform','none','important');
+                                appShell.style.setProperty('overflow','hidden','important');
+                              }
+                              var watchShell = document.querySelector('ytm-watch');
+                              if (watchShell) {
+                                watchShell.style.setProperty('display','block','important');
+                                watchShell.style.setProperty('position','absolute','important');
+                                watchShell.style.setProperty('left','0px','important');
+                                watchShell.style.setProperty('top','0px','important');
+                                watchShell.style.setProperty('right','0px','important');
+                                watchShell.style.setProperty('bottom','0px','important');
+                                watchShell.style.setProperty('width','100%','important');
+                                watchShell.style.setProperty('height','100%','important');
+                                watchShell.style.setProperty('margin','0','important');
+                                watchShell.style.setProperty('padding','0','important');
+                                watchShell.style.setProperty('transform','none','important');
+                                watchShell.style.setProperty('overflow','hidden','important');
+                              }
                               var root = document.querySelector('ytm-player') ||
                                 document.querySelector('#movie_player') ||
                                 document.querySelector('#player');
                               if (!root) return;
-                              var viewportWidth = Math.max(1, document.documentElement.clientWidth || window.innerWidth || 1);
-                              var viewportHeight = Math.max(1, document.documentElement.clientHeight || window.innerHeight || 1);
                               var isFullscreen = !!(document.fullscreenElement ||
                                 document.getElementById('ngocsi-css-fullscreen'));
                               root.style.setProperty('box-sizing','border-box','important');
