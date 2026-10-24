@@ -3106,26 +3106,24 @@ class YouTubePlayerActivity : ComponentActivity() {
             webView?.post {
                 if (isFinishing || isDestroyed || webView == null) return@post
                 webView?.evaluateJavascript("window.dispatchEvent(new Event('resize'));", null)
-                if (shouldRecoverPlayback) {
-                    // Give the native fullscreen surface and the portrait/inline layout
-                    // time to detach/settle before touching the underlying WebView.
-                    webView?.postDelayed({
-                        if (exitGeneration != fullscreenExitGeneration) return@postDelayed
-                        fullscreenExitRecoveryPending = false
-                        if (shouldRecoverPlayback) {
-                            // First try one state-aware resume against the same HTML5 video.
-                            // This immediately nudges a frozen-but-unpaused surface once the new
-                            // viewport is committed; the bounded clock probe remains the fallback.
-                            resumeVideoAfterFullscreenRotation()
-                            webView?.postDelayed({
-                                if (exitGeneration != fullscreenExitGeneration ||
-                                    isFinishing || isDestroyed || webView == null
-                                ) return@postDelayed
-                                recoverFullscreenPlayback()
-                            }, 900L)
-                        }
-                    }, 500L)
-                }
+                // Always clear this guard after layout settles, even when the user had
+                // paused before fullscreen. Otherwise the next explicit Play can be blocked.
+                webView?.postDelayed({
+                    if (exitGeneration != fullscreenExitGeneration) return@postDelayed
+                    fullscreenExitRecoveryPending = false
+                    if (shouldRecoverPlayback) {
+                        // First try one state-aware resume against the same HTML5 video.
+                        // This nudges a frozen-but-unpaused surface once the new viewport is
+                        // committed; the bounded clock probe remains the fallback.
+                        resumeVideoAfterFullscreenRotation()
+                        webView?.postDelayed({
+                            if (exitGeneration != fullscreenExitGeneration ||
+                                isFinishing || isDestroyed || webView == null
+                            ) return@postDelayed
+                            recoverFullscreenPlayback()
+                        }, 900L)
+                    }
+                }, 500L)
             }
         }
     }
