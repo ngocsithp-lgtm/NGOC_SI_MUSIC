@@ -154,7 +154,8 @@ class YouTubePlayerActivity : ComponentActivity() {
     private val fullscreenHiddenChildVisibilities = linkedMapOf<View, Int>()
     private var inlineContentPadding: IntArray? = null
     private var inlineLoadingBarVisibility: Int? = null
-    // A single post-reload recovery is allowed after fullscreen playback stalls.
+    // A single page-reload fallback is allowed per selected video to prevent reload loops.
+    private var geometryReloadFallbackAttemptedForCurrentPage = false
     private var recoverAfterPageReload = false
     private var playbackCommandGeneration = 0
     private var videoId: String = ""
@@ -2126,6 +2127,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
     private fun createPlayer() {
         removePlayer()
+        geometryReloadFallbackAttemptedForCurrentPage = false
         pageErrorVisible = false
         youtubePlayerReady = false
         youtubePlayerState = -1
@@ -3867,6 +3869,12 @@ class YouTubePlayerActivity : ComponentActivity() {
                     return@evaluateJavascript
                 }
 
+                // The geometry inspector can run after initial load, rotation and fullscreen
+                // exit. Share one fallback budget across all inspectors so a persistently bad
+                // WebView surface never creates a reload loop.
+                if (geometryReloadFallbackAttemptedForCurrentPage) return@evaluateJavascript
+                geometryReloadFallbackAttemptedForCurrentPage = true
+
                 val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
                 val shouldAutoplay = shouldResumePlayback &&
                     !explicitUserPause &&
@@ -4176,8 +4184,12 @@ class YouTubePlayerActivity : ComponentActivity() {
                 // play attempts, recreate the YouTube page once at the last known timestamp.
                 // This is a last resort: preserve the selected video and approximate position
                 // instead of leaving a silent frozen surface with no way to recover.
-                if (!pageReloadFallbackUsed && !isFinishing && !isDestroyed) {
+                if (!pageReloadFallbackUsed &&
+                    !geometryReloadFallbackAttemptedForCurrentPage &&
+                    !isFinishing && !isDestroyed
+                ) {
                     pageReloadFallbackUsed = true
+                    geometryReloadFallbackAttemptedForCurrentPage = true
                     val currentUrl = webView?.url
                     val seconds = ((currentPosition ?: previousPosition ?: 0.0).toInt())
                         .coerceAtLeast(0)
