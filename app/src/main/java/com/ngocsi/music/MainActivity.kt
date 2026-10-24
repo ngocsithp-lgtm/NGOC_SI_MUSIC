@@ -4714,7 +4714,7 @@ class MainActivity : ComponentActivity() {
                                     showQueue = true
                                 }
                             },
-                            onOpenPlaylists = { showPlaylists = true },
+                            onOpenPlaylists = { selectedSection = "Playlist" },
                             onOpenSettings = { selectedSection = "Cài đặt" },
                             onOpenPlayer = {
                                 if (youtubeIsActiveSource && youtubeLastPlayed != null) {
@@ -4800,6 +4800,10 @@ class MainActivity : ComponentActivity() {
                         }
                         "TV" -> {
                             TvHub()
+                        }
+
+                        "Playlist" -> {
+                            PlaylistLibraryScreen(Modifier.weight(1f).fillMaxWidth())
                         }
 
                         "Online" -> {
@@ -5263,6 +5267,158 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+    }
+
+    @Composable
+    private fun PlaylistLibraryScreen(modifier: Modifier = Modifier) {
+        val pending = playlistPendingDeleteId?.let { id ->
+            playlists.firstOrNull { it.id == id }
+        }
+
+        Column(modifier = modifier.fillMaxWidth()) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "MY PLAYLISTS",
+                        color = Color.White,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                    Text(
+                        "${playlists.size} danh sách • lưu trên thiết bị",
+                        color = Color(0xFF888894),
+                        fontSize = 12.sp
+                    )
+                }
+                Button(
+                    onClick = {
+                        editingPlaylistId = null
+                        newPlaylistName = ""
+                        showCreatePlaylist = true
+                    },
+                    shape = RoundedCornerShape(13.dp),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                ) {
+                    Text("+ Tạo playlist", fontSize = 12.sp)
+                }
+            }
+
+            if (playlists.isEmpty()) {
+                Box(
+                    Modifier.weight(1f).fillMaxWidth().padding(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("☷", color = NgocSiVisuals.Secondary, fontSize = 42.sp)
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "Chưa có playlist",
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(Modifier.height(5.dp))
+                        Text(
+                            "Tạo danh sách phát, sau đó thêm bài hát từ thư viện.",
+                            color = Color(0xFF9A9AA5),
+                            fontSize = 12.sp,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                    }
+                }
+            } else {
+                LazyColumn(
+                    Modifier.weight(1f).fillMaxWidth(),
+                    contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 18.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(playlists, key = { it.id }) { playlist ->
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            color = Color(0xFF11151D),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF252A36))
+                        ) {
+                            Row(
+                                Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Surface(
+                                    modifier = Modifier.size(44.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = Color(0xFF20283A)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text("♫", color = NgocSiVisuals.Secondary, fontSize = 22.sp)
+                                    }
+                                }
+                                Spacer(Modifier.width(10.dp))
+                                Column(
+                                    Modifier.weight(1f).clickable {
+                                        playlistDetailId = playlist.id
+                                    }
+                                ) {
+                                    Text(
+                                        playlist.name,
+                                        color = Color.White,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        "${playlist.songUris.size} bài • chạm để mở",
+                                        color = Color(0xFF888894),
+                                        fontSize = 11.sp
+                                    )
+                                }
+                                IconButton(onClick = { playPlaylist(playlist) }) {
+                                    Text("▶", color = NgocSiVisuals.Secondary)
+                                }
+                                IconButton(onClick = {
+                                    editingPlaylistId = playlist.id
+                                    newPlaylistName = playlist.name
+                                    showCreatePlaylist = true
+                                }) {
+                                    Text("✎", color = Color(0xFFB5B9C8))
+                                }
+                                IconButton(onClick = {
+                                    playlistPendingDeleteId = playlist.id
+                                }) {
+                                    Text("×", color = Color(0xFFFF8A9A), fontSize = 20.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (pending != null) {
+            AlertDialog(
+                onDismissRequest = { playlistPendingDeleteId = null },
+                title = { Text("Xóa playlist?") },
+                text = {
+                    Text("Playlist “" + pending.name + "” sẽ bị xóa khỏi thiết bị. Các file nhạc gốc không bị ảnh hưởng.")
+                },
+                confirmButton = {
+                    Button(onClick = {
+                        playlistPendingDeleteId = null
+                        deletePlaylist(pending)
+                    }) {
+                        Text("XÓA")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { playlistPendingDeleteId = null }) {
+                        Text("HỦY")
+                    }
+                }
+            )
+        }
     }
 
     @Composable
@@ -5928,7 +6084,7 @@ class MainActivity : ComponentActivity() {
                         })
                         ProHomeNavChip("♬ Playlist", {
                             showMore = false
-                            showPlaylists = true
+                            selectedSection = "Playlist"
                         })
                         ProHomeNavChip("⚙ Cài đặt", {
                             showMore = false
@@ -5986,6 +6142,7 @@ class MainActivity : ComponentActivity() {
             "Online" -> "ONLINE"
             "Radio" -> "RADIO"
             "TV" -> "TV TRỰC TUYẾN"
+            "Playlist" -> "DANH SÁCH PHÁT"
             "Cài đặt" -> "CÀI ĐẶT"
             else -> "NGỌC SĨ MUSIC"
         }
@@ -5994,6 +6151,7 @@ class MainActivity : ComponentActivity() {
             "Online" -> "YouTube • Google Drive • nhạc trực tuyến"
             "Radio" -> if (activeRadioTitle != null) "Đang phát • $activeRadioTitle" else "Đài phát thanh Việt Nam"
             "TV" -> "${TvCatalog.builtIn.size + customTvSources.size} nguồn truyền hình"
+            "Playlist" -> "${playlists.size} danh sách • quản lý và phát nhạc"
             "Cài đặt" -> "Phát nhạc • giao diện • nguồn nội dung"
             else -> ""
         }
