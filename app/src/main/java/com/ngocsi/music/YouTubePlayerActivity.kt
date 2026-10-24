@@ -69,10 +69,29 @@ class YouTubePlayerActivity : ComponentActivity() {
     private inner class InlinePlayerFrameLayout(context: android.content.Context) :
         FrameLayout(context) {
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-            if (fullscreenLayoutActive &&
-                View.MeasureSpec.getMode(heightMeasureSpec) == View.MeasureSpec.EXACTLY
-            ) {
-                super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+            if (fullscreenLayoutActive) {
+                // ScrollView measures its child with an unspecified height on the first pass.
+                // Do not fall back to a 16:9-derived height in fullscreen: that can exceed
+                // the short edge of the landscape viewport and leave the video clipped or
+                // displaced. Use the exact parent size when available, otherwise the
+                // display's short edge (the target landscape height), independent of whether
+                // Android has delivered the orientation callback yet.
+                val heightMode = View.MeasureSpec.getMode(heightMeasureSpec)
+                val targetHeight = when {
+                    heightMode == View.MeasureSpec.EXACTLY ->
+                        View.MeasureSpec.getSize(heightMeasureSpec)
+                    else -> {
+                        val density = resources.displayMetrics.density
+                        (minOf(
+                            resources.configuration.screenWidthDp,
+                            resources.configuration.screenHeightDp
+                        ) * density).toInt().coerceAtLeast(1)
+                    }
+                }
+                super.onMeasure(
+                    widthMeasureSpec,
+                    View.MeasureSpec.makeMeasureSpec(targetHeight.coerceAtLeast(1), View.MeasureSpec.EXACTLY)
+                )
                 return
             }
             val width = View.MeasureSpec.getSize(widthMeasureSpec)
@@ -2494,7 +2513,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                               fitStyle.textContent =
                                 'html,body,ytm-app,ytm-watch {width:100%!important;height:100%!important;max-width:none!important;margin:0!important;padding:0!important;}' +
                                 'ytm-app {position:relative!important;overflow:hidden!important;}' +
-                                'ytm-watch {position:absolute!important;inset:0!important;display:block!important;top:0!important;left:0!important;right:0!important;bottom:0!important;transform:none!important;margin:0!important;padding:0!important;overflow:hidden!important;}' +
+                                'ytm-watch {position:relative!important;display:block!important;inset:auto!important;top:auto!important;left:auto!important;right:auto!important;bottom:auto!important;transform:none!important;margin:0!important;padding:0!important;overflow:hidden!important;}' +
                                 'ytm-watch #player-container-outer,ytm-watch #player-container-inner,' +
                                 'ytm-watch .player-container,ytm-watch #player-container-id {' +
                                 'margin-top:0!important;padding-top:0!important;border-top:0!important;}' +
@@ -2514,7 +2533,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 'width:100%!important;height:100%!important;transform:none!important;' +
                                 'object-fit:contain!important;object-position:50% 50%!important;' +
                                 'max-width:none!important;max-height:none!important;} ' +
-                                'ytm-player,.html5-video-container {position:relative!important;overflow:hidden!important;}';
+                                '.html5-video-container {position:relative!important;overflow:hidden!important;}';
                               (document.head || document.documentElement).appendChild(fitStyle);
                             }
                             function ngocSiFitPlayerToViewport() {
