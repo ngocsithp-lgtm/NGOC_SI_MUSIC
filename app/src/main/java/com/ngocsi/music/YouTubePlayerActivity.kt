@@ -1686,14 +1686,11 @@ class YouTubePlayerActivity : ComponentActivity() {
                 // media API only when the preferred mechanism is unavailable.
                 if ('$safeCommand' === 'play' && isActuallyPlaying(video)) return 'playing';
 
-                if (api && typeof api.playVideo === 'function') {
-                  try {
-                    api.playVideo();
-                    // For a normal visible player, keep one transport path per request.
-                    // If rotation left a zero-size video surface, also call the connected
-                    // HTML5 media node directly rather than treating the API call as success.
-                    if (foundRenderableVideo) return 'requested-api';
-                  } catch (_) {}
+                // Use one transport path per request. When rotation temporarily leaves the
+                // selected HTML5 video with a zero-size surface, do not call the player API and
+                // then video.play() as a second competing command; that sequence can stutter.
+                if (foundRenderableVideo && api && typeof api.playVideo === 'function') {
+                  try { api.playVideo(); return 'requested-api'; } catch (_) {}
                 }
                 if (foundRenderableVideo && clickPlayButton()) return 'requested-button';
                 try {
@@ -1790,7 +1787,57 @@ class YouTubePlayerActivity : ComponentActivity() {
                 // a competing forced pause/Play recovery loop.
                 if (!accepted && remaining > 0 && !isFinishing && !isDestroyed &&
                     requestGeneration == playbackRequestGeneration
-                ) playbackPositionHandler.postDelayed({ attempt(remaining - 1) }, 750L)
+                ) {
+                    playbackPositionHandler.postDelayed({ attempt(remaining - 1) }, 750L)
+                } else if (accepted && (
+                        response.contains("requested-api") ||
+                        response.contains("requested-button") ||
+                        response.contains("requested-video")
+                    )) {
+                    // A transport command being accepted does not prove that the media clock
+                    // resumed. Check once after the orientation/decoder has had time to settle.
+                    // If it is still paused or genuinely stalled, run the bounded recovery path.
+                    playbackPositionHandler.postDelayed({
+                        if (requestGeneration != playbackRequestGeneration ||
+                            isFinishing || isDestroyed || webView == null ||
+                            fullscreenExitRecoveryPending
+                        ) return@postDelayed
+
+                        val verifyScript = """
+                            (function() {
+                              var video = null;
+                              try {
+                                if (typeof window.__ngocSiFindActiveVideo === 'function')
+                                  video = window.__ngocSiFindActiveVideo();
+                              } catch (_) {}
+                              if (!video) video = document.querySelector('video.html5-main-video') ||
+                                document.querySelector('#movie_player video') ||
+                                document.querySelector('ytm-player video') ||
+                                document.querySelector('video');
+                              if (!video) return 'NO_VIDEO';
+                              if (video.ended) return 'ENDED';
+                              if (video.paused) return 'PAUSED';
+                              if (video.readyState < 2) return 'BUFFERING';
+                              var progressAt = Number(window.__ngocSiPlaybackProgressAt || 0);
+                              if (window.__ngocSiTrackedVideo === video &&
+                                  window.__ngocSiPlaybackActuallyPlaying === true &&
+                                  progressAt > 0 && Date.now() - progressAt < 1800)
+                                return 'PLAYING';
+                              return 'STALLED';
+                            })();
+                        """.trimIndent()
+                        webView?.evaluateJavascript(verifyScript) { verifyResult ->
+                            if (requestGeneration == playbackRequestGeneration &&
+                                !isFinishing && !isDestroyed && !fullscreenExitRecoveryPending
+                            ) {
+                                val mediaStatus = verifyResult.orEmpty().trim('"')
+                                if (mediaStatus == "PAUSED" || mediaStatus == "STALLED") {
+                                    recoverFullscreenPlayback()
+                                }
+                            }
+                        }
+                    }, 1800L)
+                }
             }
         }
         attempt(4)
@@ -3091,12 +3138,20 @@ class YouTubePlayerActivity : ComponentActivity() {
                 // reset only that same element's media pipeline. Avoid calling both API and
                 // video.play() for the same request, which caused stutter in prior versions.
                 if (clockStalled) {
-                  try { video.pause(); } catch (_) {}
+                  // Do not pause and replay synchronously during an orientation handoff:
+                  // that can reset the audio pipeline and cause a brief stutter followed by a stop.
+                  // Reassert playback through exactly one transport path instead.
+                  if (player && typeof player.playVideo === 'function') {
+                    try { player.playVideo(); return 'requested-api'; }
+                    catch (_) { return 'play-rejected'; }
+                  }
                   try {
                     var promise = video.play();
                     if (promise && typeof promise.catch === 'function') promise.catch(function(){});
                     return 'requested-video';
-                  } catch (_) {}
+                  } catch (_) {
+                    return 'play-rejected';
+                  }
                 }
 
                 if (player && typeof player.playVideo === 'function') {
@@ -3240,18 +3295,39 @@ class YouTubePlayerActivity : ComponentActivity() {
                     }
 
                     if (mode === 'fallback') {
-                      if (player && typeof player.playVideo === 'function') {
-                        try { player.playVideo(); } catch (_) {}
+                      // Several probes have already shown that the media clock is not moving.
+                      // Never issue player.playVideo() and immediately pause/replay the same
+                      // element: the competing commands caused audible stutter then stopped audio.
+                      if (video.paused) {
+                        if (videoIsRenderable && player && typeof player.playVideo === 'function') {
+                          try {
+                            player.playVideo();
+                            return 'REQUESTED|' + position + '|' + ready;
+                          } catch (_) {}
+                        }
+                        try {
+                          var pausedPromise = video.play();
+                          if (pausedPromise && typeof pausedPromise.catch === 'function')
+                            pausedPromise.catch(function(){});
+                          return 'REQUESTED|' + position + '|' + ready;
+                        } catch (_) {}
+                      } else {
+                        // If the element claims to be playing but is stalled, make a single
+                        // idempotent Play request. Keep the one-time reload fallback as the
+                        // last resort rather than resetting the media pipeline in-place.
+                        if (player && typeof player.playVideo === 'function') {
+                          try {
+                            player.playVideo();
+                            return 'NUDGED|' + position + '|' + ready;
+                          } catch (_) {}
+                        }
+                        try {
+                          var stalledPromise = video.play();
+                          if (stalledPromise && typeof stalledPromise.catch === 'function')
+                            stalledPromise.catch(function(){});
+                          return 'NUDGED|' + position + '|' + ready;
+                        } catch (_) {}
                       }
-                      // One bounded media-pipeline nudge for a frozen element. Calling play()
-                      // alone is insufficient when paused=false but currentTime is stuck.
-                      try {
-                        if (!video.paused) video.pause();
-                        var fallbackPromise = video.play();
-                        if (fallbackPromise && typeof fallbackPromise.catch === 'function')
-                          fallbackPromise.catch(function(){});
-                        return 'NUDGED|' + position + '|' + ready;
-                      } catch (_) {}
                     }
 
                     return (video.paused ? 'PAUSED' : 'ACTIVE') + '|' + position + '|' + ready;
