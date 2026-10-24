@@ -118,6 +118,8 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var fullscreenRecoveryGeneration = 0
     // Coalesce duplicate fullscreen-dismiss callbacks so only one recovery cycle runs.
     private var fullscreenExitGeneration = 0
+    // Prevent onConfigurationChanged from starting a second recovery cycle for the same fullscreen exit.
+    private var fullscreenExitRecoveryPending = false
     // Coalesce orientation/layout syncs so stale delayed callbacks cannot overwrite newer sizes.
     private var inlineLayoutSyncGeneration = 0
     // Track bounded layout/recovery work during CSS fullscreen rotation.
@@ -2844,7 +2846,8 @@ class YouTubePlayerActivity : ComponentActivity() {
         scheduleInlinePlayerLayoutSync()
         val player = webView
         val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
-        if (player != null && (resumePlaybackOnNextOrientationChange ||
+        if (player != null && !fullscreenExitRecoveryPending &&
+            (resumePlaybackOnNextOrientationChange ||
                 prefs.getBoolean("youtube_playback_is_playing", false))) {
             val generation = ++fullscreenViewportSyncGeneration
             player.postDelayed({
@@ -2956,9 +2959,11 @@ class YouTubePlayerActivity : ComponentActivity() {
         // duplicate exits; they otherwise schedule competing recovery/reload attempts.
         if (customView == null && !isCssFullscreen) return
         val exitGeneration = ++fullscreenExitGeneration
+        fullscreenExitRecoveryPending = true
         orientationRecoveryWindowUntilMs = System.currentTimeMillis() + 2200L
-        // Cancel any stale probe loop before scheduling the one recovery for this exit.
+        // Cancel stale orientation/fullscreen probes so this exit owns exactly one recovery cycle.
         fullscreenRecoveryGeneration++
+        fullscreenViewportSyncGeneration++
         // Keep the existing WebView/video element and currentTime. Do not write persistent
         // inline width/height/inset values to YouTube's internal video nodes; they survive
         // removal of the fullscreen stylesheet and can break playback after rotation.
@@ -3037,13 +3042,14 @@ class YouTubePlayerActivity : ComponentActivity() {
                     // time to detach/settle before touching the underlying WebView.
                     webView?.postDelayed({
                         if (exitGeneration != fullscreenExitGeneration) return@postDelayed
+                        fullscreenExitRecoveryPending = false
                         // Preserve the current WebView and media element after fullscreen exit.
                         // Reloading the watch URL here on every rotation can destroy the decoder,
                         // lose the active audio session, and leave the inline player frozen.
                         // Probe the existing element first; the recovery routine is bounded and
                         // only uses its reload fallback if the same player truly remains stalled.
                         recoverFullscreenPlayback()
-                    }, 850L)
+                    }, 500L)
                 }
             }
         }
@@ -3132,11 +3138,11 @@ class YouTubePlayerActivity : ComponentActivity() {
                 isFinishing || isDestroyed || webView == null
             ) return
 
-            // One normal Play request if the element is paused, then only observe currentTime.
-            // If it remains stalled for ~3 seconds, allow one (and only one) fallback nudge.
+            // First request Play only if the media element is genuinely paused.
+            // Treat a non-paused but stale state as a stall only after several real-time probes.
             val mode = when {
                 number == 0 && !playRequested -> "initial"
-                number >= 5 && !fallbackNudgeSent -> "fallback"
+                number >= 4 && !fallbackNudgeSent -> "fallback"
                 else -> "probe"
             }
             if (mode == "fallback") fallbackNudgeSent = true
@@ -3218,16 +3224,12 @@ class YouTubePlayerActivity : ComponentActivity() {
                     // After returning from fullscreen, Chromium can leave a media element
                     // logically "playing" while currentTime no longer advances. Recover both
                     // a genuinely paused element and a stalled, non-paused one.
-                    if (mode === 'initial' && (video.paused || !clockAdvancing)) {
-                      // When the media node is attached but its viewport is temporarily zero,
-                      // use HTMLMediaElement.play() directly. Its player API may report success
-                      // without reactivating the stalled media pipeline after a rotation.
-                      if (videoIsRenderable && video.paused &&
-                          player && typeof player.playVideo === 'function') {
+                    if (mode === 'initial' && video.paused) {
+                      // Do not pause/restart an element just because the YouTube state
+                      // tracker is stale during rotation. That was interrupting streams
+                      // which were already progressing. Only issue Play for a paused element.
+                      if (videoIsRenderable && player && typeof player.playVideo === 'function') {
                         try { player.playVideo(); return 'REQUESTED|' + position + '|' + ready; } catch (_) {}
-                      }
-                      if (!video.paused && !clockAdvancing) {
-                        try { video.pause(); } catch (_) {}
                       }
                       try {
                         var firstPromise = video.play();
@@ -3282,8 +3284,8 @@ class YouTubePlayerActivity : ComponentActivity() {
                 }
                 if (currentPosition != null) previousPosition = currentPosition
 
-                if (number < 11 && !isFinishing && !isDestroyed) {
-                    playbackPositionHandler.postDelayed({ attempt(number + 1) }, 650L)
+                if (number < 8 && !isFinishing && !isDestroyed) {
+                    playbackPositionHandler.postDelayed({ attempt(number + 1) }, 300L)
                     return@evaluateJavascript
                 }
 
