@@ -66,6 +66,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var customView: View? = null
     private var customViewCallback: WebChromeClient.CustomViewCallback? = null
     private var wasPlayingBeforeFullscreen = false
+    private var fullscreenExitInProgress = false
     private var videoId: String = ""
     private var title: String = "YouTube"
     private var channel: String = "YouTube"
@@ -1280,6 +1281,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                         return
                     }
 
+                    fullscreenExitInProgress = false
                     wasPlayingBeforeFullscreen = youtubePlayerState == 1 || youtubePlayerState == 3
                     customView = view
                     customViewCallback = callback
@@ -1738,6 +1740,8 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun exitFullscreen(notifyCallback: Boolean = true) {
+        if (fullscreenExitInProgress) return
+        fullscreenExitInProgress = true
         val fullscreenView = customView
         val callback = customViewCallback
         val shouldResume = wasPlayingBeforeFullscreen
@@ -1754,10 +1758,14 @@ class YouTubePlayerActivity : ComponentActivity() {
             .show(WindowInsetsCompat.Type.systemBars())
 
         // Clear custom-view state before notifying YouTube to avoid recursive hide callbacks.
+        wasPlayingBeforeFullscreen = false
         if (notifyCallback) runCatching { callback?.onCustomViewHidden() }
 
         root.post {
-            if (isFinishing || isDestroyed || !::playerContainer.isInitialized) return@post
+            if (isFinishing || isDestroyed || !::playerContainer.isInitialized) {
+                fullscreenExitInProgress = false
+                return@post
+            }
             updateResponsivePlayerLayout()
             playerContainer.visibility = View.VISIBLE
             playerContainer.requestLayout()
@@ -1780,8 +1788,8 @@ class YouTubePlayerActivity : ComponentActivity() {
                     }, 350L)
                 }
             }
+            fullscreenExitInProgress = false
         }
-        wasPlayingBeforeFullscreen = false
     }
 
     private fun sanitizeVideoId(value: String): String =
