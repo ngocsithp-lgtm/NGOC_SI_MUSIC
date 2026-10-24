@@ -3694,7 +3694,8 @@ class YouTubePlayerActivity : ComponentActivity() {
                   mediaHeight: Number(video.videoHeight || 0),
                   videoPaused: !!video.paused,
                   hasVideoFrameCallback: typeof video.requestVideoFrameCallback === 'function',
-                  videoFrameAgeMs: Number(window.__ngocSiLastVideoFrameAt || 0) > 0
+                  videoFrameAgeMs: window.__ngocSiFrameTrackedVideo === video &&
+                    Number(window.__ngocSiLastVideoFrameAt || 0) > 0
                     ? Date.now() - Number(window.__ngocSiLastVideoFrameAt || 0) : -1,
                   position: Number(video.currentTime || 0)
                 });
