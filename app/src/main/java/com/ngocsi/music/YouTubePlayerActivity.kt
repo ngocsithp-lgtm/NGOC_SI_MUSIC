@@ -3421,23 +3421,13 @@ class YouTubePlayerActivity : ComponentActivity() {
         fullscreenExitRecoveryPending = true
         fullscreenExitRecoveryActiveUntilMs = System.currentTimeMillis() + 2300L
         orientationRecoveryWindowUntilMs = System.currentTimeMillis() + 5000L
-        // Cancel stale orientation/fullscreen probes so this exit owns exactly one recovery cycle.
+        // Invalidate older recovery/layout probes. Configuration callbacks may enqueue
+        // another CSS pass while we wait for the WebView to finish removing fullscreen CSS.
         fullscreenRecoveryGeneration++
         fullscreenViewportSyncGeneration++
-        // Keep the existing WebView/video element and currentTime. Do not write persistent
-        // inline width/height/inset values to YouTube's internal video nodes; they survive
-        // removal of the fullscreen stylesheet and can break playback after rotation.
-        // Fullscreen transitions can leave the JS/player state stale even when playback
-        // was active immediately before rotation. Always run bounded recovery on return;
-        // the recovery routine checks the real media clock and avoids repeated play commands.
-        // A WebView/YouTube state callback can be stale after the fullscreen surface
-        // handoff. Always probe the same video after layout settles; the recovery routine
-        // only requests Play when the actual HTML5 video reports paused.
-        // YouTube's player state can become stale after the first rotation and report
-        // PAUSED even though the user did not pause. Probe/recover after every fullscreen
-        // exit instead of relying only on the cached state. Recovery is bounded and checks
-        // the actual HTML5 media clock before deciding whether a fallback is needed.
+
         val wasNativeFullscreen = customView != null
+        val wasCssFullscreen = isCssFullscreen
         val persistedPlaybackIntent = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
             .getBoolean("youtube_playback_is_playing", false)
         val playbackIntentBeforeExit = wasPlayingBeforeFullscreen ||
@@ -3446,9 +3436,8 @@ class YouTubePlayerActivity : ComponentActivity() {
         val shouldResumeAfterNativeFullscreen =
             wasNativeFullscreen && playbackIntentBeforeExit
         val shouldResumeAfterCssFullscreen =
-            isCssFullscreen && playbackIntentBeforeExit
-        // Only recover playback when it was intended to be active. An explicit user Pause
-        // must not be turned into an automatic Play by the fullscreen-dismiss callback.
+            wasCssFullscreen && playbackIntentBeforeExit
+        // Do not turn a deliberate user pause into an automatic play on the fullscreen callback.
         val shouldRecoverPlayback =
             !explicitUserPause &&
                 (shouldResumeAfterNativeFullscreen || shouldResumeAfterCssFullscreen)
@@ -3460,85 +3449,111 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
         wasPlayingBeforeFullscreen = false
 
-        if (isCssFullscreen) {
-            webView?.evaluateJavascript(
+        fun finishExitLayout() {
+            if (exitGeneration != fullscreenExitGeneration || isFinishing || isDestroyed) return
+
+            // A configuration change may have scheduled CSS-only resize passes while the
+            // fullscreen style was being removed. Invalidate them before shrinking the host.
+            fullscreenViewportSyncGeneration++
+            isCssFullscreen = false
+
+            // Detach the fullscreen custom view from whichever parent currently owns it.
+            // Chromium/rotation can change callback order; remove it from its actual parent.
+            val fullscreenView = customView
+            customView = null
+            fullscreenView?.let { view ->
+                (view.parent as? ViewGroup)?.removeView(view)
+                if (view.parent != null) {
+                    (view.parent as? ViewGroup)?.removeView(view)
+                }
+                view.visibility = View.GONE
+            }
+            if (notifyCallback) {
+                customViewCallback?.onCustomViewHidden()
+            }
+            customViewCallback = null
+            requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            playerContainer.visibility = View.VISIBLE
+            setFullscreenLayout(false)
+            WindowCompat.setDecorFitsSystemWindows(window, true)
+            WindowInsetsControllerCompat(window, window.decorView)
+                .show(WindowInsetsCompat.Type.systemBars())
+
+            // Keep native 16:9 restoration ordered after the WebView confirms that
+            // ngocsi-css-fullscreen was removed. Previously the host was shrunk first,
+            // racing Chromium's fullscreen video surface and leaving a frozen frame.
+            scheduleInlinePlayerLayoutSync()
+            scheduleFullscreenExitGeometryCheck(exitGeneration, shouldRecoverPlayback)
+
+            playerContainer.post {
+                if (exitGeneration != fullscreenExitGeneration ||
+                    isFinishing || isDestroyed || webView == null
+                ) return@post
+                playerContainer.requestLayout()
+                webView?.post {
+                    if (exitGeneration != fullscreenExitGeneration ||
+                        isFinishing || isDestroyed || webView == null
+                    ) return@post
+                    webView?.scrollTo(0, 0)
+                    webView?.evaluateJavascript(
+                        "(function(){window.scrollTo(0,0);window.dispatchEvent(new Event('resize'));return 'inline';})();",
+                        null
+                    )
+                    webView?.postDelayed({
+                        if (exitGeneration != fullscreenExitGeneration) return@postDelayed
+                        fullscreenExitRecoveryPending = false
+                        if (shouldRecoverPlayback) {
+                            // Use exactly one recovery controller after layout has settled.
+                            // It checks real media-clock progress and keeps page reload as last resort.
+                            webView?.postDelayed({
+                                if (exitGeneration != fullscreenExitGeneration ||
+                                    isFinishing || isDestroyed || webView == null
+                                ) return@postDelayed
+                                recoverFullscreenPlayback(allowPageReloadFallback = true)
+                            }, 900L)
+                        }
+                    }, 500L)
+                }
+            }
+        }
+
+        if (wasCssFullscreen) {
+            val player = webView
+            if (player == null) {
+                isCssFullscreen = false
+                finishExitLayout()
+                return
+            }
+            // Do not change Android's host size/orientation yet. evaluateJavascript is async;
+            // the callback is the first point where we know this script actually ran.
+            player.evaluateJavascript(
                 """
                 (function() {
                   var style = document.getElementById('ngocsi-css-fullscreen');
                   if (style) style.remove();
                   document.documentElement.style.removeProperty('width');
                   document.documentElement.style.removeProperty('height');
-                  document.body.style.removeProperty('width');
-                  document.body.style.removeProperty('height');
+                  if (document.body) {
+                    document.body.style.removeProperty('width');
+                    document.body.style.removeProperty('height');
+                  }
+                  window.scrollTo(0,0);
                   window.dispatchEvent(new Event('resize'));
                   return 'layout-restored';
                 })();
-                """.trimIndent(),
-                null
-            )
-            isCssFullscreen = false
-        }
-        // Detach the fullscreen custom view from whichever parent currently owns it.
-        // Chromium/rotation can change the callback order; removing only from root may
-        // leave the fullscreen surface attached as an extra layer over the inline UI.
-        val fullscreenView = customView
-        customView = null
-        fullscreenView?.let { view ->
-            (view.parent as? ViewGroup)?.removeView(view)
-            if (view.parent != null) {
-                (view.parent as? ViewGroup)?.removeView(view)
+                """.trimIndent()
+            ) { _ ->
+                if (exitGeneration != fullscreenExitGeneration || isFinishing || isDestroyed) {
+                    return@evaluateJavascript
+                }
+                // Now the fullscreen stylesheet is gone; only then allow the native frame to shrink.
+                isCssFullscreen = false
+                finishExitLayout()
             }
-            view.visibility = View.GONE
+            return
         }
-        if (notifyCallback) {
-            customViewCallback?.onCustomViewHidden()
-        }
-        customViewCallback = null
-        requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-        playerContainer.visibility = View.VISIBLE
-        setFullscreenLayout(false)
-        WindowCompat.setDecorFitsSystemWindows(window, true)
-        WindowInsetsControllerCompat(window, window.decorView)
-            .show(WindowInsetsCompat.Type.systemBars())
 
-        // Do not rely on onConfigurationChanged after a fullscreen exit: that callback
-        // may already have run while the fullscreen surface was still attached.
-        scheduleInlinePlayerLayoutSync()
-        // Verify both playback recovery and the actual rendered video rectangle. A mobile
-        // YouTube video can keep playing audio while its video surface retains landscape
-        // coordinates, which a media-clock-only recovery cannot detect.
-        scheduleFullscreenExitGeometryCheck(exitGeneration, shouldRecoverPlayback)
-
-        // Resize only the native host after rotation. Let YouTube restore its own DOM layout;
-        // persistent forced CSS on internal player nodes is intentionally avoided.
-        playerContainer.post {
-            if (isFinishing || isDestroyed || webView == null) return@post
-            playerContainer.requestLayout()
-            webView?.post {
-                if (isFinishing || isDestroyed || webView == null) return@post
-                webView?.evaluateJavascript("window.dispatchEvent(new Event('resize'));", null)
-                // Always clear this guard after layout settles, even when the user had
-                // paused before fullscreen. Otherwise the next explicit Play can be blocked.
-                webView?.postDelayed({
-                    if (exitGeneration != fullscreenExitGeneration) return@postDelayed
-                    fullscreenExitRecoveryPending = false
-                    if (shouldRecoverPlayback) {
-                        // Use one recovery controller after the fullscreen surface and inline
-                        // viewport have settled. Sending an immediate Play nudge here and then
-                        // starting a second recovery controller can race the WebView media
-                        // pipeline after rotation, producing a brief stutter followed by a stop.
-                        // The controller probes the actual media clock and only issues a bounded
-                        // Play request when needed; its one-time page reload remains last resort.
-                        webView?.postDelayed({
-                            if (exitGeneration != fullscreenExitGeneration ||
-                                isFinishing || isDestroyed || webView == null
-                            ) return@postDelayed
-                            recoverFullscreenPlayback(allowPageReloadFallback = true)
-                        }, 900L)
-                    }
-                }, 500L)
-            }
-        }
+        finishExitLayout()
     }
 
     /**
