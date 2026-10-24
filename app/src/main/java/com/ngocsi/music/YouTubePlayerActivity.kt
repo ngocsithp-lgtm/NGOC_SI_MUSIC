@@ -2225,6 +2225,57 @@ class YouTubePlayerActivity : ComponentActivity() {
                               'width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no'
                             );
 
+                            // The mobile YouTube SPA may restore a scroll offset after
+                            // onPageFinished, once player metadata/overlays are inserted.
+                            // This WebView is the player surface, not a browser page: keep it
+                            // top-aligned during inline playback and normalize again after SPA
+                            // navigation/orientation settles. Never fight actual fullscreen.
+                            (function installNgocSiInlineScrollGuard() {
+                              if (window.__ngocSiInlineScrollGuardInstalled) return;
+                              window.__ngocSiInlineScrollGuardInstalled = true;
+                              try { if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; } catch (_) {}
+                              var pending = false;
+                              function isFullscreen() {
+                                return !!(document.getElementById('ngocsi-css-fullscreen') ||
+                                  document.fullscreenElement);
+                              }
+                              function normalize() {
+                                pending = false;
+                                if (isFullscreen()) return;
+                                try {
+                                  if (document.scrollingElement && document.scrollingElement.scrollTop !== 0)
+                                    document.scrollingElement.scrollTop = 0;
+                                  if (document.documentElement && document.documentElement.scrollTop !== 0)
+                                    document.documentElement.scrollTop = 0;
+                                  if (document.body && document.body.scrollTop !== 0)
+                                    document.body.scrollTop = 0;
+                                  if (window.scrollX !== 0 || window.scrollY !== 0) window.scrollTo(0, 0);
+                                } catch (_) {}
+                              }
+                              function scheduleNormalize() {
+                                if (pending || isFullscreen()) return;
+                                pending = true;
+                                requestAnimationFrame(function() {
+                                  requestAnimationFrame(normalize);
+                                });
+                              }
+                              window.addEventListener('scroll', function() {
+                                if (!isFullscreen() &&
+                                    (window.scrollY > 0 ||
+                                     (document.scrollingElement && document.scrollingElement.scrollTop > 0)))
+                                  scheduleNormalize();
+                              }, {passive:true});
+                              window.addEventListener('pageshow', scheduleNormalize, {passive:true});
+                              window.addEventListener('popstate', scheduleNormalize, {passive:true});
+                              window.addEventListener('resize', scheduleNormalize, {passive:true});
+                              window.addEventListener('orientationchange', scheduleNormalize, {passive:true});
+                              document.addEventListener('yt-navigate-finish', scheduleNormalize, {passive:true});
+                              document.addEventListener('yt-page-data-updated', scheduleNormalize, {passive:true});
+                              if (window.visualViewport)
+                                window.visualViewport.addEventListener('resize', scheduleNormalize, {passive:true});
+                              scheduleNormalize();
+                            })();
+
                             if (!document.getElementById('ngocsi-youtube-cleanup-style')) {
                               var cleanupStyle = document.createElement('style');
                               cleanupStyle.id = 'ngocsi-youtube-cleanup-style';
@@ -2785,17 +2836,14 @@ class YouTubePlayerActivity : ComponentActivity() {
                     // YouTube Mobile may restore an old document scroll offset after its
                     // hidden masthead/title rows collapse. Normalize the WebView viewport after
                     // the final native measurement, not only the CSS player width.
-                    view.postDelayed({
-                        if (!isFinishing && !isDestroyed && !isCssFullscreen && webView === view) {
-                            normalizeInlineYoutubeViewport(view)
-                            scheduleInlinePlayerLayoutSync()
-                        }
-                    }, 350L)
-                    view.postDelayed({
-                        if (!isFinishing && !isDestroyed && !isCssFullscreen && webView === view) {
-                            normalizeInlineYoutubeViewport(view)
-                        }
-                    }, 850L)
+                    listOf(350L, 850L, 1500L, 2600L).forEachIndexed { index, delay ->
+                        view.postDelayed({
+                            if (!isFinishing && !isDestroyed && !isCssFullscreen && webView === view) {
+                                normalizeInlineYoutubeViewport(view)
+                                if (index == 0) scheduleInlinePlayerLayoutSync()
+                            }
+                        }, delay)
+                    }
                 }
 
                 override fun onReceivedError(
@@ -3703,9 +3751,12 @@ class YouTubePlayerActivity : ComponentActivity() {
                 mediaWidth / mediaHeight < 1.15
             // Detect the document-scroll restoration and a player root that stays below the
             // top of the newly measured portrait viewport.
-            val topThreshold = maxOf(48.0, viewportHeight * 0.10)
-            val verticalBroken = scrollY > 24.0 || rootTop > topThreshold ||
-                rootTop < -topThreshold || videoTop > topThreshold * 1.5
+            // Mobile YouTube can retain even a small (20-40 px) scroll offset after
+            // the hidden masthead is removed. Use a tight threshold, not 10% of the screen,
+            // otherwise the exact "slightly slipped down" report is treated as healthy.
+            val topThreshold = maxOf(12.0, viewportHeight * 0.025)
+            val verticalBroken = scrollY > 2.0 || rootTop > topThreshold ||
+                rootTop < -topThreshold || videoTop > topThreshold + 8.0
             return verticalBroken || (!portraitMedia && (
                 videoWidth < viewportWidth * 0.78 ||
                 videoLeft > viewportWidth * 0.12 ||
