@@ -3017,6 +3017,11 @@ class YouTubePlayerActivity : ComponentActivity() {
                     isFinishing || isDestroyed || customView != null || isCssFullscreen
                 ) return
 
+                // Returning from fullscreen must restore both scroll containers to the same
+                // top-aligned inline player, not preserve a stale portrait/landscape offset.
+                playerScrollView?.scrollTo(0, 0)
+                webView?.scrollTo(0, 0)
+
                 // The aspect-ratio host derives height from its measured width.
                 // Do not write a second height from screen/configuration metrics here.
                 root.requestLayout()
@@ -3059,6 +3064,7 @@ class YouTubePlayerActivity : ComponentActivity() {
      */
     private fun normalizeInlineYoutubeViewport(player: WebView) {
         if (isFinishing || isDestroyed || player !== webView || isCssFullscreen || customView != null) return
+        playerScrollView?.scrollTo(0, 0)
         player.scrollTo(0, 0)
         player.evaluateJavascript(
             """
