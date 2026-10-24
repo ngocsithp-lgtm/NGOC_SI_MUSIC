@@ -2378,7 +2378,6 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 '.ytp-next-button-container, .ytp-prev-button-container, ' +
                                 '.ytp-endscreen-content, .ytp-endscreen-previous, .ytp-endscreen-next, ' +
                                 '.ytp-ce-covering-overlay, .ytp-cards-teaser, ' +
-                                ' ytm-play-button-renderer, ' +
                                 '.ytp-ce-element, .ytp-gradient-top, .ytp-show-cards-title {' +
                                 'display:none!important;visibility:hidden!important;' +
                                 'pointer-events:none!important;max-height:0!important;} ' +
