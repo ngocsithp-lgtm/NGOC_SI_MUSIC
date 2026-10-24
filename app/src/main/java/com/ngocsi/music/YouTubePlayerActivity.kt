@@ -272,6 +272,21 @@ class YouTubePlayerActivity : ComponentActivity() {
                 updatePlaybackButton()
             }
         }
+
+        @JavascriptInterface
+        fun onFullscreenToggle() {
+            runOnUiThread {
+                if (isFinishing || isDestroyed || webView == null) return@runOnUiThread
+                val host = runCatching { Uri.parse(webView?.url.orEmpty()).host.orEmpty() }
+                    .getOrDefault("")
+                if (host != "youtube.com" && !host.endsWith(".youtube.com")) {
+                    return@runOnUiThread
+                }
+                // Route YouTube's fullscreen control into the same-WebView CSS mode.
+                // Avoid moving playback to Chromium's separate custom video surface.
+                requestYoutubeFullscreen()
+            }
+        }
     }
 
     private val youtubeJsBridge = YoutubeJsBridge()
@@ -2465,7 +2480,53 @@ class YouTubePlayerActivity : ComponentActivity() {
                           // Install the Android bridge only after YouTube creates a video element.
                           // The bridge reports state and avoids automatic pause/play watchdogs
                           // that can restart a buffering stream repeatedly.
-                          function installNgocSiBridge(retries) {
+                          // Intercept YouTube's fullscreen control and keep playback on the current WebView.
+                           // Native custom-view handoff can leave video frozen after returning to portrait.
+                           function installNgocSiFullscreenInterceptor() {
+                             if (window.__ngocSiFullscreenInterceptorInstalled) return;
+                             window.__ngocSiFullscreenInterceptorInstalled = true;
+                             document.addEventListener('click', function(event) {
+                               var path = [];
+                               try {
+                                 path = typeof event.composedPath === 'function'
+                                   ? event.composedPath() : [event.target];
+                               } catch (_) { path = [event.target]; }
+                               var matched = false;
+                               for (var i = 0; i < path.length; i++) {
+                                 var node = path[i];
+                                 if (!node || node.nodeType !== 1) continue;
+                                 var cls = '';
+                                 try { cls = String(node.className || '').toLowerCase(); } catch (_) {}
+                                 var tag = String(node.tagName || '').toLowerCase();
+                                 var label = '';
+                                 try {
+                                   label = [
+                                     node.getAttribute('aria-label') || '',
+                                     node.getAttribute('title') || '',
+                                     node.getAttribute('data-title-no-tooltip') || '',
+                                     node.getAttribute('data-tooltip-text') || ''
+                                   ].join(' ').toLowerCase();
+                                 } catch (_) {}
+                                 if (cls.indexOf('ytp-fullscreen-button') >= 0 ||
+                                     cls.indexOf('fullscreen-button') >= 0 ||
+                                     tag.indexOf('fullscreen') >= 0 ||
+                                     /full[ _-]?screen|toàn màn hình|thoát toàn màn hình/.test(label)) {
+                                   matched = true;
+                                   break;
+                                 }
+                               }
+                               if (!matched) return;
+                               event.preventDefault();
+                               event.stopPropagation();
+                               if (typeof event.stopImmediatePropagation === 'function') {
+                                 event.stopImmediatePropagation();
+                               }
+                               try { AndroidBridge.onFullscreenToggle(); } catch (_) {}
+                             }, true);
+                           }
+                           installNgocSiFullscreenInterceptor();
+
+                           function installNgocSiBridge(retries) {
                             if (window.__ngocSiBridgeInstalled) return;
                             var initialVideo = findActiveVideo();
                             if (!initialVideo) {
@@ -2576,51 +2637,17 @@ class YouTubePlayerActivity : ComponentActivity() {
                     view: View,
                     callback: CustomViewCallback
                 ) {
-                    if (customView != null) {
-                        callback.onCustomViewHidden()
-                        return
-                    }
-
-                    // Capture state before WebChromeClient hides the inline player.
-                    wasPlayingBeforeFullscreen = wasPlayingBeforeFullscreen ||
-                        youtubePlayerState == 1 ||
-                        getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
-                            .getBoolean("youtube_playback_is_playing", false)
-                    resumePlaybackOnNextOrientationChange = wasPlayingBeforeFullscreen ||
-                        resumePlaybackOnNextOrientationChange
-                    orientationRecoveryWindowUntilMs = System.currentTimeMillis() + 2500L
-
-                    customView = view
-                    customViewCallback = callback
-                    // Keep the original WebView attached beneath the fullscreen custom view.
-                    // Chromium redirects drawing to this custom view during fullscreen;
-                    // hiding the host container can trigger a visibility transition and
-                    // leave inline media frozen when returning to the app player.
-                    playerContainer.visibility = View.VISIBLE
-                    root.addView(
-                        view,
-                        FrameLayout.LayoutParams(
-                            FrameLayout.LayoutParams.MATCH_PARENT,
-                            FrameLayout.LayoutParams.MATCH_PARENT,
-                            Gravity.FILL
-                        )
-                    )
-                    enterFullscreen()
-                    // Orientation and immersive insets settle asynchronously. Re-apply
-                    // MATCH_PARENT after rotation so the Chrome fullscreen surface cannot
-                    // keep the portrait height it measured before the device rotated.
-                    root.postDelayed({
-                        if (!isFinishing && !isDestroyed && customView === view) {
-                            view.layoutParams = FrameLayout.LayoutParams(
-                                FrameLayout.LayoutParams.MATCH_PARENT,
-                                FrameLayout.LayoutParams.MATCH_PARENT,
-                                Gravity.FILL
-                            )
-                            root.requestLayout()
-                            view.requestLayout()
-                            root.bringChildToFront(view)
+                    // Fallback if YouTube changes its button markup and the JS interceptor
+                    // misses it. Never attach Chromium's separate video surface: that handoff
+                    // is unreliable after orientation changes. Stay on the same WebView.
+                    runCatching { callback.onCustomViewHidden() }
+                    if (!isFinishing && !isDestroyed && !isCssFullscreen) {
+                        root.post {
+                            if (!isFinishing && !isDestroyed && !isCssFullscreen && webView != null) {
+                                requestYoutubeFullscreen()
+                            }
                         }
-                    }, 350L)
+                    }
                 }
 
                 override fun onHideCustomView() {
