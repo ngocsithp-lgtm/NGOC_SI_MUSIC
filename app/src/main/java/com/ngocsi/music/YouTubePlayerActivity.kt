@@ -3368,11 +3368,12 @@ class YouTubePlayerActivity : ComponentActivity() {
             return
         }
         scheduleInlinePlayerLayoutSync()
-        if (intendedBeforeConfigurationChange && !fullscreenExitRecoveryPending) {
-            // Check the actual video surface after the new viewport has settled. A healthy
-            // media clock alone cannot detect a compositor frame frozen after rotation.
-            scheduleFullscreenExitGeometryCheck(fullscreenExitGeneration, true)
-        }
+        // Do not run the geometry checker with its page-reload fallback for an ordinary
+        // inline orientation change. This callback runs for every configuration change, not
+        // only after leaving fullscreen; a transient WebView viewport can look broken and
+        // reload a video that is already playing. Fullscreen-exit geometry validation is
+        // owned by exitFullscreen.finishExitLayout(), where the fullscreen handoff is known.
+
         val player = webView
         val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
         if (player != null && !fullscreenExitRecoveryPending &&
