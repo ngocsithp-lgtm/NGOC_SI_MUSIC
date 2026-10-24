@@ -142,6 +142,8 @@ class YouTubePlayerActivity : ComponentActivity() {
     // Preserve playback intent while orientation changes temporarily report PAUSED.
     private var resumePlaybackOnNextOrientationChange = false
     private var orientationRecoveryWindowUntilMs = 0L
+    // Debounce WebView resize recovery against the native orientation callback.
+    private var lastOrientationConfigurationChangeAtMs = 0L
     // Keep explicit user pauses separate from temporary WebView surface/viewport pauses.
     private var explicitUserPause = false
     private var orientationPlaybackRecoveryGeneration = 0
@@ -265,15 +267,30 @@ class YouTubePlayerActivity : ComponentActivity() {
                 val orientationHandoffActive =
                     System.currentTimeMillis() <= orientationRecoveryWindowUntilMs ||
                     customView != null || isCssFullscreen || fullscreenExitRecoveryPending
+                val playbackIntentStillActive =
+                    prefs.getBoolean("youtube_playback_is_playing", false)
+
+                // Rotation can cause WebView to report PAUSED before Android delivers
+                // onConfigurationChanged. If that callback clears the last confirmed PLAYING
+                // state first, the later orientation recovery has no intent to restore.
+                // Treat PAUSED/BUFFERING immediately after a confirmed active state as a
+                // temporary surface handoff unless the user explicitly pressed Pause.
+                if ((state == 2 || state == 3) &&
+                    (youtubePlayerState == 1 || youtubePlayerState == 3) &&
+                    !explicitUserPause && playbackIntentStillActive
+                ) {
+                    orientationRecoveryWindowUntilMs = maxOf(
+                        orientationRecoveryWindowUntilMs,
+                        System.currentTimeMillis() + 5000L
+                    )
+                    resumePlaybackOnNextOrientationChange = true
+                    return@runOnUiThread
+                }
 
                 // Do not publish a temporary PAUSED/BUFFERING state to the UI or media
                 // session while the viewport is handing off between portrait and landscape.
-                // The previous code treated this transient state as a real pause, changed the
-                // Play/Pause button, and told the foreground service to release its wake lock.
-                // Keep the last confirmed state until playback advances again or the user pauses.
                 if ((state == 2 || state == 3) && orientationHandoffActive &&
-                    !explicitUserPause &&
-                    prefs.getBoolean("youtube_playback_is_playing", false)
+                    !explicitUserPause && playbackIntentStillActive
                 ) {
                     return@runOnUiThread
                 }
@@ -1634,6 +1651,12 @@ class YouTubePlayerActivity : ComponentActivity() {
         getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
             .putBoolean("youtube_playback_is_playing", true)
             .apply()
+
+        // A native configuration callback already schedules its own recovery. Do not start
+        // a second probe loop from WebView.resize a few hundred milliseconds later; these
+        // competing loops previously invalidated one another and delayed playback restoration.
+        if (now - lastOrientationConfigurationChangeAtMs < 1800L) return
+
         val generation = ++orientationPlaybackRecoveryGeneration
         playbackPositionHandler.postDelayed({
             if (generation != orientationPlaybackRecoveryGeneration ||
@@ -3096,21 +3119,9 @@ class YouTubePlayerActivity : ComponentActivity() {
                         isFinishing || isDestroyed || webView == null ||
                         customView != null || isCssFullscreen
                     ) return@post
-                    webView?.scrollTo(0, 0)
-                    webView?.evaluateJavascript(
-                        "(function(){" +
-                            "if(document.getElementById('ngocsi-css-fullscreen')||document.fullscreenElement)return 'fullscreen';" +
-                            "window.scrollTo(0,0);" +
-                            "if(document.scrollingElement)document.scrollingElement.scrollTop=0;" +
-                            "document.documentElement.scrollTop=0;" +
-                            "if(document.body)document.body.scrollTop=0;" +
-                            "var h=window.__ngocSiFitPlayerResizeHandler;" +
-                            "if(h){h();}else{window.dispatchEvent(new Event('resize'));}" +
-                            "requestAnimationFrame(function(){window.scrollTo(0,0);});" +
-                            "return 'inline-normalized';" +
-                        "})();",
-                        null
-                    )
+                    // Share one normalization path with initial load so scroll offsets,
+                    // translated wrappers and stale landscape width/height cannot diverge.
+                    webView?.let { normalizeInlineYoutubeViewport(it) }
                 }
             }
         }
@@ -3160,13 +3171,21 @@ class YouTubePlayerActivity : ComponentActivity() {
                     node.style.setProperty('margin-top', '0px', 'important');
                     node.style.setProperty('padding-top', '0px', 'important');
                     node.style.setProperty('scroll-margin-top', '0px', 'important');
+                    // Hidden mobile masthead transitions can leave a translated player wrapper.
+                    node.style.setProperty('transform', 'none', 'important');
+                    node.style.setProperty('border-top-width', '0px', 'important');
                   }
                 });
-                // Remove only stale fullscreen coordinates. Width/height are recomputed by
-                // the existing responsive handler after Chromium commits the new viewport.
-                ['position','left','right','top','bottom','inset'].forEach(function(prop) {
+                // Drop stale fullscreen/landscape pixel coordinates before measuring the
+                // current WebView. The fit handler writes new dimensions only after the
+                // latest viewport has committed, rather than preserving a one-frame black gap.
+                ['position','left','right','top','bottom','inset','width','height',
+                 'margin-left','margin-right'].forEach(function(prop) {
                   root.style.removeProperty(prop);
                 });
+                root.style.setProperty('transform', 'none', 'important');
+                root.style.setProperty('margin-top', '0px', 'important');
+                root.style.setProperty('padding-top', '0px', 'important');
                 if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
                 document.documentElement.scrollTop = 0;
                 if (document.body) document.body.scrollTop = 0;
@@ -3264,6 +3283,9 @@ class YouTubePlayerActivity : ComponentActivity() {
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
+        lastOrientationConfigurationChangeAtMs = System.currentTimeMillis()
+        // Invalidate a WebView resize callback that may already have scheduled recovery.
+        orientationPlaybackRecoveryGeneration++
         val playbackPrefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
         val intendedBeforeConfigurationChange = !explicitUserPause && (
             youtubePlayerState == 1 ||
@@ -3318,6 +3340,11 @@ class YouTubePlayerActivity : ComponentActivity() {
             return
         }
         scheduleInlinePlayerLayoutSync()
+        if (intendedBeforeConfigurationChange && !fullscreenExitRecoveryPending) {
+            // Check the actual video surface after the new viewport has settled. A healthy
+            // media clock alone cannot detect a compositor frame frozen after rotation.
+            scheduleFullscreenExitGeometryCheck(fullscreenExitGeneration, true)
+        }
         val player = webView
         val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
         if (player != null && !fullscreenExitRecoveryPending &&
