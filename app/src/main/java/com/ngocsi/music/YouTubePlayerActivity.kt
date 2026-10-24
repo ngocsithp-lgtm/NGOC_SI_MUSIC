@@ -1801,25 +1801,17 @@ class YouTubePlayerActivity : ComponentActivity() {
 
                         val verifyScript = """
                             (function() {
-                              var video = null;
                               try {
-                                if (typeof window.__ngocSiFindActiveVideo === 'function')
-                                  video = window.__ngocSiFindActiveVideo();
-                              } catch (_) {}
-                              if (!video) video = document.querySelector('video.html5-main-video') ||
-                                document.querySelector('#movie_player video') ||
-                                document.querySelector('ytm-player video') ||
-                                document.querySelector('video');
-                              if (!video) return 'NO_VIDEO';
-                              if (video.ended) return 'ENDED';
-                              if (video.paused) return 'PAUSED';
-                              if (video.readyState < 2) return 'BUFFERING';
-                              var progressAt = Number(window.__ngocSiPlaybackProgressAt || 0);
-                              if (window.__ngocSiTrackedVideo === video &&
-                                  window.__ngocSiPlaybackActuallyPlaying === true &&
-                                  progressAt > 0 && Date.now() - progressAt < 1800)
-                                return 'PLAYING';
-                              return 'STALLED';
+                                var p = window.lamPlayer;
+                                if (!p || typeof p.getPlayerState !== 'function') return 'NO_PLAYER';
+                                var state = p.getPlayerState();
+                                if (state === 0) return 'ENDED';
+                                if (state === 2) return 'PAUSED';
+                                if (state === 3) return 'BUFFERING';
+                                return 'ACTIVE|' + Number(p.getCurrentTime() || 0);
+                              } catch (_) {
+                                return 'ERROR';
+                              }
                             })();
                         """.trimIndent()
                         webView?.evaluateJavascript(verifyScript) verifyPlaybackCallback@{ verifyResult ->
@@ -1828,7 +1820,12 @@ class YouTubePlayerActivity : ComponentActivity() {
                             ) return@verifyPlaybackCallback
 
                             val mediaStatus = verifyResult.orEmpty().trim('"')
-                            if (mediaStatus == "PAUSED" || mediaStatus == "STALLED") {
+                            if (mediaStatus == "PAUSED" || mediaStatus == "STALLED" ||
+                                mediaStatus == "BUFFERING" || mediaStatus.startsWith("ACTIVE")
+                            ) {
+                                // Probe actual player-clock progress, not only the reported state.
+                                // A frozen IFrame can remain in PLAYING; one bounded recovery pass
+                                // is a no-op when time advances and reloads only as a last resort.
                                 recoverFullscreenPlayback()
                             }
                         }
