@@ -3491,6 +3491,8 @@ class YouTubePlayerActivity : ComponentActivity() {
                   videoWidth: Number(vr.width || 0),
                   rootLeft: Number(rr.left || 0),
                   rootWidth: Number(rr.width || 0),
+                  mediaWidth: Number(video.videoWidth || 0),
+                  mediaHeight: Number(video.videoHeight || 0),
                   position: Number(video.currentTime || 0)
                 });
               } catch (_) { return 'WAIT'; }
@@ -3527,7 +3529,12 @@ class YouTubePlayerActivity : ComponentActivity() {
             val rootWidth = info.optDouble("rootWidth", 0.0)
             val videoLeft = info.optDouble("videoLeft", 0.0)
             val rootLeft = info.optDouble("rootLeft", 0.0)
+            val mediaWidth = info.optDouble("mediaWidth", 0.0)
+            val mediaHeight = info.optDouble("mediaHeight", 0.0)
             if (viewportWidth < 100.0 || videoWidth < 2.0 || rootWidth < 2.0) return false
+            // Vertical/near-square videos are intentionally narrower; only recover
+            // landscape media where a portrait rotation leaves a genuinely clipped frame.
+            if (mediaWidth > 0.0 && mediaHeight > 0.0 && mediaWidth / mediaHeight < 1.15) return false
             // Allow small player gutters and letterboxing; flag only the large shift/scale
             // visible in the reported failure (roughly 40% of the portrait frame is black).
             return videoWidth < viewportWidth * 0.78 ||
