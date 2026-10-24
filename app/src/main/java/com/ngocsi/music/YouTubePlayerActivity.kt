@@ -3550,7 +3550,8 @@ class YouTubePlayerActivity : ComponentActivity() {
                   }
                   window.scrollTo(0,0);
                   if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
-                  window.dispatchEvent(new Event('resize'));
+                  // Do not dispatch resize yet: Android has not restored the portrait host
+                  // at this point. The native inline-layout sync will dispatch it after exit.
                   return 'layout-restored';
                 })();
                 """.trimIndent()
