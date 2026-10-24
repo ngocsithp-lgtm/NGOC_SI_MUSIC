@@ -1890,6 +1890,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             // rejected play() promise and leaving the play button ineffective.
             "play" -> requestYouTubePlayback()
             "pause" -> pauseYouTubePlayback()
+            "queue" -> showQueueDialog()
             "next" -> {
                 if (queue.size > 1) {
                     playNext()
