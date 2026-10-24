@@ -132,6 +132,9 @@ class YouTubePlayerActivity : ComponentActivity() {
     // Runs one post-rotation geometry verification; a broken video surface can freeze
     // visually while the HTML5 media clock continues advancing.
     private var fullscreenExitGeometryCheckGeneration = 0
+    // Avoid starting a second orientation recovery while the fullscreen-exit recovery
+    // and geometry verification are already in progress.
+    private var fullscreenExitRecoveryActiveUntilMs = 0L
     // Coalesce orientation/layout syncs so stale delayed callbacks cannot overwrite newer sizes.
     private var inlineLayoutSyncGeneration = 0
     // Track bounded layout/recovery work during CSS fullscreen rotation.
@@ -3160,6 +3163,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         val player = webView
         val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
         if (player != null && !fullscreenExitRecoveryPending &&
+            System.currentTimeMillis() > fullscreenExitRecoveryActiveUntilMs &&
             (resumePlaybackOnNextOrientationChange ||
                 prefs.getBoolean("youtube_playback_is_playing", false))) {
             val generation = ++fullscreenViewportSyncGeneration
@@ -3321,6 +3325,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         if (customView == null && !isCssFullscreen) return
         val exitGeneration = ++fullscreenExitGeneration
         fullscreenExitRecoveryPending = true
+        fullscreenExitRecoveryActiveUntilMs = System.currentTimeMillis() + 2300L
         orientationRecoveryWindowUntilMs = System.currentTimeMillis() + 5000L
         // Cancel stale orientation/fullscreen probes so this exit owns exactly one recovery cycle.
         fullscreenRecoveryGeneration++
