@@ -130,7 +130,27 @@ class YouTubePlayerActivity : ComponentActivity() {
                 }
                 youtubePlayerState = state
                 if (customView != null) {
-                    wasPlayingBeforeFullscreen = state == 1 || state == 3
+                    when (state) {
+                        1, 3 -> wasPlayingBeforeFullscreen = true
+                        2 -> {
+                            // YouTube may emit a brief PAUSED event while Android changes
+                            // orientation or hides the custom fullscreen surface. Do not
+                            // cancel recovery immediately; only accept a pause that remains
+                            // stable after the fullscreen transition has settled.
+                            val fullscreenVideoId = videoId
+                            playbackPositionHandler.postDelayed({
+                                if (
+                                    generation == playerGeneration &&
+                                    customView != null &&
+                                    videoId == fullscreenVideoId &&
+                                    youtubePlayerState == 2
+                                ) {
+                                    wasPlayingBeforeFullscreen = false
+                                }
+                            }, 700L)
+                        }
+                        0 -> wasPlayingBeforeFullscreen = false
+                    }
                 }
                 updatePlaybackButton()
                 updateYoutubeMediaSession()
@@ -1623,24 +1643,66 @@ class YouTubePlayerActivity : ComponentActivity() {
         super.onConfigurationChanged(newConfig)
         if (!::root.isInitialized || !::playerContainer.isInitialized) return
 
-        // The manifest keeps this Activity alive across rotation. Recalculate the
-        // inline player height after Android applies the new display metrics.
+        // Capture playback intent before WebView receives any transient state changes.
+        // A normal orientation change should not require the user to switch videos to
+        // recover audio/video rendering.
+        val playerAtConfiguration = webView
+        val videoAtConfiguration = videoId
+        val generationAtConfiguration = playerGeneration
+        val shouldRecoverPlayback = customView == null &&
+            (youtubePlayerState == 1 || youtubePlayerState == 3)
+
         root.post {
             if (isFinishing || isDestroyed) return@post
-            updateResponsivePlayerLayout()
-            webView?.requestLayout()
-            webView?.invalidate()
-            scheduleVideoSurfaceResize()
-            playerContainer.requestLayout()
-            root.requestLayout()
 
+            // The YouTube-owned custom view is already responsible for its fullscreen
+            // viewport. Do not resize the hidden inline surface while it is active.
             if (customView != null) {
+                customView?.requestLayout()
+                root.requestLayout()
                 WindowCompat.setDecorFitsSystemWindows(window, false)
                 WindowInsetsControllerCompat(window, window.decorView).apply {
                     hide(WindowInsetsCompat.Type.systemBars())
                     systemBarsBehavior =
                         WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                 }
+                return@post
+            }
+
+            // Clear stale ScrollView offsets after a rotation/fullscreen transition.
+            // These offsets can leave a black strip above the player and make the
+            // video appear partly outside the visible phone screen.
+            if (::contentScroll.isInitialized) {
+                contentScroll.scrollTo(0, 0)
+                contentScroll.requestLayout()
+            }
+
+            updateResponsivePlayerLayout()
+            webView?.requestLayout()
+            webView?.invalidate()
+            playerContainer.requestLayout()
+            root.requestLayout()
+            scheduleVideoSurfaceResize(playerAtConfiguration)
+
+            if (
+                shouldRecoverPlayback &&
+                playerAtConfiguration != null &&
+                playerAtConfiguration === webView &&
+                videoAtConfiguration == videoId &&
+                generationAtConfiguration == playerGeneration
+            ) {
+                playbackPositionHandler.postDelayed({
+                    if (
+                        isFullscreenRecoveryCurrent(
+                            playerAtConfiguration,
+                            videoAtConfiguration,
+                            generationAtConfiguration
+                        )
+                    ) {
+                        playerAtConfiguration.evaluateJavascript("playVideo();", null)
+                    }
+                }, 320L)
+                verifyAndRecoverFullscreenPlayback(playerAtConfiguration, videoAtConfiguration)
             }
         }
     }
@@ -1782,13 +1844,37 @@ class YouTubePlayerActivity : ComponentActivity() {
 
     private fun scheduleVideoSurfaceResize(target: WebView? = webView) {
         val player = target ?: return
-        player.evaluateJavascript("resizeVideoSurface();", null)
-        for (delayMs in listOf(120L, 420L)) {
-            playbackPositionHandler.postDelayed({
-                if (!isFinishing && !isDestroyed && player === webView) {
-                    player.evaluateJavascript("resizeVideoSurface();", null)
-                }
-            }, delayMs)
+        val expectedGeneration = playerGeneration
+
+        // Layout may still be using the previous orientation in the same frame that
+        // onConfigurationChanged fires. Resize after the WebView is laid out, then
+        // retry once the embedded IFrame has consumed the new viewport dimensions.
+        player.post {
+            if (
+                isFinishing ||
+                isDestroyed ||
+                player !== webView ||
+                expectedGeneration != playerGeneration
+            ) return@post
+
+            player.requestLayout()
+            player.invalidate()
+            player.evaluateJavascript("resizeVideoSurface();", null)
+
+            for (delayMs in listOf(120L, 420L)) {
+                playbackPositionHandler.postDelayed({
+                    if (
+                        !isFinishing &&
+                        !isDestroyed &&
+                        player === webView &&
+                        expectedGeneration == playerGeneration
+                    ) {
+                        player.requestLayout()
+                        player.invalidate()
+                        player.evaluateJavascript("resizeVideoSurface();", null)
+                    }
+                }, delayMs)
+            }
         }
     }
 
@@ -1869,8 +1955,31 @@ class YouTubePlayerActivity : ComponentActivity() {
         }, 500L)
     }
 
-    private fun calculateNormalPlayerHeight(): Int =
-        (resources.displayMetrics.widthPixels * 9f / 16f).toInt().coerceAtLeast(dp(200))
+    private fun calculateNormalPlayerHeight(): Int {
+        val measuredWidth = when {
+            ::root.isInitialized && root.width > 0 -> root.width
+            ::contentScroll.isInitialized && contentScroll.width > 0 -> contentScroll.width
+            ::playerContainer.isInitialized && playerContainer.width > 0 -> playerContainer.width
+            else -> resources.displayMetrics.widthPixels
+        }
+        val aspectHeight = (measuredWidth * 9f / 16f).toInt()
+
+        // A 16:9 height calculated from a landscape phone's long edge can exceed the
+        // entire viewport. Limit the inline surface to the available landscape height;
+        // YouTube keeps its own 16:9 video rendering inside that visible surface.
+        if (
+            resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE &&
+            customView == null &&
+            ::root.isInitialized
+        ) {
+            val viewportHeight = root.height.takeIf { it > 0 }
+                ?: resources.displayMetrics.heightPixels
+            val maxInlineHeight = (viewportHeight - dp(88)).coerceAtLeast(dp(180))
+            return aspectHeight.coerceAtMost(maxInlineHeight).coerceAtLeast(dp(180))
+        }
+
+        return aspectHeight.coerceAtLeast(dp(200))
+    }
 
     private fun updateResponsivePlayerLayout() {
         if (!::playerContainer.isInitialized) return
@@ -1919,6 +2028,10 @@ class YouTubePlayerActivity : ComponentActivity() {
             if (isFinishing || isDestroyed || !::playerContainer.isInitialized) {
                 fullscreenExitInProgress = false
                 return@post
+            }
+            if (::contentScroll.isInitialized) {
+                contentScroll.scrollTo(0, 0)
+                contentScroll.requestLayout()
             }
             updateResponsivePlayerLayout()
             playerContainer.visibility = View.VISIBLE
