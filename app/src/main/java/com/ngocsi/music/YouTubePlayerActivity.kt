@@ -3639,12 +3639,17 @@ class YouTubePlayerActivity : ComponentActivity() {
                             webView?.postDelayed({
                                 if (exitGeneration != fullscreenExitGeneration ||
                                     isFinishing || isDestroyed || webView == null ||
-                                    !youtubePlayerReady || geometryReloadFallbackAttemptedForCurrentPage
+                                    !youtubePlayerReady
                                 ) return@postDelayed
-                                // Let the geometry checker finish its two layout/frame probes first.
-                                // If it reloads the page, onReady owns recovery; do not send a second
-                                // play command into the old/new media surface during that handoff.
-                                recoverFullscreenPlayback(allowPageReloadFallback = true)
+                                // A page reload is allowed only once until healthy playback is
+                                // confirmed, but every later fullscreen exit must still attempt
+                                // in-place recovery. Otherwise a second/third rotation can leave
+                                // the video frozen merely because the previous reload budget was used.
+                                val allowPageReloadForThisExit =
+                                    !geometryReloadFallbackAttemptedForCurrentPage
+                                recoverFullscreenPlayback(
+                                    allowPageReloadFallback = allowPageReloadForThisExit
+                                )
                             }, 2300L)
                         }
                     }, 500L)
