@@ -2782,11 +2782,20 @@ class YouTubePlayerActivity : ComponentActivity() {
                     """.trimIndent(), null)
                     // onPageFinished can run before the final Android viewport has been measured.
                     // Re-fit once after the CSS/bridge is installed; the sync is bounded, not a loop.
+                    // YouTube Mobile may restore an old document scroll offset after its
+                    // hidden masthead/title rows collapse. Normalize the WebView viewport after
+                    // the final native measurement, not only the CSS player width.
                     view.postDelayed({
                         if (!isFinishing && !isDestroyed && !isCssFullscreen && webView === view) {
+                            normalizeInlineYoutubeViewport(view)
                             scheduleInlinePlayerLayoutSync()
                         }
                     }, 350L)
+                    view.postDelayed({
+                        if (!isFinishing && !isDestroyed && !isCssFullscreen && webView === view) {
+                            normalizeInlineYoutubeViewport(view)
+                        }
+                    }, 850L)
                 }
 
                 override fun onReceivedError(
@@ -3018,9 +3027,19 @@ class YouTubePlayerActivity : ComponentActivity() {
                         isFinishing || isDestroyed || webView == null ||
                         customView != null || isCssFullscreen
                     ) return@post
+                    webView?.scrollTo(0, 0)
                     webView?.evaluateJavascript(
-                        "(function(){var h=window.__ngocSiFitPlayerResizeHandler;" +
-                            "if(h){h();}else{window.dispatchEvent(new Event('resize'));}})();",
+                        "(function(){" +
+                            "if(document.getElementById('ngocsi-css-fullscreen')||document.fullscreenElement)return 'fullscreen';" +
+                            "window.scrollTo(0,0);" +
+                            "if(document.scrollingElement)document.scrollingElement.scrollTop=0;" +
+                            "document.documentElement.scrollTop=0;" +
+                            "if(document.body)document.body.scrollTop=0;" +
+                            "var h=window.__ngocSiFitPlayerResizeHandler;" +
+                            "if(h){h();}else{window.dispatchEvent(new Event('resize'));}" +
+                            "requestAnimationFrame(function(){window.scrollTo(0,0);});" +
+                            "return 'inline-normalized';" +
+                        "})();",
                         null
                     )
                 }
@@ -3030,6 +3049,75 @@ class YouTubePlayerActivity : ComponentActivity() {
         root.postDelayed(sync, 120L)
         root.postDelayed(sync, 360L)
         root.postDelayed(sync, 700L)
+    }
+
+    /**
+     * Normalize the mobile YouTube document when opening the player or returning to portrait.
+     * YouTube can restore a non-zero internal scroll offset after its own top bars are hidden;
+     * the native WebView then looks like the video has slipped down inside the 16:9 frame.
+     * Only run this while inline; never scroll or rewrite the document during fullscreen.
+     */
+    private fun normalizeInlineYoutubeViewport(player: WebView) {
+        if (isFinishing || isDestroyed || player !== webView || isCssFullscreen || customView != null) return
+        player.scrollTo(0, 0)
+        player.evaluateJavascript(
+            """
+            (function() {
+              try {
+                if (document.getElementById('ngocsi-css-fullscreen') || document.fullscreenElement)
+                  return 'FULLSCREEN';
+                var root = document.querySelector('ytm-player') ||
+                           document.querySelector('#movie_player') ||
+                           document.querySelector('#player');
+                if (!root) return 'WAIT';
+                // The hidden mobile header leaves a few YouTube page wrappers with stale
+                // top spacing. Clear only top spacing on known player wrappers.
+                var wrappers = [
+                  'ytm-watch',
+                  'ytm-watch-grid',
+                  '#player-container-outer',
+                  '#player-container-inner',
+                  '#player-container-id',
+                  '#player-container',
+                  '#player'
+                ];
+                wrappers.forEach(function(selector) {
+                  var node = root.matches && root.matches(selector) ? root : root.closest(selector);
+                  if (!node) {
+                    try { node = document.querySelector(selector); } catch (_) {}
+                  }
+                  if (node && node.style) {
+                    node.style.setProperty('margin-top', '0px', 'important');
+                    node.style.setProperty('padding-top', '0px', 'important');
+                    node.style.setProperty('scroll-margin-top', '0px', 'important');
+                  }
+                });
+                // Remove only stale fullscreen coordinates. Width/height are recomputed by
+                // the existing responsive handler after Chromium commits the new viewport.
+                ['position','left','right','top','bottom','inset'].forEach(function(prop) {
+                  root.style.removeProperty(prop);
+                });
+                if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
+                document.documentElement.scrollTop = 0;
+                if (document.body) document.body.scrollTop = 0;
+                window.scrollTo(0, 0);
+                if (typeof window.__ngocSiFitPlayerResizeHandler === 'function') {
+                  window.__ngocSiFitPlayerResizeHandler();
+                } else {
+                  window.dispatchEvent(new Event('resize'));
+                }
+                requestAnimationFrame(function() {
+                  window.scrollTo(0, 0);
+                  if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
+                });
+                return 'NORMALIZED';
+              } catch (_) {
+                return 'NORMALIZE_ERROR';
+              }
+            })();
+            """.trimIndent(),
+            null
+        )
     }
 
     /**
@@ -3482,20 +3570,28 @@ class YouTubePlayerActivity : ComponentActivity() {
                   }) || null;
                 }
                 var viewportWidth = Number(document.documentElement.clientWidth || window.innerWidth || 0);
+                var viewportHeight = Number(document.documentElement.clientHeight || window.innerHeight || 0);
+                var scrollY = Number(window.scrollY || (document.scrollingElement && document.scrollingElement.scrollTop) || 0);
                 var root = document.querySelector('ytm-player') ||
                            document.querySelector('#player-container') ||
                            document.querySelector('#movie_player');
-                if (!video || !root || viewportWidth < 100) return 'WAIT';
+                if (!video || !root || viewportWidth < 100 || viewportHeight < 100) return 'WAIT';
                 var vr = video.getBoundingClientRect();
                 var rr = root.getBoundingClientRect();
                 if (vr.width < 2 || rr.width < 2 || Number(video.readyState || 0) < 1)
                   return 'WAIT';
                 return JSON.stringify({
                   viewportWidth: viewportWidth,
+                  viewportHeight: viewportHeight,
+                  scrollY: scrollY,
                   videoLeft: Number(vr.left || 0),
+                  videoTop: Number(vr.top || 0),
                   videoWidth: Number(vr.width || 0),
+                  videoHeight: Number(vr.height || 0),
                   rootLeft: Number(rr.left || 0),
+                  rootTop: Number(rr.top || 0),
                   rootWidth: Number(rr.width || 0),
+                  rootHeight: Number(rr.height || 0),
                   mediaWidth: Number(video.videoWidth || 0),
                   mediaHeight: Number(video.videoHeight || 0),
                   position: Number(video.currentTime || 0)
@@ -3530,19 +3626,29 @@ class YouTubePlayerActivity : ComponentActivity() {
         fun isGeometryBroken(info: org.json.JSONObject?): Boolean {
             if (info == null) return false
             val viewportWidth = info.optDouble("viewportWidth", 0.0)
+            val viewportHeight = info.optDouble("viewportHeight", 0.0)
+            val scrollY = info.optDouble("scrollY", 0.0)
             val videoWidth = info.optDouble("videoWidth", 0.0)
+            val videoTop = info.optDouble("videoTop", 0.0)
             val rootWidth = info.optDouble("rootWidth", 0.0)
+            val rootTop = info.optDouble("rootTop", 0.0)
             val videoLeft = info.optDouble("videoLeft", 0.0)
             val rootLeft = info.optDouble("rootLeft", 0.0)
             val mediaWidth = info.optDouble("mediaWidth", 0.0)
             val mediaHeight = info.optDouble("mediaHeight", 0.0)
-            if (viewportWidth < 100.0 || videoWidth < 2.0 || rootWidth < 2.0) return false
-            // Vertical/near-square videos are intentionally narrower; only recover
-            // landscape media where a portrait rotation leaves a genuinely clipped frame.
+            if (viewportWidth < 100.0 || viewportHeight < 100.0 ||
+                videoWidth < 2.0 || rootWidth < 2.0
+            ) return false
+            // Portrait and near-square clips may be narrower by design; do not reload those.
             if (mediaWidth > 0.0 && mediaHeight > 0.0 && mediaWidth / mediaHeight < 1.15) return false
-            // Allow small player gutters and letterboxing; flag only the large shift/scale
-            // visible in the reported failure (roughly 40% of the portrait frame is black).
-            return videoWidth < viewportWidth * 0.78 ||
+            // The user's failure includes vertical drift, not only a width/left offset.
+            // Detect the document-scroll restoration and a player root that stays below the
+            // top of the newly measured portrait viewport.
+            val topThreshold = maxOf(48.0, viewportHeight * 0.10)
+            val verticalBroken = scrollY > 24.0 || rootTop > topThreshold ||
+                rootTop < -topThreshold || videoTop > topThreshold * 1.5
+            return verticalBroken ||
+                videoWidth < viewportWidth * 0.78 ||
                 videoLeft > viewportWidth * 0.12 ||
                 videoLeft < -viewportWidth * 0.12 ||
                 rootWidth < viewportWidth * 0.78 ||
