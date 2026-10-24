@@ -3537,7 +3537,19 @@ class YouTubePlayerActivity : ComponentActivity() {
                     document.body.style.removeProperty('width');
                     document.body.style.removeProperty('height');
                   }
+                  // The responsive handler writes explicit landscape pixel dimensions to
+                  // ytm-player. Remove those stale inline values before Android shrinks the
+                  // host; otherwise Chromium can keep rendering at the old landscape rect.
+                  var playerRoot = document.querySelector('ytm-player') ||
+                                   document.querySelector('#movie_player') ||
+                                   document.querySelector('#player');
+                  if (playerRoot) {
+                    ['position','left','right','top','bottom','inset','width','height'].forEach(function(prop) {
+                      playerRoot.style.removeProperty(prop);
+                    });
+                  }
                   window.scrollTo(0,0);
+                  if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
                   window.dispatchEvent(new Event('resize'));
                   return 'layout-restored';
                 })();
