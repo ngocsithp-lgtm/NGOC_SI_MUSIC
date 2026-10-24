@@ -112,6 +112,9 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
     private var customView: View? = null
     private var customViewCallback: WebChromeClient.CustomViewCallback? = null
+    // The mobile YouTube page may request a Chromium custom view before our in-WebView
+    // fullscreen CSS is applied. Ignore the matching hide callback for that handoff.
+    private var suppressNextCustomViewHide = false
     private var isCssFullscreen = false
     // Preserve the pre-fullscreen playback state even if YouTube reports PAUSED while rotating.
     private var wasPlayingBeforeFullscreen = false
@@ -216,27 +219,28 @@ class YouTubePlayerActivity : ComponentActivity() {
                     scheduleBackgroundPlaybackRecovery()
                     return@runOnUiThread
                 }
+                val orientationHandoffActive =
+                    System.currentTimeMillis() <= orientationRecoveryWindowUntilMs ||
+                    customView != null || isCssFullscreen
                 if (state == 1) {
                     backgroundPlaybackRecoveryGeneration++
                     resumePlaybackOnNextOrientationChange = true
                     if (customView != null || isCssFullscreen) {
                         wasPlayingBeforeFullscreen = true
                     }
-                } else if ((state == 2 || state == 0) &&
-                    System.currentTimeMillis() > orientationRecoveryWindowUntilMs
-                ) {
-                    // Do not erase the playing intent when Chromium transiently pauses during
-                    // the short orientation handoff window. Outside that window a real pause
-                    // or end state should be respected.
+                    prefs.edit().putBoolean("youtube_playback_is_playing", true).apply()
+                } else if (state == 0 || (state == 2 && !orientationHandoffActive)) {
+                    // ENDED always clears intent. PAUSED clears it only outside an orientation/
+                    // fullscreen handoff; transient WebView PAUSED and BUFFERING states must not
+                    // overwrite the saved "was playing" intent used to recover after rotation.
                     resumePlaybackOnNextOrientationChange = false
                     if (customView != null || isCssFullscreen) {
                         wasPlayingBeforeFullscreen = false
                     }
+                    prefs.edit().putBoolean("youtube_playback_is_playing", false).apply()
                 }
+                // State 3 (BUFFERING), and transient state 2 during rotation, preserve intent.
                 youtubePlayerState = state
-                getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
-                    .putBoolean("youtube_playback_is_playing", state == 1)
-                    .apply()
                 updatePlaybackButton()
                 syncYouTubeBackgroundPlayback(state)
                 if (state == 5 || state == 1) restoreSavedPlaybackPosition()
@@ -715,7 +719,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 '.ytp-show-cards-title,ytm-player-overlay-renderer,ytm-video-overlay-renderer,' +
                 'ytm-mobile-player-overlay-renderer { display:none!important; }' +
                 'ytm-player { position:fixed!important; inset:0!important; width:auto!important;height:auto!important;min-width:0!important;min-height:0!important;max-width:none!important;max-height:none!important;aspect-ratio:auto!important;z-index:2147483647!important;background:#000!important;overflow:hidden!important;margin:0!important;padding:0!important; }' +
-                'ytm-player video,video.html5-main-video,.html5-video-container { box-sizing:border-box!important;display:block!important;position:absolute!important;inset:0!important;width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;max-width:100%!important;max-height:100%!important;object-fit:cover!important;object-position:center center!important;margin:0!important;padding:0!important; }';
+                'ytm-player video,video.html5-main-video,.html5-video-container { box-sizing:border-box!important;display:block!important;position:absolute!important;inset:0!important;width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;max-width:100%!important;max-height:100%!important;object-fit:contain!important;object-position:center center!important;margin:0!important;padding:0!important; }';
               return 'ok';
             })();
             """.trimIndent()
@@ -2287,7 +2291,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 // Apply crop to the actual video surface and remove intrinsic aspect-ratio caps.
                                 // Avoid changing its position or explicit dimensions to protect WebView playback.
                                 'ytm-player video,video.html5-main-video,.html5-video-player video {' +
-                                'object-fit:cover!important;object-position:50% 50%!important;' +
+                                'object-fit:contain!important;object-position:50% 50%!important;' +
                                 'max-width:none!important;max-height:none!important;}';
                               (document.head || document.documentElement).appendChild(fitStyle);
                             }
@@ -2641,6 +2645,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                     // Fallback if YouTube changes its button markup and the JS interceptor
                     // misses it. Never attach Chromium's separate video surface: that handoff
                     // is unreliable after orientation changes. Stay on the same WebView.
+                    suppressNextCustomViewHide = true
                     runCatching { callback.onCustomViewHidden() }
                     if (!isFinishing && !isDestroyed && !isCssFullscreen) {
                         root.post {
@@ -2652,9 +2657,13 @@ class YouTubePlayerActivity : ComponentActivity() {
                 }
 
                 override fun onHideCustomView() {
-                    // WebChromeClient is already notifying us that its custom view is hidden.
-                    // Do not call CustomViewCallback.onCustomViewHidden() a second time here:
-                    // that callback is reserved for the host initiating dismissal.
+                    // onShowCustomView deliberately dismissed Chromium's separate surface so
+                    // the same WebView can stay alive. Ignore only that paired callback; later
+                    // real fullscreen exits still run the normal cleanup/recovery path.
+                    if (suppressNextCustomViewHide) {
+                        suppressNextCustomViewHide = false
+                        return
+                    }
                     exitFullscreen(notifyCallback = false)
                 }
             }
