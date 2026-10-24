@@ -3112,15 +3112,17 @@ class YouTubePlayerActivity : ComponentActivity() {
                     if (exitGeneration != fullscreenExitGeneration) return@postDelayed
                     fullscreenExitRecoveryPending = false
                     if (shouldRecoverPlayback) {
-                        // First try one state-aware resume against the same HTML5 video.
-                        // This nudges a frozen-but-unpaused surface once the new viewport is
-                        // committed; the bounded clock probe remains the fallback.
-                        resumeVideoAfterFullscreenRotation()
+                        // Use one recovery controller after the fullscreen surface and inline
+                        // viewport have settled. Sending an immediate Play nudge here and then
+                        // starting a second recovery controller can race the WebView media
+                        // pipeline after rotation, producing a brief stutter followed by a stop.
+                        // The controller probes the actual media clock and only issues a bounded
+                        // Play request when needed; its one-time page reload remains last resort.
                         webView?.postDelayed({
                             if (exitGeneration != fullscreenExitGeneration ||
                                 isFinishing || isDestroyed || webView == null
                             ) return@postDelayed
-                            recoverFullscreenPlayback()
+                            recoverFullscreenPlayback(allowPageReloadFallback = true)
                         }, 900L)
                     }
                 }, 500L)
