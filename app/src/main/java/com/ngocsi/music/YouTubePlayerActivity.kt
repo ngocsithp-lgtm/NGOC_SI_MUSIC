@@ -2894,10 +2894,14 @@ class YouTubePlayerActivity : ComponentActivity() {
                                         youtubePlayerState == 1 ||
                                             prefs.getBoolean("youtube_playback_is_playing", false)
                                         )
-                                    scheduleFullscreenExitGeometryCheck(
-                                        fullscreenExitGeneration,
-                                        expectPlayback
-                                    )
+                                    // Do not invoke fullscreen-exit recovery during an ordinary page
+                                    // load: its geometry fallback may reload a video that is already
+                                    // playing and interrupt playback. The dedicated fullscreen-exit
+                                    // path runs its own bounded geometry check when rotation returns.
+                                    if (expectPlayback) {
+                                        normalizeInlineYoutubeViewport(view)
+                                        scheduleInlinePlayerLayoutSync()
+                                    }
                                 }
                                 if (index == 4) {
                                     // Correct the native frame too if the mobile page changed
