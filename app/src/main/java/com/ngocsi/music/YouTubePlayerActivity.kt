@@ -69,6 +69,12 @@ class YouTubePlayerActivity : ComponentActivity() {
     private inner class InlinePlayerFrameLayout(context: android.content.Context) :
         FrameLayout(context) {
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+            if (fullscreenLayoutActive &&
+                View.MeasureSpec.getMode(heightMeasureSpec) == View.MeasureSpec.EXACTLY
+            ) {
+                super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+                return
+            }
             val width = View.MeasureSpec.getSize(widthMeasureSpec)
             if (width > 0) {
                 val aspectHeight = (width * 9f / 16f).toInt().coerceAtLeast(1)
@@ -130,6 +136,16 @@ class YouTubePlayerActivity : ComponentActivity() {
     // Preserve playback intent while orientation changes temporarily report PAUSED.
     private var resumePlaybackOnNextOrientationChange = false
     private var orientationRecoveryWindowUntilMs = 0L
+    // Keep explicit user pauses separate from temporary WebView surface/viewport pauses.
+    private var explicitUserPause = false
+    private var orientationPlaybackRecoveryGeneration = 0
+    private var fullscreenLayoutActive = false
+    private var contentContainer: LinearLayout? = null
+    private var playerScrollView: ScrollView? = null
+    private var inlinePlayerLayoutParams: ViewGroup.LayoutParams? = null
+    private val fullscreenHiddenChildVisibilities = linkedMapOf<View, Int>()
+    private var inlineContentPadding: IntArray? = null
+    private var inlineLoadingBarVisibility: Int? = null
     // A single post-reload recovery is allowed after fullscreen playback stalls.
     private var recoverAfterPageReload = false
     private var playbackCommandGeneration = 0
@@ -201,6 +217,27 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
 
         @JavascriptInterface
+        fun onViewportPlaybackHandoff() {
+            runOnUiThread {
+                noteViewportPlaybackHandoff()
+            }
+        }
+
+        @JavascriptInterface
+        fun onExplicitPauseRequested() {
+            runOnUiThread {
+                markExplicitPauseIntent()
+            }
+        }
+
+        @JavascriptInterface
+        fun onExplicitPlayRequested() {
+            runOnUiThread {
+                markExplicitPlayIntent()
+            }
+        }
+
+        @JavascriptInterface
         fun onStateChanged(state: Int) {
             runOnUiThread {
                 val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
@@ -221,18 +258,20 @@ class YouTubePlayerActivity : ComponentActivity() {
                 }
                 val orientationHandoffActive =
                     System.currentTimeMillis() <= orientationRecoveryWindowUntilMs ||
-                    customView != null || isCssFullscreen
+                    customView != null || isCssFullscreen || fullscreenExitRecoveryPending
                 if (state == 1) {
+                    explicitUserPause = false
+                    orientationPlaybackRecoveryGeneration++
                     backgroundPlaybackRecoveryGeneration++
                     resumePlaybackOnNextOrientationChange = true
                     if (customView != null || isCssFullscreen) {
                         wasPlayingBeforeFullscreen = true
                     }
                     prefs.edit().putBoolean("youtube_playback_is_playing", true).apply()
-                } else if (state == 0 || (state == 2 && !orientationHandoffActive)) {
-                    // ENDED always clears intent. PAUSED clears it only outside an orientation/
-                    // fullscreen handoff; transient WebView PAUSED and BUFFERING states must not
-                    // overwrite the saved "was playing" intent used to recover after rotation.
+                } else if (state == 0 || (state == 2 && (!orientationHandoffActive || explicitUserPause))) {
+                    // ENDED always clears intent. PAUSED clears it only when it is not a viewport
+                    // handoff, or when the user explicitly asked to pause the player.
+                    if (state == 0) explicitUserPause = false
                     resumePlaybackOnNextOrientationChange = false
                     if (customView != null || isCssFullscreen) {
                         wasPlayingBeforeFullscreen = false
@@ -470,6 +509,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             setBackgroundColor(AndroidColor.rgb(8, 9, 12))
             setPadding(0, 0, 0, dp(4))
         }
+        contentContainer = content
 
         // Compact header: one navigation control and one title, without duplicated branding.
         val header = LinearLayout(this).apply {
@@ -514,6 +554,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
         ))
+        inlinePlayerLayoutParams = playerContainer.layoutParams
 
         val info = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -614,6 +655,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             clipToPadding = false
             addView(content)
         }
+        playerScrollView = scroll
         root.addView(scroll, FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT
@@ -690,7 +732,12 @@ class YouTubePlayerActivity : ComponentActivity() {
                 .getBoolean("youtube_playback_is_playing", false)
         resumePlaybackOnNextOrientationChange = wasPlayingBeforeFullscreen ||
             resumePlaybackOnNextOrientationChange
-        orientationRecoveryWindowUntilMs = System.currentTimeMillis() + 2500L
+        orientationRecoveryWindowUntilMs = System.currentTimeMillis() + 5000L
+        if (wasPlayingBeforeFullscreen && !explicitUserPause) {
+            getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
+                .putBoolean("youtube_playback_is_playing", true)
+                .apply()
+        }
 
         // Keep the existing YouTube WebView/media element alive. Do not invoke
         // YouTube's native fullscreen button or video.webkitEnterFullscreen(),
@@ -719,7 +766,8 @@ class YouTubePlayerActivity : ComponentActivity() {
                 '.ytp-show-cards-title,ytm-player-overlay-renderer,ytm-video-overlay-renderer,' +
                 'ytm-mobile-player-overlay-renderer { display:none!important; }' +
                 'ytm-player { position:fixed!important; inset:0!important; width:auto!important;height:auto!important;min-width:0!important;min-height:0!important;max-width:none!important;max-height:none!important;aspect-ratio:auto!important;z-index:2147483647!important;background:#000!important;overflow:hidden!important;margin:0!important;padding:0!important; }' +
-                'ytm-player video,video.html5-main-video,.html5-video-container { box-sizing:border-box!important;display:block!important;position:absolute!important;inset:0!important;width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;max-width:100%!important;max-height:100%!important;object-fit:contain!important;object-position:center center!important;margin:0!important;padding:0!important; }';
+                'ytm-player,#player-container,#player-container-inner,#movie_player,.html5-video-player,.html5-video-container { box-sizing:border-box!important;max-width:100%!important;max-height:100%!important;overflow:hidden!important;margin:0!important;padding:0!important; }' +
+                'ytm-player video,video.html5-main-video { object-fit:contain!important;object-position:center center!important;max-width:100%!important;max-height:100%!important; }';
               return 'ok';
             })();
             """.trimIndent()
@@ -1530,24 +1578,57 @@ class YouTubePlayerActivity : ComponentActivity() {
         attempt(0)
     }
 
-    private fun pauseYouTubePlayback() {
-        // An explicit Pause must cancel background and rotation recovery, including
-        // the pre-fullscreen snapshot that would otherwise request Play on exit.
+    private fun markExplicitPauseIntent() {
+        explicitUserPause = true
         resumePlaybackOnNextOrientationChange = false
         wasPlayingBeforeFullscreen = false
         orientationRecoveryWindowUntilMs = 0L
-        // Invalidate any delayed fullscreen recovery already queued. Otherwise a pending
-        // post-rotation callback can send Play again just after the user pressed Pause.
         fullscreenExitGeneration++
         fullscreenExitRecoveryPending = false
         fullscreenRecoveryGeneration++
+        orientationPlaybackRecoveryGeneration++
         playbackRequestGeneration++
         backgroundPlaybackRecoveryGeneration++
         getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
             .putBoolean("youtube_playback_is_playing", false)
+            .putBoolean("youtube_is_playing", false)
             .apply()
-        // Keep background mode enabled across a deliberate pause; the playback flag
-        // prevents recovery until the user presses Play again.
+        youtubePlayerState = 2
+        updatePlaybackButton()
+        syncYouTubeBackgroundPlayback(2)
+    }
+
+    private fun markExplicitPlayIntent() {
+        explicitUserPause = false
+        resumePlaybackOnNextOrientationChange = true
+        orientationRecoveryWindowUntilMs = System.currentTimeMillis() + 2200L
+        getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
+            .putBoolean("youtube_playback_is_playing", true)
+            .apply()
+    }
+
+    private fun noteViewportPlaybackHandoff() {
+        if (isFinishing || isDestroyed || webView == null || explicitUserPause) return
+        val now = System.currentTimeMillis()
+        orientationRecoveryWindowUntilMs = maxOf(orientationRecoveryWindowUntilMs, now + 5000L)
+        resumePlaybackOnNextOrientationChange = true
+        getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
+            .putBoolean("youtube_playback_is_playing", true)
+            .apply()
+        val generation = ++orientationPlaybackRecoveryGeneration
+        playbackPositionHandler.postDelayed({
+            if (generation != orientationPlaybackRecoveryGeneration ||
+                explicitUserPause || isFinishing || isDestroyed || webView == null ||
+                !getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+                    .getBoolean("youtube_playback_is_playing", false)
+            ) return@postDelayed
+            recoverFullscreenPlayback(allowPageReloadFallback = false)
+        }, 1100L)
+    }
+
+    private fun pauseYouTubePlayback() {
+        // A deliberate app-level Pause invalidates every pending rotation recovery.
+        markExplicitPauseIntent()
         runYoutubePlaybackCommand("pause")
     }
 
@@ -1744,6 +1825,9 @@ class YouTubePlayerActivity : ComponentActivity() {
 
     private fun runYoutubePlaybackCommand(command: String) {
         if (webView == null || isFinishing || isDestroyed) return
+        if (command == "toggle") {
+            orientationPlaybackRecoveryGeneration++
+        }
         val generation = ++playbackCommandGeneration
         // A button press sends one playback command. Do not repeatedly call playVideo()
         // while YouTube is buffering: repeated commands can cause stutter and stop playback.
@@ -1754,6 +1838,24 @@ class YouTubePlayerActivity : ComponentActivity() {
                 webView == null || isFinishing || isDestroyed
             ) return@evaluateJavascript
             val response = result.orEmpty()
+            if (command == "toggle") {
+                runOnUiThread {
+                    if (generation == playbackCommandGeneration &&
+                        !isFinishing && !isDestroyed
+                    ) {
+                        if (response.contains("paused")) {
+                            markExplicitPauseIntent()
+                        } else if (response.contains("requested-api") ||
+                            response.contains("requested-button") ||
+                            response.contains("requested-video") ||
+                            response.contains("playing") ||
+                            response.contains("buffering")
+                        ) {
+                            markExplicitPlayIntent()
+                        }
+                    }
+                }
+            }
             val accepted = response.contains("playing") ||
                 response.contains("buffering") ||
                 response.contains("requested-api") ||
@@ -1802,7 +1904,12 @@ class YouTubePlayerActivity : ComponentActivity() {
 
     private fun requestYouTubePlayback() {
         if (!youtubePlayerReady || webView == null || isFinishing || isDestroyed) return
+        explicitUserPause = false
+        orientationPlaybackRecoveryGeneration++
         resumePlaybackOnNextOrientationChange = true
+        getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
+            .putBoolean("youtube_playback_is_playing", true)
+            .apply()
         val requestGeneration = ++playbackRequestGeneration
         fun attempt(remaining: Int) {
             if (requestGeneration != playbackRequestGeneration ||
@@ -2578,8 +2685,89 @@ class YouTubePlayerActivity : ComponentActivity() {
                             }, 500);
                           }
                           installNgocSiBridge(0);
+
+                          // The page can pause/replace its media node during a rotation. Capture
+                          // the last real playback progress before that happens, then let native
+                          // code recover the same player after its viewport has settled.
+                          (function installNgocSiViewportPlaybackGuard() {
+                            if (window.__ngocSiViewportPlaybackGuardInstalled) return;
+                            window.__ngocSiViewportPlaybackGuardInstalled = true;
+                            function findPlaybackControl(event) {
+                              var path = event && typeof event.composedPath === 'function'
+                                ? event.composedPath() : [event.target];
+                              for (var i = 0; i < path.length; i++) {
+                                var node = path[i];
+                                if (!node || node.nodeType !== 1) continue;
+                                var tag = String(node.tagName || '').toLowerCase();
+                                var candidate = tag === 'button' ||
+                                  node.getAttribute('role') === 'button' ||
+                                  (node.matches && node.matches('.ytp-button,ytm-button-renderer'));
+                                if (!candidate) continue;
+                                var label = '';
+                                try {
+                                  label = [
+                                    node.getAttribute('aria-label') || '',
+                                    node.getAttribute('title') || '',
+                                    node.getAttribute('data-tooltip-text') || '',
+                                    node.getAttribute('data-title-no-tooltip') || '',
+                                    node.innerText || node.textContent || '',
+                                    typeof node.className === 'string' ? node.className : '',
+                                    node.id || ''
+                                  ].join(' ').toLowerCase().replace(/\s+/g, ' ').trim();
+                                } catch (_) {}
+                                if (/pause|tạm dừng|tam dung/.test(label)) return 'pause';
+                                if (/\bplay\b|phát|resume|tiếp tục|tiep tuc/.test(label)) return 'play';
+                              }
+                              return '';
+                            }
+                            document.addEventListener('click', function(event) {
+                              if (!event || !event.isTrusted) return;
+                              var action = findPlaybackControl(event);
+                              if (!action) return;
+                              if (action === 'pause') {
+                                window.__ngocSiExplicitPauseAt = Date.now();
+                                try { AndroidBridge.onExplicitPauseRequested(); } catch (_) {}
+                              } else {
+                                window.__ngocSiExplicitPauseAt = 0;
+                                try { AndroidBridge.onExplicitPlayRequested(); } catch (_) {}
+                              }
+                            }, true);
+
+                            var lastHandoffAt = 0;
+                            function onViewportChange() {
+                              var now = Date.now();
+                              if (now - lastHandoffAt < 500) return;
+                              var explicitPauseAt = Number(window.__ngocSiExplicitPauseAt || 0);
+                              if (explicitPauseAt > 0 && now - explicitPauseAt < 5000) return;
+                              var video = null;
+                              try {
+                                if (typeof window.__ngocSiFindActiveVideo === 'function') {
+                                  video = window.__ngocSiFindActiveVideo();
+                                }
+                              } catch (_) {}
+                              var progressAt = Number(window.__ngocSiPlaybackProgressAt || 0);
+                              var recentProgress = progressAt > 0 && now - progressAt < 1800;
+                              var wasActuallyPlaying = window.__ngocSiPlaybackActuallyPlaying === true;
+                              if (!video || video.ended || (!recentProgress && !wasActuallyPlaying)) return;
+                              lastHandoffAt = now;
+                              window.__ngocSiPlaybackIntentUntil = now + 5000;
+                              try { AndroidBridge.onViewportPlaybackHandoff(); } catch (_) {}
+                            }
+                            window.addEventListener('orientationchange', onViewportChange, {passive:true});
+                            window.addEventListener('resize', onViewportChange, {passive:true});
+                            if (window.visualViewport) {
+                              window.visualViewport.addEventListener('resize', onViewportChange, {passive:true});
+                            }
+                          })();
                         })();
                     """.trimIndent(), null)
+                    // onPageFinished can run before the final Android viewport has been measured.
+                    // Re-fit once after the CSS/bridge is installed; the sync is bounded, not a loop.
+                    view.postDelayed({
+                        if (!isFinishing && !isDestroyed && !isCssFullscreen && webView === view) {
+                            scheduleInlinePlayerLayoutSync()
+                        }
+                    }, 350L)
                 }
 
                 override fun onReceivedError(
@@ -2899,7 +3087,18 @@ class YouTubePlayerActivity : ComponentActivity() {
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
-        orientationRecoveryWindowUntilMs = System.currentTimeMillis() + 1800L
+        val playbackPrefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+        val intendedBeforeConfigurationChange = !explicitUserPause && (
+            youtubePlayerState == 1 ||
+                resumePlaybackOnNextOrientationChange ||
+                wasPlayingBeforeFullscreen ||
+                playbackPrefs.getBoolean("youtube_playback_is_playing", false)
+            )
+        orientationRecoveryWindowUntilMs = System.currentTimeMillis() + 5000L
+        if (intendedBeforeConfigurationChange) {
+            resumePlaybackOnNextOrientationChange = true
+            playbackPrefs.edit().putBoolean("youtube_playback_is_playing", true).apply()
+        }
 
         // The manifest handles orientation changes without recreating this Activity.
         if (!::playerContainer.isInitialized || !::root.isInitialized) return
@@ -3041,8 +3240,56 @@ class YouTubePlayerActivity : ComponentActivity() {
         playerContainer.takeIf { ::playerContainer.isInitialized }?.removeAllViews()
     }
 
+    private fun setFullscreenLayout(active: Boolean) {
+        val content = contentContainer ?: return
+        if (active == fullscreenLayoutActive) return
+
+        if (active) {
+            inlineContentPadding = intArrayOf(
+                content.paddingLeft, content.paddingTop, content.paddingRight, content.paddingBottom
+            )
+            fullscreenHiddenChildVisibilities.clear()
+            for (index in 0 until content.childCount) {
+                val child = content.getChildAt(index)
+                if (child !== playerContainer) {
+                    fullscreenHiddenChildVisibilities[child] = child.visibility
+                    child.visibility = View.GONE
+                }
+            }
+            inlineLoadingBarVisibility = loadingBar?.visibility
+            loadingBar?.visibility = View.GONE
+            content.setPadding(0, 0, 0, 0)
+            fullscreenLayoutActive = true
+            playerContainer.layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.MATCH_PARENT
+            )
+            playerScrollView?.scrollTo(0, 0)
+        } else {
+            fullscreenLayoutActive = false
+            fullscreenHiddenChildVisibilities.forEach { (view, visibility) ->
+                view.visibility = visibility
+            }
+            fullscreenHiddenChildVisibilities.clear()
+            inlineContentPadding?.let { padding ->
+                if (padding.size == 4) content.setPadding(padding[0], padding[1], padding[2], padding[3])
+            }
+            inlineContentPadding = null
+            inlinePlayerLayoutParams?.let { playerContainer.layoutParams = it }
+            inlineLoadingBarVisibility?.let { loadingBar?.visibility = it }
+            inlineLoadingBarVisibility = null
+        }
+
+        playerContainer.requestLayout()
+        content.requestLayout()
+        playerScrollView?.requestLayout()
+        if (::root.isInitialized) root.requestLayout()
+    }
+
     private fun enterFullscreen() {
-        // Landscape guarantees the fullscreen video uses the long edge of the phone.
+        // The existing WebView stays attached; only sibling UI is hidden so the player
+        // receives the full activity viewport rather than the space below the header/actions.
+        setFullscreenLayout(true)
         requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).apply {
@@ -3058,7 +3305,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         if (customView == null && !isCssFullscreen) return
         val exitGeneration = ++fullscreenExitGeneration
         fullscreenExitRecoveryPending = true
-        orientationRecoveryWindowUntilMs = System.currentTimeMillis() + 2200L
+        orientationRecoveryWindowUntilMs = System.currentTimeMillis() + 5000L
         // Cancel stale orientation/fullscreen probes so this exit owns exactly one recovery cycle.
         fullscreenRecoveryGeneration++
         fullscreenViewportSyncGeneration++
@@ -3088,7 +3335,14 @@ class YouTubePlayerActivity : ComponentActivity() {
         // Only recover playback when it was intended to be active. An explicit user Pause
         // must not be turned into an automatic Play by the fullscreen-dismiss callback.
         val shouldRecoverPlayback =
-            shouldResumeAfterNativeFullscreen || shouldResumeAfterCssFullscreen
+            !explicitUserPause &&
+                (shouldResumeAfterNativeFullscreen || shouldResumeAfterCssFullscreen)
+        if (shouldRecoverPlayback) {
+            resumePlaybackOnNextOrientationChange = true
+            getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
+                .putBoolean("youtube_playback_is_playing", true)
+                .apply()
+        }
         wasPlayingBeforeFullscreen = false
 
         if (isCssFullscreen) {
@@ -3127,6 +3381,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         customViewCallback = null
         requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         playerContainer.visibility = View.VISIBLE
+        setFullscreenLayout(false)
         WindowCompat.setDecorFitsSystemWindows(window, true)
         WindowInsetsControllerCompat(window, window.decorView)
             .show(WindowInsetsCompat.Type.systemBars())
@@ -3242,7 +3497,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun recoverFullscreenPlayback(allowPageReloadFallback: Boolean = true) {
-        if (isFinishing || isDestroyed || webView == null) return
+        if (isFinishing || isDestroyed || webView == null || explicitUserPause) return
         val generation = ++fullscreenRecoveryGeneration
         var previousPosition: Double? = null
         var playRequested = false
@@ -3255,7 +3510,7 @@ class YouTubePlayerActivity : ComponentActivity() {
 
         fun attempt(number: Int) {
             if (generation != fullscreenRecoveryGeneration ||
-                isFinishing || isDestroyed || webView == null
+                explicitUserPause || isFinishing || isDestroyed || webView == null
             ) return
 
             // First request Play only if the media element is genuinely paused.
@@ -3403,7 +3658,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             """.trimIndent()
 
             webView?.evaluateJavascript(script) { result ->
-                if (generation != fullscreenRecoveryGeneration) return@evaluateJavascript
+                if (generation != fullscreenRecoveryGeneration || explicitUserPause) return@evaluateJavascript
                 val fields = result.orEmpty().trim('"').split('|')
                 val state = fields.getOrNull(0).orEmpty()
                 val currentPosition = fields.getOrNull(1)?.toDoubleOrNull()
