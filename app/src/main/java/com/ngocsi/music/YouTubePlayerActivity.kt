@@ -1623,6 +1623,7 @@ class YouTubePlayerActivity : ComponentActivity() {
 
                 var api = getPlayerApi();
                 var video = findVideo();
+                var foundRenderableVideo = !!video;
                 if (!video) {
                   // During landscape-to-portrait handoff Chromium can temporarily report a
                   // zero-size rectangle for the still-connected YouTube video. Keep Play/Pause
@@ -1686,10 +1687,13 @@ class YouTubePlayerActivity : ComponentActivity() {
                 if (api && typeof api.playVideo === 'function') {
                   try {
                     api.playVideo();
-                    return 'requested-api';
+                    // For a normal visible player, keep one transport path per request.
+                    // If rotation left a zero-size video surface, also call the connected
+                    // HTML5 media node directly rather than treating the API call as success.
+                    if (foundRenderableVideo) return 'requested-api';
                   } catch (_) {}
                 }
-                if (clickPlayButton()) return 'requested-button';
+                if (foundRenderableVideo && clickPlayButton()) return 'requested-button';
                 try {
                   var promise = video.play();
                   if (promise && typeof promise.catch === 'function') {
@@ -3197,6 +3201,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                       return 'NO_VIDEO|0|0';
                     }
 
+                    var videoIsRenderable = isRenderable(video);
                     var position = Number(video.currentTime || 0);
                     var ready = Number(video.readyState || 0);
                     if (video.ended) return 'ENDED|' + position + '|' + ready;
@@ -3214,7 +3219,11 @@ class YouTubePlayerActivity : ComponentActivity() {
                     // logically "playing" while currentTime no longer advances. Recover both
                     // a genuinely paused element and a stalled, non-paused one.
                     if (mode === 'initial' && (video.paused || !clockAdvancing)) {
-                      if (video.paused && player && typeof player.playVideo === 'function') {
+                      // When the media node is attached but its viewport is temporarily zero,
+                      // use HTMLMediaElement.play() directly. Its player API may report success
+                      // without reactivating the stalled media pipeline after a rotation.
+                      if (videoIsRenderable && video.paused &&
+                          player && typeof player.playVideo === 'function') {
                         try { player.playVideo(); return 'REQUESTED|' + position + '|' + ready; } catch (_) {}
                       }
                       if (!video.paused && !clockAdvancing) {
