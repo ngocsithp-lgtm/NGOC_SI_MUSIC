@@ -2875,9 +2875,14 @@ class YouTubePlayerActivity : ComponentActivity() {
                     // YouTube Mobile may restore an old document scroll offset after its
                     // hidden masthead/title rows collapse. Normalize the WebView viewport after
                     // the final native measurement, not only the CSS player width.
-                    listOf(350L, 850L, 1500L, 2600L).forEachIndexed { index, delay ->
+                    // YouTube can apply a late layout shift after its mobile page finishes
+                    // loading. Include one final inline-only normalization after that shift;
+                    // never touch the active fullscreen/custom surface.
+                    listOf(350L, 850L, 1500L, 2600L, 3800L).forEachIndexed { index, delay ->
                         view.postDelayed({
-                            if (!isFinishing && !isDestroyed && !isCssFullscreen && webView === view) {
+                            if (!isFinishing && !isDestroyed && !isCssFullscreen &&
+                                customView == null && webView === view
+                            ) {
                                 normalizeInlineYoutubeViewport(view)
                                 if (index == 0) scheduleInlinePlayerLayoutSync()
                                 if (index == 2) {
@@ -2893,6 +2898,11 @@ class YouTubePlayerActivity : ComponentActivity() {
                                         fullscreenExitGeneration,
                                         expectPlayback
                                     )
+                                }
+                                if (index == 4) {
+                                    // Correct the native frame too if the mobile page changed
+                                    // its viewport dimensions several seconds after opening.
+                                    scheduleInlinePlayerLayoutSync()
                                 }
                             }
                         }, delay)
