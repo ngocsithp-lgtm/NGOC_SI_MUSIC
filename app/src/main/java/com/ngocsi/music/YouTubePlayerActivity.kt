@@ -1621,9 +1621,52 @@ class YouTubePlayerActivity : ComponentActivity() {
                   return false;
                 }
 
-                var video = findVideo();
-                if (!video) return 'no-video';
                 var api = getPlayerApi();
+                var video = findVideo();
+                if (!video) {
+                  // During landscape-to-portrait handoff Chromium can temporarily report a
+                  // zero-size rectangle for the still-connected YouTube video. Keep Play/Pause
+                  // attached to the real primary media node instead of returning "no-video".
+                  var selectors = [
+                    'video.html5-main-video',
+                    '#movie_player video',
+                    '.html5-video-player video',
+                    'ytm-player video'
+                  ];
+                  for (var s = 0; s < selectors.length && !video; s++) {
+                    var candidates = document.querySelectorAll(selectors[s]);
+                    for (var j = 0; j < candidates.length; j++) {
+                      var candidate = candidates[j];
+                      if (!candidate || !candidate.isConnected) continue;
+                      var hidden = false;
+                      var node = candidate;
+                      while (node && node.nodeType === 1 && node !== document.documentElement) {
+                        var style = window.getComputedStyle(node);
+                        if (style.display === 'none' || style.visibility === 'hidden' ||
+                            Number(style.opacity || 1) === 0) {
+                          hidden = true;
+                          break;
+                        }
+                        node = node.parentElement;
+                      }
+                      if (!hidden) {
+                        video = candidate;
+                        break;
+                      }
+                    }
+                  }
+                }
+                if (!video) {
+                  // If YouTube has temporarily replaced the media element, its player API can
+                  // still accept Play/Pause while the new video node is being attached.
+                  if ('$safeCommand' === 'pause' && api && typeof api.pauseVideo === 'function') {
+                    try { api.pauseVideo(); return 'paused-no-video'; } catch (_) {}
+                  }
+                  if (api && typeof api.playVideo === 'function') {
+                    try { api.playVideo(); return 'requested-api-no-video'; } catch (_) {}
+                  }
+                  return 'no-video';
+                }
 
                 var actuallyPlaying = isActuallyPlaying(video);
                 var wantsPause = '$safeCommand' === 'pause' ||
@@ -3115,6 +3158,17 @@ class YouTubePlayerActivity : ComponentActivity() {
                       }
                       return true;
                     }
+                    function isAttachedNonHidden(candidate) {
+                      if (!candidate || !candidate.isConnected) return false;
+                      var node = candidate;
+                      while (node && node.nodeType === 1 && node !== document.documentElement) {
+                        var style = window.getComputedStyle(node);
+                        if (style.display === 'none' || style.visibility === 'hidden' ||
+                            Number(style.opacity || 1) === 0) return false;
+                        node = node.parentElement;
+                      }
+                      return true;
+                    }
                     if (!isRenderable(video)) {
                       var candidates = Array.prototype.slice.call(document.querySelectorAll('video'));
                       video = candidates.find(function(candidate) {
@@ -3123,9 +3177,25 @@ class YouTubePlayerActivity : ComponentActivity() {
                            !!candidate.closest('#movie_player') ||
                            !!candidate.closest('.html5-video-player') ||
                            !!candidate.closest('ytm-player'));
-                      }) || candidates.find(isRenderable) || null;
+                      }) || candidates.find(isRenderable) ||
+                        candidates.find(function(candidate) {
+                          return isAttachedNonHidden(candidate) &&
+                            (candidate.classList.contains('html5-main-video') ||
+                             !!candidate.closest('#movie_player') ||
+                             !!candidate.closest('.html5-video-player') ||
+                             !!candidate.closest('ytm-player'));
+                        }) || null;
                     }
-                    if (!video) return 'NO_VIDEO|0|0';
+                    if (!video) {
+                      var apiOnlyPlayer = document.querySelector('#movie_player') ||
+                                          document.querySelector('.html5-video-player') ||
+                                          document.querySelector('ytm-player');
+                      if ((mode === 'initial' || mode === 'fallback') &&
+                          apiOnlyPlayer && typeof apiOnlyPlayer.playVideo === 'function') {
+                        try { apiOnlyPlayer.playVideo(); return 'API_ONLY|0|0'; } catch (_) {}
+                      }
+                      return 'NO_VIDEO|0|0';
+                    }
 
                     var position = Number(video.currentTime || 0);
                     var ready = Number(video.readyState || 0);
@@ -3187,7 +3257,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 val currentPosition = fields.getOrNull(1)?.toDoubleOrNull()
 
                 if (state == "ENDED") return@evaluateJavascript
-                if (state == "REQUESTED") playRequested = true
+                if (state == "REQUESTED" || state == "API_ONLY") playRequested = true
 
                 // Confirm recovery only when the actual media clock advances. "ACTIVE" or
                 // "buffering" alone is not enough and must not trigger more Play commands.
