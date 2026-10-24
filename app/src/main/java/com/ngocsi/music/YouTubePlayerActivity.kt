@@ -1776,8 +1776,8 @@ class YouTubePlayerActivity : ComponentActivity() {
             if (requestGeneration != playbackRequestGeneration ||
                 isFinishing || isDestroyed || webView == null
             ) return
-            webView?.evaluateJavascript(youtubePlaybackScript("play")) { result ->
-                if (requestGeneration != playbackRequestGeneration) return@evaluateJavascript
+            webView?.evaluateJavascript(youtubePlaybackScript("play")) requestPlaybackCallback@{ result ->
+                if (requestGeneration != playbackRequestGeneration) return@requestPlaybackCallback
                 val response = result.orEmpty()
                 val accepted = response.contains("playing") ||
                     response.contains("buffering") ||
@@ -1827,10 +1827,10 @@ class YouTubePlayerActivity : ComponentActivity() {
                               return 'STALLED';
                             })();
                         """.trimIndent()
-                        webView?.evaluateJavascript(verifyScript) { verifyResult ->
+                        webView?.evaluateJavascript(verifyScript) verifyPlaybackCallback@{ verifyResult ->
                             if (requestGeneration != playbackRequestGeneration ||
                                 isFinishing || isDestroyed || fullscreenExitRecoveryPending
-                            ) return@evaluateJavascript
+                            ) return@verifyPlaybackCallback
 
                             val mediaStatus = verifyResult.orEmpty().trim('"')
                             if (mediaStatus == "PAUSED" || mediaStatus == "STALLED") {
