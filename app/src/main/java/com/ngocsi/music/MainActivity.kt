@@ -5189,8 +5189,8 @@ class MainActivity : ComponentActivity() {
                     horizontalArrangement = Arrangement.spacedBy(9.dp)
                 ) {
                     ProHomeQuickTile("◉", "Radio", onOpenRadio, Modifier.weight(1f))
-                    ProHomeQuickTile("▣", "TV", onOpenTv, Modifier.weight(1f))
-                    Spacer(Modifier.weight(1f))
+                    ProHomeQuickTile("▣", "TV trực tiếp", onOpenTv, Modifier.weight(1f))
+                    ProHomeQuickTile("☷", "Playlist", onOpenPlaylists, Modifier.weight(1f))
                 }
             }
 
