@@ -53,8 +53,8 @@ android {
         ndk {
             abiFilters += listOf("arm64-v8a")
         }
-        versionCode = 73
-        versionName = "5.53"
+        versionCode = 74
+        versionName = "5.54"
         buildConfigField("String", "YOUTUBE_API_KEY", youtubeApiKey.toBuildConfigLiteral())
         buildConfigField("String", "DRIVE_API_KEY", driveApiKey.toBuildConfigLiteral())
         buildConfigField("String", "FIREBASE_API_KEY", firebaseApiKey.toBuildConfigLiteral())
