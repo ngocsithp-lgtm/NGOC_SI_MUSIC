@@ -1,13 +1,7 @@
 package com.ngocsi.music
 
-import android.app.PictureInPictureParams
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.content.res.Configuration
-import android.graphics.Rect
-import android.util.Rational
-import android.view.ViewGroup
-import android.widget.Toast
 import android.net.Uri
 import android.graphics.BitmapFactory
 import android.graphics.Bitmap
@@ -65,14 +59,13 @@ class YouTubePlayerActivity : ComponentActivity() {
     private lateinit var playerContent: LinearLayout
     private lateinit var contentScroll: ScrollView
     private var normalPlayerHeight = 0
-    private var inPlayerPipPresentation = false
     private var youtubeMediaSession: PlatformMediaSession? = null
-    private lateinit var pipButton: Button
     private var webView: WebView? = null
     // Invalidates callbacks originating from an old/destroyed WebView instance.
     private var playerGeneration = 0
     private var customView: View? = null
     private var customViewCallback: WebChromeClient.CustomViewCallback? = null
+    private var wasPlayingBeforeFullscreen = false
     private var videoId: String = ""
     private var title: String = "YouTube"
     private var channel: String = "YouTube"
@@ -121,7 +114,6 @@ class YouTubePlayerActivity : ComponentActivity() {
                 youtubePlayerReady = true
                 updatePlaybackButton()
                 updateYoutubeMediaSession()
-                updatePictureInPictureParams()
                 restoreSavedPlaybackPosition()
                 startPlaybackPositionSaver()
             }
@@ -135,6 +127,9 @@ class YouTubePlayerActivity : ComponentActivity() {
                     return@runOnUiThread
                 }
                 youtubePlayerState = state
+                if (customView != null) {
+                    wasPlayingBeforeFullscreen = state == 1 || state == 3
+                }
                 updatePlaybackButton()
                 updateYoutubeMediaSession()
                 updatePictureInPictureParams()
@@ -351,7 +346,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         // Keep the embedded player at the standard 16:9 video ratio instead of
         // stretching it to fill the entire remaining screen. This gives a more
         // predictable phone layout while fullscreen remains available from YouTube.
-        normalPlayerHeight = (resources.displayMetrics.widthPixels * 9f / 16f).toInt()
+        normalPlayerHeight = calculateNormalPlayerHeight()
         val playerHeight = normalPlayerHeight
         content.addView(playerContainer, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
@@ -365,11 +360,9 @@ class YouTubePlayerActivity : ComponentActivity() {
         previousButton = actionButton("⏮") { playPrevious() }
         playPauseButton = actionButton("▶") { toggleYoutubePlayback() }
         nextButton = actionButton("⏭") { playNext() }
-        pipButton = actionButton("▣ PiP") { enterPlayerPip() }
         styleWideButton(playPauseButton, emphasized = true)
         previousButton.contentDescription = "Video trước"
         nextButton.contentDescription = "Video tiếp theo"
-        pipButton.contentDescription = "Thu nhỏ trình phát YouTube thành cửa sổ PiP"
         transport.addView(previousButton, LinearLayout.LayoutParams(dp(50), dp(44)).apply {
             marginEnd = dp(8)
         })
@@ -379,7 +372,6 @@ class YouTubePlayerActivity : ComponentActivity() {
         transport.addView(nextButton, LinearLayout.LayoutParams(dp(50), dp(44)).apply {
             marginEnd = dp(7)
         })
-        transport.addView(pipButton, LinearLayout.LayoutParams(dp(70), dp(44)))
         content.addView(transport)
 
         val utilityRow = LinearLayout(this).apply {
@@ -1290,6 +1282,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                         return
                     }
 
+                    wasPlayingBeforeFullscreen = youtubePlayerState == 1 || youtubePlayerState == 3
                     customView = view
                     customViewCallback = callback
                     playerContainer.visibility = View.GONE
@@ -1558,9 +1551,33 @@ class YouTubePlayerActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         // Re-arm WebView media/JS processing whenever the Activity returns to
-        // the foreground. This does not attempt to bypass YouTube background-
-        // playback restrictions; it only makes foreground recovery reliable.
+        // the foreground without recreating the player or losing its queue.
         webView?.onResume()
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        if (!::root.isInitialized || !::playerContainer.isInitialized) return
+
+        // The manifest keeps this Activity alive across rotation. Recalculate the
+        // inline player height after Android applies the new display metrics.
+        root.post {
+            if (isFinishing || isDestroyed) return@post
+            updateResponsivePlayerLayout()
+            webView?.requestLayout()
+            webView?.invalidate()
+            playerContainer.requestLayout()
+            root.requestLayout()
+
+            if (customView != null) {
+                WindowCompat.setDecorFitsSystemWindows(window, false)
+                WindowInsetsControllerCompat(window, window.decorView).apply {
+                    hide(WindowInsetsCompat.Type.systemBars())
+                    systemBarsBehavior =
+                        WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                }
+            }
+        }
     }
 
     private fun createYoutubeMediaSession() {
@@ -1651,124 +1668,6 @@ class YouTubePlayerActivity : ComponentActivity() {
     private fun isYoutubeActivelyPlaying(): Boolean =
         youtubePlayerReady && youtubePlayerState == 1 && !isFinishing && !isDestroyed
 
-    private fun buildPictureInPictureParams(autoEnter: Boolean): PictureInPictureParams? {
-        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.O ||
-            !packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
-        ) {
-            return null
-        }
-
-        val builder = PictureInPictureParams.Builder()
-            .setAspectRatio(Rational(16, 9))
-        val sourceRect = Rect()
-        if (::playerContainer.isInitialized &&
-            playerContainer.isAttachedToWindow &&
-            playerContainer.getGlobalVisibleRect(sourceRect) &&
-            !sourceRect.isEmpty
-        ) {
-            builder.setSourceRectHint(sourceRect)
-        }
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-            builder.setAutoEnterEnabled(autoEnter)
-        }
-        return builder.build()
-    }
-
-    private fun updatePictureInPictureParams() {
-        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.O) return
-        val params = buildPictureInPictureParams(autoEnter = isYoutubeActivelyPlaying()) ?: return
-        runCatching { setPictureInPictureParams(params) }
-    }
-
-    private fun enterPlayerPip() {
-        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.O ||
-            !packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
-        ) {
-            Toast.makeText(this, "Thiết bị chưa hỗ trợ PiP cho ứng dụng này.", Toast.LENGTH_SHORT).show()
-            return
-        }
-        if (!isYoutubeActivelyPlaying()) {
-            Toast.makeText(this, "Hãy phát video YouTube trước khi thu nhỏ PiP.", Toast.LENGTH_SHORT).show()
-            return
-        }
-        // If YouTube is currently using its fullscreen custom view, return to the
-        // inline WebView surface before moving that surface into the PiP window.
-        if (customView != null) exitFullscreen()
-        val params = buildPictureInPictureParams(autoEnter = false) ?: return
-        runCatching {
-            enterPictureInPictureMode(params)
-        }.onFailure {
-            Toast.makeText(this, "Không thể mở cửa sổ PiP. Hãy kiểm tra quyền Hình trong hình của ứng dụng.", Toast.LENGTH_LONG).show()
-        }
-    }
-
-    override fun onPictureInPictureModeChanged(
-        isInPictureInPictureMode: Boolean,
-        newConfig: Configuration
-    ) {
-        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
-        if (!::root.isInitialized || !::playerContainer.isInitialized ||
-            !::playerContent.isInitialized || !::contentScroll.isInitialized
-        ) {
-            return
-        }
-
-        if (isInPictureInPictureMode) {
-            if (inPlayerPipPresentation) return
-            inPlayerPipPresentation = true
-
-            // Put the actual WebView surface in the PiP window by itself.
-            // Scaling the entire page would leave the video clipped or too small.
-            (playerContainer.parent as? ViewGroup)?.removeView(playerContainer)
-            root.removeView(contentScroll)
-            loadingBar?.visibility = View.GONE
-            errorView?.visibility = View.GONE
-            root.addView(
-                playerContainer,
-                0,
-                FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    Gravity.CENTER
-                )
-            )
-        } else {
-            if (!inPlayerPipPresentation) return
-            inPlayerPipPresentation = false
-            root.removeView(playerContainer)
-            playerContent.addView(
-                playerContainer,
-                1.coerceAtMost(playerContent.childCount),
-                LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    normalPlayerHeight.coerceAtLeast(dp(200))
-                )
-            )
-            root.addView(
-                contentScroll,
-                0,
-                FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    FrameLayout.LayoutParams.MATCH_PARENT
-                )
-            )
-            updatePictureInPictureParams()
-        }
-    }
-
-    override fun onUserLeaveHint() {
-        // Persist the active YouTube item whenever the user leaves the Activity.
-        saveLastPlayedState()
-        // Android 11 and earlier need an explicit transition; Android 12+ uses
-        // auto-enter PiP params updated when playback actually starts.
-        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S &&
-            isYoutubeActivelyPlaying()
-        ) {
-            enterPlayerPip()
-        }
-        super.onUserLeaveHint()
-    }
-
     override fun onPause() {
         // Keep WebView media lifecycle untouched here. Calling WebView.onPause()
         // would explicitly suspend WebView media/JS and can make recovery worse.
@@ -1816,6 +1715,20 @@ class YouTubePlayerActivity : ComponentActivity() {
         playerContainer.takeIf { ::playerContainer.isInitialized }?.removeAllViews()
     }
 
+    private fun calculateNormalPlayerHeight(): Int =
+        (resources.displayMetrics.widthPixels * 9f / 16f).toInt().coerceAtLeast(dp(200))
+
+    private fun updateResponsivePlayerLayout() {
+        if (!::playerContainer.isInitialized) return
+        val updatedHeight = calculateNormalPlayerHeight()
+        normalPlayerHeight = updatedHeight
+        val params = playerContainer.layoutParams
+        if (params is LinearLayout.LayoutParams && params.height != updatedHeight) {
+            params.height = updatedHeight
+            playerContainer.layoutParams = params
+        }
+    }
+
     private fun enterFullscreen() {
         requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -1827,17 +1740,50 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun exitFullscreen(notifyCallback: Boolean = true) {
-        customView?.let { root.removeView(it) }
+        val fullscreenView = customView
+        val callback = customViewCallback
+        val shouldResume = wasPlayingBeforeFullscreen
+        val activeWebView = webView
+        val expectedVideoId = videoId
+
+        if (fullscreenView != null) root.removeView(fullscreenView)
         customView = null
-        if (notifyCallback) {
-            customViewCallback?.onCustomViewHidden()
-        }
         customViewCallback = null
-        requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         playerContainer.visibility = View.VISIBLE
+        requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         WindowCompat.setDecorFitsSystemWindows(window, true)
         WindowInsetsControllerCompat(window, window.decorView)
             .show(WindowInsetsCompat.Type.systemBars())
+
+        // Clear custom-view state before notifying YouTube to avoid recursive hide callbacks.
+        if (notifyCallback) runCatching { callback?.onCustomViewHidden() }
+
+        root.post {
+            if (isFinishing || isDestroyed || !::playerContainer.isInitialized) return@post
+            updateResponsivePlayerLayout()
+            playerContainer.visibility = View.VISIBLE
+            playerContainer.requestLayout()
+            root.requestLayout()
+
+            // Keep the same WebView alive across rotation and restore playback only if
+            // it was playing before fullscreen was dismissed.
+            if (activeWebView != null && activeWebView === webView) {
+                activeWebView.onResume()
+                activeWebView.requestLayout()
+                activeWebView.invalidate()
+                if (shouldResume) {
+                    playbackPositionHandler.postDelayed({
+                        if (isFinishing || isDestroyed ||
+                            activeWebView !== webView ||
+                            videoId != expectedVideoId ||
+                            !youtubePlayerReady
+                        ) return@postDelayed
+                        activeWebView.evaluateJavascript("playVideo();", null)
+                    }, 350L)
+                }
+            }
+        }
+        wasPlayingBeforeFullscreen = false
     }
 
     private fun sanitizeVideoId(value: String): String =
