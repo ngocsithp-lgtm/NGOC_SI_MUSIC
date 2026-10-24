@@ -2477,15 +2477,15 @@ class YouTubePlayerActivity : ComponentActivity() {
                               var fitStyle = document.createElement('style');
                               fitStyle.id = 'ngocsi-player-viewport-fix';
                               fitStyle.textContent =
-                                'html,body,ytm-app,ytm-watch {width:100%!important;max-width:none!important;}' +
-                                'ytm-watch {margin-top:0!important;padding-top:0!important;}' +
+                                'html,body,ytm-app,ytm-watch {width:100%!important;height:100%!important;max-width:none!important;margin:0!important;padding:0!important;}' +
+                                'ytm-watch {margin-top:0!important;padding-top:0!important;overflow:hidden!important;}' +
                                 'ytm-watch #player-container-outer,ytm-watch #player-container-inner,' +
                                 'ytm-watch .player-container,ytm-watch #player-container-id {' +
                                 'margin-top:0!important;padding-top:0!important;border-top:0!important;}' +
                                 'ytm-player {box-sizing:border-box!important;display:block!important;position:relative!important;' +
                                 'top:0!important;transform:none!important;width:100%!important;' +
-                                'height:auto!important;min-height:0!important;max-height:none!important;' +
-                                'aspect-ratio:16/9!important;max-width:none!important;margin:0!important;padding:0!important;' +
+                                'height:100%!important;min-height:0!important;max-height:none!important;' +
+                                'aspect-ratio:auto!important;max-width:none!important;margin:0!important;padding:0!important;' +
                                 'border:0!important;overflow:hidden!important;}' +
                                 '#player-container,#player-container-id,#player,#movie_player,.html5-video-player,' +
                                 '.html5-video-container {box-sizing:border-box!important;width:100%!important;' +
@@ -2507,7 +2507,11 @@ class YouTubePlayerActivity : ComponentActivity() {
                               var viewportHeight = Math.max(1, document.documentElement.clientHeight || window.innerHeight || 1);
                               var isFullscreen = !!(document.fullscreenElement ||
                                 document.getElementById('ngocsi-css-fullscreen'));
+                              root.style.setProperty('box-sizing','border-box','important');
+                              root.style.setProperty('max-width','none','important');
                               if (isFullscreen) {
+                                // Fullscreen uses the viewport; Android's host frame is expanded
+                                // before the delayed layout sync measures these dimensions.
                                 root.style.setProperty('position','fixed','important');
                                 root.style.setProperty('left','0','important');
                                 root.style.setProperty('right','0','important');
@@ -2515,29 +2519,22 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 root.style.setProperty('bottom','0','important');
                                 root.style.setProperty('width',viewportWidth+'px','important');
                                 root.style.setProperty('height',viewportHeight+'px','important');
+                                root.style.setProperty('aspect-ratio','auto','important');
                               } else {
-                                // Return to a 16:9 inline frame that is no taller than its
-                                // actual WebView viewport. In landscape, preserve the full video
-                                // without forcing a portrait-derived height beyond the display.
-                                ['position','left','right','top','bottom'].forEach(function(p) {
+                                // The native InlinePlayerFrameLayout already measures an exact 16:9
+                                // surface. Do not calculate another pixel width/height from the
+                                // WebView viewport: that measurement can lag rotation and leave the
+                                // video inset or below a black strip. Let the WebView's measured
+                                // viewport be the single source of truth for inline dimensions.
+                                ['position','left','right','top','bottom','inset'].forEach(function(p) {
                                   root.style.removeProperty(p);
                                 });
-                                var inlineWidth = Math.max(1, viewportWidth);
-                                var inlineHeight = Math.max(1, Math.min(
-                                  Math.round(inlineWidth * 9 / 16), viewportHeight));
-                                var fittedWidth = Math.max(1, Math.min(
-                                  inlineWidth, Math.round(inlineHeight * 16 / 9)));
-                                root.style.setProperty('width',fittedWidth+'px','important');
-                                root.style.setProperty('height',inlineHeight+'px','important');
-                                root.style.setProperty('margin-left','auto','important');
-                                root.style.setProperty('margin-right','auto','important');
+                                root.style.setProperty('width','100%','important');
+                                root.style.setProperty('height','100%','important');
+                                root.style.setProperty('aspect-ratio','auto','important');
+                                root.style.setProperty('margin','0','important');
+                                root.style.setProperty('padding','0','important');
                               }
-                              root.style.setProperty('max-width','none','important');
-                              // Leave the actual HTML5 video element's geometry to YouTube.
-                              // Forcing inline width/height/position here can detach its
-                              // compositor surface after fullscreen exits: audio continues
-                              // while the video frame becomes invisible.
-
                             }
                             // Avoid repeatedly rewriting player dimensions while Chromium is
                             // handing the video surface between portrait, landscape and inline.
