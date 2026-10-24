@@ -2493,7 +2493,8 @@ class YouTubePlayerActivity : ComponentActivity() {
                               fitStyle.id = 'ngocsi-player-viewport-fix';
                               fitStyle.textContent =
                                 'html,body,ytm-app,ytm-watch {width:100%!important;height:100%!important;max-width:none!important;margin:0!important;padding:0!important;}' +
-                                'ytm-watch {position:relative!important;top:0!important;left:0!important;transform:none!important;margin-top:0!important;padding-top:0!important;overflow:hidden!important;}' +
+                                'ytm-app {position:relative!important;overflow:hidden!important;}' +
+                                'ytm-watch {position:absolute!important;inset:0!important;display:block!important;top:0!important;left:0!important;right:0!important;bottom:0!important;transform:none!important;margin:0!important;padding:0!important;overflow:hidden!important;}' +
                                 'ytm-watch #player-container-outer,ytm-watch #player-container-inner,' +
                                 'ytm-watch .player-container,ytm-watch #player-container-id {' +
                                 'margin-top:0!important;padding-top:0!important;border-top:0!important;}' +
