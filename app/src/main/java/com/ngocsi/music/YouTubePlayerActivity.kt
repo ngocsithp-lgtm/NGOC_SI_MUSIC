@@ -268,9 +268,10 @@ class YouTubePlayerActivity : ComponentActivity() {
                     return@runOnUiThread
                 }
                 val nowMs = System.currentTimeMillis()
+                // A fullscreen session alone is not an orientation handoff: the user can
+                // still pause using YouTube's embedded controls after the entry transition ends.
                 val orientationHandoffActive =
-                    nowMs <= orientationRecoveryWindowUntilMs ||
-                    customView != null || isCssFullscreen || fullscreenExitRecoveryPending
+                    nowMs <= orientationRecoveryWindowUntilMs || fullscreenExitRecoveryPending
                 val viewportHandoffActive = orientationHandoffActive ||
                     (nowMs - lastOrientationConfigurationChangeAtMs in 0L..1800L)
                 val playbackIntentStillActive =
