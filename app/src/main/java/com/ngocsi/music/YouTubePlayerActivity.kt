@@ -287,25 +287,20 @@ class YouTubePlayerActivity : ComponentActivity() {
                     )
                 }
 
-                // Preserve playback intent for an actual fullscreen/orientation handoff only.
-                // Previously every PAUSED transition after PLAYING/BUFFERING was assumed to be
-                // rotation, even in normal playback, so the player could stay frozen forever.
+                // Preserve playback intent only for an actual fullscreen/orientation handoff.
+                // The IFrame API does not expose whether PAUSED came from the user's in-player
+                // Pause button or an external lifecycle event, so never auto-play on a plain
+                // PAUSED event. Native Play and voice Play remain explicit recovery commands.
                 if (state == 2 &&
                     (youtubePlayerState == 1 || youtubePlayerState == 3) &&
-                    !explicitUserPause && playbackIntentStillActive
+                    !explicitUserPause && playbackIntentStillActive &&
+                    viewportHandoffActive
                 ) {
-                    if (viewportHandoffActive) {
-                        orientationRecoveryWindowUntilMs = maxOf(
-                            orientationRecoveryWindowUntilMs,
-                            nowMs + 5000L
-                        )
-                        resumePlaybackOnNextOrientationChange = true
-                        return@runOnUiThread
-                    }
-                    scheduleUnexpectedPlaybackRecovery(
-                        delayMs = 350L,
-                        allowPageReloadFallback = true
+                    orientationRecoveryWindowUntilMs = maxOf(
+                        orientationRecoveryWindowUntilMs,
+                        nowMs + 5000L
                     )
+                    resumePlaybackOnNextOrientationChange = true
                     return@runOnUiThread
                 }
 
