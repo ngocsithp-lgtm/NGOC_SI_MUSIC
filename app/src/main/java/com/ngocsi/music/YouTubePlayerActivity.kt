@@ -1056,6 +1056,7 @@ class YouTubePlayerActivity : ComponentActivity() {
               }
               style.textContent =
                 'html,body { width:100%!important;height:100%!important;overflow:hidden!important;background:#000!important;margin:0!important;padding:0!important; }' +
+                'ytm-app,ytm-watch { display:block!important;position:relative!important;width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;overflow:hidden!important;margin:0!important;padding:0!important; }' +
                 'ytm-mobile-topbar-renderer,ytm-pivot-bar-renderer,ytm-slim-video-metadata-section-renderer,ytm-watch-metadata,#masthead-container,' +
                 'ytm-comments-entry-point-header-renderer,ytm-comments-entry-point-teaser-renderer,' +
                 'ytm-comment-section-renderer,ytm-comment-renderer,ytm-comment-thread-renderer,' +
@@ -2659,17 +2660,10 @@ class YouTubePlayerActivity : ComponentActivity() {
                               // The mobile YouTube player lives partly in open shadow roots.
                               // Document CSS cannot reset those wrappers, so the root's own
                               // stylesheet must pin each player layer to the same 0,0 origin.
-                              var viewportRules =
-                                // These shadow-root rules must not force the media tree into a
-                                // duplicate absolute-positioned viewport; preserve YouTube's own
-                                // layout of its internal HTMLVideoElement and compositor layers.
-                                ':host(ytm-app){display:block!important;position:relative!important;width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;margin:0!important;padding:0!important;overflow:hidden!important;transform:none!important;}' +
-                                ':host(ytm-watch){display:block!important;position:relative!important;width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;margin:0!important;padding:0!important;overflow:hidden!important;transform:none!important;}' +
-                                ':host(ytm-player),:host(#movie_player),:host(#player){box-sizing:border-box!important;display:block!important;position:relative!important;width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;max-width:100%!important;max-height:100%!important;aspect-ratio:auto!important;margin:0!important;padding:0!important;border:0!important;overflow:hidden!important;transform:none!important;}' +
-                                '#player-container-outer,#player-container-inner,#player-container-id,#player-container,#player {box-sizing:border-box!important;width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;max-width:100%!important;max-height:100%!important;aspect-ratio:auto!important;margin:0!important;padding:0!important;border:0!important;overflow:hidden!important;}' +
-                                // Do not override the native video surface's position or dimensions.
-                                // Constrain only its maximum size; the YouTube player lays it out natively.
-                                'video,video.html5-main-video {box-sizing:border-box!important;max-width:100%!important;max-height:100%!important;object-fit:contain!important;object-position:50% 50%!important;}';
+                              // Do not override YouTube's internal layout/compositor layers.
+                              // These rules remain present after fullscreen exits and can cause audio
+                              // to continue while the video surface becomes invisible.
+                              var viewportRules = '';
                               var observedRoots = window.__ngocSiObservedOverlayRoots ||
                                 (window.__ngocSiObservedOverlayRoots = new WeakSet());
 
@@ -2790,43 +2784,12 @@ class YouTubePlayerActivity : ComponentActivity() {
                               var fitStyle = document.createElement('style');
                               fitStyle.id = 'ngocsi-player-viewport-fix';
                               fitStyle.textContent =
-                                // Anchor the YouTube app shell to the *WebView viewport*, not its
-                                // page-flow position. Hiding the mobile top bar changes document
-                                // flow asynchronously; that was leaving a black strip above the
-                                // player and shifting the picture down inside the native frame.
-                                'html,body {display:block!important;box-sizing:border-box!important;width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;max-width:none!important;max-height:none!important;margin:0!important;padding:0!important;overflow:hidden!important;background:#000!important;}' +
-                                // Keep the outer mobile page aligned to the WebView, but leave the
-                                // internal YouTube player layers in normal layout flow. Forcing every
-                                // shadow/player layer to absolute/fixed 100% sizing races Chromium's
-                                // video compositor when the viewport changes orientation.
-                                'ytm-app {display:block!important;box-sizing:border-box!important;position:relative!important;width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;max-width:100%!important;max-height:100%!important;margin:0!important;padding:0!important;overflow:hidden!important;transform:none!important;background:#000!important;}' +
-                                'ytm-watch {display:block!important;box-sizing:border-box!important;position:relative!important;width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;max-width:100%!important;max-height:100%!important;margin:0!important;padding:0!important;overflow:hidden!important;background:#000!important;}' +
-                                'ytm-watch #player-container-outer,ytm-watch #player-container-inner,' +
-                                'ytm-watch .player-container,ytm-watch #player-container-id {' +
-                                'width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;margin:0!important;padding:0!important;border:0!important;overflow:hidden!important;}' +
-                                'ytm-player {box-sizing:border-box!important;display:block!important;position:relative!important;width:100%!important;' +
-                                'height:100%!important;min-height:0!important;max-width:100%!important;max-height:100%!important;' +
-                                'aspect-ratio:auto!important;margin:0!important;padding:0!important;border:0!important;overflow:hidden!important;}' +
-                                '#player-container,#player-container-id,#player {box-sizing:border-box!important;width:100%!important;' +
-                                'max-width:100%!important;max-height:100%!important;margin:0!important;padding:0!important;border:0!important;overflow:hidden!important;}' +
-                                // Apply crop to the actual video surface and remove intrinsic aspect-ratio caps.
-                                // Avoid changing its position or explicit dimensions to protect WebView playback.
-                                // Let YouTube/Chromium own the HTMLVideoElement's geometry. Forcing
-                                // absolute positioning and explicit dimensions during a viewport handoff
-                                // can leave the compositor surface frozen after portrait/landscape changes.
-                                'ytm-player video,video.html5-main-video,.html5-video-player video {' +
-                                'object-fit:contain!important;object-position:50% 50%!important;' +
-                                'max-width:100%!important;max-height:100%!important;} ' +
-                                '.html5-video-container {position:relative!important;overflow:hidden!important;}';
+                                // Keep the page background and scroll position stable, but do not
+                                // force internal YouTube player heights in inline mode.
+                                'html,body {display:block!important;box-sizing:border-box!important;width:100%!important;max-width:100%!important;margin:0!important;padding:0!important;overflow:hidden!important;background:#000!important;}';
                               (document.head || document.documentElement).appendChild(fitStyle);
                             }
                             function ngocSiFitPlayerToViewport() {
-                              // Re-measure all three levels (app shell -> watch page -> player)
-                              // against the current WebView viewport. CSS 100vh can keep a stale
-                              // value across Android rotation, so write concrete pixel dimensions
-                              // on each settled resize instead of relying on the old page-flow box.
-                              var viewportWidth = Math.max(1, document.documentElement.clientWidth || window.innerWidth || 1);
-                              var viewportHeight = Math.max(1, document.documentElement.clientHeight || window.innerHeight || 1);
                               var appShell = document.querySelector('ytm-app');
                               var watchShell = document.querySelector('ytm-watch');
                               var root = document.querySelector('ytm-player') ||
@@ -2834,53 +2797,39 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 document.querySelector('#player');
                               var isFullscreen = !!(document.fullscreenElement ||
                                 document.getElementById('ngocsi-css-fullscreen'));
-
-                              // The inline player sits inside a native 16:9 host. Do not leave
-                              // 100%-height inline styles on ytm-app/ytm-watch after fullscreen:
-                              // those page-flow wrappers can retain landscape viewport height
-                              // after Android shrinks back to portrait. Full viewport sizing is
-                              // only valid while the dedicated fullscreen stylesheet is active.
-                              [appShell, watchShell].forEach(function(shell) {
-                                if (!shell) return;
-                                shell.style.setProperty('display','block','important');
-                                shell.style.setProperty('position','relative','important');
-                                ['left','top','right','bottom','inset'].forEach(function(prop) {
-                                  shell.style.removeProperty(prop);
-                                });
-                                shell.style.setProperty('width','100%','important');
-                                shell.style.setProperty('margin','0','important');
-                                shell.style.setProperty('padding','0','important');
-                                shell.style.setProperty('transform','none','important');
-                                shell.style.setProperty('overflow','hidden','important');
-                                if (isFullscreen) {
-                                  shell.style.setProperty('height','100%','important');
-                                } else {
-                                  shell.style.removeProperty('height');
-                                  shell.style.removeProperty('max-height');
-                                }
-                              });
-                              if (!root) return;
-                              root.style.setProperty('box-sizing','border-box','important');
-                              root.style.setProperty('max-width','100%','important');
-                              ['left','top','right','bottom','inset'].forEach(function(prop) {
-                                root.style.removeProperty(prop);
-                              });
-                              root.style.setProperty('position','relative','important');
-                              root.style.setProperty('width','100%','important');
-                              root.style.setProperty('transform','none','important');
-                              root.style.setProperty('margin','0','important');
-                              root.style.setProperty('padding','0','important');
+                              var nodes = [appShell, watchShell, root];
                               if (isFullscreen) {
-                                root.style.setProperty('height','100%','important');
-                                root.style.setProperty('max-height','100%','important');
-                                root.style.setProperty('aspect-ratio','auto','important');
-                              } else {
-                                // Restore YouTube's native inline aspect-ratio/layout instead of
-                                // forcing height:100% against an auto-height page-flow parent.
-                                root.style.removeProperty('height');
-                                root.style.removeProperty('max-height');
-                                root.style.removeProperty('aspect-ratio');
+                                nodes.forEach(function(node) {
+                                  if (!node) return;
+                                  node.style.setProperty('display','block','important');
+                                  node.style.setProperty('position','relative','important');
+                                  node.style.setProperty('width','100%','important');
+                                  node.style.setProperty('height','100%','important');
+                                  node.style.setProperty('max-width','100%','important');
+                                  node.style.setProperty('max-height','100%','important');
+                                  node.style.setProperty('min-width','0','important');
+                                  node.style.setProperty('min-height','0','important');
+                                  node.style.setProperty('margin','0','important');
+                                  node.style.setProperty('padding','0','important');
+                                  node.style.setProperty('overflow','hidden','important');
+                                  node.style.setProperty('transform','none','important');
+                                });
+                                if (root) {
+                                  root.style.setProperty('box-sizing','border-box','important');
+                                  root.style.setProperty('aspect-ratio','auto','important');
+                                }
+                                return;
                               }
+                              // The inline host already controls the 16:9 frame natively. Clear
+                              // only geometry declarations this helper used to write; do not keep
+                              // landscape/fullscreen dimensions on the playing video after shrink.
+                              nodes.forEach(function(node) {
+                                if (!node) return;
+                                ['display','position','left','top','right','bottom','inset',
+                                 'width','height','max-width','max-height','min-width','min-height',
+                                 'box-sizing','transform','margin','padding','aspect-ratio','overflow']
+                                  .forEach(function(prop) { node.style.removeProperty(prop); });
+                              });
                             }
                             // Avoid repeatedly rewriting player dimensions while Chromium is
                             // handing the video surface between portrait, landscape and inline.
