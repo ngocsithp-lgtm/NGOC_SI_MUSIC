@@ -4391,117 +4391,19 @@ class YouTubePlayerActivity : ComponentActivity() {
      * If Chromium's video surface is stalled, rebuild the YouTube page at the last known
      * position instead of repeatedly sending Play to the same frozen media pipeline.
      */
+    /**
+     * Resume the existing HTML5 media session first after fullscreen exit. A single stale
+     * frame/progress sample during the viewport handoff is not proof the page must be reloaded.
+     * The shared recovery controller probes the media clock over several frames and only
+     * uses its one-time page reload fallback if the current video still cannot advance.
+     */
     private fun recoverPlaybackAfterFullscreenExit(exitGeneration: Int) {
         val player = webView ?: return
-        val expectedVideoId = sanitizeVideoId(videoId)
-        if (expectedVideoId.isBlank() || explicitUserPause ||
-            isFinishing || isDestroyed || exitGeneration != fullscreenExitGeneration
+        if (isFinishing || isDestroyed || player !== webView ||
+            exitGeneration != fullscreenExitGeneration || explicitUserPause
         ) return
 
-        val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
-        val probeScript = """
-            (function() {
-              try {
-                var video = null;
-                try {
-                  if (typeof window.__ngocSiFindActiveVideo === 'function')
-                    video = window.__ngocSiFindActiveVideo();
-                } catch (_) {}
-                if (!video) video = document.querySelector('video.html5-main-video') ||
-                  document.querySelector('#movie_player video') ||
-                  document.querySelector('ytm-player video') ||
-                  document.querySelector('video');
-                if (!video) return JSON.stringify({healthy:false, position:0});
-                var now = Date.now();
-                var progressAt = Number(window.__ngocSiPlaybackProgressAt || 0);
-                var clockFresh = !video.paused && !video.ended &&
-                  Number(video.readyState || 0) >= 2 &&
-                  progressAt > 0 && now - progressAt < 1000;
-                var hasFrameCallback = typeof video.requestVideoFrameCallback === 'function';
-                var frameAge = window.__ngocSiFrameTrackedVideo === video &&
-                  Number(window.__ngocSiLastVideoFrameAt || 0) > 0
-                  ? now - Number(window.__ngocSiLastVideoFrameAt || 0) : -1;
-                var frameFresh = !hasFrameCallback || (frameAge >= 0 && frameAge < 1100);
-                return JSON.stringify({
-                  healthy: clockFresh && frameFresh,
-                  position: Number(video.currentTime || 0),
-                  paused: !!video.paused,
-                  readyState: Number(video.readyState || 0),
-                  frameAge: frameAge
-                });
-              } catch (_) {
-                return JSON.stringify({healthy:false, position:0});
-              }
-            })();
-        """.trimIndent()
-
-        player.evaluateJavascript(probeScript) { raw ->
-            if (exitGeneration != fullscreenExitGeneration ||
-                isFinishing || isDestroyed || player !== webView || explicitUserPause
-            ) return@evaluateJavascript
-
-            val normalized = raw.orEmpty().trim('"').replace("\\\"", "\"")
-            val info = runCatching { org.json.JSONObject(normalized) }.getOrNull()
-            val healthy = info?.optBoolean("healthy", false) == true
-            if (healthy) {
-                // Do not disturb a media pipeline that is still advancing and rendering.
-                finishPendingFullscreenExitGeometryCheck()
-                return@evaluateJavascript
-            }
-
-            val currentUrl = player.url
-            if (currentUrl.isNullOrBlank() ||
-                !(currentUrl.contains("youtube.com/watch") ||
-                  currentUrl.contains("youtube.com/shorts"))
-            ) {
-                // Keep the existing bounded fallback for unexpected YouTube URL shapes.
-                recoverFullscreenPlayback(allowPageReloadFallback = true)
-                return@evaluateJavascript
-            }
-
-            val storedMs = prefs.getLong("youtube_position_ms_" + expectedVideoId, 0L)
-                .coerceAtLeast(0L)
-            val observedSeconds = info?.optDouble("position", 0.0)
-                ?.takeIf { it.isFinite() && it > 0.0 }
-            val seconds = (observedSeconds?.toInt() ?: (storedMs / 1000L).toInt())
-                .coerceAtLeast(0)
-            val restoredUrl = Uri.parse(currentUrl).buildUpon()
-                .clearQuery()
-                .appendQueryParameter("v", expectedVideoId)
-                .appendQueryParameter("t", seconds.toString() + "s")
-                .appendQueryParameter("autoplay", "1")
-                .appendQueryParameter("playsinline", "1")
-                .build()
-                .toString()
-
-            // Persist the freshest position before onReady's restore logic runs.
-            prefs.edit()
-                .putLong("youtube_position_ms_" + expectedVideoId, seconds * 1000L)
-                .putBoolean("youtube_playback_is_playing", true)
-                .putBoolean("youtube_is_playing", true)
-                .apply()
-
-            // Invalidate retries attached to the old HTML5 element. The new page gets a
-            // fresh media element, timestamp, and one bounded post-load playback recovery.
-            fullscreenRecoveryGeneration++
-            fullscreenExitGeometryCheckGeneration++
-            playbackRequestGeneration++
-            playbackCommandGeneration++
-            recoverAfterPageReload = true
-            youtubePlayerReady = false
-            youtubePlayerState = 3
-            restoredPositionVideoId = null
-            positionRestoreAttempts = 0
-            updatePlaybackButton()
-
-            player.post {
-                if (exitGeneration != fullscreenExitGeneration ||
-                    isFinishing || isDestroyed || player !== webView || explicitUserPause
-                ) return@post
-                geometryReloadFallbackAttemptedForCurrentPage = true
-                player.loadUrl(restoredUrl)
-            }
-        }
+        recoverFullscreenPlayback(allowPageReloadFallback = true)
     }
 
     private fun scheduleFullscreenExitPlaybackRecovery(exitGeneration: Int, delayMs: Long) {
@@ -4762,9 +4664,15 @@ class YouTubePlayerActivity : ComponentActivity() {
                         recoverAfterPageReload = true
                         youtubePlayerReady = false
                         reloadScheduled = true
-                        webView?.postDelayed({
-                            if (!isFinishing && !isDestroyed && webView != null) {
-                                webView?.loadUrl(restoredUrl)
+                        val recoveryPlayer = webView
+                        recoveryPlayer?.postDelayed({
+                            // An old orientation/fullscreen recovery must never reload the
+                            // page after a newer recovery or an explicit user action supersedes it.
+                            if (generation == fullscreenRecoveryGeneration &&
+                                !explicitUserPause && !isFinishing && !isDestroyed &&
+                                recoveryPlayer === webView
+                            ) {
+                                recoveryPlayer.loadUrl(restoredUrl)
                             }
                         }, 300L)
                     }
