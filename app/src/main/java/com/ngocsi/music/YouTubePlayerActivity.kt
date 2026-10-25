@@ -924,9 +924,9 @@ class YouTubePlayerActivity : ComponentActivity() {
 
             // CSS/native fullscreen has its own ordered transition/recovery path. Only handle
             // root dimension changes that represent an inline, physical device rotation.
-            if (isCssFullscreen || customView != null ||
-                fullscreenExitRecoveryPending || pendingFullscreenExitGeometryCheck != null
-            ) return@addOnLayoutChangeListener
+            if (isCssFullscreen || customView != null) return@addOnLayoutChangeListener
+            // Keep the split-screen layout in sync even while fullscreen-exit playback
+            // recovery is suppressing retries. Layout and playback recovery are separate.
             applyResponsivePlayerLayout(landscapeOverride = newLandscape)
             handlePhysicalOrientationLayoutChange()
         }
@@ -3783,9 +3783,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         // The manifest handles orientation changes without recreating this Activity.
         if (!::playerContainer.isInitialized || !::root.isInitialized) return
 
-        if (!isCssFullscreen && customView == null && !fullscreenExitRecoveryPending &&
-            pendingFullscreenExitGeometryCheck == null
-        ) {
+        if (!isCssFullscreen && customView == null) {
             applyResponsivePlayerLayout(
                 landscapeOverride = newConfig.orientation ==
                     android.content.res.Configuration.ORIENTATION_LANDSCAPE
