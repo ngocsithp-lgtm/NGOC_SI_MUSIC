@@ -158,6 +158,8 @@ class YouTubePlayerActivity : ComponentActivity() {
     // Defer geometry-driven repair/reload until playback recovery has completed. Running
     // both loops at once could reload the page while the media pipeline was resuming.
     private var pendingFullscreenExitGeometryCheck: (() -> Unit)? = null
+    // Ensure only one playback recovery is scheduled for a particular fullscreen exit.
+    private var fullscreenExitPlaybackRecoveryScheduledGeneration = -1
     // Avoid starting a second orientation recovery while the fullscreen-exit recovery
     // and geometry verification are already in progress.
     private var fullscreenExitRecoveryActiveUntilMs = 0L
@@ -238,15 +240,22 @@ class YouTubePlayerActivity : ComponentActivity() {
                 restoreSavedPlaybackPosition()
                 startPlaybackPositionSaver()
                 executePendingAiAction()
+                val isRecoveryReload = recoverAfterPageReload
                 if (recoverAfterPageReload) {
                     recoverAfterPageReload = false
                     playbackPositionHandler.postDelayed({
                         if (!isFinishing && !isDestroyed && webView != null) {
-                            // The page reload already used the one allowed reload fallback.
-                            // Probe and recover once more without starting a reload loop.
+                            // The page reload already used the fallback for this exit.
+                            // Probe and recover on the replacement page without another reload.
                             recoverFullscreenPlayback(allowPageReloadFallback = false)
                         }
                     }, 900L)
+                }
+                // If the player was not ready when fullscreen exit scheduled recovery, that
+                // task will release its slot. Start recovery again now that YouTube is ready.
+                // Do not duplicate the dedicated post-reload recovery above.
+                if (!isRecoveryReload && pendingFullscreenExitGeometryCheck != null) {
+                    scheduleFullscreenExitPlaybackRecovery(fullscreenExitGeneration, 350L)
                 }
             }
         }
@@ -3668,6 +3677,11 @@ class YouTubePlayerActivity : ComponentActivity() {
         // duplicate exits; they otherwise schedule competing recovery/reload attempts.
         if (customView == null && !isCssFullscreen) return
         val exitGeneration = ++fullscreenExitGeneration
+        // Each explicit fullscreen exit is a new recovery event. If the prior exit's
+        // fallback did not restore playback, permit one new fallback for this exit rather
+        // than permanently disabling reload recovery for the selected video.
+        geometryReloadFallbackAttemptedForCurrentPage = false
+        fullscreenExitPlaybackRecoveryScheduledGeneration = -1
         fullscreenExitRecoveryPending = true
         // Cover the full bounded playback-probe window, not just its start delay; resize and
         // configuration callbacks during this interval must not launch competing recoveries.
@@ -3684,7 +3698,8 @@ class YouTubePlayerActivity : ComponentActivity() {
             .getBoolean("youtube_playback_is_playing", false)
         val playbackIntentBeforeExit = wasPlayingBeforeFullscreen ||
             resumePlaybackOnNextOrientationChange ||
-            persistedPlaybackIntent
+            persistedPlaybackIntent ||
+            youtubePlayerState == 1
         val shouldResumeAfterNativeFullscreen =
             wasNativeFullscreen && playbackIntentBeforeExit
         val shouldResumeAfterCssFullscreen =
@@ -3770,23 +3785,10 @@ class YouTubePlayerActivity : ComponentActivity() {
                         if (exitGeneration != fullscreenExitGeneration) return@postDelayed
                         fullscreenExitRecoveryPending = false
                         if (shouldRecoverPlayback) {
-                            // Use exactly one recovery controller after layout has settled.
-                            // It checks real media-clock progress and keeps page reload as last resort.
-                            webView?.postDelayed({
-                                if (exitGeneration != fullscreenExitGeneration ||
-                                    isFinishing || isDestroyed || webView == null ||
-                                    !youtubePlayerReady
-                                ) return@postDelayed
-                                // A page reload is allowed only once until healthy playback is
-                                // confirmed, but every later fullscreen exit must still attempt
-                                // in-place recovery. Otherwise a second/third rotation can leave
-                                // the video frozen merely because the previous reload budget was used.
-                                val allowPageReloadForThisExit =
-                                    !geometryReloadFallbackAttemptedForCurrentPage
-                                recoverFullscreenPlayback(
-                                    allowPageReloadFallback = allowPageReloadForThisExit
-                                )
-                            }, 700L)
+                            // Recovery runs only after native layout is back in portrait.
+                            // If YouTube is not ready yet, the scheduler releases its slot;
+                            // onReady() will enqueue the same exit's recovery once.
+                            scheduleFullscreenExitPlaybackRecovery(exitGeneration, 700L)
                         }
                     }, 500L)
                 }
@@ -4159,8 +4161,31 @@ class YouTubePlayerActivity : ComponentActivity() {
         )
     }
 
+    private fun scheduleFullscreenExitPlaybackRecovery(exitGeneration: Int, delayMs: Long) {
+        if (exitGeneration != fullscreenExitGeneration ||
+            pendingFullscreenExitGeometryCheck == null ||
+            explicitUserPause || isFinishing || isDestroyed
+        ) return
+        if (fullscreenExitPlaybackRecoveryScheduledGeneration == exitGeneration) return
+        fullscreenExitPlaybackRecoveryScheduledGeneration = exitGeneration
+
+        playbackPositionHandler.postDelayed({
+            if (exitGeneration != fullscreenExitGeneration ||
+                pendingFullscreenExitGeometryCheck == null ||
+                explicitUserPause || isFinishing || isDestroyed
+            ) return@postDelayed
+            if (!youtubePlayerReady || webView == null) {
+                // Don't leave a stale scheduled flag that would block onReady().
+                fullscreenExitPlaybackRecoveryScheduledGeneration = -1
+                return@postDelayed
+            }
+            recoverFullscreenPlayback(allowPageReloadFallback = true)
+        }, delayMs)
+    }
+
     private fun finishPendingFullscreenExitGeometryCheck() {
         val callback = pendingFullscreenExitGeometryCheck ?: return
+        fullscreenExitPlaybackRecoveryScheduledGeneration = -1
         pendingFullscreenExitGeometryCheck = null
         // Keep resize/configuration callbacks quiet only for the geometry check's settling
         // window. If the user rotates again afterwards, normal orientation recovery must run.
