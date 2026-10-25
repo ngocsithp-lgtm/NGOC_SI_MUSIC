@@ -170,6 +170,9 @@ class YouTubePlayerActivity : ComponentActivity() {
     // Preserve playback intent while orientation changes temporarily report PAUSED.
     private var resumePlaybackOnNextOrientationChange = false
     private var orientationRecoveryWindowUntilMs = 0L
+    // Only physical rotation suppresses DOM style normalization; fullscreen exit must run
+    // the normal inline-player cleanup after the shrink button is pressed.
+    private var physicalOrientationNormalizationUntilMs = 0L
     // Debounce WebView resize recovery against the native orientation callback.
     private var lastOrientationConfigurationChangeAtMs = 0L
     private var lastKnownConfigurationOrientation = android.content.res.Configuration.ORIENTATION_UNDEFINED
@@ -927,6 +930,16 @@ class YouTubePlayerActivity : ComponentActivity() {
                 android.content.res.Configuration.ORIENTATION_LANDSCAPE
         )
         val now = System.currentTimeMillis()
+        val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+        val playbackIntentStillActive =
+            resumePlaybackOnNextOrientationChange ||
+                wasPlayingBeforeFullscreen ||
+                prefs.getBoolean("youtube_playback_is_playing", false) ||
+                youtubePlayerState == 1
+        // Do not record a rotation callback until there is an active playback handoff to
+        // recover. The root-size callback can arrive first while YouTube briefly reports
+        // PAUSED; debouncing it here would discard the later useful callback.
+        if (!playbackIntentStillActive) return
         if (lastPhysicalOrientationTargetLandscape == isLandscape &&
             now - lastPhysicalOrientationHandledAtMs < 1200L
         ) {
@@ -935,13 +948,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
         lastPhysicalOrientationTargetLandscape = isLandscape
         lastPhysicalOrientationHandledAtMs = now
-        val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
-        val playbackIntentStillActive =
-            resumePlaybackOnNextOrientationChange ||
-                wasPlayingBeforeFullscreen ||
-                prefs.getBoolean("youtube_playback_is_playing", false) ||
-                youtubePlayerState == 1
-        if (!playbackIntentStillActive) return
+        physicalOrientationNormalizationUntilMs = now + 5000L
 
         // A new physical rotation is a new bounded attempt. Invalidate both native and
         // JavaScript resize-triggered probes so only this coordinator may issue Play/reload.
@@ -3582,7 +3589,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         // Page-finish and previously queued layout callbacks can still run just after a real
         // orientation event. While that transition settles, normalize only scroll/viewport;
         // never overwrite CSS on YouTube's live video node.
-        if (System.currentTimeMillis() <= orientationRecoveryWindowUntilMs) {
+        if (System.currentTimeMillis() <= physicalOrientationNormalizationUntilMs) {
             player.evaluateJavascript(
                 """
                 (function() {
