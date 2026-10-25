@@ -1064,8 +1064,10 @@ class YouTubePlayerActivity : ComponentActivity() {
                 'ytm-play-button-renderer,' +
                 '.ytp-show-cards-title,ytm-player-overlay-renderer,ytm-video-overlay-renderer,' +
                 'ytm-mobile-player-overlay-renderer { display:none!important; }' +
-                'ytm-player { position:fixed!important; inset:0!important; width:auto!important;height:auto!important;min-width:0!important;min-height:0!important;max-width:none!important;max-height:none!important;aspect-ratio:auto!important;z-index:2147483647!important;background:#000!important;overflow:hidden!important;margin:0!important;padding:0!important; }' +
-                'ytm-player,#player-container,#player-container-inner,#movie_player,.html5-video-player,.html5-video-container { box-sizing:border-box!important;max-width:100%!important;max-height:100%!important;overflow:hidden!important;margin:0!important;padding:0!important; }' +
+                // Fullscreen is provided by the native host expanding around the same WebView.
+                // Do not position the YouTube media root as a second fixed viewport.
+                'ytm-player { position:relative!important; width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;max-width:100%!important;max-height:100%!important;aspect-ratio:auto!important;background:#000!important;overflow:hidden!important;margin:0!important;padding:0!important; }' +
+                'ytm-player,#player-container,#player-container-inner { box-sizing:border-box!important;max-width:100%!important;max-height:100%!important;overflow:hidden!important;margin:0!important;padding:0!important; }' +
                 'ytm-player video,video.html5-main-video { object-fit:contain!important;object-position:center center!important;max-width:100%!important;max-height:100%!important; }';
               return 'ok';
             })();
@@ -2654,10 +2656,13 @@ class YouTubePlayerActivity : ComponentActivity() {
                               // Document CSS cannot reset those wrappers, so the root's own
                               // stylesheet must pin each player layer to the same 0,0 origin.
                               var viewportRules =
-                                ':host(ytm-app){display:block!important;position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;margin:0!important;padding:0!important;overflow:hidden!important;transform:none!important;}' +
-                                ':host(ytm-watch){display:block!important;position:absolute!important;inset:0!important;width:100%!important;height:100%!important;margin:0!important;padding:0!important;overflow:hidden!important;transform:none!important;}' +
-                                ':host(ytm-player),:host(#movie_player),:host(#player){box-sizing:border-box!important;display:block!important;position:absolute!important;inset:0!important;width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;max-width:none!important;max-height:none!important;aspect-ratio:auto!important;margin:0!important;padding:0!important;border:0!important;overflow:hidden!important;transform:none!important;}' +
-                                '#player-container-outer,#player-container-inner,#player-container-id,#player-container,#player,#movie_player,.html5-video-player,.html5-video-container {box-sizing:border-box!important;position:absolute!important;inset:0!important;width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;max-width:none!important;max-height:none!important;aspect-ratio:auto!important;margin:0!important;padding:0!important;border:0!important;overflow:hidden!important;transform:none!important;}' +
+                                // These shadow-root rules must not force the media tree into a
+                                // duplicate absolute-positioned viewport; preserve YouTube's own
+                                // layout of its internal HTMLVideoElement and compositor layers.
+                                ':host(ytm-app){display:block!important;position:relative!important;width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;margin:0!important;padding:0!important;overflow:hidden!important;transform:none!important;}' +
+                                ':host(ytm-watch){display:block!important;position:relative!important;width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;margin:0!important;padding:0!important;overflow:hidden!important;transform:none!important;}' +
+                                ':host(ytm-player),:host(#movie_player),:host(#player){box-sizing:border-box!important;display:block!important;position:relative!important;width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;max-width:100%!important;max-height:100%!important;aspect-ratio:auto!important;margin:0!important;padding:0!important;border:0!important;overflow:hidden!important;transform:none!important;}' +
+                                '#player-container-outer,#player-container-inner,#player-container-id,#player-container,#player {box-sizing:border-box!important;width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;max-width:100%!important;max-height:100%!important;aspect-ratio:auto!important;margin:0!important;padding:0!important;border:0!important;overflow:hidden!important;}' +
                                 // Do not override the native video surface's position or dimensions.
                                 // Constrain only its maximum size; the YouTube player lays it out natively.
                                 'video,video.html5-main-video {box-sizing:border-box!important;max-width:100%!important;max-height:100%!important;object-fit:contain!important;object-position:50% 50%!important;}';
@@ -2786,20 +2791,20 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 // flow asynchronously; that was leaving a black strip above the
                                 // player and shifting the picture down inside the native frame.
                                 'html,body {display:block!important;box-sizing:border-box!important;width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;max-width:none!important;max-height:none!important;margin:0!important;padding:0!important;overflow:hidden!important;background:#000!important;}' +
-                                'ytm-app {display:block!important;box-sizing:border-box!important;position:fixed!important;inset:0!important;top:0!important;left:0!important;right:0!important;bottom:0!important;width:100vw!important;height:100vh!important;min-width:0!important;min-height:0!important;max-width:none!important;max-height:none!important;margin:0!important;padding:0!important;overflow:hidden!important;transform:none!important;background:#000!important;}' +
-                                'ytm-watch {display:block!important;box-sizing:border-box!important;position:absolute!important;inset:0!important;top:0!important;left:0!important;right:0!important;bottom:0!important;width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;max-width:none!important;max-height:none!important;transform:none!important;margin:0!important;padding:0!important;overflow:hidden!important;background:#000!important;}' +
+                                // Keep the outer mobile page aligned to the WebView, but leave the
+                                // internal YouTube player layers in normal layout flow. Forcing every
+                                // shadow/player layer to absolute/fixed 100% sizing races Chromium's
+                                // video compositor when the viewport changes orientation.
+                                'ytm-app {display:block!important;box-sizing:border-box!important;position:relative!important;width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;max-width:100%!important;max-height:100%!important;margin:0!important;padding:0!important;overflow:hidden!important;transform:none!important;background:#000!important;}' +
+                                'ytm-watch {display:block!important;box-sizing:border-box!important;position:relative!important;width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;max-width:100%!important;max-height:100%!important;margin:0!important;padding:0!important;overflow:hidden!important;background:#000!important;}' +
                                 'ytm-watch #player-container-outer,ytm-watch #player-container-inner,' +
                                 'ytm-watch .player-container,ytm-watch #player-container-id {' +
-                                'position:absolute!important;inset:0!important;width:100%!important;height:100%!important;margin:0!important;padding:0!important;border:0!important;transform:none!important;overflow:hidden!important;}' +
-                                'ytm-player {box-sizing:border-box!important;display:block!important;position:absolute!important;' +
-                                'top:0!important;left:0!important;right:0!important;bottom:0!important;transform:none!important;width:100%!important;' +
-                                'height:100%!important;min-height:0!important;max-height:none!important;' +
-                                'aspect-ratio:auto!important;max-width:none!important;margin:0!important;padding:0!important;' +
-                                'border:0!important;overflow:hidden!important;}' +
-                                '#player-container,#player-container-id,#player,#movie_player,.html5-video-player,' +
-                                '.html5-video-container {box-sizing:border-box!important;position:absolute!important;inset:0!important;width:100%!important;' +
-                                'height:100%!important;min-width:0!important;min-height:0!important;max-width:none!important;max-height:none!important;' +
-                                'aspect-ratio:auto!important;margin:0!important;padding:0!important;border:0!important;overflow:hidden!important;transform:none!important;}' +
+                                'width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;margin:0!important;padding:0!important;border:0!important;overflow:hidden!important;}' +
+                                'ytm-player {box-sizing:border-box!important;display:block!important;position:relative!important;width:100%!important;' +
+                                'height:100%!important;min-height:0!important;max-width:100%!important;max-height:100%!important;' +
+                                'aspect-ratio:auto!important;margin:0!important;padding:0!important;border:0!important;overflow:hidden!important;}' +
+                                '#player-container,#player-container-id,#player {box-sizing:border-box!important;width:100%!important;' +
+                                'max-width:100%!important;max-height:100%!important;margin:0!important;padding:0!important;border:0!important;overflow:hidden!important;}' +
                                 // Apply crop to the actual video surface and remove intrinsic aspect-ratio caps.
                                 // Avoid changing its position or explicit dimensions to protect WebView playback.
                                 // Let YouTube/Chromium own the HTMLVideoElement's geometry. Forcing
@@ -2821,13 +2826,12 @@ class YouTubePlayerActivity : ComponentActivity() {
                               var appShell = document.querySelector('ytm-app');
                               if (appShell) {
                                 appShell.style.setProperty('display','block','important');
-                                appShell.style.setProperty('position','fixed','important');
-                                appShell.style.setProperty('left','0px','important');
-                                appShell.style.setProperty('top','0px','important');
-                                appShell.style.setProperty('right','0px','important');
-                                appShell.style.setProperty('bottom','0px','important');
-                                appShell.style.setProperty('width',viewportWidth+'px','important');
-                                appShell.style.setProperty('height',viewportHeight+'px','important');
+                                appShell.style.setProperty('position','relative','important');
+                                ['left','top','right','bottom','inset'].forEach(function(prop) {
+                                  appShell.style.removeProperty(prop);
+                                });
+                                appShell.style.setProperty('width','100%','important');
+                                appShell.style.setProperty('height','100%','important');
                                 appShell.style.setProperty('margin','0','important');
                                 appShell.style.setProperty('padding','0','important');
                                 appShell.style.setProperty('transform','none','important');
@@ -2836,11 +2840,10 @@ class YouTubePlayerActivity : ComponentActivity() {
                               var watchShell = document.querySelector('ytm-watch');
                               if (watchShell) {
                                 watchShell.style.setProperty('display','block','important');
-                                watchShell.style.setProperty('position','absolute','important');
-                                watchShell.style.setProperty('left','0px','important');
-                                watchShell.style.setProperty('top','0px','important');
-                                watchShell.style.setProperty('right','0px','important');
-                                watchShell.style.setProperty('bottom','0px','important');
+                                watchShell.style.setProperty('position','relative','important');
+                                ['left','top','right','bottom','inset'].forEach(function(prop) {
+                                  watchShell.style.removeProperty(prop);
+                                });
                                 watchShell.style.setProperty('width','100%','important');
                                 watchShell.style.setProperty('height','100%','important');
                                 watchShell.style.setProperty('margin','0','important');
@@ -2856,34 +2859,20 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 document.getElementById('ngocsi-css-fullscreen'));
                               root.style.setProperty('box-sizing','border-box','important');
                               root.style.setProperty('max-width','none','important');
-                              if (isFullscreen) {
-                                // Fullscreen uses the viewport; Android's host frame is expanded
-                                // before the delayed layout sync measures these dimensions.
-                                root.style.setProperty('position','fixed','important');
-                                root.style.setProperty('left','0','important');
-                                root.style.setProperty('right','0','important');
-                                root.style.setProperty('top','0','important');
-                                root.style.setProperty('bottom','0','important');
-                                root.style.setProperty('width',viewportWidth+'px','important');
-                                root.style.setProperty('height',viewportHeight+'px','important');
-                                root.style.setProperty('aspect-ratio','auto','important');
-                              } else {
-                                // Anchor inline playback to the top-left of the measured WebView,
-                                // not to YouTube's collapsing mobile-page flow. The WebView itself
-                                // is the native 16:9 frame, so this removes the top gap without
-                                // allowing the video surface to extend beyond that frame.
-                                root.style.setProperty('position','absolute','important');
-                                root.style.setProperty('left','0px','important');
-                                root.style.setProperty('top','0px','important');
-                                root.style.setProperty('right','0px','important');
-                                root.style.setProperty('bottom','0px','important');
-                                root.style.setProperty('width','100%','important');
-                                root.style.setProperty('height','100%','important');
-                                root.style.setProperty('aspect-ratio','auto','important');
-                                root.style.setProperty('transform','none','important');
-                                root.style.setProperty('margin','0','important');
-                                root.style.setProperty('padding','0','important');
-                              }
+                              // Let the native WebView host define the current viewport. The
+                              // player element should fill its containing block in normal flow;
+                              // forcing fixed/absolute bounds here makes stale landscape geometry
+                              // survive when Android has returned to portrait.
+                              root.style.setProperty('position','relative','important');
+                              ['left','top','right','bottom','inset'].forEach(function(prop) {
+                                root.style.removeProperty(prop);
+                              });
+                              root.style.setProperty('width','100%','important');
+                              root.style.setProperty('height','100%','important');
+                              root.style.setProperty('aspect-ratio','auto','important');
+                              root.style.setProperty('transform','none','important');
+                              root.style.setProperty('margin','0','important');
+                              root.style.setProperty('padding','0','important');
                             }
                             // Avoid repeatedly rewriting player dimensions while Chromium is
                             // handing the video surface between portrait, landscape and inline.
@@ -3646,13 +3635,14 @@ class YouTubePlayerActivity : ComponentActivity() {
                                      document.querySelector('#movie_player') ||
                                      document.querySelector('#player');
                         if (target) {
-                          target.style.setProperty('position', 'fixed', 'important');
-                          target.style.setProperty('left', '0', 'important');
-                          target.style.setProperty('right', '0', 'important');
-                          target.style.setProperty('top', '0', 'important');
-                          target.style.setProperty('bottom', '0', 'important');
-                          target.style.setProperty('width', width + 'px', 'important');
-                          target.style.setProperty('height', height + 'px', 'important');
+                          // Android has already expanded the native host. Avoid a second fixed
+                          // viewport inside the webpage; use its current containing block.
+                          target.style.setProperty('position', 'relative', 'important');
+                          ['left','right','top','bottom','inset'].forEach(function(prop) {
+                            target.style.removeProperty(prop);
+                          });
+                          target.style.setProperty('width', '100%', 'important');
+                          target.style.setProperty('height', '100%', 'important');
                           target.style.setProperty('max-width', '100%', 'important');
                           target.style.setProperty('max-height', '100%', 'important');
                         }
