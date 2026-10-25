@@ -3619,9 +3619,10 @@ class YouTubePlayerActivity : ComponentActivity() {
         if (!::root.isInitialized || !::playerContainer.isInitialized) return
         val player = webView ?: return
         val generation = ++fullscreenViewportSyncGeneration
-        val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
-        val shouldRecover = resumePlaybackOnNextOrientationChange ||
-            wasPlayingBeforeFullscreen || prefs.getBoolean("youtube_playback_is_playing", false)
+
+        // This path only measures/layouts the fullscreen viewport. Do not send playback
+        // commands here: fullscreen entry/rotation and fullscreen exit have separate
+        // media recovery controllers, and overlapping commands can stall the same video.
 
         val sync = object : Runnable {
             override fun run() {
@@ -3670,16 +3671,6 @@ class YouTubePlayerActivity : ComponentActivity() {
         root.postDelayed(sync, 380L)
         root.postDelayed(sync, 720L)
 
-        if (shouldRecover) {
-            player.postDelayed({
-                if (generation == fullscreenViewportSyncGeneration &&
-                    !isFinishing && !isDestroyed && isCssFullscreen && webView === player
-                ) {
-                    // Recovery probes the existing media element and does not reload the page.
-                    recoverFullscreenPlayback(allowPageReloadFallback = false)
-                }
-            }, 900L)
-        }
     }
 
 
