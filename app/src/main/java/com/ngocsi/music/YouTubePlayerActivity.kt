@@ -150,6 +150,10 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var fullscreenEntryPending = false
     private var nativeFullscreenButton: Button? = null
     private var frameStallRecoveryCooldownUntilMs = 0L
+    // Reinstall the CSS fullscreen viewport if a diagnosed video-surface stall requires
+    // reloading YouTube. Reloading the page alone drops its injected fullscreen stylesheet.
+    private var restoreCssFullscreenAfterRecoveryReload = false
+    private var playbackProbeAfterCssFullscreenRestore = false
     // Preserve the pre-fullscreen playback state even if YouTube reports PAUSED while rotating.
     private var wasPlayingBeforeFullscreen = false
     private var fullscreenRecoveryGeneration = 0
@@ -264,13 +268,28 @@ class YouTubePlayerActivity : ComponentActivity() {
                 val isRecoveryReload = recoverAfterPageReload
                 if (recoverAfterPageReload) {
                     recoverAfterPageReload = false
-                    playbackPositionHandler.postDelayed({
-                        if (!isFinishing && !isDestroyed && webView != null) {
-                            // The page reload already used the fallback for this exit.
-                            // Probe and recover on the replacement page without another reload.
-                            recoverFullscreenPlayback(allowPageReloadFallback = false)
-                        }
-                    }, 900L)
+                    if (restoreCssFullscreenAfterRecoveryReload) {
+                        // YouTube's injected CSS fullscreen stylesheet belongs to the old page.
+                        // Reinstall it after the replacement video has initialized, keeping the
+                        // native host in landscape instead of leaving the page in inline layout.
+                        restoreCssFullscreenAfterRecoveryReload = false
+                        playbackProbeAfterCssFullscreenRestore = true
+                        playbackPositionHandler.postDelayed({
+                            if (!isFinishing && !isDestroyed && webView != null &&
+                                !explicitUserPause
+                            ) {
+                                requestYoutubeFullscreen(reapplyAfterRecoveryReload = true)
+                            }
+                        }, 450L)
+                    } else {
+                        playbackPositionHandler.postDelayed({
+                            if (!isFinishing && !isDestroyed && webView != null) {
+                                // The page reload already used the fallback for this exit.
+                                // Probe and recover on the replacement page without another reload.
+                                recoverFullscreenPlayback(allowPageReloadFallback = false)
+                            }
+                        }, 900L)
+                    }
                 }
                 // If the player was not ready when fullscreen exit scheduled recovery, that
                 // task will release its slot. Start recovery again now that YouTube is ready.
@@ -1050,14 +1069,14 @@ class YouTubePlayerActivity : ComponentActivity() {
         startActivity(Intent.createChooser(shareIntent, "Chia sẻ video"))
     }
 
-    private fun requestYoutubeFullscreen() {
+    private fun requestYoutubeFullscreen(reapplyAfterRecoveryReload: Boolean = false) {
         val player = webView
         if (player == null) {
             Toast.makeText(this, "Trình phát chưa sẵn sàng.", Toast.LENGTH_SHORT).show()
             return
         }
 
-        if (isCssFullscreen) {
+        if (isCssFullscreen && !reapplyAfterRecoveryReload) {
             exitFullscreen()
             return
         }
@@ -1128,7 +1147,18 @@ class YouTubePlayerActivity : ComponentActivity() {
                 isCssFullscreen = true
                 enterFullscreen()
                 updateNativeFullscreenButton()
+                if (playbackProbeAfterCssFullscreenRestore) {
+                    playbackProbeAfterCssFullscreenRestore = false
+                    playbackPositionHandler.postDelayed({
+                        if (!isFinishing && !isDestroyed && isCssFullscreen &&
+                            !explicitUserPause && player === webView
+                        ) {
+                            recoverFullscreenPlayback(allowPageReloadFallback = false)
+                        }
+                    }, 900L)
+                }
             } else {
+                playbackProbeAfterCssFullscreenRestore = false
                 Toast.makeText(this, "Không thể mở toàn màn hình. Hãy thử lại.", Toast.LENGTH_SHORT).show()
             }
         }
@@ -1982,13 +2012,16 @@ class YouTubePlayerActivity : ComponentActivity() {
         if (now < frameStallRecoveryCooldownUntilMs) return
         frameStallRecoveryCooldownUntilMs = now + 12_000L
 
-        // Do not reload a CSS-fullscreen document: that would discard its fullscreen style
-        // and desynchronize the native layout. Resync its viewport now; after returning inline,
-        // the frame watchdog can use the bounded page-reload fallback if needed.
-        if (customView != null || isCssFullscreen) {
-            if (isCssFullscreen) scheduleCssFullscreenLayoutSync()
+        // A native Chromium custom view is rare because the YouTube control is intercepted;
+        // if one is active, only request a redraw and wait for its matching exit callback.
+        if (customView != null) {
+            customView?.requestLayout()
+            customView?.invalidate()
             return
         }
+        if (isCssFullscreen) scheduleCssFullscreenLayoutSync()
+        // In fullscreen, allow a page recreation only after repeated frame-stall probes prove
+        // the rendered surface remains stuck. The reload path below restores CSS fullscreen.
         recoverFullscreenPlayback(
             allowPageReloadFallback = false,
             allowFrameReloadFallback = true
@@ -4873,6 +4906,8 @@ class YouTubePlayerActivity : ComponentActivity() {
                             .appendQueryParameter("playsinline", "1")
                             .build()
                             .toString()
+                        restoreCssFullscreenAfterRecoveryReload = isCssFullscreen && customView == null
+                        playbackProbeAfterCssFullscreenRestore = false
                         recoverAfterPageReload = true
                         youtubePlayerReady = false
                         reloadScheduled = true
