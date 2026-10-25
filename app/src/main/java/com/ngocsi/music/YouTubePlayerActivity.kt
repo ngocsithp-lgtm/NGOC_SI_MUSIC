@@ -4082,6 +4082,20 @@ class YouTubePlayerActivity : ComponentActivity() {
                   mediaWidth: Number(video.videoWidth || 0),
                   mediaHeight: Number(video.videoHeight || 0),
                   videoPaused: !!video.paused,
+                  videoVisible: (function() {
+                    var node = video;
+                    while (node && node.nodeType === 1) {
+                      var computed = window.getComputedStyle(node);
+                      if (computed.display === 'none' || computed.visibility === 'hidden' ||
+                          Number(computed.opacity || 1) < 0.05) return false;
+                      if (node.parentElement) node = node.parentElement;
+                      else {
+                        var tree = node.getRootNode();
+                        node = tree && tree.host ? tree.host : null;
+                      }
+                    }
+                    return true;
+                  })(),
                   hasVideoFrameCallback: typeof video.requestVideoFrameCallback === 'function',
                   videoFrameAgeMs: window.__ngocSiFrameTrackedVideo === video &&
                     Number(window.__ngocSiLastVideoFrameAt || 0) > 0
@@ -4112,6 +4126,18 @@ class YouTubePlayerActivity : ComponentActivity() {
                         node.style.setProperty('padding-top','0px','important');
                       }
                     });
+                }
+                // Clear stale inline visibility overrides from the currently selected video.
+                // Do not force dimensions or position: YouTube must own the compositor geometry.
+                var activeVideo = null;
+                try {
+                  if (typeof window.__ngocSiFindActiveVideo === 'function')
+                    activeVideo = window.__ngocSiFindActiveVideo();
+                } catch (_) {}
+                if (activeVideo && activeVideo.style) {
+                  ['display','visibility','opacity'].forEach(function(prop) {
+                    activeVideo.style.removeProperty(prop);
+                  });
                 }
                 window.scrollTo(0,0);
                 if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
@@ -4156,6 +4182,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             val mediaWidth = info.optDouble("mediaWidth", 0.0)
             val mediaHeight = info.optDouble("mediaHeight", 0.0)
             val videoPaused = info.optBoolean("videoPaused", true)
+            val videoVisible = info.optBoolean("videoVisible", true)
             val hasFrameCallback = info.optBoolean("hasVideoFrameCallback", false)
             val videoFrameAgeMs = info.optDouble("videoFrameAgeMs", -1.0)
             if (viewportWidth < 100.0 || viewportHeight < 100.0 ||
@@ -4178,7 +4205,11 @@ class YouTubePlayerActivity : ComponentActivity() {
             // frozen-picture/audio-still-moving case that currentTime-only recovery misses.
             val renderedFrameStalled = expectPlayback && !videoPaused &&
                 hasFrameCallback && videoFrameAgeMs > 1500.0
-            return renderedFrameStalled || verticalBroken || (!portraitMedia && (
+            // Audio can keep advancing while a stale inline visibility/opacity rule hides
+            // the video layer. Treat that as a geometry failure even when its rectangle
+            // still looks normal, so the existing bounded repair/reload path can recover it.
+            val renderedVideoHidden = expectPlayback && !videoPaused && !videoVisible
+            return renderedFrameStalled || renderedVideoHidden || verticalBroken || (!portraitMedia && (
                 videoWidth < viewportWidth * 0.78 ||
                 videoLeft > viewportWidth * 0.12 ||
                 videoLeft < -viewportWidth * 0.12 ||
