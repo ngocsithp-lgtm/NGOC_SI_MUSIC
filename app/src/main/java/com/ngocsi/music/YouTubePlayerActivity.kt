@@ -837,9 +837,9 @@ class YouTubePlayerActivity : ComponentActivity() {
             // The ScrollView and content retain the same parent. The video host's width
             // shares the landscape viewport with the action/info column; the inner video
             // remains centred and 16:9 without replacing its WebView surface.
-            content.layoutParams = ScrollView.LayoutParams(
-                ScrollView.LayoutParams.MATCH_PARENT,
-                ScrollView.LayoutParams.MATCH_PARENT
+            content.layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
             )
             videoHost.layoutParams = LinearLayout.LayoutParams(
                 0,
@@ -852,9 +852,9 @@ class YouTubePlayerActivity : ComponentActivity() {
                 0.85f
             )
         } else {
-            content.layoutParams = ScrollView.LayoutParams(
-                ScrollView.LayoutParams.MATCH_PARENT,
-                ScrollView.LayoutParams.WRAP_CONTENT
+            content.layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
             )
             videoHost.layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -3967,9 +3967,9 @@ class YouTubePlayerActivity : ComponentActivity() {
             loadingBar?.visibility = View.GONE
             content.setPadding(0, 0, 0, 0)
             fullscreenLayoutActive = true
-            content.layoutParams = ScrollView.LayoutParams(
-                ScrollView.LayoutParams.MATCH_PARENT,
-                ScrollView.LayoutParams.MATCH_PARENT
+            content.layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
             )
             videoHost.layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
