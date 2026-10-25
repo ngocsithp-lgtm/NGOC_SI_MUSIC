@@ -973,7 +973,11 @@ class YouTubePlayerActivity : ComponentActivity() {
             if (!prefs.getBoolean("youtube_playback_is_playing", false)) {
                 return@postDelayed
             }
-            recoverFullscreenPlayback(allowPageReloadFallback = false)
+            // Give the existing HTML5 element several bounded recovery probes first.
+            // If the media clock still cannot advance, allow one last-resort reload of this
+            // same video at its saved position; otherwise a frozen WebView surface can remain
+            // stopped forever because the physical-rotation path had no final fallback.
+            recoverFullscreenPlayback(allowPageReloadFallback = true)
         }, 700L)
     }
 
