@@ -1691,7 +1691,10 @@ class YouTubePlayerActivity : ComponentActivity() {
         // Fullscreen exit owns the single playback-recovery loop until it has either
         // observed real media-clock progress or completed its bounded fallback. A WebView
         // resize during the same transition must not create a second loop that invalidates it.
-        if (fullscreenExitRecoveryPending || now <= fullscreenExitRecoveryActiveUntilMs) return
+        if (fullscreenExitRecoveryPending ||
+            pendingFullscreenExitGeometryCheck != null ||
+            now <= fullscreenExitRecoveryActiveUntilMs
+        ) return
         // Outside a fullscreen exit, prefer the native configuration callback when it is recent.
         if (now - lastOrientationConfigurationChangeAtMs < 1800L) return
 
@@ -2020,7 +2023,8 @@ class YouTubePlayerActivity : ComponentActivity() {
                     playbackPositionHandler.postDelayed({
                         if (requestGeneration != playbackRequestGeneration ||
                             isFinishing || isDestroyed || webView == null ||
-                            fullscreenExitRecoveryPending
+                            fullscreenExitRecoveryPending ||
+                            pendingFullscreenExitGeometryCheck != null
                         ) return@postDelayed
 
                         val verifyScript = """
@@ -2048,7 +2052,8 @@ class YouTubePlayerActivity : ComponentActivity() {
                         """.trimIndent()
                         webView?.evaluateJavascript(verifyScript) verifyPlaybackCallback@{ verifyResult ->
                             if (requestGeneration != playbackRequestGeneration ||
-                                isFinishing || isDestroyed || fullscreenExitRecoveryPending
+                                isFinishing || isDestroyed || fullscreenExitRecoveryPending ||
+                                pendingFullscreenExitGeometryCheck != null
                             ) return@verifyPlaybackCallback
 
                             val mediaStatus = verifyResult.orEmpty().trim('"')
@@ -3501,6 +3506,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         val player = webView
         val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
         if (player != null && !fullscreenExitRecoveryPending &&
+            pendingFullscreenExitGeometryCheck == null &&
             System.currentTimeMillis() > fullscreenExitRecoveryActiveUntilMs &&
             (resumePlaybackOnNextOrientationChange ||
                 prefs.getBoolean("youtube_playback_is_playing", false))) {
