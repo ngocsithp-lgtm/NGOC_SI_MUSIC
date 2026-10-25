@@ -3822,7 +3822,16 @@ class YouTubePlayerActivity : ComponentActivity() {
                       (trackedFrame && lastFrameAt > 0 && now - lastFrameAt < 1900);
                     var healthy = !video.paused && !video.ended &&
                       Number(video.readyState || 0) >= 2 && clockFresh && frameFresh;
-                    return JSON.stringify({healthy:healthy});
+                    // Keep clock and compositor health separate. After physical rotation,
+                    // currentTime can advance while Chromium's video surface is frozen.
+                    return JSON.stringify({
+                      healthy: healthy,
+                      clockFresh: clockFresh,
+                      frameFresh: frameFresh,
+                      currentTime: Number(video.currentTime || 0),
+                      paused: !!video.paused,
+                      readyState: Number(video.readyState || 0)
+                    });
                   } catch (_) {
                     return JSON.stringify({healthy:false});
                   }
@@ -3838,20 +3847,89 @@ class YouTubePlayerActivity : ComponentActivity() {
 
                 val normalized = raw.orEmpty().trim('"').replace("\\\"", "\"")
                 val status = runCatching { org.json.JSONObject(normalized) }.getOrNull()
-                if (status?.optBoolean("healthy", false) != true) {
-                    // Re-enable WebView drawing/timers after a real root orientation swap
-                    // before asking YouTube to resume. The fallback reload is owned by this
-                    // single recovery loop if the media clock still does not advance.
-                    player.onResume()
-                    player.resumeTimers()
-                    player.requestLayout()
-                    player.invalidate()
-                    root.requestLayout()
-                    root.invalidate()
-                    recoverFullscreenPlayback(allowPageReloadFallback = true)
+                if (status?.optBoolean("healthy", false) == true) return@evaluateJavascript
+
+                val clockFresh = status?.optBoolean("clockFresh", false) == true
+                val frameFresh = status?.optBoolean("frameFresh", false) == true
+                if (clockFresh && !frameFresh &&
+                    reloadCurrentYouTubePageForOrientationFrameStall(
+                        player,
+                        status.optDouble("currentTime", 0.0)
+                    )
+                ) {
+                    // Media time is moving but no rendered frames arrive. In-place Play
+                    // recovery would incorrectly report success on clock progress alone;
+                    // rebuild the page once at its current position to recreate the surface.
+                    return@evaluateJavascript
                 }
+
+                // Re-enable WebView drawing/timers after a real root orientation swap
+                // before asking YouTube to resume. When the media clock itself is stalled,
+                // use the existing bounded in-place recovery and one-time reload fallback.
+                player.onResume()
+                player.resumeTimers()
+                player.requestLayout()
+                player.invalidate()
+                root.requestLayout()
+                root.invalidate()
+                recoverFullscreenPlayback(allowPageReloadFallback = true)
             }
         }, 2300L)
+    }
+
+    /**
+     * A physical rotation can leave Chromium's compositor frozen even though the HTML5
+     * media clock still advances. A clock-only recovery would mistake that for success.
+     * Recreate the mobile YouTube document once at the last observed position so the
+     * renderer and decoder obtain a fresh video surface. The next ready callback performs
+     * one bounded Play recovery; this method never starts a reload loop.
+     */
+    private fun reloadCurrentYouTubePageForOrientationFrameStall(
+        player: WebView,
+        currentTimeSeconds: Double
+    ): Boolean {
+        if (player !== webView || isFinishing || isDestroyed ||
+            explicitUserPause || geometryReloadFallbackAttemptedForCurrentPage
+        ) return false
+
+        val safeId = sanitizeVideoId(videoId)
+        if (safeId.isBlank()) return false
+        val currentUrl = player.url.orEmpty()
+        if (!currentUrl.contains("youtube.com/watch") &&
+            !currentUrl.contains("youtube.com/shorts")
+        ) return false
+
+        val seconds = currentTimeSeconds.takeIf { it.isFinite() && it >= 0.0 }
+            ?.toInt()?.coerceAtLeast(0)
+            ?: 0
+        val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+        prefs.edit()
+            .putLong("youtube_position_ms_" + safeId, seconds * 1000L)
+            .putBoolean("youtube_playback_is_playing", true)
+            .putBoolean("youtube_is_playing", true)
+            .apply()
+
+        geometryReloadFallbackAttemptedForCurrentPage = true
+        recoverAfterPageReload = true
+        youtubePlayerReady = false
+        youtubePlayerState = 3
+        restoredPositionVideoId = null
+        positionRestoreAttempts = 0
+        fullscreenRecoveryGeneration++
+        playbackRequestGeneration++
+        playbackCommandGeneration++
+        updatePlaybackButton()
+
+        val restoredUrl = Uri.parse("https://m.youtube.com/watch")
+            .buildUpon()
+            .appendQueryParameter("v", safeId)
+            .appendQueryParameter("t", "${seconds}s")
+            .appendQueryParameter("autoplay", "1")
+            .appendQueryParameter("playsinline", "1")
+            .build()
+            .toString()
+        player.loadUrl(restoredUrl)
+        return true
     }
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
