@@ -174,6 +174,10 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var lastOrientationConfigurationChangeAtMs = 0L
     private var lastKnownConfigurationOrientation = android.content.res.Configuration.ORIENTATION_UNDEFINED
     private var automaticOrientationRecoveryGeneration = 0
+    // ConfigurationChanged and root-layout callbacks can describe the same physical rotation.
+    // Coalesce only duplicate notifications for the same target orientation.
+    private var lastPhysicalOrientationTargetLandscape: Boolean? = null
+    private var lastPhysicalOrientationHandledAtMs = 0L
     // Keep explicit user pauses separate from temporary WebView surface/viewport pauses.
     private var explicitUserPause = false
     private var orientationPlaybackRecoveryGeneration = 0
@@ -902,7 +906,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             // Keep the split-screen layout in sync even while fullscreen-exit playback
             // recovery is suppressing retries. Layout and playback recovery are separate.
             applyResponsivePlayerLayout(landscapeOverride = newLandscape)
-            handlePhysicalOrientationLayoutChange()
+            handlePhysicalOrientationLayoutChange(newLandscape)
         }
     }
 
@@ -911,13 +915,26 @@ class YouTubePlayerActivity : ComponentActivity() {
      * Android delivered onConfigurationChanged or only relaid out the root. The shared
      * generation debounces duplicate callbacks and cancels stale recovery attempts.
      */
-    private fun handlePhysicalOrientationLayoutChange() {
+    private fun handlePhysicalOrientationLayoutChange(targetLandscape: Boolean? = null) {
         if (isFinishing || isDestroyed || !::root.isInitialized ||
             !::playerContainer.isInitialized || isCssFullscreen || customView != null ||
             fullscreenExitRecoveryPending || pendingFullscreenExitGeometryCheck != null ||
             explicitUserPause
         ) return
         val player = webView ?: return
+        val isLandscape = targetLandscape ?: (
+            resources.configuration.orientation ==
+                android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        )
+        val now = System.currentTimeMillis()
+        if (lastPhysicalOrientationTargetLandscape == isLandscape &&
+            now - lastPhysicalOrientationHandledAtMs < 1200L
+        ) {
+            // The same rotation was already handled by the other Android callback.
+            return
+        }
+        lastPhysicalOrientationTargetLandscape = isLandscape
+        lastPhysicalOrientationHandledAtMs = now
         val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
         val playbackIntentStillActive =
             resumePlaybackOnNextOrientationChange ||
@@ -930,14 +947,18 @@ class YouTubePlayerActivity : ComponentActivity() {
         // JavaScript resize-triggered probes so only this coordinator may issue Play/reload.
         // Updating this timestamp also suppresses the page's separate resize recovery for the
         // same event when Android did not deliver onConfigurationChanged.
-        lastOrientationConfigurationChangeAtMs = System.currentTimeMillis()
+        lastOrientationConfigurationChangeAtMs = now
         orientationPlaybackRecoveryGeneration++
         automaticOrientationRecoveryGeneration++
         fullscreenRecoveryGeneration++
+        fullscreenViewportSyncGeneration++
         fullscreenExitGeometryCheckGeneration++
+        // Cancel delayed DOM-style rewrites queued by the old viewport. They can race
+        // Chromium's video compositor while it is switching from landscape to portrait.
+        inlineLayoutSyncGeneration++
         geometryReloadFallbackAttemptedForCurrentPage = false
         resumePlaybackOnNextOrientationChange = true
-        orientationRecoveryWindowUntilMs = System.currentTimeMillis() + 5000L
+        orientationRecoveryWindowUntilMs = now + 5000L
         prefs.edit()
             .putBoolean("youtube_playback_is_playing", true)
             .putBoolean("youtube_is_playing", true)
@@ -949,8 +970,80 @@ class YouTubePlayerActivity : ComponentActivity() {
         playerContainer.invalidate()
         player.requestLayout()
         player.invalidate()
-        scheduleInlinePlayerLayoutSync()
+        schedulePhysicalOrientationLayoutSync(player, isLandscape)
         scheduleAutomaticOrientationPlaybackRecovery(player)
+    }
+
+    /**
+     * Physical rotation must resize the native WebView without rewriting YouTube's active
+     * video-node CSS. The previous inline-normalization pass repeatedly changed position,
+     * transform and dimensions while Chromium was rebuilding the video surface.
+     */
+    private fun schedulePhysicalOrientationLayoutSync(player: WebView, targetLandscape: Boolean) {
+        if (!::root.isInitialized || player !== webView) return
+        val generation = ++inlineLayoutSyncGeneration
+        val passes = longArrayOf(120L, 320L, 650L)
+        passes.forEachIndexed { index, delay ->
+            root.postDelayed({
+                if (generation != inlineLayoutSyncGeneration ||
+                    isFinishing || isDestroyed || player !== webView ||
+                    isCssFullscreen || customView != null
+                ) return@postDelayed
+
+                root.requestLayout()
+                root.invalidate()
+                playerContainer.requestLayout()
+                playerContainer.invalidate()
+                player.requestLayout()
+                player.invalidate()
+                if (index == passes.lastIndex) {
+                    // Resume renderer/timers only after the host has had time to settle.
+                    player.onResume()
+                    player.resumeTimers()
+                }
+            }, delay)
+        }
+
+        player.postDelayed({
+            if (generation != inlineLayoutSyncGeneration ||
+                isFinishing || isDestroyed || player !== webView ||
+                isCssFullscreen || customView != null
+            ) return@postDelayed
+
+            // Let YouTube recalculate its own responsive CSS after the native viewport swap.
+            // Do not set inline CSS on the live <video> element or seek/pause/play it here.
+            player.evaluateJavascript(
+                """
+                (function() {
+                  try {
+                    if (document.getElementById('ngocsi-css-fullscreen') || document.fullscreenElement)
+                      return 'FULLSCREEN';
+                    if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
+                    if (document.documentElement) document.documentElement.scrollTop = 0;
+                    if (document.body) document.body.scrollTop = 0;
+                    window.scrollTo(0, 0);
+                    window.dispatchEvent(new Event('resize'));
+                    requestAnimationFrame(function() {
+                      if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
+                    });
+                    var video = document.querySelector('video.html5-main-video') ||
+                                document.querySelector('ytm-player video') ||
+                                document.querySelector('video');
+                    return JSON.stringify({
+                      landscape: window.innerWidth > window.innerHeight,
+                      targetLandscape: $targetLandscape,
+                      videoFound: !!video,
+                      paused: video ? !!video.paused : null,
+                      readyState: video ? Number(video.readyState || 0) : 0
+                    });
+                  } catch (_) {
+                    return 'ORIENTATION_SYNC_ERROR';
+                  }
+                })();
+                """.trimIndent(),
+                null
+            )
+        }, 820L)
     }
 
     private fun showMoreOptions(anchor: View) {
@@ -1890,7 +1983,11 @@ class YouTubePlayerActivity : ComponentActivity() {
     private fun noteViewportPlaybackHandoff() {
         if (isFinishing || isDestroyed || webView == null || explicitUserPause) return
         val now = System.currentTimeMillis()
-        orientationRecoveryWindowUntilMs = maxOf(orientationRecoveryWindowUntilMs, now + 5000L)
+        // Android's configuration callback owns recovery for several seconds after a real
+        // rotation. Ignore its resulting WebView resize events so they cannot start a second
+        // probe loop and invalidate the active recovery generation.
+        if (now <= orientationRecoveryWindowUntilMs) return
+        orientationRecoveryWindowUntilMs = now + 5000L
         resumePlaybackOnNextOrientationChange = true
         getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
             .putBoolean("youtube_playback_is_playing", true)
@@ -3481,6 +3578,30 @@ class YouTubePlayerActivity : ComponentActivity() {
         if (isFinishing || isDestroyed || player !== webView || isCssFullscreen || customView != null) return
         playerScrollView?.scrollTo(0, 0)
         player.scrollTo(0, 0)
+
+        // Page-finish and previously queued layout callbacks can still run just after a real
+        // orientation event. While that transition settles, normalize only scroll/viewport;
+        // never overwrite CSS on YouTube's live video node.
+        if (System.currentTimeMillis() <= orientationRecoveryWindowUntilMs) {
+            player.evaluateJavascript(
+                """
+                (function() {
+                  try {
+                    if (document.getElementById('ngocsi-css-fullscreen') || document.fullscreenElement)
+                      return 'FULLSCREEN';
+                    if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
+                    if (document.documentElement) document.documentElement.scrollTop = 0;
+                    if (document.body) document.body.scrollTop = 0;
+                    window.scrollTo(0, 0);
+                    window.dispatchEvent(new Event('resize'));
+                    return 'ORIENTATION_SETTLING';
+                  } catch (_) { return 'ORIENTATION_SETTLING_ERROR'; }
+                })();
+                """.trimIndent(),
+                null
+            )
+            return
+        }
         player.evaluateJavascript(
             """
             (function() {
@@ -3801,7 +3922,10 @@ class YouTubePlayerActivity : ComponentActivity() {
             }
             return
         }
-        scheduleInlinePlayerLayoutSync()
+        if (!orientationActuallyChanged) {
+            scheduleInlinePlayerLayoutSync()
+        }
+        // A real portrait/landscape transition uses the dedicated non-destructive sync below.
         // Do not run the geometry checker with its page-reload fallback for an ordinary
         // inline orientation change. This callback runs for every configuration change, not
         // only after leaving fullscreen; a transient WebView viewport can look broken and
@@ -3864,7 +3988,9 @@ class YouTubePlayerActivity : ComponentActivity() {
         if (orientationActuallyChanged && player != null && playbackIntentStillActive) {
             // Use the same coordinator as the root-size watcher. Do not start the fullscreen
             // geometry reload and media-clock recovery in parallel for a physical rotation.
-            handlePhysicalOrientationLayoutChange()
+            handlePhysicalOrientationLayoutChange(
+                newConfig.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+            )
         }
     }
 
