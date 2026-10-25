@@ -2655,7 +2655,9 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 ':host(ytm-watch){display:block!important;position:absolute!important;inset:0!important;width:100%!important;height:100%!important;margin:0!important;padding:0!important;overflow:hidden!important;transform:none!important;}' +
                                 ':host(ytm-player),:host(#movie_player),:host(#player){box-sizing:border-box!important;display:block!important;position:absolute!important;inset:0!important;width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;max-width:none!important;max-height:none!important;aspect-ratio:auto!important;margin:0!important;padding:0!important;border:0!important;overflow:hidden!important;transform:none!important;}' +
                                 '#player-container-outer,#player-container-inner,#player-container-id,#player-container,#player,#movie_player,.html5-video-player,.html5-video-container {box-sizing:border-box!important;position:absolute!important;inset:0!important;width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;max-width:none!important;max-height:none!important;aspect-ratio:auto!important;margin:0!important;padding:0!important;border:0!important;overflow:hidden!important;transform:none!important;}' +
-                                'video,video.html5-main-video {box-sizing:border-box!important;position:absolute!important;inset:0!important;width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;max-width:none!important;max-height:none!important;margin:0!important;padding:0!important;transform:none!important;object-fit:contain!important;object-position:50% 50%!important;}';
+                                // Do not override the native video surface's position or dimensions.
+                                // Constrain only its maximum size; the YouTube player lays it out natively.
+                                'video,video.html5-main-video {box-sizing:border-box!important;max-width:100%!important;max-height:100%!important;object-fit:contain!important;object-position:50% 50%!important;}';
                               var observedRoots = window.__ngocSiObservedOverlayRoots ||
                                 (window.__ngocSiObservedOverlayRoots = new WeakSet());
 
@@ -2797,11 +2799,12 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 'aspect-ratio:auto!important;margin:0!important;padding:0!important;border:0!important;overflow:hidden!important;transform:none!important;}' +
                                 // Apply crop to the actual video surface and remove intrinsic aspect-ratio caps.
                                 // Avoid changing its position or explicit dimensions to protect WebView playback.
+                                // Let YouTube/Chromium own the HTMLVideoElement's geometry. Forcing
+                                // absolute positioning and explicit dimensions during a viewport handoff
+                                // can leave the compositor surface frozen after portrait/landscape changes.
                                 'ytm-player video,video.html5-main-video,.html5-video-player video {' +
-                                'position:absolute!important;inset:0!important;top:0!important;left:0!important;' +
-                                'width:100%!important;height:100%!important;transform:none!important;' +
                                 'object-fit:contain!important;object-position:50% 50%!important;' +
-                                'max-width:none!important;max-height:none!important;} ' +
+                                'max-width:100%!important;max-height:100%!important;} ' +
                                 '.html5-video-container {position:relative!important;overflow:hidden!important;}';
                               (document.head || document.documentElement).appendChild(fitStyle);
                             }
@@ -3546,32 +3549,10 @@ class YouTubePlayerActivity : ComponentActivity() {
                            document.querySelector('#movie_player') ||
                            document.querySelector('#player');
                 if (!root) return 'WAIT';
-                // On initial load YouTube can retain a stale vertical offset on the HTML5 video
-                // even when its outer player is at y=0. Anchor the video to its measured surface.
-                var video = root.querySelector ? root.querySelector('video.html5-main-video,video') : null;
-                if (video && video.style) {
-                  var videoHost = video.closest('.html5-video-container') || video.parentElement || root;
-                  if (videoHost && videoHost.style) {
-                    videoHost.style.setProperty('position','relative','important');
-                    videoHost.style.setProperty('width','100%','important');
-                    videoHost.style.setProperty('height','100%','important');
-                    videoHost.style.setProperty('margin','0','important');
-                    videoHost.style.setProperty('padding','0','important');
-                    videoHost.style.setProperty('overflow','hidden','important');
-                  }
-                  ['position','top','left','right','bottom','inset','width','height','transform','margin','padding'].forEach(function(prop) {
-                    video.style.removeProperty(prop);
-                  });
-                  video.style.setProperty('position','absolute','important');
-                  video.style.setProperty('inset','0','important');
-                  video.style.setProperty('top','0','important');
-                  video.style.setProperty('left','0','important');
-                  video.style.setProperty('width','100%','important');
-                  video.style.setProperty('height','100%','important');
-                  video.style.setProperty('transform','none','important');
-                  video.style.setProperty('object-fit','contain','important');
-                  video.style.setProperty('object-position','50% 50%','important');
-                }
+                // Do not rewrite HTMLVideoElement styles while Chromium is transferring the
+                // compositor surface between fullscreen and inline viewports. Only normalize
+                // the surrounding player wrappers below; YouTube retains ownership of the video
+                // element's intrinsic sizing and decoder surface.
                 // The hidden mobile header leaves a few YouTube page wrappers with stale
                 // top spacing. Clear only top spacing on known player wrappers.
                 var wrappers = [
