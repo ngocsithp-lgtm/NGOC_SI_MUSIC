@@ -1688,9 +1688,11 @@ class YouTubePlayerActivity : ComponentActivity() {
             .putBoolean("youtube_playback_is_playing", true)
             .apply()
 
-        // A native configuration callback already schedules its own recovery. Do not start
-        // a second probe loop from WebView.resize a few hundred milliseconds later; these
-        // competing loops previously invalidated one another and delayed playback restoration.
+        // Fullscreen exit owns the single playback-recovery loop until it has either
+        // observed real media-clock progress or completed its bounded fallback. A WebView
+        // resize during the same transition must not create a second loop that invalidates it.
+        if (fullscreenExitRecoveryPending || now <= fullscreenExitRecoveryActiveUntilMs) return
+        // Outside a fullscreen exit, prefer the native configuration callback when it is recent.
         if (now - lastOrientationConfigurationChangeAtMs < 1800L) return
 
         val generation = ++orientationPlaybackRecoveryGeneration
@@ -3661,7 +3663,9 @@ class YouTubePlayerActivity : ComponentActivity() {
         if (customView == null && !isCssFullscreen) return
         val exitGeneration = ++fullscreenExitGeneration
         fullscreenExitRecoveryPending = true
-        fullscreenExitRecoveryActiveUntilMs = System.currentTimeMillis() + 2300L
+        // Cover the full bounded playback-probe window, not just its start delay; resize and
+        // configuration callbacks during this interval must not launch competing recoveries.
+        fullscreenExitRecoveryActiveUntilMs = System.currentTimeMillis() + 5000L
         orientationRecoveryWindowUntilMs = System.currentTimeMillis() + 5000L
         // Invalidate older recovery/layout probes. Configuration callbacks may enqueue
         // another CSS pass while we wait for the WebView to finish removing fullscreen CSS.
