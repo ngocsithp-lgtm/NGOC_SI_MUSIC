@@ -178,6 +178,10 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var explicitUserPause = false
     private var orientationPlaybackRecoveryGeneration = 0
     private var fullscreenLayoutActive = false
+    private var fullscreenPlayerWasInLandscapePane = false
+    private var fullscreenPlayerOriginalParent: ViewGroup? = null
+    private var fullscreenPlayerOriginalLayoutParams: ViewGroup.LayoutParams? = null
+    private var fullscreenLandscapeContainerVisibility: Int? = null
     private var contentContainer: LinearLayout? = null
     private var playerScrollView: ScrollView? = null
     private var playerHeaderView: View? = null
@@ -3987,11 +3991,41 @@ class YouTubePlayerActivity : ComponentActivity() {
             inlineLoadingBarVisibility = loadingBar?.visibility
             loadingBar?.visibility = View.GONE
             content.setPadding(0, 0, 0, 0)
+            fullscreenPlayerWasInLandscapePane =
+                landscapePlayerLayoutActive && responsiveLandscapeContainer != null
+            if (fullscreenPlayerWasInLandscapePane) {
+                // Landscape uses a FrameLayout host for the 16:9 video. Move that same
+                // player frame to the root for fullscreen; do not assign LinearLayout
+                // parameters to a FrameLayout child or leave it trapped in the left pane.
+                fullscreenPlayerOriginalParent = playerContainer.parent as? ViewGroup
+                fullscreenPlayerOriginalLayoutParams = playerContainer.layoutParams
+                fullscreenLandscapeContainerVisibility =
+                    responsiveLandscapeContainer?.visibility ?: View.VISIBLE
+                responsiveLandscapeContainer?.visibility = View.GONE
+                (playerContainer.parent as? ViewGroup)?.removeView(playerContainer)
+                root.addView(
+                    playerContainer,
+                    FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                        Gravity.FILL
+                    )
+                )
+                root.bringChildToFront(playerContainer)
+            }
             fullscreenLayoutActive = true
-            playerContainer.layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.MATCH_PARENT
-            )
+            if (fullscreenPlayerWasInLandscapePane) {
+                playerContainer.layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    Gravity.FILL
+                )
+            } else {
+                playerContainer.layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.MATCH_PARENT
+                )
+            }
             playerScrollView?.scrollTo(0, 0)
         } else {
             fullscreenLayoutActive = false
@@ -4003,7 +4037,27 @@ class YouTubePlayerActivity : ComponentActivity() {
                 if (padding.size == 4) content.setPadding(padding[0], padding[1], padding[2], padding[3])
             }
             inlineContentPadding = null
-            inlinePlayerLayoutParams?.let { playerContainer.layoutParams = it }
+            if (fullscreenPlayerWasInLandscapePane) {
+                (playerContainer.parent as? ViewGroup)?.removeView(playerContainer)
+                val originalParent = fullscreenPlayerOriginalParent
+                val originalParams = fullscreenPlayerOriginalLayoutParams
+                if (originalParent != null) {
+                    if (originalParams != null) {
+                        originalParent.addView(playerContainer, originalParams)
+                    } else {
+                        originalParent.addView(playerContainer)
+                    }
+                }
+                fullscreenLandscapeContainerVisibility?.let { visibility ->
+                    responsiveLandscapeContainer?.visibility = visibility
+                }
+                fullscreenPlayerOriginalParent = null
+                fullscreenPlayerOriginalLayoutParams = null
+                fullscreenLandscapeContainerVisibility = null
+            } else {
+                inlinePlayerLayoutParams?.let { playerContainer.layoutParams = it }
+            }
+            fullscreenPlayerWasInLandscapePane = false
             inlineLoadingBarVisibility?.let { loadingBar?.visibility = it }
             inlineLoadingBarVisibility = null
         }
@@ -4097,6 +4151,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
             playerContainer.visibility = View.VISIBLE
             setFullscreenLayout(false)
+            applyResponsivePlayerLayout()
             WindowCompat.setDecorFitsSystemWindows(window, true)
             WindowInsetsControllerCompat(window, window.decorView)
                 .show(WindowInsetsCompat.Type.systemBars())
