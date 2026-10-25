@@ -2828,55 +2828,59 @@ class YouTubePlayerActivity : ComponentActivity() {
                               var viewportWidth = Math.max(1, document.documentElement.clientWidth || window.innerWidth || 1);
                               var viewportHeight = Math.max(1, document.documentElement.clientHeight || window.innerHeight || 1);
                               var appShell = document.querySelector('ytm-app');
-                              if (appShell) {
-                                appShell.style.setProperty('display','block','important');
-                                appShell.style.setProperty('position','relative','important');
-                                ['left','top','right','bottom','inset'].forEach(function(prop) {
-                                  appShell.style.removeProperty(prop);
-                                });
-                                appShell.style.setProperty('width','100%','important');
-                                appShell.style.setProperty('height','100%','important');
-                                appShell.style.setProperty('margin','0','important');
-                                appShell.style.setProperty('padding','0','important');
-                                appShell.style.setProperty('transform','none','important');
-                                appShell.style.setProperty('overflow','hidden','important');
-                              }
                               var watchShell = document.querySelector('ytm-watch');
-                              if (watchShell) {
-                                watchShell.style.setProperty('display','block','important');
-                                watchShell.style.setProperty('position','relative','important');
-                                ['left','top','right','bottom','inset'].forEach(function(prop) {
-                                  watchShell.style.removeProperty(prop);
-                                });
-                                watchShell.style.setProperty('width','100%','important');
-                                watchShell.style.setProperty('height','100%','important');
-                                watchShell.style.setProperty('margin','0','important');
-                                watchShell.style.setProperty('padding','0','important');
-                                watchShell.style.setProperty('transform','none','important');
-                                watchShell.style.setProperty('overflow','hidden','important');
-                              }
                               var root = document.querySelector('ytm-player') ||
                                 document.querySelector('#movie_player') ||
                                 document.querySelector('#player');
-                              if (!root) return;
                               var isFullscreen = !!(document.fullscreenElement ||
                                 document.getElementById('ngocsi-css-fullscreen'));
+
+                              // The inline player sits inside a native 16:9 host. Do not leave
+                              // 100%-height inline styles on ytm-app/ytm-watch after fullscreen:
+                              // those page-flow wrappers can retain landscape viewport height
+                              // after Android shrinks back to portrait. Full viewport sizing is
+                              // only valid while the dedicated fullscreen stylesheet is active.
+                              [appShell, watchShell].forEach(function(shell) {
+                                if (!shell) return;
+                                shell.style.setProperty('display','block','important');
+                                shell.style.setProperty('position','relative','important');
+                                ['left','top','right','bottom','inset'].forEach(function(prop) {
+                                  shell.style.removeProperty(prop);
+                                });
+                                shell.style.setProperty('width','100%','important');
+                                shell.style.setProperty('margin','0','important');
+                                shell.style.setProperty('padding','0','important');
+                                shell.style.setProperty('transform','none','important');
+                                shell.style.setProperty('overflow','hidden','important');
+                                if (isFullscreen) {
+                                  shell.style.setProperty('height','100%','important');
+                                } else {
+                                  shell.style.removeProperty('height');
+                                  shell.style.removeProperty('max-height');
+                                }
+                              });
+                              if (!root) return;
                               root.style.setProperty('box-sizing','border-box','important');
-                              root.style.setProperty('max-width','none','important');
-                              // Let the native WebView host define the current viewport. The
-                              // player element should fill its containing block in normal flow;
-                              // forcing fixed/absolute bounds here makes stale landscape geometry
-                              // survive when Android has returned to portrait.
-                              root.style.setProperty('position','relative','important');
+                              root.style.setProperty('max-width','100%','important');
                               ['left','top','right','bottom','inset'].forEach(function(prop) {
                                 root.style.removeProperty(prop);
                               });
+                              root.style.setProperty('position','relative','important');
                               root.style.setProperty('width','100%','important');
-                              root.style.setProperty('height','100%','important');
-                              root.style.setProperty('aspect-ratio','auto','important');
                               root.style.setProperty('transform','none','important');
                               root.style.setProperty('margin','0','important');
                               root.style.setProperty('padding','0','important');
+                              if (isFullscreen) {
+                                root.style.setProperty('height','100%','important');
+                                root.style.setProperty('max-height','100%','important');
+                                root.style.setProperty('aspect-ratio','auto','important');
+                              } else {
+                                // Restore YouTube's native inline aspect-ratio/layout instead of
+                                // forcing height:100% against an auto-height page-flow parent.
+                                root.style.removeProperty('height');
+                                root.style.removeProperty('max-height');
+                                root.style.removeProperty('aspect-ratio');
+                              }
                             }
                             // Avoid repeatedly rewriting player dimensions while Chromium is
                             // handing the video surface between portrait, landscape and inline.
