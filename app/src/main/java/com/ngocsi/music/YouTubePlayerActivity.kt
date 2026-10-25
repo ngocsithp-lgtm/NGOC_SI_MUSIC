@@ -225,6 +225,13 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var pageErrorVisible = false
     private var youtubePlayerReady = false
     private var youtubePlayerState = -1
+    // Selecting/opening a video should start it without requiring a second Play tap.
+    // This is consumed once per selected video, never on each configuration change.
+    private var autoplayPendingForCurrentVideo = true
+    // Keep a forced landscape request until the handset is physically landscape; otherwise
+    // switching to FULL_SENSOR immediately after Android's forced rotation snaps back to portrait.
+    private var fullscreenOrientationListener: android.view.OrientationEventListener? = null
+    private var waitingForPhysicalLandscape = false
     // New play/pause requests invalidate older delayed retries so native and voice
     // controls cannot leave multiple competing playback loops active at the same time.
     private var playbackRequestGeneration = 0
@@ -261,8 +268,23 @@ class YouTubePlayerActivity : ComponentActivity() {
                 updatePlaybackButton()
                 restoreSavedPlaybackPosition()
                 startPlaybackPositionSaver()
-                executePendingAiAction()
+                val hadPendingAction = pendingAiAction != null
                 val isRecoveryReload = recoverAfterPageReload
+                executePendingAiAction()
+                if (autoplayPendingForCurrentVideo) {
+                    autoplayPendingForCurrentVideo = false
+                    if (!hadPendingAction && !isRecoveryReload) {
+                        val expectedVideoId = sanitizeVideoId(videoId)
+                        playbackPositionHandler.postDelayed({
+                            if (!isFinishing && !isDestroyed && youtubePlayerReady &&
+                                webView != null && expectedVideoId == sanitizeVideoId(videoId) &&
+                                !explicitUserPause
+                            ) {
+                                requestYouTubePlayback()
+                            }
+                        }, 650L)
+                    }
+                }
                 if (recoverAfterPageReload) {
                     recoverAfterPageReload = false
                     val restoreNativeFullscreen = restoreNativeFullscreenAfterRecoveryReload
@@ -547,7 +569,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         buildUi()
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (customView != null || isCssFullscreen) {
+                if (customView != null || isCssFullscreen || fullscreenLayoutActive) {
                     exitFullscreen()
                 } else {
                     finish()
@@ -648,7 +670,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
 
         val backButton = actionButton("‹") {
-            if (customView != null || isCssFullscreen) exitFullscreen() else finish()
+            if (customView != null || isCssFullscreen || fullscreenLayoutActive) exitFullscreen() else finish()
         }.apply {
             textSize = 27f
             contentDescription = "Quay lại"
@@ -1592,10 +1614,19 @@ class YouTubePlayerActivity : ComponentActivity() {
                 saveLastPlayedState()
 
                 val safeId = sanitizeVideoId(videoId)
+                autoplayPendingForCurrentVideo = true
+                explicitUserPause = false
                 // The one-shot fallback budget belongs to the selected video, not to the
                 // lifetime of this Activity/WebView.
                 geometryReloadFallbackAttemptedForCurrentPage = false
-                webView?.loadUrl("https://m.youtube.com/watch?v=" + safeId)
+                webView?.loadUrl(
+                    Uri.parse("https://m.youtube.com/watch")
+                        .buildUpon()
+                        .appendQueryParameter("v", safeId)
+                        .appendQueryParameter("autoplay", "1")
+                        .appendQueryParameter("playsinline", "1")
+                        .build().toString()
+                )
             }
         }
     }
@@ -2463,6 +2494,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
     private fun createPlayer() {
         removePlayer()
+        autoplayPendingForCurrentVideo = true
         geometryReloadFallbackAttemptedForCurrentPage = false
         restoreNativeFullscreenAfterRecoveryReload = false
         pageErrorVisible = false
@@ -2595,7 +2627,14 @@ class YouTubePlayerActivity : ComponentActivity() {
                               '.ytp-fullscreen-button,.ytp-size-button,ytm-player-fullscreen-button-renderer,' +
                               '.ytp-endscreen-content,.ytp-endscreen-previous,.ytp-endscreen-next,' +
                               '.ytp-ce-covering-overlay,.ytp-cards-teaser,.ytp-ce-element,.ytp-show-cards-title {' +
-                              'display:none!important;} html,body {margin:0!important;background:#000!important;}';
+                              'display:none!important;} ' +
+                              'html,body {margin:0!important;padding:0!important;width:100%!important;' +
+                              'height:100%!important;min-height:100%!important;overflow:hidden!important;' +
+                              'background:#000!important;} ' +
+                              'ytm-watch,ytm-player,#player-container-id,#player-container,#player {' +
+                              'width:100%!important;max-width:100%!important;margin:0!important;} ' +
+                              'ytm-player {display:block!important;height:100%!important;' +
+                              'min-height:100%!important;max-height:none!important;}';
                             (document.head || document.documentElement).appendChild(style);
 
                             function videoVisible(video) {
@@ -2892,7 +2931,14 @@ class YouTubePlayerActivity : ComponentActivity() {
             // Load YouTube's mobile site in this embedded WebView. Background mode
             // keeps this same player alive and uses bounded recovery if the page pauses.
             val safeId = sanitizeVideoId(videoId)
-            loadUrl("https://m.youtube.com/watch?v=" + safeId)
+            loadUrl(
+                Uri.parse("https://m.youtube.com/watch")
+                    .buildUpon()
+                    .appendQueryParameter("v", safeId)
+                    .appendQueryParameter("autoplay", "1")
+                    .appendQueryParameter("playsinline", "1")
+                    .build().toString()
+            )
         }
 
         webView = player
@@ -3155,11 +3201,11 @@ class YouTubePlayerActivity : ComponentActivity() {
                 exitFullscreen()
                 return
             }
-            if (newConfig.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE &&
-                requestedOrientation == android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-            ) {
-                requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
-            }
+            // Do not immediately release the requested landscape orientation here. This callback
+            // can be caused by our own forced landscape request while the handset is still
+            // physically portrait; switching to FULL_SENSOR now makes Android snap straight back.
+            // waitForPhysicalLandscapeBeforeUnlock() releases the lock after the sensor confirms
+            // the phone was physically rotated to landscape.
             scheduleCssFullscreenLayoutSync()
             return
         }
@@ -3372,16 +3418,65 @@ class YouTubePlayerActivity : ComponentActivity() {
         if (::root.isInitialized) root.requestLayout()
     }
 
+    private fun waitForPhysicalLandscapeBeforeUnlock() {
+        fullscreenOrientationListener?.disable()
+        waitingForPhysicalLandscape = true
+        val listener = object : android.view.OrientationEventListener(this) {
+            override fun onOrientationChanged(orientation: Int) {
+                if (!waitingForPhysicalLandscape ||
+                    orientation == ORIENTATION_UNKNOWN ||
+                    isFinishing || isDestroyed || !fullscreenLayoutActive
+                ) return
+
+                val physicallyLandscape = orientation in 60..120 || orientation in 240..300
+                if (!physicallyLandscape) return
+
+                waitingForPhysicalLandscape = false
+                disable()
+                if (fullscreenOrientationListener === this) {
+                    fullscreenOrientationListener = null
+                }
+                // Sensor now confirms landscape, so FULL_SENSOR won't bounce the Activity back
+                // to portrait while the phone is still being held upright.
+                if (!isFinishing && !isDestroyed && fullscreenLayoutActive) {
+                    requestedOrientation =
+                        android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+                }
+            }
+        }
+        fullscreenOrientationListener = listener
+        if (listener.canDetectOrientation()) {
+            listener.enable()
+        } else {
+            // Without orientation sensors, retain the explicit landscape lock until the user
+            // exits fullscreen using the on-screen shrink control.
+            waitingForPhysicalLandscape = false
+            listener.disable()
+            fullscreenOrientationListener = null
+        }
+    }
+
+    private fun clearFullscreenOrientationListener() {
+        waitingForPhysicalLandscape = false
+        fullscreenOrientationListener?.disable()
+        fullscreenOrientationListener = null
+    }
+
     private fun enterFullscreen() {
         // The existing WebView stays attached; only sibling UI is hidden so the player
         // receives the full activity viewport rather than the space below the header/actions.
         setFullscreenLayout(true)
-        requestedOrientation = if (
-            resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        if (resources.configuration.orientation ==
+            android.content.res.Configuration.ORIENTATION_LANDSCAPE
         ) {
-            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+            clearFullscreenOrientationListener()
+            requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
         } else {
-            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            // Keep landscape locked until the physical orientation sensor confirms that the
+            // handset itself reached landscape. Unlocking at the configuration callback alone
+            // causes a forced landscape -> portrait loop on several Android builds.
+            waitForPhysicalLandscapeBeforeUnlock()
+            requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         }
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).apply {
@@ -3394,6 +3489,7 @@ class YouTubePlayerActivity : ComponentActivity() {
 
     private fun exitFullscreen(notifyCallback: Boolean = true) {
         fullscreenEntryPending = false
+        clearFullscreenOrientationListener()
         // A hardware Back/custom-view callback can report the same exit twice. Ignore
         // duplicate exits; they otherwise schedule competing recovery/reload attempts.
         if (customView == null && !isCssFullscreen && !fullscreenLayoutActive) return
@@ -3431,8 +3527,8 @@ class YouTubePlayerActivity : ComponentActivity() {
             wasCssFullscreen && playbackIntentBeforeExit
         // Do not turn a deliberate user pause into an automatic play on the fullscreen callback.
         val shouldRecoverPlayback =
-            !explicitUserPause &&
-                (shouldResumeAfterNativeFullscreen || shouldResumeAfterCssFullscreen)
+            !explicitUserPause && playbackIntentBeforeExit &&
+                (shouldResumeAfterNativeFullscreen || shouldResumeAfterCssFullscreen || wasManagedFullscreen)
         if (shouldRecoverPlayback) {
             resumePlaybackOnNextOrientationChange = true
             getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
@@ -3517,10 +3613,26 @@ class YouTubePlayerActivity : ComponentActivity() {
                         if (exitGeneration != fullscreenExitGeneration) return@postDelayed
                         fullscreenExitRecoveryPending = false
                         if (shouldRecoverPlayback) {
-                            // Recovery runs only after native layout is back in portrait.
-                            // If YouTube is not ready yet, the scheduler releases its slot;
-                            // onReady() will enqueue the same exit's recovery once.
-                            scheduleFullscreenExitPlaybackRecovery(exitGeneration, 700L)
+                            if (wasManagedFullscreen) {
+                                // No geometry callback is installed for managed fullscreen because
+                                // the original DOM player stayed in the WebView. Still probe the
+                                // media/frame clocks after the portrait viewport has settled.
+                                playbackPositionHandler.postDelayed({
+                                    if (exitGeneration == fullscreenExitGeneration &&
+                                        !isFinishing && !isDestroyed && !explicitUserPause &&
+                                        webView != null && youtubePlayerReady
+                                    ) {
+                                        recoverFullscreenPlayback(
+                                            allowPageReloadFallback = false,
+                                            allowFrameReloadFallback = true
+                                        )
+                                    }
+                                }, 260L)
+                            } else {
+                                // Recovery runs only after native layout is back inline.
+                                // If YouTube is not ready yet, onReady() schedules this exit's recovery.
+                                scheduleFullscreenExitPlaybackRecovery(exitGeneration, 700L)
+                            }
                         }
                     }, 500L)
                 }
@@ -4289,6 +4401,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         (value * resources.displayMetrics.density).toInt()
 
     override fun onDestroy() {
+        clearFullscreenOrientationListener()
         if (isFinishing) {
             stopService(
                 Intent(this, YouTubeBackgroundService::class.java)
