@@ -1903,6 +1903,9 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun markExplicitPlayIntent() {
+        // A fresh user Play action supersedes any delayed recovery/reload queued for the
+        // previous viewport state. Let the user's command own the current media session.
+        fullscreenRecoveryGeneration++
         explicitUserPause = false
         resumePlaybackOnNextOrientationChange = true
         orientationRecoveryWindowUntilMs = System.currentTimeMillis() + 2200L
