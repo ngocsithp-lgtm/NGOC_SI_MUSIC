@@ -213,6 +213,11 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var inlineLoadingBarVisibility: Int? = null
     // A single page-reload fallback is allowed per selected video to prevent reload loops.
     private var geometryReloadFallbackAttemptedForCurrentPage = false
+    // The first page can have a valid Android frame while YouTube's own DOM video remains
+    // narrow/zero-sized. Audit the actual HTML video geometry once per selected-video/orientation.
+    private var inlineGeometryAuditGeneration = 0
+    private var lastInlineGeometryAuditVideoId: String? = null
+    private var lastInlineGeometryAuditLandscape: Boolean? = null
     private var recoverAfterPageReload = false
     private var playbackCommandGeneration = 0
     private var videoId: String = ""
@@ -283,12 +288,27 @@ class YouTubePlayerActivity : ComponentActivity() {
                     autoplayPendingForCurrentVideo = false
                     if (!hadPendingAction && !isRecoveryReload) {
                         val expectedVideoId = sanitizeVideoId(videoId)
+                        // This is a new user-selected video, not a user Pause. Preserve Play
+                        // intent while the mobile site creates its first media/render surface.
+                        resumePlaybackOnNextOrientationChange = true
+                        getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
+                            .putBoolean("youtube_playback_is_playing", true)
+                            .putBoolean("youtube_is_playing", true)
+                            .apply()
                         playbackPositionHandler.postDelayed({
                             if (!isFinishing && !isDestroyed && youtubePlayerReady &&
                                 webView != null && expectedVideoId == sanitizeVideoId(videoId) &&
                                 !explicitUserPause
                             ) {
                                 requestYouTubePlayback()
+                                // Wait for playback recovery to settle before examining the
+                                // real DOM video bounds; native frame size alone is not enough.
+                                scheduleInlineGeometryAudit(
+                                    delayMs = 3200L,
+                                    targetLandscape = resources.configuration.orientation ==
+                                        android.content.res.Configuration.ORIENTATION_LANDSCAPE,
+                                    requirePlayback = true
+                                )
                             }
                         }, 650L)
                     }
@@ -1087,6 +1107,15 @@ class YouTubePlayerActivity : ComponentActivity() {
                 allowFrameReloadFallback = true
             )
         }, 700L)
+
+        // Some orientation failures leave the media clock running while the actual video surface
+        // occupies only a small fraction of the viewport. Run a separate DOM-size audit after the
+        // playback probe window, never concurrently with the first recovery loop.
+        scheduleInlineGeometryAudit(
+            delayMs = 3400L,
+            targetLandscape = isLandscape,
+            requirePlayback = shouldPreservePlayback
+        )
     }
 
     private fun showMoreOptions(anchor: View) {
@@ -2662,9 +2691,13 @@ class YouTubePlayerActivity : ComponentActivity() {
                               'height:100%!important;min-height:100%!important;overflow:hidden!important;' +
                               'background:#000!important;} ' +
                               'ytm-watch,ytm-player,#player-container-id,#player-container,#player {' +
-                              'width:100%!important;max-width:100%!important;margin:0!important;} ' +
-                              'ytm-player {display:block!important;height:100%!important;' +
-                              'min-height:100%!important;max-height:none!important;}';
+                              'display:block!important;width:100vw!important;max-width:100vw!important;' +
+                              'min-width:0!important;margin-left:0!important;margin-right:0!important;' +
+                              'box-sizing:border-box!important;} ' +
+                              'ytm-player {height:100%!important;min-height:100%!important;' +
+                              'max-height:none!important;} ' +
+                              '#player-container-id,#player-container,#player,.html5-video-player,' +
+                              '.html5-video-container {max-width:100vw!important;box-sizing:border-box!important;}';
                             (document.head || document.documentElement).appendChild(style);
 
                             function videoVisible(video) {
@@ -2705,10 +2738,50 @@ class YouTubePlayerActivity : ComponentActivity() {
                             }
 
                             window.__ngocSiFindActiveVideo = findActiveVideo;
-                            // Legacy native recovery callers can request a regular resize, but
-                            // this handler never writes styling to the page or video element.
                             window.__ngocSiFitPlayerResizeHandler = function() {
                               try { window.dispatchEvent(new Event('resize')); } catch (_) {}
+                            };
+
+                            // Repair a mobile YouTube wrapper that keeps its old narrow width
+                            // after rotation. This touches containers only; it never changes the
+                            // HTMLVideoElement's media pipeline or issues play/pause.
+                            window.__ngocSiSyncInlineViewport = function() {
+                              try {
+                                var viewportWidth = Number(
+                                  document.documentElement.clientWidth || window.innerWidth || 0
+                                );
+                                if (viewportWidth < 100) return 'viewport-wait';
+                                var selectors = [
+                                  'ytm-watch', 'ytm-player', '#player-container-id',
+                                  '#player-container', '#player', '.html5-video-player',
+                                  '.html5-video-container'
+                                ];
+                                for (var s = 0; s < selectors.length; s++) {
+                                  var nodes = document.querySelectorAll(selectors[s]);
+                                  for (var n = 0; n < nodes.length; n++) {
+                                    var node = nodes[n];
+                                    if (!node || !node.isConnected) continue;
+                                    var rect = node.getBoundingClientRect();
+                                    if (rect.width > 2 && rect.width < viewportWidth * 0.78) {
+                                      node.style.setProperty('width', '100vw', 'important');
+                                      node.style.setProperty('max-width', '100vw', 'important');
+                                      node.style.setProperty('min-width', '0', 'important');
+                                      node.style.setProperty('margin-left', '0', 'important');
+                                      node.style.setProperty('margin-right', '0', 'important');
+                                      node.style.setProperty('box-sizing', 'border-box', 'important');
+                                    }
+                                  }
+                                }
+                                window.scrollTo(0, 0);
+                                if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
+                                window.dispatchEvent(new Event('resize'));
+                                if (window.visualViewport) {
+                                  window.visualViewport.dispatchEvent(new Event('resize'));
+                                }
+                                return 'viewport-synced';
+                              } catch (_) {
+                                return 'viewport-sync-error';
+                              }
                             };
 
                             var lastVideo = null;
@@ -2719,9 +2792,46 @@ class YouTubePlayerActivity : ComponentActivity() {
                             var frameTrackedVideo = null;
                             var frameTrackingStartedAt = 0;
 
+                            function findAttachedNonHiddenVideo() {
+                              var candidates = Array.prototype.slice.call(
+                                document.querySelectorAll(
+                                  'video.html5-main-video,#movie_player video,' +
+                                  '.html5-video-player video,ytm-player video,video'
+                                )
+                              );
+                              return candidates.find(function(candidate) {
+                                if (!candidate || !candidate.isConnected) return false;
+                                var node = candidate;
+                                while (node && node.nodeType === 1 &&
+                                       node !== document.documentElement) {
+                                  var cs = window.getComputedStyle(node);
+                                  if (cs.display === 'none' || cs.visibility === 'hidden' ||
+                                      Number(cs.opacity || 1) === 0) return false;
+                                  node = node.parentElement;
+                                }
+                                return true;
+                              }) || null;
+                            }
+
                             function trackVideo() {
-                              var video = findActiveVideo();
-                              if (!video) return;
+                              var video = findActiveVideo() || findAttachedNonHiddenVideo();
+                              if (!video) {
+                                // Some mobile-page builds attach the player host before the
+                                // media node has a non-zero rectangle. Let native startup begin
+                                // once that host itself occupies a real viewport-sized box.
+                                var host = document.querySelector('ytm-player') ||
+                                           document.querySelector('#player-container-id') ||
+                                           document.querySelector('#player-container');
+                                if (host && !window.__ngocSiReadySent) {
+                                  var hostRect = host.getBoundingClientRect();
+                                  if (hostRect.width >= 200 && hostRect.height >= 100) {
+                                    window.__ngocSiReadySent = true;
+                                    window.__ngocSiBridgeInstalled = true;
+                                    try { AndroidBridge.onReady(); } catch (_) {}
+                                  }
+                                }
+                                return;
+                              }
 
                               if (!window.__ngocSiReadySent) {
                                 window.__ngocSiReadySent = true;
@@ -2829,6 +2939,11 @@ class YouTubePlayerActivity : ComponentActivity() {
                             var lastHandoffAt = 0;
                             function onViewportChange() {
                               var now = Date.now();
+                              try {
+                                if (typeof window.__ngocSiSyncInlineViewport === 'function') {
+                                  window.__ngocSiSyncInlineViewport();
+                                }
+                              } catch (_) {}
                               if (now - lastHandoffAt < 650) return;
                               var explicitPauseAt = Number(window.__ngocSiExplicitPauseAt || 0);
                               if (explicitPauseAt > 0 && now - explicitPauseAt < 5000) return;
@@ -3193,10 +3308,26 @@ class YouTubePlayerActivity : ComponentActivity() {
         ) return
         playerScrollView?.scrollTo(0, 0)
         player.scrollTo(0, 0)
-        // Never write CSS to ytm-player, HTMLVideoElement or any ancestor. Native measure/
-        // invalidate is sufficient once WebView receives the orientation's real viewport.
         player.requestLayout()
         player.invalidate()
+        player.evaluateJavascript(
+            """
+            (function() {
+              try {
+                if (typeof window.__ngocSiSyncInlineViewport === 'function') {
+                  return window.__ngocSiSyncInlineViewport();
+                }
+                window.scrollTo(0, 0);
+                if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
+                window.dispatchEvent(new Event('resize'));
+                return 'basic-viewport-sync';
+              } catch (_) {
+                return 'viewport-sync-error';
+              }
+            })();
+            """.trimIndent(),
+            null
+        )
     }
 
     /**
@@ -3762,6 +3893,50 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
 
         finishExitLayout()
+    }
+
+    /**
+     * Check actual YouTube DOM geometry after startup/rotation, independently of the native
+     * Android FrameLayout dimensions. An audit is sequenced after playback recovery and runs
+     * only once for a given video/orientation so a broken page cannot enter a reload loop.
+     */
+    private fun scheduleInlineGeometryAudit(
+        delayMs: Long,
+        targetLandscape: Boolean,
+        requirePlayback: Boolean
+    ) {
+        val expectedVideoId = sanitizeVideoId(videoId)
+        if (expectedVideoId.isBlank() || isFinishing || isDestroyed) return
+        if (lastInlineGeometryAuditVideoId == expectedVideoId &&
+            lastInlineGeometryAuditLandscape == targetLandscape
+        ) return
+
+        val auditGeneration = ++inlineGeometryAuditGeneration
+        val exitGeneration = fullscreenExitGeneration
+        playbackPositionHandler.postDelayed({
+            if (auditGeneration != inlineGeometryAuditGeneration ||
+                isFinishing || isDestroyed || expectedVideoId != sanitizeVideoId(videoId) ||
+                exitGeneration != fullscreenExitGeneration || explicitUserPause ||
+                isCssFullscreen || customView != null || fullscreenLayoutActive || webView == null
+            ) return@postDelayed
+
+            val isLandscapeNow = resources.configuration.orientation ==
+                android.content.res.Configuration.ORIENTATION_LANDSCAPE
+            if (isLandscapeNow != targetLandscape) return@postDelayed
+
+            val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+            if (requirePlayback && !prefs.getBoolean("youtube_playback_is_playing", false)) {
+                return@postDelayed
+            }
+
+            lastInlineGeometryAuditVideoId = expectedVideoId
+            lastInlineGeometryAuditLandscape = targetLandscape
+            scheduleFullscreenExitGeometryCheck(
+                exitGeneration,
+                shouldResumePlayback = requirePlayback &&
+                    prefs.getBoolean("youtube_playback_is_playing", false)
+            )
+        }, delayMs.coerceAtLeast(0L))
     }
 
     /**
