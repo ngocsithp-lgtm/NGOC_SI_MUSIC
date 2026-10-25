@@ -1990,10 +1990,13 @@ class YouTubePlayerActivity : ComponentActivity() {
     private fun noteViewportPlaybackHandoff() {
         if (isFinishing || isDestroyed || webView == null || explicitUserPause) return
         val now = System.currentTimeMillis()
-        // Android's configuration callback owns recovery for several seconds after a real
-        // rotation. Ignore its resulting WebView resize events so they cannot start a second
-        // probe loop and invalidate the active recovery generation.
-        if (now <= orientationRecoveryWindowUntilMs) return
+        // Suppress resize-originated recovery only during a physical-rotation handoff.
+        // Fullscreen exit also sets orientationRecoveryWindowUntilMs, but must still record
+        // playback intent before its own bounded recovery takes over.
+        if (now <= physicalOrientationNormalizationUntilMs &&
+            !fullscreenExitRecoveryPending &&
+            pendingFullscreenExitGeometryCheck == null
+        ) return
         orientationRecoveryWindowUntilMs = now + 5000L
         resumePlaybackOnNextOrientationChange = true
         getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
