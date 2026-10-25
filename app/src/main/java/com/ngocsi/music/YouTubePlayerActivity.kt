@@ -3459,6 +3459,15 @@ class YouTubePlayerActivity : ComponentActivity() {
                 wasPlayingBeforeFullscreen ||
                 playbackPrefs.getBoolean("youtube_playback_is_playing", false)
             )
+        // A direct device rotation (without pressing the fullscreen shrink button) is its
+        // own recovery event. Re-arm one last-resort reload only for this new orientation
+        // handoff; a reload itself does not trigger onConfigurationChanged, so this cannot loop.
+        if (intendedBeforeConfigurationChange &&
+            !isCssFullscreen && customView == null &&
+            !fullscreenExitRecoveryPending && pendingFullscreenExitGeometryCheck == null
+        ) {
+            geometryReloadFallbackAttemptedForCurrentPage = false
+        }
         orientationRecoveryWindowUntilMs = System.currentTimeMillis() + 5000L
         if (intendedBeforeConfigurationChange) {
             resumePlaybackOnNextOrientationChange = true
@@ -3551,8 +3560,9 @@ class YouTubePlayerActivity : ComponentActivity() {
                         youtubePlayerState == 1)
                 ) {
                     // Orientation changes can pause the same video element without ending it.
-                    // Restore only the prior play intent and use one bounded recovery controller.
-                    recoverFullscreenPlayback(allowPageReloadFallback = false)
+                    // First recover in place; if the media clock remains stalled, allow the one
+                    // fallback armed for this orientation event to reload at the saved position.
+                    recoverFullscreenPlayback(allowPageReloadFallback = true)
                 }
             }
             val quietWindowRemaining =
