@@ -4668,7 +4668,8 @@ class YouTubePlayerActivity : ComponentActivity() {
                         recoveryPlayer?.postDelayed({
                             // An old orientation/fullscreen recovery must never reload the
                             // page after a newer recovery or an explicit user action supersedes it.
-                            if (generation == fullscreenRecoveryGeneration &&
+                            if (recoveryPlayer != null &&
+                                generation == fullscreenRecoveryGeneration &&
                                 !explicitUserPause && !isFinishing && !isDestroyed &&
                                 recoveryPlayer === webView
                             ) {
