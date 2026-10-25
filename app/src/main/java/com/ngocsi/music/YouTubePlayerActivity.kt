@@ -2299,6 +2299,62 @@ class YouTubePlayerActivity : ComponentActivity() {
                 response.contains("paused")
             val rejected = response.contains("retry") || response.contains("no-video") ||
                 response.contains("error")
+
+            // A WebView player API can accept Play while the HTML5 media element stays
+            // paused after a portrait viewport/layout handoff. Verify a single time after
+            // the user command; only ask the bounded Play controller to retry when the
+            // media is still truly paused/stalled. Do not compete with a buffering stream.
+            if (command == "toggle" && (
+                    response.contains("requested-api") ||
+                        response.contains("requested-button") ||
+                        response.contains("requested-video")
+                    )
+            ) {
+                playbackPositionHandler.postDelayed({
+                    if (generation != playbackCommandGeneration ||
+                        explicitUserPause || isFinishing || isDestroyed ||
+                        webView == null || fullscreenExitRecoveryPending ||
+                        pendingFullscreenExitGeometryCheck != null
+                    ) return@postDelayed
+
+                    val verifyPortraitPlayback = """
+                        (function() {
+                          var video = null;
+                          try {
+                            if (typeof window.__ngocSiFindActiveVideo === 'function')
+                              video = window.__ngocSiFindActiveVideo();
+                          } catch (_) {}
+                          if (!video) video = document.querySelector('video.html5-main-video') ||
+                            document.querySelector('#movie_player video') ||
+                            document.querySelector('ytm-player video') ||
+                            document.querySelector('video');
+                          if (!video) return 'NO_VIDEO';
+                          if (video.ended) return 'ENDED';
+                          if (video.paused) return 'PAUSED';
+                          if (video.readyState < 2) return 'BUFFERING';
+                          var progressAt = Number(window.__ngocSiPlaybackProgressAt || 0);
+                          if (window.__ngocSiTrackedVideo === video &&
+                              window.__ngocSiPlaybackActuallyPlaying === true &&
+                              progressAt > 0 && Date.now() - progressAt < 1800)
+                            return 'PLAYING';
+                          return 'STALLED';
+                        })();
+                    """.trimIndent()
+                    webView?.evaluateJavascript(verifyPortraitPlayback) portraitPlaybackVerification@{ verifyResult ->
+                        if (generation != playbackCommandGeneration ||
+                            explicitUserPause || isFinishing || isDestroyed ||
+                            fullscreenExitRecoveryPending ||
+                            pendingFullscreenExitGeometryCheck != null
+                        ) return@portraitPlaybackVerification
+
+                        val mediaState = verifyResult.orEmpty().trim('"')
+                        if (mediaState == "PAUSED" || mediaState == "STALLED") {
+                            requestYouTubePlayback()
+                        }
+                    }
+                }, 1400L)
+            }
+
             if (!accepted && rejected && command != "pause") {
                 playbackPositionHandler.postDelayed({
                     if (generation == playbackCommandGeneration &&
