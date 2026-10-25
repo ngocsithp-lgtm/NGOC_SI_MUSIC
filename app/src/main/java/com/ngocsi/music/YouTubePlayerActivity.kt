@@ -991,11 +991,13 @@ class YouTubePlayerActivity : ComponentActivity() {
             if (!prefs.getBoolean("youtube_playback_is_playing", false)) {
                 return@postDelayed
             }
-            // Physical rotation must not reload the YouTube page: replacing the HTML5
-            // element can leave audio and video surfaces out of sync and can lose playback.
-            // Keep recovery bounded to the existing element; explicit fullscreen exit has
-            // its own separate, serialized fallback path.
-            recoverFullscreenPlayback(allowPageReloadFallback = false)
+            // Physical rotation must not reload a healthy stream. However, when audio time advances
+            // while rendered video frames stop, permit one diagnosed frame-only fallback.
+            // This catches the audio-but-no-picture case missed by clock-only recovery.
+            recoverFullscreenPlayback(
+                allowPageReloadFallback = false,
+                allowFrameReloadFallback = true
+            )
         }, 700L)
     }
 
@@ -4455,13 +4457,20 @@ class YouTubePlayerActivity : ComponentActivity() {
         callback()
     }
 
-    private fun recoverFullscreenPlayback(allowPageReloadFallback: Boolean = true) {
+    private fun recoverFullscreenPlayback(
+        allowPageReloadFallback: Boolean = true,
+        allowFrameReloadFallback: Boolean = false
+    ) {
         if (isFinishing || isDestroyed || webView == null || explicitUserPause) return
         val generation = ++fullscreenRecoveryGeneration
         var previousPosition: Double? = null
         var playRequested = false
         var fallbackNudgeSent = false
-        var pageReloadFallbackUsed = !allowPageReloadFallback
+        var frameStallSamples = 0
+        var frameRepairAttempted = false
+        // Physical rotation may reload only when the rendered-frame watchdog proves a
+        // video-surface stall; ordinary clock recovery remains reload-free in that path.
+        var pageReloadFallbackUsed = !allowPageReloadFallback && !allowFrameReloadFallback
 
         // Re-arm foreground WebView processing after the orientation/layout transition.
         webView?.onResume()
@@ -4544,7 +4553,18 @@ class YouTubePlayerActivity : ComponentActivity() {
                     var videoIsRenderable = isRenderable(video);
                     var position = Number(video.currentTime || 0);
                     var ready = Number(video.readyState || 0);
-                    if (video.ended) return 'ENDED|' + position + '|' + ready;
+                    function report(state) {
+                      var rect = video.getBoundingClientRect();
+                      var frameSupported = typeof video.requestVideoFrameCallback === 'function';
+                      var frameAt = window.__ngocSiFrameTrackedVideo === video
+                        ? Number(window.__ngocSiLastVideoFrameAt || 0) : 0;
+                      var frameAge = frameAt > 0 ? Date.now() - frameAt : -1;
+                      return state + '|' + position + '|' + ready + '|' + frameAge + '|' +
+                        (frameSupported ? '1' : '0') + '|' +
+                        (isRenderable(video) ? '1' : '0') + '|' +
+                        Number(rect.width || 0) + '|' + Number(rect.height || 0);
+                    }
+                    if (video.ended) return report('ENDED');
 
                     var player = document.querySelector('#movie_player') ||
                                  document.querySelector('.html5-video-player') ||
@@ -4563,13 +4583,13 @@ class YouTubePlayerActivity : ComponentActivity() {
                       // tracker is stale during rotation. That was interrupting streams
                       // which were already progressing. Only issue Play for a paused element.
                       if (videoIsRenderable && player && typeof player.playVideo === 'function') {
-                        try { player.playVideo(); return 'REQUESTED|' + position + '|' + ready; } catch (_) {}
+                        try { player.playVideo(); return report('REQUESTED'); } catch (_) {}
                       }
                       try {
                         var firstPromise = video.play();
                         if (firstPromise && typeof firstPromise.catch === 'function')
                           firstPromise.catch(function(){});
-                        return 'REQUESTED|' + position + '|' + ready;
+                        return report('REQUESTED');
                       } catch (_) {}
                     }
 
@@ -4597,7 +4617,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                         if (player && typeof player.playVideo === 'function') {
                           try {
                             player.playVideo();
-                            return 'NUDGED|' + position + '|' + ready;
+                            return report('NUDGED');
                           } catch (_) {}
                         }
                         try {
@@ -4609,7 +4629,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                       }
                     }
 
-                    return (video.paused ? 'PAUSED' : 'ACTIVE') + '|' + position + '|' + ready;
+                    return report(video.paused ? 'PAUSED' : 'ACTIVE');
                   } catch (_) {
                     return 'ERROR|0|0';
                   }
@@ -4621,6 +4641,9 @@ class YouTubePlayerActivity : ComponentActivity() {
                 val fields = result.orEmpty().trim('"').split('|')
                 val state = fields.getOrNull(0).orEmpty()
                 val currentPosition = fields.getOrNull(1)?.toDoubleOrNull()
+                val frameAgeMs = fields.getOrNull(3)?.toLongOrNull() ?: -1L
+                val hasFrameCallback = fields.getOrNull(4) == "1"
+                val videoRenderable = fields.getOrNull(5) == "1"
 
                 if (state == "ENDED") {
                     finishPendingFullscreenExitGeometryCheck()
@@ -4628,14 +4651,65 @@ class YouTubePlayerActivity : ComponentActivity() {
                 }
                 if (state == "REQUESTED" || state == "API_ONLY") playRequested = true
 
-                // Confirm recovery only when the actual media clock advances. "ACTIVE" or
-                // "buffering" alone is not enough and must not trigger more Play commands.
                 val previous = previousPosition
-                if (previous != null && currentPosition != null &&
+                val clockAdvanced = previous != null && currentPosition != null &&
                     currentPosition > previous + 0.04
+                // Audio/currentTime can keep moving while Chromium stops delivering the
+                // video frames. Do not declare recovery healthy until frame delivery resumes.
+                val frameStalledNow =
+                    (hasFrameCallback && frameAgeMs > 1500L) ||
+                    (clockAdvanced && number >= 2 && !videoRenderable)
+                if (frameStalledNow) {
+                    frameStallSamples++
+                } else if (hasFrameCallback && frameAgeMs >= 0L &&
+                    frameAgeMs <= 1500L && videoRenderable
                 ) {
-                    // Re-arm only after proving that playback time advanced, allowing
-                    // another isolated orientation failure to use the bounded fallback.
+                    frameStallSamples = 0
+                }
+
+                // Once two consecutive probes confirm stale/missing frames, perform one
+                // lightweight compositor/layout repair before considering page recreation.
+                if (frameStallSamples >= 2 && !frameRepairAttempted) {
+                    frameRepairAttempted = true
+                    val repairPlayer = webView
+                    repairPlayer?.evaluateJavascript(
+                        """
+                        (function() {
+                          try {
+                            if (document.getElementById('ngocsi-css-fullscreen') ||
+                                document.fullscreenElement) return 'FULLSCREEN';
+                            var active = typeof window.__ngocSiFindActiveVideo === 'function'
+                              ? window.__ngocSiFindActiveVideo() : null;
+                            if (active && active.style) {
+                              ['display','visibility','opacity'].forEach(function(p) {
+                                active.style.removeProperty(p);
+                              });
+                            }
+                            if (typeof window.__ngocSiFitPlayerResizeHandler === 'function')
+                              window.__ngocSiFitPlayerResizeHandler();
+                            window.scrollTo(0, 0);
+                            window.dispatchEvent(new Event('resize'));
+                            if (window.visualViewport)
+                              window.visualViewport.dispatchEvent(new Event('resize'));
+                            return 'REPAIR_SENT';
+                          } catch (_) { return 'REPAIR_ERROR'; }
+                        })();
+                        """.trimIndent(),
+                        null
+                    )
+                    repairPlayer?.post {
+                        if (repairPlayer === webView && !isFinishing && !isDestroyed) {
+                            repairPlayer.requestLayout()
+                            repairPlayer.invalidate()
+                            playerContainer.requestLayout()
+                            playerContainer.invalidate()
+                        }
+                    }
+                }
+
+                if (clockAdvanced && !frameStalledNow) {
+                    // Require both advancing media time and recent frame delivery when the
+                    // WebView supports requestVideoFrameCallback.
                     geometryReloadFallbackAttemptedForCurrentPage = false
                     getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
                         .putBoolean("youtube_playback_is_playing", true)
@@ -4656,7 +4730,10 @@ class YouTubePlayerActivity : ComponentActivity() {
                 // This is a last resort: preserve the selected video and approximate position
                 // instead of leaving a silent frozen surface with no way to recover.
                 var reloadScheduled = false
-                if (!pageReloadFallbackUsed &&
+                val frameOnlyFallbackAllowed = allowPageReloadFallback ||
+                    (allowFrameReloadFallback && frameStallSamples >= 3)
+                if (frameOnlyFallbackAllowed &&
+                    !pageReloadFallbackUsed &&
                     !geometryReloadFallbackAttemptedForCurrentPage &&
                     !isFinishing && !isDestroyed
                 ) {
