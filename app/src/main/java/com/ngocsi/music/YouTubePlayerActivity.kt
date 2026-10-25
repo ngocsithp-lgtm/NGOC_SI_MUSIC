@@ -149,6 +149,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     // or its video surface is temporarily black after a viewport change.
     private var fullscreenEntryPending = false
     private var nativeFullscreenButton: Button? = null
+    private var frameStallRecoveryCooldownUntilMs = 0L
     // Preserve the pre-fullscreen playback state even if YouTube reports PAUSED while rotating.
     private var wasPlayingBeforeFullscreen = false
     private var fullscreenRecoveryGeneration = 0
@@ -284,6 +285,13 @@ class YouTubePlayerActivity : ComponentActivity() {
         fun onViewportPlaybackHandoff() {
             runOnUiThread {
                 noteViewportPlaybackHandoff()
+            }
+        }
+
+        @JavascriptInterface
+        fun onVideoFrameStalled() {
+            runOnUiThread {
+                recoverVideoFrameStall()
             }
         }
 
@@ -1104,9 +1112,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 '.ytp-next-button,.ytp-prev-button,.ytp-next-button-container,.ytp-prev-button-container,' +
                 '.ytp-endscreen-content,.ytp-endscreen-previous,.ytp-endscreen-next,.ytp-ce-covering-overlay,' +
                 '.ytp-cards-teaser,.ytp-ce-element,.ytp-gradient-top,' +
-                'ytm-play-button-renderer,' +
-                '.ytp-show-cards-title,' +
-                'ytm-mobile-player-overlay-renderer { display:none!important; }' +
+                'ytm-play-button-renderer,.ytp-show-cards-title { display:none!important; }' +
                 // Fullscreen is provided by the native host expanding around the same WebView.
                 // Do not position the YouTube media root as a second fixed viewport.
                 'ytm-player { position:relative!important; width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;max-width:100%!important;max-height:100%!important;aspect-ratio:auto!important;background:#000!important;overflow:hidden!important;margin:0!important;padding:0!important; }' +
@@ -1962,6 +1968,33 @@ class YouTubePlayerActivity : ComponentActivity() {
             .apply()
     }
 
+    /**
+     * The media clock can advance while Chromium stops delivering visible video frames.
+     * Keep a cooldown so the watchdog cannot repeatedly reload the same YouTube page.
+     */
+    private fun recoverVideoFrameStall() {
+        if (isFinishing || isDestroyed || webView == null || explicitUserPause) return
+        val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+        if (!prefs.getBoolean("youtube_player_foreground", true) ||
+            !prefs.getBoolean("youtube_playback_is_playing", false)
+        ) return
+        val now = System.currentTimeMillis()
+        if (now < frameStallRecoveryCooldownUntilMs) return
+        frameStallRecoveryCooldownUntilMs = now + 12_000L
+
+        // Do not reload a CSS-fullscreen document: that would discard its fullscreen style
+        // and desynchronize the native layout. Resync its viewport now; after returning inline,
+        // the frame watchdog can use the bounded page-reload fallback if needed.
+        if (customView != null || isCssFullscreen) {
+            if (isCssFullscreen) scheduleCssFullscreenLayoutSync()
+            return
+        }
+        recoverFullscreenPlayback(
+            allowPageReloadFallback = false,
+            allowFrameReloadFallback = true
+        )
+    }
+
     private fun noteViewportPlaybackHandoff() {
         if (isFinishing || isDestroyed || webView == null || explicitUserPause) return
         val now = System.currentTimeMillis()
@@ -2658,7 +2691,6 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 'ytd-ad-slot-renderer, ytd-display-ad-renderer, ytd-promoted-video-renderer, ' +
                                 'ytd-promoted-sparkles-web-renderer, ytd-in-feed-ad-layout-renderer, ' +
                                 'ytd-banner-promo-renderer, ytd-action-companion-ad-renderer, ' +
-                                '' +
                                 '.ytp-title, .ytp-title-text, .ytp-title-link, .ytp-chrome-top, ' +
                                 '.ytp-pause-overlay, .ytp-pause-overlay-container, ' +
                                 '.ytp-large-play-button, .ytp-cued-thumbnail-overlay, .ytp-next-button, .ytp-prev-button, ' +
@@ -2692,8 +2724,6 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 '.ytp-next-button-container,.ytp-prev-button-container,' +
                                 '.ytp-endscreen-content,.ytp-endscreen-previous,.ytp-endscreen-next,' +
                                 '.ytp-ce-covering-overlay,.ytp-cards-teaser,.ytp-ce-element,' +
-                                '' +
-                                '' +
                                 '[class*="next-button-overlay"]';
                               var rules = selectors +
                                 '{display:none!important;visibility:hidden!important;opacity:0!important;' +
@@ -3120,6 +3150,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                                   window.__ngocSiFrameTrackedVideo !== e) {
                                 window.__ngocSiFrameTrackedVideo = e;
                                 window.__ngocSiLastVideoFrameAt = 0;
+                                window.__ngocSiFrameTrackingStartedAt = Date.now();
                                 try {
                                   var trackRenderedFrame = function() {
                                     if (window.__ngocSiFrameTrackedVideo !== e) return;
@@ -3141,6 +3172,23 @@ class YouTubePlayerActivity : ComponentActivity() {
                               window.__ngocSiTrackedVideo = e;
                               window.__ngocSiPlaybackProgressAt = lastProgressAt;
                               window.__ngocSiPlaybackActuallyPlaying = clockAdvancing;
+                              var frameNow = Date.now();
+                              var trackedFrame = window.__ngocSiFrameTrackedVideo === e;
+                              var lastFrameAt = trackedFrame ? Number(window.__ngocSiLastVideoFrameAt || 0) : 0;
+                              var frameAge = lastFrameAt > 0 ? frameNow - lastFrameAt : -1;
+                              var trackingStartedAt = trackedFrame
+                                ? Number(window.__ngocSiFrameTrackingStartedAt || frameNow) : frameNow;
+                              var noRenderedFrames = typeof e.requestVideoFrameCallback === 'function' &&
+                                (frameAge > 1900 || (frameAge < 0 && frameNow - trackingStartedAt > 2600));
+                              if (clockAdvancing && Number(e.videoWidth || 0) > 0 && noRenderedFrames) {
+                                var lastNoticeAt = Number(window.__ngocSiLastFrameStallNoticeAt || 0);
+                                if (lastNoticeAt === 0 || frameNow - lastNoticeAt > 9000) {
+                                  window.__ngocSiLastFrameStallNoticeAt = frameNow;
+                                  try { AndroidBridge.onVideoFrameStalled(); } catch (_) {}
+                                }
+                              } else if (!clockAdvancing || (frameAge >= 0 && frameAge < 700)) {
+                                window.__ngocSiLastFrameStallNoticeAt = 0;
+                              }
                               // Distinguish a stalled/buffering media element from one whose
                               // currentTime is really advancing. A stale "playing" flag used
                               // to make the Play button issue pauseVideo() after fullscreen.
@@ -4727,6 +4775,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 // video frames. Do not declare recovery healthy until frame delivery resumes.
                 val frameStalledNow =
                     (hasFrameCallback && frameAgeMs > 1500L) ||
+                    (hasFrameCallback && frameAgeMs < 0L && clockAdvanced && number >= 5) ||
                     (clockAdvanced && number >= 2 && !videoRenderable)
                 if (frameStalledNow) {
                     frameStallSamples++
