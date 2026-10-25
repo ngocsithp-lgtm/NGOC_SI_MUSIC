@@ -69,13 +69,26 @@ class YouTubePlayerActivity : ComponentActivity() {
     private inner class InlinePlayerFrameLayout(context: android.content.Context) :
         FrameLayout(context) {
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+            val widthMode = View.MeasureSpec.getMode(widthMeasureSpec)
+            val widthFromSpec = View.MeasureSpec.getSize(widthMeasureSpec)
+            val parentWidth = (parent as? View)?.width ?: 0
+            // This view is intended to fill the width allocated by the native layout.
+            // A non-EXACT/UNSPECIFIED pass must not let WebView's intrinsic content size
+            // shrink the player while its height is still calculated from the larger spec.
+            val targetWidth = when {
+                widthMode == View.MeasureSpec.EXACTLY && widthFromSpec > 0 -> widthFromSpec
+                widthFromSpec > 0 -> widthFromSpec
+                parentWidth > 0 -> parentWidth
+                else -> resources.displayMetrics.widthPixels
+            }.coerceAtLeast(1)
+            val exactWidthSpec = View.MeasureSpec.makeMeasureSpec(
+                targetWidth, View.MeasureSpec.EXACTLY
+            )
+
             if (fullscreenLayoutActive) {
-                // ScrollView measures its child with an unspecified height on the first pass.
-                // Do not fall back to a 16:9-derived height in fullscreen: that can exceed
-                // the short edge of the landscape viewport and leave the video clipped or
-                // displaced. Use the exact parent size when available, otherwise the
-                // display's short edge (the target landscape height), independent of whether
-                // Android has delivered the orientation callback yet.
+                // Fullscreen uses the full viewport, not a 16:9 height derived from width.
+                // ScrollView can initially measure this child with an unspecified height,
+                // so use its exact viewport height when available or the current short edge.
                 val heightMode = View.MeasureSpec.getMode(heightMeasureSpec)
                 val targetHeight = when {
                     heightMode == View.MeasureSpec.EXACTLY ->
@@ -89,37 +102,31 @@ class YouTubePlayerActivity : ComponentActivity() {
                     }
                 }
                 super.onMeasure(
-                    widthMeasureSpec,
-                    View.MeasureSpec.makeMeasureSpec(targetHeight.coerceAtLeast(1), View.MeasureSpec.EXACTLY)
+                    exactWidthSpec,
+                    View.MeasureSpec.makeMeasureSpec(
+                        targetHeight.coerceAtLeast(1), View.MeasureSpec.EXACTLY
+                    )
                 )
                 return
             }
-            val width = View.MeasureSpec.getSize(widthMeasureSpec)
-            if (width > 0) {
-                val aspectHeight = (width * 9f / 16f).toInt().coerceAtLeast(1)
-                // A 16:9 frame based only on the long landscape width can be taller than
-                // the phone display. Bound its height to the current short-edge viewport;
-                // the WebView then calculates a matching 16:9 width instead of overflowing.
-                val landscape = resources.configuration.orientation ==
-                    android.content.res.Configuration.ORIENTATION_LANDSCAPE
-                val screenHeightPx = (resources.configuration.screenHeightDp *
-                    resources.displayMetrics.density).toInt()
-                // The inline landscape player sits below the native header.
-                // Subtract that header from the available screen height so the frame
-                // cannot extend beyond the physical viewport when the Activity rotates.
-                val availableLandscapeHeight = (screenHeightPx - dp(48)).coerceAtLeast(1)
-                val measuredHeight = if (landscape && screenHeightPx > 0) {
-                    minOf(aspectHeight, availableLandscapeHeight)
-                } else {
-                    aspectHeight
-                }
-                val exactHeight = View.MeasureSpec.makeMeasureSpec(
-                    measuredHeight.coerceAtLeast(1), View.MeasureSpec.EXACTLY
-                )
-                super.onMeasure(widthMeasureSpec, exactHeight)
+
+            val aspectHeight = (targetWidth * 9f / 16f).toInt().coerceAtLeast(1)
+            // Inline landscape is constrained to the app's available height. Portrait keeps
+            // the same 16:9 ratio but now its measured width is guaranteed to fill the host.
+            val landscape = resources.configuration.orientation ==
+                android.content.res.Configuration.ORIENTATION_LANDSCAPE
+            val screenHeightPx = (resources.configuration.screenHeightDp *
+                resources.displayMetrics.density).toInt()
+            val availableLandscapeHeight = (screenHeightPx - dp(48)).coerceAtLeast(1)
+            val measuredHeight = if (landscape && screenHeightPx > 0) {
+                minOf(aspectHeight, availableLandscapeHeight)
             } else {
-                super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+                aspectHeight
             }
+            val exactHeight = View.MeasureSpec.makeMeasureSpec(
+                measuredHeight.coerceAtLeast(1), View.MeasureSpec.EXACTLY
+            )
+            super.onMeasure(exactWidthSpec, exactHeight)
         }
     }
 
@@ -1006,6 +1013,26 @@ class YouTubePlayerActivity : ComponentActivity() {
         lastOrientationConfigurationChangeAtMs = now
         orientationPlaybackRecoveryGeneration++
         orientationRecoveryWindowUntilMs = now + 5000L
+
+        // Preserve explicit PLAY intent before YouTube/WebView can emit a transient PAUSED
+        // callback during rotation. Otherwise the return-to-portrait recovery is skipped
+        // because the preference was cleared during the viewport handoff.
+        val playbackPrefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+        val shouldPreservePlayback = !explicitUserPause && (
+            youtubePlayerState == 1 ||
+                resumePlaybackOnNextOrientationChange ||
+                playbackPrefs.getBoolean("youtube_playback_is_playing", false)
+            )
+        if (shouldPreservePlayback) {
+            resumePlaybackOnNextOrientationChange = true
+            playbackPrefs.edit()
+                .putBoolean("youtube_playback_is_playing", true)
+                .putBoolean("youtube_is_playing", true)
+                .apply()
+            // Each distinct physical rotation gets one bounded repair opportunity. The page
+            // reload remains a last resort inside recoverFullscreenPlayback, not a rotation action.
+            geometryReloadFallbackAttemptedForCurrentPage = false
+        }
 
         applyResponsivePlayerLayout(landscapeOverride = isLandscape, force = true)
         // Normalize the WebView viewport after the native layout has settled. This routine
@@ -3124,6 +3151,34 @@ class YouTubePlayerActivity : ComponentActivity() {
         root.postDelayed(sync, 120L)
         root.postDelayed(sync, 360L)
         root.postDelayed(sync, 700L)
+
+        // Send one DOM viewport notification after native measurements settle. This lets
+        // mobile YouTube recalculate its inline player controls/viewport on portrait return;
+        // the same WebView and HTMLVideoElement remain attached throughout.
+        root.postDelayed({
+            if (generation != inlineLayoutSyncGeneration ||
+                isFinishing || isDestroyed || customView != null || isCssFullscreen
+            ) return@postDelayed
+            val player = webView ?: return@postDelayed
+            player.evaluateJavascript(
+                """
+                (function() {
+                  try {
+                    window.scrollTo(0, 0);
+                    if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
+                    window.dispatchEvent(new Event('resize'));
+                    if (window.visualViewport) {
+                      window.visualViewport.dispatchEvent(new Event('resize'));
+                    }
+                    return 'inline-viewport-synced';
+                  } catch (_) {
+                    return 'inline-viewport-sync-failed';
+                  }
+                })();
+                """.trimIndent(),
+                null
+            )
+        }, 420L)
     }
 
     /**
