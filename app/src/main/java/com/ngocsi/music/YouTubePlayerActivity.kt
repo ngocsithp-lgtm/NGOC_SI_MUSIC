@@ -67,6 +67,13 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var customViewCallback: WebChromeClient.CustomViewCallback? = null
     private var wasPlayingBeforeFullscreen = false
     private var fullscreenExitInProgress = false
+
+    // A WebView/YouTube pause event can be emitted transiently while Android changes
+    // orientation. Keep recent playback intent briefly so configuration recovery can
+    // distinguish that event from a video that was already paused for a while.
+    private var recentlyPlayingBeforePause = false
+    private var pauseRecoverySequence = 0
+
     private var videoId: String = ""
     private var title: String = "YouTube"
     private var channel: String = "YouTube"
@@ -129,6 +136,36 @@ class YouTubePlayerActivity : ComponentActivity() {
                     return@runOnUiThread
                 }
                 youtubePlayerState = state
+                when (state) {
+                    1, 3 -> {
+                        pauseRecoverySequence++
+                        recentlyPlayingBeforePause = true
+                    }
+                    2 -> {
+                        if (customView == null && recentlyPlayingBeforePause) {
+                            val recoverySequence = ++pauseRecoverySequence
+                            val pausedVideoId = videoId
+                            playbackPositionHandler.postDelayed({
+                                if (
+                                    recoverySequence == pauseRecoverySequence &&
+                                    generation == playerGeneration &&
+                                    customView == null &&
+                                    videoId == pausedVideoId &&
+                                    youtubePlayerState == 2
+                                ) {
+                                    recentlyPlayingBeforePause = false
+                                }
+                            }, 1800L)
+                        } else {
+                            pauseRecoverySequence++
+                            recentlyPlayingBeforePause = false
+                        }
+                    }
+                    0 -> {
+                        pauseRecoverySequence++
+                        recentlyPlayingBeforePause = false
+                    }
+                }
                 if (customView != null) {
                     when (state) {
                         1, 3 -> wasPlayingBeforeFullscreen = true
@@ -1129,7 +1166,14 @@ class YouTubePlayerActivity : ComponentActivity() {
 
     private fun toggleYoutubePlayback() {
         if (!youtubePlayerReady) return
-        val command = if (youtubePlayerState == 1) "pauseVideo()" else "playVideo()"
+        val isPlayingNow = youtubePlayerState == 1
+        if (isPlayingNow) {
+            // A pause explicitly requested from the app's transport controls must not
+            // be mistaken for an orientation-related pause during the next config event.
+            recentlyPlayingBeforePause = false
+            pauseRecoverySequence++
+        }
+        val command = if (isPlayingNow) "pauseVideo()" else "playVideo()"
         webView?.evaluateJavascript(command, null)
     }
 
@@ -1649,8 +1693,16 @@ class YouTubePlayerActivity : ComponentActivity() {
         val playerAtConfiguration = webView
         val videoAtConfiguration = videoId
         val generationAtConfiguration = playerGeneration
+        // Include a recent PLAYING -> PAUSED transition: WebView can report this
+        // temporary pause before Android delivers onConfigurationChanged().
         val shouldRecoverPlayback = customView == null &&
-            (youtubePlayerState == 1 || youtubePlayerState == 3)
+            (youtubePlayerState == 1 ||
+                youtubePlayerState == 3 ||
+                recentlyPlayingBeforePause)
+        if (shouldRecoverPlayback) {
+            recentlyPlayingBeforePause = false
+            pauseRecoverySequence++
+        }
 
         root.post {
             if (isFinishing || isDestroyed) return@post
