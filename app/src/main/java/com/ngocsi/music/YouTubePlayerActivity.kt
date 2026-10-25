@@ -2661,10 +2661,12 @@ class YouTubePlayerActivity : ComponentActivity() {
                               'html,body {margin:0!important;padding:0!important;width:100%!important;' +
                               'min-height:100%!important;overflow:hidden!important;' +
                               'background:#000!important;} ' +
-                              'ytm-watch,ytm-player,#player-container-id,#player-container,#player {' +
-                              'width:100%!important;max-width:100%!important;margin:0!important;} ' +
-                              'ytm-player {display:block!important;height:auto!important;' +
-                              'min-height:0!important;max-height:none!important;aspect-ratio:16/9!important;}';
+                              'ytm-watch {width:100%!important;max-width:100%!important;margin:0!important;} ' +
+                              'ytm-player,#player-container-id,#player-container,#player {' +
+                              'width:100%!important;max-width:100%!important;height:auto!important;' +
+                              'min-height:0!important;max-height:none!important;aspect-ratio:16/9!important;' +
+                              'margin:0!important;box-sizing:border-box!important;} ' +
+                              'ytm-player {display:block!important;}';
                             (document.head || document.documentElement).appendChild(style);
 
                             function videoVisible(video) {
