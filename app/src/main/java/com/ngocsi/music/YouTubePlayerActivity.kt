@@ -926,15 +926,33 @@ class YouTubePlayerActivity : ComponentActivity() {
             resources.configuration.orientation ==
                 android.content.res.Configuration.ORIENTATION_LANDSCAPE
         )
-        // Suppress any old resize-originated recovery callback for this physical viewport
-        // change. This flag only debounces callbacks; it never starts playback or reloads.
+        // ConfigurationChanged and the root layout watcher can report the same physical
+        // rotation milliseconds apart. Handle that viewport transition once; duplicate
+        // callbacks must not cancel/requeue playback recovery against the same WebView.
         val now = System.currentTimeMillis()
+        if (lastPhysicalOrientationTargetLandscape == isLandscape &&
+            now - lastPhysicalOrientationHandledAtMs < 1500L
+        ) {
+            // If the first callback arrived before the responsive children were measured,
+            // make sure the desired layout is still applied without starting another recovery.
+            if (landscapePlayerLayoutActive != isLandscape) {
+                applyResponsivePlayerLayout(landscapeOverride = isLandscape, force = true)
+                scheduleInlinePlayerLayoutSync()
+            }
+            return
+        }
+        lastPhysicalOrientationTargetLandscape = isLandscape
+        lastPhysicalOrientationHandledAtMs = now
         physicalOrientationNormalizationUntilMs = now + 5000L
         lastOrientationConfigurationChangeAtMs = now
         orientationPlaybackRecoveryGeneration++
         orientationRecoveryWindowUntilMs = now + 5000L
 
         applyResponsivePlayerLayout(landscapeOverride = isLandscape, force = true)
+        // Normalize the WebView viewport after the native layout has settled. This routine
+        // keeps the existing WebView/video element and only resets scroll + emits resize
+        // notifications during the orientation handoff; it does not rebuild the media page.
+        scheduleInlinePlayerLayoutSync()
 
         // Request native layout/measure/invalidation first; do not restart or seek the
         // active media element during the actual orientation transition.
@@ -973,11 +991,11 @@ class YouTubePlayerActivity : ComponentActivity() {
             if (!prefs.getBoolean("youtube_playback_is_playing", false)) {
                 return@postDelayed
             }
-            // Give the existing HTML5 element several bounded recovery probes first.
-            // If the media clock still cannot advance, allow one last-resort reload of this
-            // same video at its saved position; otherwise a frozen WebView surface can remain
-            // stopped forever because the physical-rotation path had no final fallback.
-            recoverFullscreenPlayback(allowPageReloadFallback = true)
+            // Physical rotation must not reload the YouTube page: replacing the HTML5
+            // element can leave audio and video surfaces out of sync and can lose playback.
+            // Keep recovery bounded to the existing element; explicit fullscreen exit has
+            // its own separate, serialized fallback path.
+            recoverFullscreenPlayback(allowPageReloadFallback = false)
         }, 700L)
     }
 
