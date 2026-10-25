@@ -3854,7 +3854,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 if (clockFresh && !frameFresh &&
                     reloadCurrentYouTubePageForOrientationFrameStall(
                         player,
-                        status.optDouble("currentTime", 0.0)
+                        status?.optDouble("currentTime", 0.0) ?: 0.0
                     )
                 ) {
                     // Media time is moving but no rendered frames arrive. In-place Play
