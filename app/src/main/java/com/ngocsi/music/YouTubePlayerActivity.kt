@@ -932,6 +932,14 @@ class YouTubePlayerActivity : ComponentActivity() {
             resources.configuration.orientation ==
                 android.content.res.Configuration.ORIENTATION_LANDSCAPE
         )
+        // Suppress any old resize-originated recovery callback for this physical viewport
+        // change. This flag only debounces callbacks; it never starts playback or reloads.
+        val now = System.currentTimeMillis()
+        physicalOrientationNormalizationUntilMs = now + 5000L
+        lastOrientationConfigurationChangeAtMs = now
+        orientationPlaybackRecoveryGeneration++
+        orientationRecoveryWindowUntilMs = now + 5000L
+
         applyResponsivePlayerLayout(landscapeOverride = isLandscape, force = true)
 
         // Request only native layout/measure/invalidation. Touch no active media state.
@@ -3668,11 +3676,6 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
 
-    /**
-     * Verify real HTML5 media progress after a physical portrait/landscape rotation.
-     * Layout callbacks can race with each other, so this uses an independent generation and
-     * only enters the existing bounded recovery path when the media clock/frame stream is stale.
-     */
     // Physical rotation deliberately has no media-health recovery path. If an explicit
     // fullscreen transition fails, its dedicated fullscreen-exit recovery remains separate.
 
