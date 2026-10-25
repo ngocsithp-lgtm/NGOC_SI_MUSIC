@@ -2820,9 +2820,11 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 }
                                 return;
                               }
-                              // The inline host already controls the 16:9 frame natively. Clear
-                              // only geometry declarations this helper used to write; do not keep
-                              // landscape/fullscreen dimensions on the playing video after shrink.
+                              // The native host owns the inline 16:9 frame. Clear any stale
+                              // fullscreen/landscape sizing, then explicitly fit the outer YouTube
+                              // shells and player root to the host width. Leave height and aspect
+                              // ratio to YouTube so a portrait return cannot retain landscape
+                              // height or collapse to a narrow intrinsic-width video.
                               nodes.forEach(function(node) {
                                 if (!node) return;
                                 ['display','position','left','top','right','bottom','inset',
@@ -2830,6 +2832,26 @@ class YouTubePlayerActivity : ComponentActivity() {
                                  'box-sizing','transform','margin','padding','aspect-ratio','overflow']
                                   .forEach(function(prop) { node.style.removeProperty(prop); });
                               });
+                              [appShell, watchShell].forEach(function(shell) {
+                                if (!shell) return;
+                                shell.style.setProperty('display','block','important');
+                                shell.style.setProperty('position','relative','important');
+                                shell.style.setProperty('width','100%','important');
+                                shell.style.setProperty('max-width','100%','important');
+                                shell.style.setProperty('margin','0','important');
+                                shell.style.setProperty('padding','0','important');
+                                shell.style.setProperty('transform','none','important');
+                                shell.style.setProperty('overflow','hidden','important');
+                              });
+                              if (root) {
+                                root.style.setProperty('display','block','important');
+                                root.style.setProperty('position','relative','important');
+                                root.style.setProperty('width','100%','important');
+                                root.style.setProperty('max-width','100%','important');
+                                root.style.setProperty('margin','0','important');
+                                root.style.setProperty('padding','0','important');
+                                root.style.setProperty('transform','none','important');
+                              }
                             }
                             // Avoid repeatedly rewriting player dimensions while Chromium is
                             // handing the video surface between portrait, landscape and inline.
@@ -3997,9 +4019,11 @@ class YouTubePlayerActivity : ComponentActivity() {
                                    document.querySelector('#movie_player') ||
                                    document.querySelector('#player');
                   if (playerRoot) {
-                    ['position','left','right','top','bottom','inset','width','height'].forEach(function(prop) {
-                      playerRoot.style.removeProperty(prop);
-                    });
+                    ['position','left','right','top','bottom','inset','width','height',
+                   'max-width','max-height','min-width','min-height','aspect-ratio',
+                   'box-sizing','overflow','transform','margin','padding'].forEach(function(prop) {
+                    playerRoot.style.removeProperty(prop);
+                  });
                   }
                   window.scrollTo(0,0);
                   if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
@@ -4082,19 +4106,13 @@ class YouTubePlayerActivity : ComponentActivity() {
                   mediaWidth: Number(video.videoWidth || 0),
                   mediaHeight: Number(video.videoHeight || 0),
                   videoPaused: !!video.paused,
+                  // Only inspect the video element itself. Ancestor visibility can change
+                  // transiently during YouTube's fullscreen transition while the media remains
+                  // healthy; treating that handoff as a hard failure caused unnecessary reloads.
                   videoVisible: (function() {
-                    var node = video;
-                    while (node && node.nodeType === 1) {
-                      var computed = window.getComputedStyle(node);
-                      if (computed.display === 'none' || computed.visibility === 'hidden' ||
-                          Number(computed.opacity || 1) < 0.05) return false;
-                      if (node.parentElement) node = node.parentElement;
-                      else {
-                        var tree = node.getRootNode();
-                        node = tree && tree.host ? tree.host : null;
-                      }
-                    }
-                    return true;
+                    var computed = window.getComputedStyle(video);
+                    return computed.display !== 'none' && computed.visibility !== 'hidden' &&
+                      Number(computed.opacity || 1) >= 0.05;
                   })(),
                   hasVideoFrameCallback: typeof video.requestVideoFrameCallback === 'function',
                   videoFrameAgeMs: window.__ngocSiFrameTrackedVideo === video &&
