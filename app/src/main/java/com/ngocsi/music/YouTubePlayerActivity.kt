@@ -914,11 +914,6 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     /**
-     * One coordinator owns every inline physical-rotation recovery, regardless of whether
-     * Android delivered onConfigurationChanged or only relaid out the root. The shared
-     * generation debounces duplicate callbacks and cancels stale recovery attempts.
-     */
-    /**
      * Physical rotation is layout-only. Keep the same WebView and HTML5 video element alive;
      * do not issue Play/Pause/seek, reload YouTube, or restart WebView timers because the
      * device changed orientation. Chromium gets the new viewport through normal measurement.
