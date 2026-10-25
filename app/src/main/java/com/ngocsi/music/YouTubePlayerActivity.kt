@@ -178,19 +178,16 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var explicitUserPause = false
     private var orientationPlaybackRecoveryGeneration = 0
     private var fullscreenLayoutActive = false
-    private var fullscreenPlayerWasInLandscapePane = false
-    private var fullscreenPlayerOriginalParent: ViewGroup? = null
-    private var fullscreenPlayerOriginalLayoutParams: ViewGroup.LayoutParams? = null
-    private var fullscreenLandscapeContainerVisibility: Int? = null
+    private var playerVideoHost: FrameLayout? = null
     private var contentContainer: LinearLayout? = null
     private var playerScrollView: ScrollView? = null
     private var playerHeaderView: View? = null
     private var playerInfoView: View? = null
     private var playerTransportView: View? = null
     private var playerQueueActionsView: View? = null
+    // Side panel remains a stable child of the content layout; only weights/visibility change on rotation.
     private var responsiveLandscapeContainer: LinearLayout? = null
     private var landscapePlayerLayoutActive = false
-    private var inlinePlayerLayoutParams: ViewGroup.LayoutParams? = null
     private val fullscreenHiddenChildVisibilities = linkedMapOf<View, Int>()
     private var inlineContentPadding: IntArray? = null
     private var inlineLoadingBarVisibility: Int? = null
@@ -640,13 +637,30 @@ class YouTubePlayerActivity : ComponentActivity() {
         ))
         playerHeaderView = header
 
-        // The host frame measures its own actual width and enforces 16:9.
-        // This avoids stale physical-screen measurements after rotation or inset changes.
-        content.addView(playerContainer, LinearLayout.LayoutParams(
+        // Keep playerContainer attached to this host permanently. Do not move the WebView
+        // between parent layouts when switching from portrait to landscape.
+        val videoHost = FrameLayout(this).apply {
+            setBackgroundColor(AndroidColor.BLACK)
+        }
+        videoHost.addView(
+            playerContainer,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.CENTER
+            )
+        )
+        playerVideoHost = videoHost
+        content.addView(videoHost, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
         ))
-        inlinePlayerLayoutParams = playerContainer.layoutParams
+
+        val sidePanel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(AndroidColor.rgb(8, 9, 12))
+        }
+        responsiveLandscapeContainer = sidePanel
 
         val info = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -671,7 +685,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
         info.addView(titleView)
         info.addView(channelView)
-        content.addView(info, LinearLayout.LayoutParams(
+        sidePanel.addView(info, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
         ))
@@ -705,7 +719,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             marginEnd = dp(8)
         })
         transport.addView(nextButton, LinearLayout.LayoutParams(dp(54), dp(44)))
-        content.addView(transport)
+        sidePanel.addView(transport)
         playerTransportView = transport
 
         // One compact action row replaces four large utility buttons.
@@ -741,8 +755,13 @@ class YouTubePlayerActivity : ComponentActivity() {
             textSize = 22f
         }
         queueActions.addView(moreButton, LinearLayout.LayoutParams(dp(46), dp(42)))
-        content.addView(queueActions)
+        sidePanel.addView(queueActions)
         playerQueueActionsView = queueActions
+
+        content.addView(sidePanel, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ))
 
         val scroll = ScrollView(this).apply {
             isFillViewport = true
@@ -776,12 +795,17 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     /**
-     * Match the reference landscape layout: keep the video in a large left-hand 16:9 pane
-     * and move title, channel, transport controls, queue and background actions into a
-     * right-hand column. Portrait keeps the existing vertical player layout. The WebView
-     * itself is only re-parented; it is not recreated or reloaded during layout changes.
+     * Match the reference landscape layout without detaching the active WebView.
+     *
+     * The video stays inside one permanent FrameLayout host for the entire Activity
+     * lifetime. Rotation only changes weights and visibility of its sibling side panel.
+     * This avoids the WebView detach/attach cycle that can freeze Chromium's video surface
+     * or stop audio when the phone rotates from landscape back to portrait.
      */
-    private fun applyResponsivePlayerLayout(landscapeOverride: Boolean? = null) {
+    private fun applyResponsivePlayerLayout(
+        landscapeOverride: Boolean? = null,
+        force: Boolean = false
+    ) {
         if (!::root.isInitialized || fullscreenLayoutActive ||
             isCssFullscreen || customView != null
         ) return
@@ -789,117 +813,67 @@ class YouTubePlayerActivity : ComponentActivity() {
         val content = contentContainer ?: return
         val scroll = playerScrollView ?: return
         val header = playerHeaderView ?: return
-        val info = playerInfoView ?: return
-        val transport = playerTransportView ?: return
-        val queueActions = playerQueueActionsView ?: return
+        val videoHost = playerVideoHost ?: return
+        val sidePanel = responsiveLandscapeContainer ?: return
         val shouldUseLandscape = landscapeOverride ?: (
             resources.configuration.orientation ==
                 android.content.res.Configuration.ORIENTATION_LANDSCAPE
         )
 
-        if (shouldUseLandscape == landscapePlayerLayoutActive && scroll.parent != null) {
+        if (!force && shouldUseLandscape == landscapePlayerLayoutActive && scroll.parent != null) {
             return
         }
 
-        // Detach the moving views first. In particular, preserve the same WebView instance
-        // so YouTube does not lose its media session or current playback position.
-        content.removeAllViews()
-        (playerContainer.parent as? ViewGroup)?.removeView(playerContainer)
-        (scroll.parent as? ViewGroup)?.removeView(scroll)
-        responsiveLandscapeContainer?.let { root.removeView(it) }
-        responsiveLandscapeContainer = null
+        scroll.isFillViewport = true
+        content.orientation = if (shouldUseLandscape) {
+            LinearLayout.HORIZONTAL
+        } else {
+            LinearLayout.VERTICAL
+        }
+        header.visibility = if (shouldUseLandscape) View.GONE else View.VISIBLE
+        sidePanel.orientation = LinearLayout.VERTICAL
 
-        content.orientation = LinearLayout.VERTICAL
         if (shouldUseLandscape) {
-            content.addView(header, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ))
-            content.addView(info, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ))
-            content.addView(transport, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ))
-            content.addView(queueActions, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ))
-
-            val videoHost = FrameLayout(this).apply {
-                setBackgroundColor(AndroidColor.BLACK)
-            }
-            videoHost.addView(
-                playerContainer,
-                FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    FrameLayout.LayoutParams.WRAP_CONTENT,
-                    Gravity.CENTER
-                )
+            // The ScrollView and content retain the same parent. The video host's width
+            // shares the landscape viewport with the action/info column; the inner video
+            // remains centred and 16:9 without replacing its WebView surface.
+            content.layoutParams = ScrollView.LayoutParams(
+                ScrollView.LayoutParams.MATCH_PARENT,
+                ScrollView.LayoutParams.MATCH_PARENT
             )
-
-            val landscape = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                setBackgroundColor(AndroidColor.rgb(8, 9, 12))
-            }
-            landscape.addView(
-                videoHost,
-                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1.15f)
-            )
-            landscape.addView(
-                scroll,
-                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 0.85f)
-            )
-            responsiveLandscapeContainer = landscape
-            root.addView(
-                landscape,
+            videoHost.layoutParams = LinearLayout.LayoutParams(
                 0,
-                FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    FrameLayout.LayoutParams.MATCH_PARENT
-                )
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                1.15f
+            )
+            sidePanel.layoutParams = LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0.85f
             )
         } else {
-            // Reuse the original 16:9 inline player parameters in portrait.
-            inlinePlayerLayoutParams?.let { playerContainer.layoutParams = it }
-            content.addView(header, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ))
-            content.addView(
-                playerContainer,
-                LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                )
+            content.layoutParams = ScrollView.LayoutParams(
+                ScrollView.LayoutParams.MATCH_PARENT,
+                ScrollView.LayoutParams.WRAP_CONTENT
             )
-            content.addView(info, LinearLayout.LayoutParams(
+            videoHost.layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
-            ))
-            content.addView(transport, LinearLayout.LayoutParams(
+            )
+            sidePanel.layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
-            ))
-            content.addView(queueActions, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ))
-            root.addView(
-                scroll,
-                0,
-                FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    FrameLayout.LayoutParams.MATCH_PARENT
-                )
             )
         }
 
         landscapePlayerLayoutActive = shouldUseLandscape
         root.requestLayout()
         root.invalidate()
+        content.requestLayout()
+        videoHost.requestLayout()
+        playerContainer.requestLayout()
+        sidePanel.requestLayout()
+        scroll.requestLayout()
     }
 
     /**
@@ -3972,6 +3946,7 @@ class YouTubePlayerActivity : ComponentActivity() {
 
     private fun setFullscreenLayout(active: Boolean) {
         val content = contentContainer ?: return
+        val videoHost = playerVideoHost ?: return
         if (active == fullscreenLayoutActive) return
 
         if (active) {
@@ -3981,7 +3956,9 @@ class YouTubePlayerActivity : ComponentActivity() {
             fullscreenHiddenChildVisibilities.clear()
             for (index in 0 until content.childCount) {
                 val child = content.getChildAt(index)
-                if (child !== playerContainer) {
+                // Keep the permanent video host visible. The header/side panel are hidden,
+                // but neither the host nor the WebView is detached during fullscreen changes.
+                if (child !== videoHost) {
                     fullscreenHiddenChildVisibilities[child] = child.visibility
                     child.visibility = View.GONE
                 }
@@ -3989,42 +3966,15 @@ class YouTubePlayerActivity : ComponentActivity() {
             inlineLoadingBarVisibility = loadingBar?.visibility
             loadingBar?.visibility = View.GONE
             content.setPadding(0, 0, 0, 0)
-            fullscreenPlayerWasInLandscapePane =
-                landscapePlayerLayoutActive && responsiveLandscapeContainer != null
-            if (fullscreenPlayerWasInLandscapePane) {
-                // Landscape uses a FrameLayout host for the 16:9 video. Move that same
-                // player frame to the root for fullscreen; do not assign LinearLayout
-                // parameters to a FrameLayout child or leave it trapped in the left pane.
-                fullscreenPlayerOriginalParent = playerContainer.parent as? ViewGroup
-                fullscreenPlayerOriginalLayoutParams = playerContainer.layoutParams
-                fullscreenLandscapeContainerVisibility =
-                    responsiveLandscapeContainer?.visibility ?: View.VISIBLE
-                responsiveLandscapeContainer?.visibility = View.GONE
-                (playerContainer.parent as? ViewGroup)?.removeView(playerContainer)
-                root.addView(
-                    playerContainer,
-                    FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        Gravity.FILL
-                    )
-                )
-                root.bringChildToFront(playerContainer)
-            }
             fullscreenLayoutActive = true
-            if (fullscreenPlayerWasInLandscapePane) {
-                playerContainer.layoutParams = FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    Gravity.FILL
-                )
-            } else {
-                playerContainer.layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.MATCH_PARENT
-                )
-            }
-            playerScrollView?.scrollTo(0, 0)
+            content.layoutParams = ScrollView.LayoutParams(
+                ScrollView.LayoutParams.MATCH_PARENT,
+                ScrollView.LayoutParams.MATCH_PARENT
+            )
+            videoHost.layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.MATCH_PARENT
+            )
         } else {
             fullscreenLayoutActive = false
             fullscreenHiddenChildVisibilities.forEach { (view, visibility) ->
@@ -4032,34 +3982,20 @@ class YouTubePlayerActivity : ComponentActivity() {
             }
             fullscreenHiddenChildVisibilities.clear()
             inlineContentPadding?.let { padding ->
-                if (padding.size == 4) content.setPadding(padding[0], padding[1], padding[2], padding[3])
+                if (padding.size == 4) {
+                    content.setPadding(padding[0], padding[1], padding[2], padding[3])
+                }
             }
             inlineContentPadding = null
-            if (fullscreenPlayerWasInLandscapePane) {
-                (playerContainer.parent as? ViewGroup)?.removeView(playerContainer)
-                val originalParent = fullscreenPlayerOriginalParent
-                val originalParams = fullscreenPlayerOriginalLayoutParams
-                if (originalParent != null) {
-                    if (originalParams != null) {
-                        originalParent.addView(playerContainer, originalParams)
-                    } else {
-                        originalParent.addView(playerContainer)
-                    }
-                }
-                fullscreenLandscapeContainerVisibility?.let { visibility ->
-                    responsiveLandscapeContainer?.visibility = visibility
-                }
-                fullscreenPlayerOriginalParent = null
-                fullscreenPlayerOriginalLayoutParams = null
-                fullscreenLandscapeContainerVisibility = null
-            } else {
-                inlinePlayerLayoutParams?.let { playerContainer.layoutParams = it }
-            }
-            fullscreenPlayerWasInLandscapePane = false
             inlineLoadingBarVisibility?.let { loadingBar?.visibility = it }
             inlineLoadingBarVisibility = null
+
+            // Reapply the current orientation's weights after leaving fullscreen. This
+            // restores the inline 16:9 host without moving the WebView to another parent.
+            applyResponsivePlayerLayout(force = true)
         }
 
+        videoHost.requestLayout()
         playerContainer.requestLayout()
         content.requestLayout()
         playerScrollView?.requestLayout()
