@@ -155,6 +155,9 @@ class YouTubePlayerActivity : ComponentActivity() {
     // Runs one post-rotation geometry verification; a broken video surface can freeze
     // visually while the HTML5 media clock continues advancing.
     private var fullscreenExitGeometryCheckGeneration = 0
+    // Defer geometry-driven repair/reload until playback recovery has completed. Running
+    // both loops at once could reload the page while the media pipeline was resuming.
+    private var pendingFullscreenExitGeometryCheck: (() -> Unit)? = null
     // Avoid starting a second orientation recovery while the fullscreen-exit recovery
     // and geometry verification are already in progress.
     private var fullscreenExitRecoveryActiveUntilMs = 0L
@@ -1653,6 +1656,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         orientationRecoveryWindowUntilMs = 0L
         fullscreenExitGeneration++
         fullscreenExitRecoveryPending = false
+        pendingFullscreenExitGeometryCheck = null
         fullscreenRecoveryGeneration++
         orientationPlaybackRecoveryGeneration++
         playbackRequestGeneration++
@@ -3721,7 +3725,22 @@ class YouTubePlayerActivity : ComponentActivity() {
             // ngocsi-css-fullscreen was removed. Previously the host was shrunk first,
             // racing Chromium's fullscreen video surface and leaving a frozen frame.
             scheduleInlinePlayerLayoutSync()
-            scheduleFullscreenExitGeometryCheck(exitGeneration, shouldRecoverPlayback)
+
+            // Only inspect/repair geometry after the playback recovery controller has
+            // either observed real media-clock progress or exhausted its bounded retries.
+            // Starting the geometry reload during that window can interrupt the same WebView.
+            pendingFullscreenExitGeometryCheck = null
+            if (shouldRecoverPlayback) {
+                pendingFullscreenExitGeometryCheck = {
+                    if (exitGeneration == fullscreenExitGeneration &&
+                        !isFinishing && !isDestroyed && !explicitUserPause
+                    ) {
+                        scheduleFullscreenExitGeometryCheck(exitGeneration, shouldRecoverPlayback)
+                    }
+                }
+            } else {
+                scheduleFullscreenExitGeometryCheck(exitGeneration, shouldRecoverPlayback)
+            }
 
             playerContainer.post {
                 if (exitGeneration != fullscreenExitGeneration ||
@@ -3757,7 +3776,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 recoverFullscreenPlayback(
                                     allowPageReloadFallback = allowPageReloadForThisExit
                                 )
-                            }, 2300L)
+                            }, 700L)
                         }
                     }, 500L)
                 }
@@ -4130,6 +4149,12 @@ class YouTubePlayerActivity : ComponentActivity() {
         )
     }
 
+    private fun finishPendingFullscreenExitGeometryCheck() {
+        val callback = pendingFullscreenExitGeometryCheck ?: return
+        pendingFullscreenExitGeometryCheck = null
+        callback()
+    }
+
     private fun recoverFullscreenPlayback(allowPageReloadFallback: Boolean = true) {
         if (isFinishing || isDestroyed || webView == null || explicitUserPause) return
         val generation = ++fullscreenRecoveryGeneration
@@ -4297,7 +4322,10 @@ class YouTubePlayerActivity : ComponentActivity() {
                 val state = fields.getOrNull(0).orEmpty()
                 val currentPosition = fields.getOrNull(1)?.toDoubleOrNull()
 
-                if (state == "ENDED") return@evaluateJavascript
+                if (state == "ENDED") {
+                    finishPendingFullscreenExitGeometryCheck()
+                    return@evaluateJavascript
+                }
                 if (state == "REQUESTED" || state == "API_ONLY") playRequested = true
 
                 // Confirm recovery only when the actual media clock advances. "ACTIVE" or
@@ -4313,6 +4341,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                         .putBoolean("youtube_playback_is_playing", true)
                         .putBoolean("youtube_is_playing", true)
                         .apply()
+                    finishPendingFullscreenExitGeometryCheck()
                     return@evaluateJavascript
                 }
                 if (currentPosition != null) previousPosition = currentPosition
@@ -4326,6 +4355,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 // play attempts, recreate the YouTube page once at the last known timestamp.
                 // This is a last resort: preserve the selected video and approximate position
                 // instead of leaving a silent frozen surface with no way to recover.
+                var reloadScheduled = false
                 if (!pageReloadFallbackUsed &&
                     !geometryReloadFallbackAttemptedForCurrentPage &&
                     !isFinishing && !isDestroyed
@@ -4350,6 +4380,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                             .toString()
                         recoverAfterPageReload = true
                         youtubePlayerReady = false
+                        reloadScheduled = true
                         webView?.postDelayed({
                             if (!isFinishing && !isDestroyed && webView != null) {
                                 webView?.loadUrl(restoredUrl)
@@ -4357,6 +4388,9 @@ class YouTubePlayerActivity : ComponentActivity() {
                         }, 300L)
                     }
                 }
+                // Keep the geometry check pending across a recovery reload. onReady will
+                // run one fresh bounded recovery and complete it only after the clock moves.
+                if (!reloadScheduled) finishPendingFullscreenExitGeometryCheck()
             }
         }
 
