@@ -145,6 +145,10 @@ class YouTubePlayerActivity : ComponentActivity() {
     // fullscreen CSS is applied. Ignore the matching hide callback for that handoff.
     private var suppressNextCustomViewHide = false
     private var isCssFullscreen = false
+    // Native overlay control remains tappable even if YouTube's web controls are hidden
+    // or its video surface is temporarily black after a viewport change.
+    private var fullscreenEntryPending = false
+    private var nativeFullscreenButton: Button? = null
     // Preserve the pre-fullscreen playback state even if YouTube reports PAUSED while rotating.
     private var wasPlayingBeforeFullscreen = false
     private var fullscreenRecoveryGeneration = 0
@@ -1049,6 +1053,20 @@ class YouTubePlayerActivity : ComponentActivity() {
             exitFullscreen()
             return
         }
+        // The JS click interceptor and WebChromeClient can report the same tap. Serialize
+        // entry and cancel stale inline recovery callbacks so none can reload the page while
+        // fullscreen CSS/viewport sizing is being applied.
+        if (fullscreenEntryPending) return
+        fullscreenEntryPending = true
+        fullscreenRecoveryGeneration++
+        automaticOrientationRecoveryGeneration++
+        orientationPlaybackRecoveryGeneration++
+        fullscreenExitGeneration++
+        fullscreenExitGeometryCheckGeneration++
+        fullscreenExitRecoveryPending = false
+        pendingFullscreenExitGeometryCheck = null
+        fullscreenExitPlaybackRecoveryScheduledGeneration = -1
+        fullscreenExitRecoveryActiveUntilMs = 0L
 
         wasPlayingBeforeFullscreen = youtubePlayerState == 1 ||
             getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
@@ -1087,7 +1105,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 '.ytp-endscreen-content,.ytp-endscreen-previous,.ytp-endscreen-next,.ytp-ce-covering-overlay,' +
                 '.ytp-cards-teaser,.ytp-ce-element,.ytp-gradient-top,' +
                 'ytm-play-button-renderer,' +
-                '.ytp-show-cards-title,ytm-player-overlay-renderer,ytm-video-overlay-renderer,' +
+                '.ytp-show-cards-title,' +
                 'ytm-mobile-player-overlay-renderer { display:none!important; }' +
                 // Fullscreen is provided by the native host expanding around the same WebView.
                 // Do not position the YouTube media root as a second fixed viewport.
@@ -1098,9 +1116,12 @@ class YouTubePlayerActivity : ComponentActivity() {
             })();
             """.trimIndent()
         ) { result ->
-            if (result == "\"ok\"") {
+            fullscreenEntryPending = false
+            if (isFinishing || isDestroyed || player !== webView) return@evaluateJavascript
+            if (result.orEmpty().trim('"') == "ok") {
                 isCssFullscreen = true
                 enterFullscreen()
+                updateNativeFullscreenButton()
             } else {
                 Toast.makeText(this, "Không thể mở toàn màn hình. Hãy thử lại.", Toast.LENGTH_SHORT).show()
             }
@@ -2637,7 +2658,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 'ytd-ad-slot-renderer, ytd-display-ad-renderer, ytd-promoted-video-renderer, ' +
                                 'ytd-promoted-sparkles-web-renderer, ytd-in-feed-ad-layout-renderer, ' +
                                 'ytd-banner-promo-renderer, ytd-action-companion-ad-renderer, ' +
-                                'ytm-player-overlay-renderer, ytm-video-overlay-renderer, ytm-mobile-player-overlay-renderer, ' +
+                                '' +
                                 '.ytp-title, .ytp-title-text, .ytp-title-link, .ytp-chrome-top, ' +
                                 '.ytp-pause-overlay, .ytp-pause-overlay-container, ' +
                                 '.ytp-large-play-button, .ytp-cued-thumbnail-overlay, .ytp-next-button, .ytp-prev-button, ' +
@@ -2671,8 +2692,8 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 '.ytp-next-button-container,.ytp-prev-button-container,' +
                                 '.ytp-endscreen-content,.ytp-endscreen-previous,.ytp-endscreen-next,' +
                                 '.ytp-ce-covering-overlay,.ytp-cards-teaser,.ytp-ce-element,' +
-                                'ytm-player-overlay-renderer,ytm-video-overlay-renderer,' +
-                                'ytm-mobile-player-overlay-renderer,ytm-player-overlay,' +
+                                '' +
+                                '' +
                                 '[class*="next-button-overlay"]';
                               var rules = selectors +
                                 '{display:none!important;visibility:hidden!important;opacity:0!important;' +
@@ -3354,6 +3375,38 @@ class YouTubePlayerActivity : ComponentActivity() {
                 FrameLayout.LayoutParams.MATCH_PARENT
             )
         )
+        // Do not depend on YouTube's mutable DOM/shadow-root fullscreen control. This native
+        // overlay stays above the WebView and remains usable when the video image is black.
+        nativeFullscreenButton = Button(this).apply {
+            text = "⛶"
+            textSize = 21f
+            isAllCaps = false
+            setTextColor(AndroidColor.WHITE)
+            background = roundedButtonDrawable(
+                AndroidColor.argb(220, 18, 18, 24),
+                AndroidColor.rgb(112, 116, 128),
+                dp(8)
+            )
+            backgroundTintList = null
+            setPadding(dp(2), 0, dp(2), 0)
+            minWidth = 0
+            minimumWidth = 0
+            minHeight = 0
+            minimumHeight = 0
+            contentDescription = "Phóng to toàn màn hình"
+            elevation = dp(6).toFloat()
+            setOnClickListener { requestYoutubeFullscreen() }
+        }.also { button ->
+            playerContainer.addView(
+                button,
+                FrameLayout.LayoutParams(dp(44), dp(42), Gravity.TOP or Gravity.END).apply {
+                    topMargin = dp(8)
+                    marginEnd = dp(8)
+                }
+            )
+            button.bringToFront()
+        }
+        updateNativeFullscreenButton()
         if (::titleView.isInitialized) titleView.text = title
         if (::channelView.isInitialized) channelView.text = channel
         updateActionState()
@@ -3811,7 +3864,21 @@ class YouTubePlayerActivity : ComponentActivity() {
             }
         }
         webView = null
+        nativeFullscreenButton = null
+        fullscreenEntryPending = false
         playerContainer.takeIf { ::playerContainer.isInitialized }?.removeAllViews()
+    }
+
+    private fun updateNativeFullscreenButton() {
+        nativeFullscreenButton?.apply {
+            text = if (isCssFullscreen) "↙" else "⛶"
+            contentDescription = if (isCssFullscreen) {
+                "Thu nhỏ về trình phát"
+            } else {
+                "Phóng to toàn màn hình"
+            }
+            bringToFront()
+        }
     }
 
     private fun setFullscreenLayout(active: Boolean) {
@@ -3886,6 +3953,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun exitFullscreen(notifyCallback: Boolean = true) {
+        fullscreenEntryPending = false
         // A hardware Back/custom-view callback can report the same exit twice. Ignore
         // duplicate exits; they otherwise schedule competing recovery/reload attempts.
         if (customView == null && !isCssFullscreen) return
@@ -3959,6 +4027,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             playerContainer.visibility = View.VISIBLE
             setFullscreenLayout(false)
             applyResponsivePlayerLayout()
+            updateNativeFullscreenButton()
             WindowCompat.setDecorFitsSystemWindows(window, true)
             WindowInsetsControllerCompat(window, window.decorView)
                 .show(WindowInsetsCompat.Type.systemBars())
