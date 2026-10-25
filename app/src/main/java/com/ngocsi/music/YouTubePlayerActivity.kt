@@ -308,21 +308,22 @@ class YouTubePlayerActivity : ComponentActivity() {
                 val playbackIntentStillActive =
                     prefs.getBoolean("youtube_playback_is_playing", false)
 
-                // Rotation can cause WebView to report PAUSED before Android delivers
-                // onConfigurationChanged. If that callback clears the last confirmed PLAYING
-                // state first, the later orientation recovery has no intent to restore.
-                // A PAUSED callback can arrive just before the orientation callback.
-                // Preserve intent only for that transition; normal BUFFERING state changes
-                // must still reach the media-session/UI state tracker.
+                // Auto-rotation can report PAUSED after the JS playback clock has already
+                // stalled, so youtubePlayerState may no longer be PLAYING/BUFFERING by the
+                // time Android delivers the configuration callback. Keep the last explicit
+                // play intent until the user actually pauses or the video ends. User Pause
+                // taps and media-session Pause actions are marked through markExplicitPauseIntent.
                 if (state == 2 &&
-                    (youtubePlayerState == 1 || youtubePlayerState == 3) &&
-                    !explicitUserPause && playbackIntentStillActive
+                    !explicitUserPause &&
+                    (playbackIntentStillActive || resumePlaybackOnNextOrientationChange) &&
+                    youtubePlayerState != 0
                 ) {
                     orientationRecoveryWindowUntilMs = maxOf(
                         orientationRecoveryWindowUntilMs,
                         System.currentTimeMillis() + 5000L
                     )
                     resumePlaybackOnNextOrientationChange = true
+                    prefs.edit().putBoolean("youtube_playback_is_playing", true).apply()
                     return@runOnUiThread
                 }
 
