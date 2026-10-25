@@ -2843,6 +2843,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                             scheduleInlinePlayerLayoutSync()
                         }
                     }, 350L)
+                }
 
                 override fun onReceivedError(
                     view: WebView,
