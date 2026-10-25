@@ -906,9 +906,8 @@ class YouTubePlayerActivity : ComponentActivity() {
             // CSS/native fullscreen has its own ordered transition/recovery path. Only handle
             // root dimension changes that represent an inline, physical device rotation.
             if (isCssFullscreen || customView != null) return@addOnLayoutChangeListener
-            // Keep the split-screen layout in sync even while fullscreen-exit playback
-            // recovery is suppressing retries. Layout and playback recovery are separate.
-            applyResponsivePlayerLayout(landscapeOverride = newLandscape)
+            // Set the physical-rotation debounce before requesting layout. Otherwise the
+            // responsive-layout resize callback can enqueue playback recovery first.
             handlePhysicalOrientationLayoutChange(newLandscape)
         }
     }
@@ -3690,13 +3689,6 @@ class YouTubePlayerActivity : ComponentActivity() {
         // The manifest handles orientation changes without recreating this Activity.
         if (!::playerContainer.isInitialized || !::root.isInitialized) return
 
-        if (!isCssFullscreen && customView == null) {
-            applyResponsivePlayerLayout(
-                landscapeOverride = newConfig.orientation ==
-                    android.content.res.Configuration.ORIENTATION_LANDSCAPE
-            )
-        }
-
         if (isCssFullscreen) {
             scheduleCssFullscreenLayoutSync()
             return
@@ -3734,17 +3726,19 @@ class YouTubePlayerActivity : ComponentActivity() {
             }
             return
         }
-        if (!orientationActuallyChanged) {
-            scheduleInlinePlayerLayoutSync()
-        }
-        // A real physical rotation only changes the responsive native layout. The same
-        // WebView, YouTube document and media element remain in place; do not probe, Play,
-        // seek, or reload as a side effect of orientation.
         if (orientationActuallyChanged) {
+            // Set the rotation debounce before any layout request can dispatch a WebView
+            // resize callback. Keep the existing media element untouched.
             handlePhysicalOrientationLayoutChange(
                 newConfig.orientation ==
                     android.content.res.Configuration.ORIENTATION_LANDSCAPE
             )
+        } else {
+            applyResponsivePlayerLayout(
+                landscapeOverride = newConfig.orientation ==
+                    android.content.res.Configuration.ORIENTATION_LANDSCAPE
+            )
+            scheduleInlinePlayerLayoutSync()
         }
     }
 
