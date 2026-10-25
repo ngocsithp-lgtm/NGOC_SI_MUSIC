@@ -809,8 +809,12 @@ class YouTubePlayerActivity : ComponentActivity() {
                 youtubePlayerState == 1
         if (!playbackIntentStillActive) return
 
-        // A new physical rotation is a new bounded attempt. Invalidate any stale probe from
-        // the previous orientation so two recovery loops cannot issue competing Play/reload.
+        // A new physical rotation is a new bounded attempt. Invalidate both native and
+        // JavaScript resize-triggered probes so only this coordinator may issue Play/reload.
+        // Updating this timestamp also suppresses the page's separate resize recovery for the
+        // same event when Android did not deliver onConfigurationChanged.
+        lastOrientationConfigurationChangeAtMs = System.currentTimeMillis()
+        orientationPlaybackRecoveryGeneration++
         automaticOrientationRecoveryGeneration++
         fullscreenRecoveryGeneration++
         fullscreenExitGeometryCheckGeneration++
