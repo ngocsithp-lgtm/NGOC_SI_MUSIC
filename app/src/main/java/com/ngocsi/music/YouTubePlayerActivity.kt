@@ -232,6 +232,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     // switching to FULL_SENSOR immediately after Android's forced rotation snaps back to portrait.
     private var fullscreenOrientationListener: android.view.OrientationEventListener? = null
     private var waitingForPhysicalLandscape = false
+    private var fullscreenPhysicalLandscapeReached = false
     // New play/pause requests invalidate older delayed retries so native and voice
     // controls cannot leave multiple competing playback loops active at the same time.
     private var playbackRequestGeneration = 0
@@ -3418,29 +3419,47 @@ class YouTubePlayerActivity : ComponentActivity() {
         if (::root.isInitialized) root.requestLayout()
     }
 
-    private fun waitForPhysicalLandscapeBeforeUnlock() {
+    /**
+     * Keep fullscreen locked to landscape while observing the physical handset orientation.
+     * The display is initially forced to landscape by the app, so unlocking to FULL_SENSOR
+     * in onConfigurationChanged would immediately snap it back to portrait. Wait until the
+     * device itself is rotated to landscape, then watch for a physical return to portrait and
+     * exit fullscreen cleanly without destroying the WebView/video element.
+     */
+    private fun monitorPhysicalOrientationDuringFullscreen() {
         fullscreenOrientationListener?.disable()
         waitingForPhysicalLandscape = true
+        fullscreenPhysicalLandscapeReached = false
         val listener = object : android.view.OrientationEventListener(this) {
             override fun onOrientationChanged(orientation: Int) {
-                if (!waitingForPhysicalLandscape ||
-                    orientation == ORIENTATION_UNKNOWN ||
-                    isFinishing || isDestroyed || !fullscreenLayoutActive
+                if (!fullscreenLayoutActive || orientation ==
+                    android.view.OrientationEventListener.ORIENTATION_UNKNOWN ||
+                    isFinishing || isDestroyed
                 ) return
 
-                val physicallyLandscape = orientation in 60..120 || orientation in 240..300
-                if (!physicallyLandscape) return
+                val physicallyLandscape =
+                    orientation in 60..120 || orientation in 240..300
+                val physicallyPortrait =
+                    orientation in 0..30 || orientation in 150..210 || orientation in 330..359
 
-                waitingForPhysicalLandscape = false
-                disable()
-                if (fullscreenOrientationListener === this) {
-                    fullscreenOrientationListener = null
+                if (!fullscreenPhysicalLandscapeReached) {
+                    if (physicallyLandscape) {
+                        fullscreenPhysicalLandscapeReached = true
+                        waitingForPhysicalLandscape = false
+                    }
+                    return
                 }
-                // Sensor now confirms landscape, so FULL_SENSOR won't bounce the Activity back
-                // to portrait while the phone is still being held upright.
-                if (!isFinishing && !isDestroyed && fullscreenLayoutActive) {
-                    requestedOrientation =
-                        android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+
+                if (physicallyPortrait) {
+                    // Leave the sensor callback before changing requestedOrientation or view
+                    // hierarchy; exitFullscreen() disables this listener synchronously.
+                    root.post {
+                        if (!isFinishing && !isDestroyed && fullscreenLayoutActive &&
+                            fullscreenPhysicalLandscapeReached
+                        ) {
+                            exitFullscreen()
+                        }
+                    }
                 }
             }
         }
@@ -3448,8 +3467,6 @@ class YouTubePlayerActivity : ComponentActivity() {
         if (listener.canDetectOrientation()) {
             listener.enable()
         } else {
-            // Without orientation sensors, retain the explicit landscape lock until the user
-            // exits fullscreen using the on-screen shrink control.
             waitingForPhysicalLandscape = false
             listener.disable()
             fullscreenOrientationListener = null
@@ -3458,6 +3475,7 @@ class YouTubePlayerActivity : ComponentActivity() {
 
     private fun clearFullscreenOrientationListener() {
         waitingForPhysicalLandscape = false
+        fullscreenPhysicalLandscapeReached = false
         fullscreenOrientationListener?.disable()
         fullscreenOrientationListener = null
     }
@@ -3466,18 +3484,11 @@ class YouTubePlayerActivity : ComponentActivity() {
         // The existing WebView stays attached; only sibling UI is hidden so the player
         // receives the full activity viewport rather than the space below the header/actions.
         setFullscreenLayout(true)
-        if (resources.configuration.orientation ==
-            android.content.res.Configuration.ORIENTATION_LANDSCAPE
-        ) {
-            clearFullscreenOrientationListener()
-            requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
-        } else {
-            // Keep landscape locked until the physical orientation sensor confirms that the
-            // handset itself reached landscape. Unlocking at the configuration callback alone
-            // causes a forced landscape -> portrait loop on several Android builds.
-            waitForPhysicalLandscapeBeforeUnlock()
-            requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-        }
+        monitorPhysicalOrientationDuringFullscreen()
+        // Always lock display orientation during the forced transition. The sensor listener
+        // separately detects when the handset physically turns back to portrait and exits this
+        // mode; do not switch to FULL_SENSOR in the forced-landscape callback.
+        requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).apply {
             hide(WindowInsetsCompat.Type.systemBars())
