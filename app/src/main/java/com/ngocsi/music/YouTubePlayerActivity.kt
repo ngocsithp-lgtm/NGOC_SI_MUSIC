@@ -936,13 +936,31 @@ class YouTubePlayerActivity : ComponentActivity() {
 
         applyResponsivePlayerLayout(landscapeOverride = isLandscape, force = true)
 
-        // Request only native layout/measure/invalidation. Touch no active media state.
+        // Request native layout/measure/invalidation first; do not restart or seek the
+        // active media element during the actual orientation transition.
         root.requestLayout()
         root.invalidate()
         playerContainer.requestLayout()
         playerContainer.invalidate()
         webView?.requestLayout()
         webView?.invalidate()
+
+        // Some Android/WebView builds pause the HTML5 element as the viewport changes.
+        // Probe the same media element only after layout settles. This recovery is gated by
+        // the last saved PLAY intent and is forbidden from reloading the page, so it cannot
+        // replace a healthy playback session or override an explicit user pause.
+        val recoveryGeneration = ++automaticOrientationRecoveryGeneration
+        playbackPositionHandler.postDelayed({
+            if (recoveryGeneration != automaticOrientationRecoveryGeneration ||
+                isFinishing || isDestroyed || explicitUserPause ||
+                isCssFullscreen || customView != null || webView == null
+            ) return@postDelayed
+            val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+            if (!prefs.getBoolean("youtube_playback_is_playing", false)) {
+                return@postDelayed
+            }
+            recoverFullscreenPlayback(allowPageReloadFallback = false)
+        }, 700L)
     }
 
     private fun showMoreOptions(anchor: View) {
