@@ -172,6 +172,8 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var orientationRecoveryWindowUntilMs = 0L
     // Debounce WebView resize recovery against the native orientation callback.
     private var lastOrientationConfigurationChangeAtMs = 0L
+    private var lastKnownConfigurationOrientation = android.content.res.Configuration.ORIENTATION_UNDEFINED
+    private var automaticOrientationRecoveryGeneration = 0
     // Keep explicit user pauses separate from temporary WebView surface/viewport pauses.
     private var explicitUserPause = false
     private var orientationPlaybackRecoveryGeneration = 0
@@ -429,6 +431,7 @@ class YouTubePlayerActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        lastKnownConfigurationOrientation = resources.configuration.orientation
 
         val backgroundControlFilter = android.content.IntentFilter(
             YouTubeBackgroundService.ACTION_CONTROL
@@ -1659,6 +1662,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun markExplicitPauseIntent() {
+        automaticOrientationRecoveryGeneration++
         explicitUserPause = true
         resumePlaybackOnNextOrientationChange = false
         wasPlayingBeforeFullscreen = false
@@ -3447,8 +3451,80 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
     }
 
+
+    /**
+     * Verify real HTML5 media progress after a physical portrait/landscape rotation.
+     * Layout callbacks can race with each other, so this uses an independent generation and
+     * only enters the existing bounded recovery path when the media clock/frame stream is stale.
+     */
+    private fun scheduleAutomaticOrientationPlaybackRecovery(player: WebView) {
+        val generation = ++automaticOrientationRecoveryGeneration
+        player.postDelayed({
+            if (generation != automaticOrientationRecoveryGeneration ||
+                isFinishing || isDestroyed || player !== webView || explicitUserPause ||
+                customView != null || isCssFullscreen ||
+                fullscreenExitRecoveryPending || pendingFullscreenExitGeometryCheck != null
+            ) return@postDelayed
+
+            val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+            if (!prefs.getBoolean("youtube_playback_is_playing", false)) return@postDelayed
+
+            val probeScript = """
+                (function() {
+                  try {
+                    var video = null;
+                    try {
+                      if (typeof window.__ngocSiFindActiveVideo === 'function')
+                        video = window.__ngocSiFindActiveVideo();
+                    } catch (_) {}
+                    if (!video || !video.isConnected) {
+                      video = document.querySelector('video.html5-main-video') ||
+                              document.querySelector('#movie_player video') ||
+                              document.querySelector('ytm-player video') ||
+                              document.querySelector('video');
+                    }
+                    if (!video || !video.isConnected) return JSON.stringify({healthy:false});
+                    var now = Date.now();
+                    var progressAt = Number(window.__ngocSiPlaybackProgressAt || 0);
+                    var clockFresh = window.__ngocSiTrackedVideo === video &&
+                      window.__ngocSiPlaybackActuallyPlaying === true &&
+                      progressAt > 0 && now - progressAt < 1900;
+                    var hasFrameCallback = typeof video.requestVideoFrameCallback === 'function';
+                    var trackedFrame = window.__ngocSiFrameTrackedVideo === video;
+                    var lastFrameAt = Number(window.__ngocSiLastVideoFrameAt || 0);
+                    var frameFresh = !hasFrameCallback ||
+                      (trackedFrame && lastFrameAt > 0 && now - lastFrameAt < 1900);
+                    var healthy = !video.paused && !video.ended &&
+                      Number(video.readyState || 0) >= 2 && clockFresh && frameFresh;
+                    return JSON.stringify({healthy:healthy});
+                  } catch (_) {
+                    return JSON.stringify({healthy:false});
+                  }
+                })();
+            """.trimIndent()
+
+            player.evaluateJavascript(probeScript) { raw ->
+                if (generation != automaticOrientationRecoveryGeneration ||
+                    isFinishing || isDestroyed || player !== webView || explicitUserPause ||
+                    !getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+                        .getBoolean("youtube_playback_is_playing", false)
+                ) return@evaluateJavascript
+
+                val normalized = raw.orEmpty().trim('"').replace("\\\"", "\"")
+                val status = runCatching { org.json.JSONObject(normalized) }.getOrNull()
+                if (status?.optBoolean("healthy", false) != true) {
+                    recoverFullscreenPlayback(allowPageReloadFallback = true)
+                }
+            }
+        }, 1350L)
+    }
+
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
+        val orientationActuallyChanged =
+            lastKnownConfigurationOrientation != android.content.res.Configuration.ORIENTATION_UNDEFINED &&
+                lastKnownConfigurationOrientation != newConfig.orientation
+        lastKnownConfigurationOrientation = newConfig.orientation
         lastOrientationConfigurationChangeAtMs = System.currentTimeMillis()
         // Invalidate a WebView resize callback that may already have scheduled recovery.
         orientationPlaybackRecoveryGeneration++
@@ -3528,7 +3604,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 prefs.getBoolean("youtube_playback_is_playing", false) ||
                 youtubePlayerState == 1
             )
-        if (player != null && !fullscreenExitRecoveryPending &&
+        if (player != null && !orientationActuallyChanged && !fullscreenExitRecoveryPending &&
             pendingFullscreenExitGeometryCheck == null &&
             playbackIntentStillActive
         ) {
@@ -3571,6 +3647,14 @@ class YouTubePlayerActivity : ComponentActivity() {
                 { scheduleRecoveryAfterViewportSettles() },
                 maxOf(850L, quietWindowRemaining + 120L)
             )
+        }
+        // Actual device rotation gets its own bounded health check. It does not share the
+        // fullscreen layout generation, which can be invalidated by an unrelated resize.
+        if (orientationActuallyChanged && player != null &&
+            !fullscreenExitRecoveryPending && pendingFullscreenExitGeometryCheck == null &&
+            playbackIntentStillActive
+        ) {
+            scheduleAutomaticOrientationPlaybackRecovery(player)
         }
     }
 
