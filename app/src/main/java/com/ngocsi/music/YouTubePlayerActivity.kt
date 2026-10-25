@@ -141,19 +141,16 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
     private var customView: View? = null
     private var customViewCallback: WebChromeClient.CustomViewCallback? = null
-    // The mobile YouTube page may request a Chromium custom view before our in-WebView
-    // fullscreen CSS is applied. Ignore the matching hide callback for that handoff.
-    private var suppressNextCustomViewHide = false
+    // Use Chromium's actual video surface for fullscreen instead of restyling the page.
     private var isCssFullscreen = false
     // Native overlay control remains tappable even if YouTube's web controls are hidden
     // or its video surface is temporarily black after a viewport change.
     private var fullscreenEntryPending = false
     private var nativeFullscreenButton: Button? = null
     private var frameStallRecoveryCooldownUntilMs = 0L
-    // Reinstall the CSS fullscreen viewport if a diagnosed video-surface stall requires
-    // reloading YouTube. Reloading the page alone drops its injected fullscreen stylesheet.
-    private var restoreCssFullscreenAfterRecoveryReload = false
-    private var playbackProbeAfterCssFullscreenRestore = false
+    // Restore the real Chromium fullscreen surface if a confirmed frame stall requires
+    // rebuilding the same YouTube page at the last saved playback position.
+    private var restoreNativeFullscreenAfterRecoveryReload = false
     // Preserve the pre-fullscreen playback state even if YouTube reports PAUSED while rotating.
     private var wasPlayingBeforeFullscreen = false
     private var fullscreenRecoveryGeneration = 0
@@ -268,24 +265,29 @@ class YouTubePlayerActivity : ComponentActivity() {
                 val isRecoveryReload = recoverAfterPageReload
                 if (recoverAfterPageReload) {
                     recoverAfterPageReload = false
-                    if (restoreCssFullscreenAfterRecoveryReload) {
-                        // YouTube's injected CSS fullscreen stylesheet belongs to the old page.
-                        // Reinstall it after the replacement video has initialized, keeping the
-                        // native host in landscape instead of leaving the page in inline layout.
-                        restoreCssFullscreenAfterRecoveryReload = false
-                        playbackProbeAfterCssFullscreenRestore = true
+                    val restoreNativeFullscreen = restoreNativeFullscreenAfterRecoveryReload
+                    restoreNativeFullscreenAfterRecoveryReload = false
+                    if (restoreNativeFullscreen) {
+                        // A native fullscreen view belongs to the old page instance. Re-enter
+                        // YouTube's real fullscreen mode after the replacement video is ready.
                         playbackPositionHandler.postDelayed({
                             if (!isFinishing && !isDestroyed && webView != null &&
                                 !explicitUserPause
                             ) {
-                                requestYoutubeFullscreen(reapplyAfterRecoveryReload = true)
+                                requestYoutubeFullscreen()
+                                playbackPositionHandler.postDelayed({
+                                    if (!isFinishing && !isDestroyed && webView != null &&
+                                        customView != null && !explicitUserPause
+                                    ) {
+                                        recoverFullscreenPlayback(allowPageReloadFallback = false)
+                                    }
+                                }, 900L)
                             }
-                        }, 450L)
+                        }, 850L)
                     } else {
                         playbackPositionHandler.postDelayed({
                             if (!isFinishing && !isDestroyed && webView != null) {
-                                // The page reload already used the fallback for this exit.
-                                // Probe and recover on the replacement page without another reload.
+                                // Recover on the replacement page without starting a second reload.
                                 recoverFullscreenPlayback(allowPageReloadFallback = false)
                             }
                         }, 900L)
@@ -1069,97 +1071,83 @@ class YouTubePlayerActivity : ComponentActivity() {
         startActivity(Intent.createChooser(shareIntent, "Chia sẻ video"))
     }
 
-    private fun requestYoutubeFullscreen(reapplyAfterRecoveryReload: Boolean = false) {
+    private fun requestYoutubeFullscreen() {
         val player = webView
         if (player == null) {
             Toast.makeText(this, "Trình phát chưa sẵn sàng.", Toast.LENGTH_SHORT).show()
             return
         }
-
-        if (isCssFullscreen && !reapplyAfterRecoveryReload) {
+        if (customView != null || isCssFullscreen) {
             exitFullscreen()
             return
         }
-        // The JS click interceptor and WebChromeClient can report the same tap. Serialize
-        // entry and cancel stale inline recovery callbacks so none can reload the page while
-        // fullscreen CSS/viewport sizing is being applied.
         if (fullscreenEntryPending) return
         fullscreenEntryPending = true
-        fullscreenRecoveryGeneration++
-        automaticOrientationRecoveryGeneration++
-        orientationPlaybackRecoveryGeneration++
-        fullscreenExitGeneration++
-        fullscreenExitGeometryCheckGeneration++
-        fullscreenExitRecoveryPending = false
-        pendingFullscreenExitGeometryCheck = null
-        fullscreenExitPlaybackRecoveryScheduledGeneration = -1
-        fullscreenExitRecoveryActiveUntilMs = 0L
 
-        wasPlayingBeforeFullscreen = youtubePlayerState == 1 ||
-            getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
-                .getBoolean("youtube_playback_is_playing", false)
-        resumePlaybackOnNextOrientationChange = wasPlayingBeforeFullscreen ||
-            resumePlaybackOnNextOrientationChange
-        orientationRecoveryWindowUntilMs = System.currentTimeMillis() + 5000L
-        if (wasPlayingBeforeFullscreen && !explicitUserPause) {
-            getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
-                .putBoolean("youtube_playback_is_playing", true)
-                .apply()
-        }
-
-        // Keep the existing YouTube WebView/media element alive. Do not invoke
-        // YouTube's native fullscreen button or video.webkitEnterFullscreen(),
-        // which can hand playback to a separate custom view and pause the stream.
+        // Ask YouTube to enter its supported fullscreen mode. Do not stretch or transform the
+        // inline player DOM: WebChromeClient below attaches Chromium's actual video surface.
         player.evaluateJavascript(
             """
             (function() {
-              var style = document.getElementById('ngocsi-css-fullscreen');
-              if (!style) {
-                style = document.createElement('style');
-                style.id = 'ngocsi-css-fullscreen';
-                document.head.appendChild(style);
-              }
-              style.textContent =
-                'html,body { width:100%!important;height:100%!important;overflow:hidden!important;background:#000!important;margin:0!important;padding:0!important; }' +
-                'ytm-app,ytm-watch { display:block!important;position:relative!important;width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;overflow:hidden!important;margin:0!important;padding:0!important; }' +
-                'ytm-mobile-topbar-renderer,ytm-pivot-bar-renderer,ytm-slim-video-metadata-section-renderer,ytm-watch-metadata,#masthead-container,' +
-                'ytm-comments-entry-point-header-renderer,ytm-comments-entry-point-teaser-renderer,' +
-                'ytm-comment-section-renderer,ytm-comment-renderer,ytm-comment-thread-renderer,' +
-                'ytm-comments-entry-point-renderer,ytm-comment-simplebox-renderer,' +
-                '.ytp-title,.ytp-title-text,.ytp-title-link,.ytp-chrome-top,.ytp-pause-overlay,' +
-                '.ytp-pause-overlay-container,.ytp-large-play-button,.ytp-cued-thumbnail-overlay,' +
-                '.ytp-next-button,.ytp-prev-button,.ytp-next-button-container,.ytp-prev-button-container,' +
-                '.ytp-endscreen-content,.ytp-endscreen-previous,.ytp-endscreen-next,.ytp-ce-covering-overlay,' +
-                '.ytp-cards-teaser,.ytp-ce-element,.ytp-gradient-top,' +
-                'ytm-play-button-renderer,.ytp-show-cards-title { display:none!important; }' +
-                // Fullscreen is provided by the native host expanding around the same WebView.
-                // Do not position the YouTube media root as a second fixed viewport.
-                'ytm-player { position:relative!important; width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;max-width:100%!important;max-height:100%!important;aspect-ratio:auto!important;background:#000!important;overflow:hidden!important;margin:0!important;padding:0!important; }' +
-                'ytm-player,#player-container,#player-container-inner { box-sizing:border-box!important;max-width:100%!important;max-height:100%!important;overflow:hidden!important;margin:0!important;padding:0!important; }' +
-                'ytm-player video,video.html5-main-video { object-fit:contain!important;object-position:center center!important;max-width:100%!important;max-height:100%!important; }';
-              return 'ok';
+              try {
+                var matched = null;
+                var seen = new Set();
+                function inspect(root) {
+                  if (!root || seen.has(root) || matched) return;
+                  seen.add(root);
+                  var nodes = [];
+                  try { nodes = Array.prototype.slice.call(root.querySelectorAll(
+                    'button,[role="button"],ytm-button-renderer,[aria-label],[title]'
+                  )); } catch (_) {}
+                  for (var i = 0; i < nodes.length; i++) {
+                    var node = nodes[i];
+                    var label = [
+                      node.getAttribute && node.getAttribute('aria-label') || '',
+                      node.getAttribute && node.getAttribute('title') || '',
+                      node.getAttribute && node.getAttribute('data-tooltip-text') || '',
+                      node.getAttribute && node.getAttribute('data-title-no-tooltip') || '',
+                      node.className && node.className.baseVal || node.className || '',
+                      node.id || ''
+                    ].join(' ').toLowerCase().replace(/\s+/g, ' ').trim();
+                    if (/full[ -]?screen|toàn màn hình|thoát toàn màn hình|mở rộng/.test(label)) {
+                      var rect = node.getBoundingClientRect();
+                      var cs = window.getComputedStyle(node);
+                      if (rect.width >= 2 && rect.height >= 2 &&
+                          cs.display !== 'none' && cs.visibility !== 'hidden' &&
+                          Number(cs.opacity || 1) !== 0) {
+                        matched = node;
+                        return;
+                      }
+                    }
+                    if (node.shadowRoot) inspect(node.shadowRoot);
+                    if (matched) return;
+                  }
+                }
+                inspect(document);
+                if (matched) {
+                  matched.click();
+                  return 'clicked';
+                }
+                // Some mobile YouTube builds enter native fullscreen directly from the media element.
+                var video = typeof window.__ngocSiFindActiveVideo === 'function'
+                  ? window.__ngocSiFindActiveVideo() : null;
+                if (video && typeof video.webkitEnterFullscreen === 'function') {
+                  try { video.webkitEnterFullscreen(); return 'requested-video-fullscreen'; } catch (_) {}
+                }
+                return 'missing';
+              } catch (_) { return 'error'; }
             })();
             """.trimIndent()
         ) { result ->
             fullscreenEntryPending = false
             if (isFinishing || isDestroyed || player !== webView) return@evaluateJavascript
-            if (result.orEmpty().trim('"') == "ok") {
-                isCssFullscreen = true
-                enterFullscreen()
-                updateNativeFullscreenButton()
-                if (playbackProbeAfterCssFullscreenRestore) {
-                    playbackProbeAfterCssFullscreenRestore = false
-                    playbackPositionHandler.postDelayed({
-                        if (!isFinishing && !isDestroyed && isCssFullscreen &&
-                            !explicitUserPause && player === webView
-                        ) {
-                            recoverFullscreenPlayback(allowPageReloadFallback = false)
-                        }
-                    }, 900L)
-                }
-            } else {
-                playbackProbeAfterCssFullscreenRestore = false
-                Toast.makeText(this, "Không thể mở toàn màn hình. Hãy thử lại.", Toast.LENGTH_SHORT).show()
+            val status = result.orEmpty().trim('"')
+            if (status != "clicked" && status != "requested-video-fullscreen" && customView == null) {
+                Toast.makeText(
+                    this,
+                    "YouTube chưa hiện nút toàn màn hình. Hãy thử lại khi video tải xong.",
+                    Toast.LENGTH_SHORT
+                ).show()
             }
         }
     }
@@ -2012,16 +2000,9 @@ class YouTubePlayerActivity : ComponentActivity() {
         if (now < frameStallRecoveryCooldownUntilMs) return
         frameStallRecoveryCooldownUntilMs = now + 12_000L
 
-        // A native Chromium custom view is rare because the YouTube control is intercepted;
-        // if one is active, only request a redraw and wait for its matching exit callback.
-        if (customView != null) {
-            customView?.requestLayout()
-            customView?.invalidate()
-            return
-        }
-        if (isCssFullscreen) scheduleCssFullscreenLayoutSync()
-        // In fullscreen, allow a page recreation only after repeated frame-stall probes prove
-        // the rendered surface remains stuck. The reload path below restores CSS fullscreen.
+        if (customView != null || isCssFullscreen) scheduleCssFullscreenLayoutSync()
+        // Keep one bounded recovery path for both inline and fullscreen video. A page recreation
+        // is permitted only after repeated rendered-frame checks prove the video surface is stuck.
         recoverFullscreenPlayback(
             allowPageReloadFallback = false,
             allowFrameReloadFallback = true
@@ -2529,6 +2510,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     private fun createPlayer() {
         removePlayer()
         geometryReloadFallbackAttemptedForCurrentPage = false
+        restoreNativeFullscreenAfterRecoveryReload = false
         pageErrorVisible = false
         youtubePlayerReady = false
         youtubePlayerState = -1
@@ -2633,672 +2615,204 @@ class YouTubePlayerActivity : ComponentActivity() {
                     view.invalidate()
                     // Preview experiment: use YouTube's mobile website in the app's
                     // Chromium WebView instead of the IFrame API player.
-                    view.evaluateJavascript("""
-                        (function(){
-                          // Best-effort removal of the duplicate mobile masthead, title row,
-                          // common ad slots, and mute prompt. Video delivery hosts are not filtered.
+                    view.evaluateJavascript(
+                        """
+                        (function() {
                           try {
-                            // Keep the mobile page's CSS viewport aligned with the actual WebView.
-                            // Otherwise overview scaling can render the player as a small island
-                            // inside the native 16:9 frame on some Android viewport configurations.
-                            var ngocSiViewport = document.querySelector('meta[name="viewport"]');
-                            if (!ngocSiViewport) {
-                              ngocSiViewport = document.createElement('meta');
-                              ngocSiViewport.name = 'viewport';
-                              (document.head || document.documentElement).appendChild(ngocSiViewport);
-                            }
-                            ngocSiViewport.setAttribute(
-                              'content',
-                              'width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no'
-                            );
+                            if (window.__ngocSiCleanPlayerInstalled) return 'already-installed';
+                            window.__ngocSiCleanPlayerInstalled = true;
 
-                            // The mobile YouTube SPA may restore a scroll offset after
-                            // onPageFinished, once player metadata/overlays are inserted.
-                            // This WebView is the player surface, not a browser page: keep it
-                            // top-aligned during inline playback and normalize again after SPA
-                            // navigation/orientation settles. Never fight actual fullscreen.
-                            (function installNgocSiInlineScrollGuard() {
-                              if (window.__ngocSiInlineScrollGuardInstalled) return;
-                              window.__ngocSiInlineScrollGuardInstalled = true;
-                              try { if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; } catch (_) {}
-                              var pending = false;
-                              function isFullscreen() {
-                                return !!(document.getElementById('ngocsi-css-fullscreen') ||
-                                  document.fullscreenElement);
-                              }
-                              function normalize() {
-                                pending = false;
-                                if (isFullscreen()) return;
-                                try {
-                                  if (document.scrollingElement && document.scrollingElement.scrollTop !== 0)
-                                    document.scrollingElement.scrollTop = 0;
-                                  if (document.documentElement && document.documentElement.scrollTop !== 0)
-                                    document.documentElement.scrollTop = 0;
-                                  if (document.body && document.body.scrollTop !== 0)
-                                    document.body.scrollTop = 0;
-                                  if (window.scrollX !== 0 || window.scrollY !== 0) window.scrollTo(0, 0);
-                                } catch (_) {}
-                              }
-                              function scheduleNormalize() {
-                                if (pending || isFullscreen()) return;
-                                pending = true;
-                                requestAnimationFrame(function() {
-                                  requestAnimationFrame(normalize);
-                                });
-                              }
-                              window.addEventListener('scroll', function() {
-                                if (!isFullscreen() &&
-                                    (window.scrollY > 0 ||
-                                     (document.scrollingElement && document.scrollingElement.scrollTop > 0)))
-                                  scheduleNormalize();
-                              }, {passive:true});
-                              window.addEventListener('pageshow', scheduleNormalize, {passive:true});
-                              window.addEventListener('popstate', scheduleNormalize, {passive:true});
-                              window.addEventListener('resize', scheduleNormalize, {passive:true});
-                              window.addEventListener('orientationchange', scheduleNormalize, {passive:true});
-                              document.addEventListener('yt-navigate-finish', scheduleNormalize, {passive:true});
-                              document.addEventListener('yt-page-data-updated', scheduleNormalize, {passive:true});
-                              if (window.visualViewport)
-                                window.visualViewport.addEventListener('resize', scheduleNormalize, {passive:true});
-                              scheduleNormalize();
-                            })();
+                            // Hide only page chrome outside the player. No width/height/transform/
+                            // overflow/visibility changes are applied to the actual video surface.
+                            var style = document.createElement('style');
+                            style.id = 'ngocsi-youtube-minimal-style';
+                            style.textContent =
+                              '#masthead-container,ytm-mobile-topbar-renderer,ytm-pivot-bar-renderer,' +
+                              'ytm-app-header,ytm-slim-video-metadata-section-renderer,ytm-watch-metadata,' +
+                              'ytm-video-description-infocontainer-renderer,ytm-comments-entry-point-header-renderer,' +
+                              'ytm-comments-entry-point-teaser-renderer,ytm-comment-section-renderer,' +
+                              'ytm-comment-renderer,ytm-comment-thread-renderer,ytm-comments-entry-point-renderer,' +
+                              'ytm-comment-simplebox-renderer,ytm-engagement-panel,ytm-engagement-panel-section-list-renderer,' +
+                              'ytm-rich-section-renderer,ytm-related-video-renderer,ytm-item-section-renderer {' +
+                              'display:none!important;} ' +
+                              '.ytp-title,.ytp-title-text,.ytp-title-link,.ytp-pause-overlay,' +
+                              '.ytp-pause-overlay-container,.ytp-large-play-button,.ytp-cued-thumbnail-overlay,' +
+                              '.ytp-next-button,.ytp-prev-button,.ytp-next-button-container,.ytp-prev-button-container,' +
+                              '.ytp-endscreen-content,.ytp-endscreen-previous,.ytp-endscreen-next,' +
+                              '.ytp-ce-covering-overlay,.ytp-cards-teaser,.ytp-ce-element,.ytp-show-cards-title {' +
+                              'display:none!important;} html,body {margin:0!important;background:#000!important;}';
+                            (document.head || document.documentElement).appendChild(style);
 
-                            if (!document.getElementById('ngocsi-youtube-cleanup-style')) {
-                              var cleanupStyle = document.createElement('style');
-                              cleanupStyle.id = 'ngocsi-youtube-cleanup-style';
-                              cleanupStyle.textContent =
-                                // Remove the duplicate YouTube mobile browser chrome and title row
-                                // highlighted by the user. Native app controls remain outside WebView.
-                                'ytm-mobile-topbar-renderer, ytm-pivot-bar-renderer, ytm-app-header, ' +
-                                '#masthead-container, ytm-slim-video-metadata-section-renderer, ' +
-                                'ytm-watch-metadata, ytm-video-description-infocontainer-renderer, ' +
-                                'ytm-comments-entry-point-header-renderer, ytm-comments-entry-point-teaser-renderer, ' +
-                                'ytm-comment-section-renderer, ytm-comment-renderer, ytm-comment-thread-renderer, ' +
-                                'ytm-comments-entry-point-renderer, ytm-comment-simplebox-renderer, ' +
-                                'ytm-comments-entry-point-teaser, ytm-comment-section, ytm-item-section-renderer,' +
-                                'ytm-engagement-panel, ytm-engagement-panel-section-list-renderer, ' +
-                                'ytm-rich-section-renderer, ' +
-                                'ytm-ad-slot-renderer, ytm-promoted-sparkles-web-renderer, ' +
-                                'ytm-promoted-sparkles-text-search-renderer, ytm-promoted-video-renderer, ' +
-                                'ytm-companion-slot, ytm-companion-ad-renderer, ytm-in-feed-ad-layout-renderer, ' +
-                                'ytd-ad-slot-renderer, ytd-display-ad-renderer, ytd-promoted-video-renderer, ' +
-                                'ytd-promoted-sparkles-web-renderer, ytd-in-feed-ad-layout-renderer, ' +
-                                'ytd-banner-promo-renderer, ytd-action-companion-ad-renderer, ' +
-                                '.ytp-title, .ytp-title-text, .ytp-title-link, .ytp-chrome-top, ' +
-                                '.ytp-pause-overlay, .ytp-pause-overlay-container, ' +
-                                '.ytp-large-play-button, .ytp-cued-thumbnail-overlay, .ytp-next-button, .ytp-prev-button, ' +
-                                '.ytp-next-button-container, .ytp-prev-button-container, ' +
-                                '.ytp-endscreen-content, .ytp-endscreen-previous, .ytp-endscreen-next, ' +
-                                '.ytp-ce-covering-overlay, .ytp-cards-teaser, ' +
-                                ' ytm-play-button-renderer, ' +
-                                '.ytp-ce-element, .ytp-gradient-top, .ytp-show-cards-title, ' +
-                                '#player-ads, #masthead-ad, .video-ads, .ytp-ad-module, ' +
-                                '.ytp-ad-player-overlay, .ytp-ad-overlay-container, ' +
-                                '.ytp-ad-image-overlay, .ytp-ad-text-overlay {' +
-                                'display:none!important;visibility:hidden!important;' +
-                                'pointer-events:none!important;max-height:0!important;} ' +
-                                // Do not force fullscreen positioning in this always-on cleanup stylesheet.
-                                // Fullscreen sizing is applied only while the fullscreen mode is active;
-                                // keeping these rules global clips the inline player and can freeze it
-                                // when Chromium restores the video surface after rotation.
-                                'html,body,ytm-app,ytm-watch {max-width:100%!important;background:#000!important;}';
-                              (document.head || document.documentElement).appendChild(cleanupStyle);
-                            }
-                            // Keep the inline player in normal document flow. Fixed positioning
-                            // across orientation changes can leave Chromium's video surface frozen
-                            // when the fullscreen custom view is dismissed.
-                            // The YouTube mobile page can place its central controls inside
-                            // an open shadow root. Page-level CSS cannot style those nodes, so add
-                            // the same narrowly-scoped hide rules to every open player shadow root
-                            // and re-apply them when YouTube inserts/replaces overlay nodes.
-                            (function installNgocSiCenterControlHider() {
-                              var selectors =
-                                '.ytp-cued-thumbnail-overlay,.ytp-next-button,.ytp-prev-button,' +
-                                '.ytp-next-button-container,.ytp-prev-button-container,' +
-                                '.ytp-endscreen-content,.ytp-endscreen-previous,.ytp-endscreen-next,' +
-                                '.ytp-ce-covering-overlay,.ytp-cards-teaser,.ytp-ce-element,' +
-                                '[class*="next-button-overlay"]';
-                              var rules = selectors +
-                                '{display:none!important;visibility:hidden!important;opacity:0!important;' +
-                                'pointer-events:none!important;max-height:0!important;}';
-                              // The mobile YouTube player lives partly in open shadow roots.
-                              // Document CSS cannot reset those wrappers, so the root's own
-                              // stylesheet must pin each player layer to the same 0,0 origin.
-                              // Do not override YouTube's internal layout/compositor layers.
-                              // These rules remain present after fullscreen exits and can cause audio
-                              // to continue while the video surface becomes invisible.
-                              var viewportRules = '';
-                              var observedRoots = window.__ngocSiObservedOverlayRoots ||
-                                (window.__ngocSiObservedOverlayRoots = new WeakSet());
-
-                              function getPlayerRect(rootNode) {
-                                try {
-                                  var player = rootNode.querySelector(
-                                    'ytm-player,#movie_player,.html5-video-player,#player-container-inner'
-                                  );
-                                  if (player) return player.getBoundingClientRect();
-                                  var host = rootNode.host || null;
-                                  while (host) {
-                                    if (host.matches && host.matches(
-                                      'ytm-player,#movie_player,.html5-video-player,#player-container-inner'
-                                    )) return host.getBoundingClientRect();
-                                    if (host.parentElement) {
-                                      host = host.parentElement;
-                                    } else {
-                                      var enclosingRoot = host.getRootNode();
-                                      host = enclosingRoot && enclosingRoot.host ? enclosingRoot.host : null;
-                                    }
-                                  }
-                                } catch (_) {}
-                                return null;
-                              }
-                              function hideCenterLabeledControls(rootNode) {
-                                try {
-                                  var playerRect = getPlayerRect(rootNode);
-                                  if (!playerRect || playerRect.width < 10 || playerRect.height < 10) return;
-                                  var buttons = rootNode.querySelectorAll(
-                                    'button,[role="button"],ytm-button-renderer,.ytp-button,' +
-                                    '.ytp-next-button,.ytp-prev-button,' +
-                                    '[class*="next-button-overlay"]'
-                                  );
-                                  for (var i = 0; i < buttons.length; i++) {
-                                    var button = buttons[i];
-                                    var label = ((button.getAttribute('aria-label') || '') + ' ' +
-                                      (button.getAttribute('title') || '') + ' ' +
-                                      (button.innerText || button.textContent || '')).toLowerCase()
-                                      .replace(/\s+/g, ' ').trim();
-                                    var classHint = '';
-                                    try {
-                                      classHint = String(button.className && button.className.baseVal
-                                        ? button.className.baseVal : button.className || '') + ' ' +
-                                        String(button.id || '');
-                                    } catch (_) {}
-                                    var hasCenterControlClass = /large-play-button|center-play-button|central-play-button|next-button-overlay|ytp-overlay-button/i.test(classHint);
-                                    // Keep YouTube's single central Play/Pause control available in
-                                    // landscape. Hide only duplicate skip/next/previous overlays.
-                                    var rect = button.getBoundingClientRect();
-                                    if (rect.width < 3 || rect.height < 3) continue;
-                                    var x = (rect.left + rect.width / 2 - playerRect.left) / playerRect.width;
-                                    var y = (rect.top + rect.height / 2 - playerRect.top) / playerRect.height;
-                                    var skipControl = /next|previous|prev|skip|tiếp|trước/i.test(
-                                      label + ' ' + classHint
-                                    );
-                                    if (skipControl && x >= 0.25 && x <= 0.75 &&
-                                        y >= 0.18 && y <= 0.82) {
-                                      button.style.setProperty('display','none','important');
-                                      button.style.setProperty('visibility','hidden','important');
-                                      button.style.setProperty('opacity','0','important');
-                                      button.style.setProperty('pointer-events','none','important');
-                                    }
-                                  }
-                                } catch (_) {}
-                              }
-                              function visitNode(node) {
-                                if (!node || node.nodeType !== 1) return;
-                                try {
-                                  if (node.shadowRoot) protectRoot(node.shadowRoot);
-                                  var descendants = node.querySelectorAll ? node.querySelectorAll('*') : [];
-                                  for (var i = 0; i < descendants.length; i++) {
-                                    if (descendants[i].shadowRoot) protectRoot(descendants[i].shadowRoot);
-                                  }
-                                } catch (_) {}
-                              }
-                              function protectRoot(rootNode) {
-                                if (!rootNode || !rootNode.querySelectorAll) return;
-                                try {
-                                  if (!rootNode.querySelector('#ngocsi-center-controls-shadow-style')) {
-                                    var overlayStyle = document.createElement('style');
-                                    overlayStyle.id = 'ngocsi-center-controls-shadow-style';
-                                    overlayStyle.textContent = rules;
-                                    rootNode.appendChild(overlayStyle);
-                                  }
-                                  if (!rootNode.querySelector('#ngocsi-player-viewport-shadow-style')) {
-                                    var viewportStyle = document.createElement('style');
-                                    viewportStyle.id = 'ngocsi-player-viewport-shadow-style';
-                                    viewportStyle.textContent = viewportRules;
-                                    rootNode.appendChild(viewportStyle);
-                                  }
-                                } catch (_) {}
-                                if (!observedRoots.has(rootNode)) {
-                                  observedRoots.add(rootNode);
-                                  try {
-                                    var observer = new MutationObserver(function(records) {
-                                      for (var r = 0; r < records.length; r++) {
-                                        for (var n = 0; n < records[r].addedNodes.length; n++) {
-                                          visitNode(records[r].addedNodes[n]);
-                                        }
-                                      }
-                                      hideCenterLabeledControls(rootNode);
-                                    });
-                                    observer.observe(rootNode, {childList:true, subtree:true});
-                                  } catch (_) {}
-                                }
-                                hideCenterLabeledControls(rootNode);
-                                try {
-                                  var nodes = rootNode.querySelectorAll('*');
-                                  for (var j = 0; j < nodes.length; j++) {
-                                    if (nodes[j].shadowRoot) protectRoot(nodes[j].shadowRoot);
-                                  }
-                                } catch (_) {}
-                              }
-                              protectRoot(document);
-                            })();
-
-                            if (!document.getElementById('ngocsi-player-viewport-fix')) {
-                              var fitStyle = document.createElement('style');
-                              fitStyle.id = 'ngocsi-player-viewport-fix';
-                              fitStyle.textContent =
-                                // Keep the page background and scroll position stable, but do not
-                                // force internal YouTube player heights in inline mode.
-                                'html,body {display:block!important;box-sizing:border-box!important;width:100%!important;max-width:100%!important;margin:0!important;padding:0!important;overflow:hidden!important;background:#000!important;}';
-                              (document.head || document.documentElement).appendChild(fitStyle);
-                            }
-                            function ngocSiFitPlayerToViewport() {
-                              var appShell = document.querySelector('ytm-app');
-                              var watchShell = document.querySelector('ytm-watch');
-                              var root = document.querySelector('ytm-player') ||
-                                document.querySelector('#movie_player') ||
-                                document.querySelector('#player');
-                              var isFullscreen = !!(document.fullscreenElement ||
-                                document.getElementById('ngocsi-css-fullscreen'));
-                              var nodes = [appShell, watchShell, root];
-                              if (isFullscreen) {
-                                nodes.forEach(function(node) {
-                                  if (!node) return;
-                                  node.style.setProperty('display','block','important');
-                                  node.style.setProperty('position','relative','important');
-                                  node.style.setProperty('width','100%','important');
-                                  node.style.setProperty('height','100%','important');
-                                  node.style.setProperty('max-width','100%','important');
-                                  node.style.setProperty('max-height','100%','important');
-                                  node.style.setProperty('min-width','0','important');
-                                  node.style.setProperty('min-height','0','important');
-                                  node.style.setProperty('margin','0','important');
-                                  node.style.setProperty('padding','0','important');
-                                  node.style.setProperty('overflow','hidden','important');
-                                  node.style.setProperty('transform','none','important');
-                                });
-                                if (root) {
-                                  root.style.setProperty('box-sizing','border-box','important');
-                                  root.style.setProperty('aspect-ratio','auto','important');
-                                }
-                                return;
-                              }
-                              // The native host owns the inline 16:9 frame. Clear any stale
-                              // fullscreen/landscape sizing, then explicitly fit the outer YouTube
-                              // shells and player root to the host width. Leave height and aspect
-                              // ratio to YouTube so a portrait return cannot retain landscape
-                              // height or collapse to a narrow intrinsic-width video.
-                              nodes.forEach(function(node) {
-                                if (!node) return;
-                                ['display','position','left','top','right','bottom','inset',
-                                 'width','height','max-width','max-height','min-width','min-height',
-                                 'box-sizing','transform','margin','padding','aspect-ratio','overflow']
-                                  .forEach(function(prop) { node.style.removeProperty(prop); });
-                              });
-                              [appShell, watchShell].forEach(function(shell) {
-                                if (!shell) return;
-                                shell.style.setProperty('display','block','important');
-                                shell.style.setProperty('position','relative','important');
-                                shell.style.setProperty('width','100%','important');
-                                shell.style.setProperty('max-width','100%','important');
-                                shell.style.setProperty('margin','0','important');
-                                shell.style.setProperty('padding','0','important');
-                                shell.style.setProperty('transform','none','important');
-                                shell.style.setProperty('overflow','hidden','important');
-                              });
-                              if (root) {
-                                root.style.setProperty('display','block','important');
-                                root.style.setProperty('position','relative','important');
-                                root.style.setProperty('width','100%','important');
-                                root.style.setProperty('max-width','100%','important');
-                                root.style.setProperty('margin','0','important');
-                                root.style.setProperty('padding','0','important');
-                                root.style.setProperty('transform','none','important');
-                              }
-                            }
-                            // Avoid repeatedly rewriting player dimensions while Chromium is
-                            // handing the video surface between portrait, landscape and inline.
-                            // A recurring timer was racing YouTube's own layout and could leave
-                            // the player at a stale height after the second/third rotation.
-                            if (window.__ngocSiFitPlayerTimer) {
-                              clearInterval(window.__ngocSiFitPlayerTimer);
-                              window.__ngocSiFitPlayerTimer = null;
-                            }
-                            if (window.__ngocSiFitPlayerResizeHandler) {
-                              window.removeEventListener('resize', window.__ngocSiFitPlayerResizeHandler);
-                              window.removeEventListener('orientationchange', window.__ngocSiFitPlayerResizeHandler);
-                              if (window.visualViewport) {
-                                window.visualViewport.removeEventListener('resize', window.__ngocSiFitPlayerResizeHandler);
-                              }
-                              if (ngocSiFitFrame) cancelAnimationFrame(ngocSiFitFrame);
-                              if (ngocSiFitSettleTimer) clearTimeout(ngocSiFitSettleTimer);
-                            }
-                            var ngocSiFitFrame = 0;
-                            var ngocSiFitSettleTimer = 0;
-                            window.__ngocSiFitPlayerResizeHandler = function() {
-                              if (ngocSiFitFrame) cancelAnimationFrame(ngocSiFitFrame);
-                              if (ngocSiFitSettleTimer) clearTimeout(ngocSiFitSettleTimer);
-                              // Wait two animation frames for Chromium to commit the new viewport,
-                              // then perform one bounded settling pass after orientation animation.
-                              ngocSiFitFrame = requestAnimationFrame(function() {
-                                ngocSiFitFrame = requestAnimationFrame(function() {
-                                  ngocSiFitFrame = 0;
-                                  ngocSiFitPlayerToViewport();
-                                });
-                              });
-                              ngocSiFitSettleTimer = setTimeout(function() {
-                                ngocSiFitSettleTimer = 0;
-                                ngocSiFitPlayerToViewport();
-                              }, 180);
-                            };
-                            ngocSiFitPlayerToViewport();
-                            window.addEventListener('resize', window.__ngocSiFitPlayerResizeHandler, {passive:true});
-                            window.addEventListener('orientationchange', window.__ngocSiFitPlayerResizeHandler, {passive:true});
-                            if (window.visualViewport) {
-                              window.visualViewport.addEventListener('resize', window.__ngocSiFitPlayerResizeHandler, {passive:true});
-                            }
-                          } catch (_) {}
-
-                          var ngocSiUnmuteAttempts = 0;
-                          function removeMutePromptAndTrySound() {
-                            ngocSiUnmuteAttempts++;
-                            var playerRoot = document.querySelector(
-                              'ytm-player, #movie_player, .html5-video-player, ytm-watch'
-                            ) || document;
-                            var candidates = playerRoot.querySelectorAll(
-                              'button,[role="button"],[aria-label],ytm-button-renderer,' +
-                              '.ytp-unmute,.ytp-cued-thumbnail-overlay'
-                            );
-                            for (var i = 0; i < candidates.length; i++) {
-                              var el = candidates[i];
-                              var label = ((el.getAttribute('aria-label') || '') + ' ' +
-                                (el.innerText || el.textContent || '')).toLowerCase()
-                                .replace(/\s+/g, ' ').trim();
-                              var isUnmutePrompt =
-                                label.indexOf('nhấn để bật tiếng') >= 0 ||
-                                label.indexOf('nhan de bat tieng') >= 0 ||
-                                label.indexOf('tap to unmute') >= 0 ||
-                                label.indexOf('click to unmute') >= 0 ||
-                                label.indexOf('unmute video') >= 0;
-                              if (!isUnmutePrompt) continue;
-                              // Trigger YouTube's own unmute action before hiding its prompt.
-                              try { el.click(); } catch (_) {}
-                              try {
-                                el.style.setProperty('visibility', 'hidden', 'important');
-                                el.style.setProperty('opacity', '0', 'important');
-                                el.style.setProperty('pointer-events', 'none', 'important');
-                                if (el.parentElement &&
-                                    (el.parentElement.innerText || '').toLowerCase()
-                                      .indexOf('nhấn để bật tiếng') >= 0) {
-                                  el.parentElement.style.setProperty('visibility', 'hidden', 'important');
-                                  el.parentElement.style.setProperty('opacity', '0', 'important');
-                                }
-                              } catch (_) {}
-                            }
-
-                            // WebView is configured for playback without a second gesture.
-                            // Try to clear autoplay mute without reloading/replacing the video.
-                            var video = window.__ngocSiFindActiveVideo
-                              ? window.__ngocSiFindActiveVideo()
-                              : playerRoot.querySelector('video');
-                            if (video && (video.muted || video.volume === 0)) {
-                              try {
-                                video.muted = false;
-                                video.defaultMuted = false;
-                                video.removeAttribute('muted');
-                                video.volume = 1;
-                              } catch (_) {}
-                            }
-                            if (ngocSiUnmuteAttempts >= 30 && window.__ngocSiUnmuteTimer) {
-                              clearInterval(window.__ngocSiUnmuteTimer);
-                              window.__ngocSiUnmuteTimer = null;
-                            }
-                          }
-                          if (window.__ngocSiUnmuteTimer) clearInterval(window.__ngocSiUnmuteTimer);
-                          removeMutePromptAndTrySound();
-                          window.__ngocSiUnmuteTimer = setInterval(removeMutePromptAndTrySound, 700);
-
-                          // Keep state tracking and transport commands bound to the same
-                          // active YouTube video element to avoid controlling a stale/hidden video.
-                          function findActiveVideo() {
-                            var videos = Array.prototype.slice.call(document.querySelectorAll('video'));
-                            function visible(video) {
+                            function videoVisible(video) {
                               if (!video || !video.isConnected) return false;
                               var rect = video.getBoundingClientRect();
                               if (rect.width < 2 || rect.height < 2) return false;
                               var node = video;
                               while (node && node.nodeType === 1 && node !== document.documentElement) {
-                                var style = window.getComputedStyle(node);
-                                if (style.display === 'none' || style.visibility === 'hidden' ||
-                                    Number(style.opacity || 1) === 0) return false;
+                                var cs = window.getComputedStyle(node);
+                                if (cs.display === 'none' || cs.visibility === 'hidden' ||
+                                    Number(cs.opacity || 1) === 0) return false;
                                 node = node.parentElement;
                               }
                               return true;
                             }
-                            var rendered = videos.filter(visible);
-                            // Always bind commands/state to YouTube's real primary video before
-                            // considering other video elements (ads, previews or hidden players).
-                            // A secondary element can still be "playing" while the main video is
-                            // temporarily paused during page lifecycle changes; score-only selection
-                            // can then target the wrong element and leave the video surface frozen.
-                            var primary = rendered.find(function(video) {
-                              return video.classList.contains('html5-main-video') ||
-                                !!video.closest('#movie_player') ||
-                                !!video.closest('.html5-video-player') ||
-                                !!video.closest('ytm-player');
-                            });
-                            if (primary) return primary;
-                            function score(video) {
-                              var rect = video.getBoundingClientRect();
-                              var value = rect.width * rect.height;
-                              if (!video.paused && !video.ended) value += 100000000;
-                              if (video.readyState >= 2) value += 1000000;
-                              if (video.currentTime > 0) value += 100000;
-                              return value;
-                            }
-                            rendered.sort(function(a,b){ return score(b) - score(a); });
-                            return rendered[0] || null;
-                          }
-                          window.__ngocSiFindActiveVideo = findActiveVideo;
-                          // Do not change page layout or hide YouTube DOM nodes around the
-                          // playing video; those changes can detach its rendering surface.
-                          // Install the Android bridge only after YouTube creates a video element.
-                          // The bridge reports state and avoids automatic pause/play watchdogs
-                          // that can restart a buffering stream repeatedly.
-                          // Intercept YouTube's fullscreen control and keep playback on the current WebView.
-                           // Native custom-view handoff can leave video frozen after returning to portrait.
-                           function installNgocSiFullscreenInterceptor() {
-                             if (window.__ngocSiFullscreenInterceptorInstalled) return;
-                             window.__ngocSiFullscreenInterceptorInstalled = true;
-                             document.addEventListener('click', function(event) {
-                               var path = [];
-                               try {
-                                 path = typeof event.composedPath === 'function'
-                                   ? event.composedPath() : [event.target];
-                               } catch (_) { path = [event.target]; }
-                               var matched = false;
-                               for (var i = 0; i < path.length; i++) {
-                                 var node = path[i];
-                                 if (!node || node.nodeType !== 1) continue;
-                                 var cls = '';
-                                 try { cls = String(node.className || '').toLowerCase(); } catch (_) {}
-                                 var tag = String(node.tagName || '').toLowerCase();
-                                 var label = '';
-                                 try {
-                                   label = [
-                                     node.getAttribute('aria-label') || '',
-                                     node.getAttribute('title') || '',
-                                     node.getAttribute('data-title-no-tooltip') || '',
-                                     node.getAttribute('data-tooltip-text') || ''
-                                   ].join(' ').toLowerCase();
-                                 } catch (_) {}
-                                 if (cls.indexOf('ytp-fullscreen-button') >= 0 ||
-                                     cls.indexOf('fullscreen-button') >= 0 ||
-                                     tag.indexOf('fullscreen') >= 0 ||
-                                     /full[ _-]?screen|toàn màn hình|thoát toàn màn hình/.test(label)) {
-                                   matched = true;
-                                   break;
-                                 }
-                               }
-                               if (!matched) return;
-                               event.preventDefault();
-                               event.stopPropagation();
-                               if (typeof event.stopImmediatePropagation === 'function') {
-                                 event.stopImmediatePropagation();
-                               }
-                               try { AndroidBridge.onFullscreenToggle(); } catch (_) {}
-                             }, true);
-                           }
-                           installNgocSiFullscreenInterceptor();
 
-                           function installNgocSiBridge(retries) {
-                            if (window.__ngocSiBridgeInstalled) return;
-                            var initialVideo = findActiveVideo();
-                            if (!initialVideo) {
-                              if (retries < 30) {
-                                setTimeout(function(){ installNgocSiBridge(retries + 1); }, 700);
-                              }
-                              return;
+                            function findActiveVideo() {
+                              var videos = Array.prototype.slice.call(document.querySelectorAll('video'));
+                              var visible = videos.filter(videoVisible);
+                              var primary = visible.find(function(video) {
+                                return video.classList.contains('html5-main-video') ||
+                                  !!video.closest('#movie_player') ||
+                                  !!video.closest('.html5-video-player') ||
+                                  !!video.closest('ytm-player');
+                              });
+                              if (primary) return primary;
+                              visible.sort(function(a,b) {
+                                function score(v) {
+                                  var r = v.getBoundingClientRect();
+                                  return r.width * r.height +
+                                    (!v.paused && !v.ended ? 100000000 : 0) +
+                                    (v.readyState >= 2 ? 1000000 : 0) +
+                                    (v.currentTime > 0 ? 100000 : 0);
+                                }
+                                return score(b) - score(a);
+                              });
+                              return visible[0] || null;
                             }
-                            window.__ngocSiBridgeInstalled = true;
-                            try { AndroidBridge.onReady(); } catch(e) {}
-                            var lastState = -99;
+
+                            window.__ngocSiFindActiveVideo = findActiveVideo;
+                            // Legacy native recovery callers can request a regular resize, but
+                            // this handler never writes styling to the page or video element.
+                            window.__ngocSiFitPlayerResizeHandler = function() {
+                              try { window.dispatchEvent(new Event('resize')); } catch (_) {}
+                            };
+
                             var lastVideo = null;
+                            var lastState = -99;
                             var lastCurrentTime = NaN;
                             var lastProgressAt = 0;
-                            setInterval(function(){
-                              var e = findActiveVideo();
-                              if (!e) return;
-                              if (e !== lastVideo) {
-                                lastVideo = e;
-                                lastState = -99;
-                                lastCurrentTime = Number(e.currentTime || 0);
-                                lastProgressAt = 0;
+                            var lastFrameStallNoticeAt = 0;
+                            var frameTrackedVideo = null;
+                            var frameTrackingStartedAt = 0;
+
+                            function trackVideo() {
+                              var video = findActiveVideo();
+                              if (!video) return;
+
+                              if (!window.__ngocSiReadySent) {
+                                window.__ngocSiReadySent = true;
+                                window.__ngocSiBridgeInstalled = true;
+                                try { AndroidBridge.onReady(); } catch (_) {}
                               }
-                              // Track rendered frames separately from currentTime. Chromium can
-                              // keep audio/media time moving while the compositor image is frozen
-                              // after orientation handoff; a media-clock probe alone misses that.
-                              if (typeof e.requestVideoFrameCallback === 'function' &&
-                                  window.__ngocSiFrameTrackedVideo !== e) {
-                                window.__ngocSiFrameTrackedVideo = e;
+
+                              if (video !== lastVideo) {
+                                lastVideo = video;
+                                lastState = -99;
+                                lastCurrentTime = Number(video.currentTime || 0);
+                                lastProgressAt = 0;
+                                lastFrameStallNoticeAt = 0;
+                              }
+
+                              if (typeof video.requestVideoFrameCallback === 'function' &&
+                                  frameTrackedVideo !== video) {
+                                frameTrackedVideo = video;
+                                frameTrackingStartedAt = Date.now();
+                                window.__ngocSiFrameTrackedVideo = video;
                                 window.__ngocSiLastVideoFrameAt = 0;
-                                window.__ngocSiFrameTrackingStartedAt = Date.now();
+                                window.__ngocSiFrameTrackingStartedAt = frameTrackingStartedAt;
                                 try {
-                                  var trackRenderedFrame = function() {
-                                    if (window.__ngocSiFrameTrackedVideo !== e) return;
+                                  var onFrame = function() {
+                                    if (frameTrackedVideo !== video) return;
                                     window.__ngocSiLastVideoFrameAt = Date.now();
-                                    try { e.requestVideoFrameCallback(trackRenderedFrame); } catch (_) {}
+                                    try { video.requestVideoFrameCallback(onFrame); } catch (_) {}
                                   };
-                                  e.requestVideoFrameCallback(trackRenderedFrame);
+                                  video.requestVideoFrameCallback(onFrame);
                                 } catch (_) {}
                               }
-                              var currentTime = Number(e.currentTime || 0);
-                              if (!e.paused && !e.ended && e.readyState >= 2 &&
-                                  Number.isFinite(lastCurrentTime) && currentTime > lastCurrentTime + 0.025) {
-                                lastProgressAt = Date.now();
+
+                              var now = Date.now();
+                              var currentTime = Number(video.currentTime || 0);
+                              if (!video.paused && !video.ended && video.readyState >= 2 &&
+                                  Number.isFinite(lastCurrentTime) &&
+                                  currentTime > lastCurrentTime + 0.025) {
+                                lastProgressAt = now;
                               }
                               lastCurrentTime = currentTime;
+
                               var clockAdvancing = lastProgressAt > 0 &&
-                                Date.now() - lastProgressAt < 1800 &&
-                                !e.paused && !e.ended && e.readyState >= 2;
-                              window.__ngocSiTrackedVideo = e;
+                                now - lastProgressAt < 1800 &&
+                                !video.paused && !video.ended && video.readyState >= 2;
+                              window.__ngocSiTrackedVideo = video;
                               window.__ngocSiPlaybackProgressAt = lastProgressAt;
                               window.__ngocSiPlaybackActuallyPlaying = clockAdvancing;
-                              var frameNow = Date.now();
-                              var trackedFrame = window.__ngocSiFrameTrackedVideo === e;
-                              var lastFrameAt = trackedFrame ? Number(window.__ngocSiLastVideoFrameAt || 0) : 0;
-                              var frameAge = lastFrameAt > 0 ? frameNow - lastFrameAt : -1;
-                              var trackingStartedAt = trackedFrame
-                                ? Number(window.__ngocSiFrameTrackingStartedAt || frameNow) : frameNow;
-                              var noRenderedFrames = typeof e.requestVideoFrameCallback === 'function' &&
-                                (frameAge > 1900 || (frameAge < 0 && frameNow - trackingStartedAt > 2600));
-                              if (clockAdvancing && Number(e.videoWidth || 0) > 0 && noRenderedFrames) {
-                                var lastNoticeAt = Number(window.__ngocSiLastFrameStallNoticeAt || 0);
-                                if (lastNoticeAt === 0 || frameNow - lastNoticeAt > 9000) {
-                                  window.__ngocSiLastFrameStallNoticeAt = frameNow;
+
+                              var frameAt = Number(window.__ngocSiLastVideoFrameAt || 0);
+                              var frameAge = frameAt > 0 ? now - frameAt : -1;
+                              var hasFrameCallback = typeof video.requestVideoFrameCallback === 'function';
+                              var trackingAge = frameTrackingStartedAt > 0 ? now - frameTrackingStartedAt : 0;
+                              var noNewFrames = hasFrameCallback &&
+                                (frameAge > 1900 || (frameAge < 0 && trackingAge > 2600));
+
+                              // Audio/media time can move while Chromium stops composing frames.
+                              // Notify Android only after a sustained, measurable frame stall.
+                              if (clockAdvancing && Number(video.videoWidth || 0) > 0 && noNewFrames) {
+                                if (!lastFrameStallNoticeAt || now - lastFrameStallNoticeAt > 9000) {
+                                  lastFrameStallNoticeAt = now;
                                   try { AndroidBridge.onVideoFrameStalled(); } catch (_) {}
                                 }
                               } else if (!clockAdvancing || (frameAge >= 0 && frameAge < 700)) {
-                                window.__ngocSiLastFrameStallNoticeAt = 0;
+                                lastFrameStallNoticeAt = 0;
                               }
-                              // Distinguish a stalled/buffering media element from one whose
-                              // currentTime is really advancing. A stale "playing" flag used
-                              // to make the Play button issue pauseVideo() after fullscreen.
-                              var state = e.ended ? 0 : (e.paused ? 2 : (clockAdvancing ? 1 : 3));
+
+                              var state = video.ended ? 0 :
+                                (video.paused ? 2 : (clockAdvancing ? 1 : 3));
                               if (state !== lastState) {
                                 lastState = state;
                                 try { AndroidBridge.onStateChanged(state); } catch (_) {}
                               }
-                            }, 500);
-                          }
-                          installNgocSiBridge(0);
+                            }
 
-                          // The page can pause/replace its media node during a rotation. Capture
-                          // the last real playback progress before that happens, then let native
-                          // code recover the same player after its viewport has settled.
-                          (function installNgocSiViewportPlaybackGuard() {
-                            if (window.__ngocSiViewportPlaybackGuardInstalled) return;
-                            window.__ngocSiViewportPlaybackGuardInstalled = true;
-                            function findPlaybackControl(event) {
-                              var path = event && typeof event.composedPath === 'function'
+                            // Track explicit Play/Pause intent so orientation recovery does not
+                            // override a deliberate user pause.
+                            document.addEventListener('click', function(event) {
+                              if (!event || !event.isTrusted) return;
+                              var path = typeof event.composedPath === 'function'
                                 ? event.composedPath() : [event.target];
                               for (var i = 0; i < path.length; i++) {
                                 var node = path[i];
                                 if (!node || node.nodeType !== 1) continue;
-                                var tag = String(node.tagName || '').toLowerCase();
-                                var candidate = tag === 'button' ||
-                                  node.getAttribute('role') === 'button' ||
-                                  (node.matches && node.matches('.ytp-button,ytm-button-renderer'));
-                                if (!candidate) continue;
-                                var label = '';
-                                try {
-                                  label = [
-                                    node.getAttribute('aria-label') || '',
-                                    node.getAttribute('title') || '',
-                                    node.getAttribute('data-tooltip-text') || '',
-                                    node.getAttribute('data-title-no-tooltip') || '',
-                                    node.innerText || node.textContent || '',
-                                    typeof node.className === 'string' ? node.className : '',
-                                    node.id || ''
-                                  ].join(' ').toLowerCase().replace(/\s+/g, ' ').trim();
-                                } catch (_) {}
-                                if (/pause|tạm dừng|tam dung/.test(label)) return 'pause';
-                                if (/\bplay\b|phát|resume|tiếp tục|tiep tuc/.test(label)) return 'play';
-                              }
-                              return '';
-                            }
-                            document.addEventListener('click', function(event) {
-                              if (!event || !event.isTrusted) return;
-                              var action = findPlaybackControl(event);
-                              if (!action) return;
-                              if (action === 'pause') {
-                                window.__ngocSiExplicitPauseAt = Date.now();
-                                try { AndroidBridge.onExplicitPauseRequested(); } catch (_) {}
-                              } else {
-                                window.__ngocSiExplicitPauseAt = 0;
-                                try { AndroidBridge.onExplicitPlayRequested(); } catch (_) {}
+                                var label = [
+                                  node.getAttribute && node.getAttribute('aria-label') || '',
+                                  node.getAttribute && node.getAttribute('title') || '',
+                                  node.getAttribute && node.getAttribute('data-tooltip-text') || '',
+                                  node.innerText || node.textContent || '',
+                                  typeof node.className === 'string' ? node.className : '',
+                                  node.id || ''
+                                ].join(' ').toLowerCase().replace(/\s+/g, ' ').trim();
+                                if (/pause|tạm dừng|tam dung/.test(label)) {
+                                  window.__ngocSiExplicitPauseAt = Date.now();
+                                  try { AndroidBridge.onExplicitPauseRequested(); } catch (_) {}
+                                  return;
+                                }
+                                if (/\bplay\b|phát|phat|resume|tiếp tục|tiep tuc/.test(label)) {
+                                  window.__ngocSiExplicitPauseAt = 0;
+                                  try { AndroidBridge.onExplicitPlayRequested(); } catch (_) {}
+                                  return;
+                                }
                               }
                             }, true);
 
                             var lastHandoffAt = 0;
                             function onViewportChange() {
                               var now = Date.now();
-                              if (now - lastHandoffAt < 500) return;
+                              if (now - lastHandoffAt < 650) return;
                               var explicitPauseAt = Number(window.__ngocSiExplicitPauseAt || 0);
                               if (explicitPauseAt > 0 && now - explicitPauseAt < 5000) return;
-                              var video = null;
-                              try {
-                                if (typeof window.__ngocSiFindActiveVideo === 'function') {
-                                  video = window.__ngocSiFindActiveVideo();
-                                }
-                              } catch (_) {}
                               var progressAt = Number(window.__ngocSiPlaybackProgressAt || 0);
-                              var recentProgress = progressAt > 0 && now - progressAt < 1800;
-                              var wasActuallyPlaying = window.__ngocSiPlaybackActuallyPlaying === true;
-                              if (!video || video.ended || (!recentProgress && !wasActuallyPlaying)) return;
+                              if (!window.__ngocSiTrackedVideo ||
+                                  !window.__ngocSiPlaybackActuallyPlaying ||
+                                  !progressAt || now - progressAt > 1800) return;
                               lastHandoffAt = now;
-                              window.__ngocSiPlaybackIntentUntil = now + 5000;
                               try { AndroidBridge.onViewportPlaybackHandoff(); } catch (_) {}
                             }
                             window.addEventListener('orientationchange', onViewportChange, {passive:true});
@@ -3306,51 +2820,29 @@ class YouTubePlayerActivity : ComponentActivity() {
                             if (window.visualViewport) {
                               window.visualViewport.addEventListener('resize', onViewportChange, {passive:true});
                             }
-                          })();
+
+                            window.setInterval(trackVideo, 500);
+                            trackVideo();
+                            return 'clean-player-installed';
+                          } catch (_) {
+                            return 'clean-player-install-error';
+                          }
                         })();
-                    """.trimIndent(), null)
-                    // onPageFinished can run before the final Android viewport has been measured.
-                    // Re-fit once after the CSS/bridge is installed; the sync is bounded, not a loop.
-                    // YouTube Mobile may restore an old document scroll offset after its
-                    // hidden masthead/title rows collapse. Normalize the WebView viewport after
-                    // the final native measurement, not only the CSS player width.
-                    // YouTube can apply a late layout shift after its mobile page finishes
-                    // loading. Include one final inline-only normalization after that shift;
-                    // never touch the active fullscreen/custom surface.
-                    listOf(350L, 850L, 1500L, 2600L, 3800L).forEachIndexed { index, delay ->
-                        view.postDelayed({
-                            if (!isFinishing && !isDestroyed && !isCssFullscreen &&
-                                customView == null && webView === view
-                            ) {
-                                normalizeInlineYoutubeViewport(view)
-                                if (index == 0) scheduleInlinePlayerLayoutSync()
-                                if (index == 2) {
-                                    // Opening YouTube can also leave the actual video surface
-                                    // offset even when document scrollY is zero. Validate the
-                                    // rendered geometry after the initial viewport has settled.
-                                    val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
-                                    val expectPlayback = !explicitUserPause && (
-                                        youtubePlayerState == 1 ||
-                                            prefs.getBoolean("youtube_playback_is_playing", false)
-                                        )
-                                    // Do not invoke fullscreen-exit recovery during an ordinary page
-                                    // load: its geometry fallback may reload a video that is already
-                                    // playing and interrupt playback. The dedicated fullscreen-exit
-                                    // path runs its own bounded geometry check when rotation returns.
-                                    if (expectPlayback) {
-                                        normalizeInlineYoutubeViewport(view)
-                                        scheduleInlinePlayerLayoutSync()
-                                    }
-                                }
-                                if (index == 4) {
-                                    // Correct the native frame too if the mobile page changed
-                                    // its viewport dimensions several seconds after opening.
-                                    scheduleInlinePlayerLayoutSync()
-                                }
-                            }
-                        }, delay)
-                    }
-                }
+                        """.trimIndent(),
+                        null
+                    )
+                    // Let Android/WebView own responsive dimensions. Only request one normal
+                    // layout pass after YouTube has inserted its media node.
+                    view.postDelayed({
+                        if (!isFinishing && !isDestroyed && webView === view &&
+                            customView == null && !isCssFullscreen
+                        ) {
+                            view.scrollTo(0, 0)
+                            view.requestLayout()
+                            view.invalidate()
+                            scheduleInlinePlayerLayoutSync()
+                        }
+                    }, 350L)
 
                 override fun onReceivedError(
                     view: WebView,
@@ -3412,29 +2904,30 @@ class YouTubePlayerActivity : ComponentActivity() {
                     view: View,
                     callback: CustomViewCallback
                 ) {
-                    // Fallback if YouTube changes its button markup and the JS interceptor
-                    // misses it. Never attach Chromium's separate video surface: that handoff
-                    // is unreliable after orientation changes. Stay on the same WebView.
-                    suppressNextCustomViewHide = true
-                    runCatching { callback.onCustomViewHidden() }
-                    if (!isFinishing && !isDestroyed && !isCssFullscreen) {
-                        root.post {
-                            if (!isFinishing && !isDestroyed && !isCssFullscreen && webView != null) {
-                                requestYoutubeFullscreen()
-                            }
-                        }
+                    if (customView != null) {
+                        if (customView !== view) runCatching { callback.onCustomViewHidden() }
+                        return
                     }
+                    fullscreenEntryPending = false
+                    customView = view
+                    customViewCallback = callback
+                    (view.parent as? ViewGroup)?.removeView(view)
+                    // Keep Chromium's real video surface attached to the Activity root. Do not
+                    // recreate fullscreen by rewriting the website's player dimensions.
+                    enterFullscreen()
+                    root.addView(
+                        view,
+                        FrameLayout.LayoutParams(
+                            FrameLayout.LayoutParams.MATCH_PARENT,
+                            FrameLayout.LayoutParams.MATCH_PARENT,
+                            Gravity.FILL
+                        )
+                    )
+                    view.bringToFront()
                 }
 
                 override fun onHideCustomView() {
-                    // onShowCustomView deliberately dismissed Chromium's separate surface so
-                    // the same WebView can stay alive. Ignore only that paired callback; later
-                    // real fullscreen exits still run the normal cleanup/recovery path.
-                    if (suppressNextCustomViewHide) {
-                        suppressNextCustomViewHide = false
-                        return
-                    }
-                    exitFullscreen(notifyCallback = false)
+                    if (customView != null) exitFullscreen(notifyCallback = false)
                 }
             }
 
@@ -3637,102 +3130,15 @@ class YouTubePlayerActivity : ComponentActivity() {
      * Only run this while inline; never scroll or rewrite the document during fullscreen.
      */
     private fun normalizeInlineYoutubeViewport(player: WebView) {
-        if (isFinishing || isDestroyed || player !== webView || isCssFullscreen || customView != null) return
+        if (isFinishing || isDestroyed || player !== webView ||
+            isCssFullscreen || customView != null
+        ) return
         playerScrollView?.scrollTo(0, 0)
         player.scrollTo(0, 0)
-
-        // Page-finish and previously queued layout callbacks can still run just after a real
-        // orientation event. While that transition settles, normalize only scroll/viewport;
-        // never overwrite CSS on YouTube's live video node.
-        if (System.currentTimeMillis() <= physicalOrientationNormalizationUntilMs) {
-            player.evaluateJavascript(
-                """
-                (function() {
-                  try {
-                    if (document.getElementById('ngocsi-css-fullscreen') || document.fullscreenElement)
-                      return 'FULLSCREEN';
-                    if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
-                    if (document.documentElement) document.documentElement.scrollTop = 0;
-                    if (document.body) document.body.scrollTop = 0;
-                    window.scrollTo(0, 0);
-                    window.dispatchEvent(new Event('resize'));
-                    return 'ORIENTATION_SETTLING';
-                  } catch (_) { return 'ORIENTATION_SETTLING_ERROR'; }
-                })();
-                """.trimIndent(),
-                null
-            )
-            return
-        }
-        player.evaluateJavascript(
-            """
-            (function() {
-              try {
-                if (document.getElementById('ngocsi-css-fullscreen') || document.fullscreenElement)
-                  return 'FULLSCREEN';
-                var root = document.querySelector('ytm-player') ||
-                           document.querySelector('#movie_player') ||
-                           document.querySelector('#player');
-                if (!root) return 'WAIT';
-                // Do not rewrite HTMLVideoElement styles while Chromium is transferring the
-                // compositor surface between fullscreen and inline viewports. Only normalize
-                // the surrounding player wrappers below; YouTube retains ownership of the video
-                // element's intrinsic sizing and decoder surface.
-                // The hidden mobile header leaves a few YouTube page wrappers with stale
-                // top spacing. Clear only top spacing on known player wrappers.
-                var wrappers = [
-                  'ytm-watch',
-                  'ytm-watch-grid',
-                  '#player-container-outer',
-                  '#player-container-inner',
-                  '#player-container-id',
-                  '#player-container',
-                  '#player'
-                ];
-                wrappers.forEach(function(selector) {
-                  var node = root.matches && root.matches(selector) ? root : root.closest(selector);
-                  if (!node) {
-                    try { node = document.querySelector(selector); } catch (_) {}
-                  }
-                  if (node && node.style) {
-                    node.style.setProperty('margin-top', '0px', 'important');
-                    node.style.setProperty('padding-top', '0px', 'important');
-                    node.style.setProperty('scroll-margin-top', '0px', 'important');
-                    // Hidden mobile masthead transitions can leave a translated player wrapper.
-                    node.style.setProperty('transform', 'none', 'important');
-                    node.style.setProperty('border-top-width', '0px', 'important');
-                  }
-                });
-                // Keep the player anchored while refreshing it against the latest viewport.
-                // The fit handler below overwrites stale dimensions after orientation settles;
-                // clearing positioning first would expose a frame of the old page-flow offset.
-                ['margin-left','margin-right'].forEach(function(prop) {
-                  root.style.removeProperty(prop);
-                });
-                root.style.setProperty('transform', 'none', 'important');
-                root.style.setProperty('margin-top', '0px', 'important');
-                root.style.setProperty('padding-top', '0px', 'important');
-                if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
-                document.documentElement.scrollTop = 0;
-                if (document.body) document.body.scrollTop = 0;
-                window.scrollTo(0, 0);
-                if (typeof window.__ngocSiFitPlayerResizeHandler === 'function') {
-                  window.__ngocSiFitPlayerResizeHandler();
-                } else {
-                  window.dispatchEvent(new Event('resize'));
-                }
-                requestAnimationFrame(function() {
-                  window.scrollTo(0, 0);
-                  if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
-                });
-                return 'NORMALIZED';
-              } catch (_) {
-                return 'NORMALIZE_ERROR';
-              }
-            })();
-            """.trimIndent(),
-            null
-        )
+        // Never write CSS to ytm-player, HTMLVideoElement or any ancestor. Native measure/
+        // invalidate is sufficient once WebView receives the orientation's real viewport.
+        player.requestLayout()
+        player.invalidate()
     }
 
     /**
@@ -3742,66 +3148,28 @@ class YouTubePlayerActivity : ComponentActivity() {
      */
     private fun scheduleCssFullscreenLayoutSync() {
         if (!::root.isInitialized || !::playerContainer.isInitialized) return
-        val player = webView ?: return
         val generation = ++fullscreenViewportSyncGeneration
-
-        // This path only measures/layouts the fullscreen viewport. Do not send playback
-        // commands here: fullscreen entry/rotation and fullscreen exit have separate
-        // media recovery controllers, and overlapping commands can stall the same video.
-
+        val player = webView
+        val nativeView = customView
         val sync = object : Runnable {
             override fun run() {
                 if (generation != fullscreenViewportSyncGeneration ||
-                    isFinishing || isDestroyed || !isCssFullscreen || webView !== player
+                    isFinishing || isDestroyed
                 ) return
-
                 root.requestLayout()
+                root.invalidate()
                 playerContainer.requestLayout()
-                player.requestLayout()
-                player.evaluateJavascript(
-                    """
-                    (function() {
-                      try {
-                        var width = Math.max(1, document.documentElement.clientWidth || window.innerWidth || 1);
-                        var height = Math.max(1, document.documentElement.clientHeight || window.innerHeight || 1);
-                        var target = document.querySelector('ytm-player') ||
-                                     document.querySelector('#movie_player') ||
-                                     document.querySelector('#player');
-                        if (target) {
-                          // Android has already expanded the native host. Avoid a second fixed
-                          // viewport inside the webpage; use its current containing block.
-                          target.style.setProperty('position', 'relative', 'important');
-                          ['left','right','top','bottom','inset'].forEach(function(prop) {
-                            target.style.removeProperty(prop);
-                          });
-                          target.style.setProperty('width', '100%', 'important');
-                          target.style.setProperty('height', '100%', 'important');
-                          target.style.setProperty('max-width', '100%', 'important');
-                          target.style.setProperty('max-height', '100%', 'important');
-                        }
-                        if (typeof window.__ngocSiFitPlayerResizeHandler === 'function') {
-                          window.__ngocSiFitPlayerResizeHandler();
-                        } else {
-                          window.dispatchEvent(new Event('resize'));
-                        }
-                        return width + 'x' + height;
-                      } catch (_) { return 'layout-error'; }
-                    })();
-                    """.trimIndent(),
-                    null
-                )
+                playerContainer.invalidate()
+                player?.requestLayout()
+                player?.invalidate()
+                nativeView?.requestLayout()
+                nativeView?.invalidate()
             }
         }
         root.post(sync)
         root.postDelayed(sync, 140L)
         root.postDelayed(sync, 380L)
-        root.postDelayed(sync, 720L)
-
     }
-
-
-    // Physical rotation deliberately has no media-health recovery path. If an explicit
-    // fullscreen transition fails, its dedicated fullscreen-exit recovery remains separate.
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
@@ -3827,6 +3195,18 @@ class YouTubePlayerActivity : ComponentActivity() {
         // Chromium's fullscreen custom view is a separate surface. Re-layout it after
         // configuration changes instead of leaving its original portrait measurements.
         customView?.let { fullscreenView ->
+            if (orientationActuallyChanged &&
+                newConfig.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
+            ) {
+                exitFullscreen(notifyCallback = true)
+                return
+            }
+            if (newConfig.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE &&
+                requestedOrientation == android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            ) {
+                // After the first rotation into landscape, allow the sensor to return to portrait.
+                requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+            }
             root.post {
                 if (customView === fullscreenView && !isFinishing && !isDestroyed) {
                     fullscreenView.layoutParams = FrameLayout.LayoutParams(
@@ -3952,8 +3332,8 @@ class YouTubePlayerActivity : ComponentActivity() {
 
     private fun updateNativeFullscreenButton() {
         nativeFullscreenButton?.apply {
-            text = if (isCssFullscreen) "↙" else "⛶"
-            contentDescription = if (isCssFullscreen) {
+            text = if (isCssFullscreen || customView != null) "↙" else "⛶"
+            contentDescription = if (isCssFullscreen || customView != null) {
                 "Thu nhỏ về trình phát"
             } else {
                 "Phóng to toàn màn hình"
@@ -4024,7 +3404,13 @@ class YouTubePlayerActivity : ComponentActivity() {
         // The existing WebView stays attached; only sibling UI is hidden so the player
         // receives the full activity viewport rather than the space below the header/actions.
         setFullscreenLayout(true)
-        requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        requestedOrientation = if (
+            resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        ) {
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+        } else {
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        }
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).apply {
             hide(WindowInsetsCompat.Type.systemBars())
@@ -4296,47 +3682,12 @@ class YouTubePlayerActivity : ComponentActivity() {
         val repairLayoutScript = """
             (function() {
               try {
-                if (document.getElementById('ngocsi-css-fullscreen') || document.fullscreenElement)
-                  return 'FULLSCREEN';
-                var root = document.querySelector('ytm-player') ||
-                           document.querySelector('#movie_player') ||
-                           document.querySelector('#player');
-                if (root) {
-                  ['position','left','right','top','bottom','inset'].forEach(function(prop) {
-                    root.style.removeProperty(prop);
-                  });
-                  ['ytm-watch','ytm-watch-grid','#player-container-outer',
-                   '#player-container-inner','#player-container-id','#player-container','#player']
-                    .forEach(function(selector) {
-                      var node = root.matches && root.matches(selector) ? root : root.closest(selector);
-                      if (node && node.style) {
-                        node.style.setProperty('margin-top','0px','important');
-                        node.style.setProperty('padding-top','0px','important');
-                      }
-                    });
-                }
-                // Clear stale inline visibility overrides from the currently selected video.
-                // Do not force dimensions or position: YouTube must own the compositor geometry.
-                var activeVideo = null;
-                try {
-                  if (typeof window.__ngocSiFindActiveVideo === 'function')
-                    activeVideo = window.__ngocSiFindActiveVideo();
-                } catch (_) {}
-                if (activeVideo && activeVideo.style) {
-                  ['display','visibility','opacity'].forEach(function(prop) {
-                    activeVideo.style.removeProperty(prop);
-                  });
-                }
-                window.scrollTo(0,0);
                 if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
-                document.documentElement.scrollTop = 0;
+                if (document.documentElement) document.documentElement.scrollTop = 0;
                 if (document.body) document.body.scrollTop = 0;
-                if (typeof window.__ngocSiFitPlayerResizeHandler === 'function')
-                  window.__ngocSiFitPlayerResizeHandler();
+                window.scrollTo(0, 0);
                 window.dispatchEvent(new Event('resize'));
-                if (window.visualViewport)
-                  window.visualViewport.dispatchEvent(new Event('resize'));
-                requestAnimationFrame(function() { window.scrollTo(0,0); });
+                if (window.visualViewport) window.visualViewport.dispatchEvent(new Event('resize'));
                 return 'OK';
               } catch (_) { return 'ERROR'; }
             })();
@@ -4827,23 +4178,12 @@ class YouTubePlayerActivity : ComponentActivity() {
                         """
                         (function() {
                           try {
-                            if (document.getElementById('ngocsi-css-fullscreen') ||
-                                document.fullscreenElement) return 'FULLSCREEN';
-                            var active = typeof window.__ngocSiFindActiveVideo === 'function'
-                              ? window.__ngocSiFindActiveVideo() : null;
-                            if (active && active.style) {
-                              ['display','visibility','opacity'].forEach(function(p) {
-                                active.style.removeProperty(p);
-                              });
-                            }
-                            if (typeof window.__ngocSiFitPlayerResizeHandler === 'function')
-                              window.__ngocSiFitPlayerResizeHandler();
+                            if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
                             window.scrollTo(0, 0);
                             window.dispatchEvent(new Event('resize'));
-                            if (window.visualViewport)
-                              window.visualViewport.dispatchEvent(new Event('resize'));
-                            return 'REPAIR_SENT';
-                          } catch (_) { return 'REPAIR_ERROR'; }
+                            if (window.visualViewport) window.visualViewport.dispatchEvent(new Event('resize'));
+                            return 'REMEASURE_REQUESTED';
+                          } catch (_) { return 'REMEASURE_ERROR'; }
                         })();
                         """.trimIndent(),
                         null
@@ -4906,8 +4246,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                             .appendQueryParameter("playsinline", "1")
                             .build()
                             .toString()
-                        restoreCssFullscreenAfterRecoveryReload = isCssFullscreen && customView == null
-                        playbackProbeAfterCssFullscreenRestore = false
+                        restoreNativeFullscreenAfterRecoveryReload = customView != null
                         recoverAfterPageReload = true
                         youtubePlayerReady = false
                         reloadScheduled = true
