@@ -391,7 +391,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                     orientationPlaybackRecoveryGeneration++
                     backgroundPlaybackRecoveryGeneration++
                     resumePlaybackOnNextOrientationChange = true
-                    if (customView != null || isCssFullscreen) {
+                    if (customView != null || isCssFullscreen || fullscreenLayoutActive) {
                         wasPlayingBeforeFullscreen = true
                     }
                     prefs.edit().putBoolean("youtube_playback_is_playing", true).apply()
@@ -400,7 +400,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                     // handoff, or when the user explicitly asked to pause the player.
                     if (state == 0) explicitUserPause = false
                     resumePlaybackOnNextOrientationChange = false
-                    if (customView != null || isCssFullscreen) {
+                    if (customView != null || isCssFullscreen || fullscreenLayoutActive) {
                         wasPlayingBeforeFullscreen = false
                     }
                     prefs.edit().putBoolean("youtube_playback_is_playing", false).apply()
@@ -936,9 +936,11 @@ class YouTubePlayerActivity : ComponentActivity() {
             val oldLandscape = oldWidth > oldHeight
             if (newLandscape == oldLandscape) return@addOnLayoutChangeListener
 
-            // CSS/native fullscreen has its own ordered transition/recovery path. Only handle
-            // root dimension changes that represent an inline, physical device rotation.
-            if (isCssFullscreen || customView != null) return@addOnLayoutChangeListener
+            // Fullscreen owns its viewport lifecycle; do not start the inline rotation
+            // recovery loop while the permanent WebView host is expanded.
+            if (isCssFullscreen || customView != null || fullscreenLayoutActive) {
+                return@addOnLayoutChangeListener
+            }
             // Set the physical-rotation debounce before requesting layout. Otherwise the
             // responsive-layout resize callback can enqueue playback recovery first.
             handlePhysicalOrientationLayoutChange(newLandscape)
@@ -952,7 +954,8 @@ class YouTubePlayerActivity : ComponentActivity() {
      */
     private fun handlePhysicalOrientationLayoutChange(targetLandscape: Boolean? = null) {
         if (isFinishing || isDestroyed || !::root.isInitialized ||
-            !::playerContainer.isInitialized || isCssFullscreen || customView != null
+            !::playerContainer.isInitialized || isCssFullscreen ||
+            customView != null || fullscreenLayoutActive
         ) return
 
         val isLandscape = targetLandscape ?: (
@@ -1071,85 +1074,36 @@ class YouTubePlayerActivity : ComponentActivity() {
         startActivity(Intent.createChooser(shareIntent, "Chia sẻ video"))
     }
 
+    /**
+     * Use an app-managed fullscreen viewport for the native expand/shrink button.
+     *
+     * Clicking YouTube's fullscreen button transfers rendering to WebChromeClient's
+     * custom view. On some WebView/Android combinations that second surface can remain
+     * black after the phone rotates back to portrait while HTML5 audio keeps running.
+     * Keep the existing WebView and media element attached, and resize their native host.
+     */
     private fun requestYoutubeFullscreen() {
-        val player = webView
-        if (player == null) {
-            Toast.makeText(this, "Trình phát chưa sẵn sàng.", Toast.LENGTH_SHORT).show()
-            return
-        }
-        if (customView != null || isCssFullscreen) {
+        if (isFinishing || isDestroyed || !::root.isInitialized ||
+            !::playerContainer.isInitialized
+        ) return
+
+        if (fullscreenLayoutActive || customView != null || isCssFullscreen) {
             exitFullscreen()
             return
         }
-        if (fullscreenEntryPending) return
-        fullscreenEntryPending = true
 
-        // Ask YouTube to enter its supported fullscreen mode. Do not stretch or transform the
-        // inline player DOM: WebChromeClient below attaches Chromium's actual video surface.
-        player.evaluateJavascript(
-            """
-            (function() {
-              try {
-                var matched = null;
-                var seen = new Set();
-                function inspect(root) {
-                  if (!root || seen.has(root) || matched) return;
-                  seen.add(root);
-                  var nodes = [];
-                  try { nodes = Array.prototype.slice.call(root.querySelectorAll(
-                    'button,[role="button"],ytm-button-renderer,[aria-label],[title]'
-                  )); } catch (_) {}
-                  for (var i = 0; i < nodes.length; i++) {
-                    var node = nodes[i];
-                    var label = [
-                      node.getAttribute && node.getAttribute('aria-label') || '',
-                      node.getAttribute && node.getAttribute('title') || '',
-                      node.getAttribute && node.getAttribute('data-tooltip-text') || '',
-                      node.getAttribute && node.getAttribute('data-title-no-tooltip') || '',
-                      node.className && node.className.baseVal || node.className || '',
-                      node.id || ''
-                    ].join(' ').toLowerCase().replace(/\s+/g, ' ').trim();
-                    if (/full[ -]?screen|toàn màn hình|thoát toàn màn hình|mở rộng/.test(label)) {
-                      var rect = node.getBoundingClientRect();
-                      var cs = window.getComputedStyle(node);
-                      if (rect.width >= 2 && rect.height >= 2 &&
-                          cs.display !== 'none' && cs.visibility !== 'hidden' &&
-                          Number(cs.opacity || 1) !== 0) {
-                        matched = node;
-                        return;
-                      }
-                    }
-                    if (node.shadowRoot) inspect(node.shadowRoot);
-                    if (matched) return;
-                  }
-                }
-                inspect(document);
-                if (matched) {
-                  matched.click();
-                  return 'clicked';
-                }
-                // Some mobile YouTube builds enter native fullscreen directly from the media element.
-                var video = typeof window.__ngocSiFindActiveVideo === 'function'
-                  ? window.__ngocSiFindActiveVideo() : null;
-                if (video && typeof video.webkitEnterFullscreen === 'function') {
-                  try { video.webkitEnterFullscreen(); return 'requested-video-fullscreen'; } catch (_) {}
-                }
-                return 'missing';
-              } catch (_) { return 'error'; }
-            })();
-            """.trimIndent()
-        ) { result ->
-            fullscreenEntryPending = false
-            if (isFinishing || isDestroyed || player !== webView) return@evaluateJavascript
-            val status = result.orEmpty().trim('"')
-            if (status != "clicked" && status != "requested-video-fullscreen" && customView == null) {
-                Toast.makeText(
-                    this,
-                    "YouTube chưa hiện nút toàn màn hình. Hãy thử lại khi video tải xong.",
-                    Toast.LENGTH_SHORT
-                ).show()
-            }
+        if (webView == null) {
+            Toast.makeText(this, "Trình phát chưa sẵn sàng.", Toast.LENGTH_SHORT).show()
+            return
         }
+
+        fullscreenEntryPending = false
+        wasPlayingBeforeFullscreen = !explicitUserPause &&
+            (youtubePlayerState == 1 ||
+                getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+                    .getBoolean("youtube_playback_is_playing", false))
+        enterFullscreen()
+        updateNativeFullscreenButton()
     }
 
     private fun actionButton(label: String, onClick: () -> Unit): Button =
@@ -2638,6 +2592,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                               '.ytp-title,.ytp-title-text,.ytp-title-link,.ytp-pause-overlay,' +
                               '.ytp-pause-overlay-container,.ytp-large-play-button,.ytp-cued-thumbnail-overlay,' +
                               '.ytp-next-button,.ytp-prev-button,.ytp-next-button-container,.ytp-prev-button-container,' +
+                              '.ytp-fullscreen-button,.ytp-size-button,ytm-player-fullscreen-button-renderer,' +
                               '.ytp-endscreen-content,.ytp-endscreen-previous,.ytp-endscreen-next,' +
                               '.ytp-ce-covering-overlay,.ytp-cards-teaser,.ytp-ce-element,.ytp-show-cards-title {' +
                               'display:none!important;} html,body {margin:0!important;background:#000!important;}';
@@ -2905,26 +2860,24 @@ class YouTubePlayerActivity : ComponentActivity() {
                     view: View,
                     callback: CustomViewCallback
                 ) {
-                    if (customView != null) {
-                        if (customView !== view) runCatching { callback.onCustomViewHidden() }
+                    if (customView != null || fullscreenLayoutActive) {
+                        runCatching { callback.onCustomViewHidden() }
                         return
                     }
+
                     fullscreenEntryPending = false
-                    customView = view
-                    customViewCallback = callback
                     (view.parent as? ViewGroup)?.removeView(view)
-                    // Keep Chromium's real video surface attached to the Activity root. Do not
-                    // recreate fullscreen by rewriting the website's player dimensions.
+
+                    // Do not attach Chromium's separate fullscreen surface. Returning the
+                    // callback immediately keeps the original mobile page/media element alive;
+                    // then expand the permanent native WebView host for the same fullscreen view.
+                    wasPlayingBeforeFullscreen = !explicitUserPause &&
+                        (youtubePlayerState == 1 ||
+                            getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+                                .getBoolean("youtube_playback_is_playing", false))
+                    runCatching { callback.onCustomViewHidden() }
                     enterFullscreen()
-                    root.addView(
-                        view,
-                        FrameLayout.LayoutParams(
-                            FrameLayout.LayoutParams.MATCH_PARENT,
-                            FrameLayout.LayoutParams.MATCH_PARENT,
-                            Gravity.FILL
-                        )
-                    )
-                    view.bringToFront()
+                    updateNativeFullscreenButton()
                 }
 
                 override fun onHideCustomView() {
@@ -3193,6 +3146,24 @@ class YouTubePlayerActivity : ComponentActivity() {
             return
         }
 
+        // App-managed fullscreen keeps the original WebView attached. On return to portrait,
+        // leave fullscreen automatically; on landscape, only remeasure that same surface.
+        if (fullscreenLayoutActive && customView == null) {
+            if (orientationActuallyChanged &&
+                newConfig.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
+            ) {
+                exitFullscreen()
+                return
+            }
+            if (newConfig.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE &&
+                requestedOrientation == android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            ) {
+                requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+            }
+            scheduleCssFullscreenLayoutSync()
+            return
+        }
+
         // Chromium's fullscreen custom view is a separate surface. Re-layout it after
         // configuration changes instead of leaving its original portrait measurements.
         customView?.let { fullscreenView ->
@@ -3333,8 +3304,8 @@ class YouTubePlayerActivity : ComponentActivity() {
 
     private fun updateNativeFullscreenButton() {
         nativeFullscreenButton?.apply {
-            text = if (isCssFullscreen || customView != null) "↙" else "⛶"
-            contentDescription = if (isCssFullscreen || customView != null) {
+            text = if (fullscreenLayoutActive || isCssFullscreen || customView != null) "↙" else "⛶"
+            contentDescription = if (fullscreenLayoutActive || isCssFullscreen || customView != null) {
                 "Thu nhỏ về trình phát"
             } else {
                 "Phóng to toàn màn hình"
@@ -3418,13 +3389,14 @@ class YouTubePlayerActivity : ComponentActivity() {
             systemBarsBehavior =
                 WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
+        updateNativeFullscreenButton()
     }
 
     private fun exitFullscreen(notifyCallback: Boolean = true) {
         fullscreenEntryPending = false
         // A hardware Back/custom-view callback can report the same exit twice. Ignore
         // duplicate exits; they otherwise schedule competing recovery/reload attempts.
-        if (customView == null && !isCssFullscreen) return
+        if (customView == null && !isCssFullscreen && !fullscreenLayoutActive) return
         val exitGeneration = ++fullscreenExitGeneration
         // Cancel any orientation-recovery callback queued before the fullscreen button was
         // pressed. This exit has its own single recovery/geometry pipeline below.
@@ -3446,6 +3418,7 @@ class YouTubePlayerActivity : ComponentActivity() {
 
         val wasNativeFullscreen = customView != null
         val wasCssFullscreen = isCssFullscreen
+        val wasManagedFullscreen = fullscreenLayoutActive && !wasNativeFullscreen && !wasCssFullscreen
         val persistedPlaybackIntent = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
             .getBoolean("youtube_playback_is_playing", false)
         val playbackIntentBeforeExit = wasPlayingBeforeFullscreen ||
@@ -3509,7 +3482,12 @@ class YouTubePlayerActivity : ComponentActivity() {
             // either observed real media-clock progress or exhausted its bounded retries.
             // Starting the geometry reload during that window can interrupt the same WebView.
             pendingFullscreenExitGeometryCheck = null
-            if (shouldRecoverPlayback) {
+            if (wasManagedFullscreen) {
+                // The same DOM video element never left the WebView. Avoid starting the
+                // native-custom-view reload/geometry pipeline on an ordinary portrait return.
+                // The bounded frame-stall watchdog remains available if actual frame delivery
+                // later stops while media time advances.
+            } else if (shouldRecoverPlayback) {
                 pendingFullscreenExitGeometryCheck = {
                     if (exitGeneration == fullscreenExitGeneration &&
                         !isFinishing && !isDestroyed && !explicitUserPause
