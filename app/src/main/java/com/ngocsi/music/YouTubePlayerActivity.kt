@@ -3514,26 +3514,53 @@ class YouTubePlayerActivity : ComponentActivity() {
 
         val player = webView
         val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+        val playbackIntentStillActive = !explicitUserPause && (
+            resumePlaybackOnNextOrientationChange ||
+                prefs.getBoolean("youtube_playback_is_playing", false) ||
+                youtubePlayerState == 1
+            )
         if (player != null && !fullscreenExitRecoveryPending &&
             pendingFullscreenExitGeometryCheck == null &&
-            System.currentTimeMillis() > fullscreenExitRecoveryActiveUntilMs &&
-            (resumePlaybackOnNextOrientationChange ||
-                prefs.getBoolean("youtube_playback_is_playing", false))) {
+            playbackIntentStillActive
+        ) {
             val generation = ++fullscreenViewportSyncGeneration
-            player.postDelayed({
+            fun scheduleRecoveryAfterViewportSettles() {
                 if (generation != fullscreenViewportSyncGeneration ||
                     isFinishing || isDestroyed || webView !== player ||
-                    customView != null || isCssFullscreen
-                ) return@postDelayed
-                if (resumePlaybackOnNextOrientationChange ||
-                    getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
-                        .getBoolean("youtube_playback_is_playing", false)
+                    customView != null || isCssFullscreen ||
+                    fullscreenExitRecoveryPending ||
+                    pendingFullscreenExitGeometryCheck != null
+                ) return
+
+                // A recent fullscreen exit may briefly suppress ordinary resize recovery.
+                // Queue the retry after that settling window rather than skipping recovery
+                // entirely when the user rotates back to portrait quickly.
+                val quietWindowRemaining =
+                    (fullscreenExitRecoveryActiveUntilMs - System.currentTimeMillis()).coerceAtLeast(0L)
+                if (quietWindowRemaining > 0L) {
+                    player.postDelayed(
+                        { scheduleRecoveryAfterViewportSettles() },
+                        quietWindowRemaining + 120L
+                    )
+                    return
+                }
+
+                if (!explicitUserPause &&
+                    (resumePlaybackOnNextOrientationChange ||
+                        prefs.getBoolean("youtube_playback_is_playing", false) ||
+                        youtubePlayerState == 1)
                 ) {
                     // Orientation changes can pause the same video element without ending it.
-                    // Restore playback only when the pre-rotation state was active.
+                    // Restore only the prior play intent and use one bounded recovery controller.
                     recoverFullscreenPlayback(allowPageReloadFallback = false)
                 }
-            }, 850L)
+            }
+            val quietWindowRemaining =
+                (fullscreenExitRecoveryActiveUntilMs - System.currentTimeMillis()).coerceAtLeast(0L)
+            player.postDelayed(
+                { scheduleRecoveryAfterViewportSettles() },
+                maxOf(850L, quietWindowRemaining + 120L)
+            )
         }
     }
 
