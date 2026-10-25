@@ -755,8 +755,81 @@ class YouTubePlayerActivity : ComponentActivity() {
         ))
 
         setContentView(root)
+        installPhysicalOrientationLayoutWatcher()
         updateActionState()
         updateQueueModeButtons()
+    }
+
+    /**
+     * Some Android/WebView combinations deliver size/layout changes before the Activity
+     * configuration callback (or without an orientation enum transition). Detect an actual
+     * portrait<->landscape swap at the activity root so recovery does not depend on that callback.
+     */
+    private fun installPhysicalOrientationLayoutWatcher() {
+        val trackedRoot = root
+        trackedRoot.addOnLayoutChangeListener {
+                _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
+            val width = right - left
+            val height = bottom - top
+            val oldWidth = oldRight - oldLeft
+            val oldHeight = oldBottom - oldTop
+            if (width < 100 || height < 100 || oldWidth < 100 || oldHeight < 100) {
+                return@addOnLayoutChangeListener
+            }
+            val newLandscape = width > height
+            val oldLandscape = oldWidth > oldHeight
+            if (newLandscape == oldLandscape) return@addOnLayoutChangeListener
+
+            // CSS/native fullscreen has its own ordered transition/recovery path. Only handle
+            // root dimension changes that represent an inline, physical device rotation.
+            if (isCssFullscreen || customView != null ||
+                fullscreenExitRecoveryPending || pendingFullscreenExitGeometryCheck != null
+            ) return@addOnLayoutChangeListener
+            handlePhysicalOrientationLayoutChange()
+        }
+    }
+
+    /**
+     * One coordinator owns every inline physical-rotation recovery, regardless of whether
+     * Android delivered onConfigurationChanged or only relaid out the root. The shared
+     * generation debounces duplicate callbacks and cancels stale recovery attempts.
+     */
+    private fun handlePhysicalOrientationLayoutChange() {
+        if (isFinishing || isDestroyed || !::root.isInitialized ||
+            !::playerContainer.isInitialized || isCssFullscreen || customView != null ||
+            fullscreenExitRecoveryPending || pendingFullscreenExitGeometryCheck != null ||
+            explicitUserPause
+        ) return
+        val player = webView ?: return
+        val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+        val playbackIntentStillActive =
+            resumePlaybackOnNextOrientationChange ||
+                wasPlayingBeforeFullscreen ||
+                prefs.getBoolean("youtube_playback_is_playing", false) ||
+                youtubePlayerState == 1
+        if (!playbackIntentStillActive) return
+
+        // A new physical rotation is a new bounded attempt. Invalidate any stale probe from
+        // the previous orientation so two recovery loops cannot issue competing Play/reload.
+        automaticOrientationRecoveryGeneration++
+        fullscreenRecoveryGeneration++
+        fullscreenExitGeometryCheckGeneration++
+        geometryReloadFallbackAttemptedForCurrentPage = false
+        resumePlaybackOnNextOrientationChange = true
+        orientationRecoveryWindowUntilMs = System.currentTimeMillis() + 5000L
+        prefs.edit()
+            .putBoolean("youtube_playback_is_playing", true)
+            .putBoolean("youtube_is_playing", true)
+            .apply()
+
+        root.requestLayout()
+        root.invalidate()
+        playerContainer.requestLayout()
+        playerContainer.invalidate()
+        player.requestLayout()
+        player.invalidate()
+        scheduleInlinePlayerLayoutSync()
+        scheduleAutomaticOrientationPlaybackRecovery(player)
     }
 
     private fun showMoreOptions(anchor: View) {
@@ -3513,9 +3586,16 @@ class YouTubePlayerActivity : ComponentActivity() {
 
                 val normalized = raw.orEmpty().trim('"').replace("\\\"", "\"")
                 val status = runCatching { org.json.JSONObject(normalized) }.getOrNull()
-                if (status?.optBoolean("healthy", false) != true &&
-                    !geometryReloadFallbackAttemptedForCurrentPage
-                ) {
+                if (status?.optBoolean("healthy", false) != true) {
+                    // Re-enable WebView drawing/timers after a real root orientation swap
+                    // before asking YouTube to resume. The fallback reload is owned by this
+                    // single recovery loop if the media clock still does not advance.
+                    player.onResume()
+                    player.resumeTimers()
+                    player.requestLayout()
+                    player.invalidate()
+                    root.requestLayout()
+                    root.invalidate()
                     recoverFullscreenPlayback(allowPageReloadFallback = true)
                 }
             }
@@ -3653,28 +3733,10 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
         // Actual device rotation gets its own bounded health check. It does not share the
         // fullscreen layout generation, which can be invalidated by an unrelated resize.
-        if (orientationActuallyChanged && player != null &&
-            !fullscreenExitRecoveryPending && pendingFullscreenExitGeometryCheck == null &&
-            playbackIntentStillActive
-        ) {
-            // Physical rotation changes both the native frame and Chromium's viewport.
-            // Validate geometry/frame delivery after the inline layout passes settle, just
-            // like fullscreen exit does, then run the playback-clock recovery as a fallback.
-            val orientationTimestamp = lastOrientationConfigurationChangeAtMs
-            player.postDelayed({
-                if (orientationTimestamp != lastOrientationConfigurationChangeAtMs ||
-                    isFinishing || isDestroyed || player !== webView || explicitUserPause ||
-                    customView != null || isCssFullscreen ||
-                    fullscreenExitRecoveryPending || pendingFullscreenExitGeometryCheck != null ||
-                    !getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
-                        .getBoolean("youtube_playback_is_playing", false)
-                ) return@postDelayed
-                scheduleFullscreenExitGeometryCheck(
-                    fullscreenExitGeneration,
-                    shouldResumePlayback = true
-                )
-            }, 250L)
-            scheduleAutomaticOrientationPlaybackRecovery(player)
+        if (orientationActuallyChanged && player != null && playbackIntentStillActive) {
+            // Use the same coordinator as the root-size watcher. Do not start the fullscreen
+            // geometry reload and media-clock recovery in parallel for a physical rotation.
+            handlePhysicalOrientationLayoutChange()
         }
     }
 
