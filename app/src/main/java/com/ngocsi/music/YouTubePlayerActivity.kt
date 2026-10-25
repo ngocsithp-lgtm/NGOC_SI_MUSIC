@@ -1054,7 +1054,9 @@ class YouTubePlayerActivity : ComponentActivity() {
             // while rendered video frames stop, permit one diagnosed frame-only fallback.
             // This catches the audio-but-no-picture case missed by clock-only recovery.
             recoverFullscreenPlayback(
-                allowPageReloadFallback = false,
+                // After a physical rotation, try the existing media first. Only reload at the
+                // last saved timestamp if bounded probes prove the clock/frames never recovered.
+                allowPageReloadFallback = true,
                 allowFrameReloadFallback = true
             )
         }, 700L)
@@ -3634,7 +3636,10 @@ class YouTubePlayerActivity : ComponentActivity() {
                                         webView != null && youtubePlayerReady
                                     ) {
                                         recoverFullscreenPlayback(
-                                            allowPageReloadFallback = false,
+                                            // The native view never changed, so the live page is
+                                            // preferred. If it is still stalled after bounded probes,
+                                            // the existing one-shot fallback reloads at the saved time.
+                                            allowPageReloadFallback = true,
                                             allowFrameReloadFallback = true
                                         )
                                     }
