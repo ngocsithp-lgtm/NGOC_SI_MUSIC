@@ -4228,12 +4228,12 @@ class YouTubePlayerActivity : ComponentActivity() {
                 var progressAt = Number(window.__ngocSiPlaybackProgressAt || 0);
                 var clockFresh = !video.paused && !video.ended &&
                   Number(video.readyState || 0) >= 2 &&
-                  progressAt > 0 && now - progressAt < 1700;
+                  progressAt > 0 && now - progressAt < 1000;
                 var hasFrameCallback = typeof video.requestVideoFrameCallback === 'function';
                 var frameAge = window.__ngocSiFrameTrackedVideo === video &&
                   Number(window.__ngocSiLastVideoFrameAt || 0) > 0
                   ? now - Number(window.__ngocSiLastVideoFrameAt || 0) : -1;
-                var frameFresh = !hasFrameCallback || (frameAge >= 0 && frameAge < 1800);
+                var frameFresh = !hasFrameCallback || (frameAge >= 0 && frameAge < 1100);
                 return JSON.stringify({
                   healthy: clockFresh && frameFresh,
                   position: Number(video.currentTime || 0),
@@ -4274,7 +4274,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             val storedMs = prefs.getLong("youtube_position_ms_" + expectedVideoId, 0L)
                 .coerceAtLeast(0L)
             val observedSeconds = info?.optDouble("position", 0.0)
-                ?.takeIf { it.isFinite() && it >= 0.0 }
+                ?.takeIf { it.isFinite() && it > 0.0 }
             val seconds = (observedSeconds?.toInt() ?: (storedMs / 1000L).toInt())
                 .coerceAtLeast(0)
             val restoredUrl = Uri.parse(currentUrl).buildUpon()
