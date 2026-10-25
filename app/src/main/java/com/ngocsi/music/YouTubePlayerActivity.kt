@@ -180,6 +180,12 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var fullscreenLayoutActive = false
     private var contentContainer: LinearLayout? = null
     private var playerScrollView: ScrollView? = null
+    private var playerHeaderView: View? = null
+    private var playerInfoView: View? = null
+    private var playerTransportView: View? = null
+    private var playerQueueActionsView: View? = null
+    private var responsiveLandscapeContainer: LinearLayout? = null
+    private var landscapePlayerLayoutActive = false
     private var inlinePlayerLayoutParams: ViewGroup.LayoutParams? = null
     private val fullscreenHiddenChildVisibilities = linkedMapOf<View, Int>()
     private var inlineContentPadding: IntArray? = null
@@ -628,6 +634,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
         ))
+        playerHeaderView = header
 
         // The host frame measures its own actual width and enforces 16:9.
         // This avoids stale physical-screen measurements after rotation or inset changes.
@@ -664,6 +671,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
         ))
+        playerInfoView = info
 
         // Keep only the essential playback controls visible.
         val transport = LinearLayout(this).apply {
@@ -694,6 +702,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         })
         transport.addView(nextButton, LinearLayout.LayoutParams(dp(54), dp(44)))
         content.addView(transport)
+        playerTransportView = transport
 
         // One compact action row replaces four large utility buttons.
         val queueActions = LinearLayout(this).apply {
@@ -729,6 +738,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
         queueActions.addView(moreButton, LinearLayout.LayoutParams(dp(46), dp(42)))
         content.addView(queueActions)
+        playerQueueActionsView = queueActions
 
         val scroll = ScrollView(this).apply {
             isFillViewport = true
@@ -755,9 +765,137 @@ class YouTubePlayerActivity : ComponentActivity() {
         ))
 
         setContentView(root)
+        applyResponsivePlayerLayout()
         installPhysicalOrientationLayoutWatcher()
         updateActionState()
         updateQueueModeButtons()
+    }
+
+    /**
+     * Match the reference landscape layout: keep the video in a large left-hand 16:9 pane
+     * and move title, channel, transport controls, queue and background actions into a
+     * right-hand column. Portrait keeps the existing vertical player layout. The WebView
+     * itself is only re-parented; it is not recreated or reloaded during layout changes.
+     */
+    private fun applyResponsivePlayerLayout(landscapeOverride: Boolean? = null) {
+        if (!::root.isInitialized || fullscreenLayoutActive ||
+            isCssFullscreen || customView != null
+        ) return
+
+        val content = contentContainer ?: return
+        val scroll = playerScrollView ?: return
+        val header = playerHeaderView ?: return
+        val info = playerInfoView ?: return
+        val transport = playerTransportView ?: return
+        val queueActions = playerQueueActionsView ?: return
+        val shouldUseLandscape = landscapeOverride ?: (
+            resources.configuration.orientation ==
+                android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        )
+
+        if (shouldUseLandscape == landscapePlayerLayoutActive && scroll.parent != null) {
+            return
+        }
+
+        // Detach the moving views first. In particular, preserve the same WebView instance
+        // so YouTube does not lose its media session or current playback position.
+        content.removeAllViews()
+        (playerContainer.parent as? ViewGroup)?.removeView(playerContainer)
+        (scroll.parent as? ViewGroup)?.removeView(scroll)
+        responsiveLandscapeContainer?.let { root.removeView(it) }
+        responsiveLandscapeContainer = null
+
+        content.orientation = LinearLayout.VERTICAL
+        if (shouldUseLandscape) {
+            content.addView(header, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ))
+            content.addView(info, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ))
+            content.addView(transport, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ))
+            content.addView(queueActions, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ))
+
+            val videoHost = FrameLayout(this).apply {
+                setBackgroundColor(AndroidColor.BLACK)
+            }
+            videoHost.addView(
+                playerContainer,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    Gravity.CENTER
+                )
+            )
+
+            val landscape = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setBackgroundColor(AndroidColor.rgb(8, 9, 12))
+            }
+            landscape.addView(
+                videoHost,
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1.15f)
+            )
+            landscape.addView(
+                scroll,
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 0.85f)
+            )
+            responsiveLandscapeContainer = landscape
+            root.addView(
+                landscape,
+                0,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                )
+            )
+        } else {
+            // Reuse the original 16:9 inline player parameters in portrait.
+            inlinePlayerLayoutParams?.let { playerContainer.layoutParams = it }
+            content.addView(header, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ))
+            content.addView(
+                playerContainer,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+            )
+            content.addView(info, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ))
+            content.addView(transport, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ))
+            content.addView(queueActions, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ))
+            root.addView(
+                scroll,
+                0,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                )
+            )
+        }
+
+        landscapePlayerLayoutActive = shouldUseLandscape
+        root.requestLayout()
+        root.invalidate()
     }
 
     /**
@@ -785,6 +923,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             if (isCssFullscreen || customView != null ||
                 fullscreenExitRecoveryPending || pendingFullscreenExitGeometryCheck != null
             ) return@addOnLayoutChangeListener
+            applyResponsivePlayerLayout(landscapeOverride = newLandscape)
             handlePhysicalOrientationLayoutChange()
         }
     }
@@ -3639,6 +3778,15 @@ class YouTubePlayerActivity : ComponentActivity() {
 
         // The manifest handles orientation changes without recreating this Activity.
         if (!::playerContainer.isInitialized || !::root.isInitialized) return
+
+        if (!isCssFullscreen && customView == null && !fullscreenExitRecoveryPending &&
+            pendingFullscreenExitGeometryCheck == null
+        ) {
+            applyResponsivePlayerLayout(
+                landscapeOverride = newConfig.orientation ==
+                    android.content.res.Configuration.ORIENTATION_LANDSCAPE
+            )
+        }
 
         if (isCssFullscreen) {
             scheduleCssFullscreenLayoutSync()
