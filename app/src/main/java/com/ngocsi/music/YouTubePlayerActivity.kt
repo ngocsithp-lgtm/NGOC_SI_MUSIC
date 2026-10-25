@@ -4162,6 +4162,9 @@ class YouTubePlayerActivity : ComponentActivity() {
     private fun finishPendingFullscreenExitGeometryCheck() {
         val callback = pendingFullscreenExitGeometryCheck ?: return
         pendingFullscreenExitGeometryCheck = null
+        // Keep resize/configuration callbacks quiet only for the geometry check's settling
+        // window. If the user rotates again afterwards, normal orientation recovery must run.
+        fullscreenExitRecoveryActiveUntilMs = System.currentTimeMillis() + 1800L
         callback()
     }
 
