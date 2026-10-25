@@ -945,6 +945,16 @@ class YouTubePlayerActivity : ComponentActivity() {
         webView?.requestLayout()
         webView?.invalidate()
 
+        // A CSS-fullscreen exit changes requestedOrientation back to UNSPECIFIED, which
+        // can dispatch the same configuration/layout callback as a physical rotation.
+        // The fullscreen-exit controller already owns playback recovery during that handoff.
+        // Starting a second orientation recovery here can issue competing Play/probe requests
+        // against the same WebView and leave the video stopped after shrinking to portrait.
+        if (fullscreenExitRecoveryPending ||
+            pendingFullscreenExitGeometryCheck != null ||
+            now <= fullscreenExitRecoveryActiveUntilMs
+        ) return
+
         // Some Android/WebView builds pause the HTML5 element as the viewport changes.
         // Probe the same media element only after layout settles. This recovery is gated by
         // the last saved PLAY intent and is forbidden from reloading the page, so it cannot
@@ -953,7 +963,11 @@ class YouTubePlayerActivity : ComponentActivity() {
         playbackPositionHandler.postDelayed({
             if (recoveryGeneration != automaticOrientationRecoveryGeneration ||
                 isFinishing || isDestroyed || explicitUserPause ||
-                isCssFullscreen || customView != null || webView == null
+                isCssFullscreen || customView != null ||
+                fullscreenExitRecoveryPending ||
+                pendingFullscreenExitGeometryCheck != null ||
+                System.currentTimeMillis() <= fullscreenExitRecoveryActiveUntilMs ||
+                webView == null
             ) return@postDelayed
             val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
             if (!prefs.getBoolean("youtube_playback_is_playing", false)) {
@@ -3912,6 +3926,9 @@ class YouTubePlayerActivity : ComponentActivity() {
         // duplicate exits; they otherwise schedule competing recovery/reload attempts.
         if (customView == null && !isCssFullscreen) return
         val exitGeneration = ++fullscreenExitGeneration
+        // Cancel any orientation-recovery callback queued before the fullscreen button was
+        // pressed. This exit has its own single recovery/geometry pipeline below.
+        automaticOrientationRecoveryGeneration++
         // Each explicit fullscreen exit is a new recovery event. If the prior exit's
         // fallback did not restore playback, permit one new fallback for this exit rather
         // than permanently disabling reload recovery for the selected video.
