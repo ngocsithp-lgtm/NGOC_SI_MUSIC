@@ -3513,11 +3513,13 @@ class YouTubePlayerActivity : ComponentActivity() {
 
                 val normalized = raw.orEmpty().trim('"').replace("\\\"", "\"")
                 val status = runCatching { org.json.JSONObject(normalized) }.getOrNull()
-                if (status?.optBoolean("healthy", false) != true) {
+                if (status?.optBoolean("healthy", false) != true &&
+                    !geometryReloadFallbackAttemptedForCurrentPage
+                ) {
                     recoverFullscreenPlayback(allowPageReloadFallback = true)
                 }
             }
-        }, 1350L)
+        }, 2300L)
     }
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
@@ -3655,6 +3657,23 @@ class YouTubePlayerActivity : ComponentActivity() {
             !fullscreenExitRecoveryPending && pendingFullscreenExitGeometryCheck == null &&
             playbackIntentStillActive
         ) {
+            // Physical rotation changes both the native frame and Chromium's viewport.
+            // Validate geometry/frame delivery after the inline layout passes settle, just
+            // like fullscreen exit does, then run the playback-clock recovery as a fallback.
+            val orientationTimestamp = lastOrientationConfigurationChangeAtMs
+            player.postDelayed({
+                if (orientationTimestamp != lastOrientationConfigurationChangeAtMs ||
+                    isFinishing || isDestroyed || player !== webView || explicitUserPause ||
+                    customView != null || isCssFullscreen ||
+                    fullscreenExitRecoveryPending || pendingFullscreenExitGeometryCheck != null ||
+                    !getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+                        .getBoolean("youtube_playback_is_playing", false)
+                ) return@postDelayed
+                scheduleFullscreenExitGeometryCheck(
+                    fullscreenExitGeneration,
+                    shouldResumePlayback = true
+                )
+            }, 250L)
             scheduleAutomaticOrientationPlaybackRecovery(player)
         }
     }
