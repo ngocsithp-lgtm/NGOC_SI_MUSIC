@@ -287,6 +287,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 updatePlaybackButton()
                 restoreSavedPlaybackPosition()
                 startPlaybackPositionSaver()
+                val isRecoveryReload = recoverAfterPageReload
                 // The mobile watch URL already requests autoplay=1, and WebView allows
                 // media playback without a gesture. Do not send a second Play command during
                 // startup: the page may be buffering or establishing its media pipeline, and
