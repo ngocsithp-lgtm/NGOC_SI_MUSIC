@@ -2409,8 +2409,13 @@ class YouTubePlayerActivity : ComponentActivity() {
                         ) return@portraitPlaybackVerification
 
                         val mediaState = verifyResult.orEmpty().trim('"')
-                        if (mediaState == "PAUSED" || mediaState == "STALLED") {
-                            requestYouTubePlayback()
+                        // This was already a user-issued Play/toggle request. Do not route
+                        // its verification through requestYouTubePlayback(), which sends a
+                        // second YouTube API command and then a direct HTML5 play fallback.
+                        // That stacked recovery caused repeated short starts after rotation.
+                        // Leave the user's single command as the only transport action here.
+                        if (mediaState == "PLAYING") {
+                            geometryReloadFallbackAttemptedForCurrentPage = false
                         }
                     }
                 }, 1400L)
@@ -4630,22 +4635,12 @@ class YouTubePlayerActivity : ComponentActivity() {
                     }
 
                     if (mode === 'fallback') {
-                      // Several probes have already shown that the media clock is not moving.
-                      // Never issue player.playVideo() and immediately pause/replay the same
-                      // element: the competing commands caused audible stutter then stopped audio.
+                      // The initial recovery probe already sent one Play request when the
+                      // media was paused. If the same element is still paused after several
+                      // probes, another API/video.play() request only creates another stutter.
+                      // Report the failed recovery and allow the bounded saved-position fallback.
                       if (video.paused) {
-                        if (videoIsRenderable && player && typeof player.playVideo === 'function') {
-                          try {
-                            player.playVideo();
-                            return 'REQUESTED|' + position + '|' + ready;
-                          } catch (_) {}
-                        }
-                        try {
-                          var pausedPromise = video.play();
-                          if (pausedPromise && typeof pausedPromise.catch === 'function')
-                            pausedPromise.catch(function(){});
-                          return 'REQUESTED|' + position + '|' + ready;
-                        } catch (_) {}
+                        return report('PAUSED_STALLED');
                       } else {
                         // paused=false is not proof of active playback: Chromium can leave
                         // the media element non-paused while its clock is frozen after rotation.
@@ -4676,7 +4671,9 @@ class YouTubePlayerActivity : ComponentActivity() {
                     return@evaluateJavascript
                 }
                 if (state == "REQUESTED" || state == "API_ONLY") playRequested = true
-                if (state == "ACTIVE_STALLED") activeClockStallObserved = true
+                if (state == "ACTIVE_STALLED" || state == "PAUSED_STALLED") {
+                    activeClockStallObserved = true
+                }
 
                 val previous = previousPosition
                 val clockAdvanced = previous != null && currentPosition != null &&
