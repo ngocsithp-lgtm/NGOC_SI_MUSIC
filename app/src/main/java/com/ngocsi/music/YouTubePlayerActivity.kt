@@ -302,7 +302,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                             ) {
                                 requestYouTubePlayback()
                             }
-                        }, 650L)
+                        }, 1100L)
                     }
                 }
                 if (recoverAfterPageReload) {
@@ -1666,7 +1666,6 @@ class YouTubePlayerActivity : ComponentActivity() {
                     Uri.parse("https://m.youtube.com/watch")
                         .buildUpon()
                         .appendQueryParameter("v", safeId)
-                        .appendQueryParameter("autoplay", "1")
                         .appendQueryParameter("playsinline", "1")
                         .build().toString()
                 )
@@ -2415,10 +2414,85 @@ class YouTubePlayerActivity : ComponentActivity() {
             .putBoolean("youtube_playback_is_playing", true)
             .apply()
         val requestGeneration = ++playbackRequestGeneration
+
+        val verifyScript = """
+            (function() {
+              var video = null;
+              try {
+                if (typeof window.__ngocSiFindActiveVideo === 'function')
+                  video = window.__ngocSiFindActiveVideo();
+              } catch (_) {}
+              if (!video) video = document.querySelector('video.html5-main-video') ||
+                document.querySelector('#movie_player video') ||
+                document.querySelector('ytm-player video') ||
+                document.querySelector('video');
+              if (!video) return 'NO_VIDEO';
+              if (video.ended) return 'ENDED';
+              if (video.paused) return 'PAUSED';
+              if (video.readyState < 2) return 'BUFFERING';
+              var progressAt = Number(window.__ngocSiPlaybackProgressAt || 0);
+              if (window.__ngocSiTrackedVideo === video &&
+                  window.__ngocSiPlaybackActuallyPlaying === true &&
+                  progressAt > 0 && Date.now() - progressAt < 1800)
+                return 'PLAYING';
+              return 'STALLED';
+            })();
+        """.trimIndent()
+
+        val directHtml5PlayScript = """
+            (function() {
+              var video = null;
+              try {
+                if (typeof window.__ngocSiFindActiveVideo === 'function')
+                  video = window.__ngocSiFindActiveVideo();
+              } catch (_) {}
+              if (!video) video = document.querySelector('video.html5-main-video') ||
+                document.querySelector('#movie_player video') ||
+                document.querySelector('ytm-player video') ||
+                document.querySelector('video');
+              if (!video || !video.isConnected || video.ended) return 'NO_VIDEO';
+              try {
+                var promise = video.play();
+                if (promise && typeof promise.catch === 'function')
+                  promise.catch(function() {});
+                return 'DIRECT_PLAY_REQUESTED';
+              } catch (_) {
+                return 'DIRECT_PLAY_REJECTED';
+              }
+            })();
+        """.trimIndent()
+
+        fun isRequestStillCurrent(): Boolean =
+            requestGeneration == playbackRequestGeneration &&
+                !explicitUserPause && !isFinishing && !isDestroyed &&
+                webView != null && !fullscreenExitRecoveryPending &&
+                pendingFullscreenExitGeometryCheck == null
+
+        fun verifyAfterDirectPlay(player: WebView) {
+            player.evaluateJavascript(directHtml5PlayScript) directPlayCallback@{ directResult ->
+                if (!isRequestStillCurrent()) return@directPlayCallback
+                if (!directResult.orEmpty().contains("DIRECT_PLAY_REQUESTED")) return@directPlayCallback
+
+                // The YouTube API has already been tried. One direct HTML5 request is
+                // the only fallback; do not repeat API Play on a timer, which can cause
+                // brief starts/stutters followed by a stopped stream.
+                playbackPositionHandler.postDelayed({
+                    if (!isRequestStillCurrent() || player !== webView) return@postDelayed
+                    player.evaluateJavascript(verifyScript) finalVerification@{ finalResult ->
+                        if (!isRequestStillCurrent() || player !== webView) return@finalVerification
+                        if (finalResult.orEmpty().trim('"') == "PLAYING") {
+                            geometryReloadFallbackAttemptedForCurrentPage = false
+                        }
+                    }
+                }, 1400L)
+            }
+        }
+
         fun attempt(remaining: Int) {
             if (requestGeneration != playbackRequestGeneration ||
                 isFinishing || isDestroyed || webView == null
             ) return
+
             webView?.evaluateJavascript(youtubePlaybackScript("play")) requestPlaybackCallback@{ result ->
                 if (requestGeneration != playbackRequestGeneration) return@requestPlaybackCallback
                 val response = result.orEmpty()
@@ -2427,8 +2501,9 @@ class YouTubePlayerActivity : ComponentActivity() {
                     response.contains("requested-api") ||
                     response.contains("requested-button") ||
                     response.contains("requested-video")
-                // Retry only a rejected request. A valid Play request never starts
-                // a competing forced pause/Play recovery loop.
+
+                // Retry only requests that could not be issued at all. Once YouTube
+                // acknowledges Play, verify the media clock instead of stacking commands.
                 if (!accepted && remaining > 0 && !isFinishing && !isDestroyed &&
                     requestGeneration == playbackRequestGeneration
                 ) {
@@ -2438,78 +2513,38 @@ class YouTubePlayerActivity : ComponentActivity() {
                         response.contains("requested-button") ||
                         response.contains("requested-video")
                     )) {
-                    // A transport command being accepted does not prove that the media clock
-                    // resumed. Check once after the orientation/decoder has had time to settle.
-                    // If it is still paused or genuinely stalled, run the bounded recovery path.
+                    val player = webView ?: return@requestPlaybackCallback
                     playbackPositionHandler.postDelayed({
-                        if (requestGeneration != playbackRequestGeneration ||
-                            isFinishing || isDestroyed || webView == null ||
-                            fullscreenExitRecoveryPending ||
-                            pendingFullscreenExitGeometryCheck != null
-                        ) return@postDelayed
+                        if (!isRequestStillCurrent() || player !== webView) return@postDelayed
+                        player.evaluateJavascript(verifyScript) verifyPlaybackCallback@{ verifyResult ->
+                            if (!isRequestStillCurrent() || player !== webView) return@verifyPlaybackCallback
 
-                        val verifyScript = """
-                            (function() {
-                              var video = null;
-                              try {
-                                if (typeof window.__ngocSiFindActiveVideo === 'function')
-                                  video = window.__ngocSiFindActiveVideo();
-                              } catch (_) {}
-                              if (!video) video = document.querySelector('video.html5-main-video') ||
-                                document.querySelector('#movie_player video') ||
-                                document.querySelector('ytm-player video') ||
-                                document.querySelector('video');
-                              if (!video) return 'NO_VIDEO';
-                              if (video.ended) return 'ENDED';
-                              if (video.paused) return 'PAUSED';
-                              if (video.readyState < 2) return 'BUFFERING';
-                              var progressAt = Number(window.__ngocSiPlaybackProgressAt || 0);
-                              if (window.__ngocSiTrackedVideo === video &&
-                                  window.__ngocSiPlaybackActuallyPlaying === true &&
-                                  progressAt > 0 && Date.now() - progressAt < 1800)
-                                return 'PLAYING';
-                              return 'STALLED';
-                            })();
-                        """.trimIndent()
-                        webView?.evaluateJavascript(verifyScript) verifyPlaybackCallback@{ verifyResult ->
-                            if (requestGeneration != playbackRequestGeneration ||
-                                explicitUserPause || isFinishing || isDestroyed ||
-                                fullscreenExitRecoveryPending ||
-                                pendingFullscreenExitGeometryCheck != null
-                            ) return@verifyPlaybackCallback
-
-                            val mediaStatus = verifyResult.orEmpty().trim('"')
-                            if (mediaStatus == "PLAYING") {
-                                // The real-time JS probe confirmed playback recovered.
-                                geometryReloadFallbackAttemptedForCurrentPage = false
-                            } else if (mediaStatus == "PAUSED" && remaining > 0) {
-                                // YouTube's mobile page can acknowledge playVideo() before its
-                                // HTML5 media element actually starts. A single "accepted" result
-                                // must not end startup recovery while the poster image is still
-                                // visible. Retry the same bounded request sequence only while the
-                                // current request is valid and the user has not explicitly paused.
-                                playbackPositionHandler.postDelayed({
-                                    if (requestGeneration == playbackRequestGeneration &&
-                                        !explicitUserPause && !isFinishing && !isDestroyed &&
-                                        webView != null && youtubePlayerReady &&
-                                        !fullscreenExitRecoveryPending &&
-                                        pendingFullscreenExitGeometryCheck == null
-                                    ) {
-                                        attempt(remaining - 1)
-                                    }
-                                }, 500L)
-                            } else if (mediaStatus == "PAUSED" || mediaStatus == "STALLED") {
-                                // Final bounded fallback keeps the current page/media node.
-                                recoverFullscreenPlayback(
-                                    allowPageReloadFallback = false,
-                                    allowFrameReloadFallback = false
-                                )
+                            when (verifyResult.orEmpty().trim('"')) {
+                                "PLAYING" -> {
+                                    geometryReloadFallbackAttemptedForCurrentPage = false
+                                }
+                                "PAUSED", "STALLED" -> verifyAfterDirectPlay(player)
+                                "BUFFERING" -> {
+                                    // Let the existing stream buffer before a single direct
+                                    // fallback. Never issue another YouTube API Play in parallel.
+                                    playbackPositionHandler.postDelayed({
+                                        if (!isRequestStillCurrent() || player !== webView) return@postDelayed
+                                        player.evaluateJavascript(verifyScript) bufferedVerification@{ bufferedResult ->
+                                            if (!isRequestStillCurrent() || player !== webView) return@bufferedVerification
+                                            when (bufferedResult.orEmpty().trim('"')) {
+                                                "PLAYING" -> geometryReloadFallbackAttemptedForCurrentPage = false
+                                                "PAUSED", "STALLED" -> verifyAfterDirectPlay(player)
+                                            }
+                                        }
+                                    }, 1300L)
+                                }
                             }
                         }
                     }, 1800L)
                 }
             }
         }
+
         attempt(4)
     }
 
@@ -3154,7 +3189,6 @@ class YouTubePlayerActivity : ComponentActivity() {
                 Uri.parse("https://m.youtube.com/watch")
                     .buildUpon()
                     .appendQueryParameter("v", safeId)
-                    .appendQueryParameter("autoplay", "1")
                     .appendQueryParameter("playsinline", "1")
                     .build().toString()
             )
