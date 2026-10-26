@@ -8012,6 +8012,14 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
     }
 
     private fun searchYouTube(loadMore: Boolean = false) {
+        // Searching from the YouTube page must return to the discovery shelf.
+        // Otherwise results can be fetched successfully but remain hidden when
+        // the user previously opened Favorites or Watch Later.
+        if (!loadMore && onlineHubTab == "YouTube") {
+            youtubeShelf = "Khám phá"
+            youtubeTracks.clear()
+            youtubeNextPageToken = null
+        }
         val q = youtubeQuery.trim()
         if (q.isBlank()) {
             youtubeSearchGeneration++
