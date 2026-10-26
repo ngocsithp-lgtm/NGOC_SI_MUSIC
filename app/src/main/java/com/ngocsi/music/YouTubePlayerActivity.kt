@@ -1023,7 +1023,11 @@ class YouTubePlayerActivity : ComponentActivity() {
         val shouldPreservePlayback = !explicitUserPause && (
             youtubePlayerState == 1 ||
                 resumePlaybackOnNextOrientationChange ||
-                playbackPrefs.getBoolean("youtube_playback_is_playing", false)
+                playbackPrefs.getBoolean("youtube_playback_is_playing", false) ||
+                // YouTube may publish a transient PAUSED state before Android finishes
+                // rotating the WebView viewport. If the user did not explicitly pause,
+                // keep the play intent for any ready video that has not ended.
+                (youtubePlayerReady && youtubePlayerState != 0)
             )
         if (shouldPreservePlayback) {
             resumePlaybackOnNextOrientationChange = true
