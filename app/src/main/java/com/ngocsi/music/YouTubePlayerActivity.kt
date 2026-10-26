@@ -2333,6 +2333,8 @@ class YouTubePlayerActivity : ComponentActivity() {
             fullscreenRecoveryGeneration++
             orientationPlaybackRecoveryGeneration++
             playbackRequestGeneration++
+            // A deliberate new transport action gets one fresh recovery budget for this episode.
+            geometryReloadFallbackAttemptedForCurrentPage = false
         }
         val generation = ++playbackCommandGeneration
         // A button press sends one playback command. Do not repeatedly call playVideo()
@@ -4606,10 +4608,13 @@ class YouTubePlayerActivity : ComponentActivity() {
                       var apiOnlyPlayer = document.querySelector('#movie_player') ||
                                           document.querySelector('.html5-video-player') ||
                                           document.querySelector('ytm-player');
-                      if ((mode === 'initial' || mode === 'fallback') &&
+                      // Only the explicitly enabled initial probe may request Play without a
+                      // visible media node. A fallback probe must observe, never issue another Play.
+                      if (mode === 'initial' && $issueInitialPlayIfPaused &&
                           apiOnlyPlayer && typeof apiOnlyPlayer.playVideo === 'function') {
                         try { apiOnlyPlayer.playVideo(); return 'API_ONLY|0|0'; } catch (_) {}
                       }
+                      if (mode === 'fallback') return 'NO_VIDEO_STALLED|0|0';
                       return 'NO_VIDEO|0|0';
                     }
 
@@ -4693,7 +4698,9 @@ class YouTubePlayerActivity : ComponentActivity() {
                     return@evaluateJavascript
                 }
                 if (state == "REQUESTED" || state == "API_ONLY") playRequested = true
-                if (state == "ACTIVE_STALLED" || state == "PAUSED_STALLED") {
+                if (state == "ACTIVE_STALLED" || state == "PAUSED_STALLED" ||
+                    state == "NO_VIDEO_STALLED"
+                ) {
                     activeClockStallObserved = true
                 }
 
