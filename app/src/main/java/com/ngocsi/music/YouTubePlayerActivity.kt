@@ -1277,8 +1277,11 @@ class YouTubePlayerActivity : ComponentActivity() {
             player.onResume()
             player.resumeTimers()
             recoverFullscreenPlayback(
-                allowPageReloadFallback = true,
-                allowFrameReloadFallback = true,
+                // Entering fullscreen must not reload the entire YouTube page; that can reset
+                // autoplay/audio and destroy the video surface during the viewport handoff.
+                // Keep one Play request available only for a genuinely paused media element.
+                allowPageReloadFallback = false,
+                allowFrameReloadFallback = false,
                 issueInitialPlayIfPaused = true
             )
         }, 850L)
@@ -3360,6 +3363,15 @@ class YouTubePlayerActivity : ComponentActivity() {
                         """.trimIndent(),
                         null
                     )
+                    // A bounded video recovery can navigate/reload the mobile watch page. The
+                    // document loses JavaScript state on navigation, so explicitly reapply the
+                    // native fullscreen class before Chromium measures the replacement page.
+                    if (fullscreenLayoutActive || isCssFullscreen || customView != null) {
+                        view.evaluateJavascript(
+                            "(function(){if(document.documentElement)document.documentElement.classList.add('ngocsi-fullscreen-layout-active');window.__ngocSiFullscreenActive=true;return 'fullscreen-layout-restored-after-navigation';})()",
+                            null
+                        )
+                    }
                     // Let Android/WebView own responsive dimensions. Only request one normal
                     // layout pass after YouTube has inserted its media node.
                     view.postDelayed({
@@ -4226,12 +4238,12 @@ class YouTubePlayerActivity : ComponentActivity() {
                                         webView != null && youtubePlayerReady
                                     ) {
                                         recoverFullscreenPlayback(
-                                            // Wait for the existing stream after shrinking. Do not
-                                            // nudge the stalled media node; reload once at its saved
-                                            // position only if bounded probes confirm it is frozen.
-                                            allowPageReloadFallback = true,
-                                            allowFrameReloadFallback = true,
-                                            issueInitialPlayIfPaused = false
+                                            // Keep the same page/media node during the shrink transition.
+                                            // If YouTube really paused the element, allow one Play request;
+                                            // never reload the page merely because this viewport is settling.
+                                            allowPageReloadFallback = false,
+                                            allowFrameReloadFallback = false,
+                                            issueInitialPlayIfPaused = true
                                         )
                                     }
                                 }, 260L)
