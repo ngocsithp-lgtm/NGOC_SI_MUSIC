@@ -299,7 +299,39 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 webView != null && expectedVideoId == sanitizeVideoId(videoId) &&
                                 !explicitUserPause
                             ) {
-                                requestYouTubePlayback()
+                                val player = webView ?: return@postDelayed
+                                // The mobile page may already be autoplaying from its URL.
+                                // Probe first so the native startup command does not interrupt
+                                // a stream that is active or still buffering.
+                                val startupProbe = """
+                                    (function() {
+                                      var video = null;
+                                      try {
+                                        if (typeof window.__ngocSiFindActiveVideo === 'function')
+                                          video = window.__ngocSiFindActiveVideo();
+                                      } catch (_) {}
+                                      if (!video) video = document.querySelector('video.html5-main-video') ||
+                                        document.querySelector('#movie_player video') ||
+                                        document.querySelector('ytm-player video') ||
+                                        document.querySelector('video');
+                                      if (!video || !video.isConnected) return 'NO_VIDEO';
+                                      if (video.ended) return 'ENDED';
+                                      if (video.paused) return 'PAUSED';
+                                      if (video.readyState < 2 || video.currentTime < 0.05) return 'BUFFERING';
+                                      return 'PLAYING';
+                                    })();
+                                """.trimIndent()
+                                player.evaluateJavascript(startupProbe) { rawState ->
+                                    if (isFinishing || isDestroyed || player !== webView ||
+                                        !youtubePlayerReady ||
+                                        expectedVideoId != sanitizeVideoId(videoId) ||
+                                        explicitUserPause
+                                    ) return@evaluateJavascript
+                                    val state = rawState.orEmpty().trim('"')
+                                    if (state == "PAUSED" || state == "NO_VIDEO") {
+                                        requestYouTubePlayback()
+                                    }
+                                }
                             }
                         }, 1100L)
                     }
