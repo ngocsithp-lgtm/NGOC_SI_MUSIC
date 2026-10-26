@@ -4792,8 +4792,15 @@ class YouTubePlayerActivity : ComponentActivity() {
                     ) {
                         pageReloadFallbackUsed = true
                         geometryReloadFallbackAttemptedForCurrentPage = true
-                        val seconds = ((currentPosition ?: previousPosition ?: 0.0).toInt())
-                            .coerceAtLeast(0)
+                        // The active video node may disappear briefly during rotation.
+                        // Prefer a valid observed timestamp; when no node exists, retain the
+                        // last position saved for this video instead of restarting at 0.
+                        val savedPositionSeconds = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+                            .getLong("youtube_position_ms_" + sanitizeVideoId(videoId), 0L)
+                            .coerceAtLeast(0L) / 1000.0
+                        val observedPositionSeconds = listOfNotNull(currentPosition, previousPosition)
+                            .firstOrNull { it > 0.5 } ?: savedPositionSeconds
+                        val seconds = observedPositionSeconds.toInt().coerceAtLeast(0)
                         val restoredUrl = Uri.parse(currentUrl)
                             .buildUpon()
                             .clearQuery()
