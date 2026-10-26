@@ -338,6 +338,10 @@ class MainActivity : ComponentActivity() {
     private var youtubeIsActiveSource by mutableStateOf(false)
     private var youtubePlaybackIsPlaying by mutableStateOf(false)
     private var youtubeLastPlayed by mutableStateOf<YouTubeTrack?>(null)
+    // Keeps YouTube playback inline on the YouTube discovery screen. The full-screen
+    // Activity remains available for rotation/background playback when requested.
+    private var youtubeInlineTrack by mutableStateOf<YouTubeTrack?>(null)
+    private var youtubeInlineWebView: WebView? = null
     private var youtubeLastQueueJson by mutableStateOf<String?>(null)
     private var youtubeLastQueueIndex by mutableIntStateOf(0)
     private var onlineUrl by mutableStateOf("")
@@ -8157,9 +8161,9 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
     }
 
     private fun playYouTube(track: YouTubeTrack) {
-        // YouTube uses its own embedded player, separate from Media3. Pause
-        // local/Drive playback first so the local session cannot keep playing
-        // underneath or appear to take over when the YouTube Activity opens.
+        // Selecting a search result starts it in the card at the top of this same
+        // YouTube page instead of navigating away to YouTubePlayerActivity.
+        // Full-screen/background playback is still available via the expand control.
         controller?.pause()
         setYouTubeActiveSource(true)
         youtubeSelectedVideoId = track.videoId
@@ -8168,21 +8172,13 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
         val (queueJson, selectedIndex) = buildYouTubeQueueJson(track)
         saveYouTubeLastPlayed(track, queueJson, selectedIndex)
+        youtubePlaybackIsPlaying = true
+        prefs.edit().putBoolean("youtube_playback_is_playing", true).apply()
 
-        // Trình phát YouTube tích hợp trong NGỌC SĨ MUSIC.
-        runCatching {
-            startActivity(
-                Intent(this, YouTubePlayerActivity::class.java).apply {
-                    putExtra(YouTubePlayerActivity.EXTRA_VIDEO_ID, track.videoId)
-                    putExtra(YouTubePlayerActivity.EXTRA_TITLE, track.title)
-                    putExtra(YouTubePlayerActivity.EXTRA_CHANNEL, track.channelTitle)
-                    putExtra(YouTubePlayerActivity.EXTRA_QUEUE_JSON, queueJson)
-                    putExtra(YouTubePlayerActivity.EXTRA_QUEUE_INDEX, selectedIndex)
-                    addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                }
-            )
-        }.onFailure {
-            errorMessage = "Không mở được trình phát YouTube trong NGỌC SĨ MUSIC."
+        if (youtubeInlineTrack?.videoId == track.videoId) {
+            youtubeInlineWebView?.evaluateJavascript("playInlinePlayer();", null)
+        } else {
+            youtubeInlineTrack = track
         }
     }
 
@@ -8708,6 +8704,62 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         }
     }
 
+    private fun inlineYouTubeHtml(videoId: String): String {
+        val safeVideoId = videoId.filter { it.isLetterOrDigit() || it == '_' || it == '-' }
+        return """
+            <!doctype html>
+            <html>
+            <head>
+              <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+              <style>
+                html,body,#player { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#000; }
+              </style>
+            </head>
+            <body>
+              <div id="player"></div>
+              <script>
+                var player = null;
+                function onYouTubeIframeAPIReady() {
+                  player = new YT.Player('player', {
+                    width: '100%',
+                    height: '100%',
+                    videoId: '$safeVideoId',
+                    playerVars: {
+                      autoplay: 1, playsinline: 1, controls: 1, rel: 0,
+                      enablejsapi: 1, origin: 'https://www.youtube.com'
+                    },
+                    events: {
+                      onReady: function(event) {
+                        try {
+                          event.target.unMute();
+                          event.target.setVolume(100);
+                          event.target.playVideo();
+                        } catch (e) {}
+                      }
+                    }
+                  });
+                }
+                function playInlinePlayer() {
+                  try {
+                    if (player) {
+                      player.unMute();
+                      player.setVolume(100);
+                      player.playVideo();
+                    }
+                  } catch (e) {}
+                }
+                function pauseInlinePlayer() {
+                  try { if (player) player.pauseVideo(); } catch (e) {}
+                }
+                var tag = document.createElement('script');
+                tag.src = 'https://www.youtube.com/iframe_api';
+                document.head.appendChild(tag);
+              </script>
+            </body>
+            </html>
+        """.trimIndent()
+    }
+
     @Composable
     private fun YouTubeFocusedScreen(modifier: Modifier = Modifier) {
         LazyColumn(
@@ -8765,6 +8817,81 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         fontWeight = FontWeight.Black,
                                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
                                     )
+                                }
+                            }
+                        }
+                        youtubeInlineTrack?.let { inlineTrack ->
+                            Spacer(Modifier.height(12.dp))
+                            AndroidView(
+                                factory = { context ->
+                                    WebView(context).apply {
+                                        settings.javaScriptEnabled = true
+                                        settings.domStorageEnabled = true
+                                        settings.mediaPlaybackRequiresUserGesture = false
+                                        settings.loadsImagesAutomatically = true
+                                        isVerticalScrollBarEnabled = false
+                                        isHorizontalScrollBarEnabled = false
+                                        setBackgroundColor(android.graphics.Color.BLACK)
+                                        webViewClient = WebViewClient()
+                                        webChromeClient = WebChromeClient()
+                                        CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                                        tag = inlineTrack.videoId
+                                        youtubeInlineWebView = this
+                                        loadDataWithBaseURL(
+                                            "https://www.youtube.com",
+                                            inlineYouTubeHtml(inlineTrack.videoId),
+                                            "text/html",
+                                            "UTF-8",
+                                            null
+                                        )
+                                    }
+                                },
+                                update = { view ->
+                                    youtubeInlineWebView = view
+                                    if (view.tag != inlineTrack.videoId) {
+                                        view.tag = inlineTrack.videoId
+                                        view.loadDataWithBaseURL(
+                                            "https://www.youtube.com",
+                                            inlineYouTubeHtml(inlineTrack.videoId),
+                                            "text/html",
+                                            "UTF-8",
+                                            null
+                                        )
+                                    }
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .aspectRatio(16f / 9f)
+                                    .clip(RoundedCornerShape(14.dp))
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        "ĐANG PHÁT NGAY TRÊN TRANG NÀY",
+                                        color = Color(0xFF8FD694),
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Black
+                                    )
+                                    Text(
+                                        inlineTrack.title,
+                                        color = Color.White,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                TextButton(
+                                    onClick = {
+                                        youtubeInlineWebView?.evaluateJavascript("pauseInlinePlayer();", null)
+                                        playLastYouTube("play")
+                                    }
+                                ) {
+                                    Text("⛶ PHÓNG TO", color = Color(0xFFFF7180), fontSize = 10.sp)
                                 }
                             }
                         }
