@@ -8766,11 +8766,10 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
      * another Activity or move the selected video to an external app.
      */
     private fun applyInlineYouTubePageStyle(view: WebView) {
-        // Important: do not override the dimensions, position, transform, or overflow of
-        // YouTube's actual HTML5 player/video nodes. Earlier forced CSS sizing caused the
-        // audio to continue while the video compositor rendered a black frame.
-        // The native AndroidView already constrains this WebView to a 16:9 viewport;
-        // let YouTube's own mobile player calculate its video surface in that viewport.
+        // Mirror the proven mobile-watch player setup from YouTubePlayerActivity, but keep
+        // the native Compose AndroidView as the only host so playback stays in the top frame.
+        // Size the page wrappers to the host's 16:9 viewport; do not force dimensions on the
+        // HTML5 video element itself because that can leave audio running against a black frame.
         view.evaluateJavascript(
             """
             (function() {
@@ -8785,7 +8784,24 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   'ytm-rich-section-renderer,ytm-engagement-panel,ytm-engagement-panel-section-list-renderer,' +
                   'ytm-reel-shelf-renderer,ytm-chip-cloud-renderer,ytm-single-column-watch-next-results-renderer {' +
                   'display:none!important;} ' +
-                  'body { background:#000!important; }';
+                  'html,body {margin:0!important;padding:0!important;width:100%!important;' +
+                  'min-height:100%!important;overflow:hidden!important;background:#000!important;} ' +
+                  'ytm-app {margin:0!important;padding:0!important;min-height:0!important;} ' +
+                  'ytm-app.sticky-player {padding-top:0!important;} ' +
+                  'ytm-watch,.player-container,.player-container.sticky-player {' +
+                  'position:relative!important;top:0!important;left:0!important;right:auto!important;' +
+                  'bottom:auto!important;width:100%!important;max-width:100%!important;min-height:0!important;' +
+                  'margin:0!important;padding:0!important;transform:none!important;box-sizing:border-box!important;} ' +
+                  '.player-placeholder {position:relative!important;top:0!important;left:0!important;' +
+                  'right:auto!important;bottom:auto!important;width:100%!important;max-width:100%!important;' +
+                  'height:auto!important;aspect-ratio:16/9!important;margin:0!important;padding:0!important;' +
+                  'transform:none!important;box-sizing:border-box!important;} ' +
+                  'ytm-player,#player-container-id,#player-container,#player {' +
+                  'position:relative!important;top:0!important;left:0!important;right:auto!important;' +
+                  'bottom:auto!important;transform:none!important;width:100%!important;max-width:100%!important;' +
+                  'height:auto!important;min-height:0!important;max-height:none!important;aspect-ratio:16/9!important;' +
+                  'margin:0!important;padding:0!important;box-sizing:border-box!important;} ' +
+                  'ytm-player {display:block!important;}';
                 var style = document.getElementById(styleId);
                 if (!style) {
                   style = document.createElement('style');
@@ -8793,9 +8809,38 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   (document.head || document.documentElement).appendChild(style);
                 }
                 if (style.textContent !== css) style.textContent = css;
-                // Return the page to the top without changing the player surface's layout.
                 try { window.scrollTo(0, 0); } catch (_) {}
-                return 'INLINE_PLAYER_CHROME_HIDDEN';
+
+                // Apply the successful initial-audio fix here as well. Never issue another
+                // Play command during startup: YouTube owns autoplay, and competing Play calls
+                // previously caused the stutter-then-stop regression.
+                var video = document.querySelector('video.html5-main-video') ||
+                            document.querySelector('video');
+                if (video) {
+                  var enableInitialAudio = function() {
+                    try {
+                      video.defaultMuted = false;
+                      video.muted = false;
+                      video.volume = 1;
+                    } catch (_) {}
+                  };
+                  enableInitialAudio();
+                  video.addEventListener('loadedmetadata', enableInitialAudio, {once:true});
+                  video.addEventListener('canplay', enableInitialAudio, {once:true});
+                  video.addEventListener('playing', enableInitialAudio, {once:true});
+                  try {
+                    var initialPlayer = document.querySelector('#movie_player') ||
+                      document.querySelector('.html5-video-player') ||
+                      document.querySelector('ytm-player');
+                    if (initialPlayer && typeof initialPlayer.unMute === 'function') {
+                      initialPlayer.unMute();
+                      if (typeof initialPlayer.setVolume === 'function') {
+                        initialPlayer.setVolume(100);
+                      }
+                    }
+                  } catch (_) {}
+                }
+                return 'INLINE_PLAYER_READY_WITH_AUDIO';
               } catch (_) {
                 return 'INLINE_PLAYER_STYLE_ERROR';
               }
@@ -8884,6 +8929,14 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                             loadsImagesAutomatically = true
                                             useWideViewPort = true
                                             loadWithOverviewMode = false
+                                            allowContentAccess = true
+                                            allowFileAccess = false
+                                            javaScriptCanOpenWindowsAutomatically = true
+                                            setSupportMultipleWindows(false)
+                                            cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
+                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                                safeBrowsingEnabled = true
+                                            }
                                             setSupportZoom(false)
                                             builtInZoomControls = false
                                             displayZoomControls = false
@@ -8892,53 +8945,19 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         isHorizontalScrollBarEnabled = false
                                         setBackgroundColor(android.graphics.Color.BLACK)
                                         webViewClient = object : WebViewClient() {
-                                            private fun interceptYouTubeWatchLink(
-                                                view: WebView?,
-                                                rawUrl: String?
-                                            ): Boolean {
-                                                if (rawUrl.isNullOrBlank()) return false
-                                                val uri = runCatching { Uri.parse(rawUrl) }.getOrNull()
-                                                    ?: return false
-                                                val host = uri.host.orEmpty().lowercase()
-                                                val path = uri.path.orEmpty()
-                                                val isYouTubeHost = host == "youtu.be" ||
-                                                    host == "youtube.com" ||
-                                                    host.endsWith(".youtube.com")
-                                                val isWatchNavigation = path == "/watch" ||
-                                                    path.startsWith("/shorts/") ||
-                                                    path.startsWith("/live/") ||
-                                                    host == "youtu.be"
-                                                if (!isYouTubeHost || !isWatchNavigation) return false
-                                                val videoId = uri.getQueryParameter("v")
-                                                    ?: path.removePrefix("/shorts/")
-                                                        .removePrefix("/live/")
-                                                        .trim('/')
-                                                        .takeIf { host == "youtu.be" || path.startsWith("/shorts/") || path.startsWith("/live/") }
-                                                val safeId = videoId.orEmpty()
-                                                    .filter { it.isLetterOrDigit() || it == '_' || it == '-' }
-                                                if (safeId.isBlank()) return false
-                                                // Open the official YouTube watch page in this same inline WebView.
-                                                // This also supports videos whose owners have disabled IFrame embedding.
-                                                view?.loadUrl(
-                                                    Uri.parse("https://m.youtube.com/watch")
-                                                        .buildUpon()
-                                                        .appendQueryParameter("v", safeId)
-                                                        .appendQueryParameter("autoplay", "1")
-                                                        .appendQueryParameter("playsinline", "1")
-                                                        .build().toString()
-                                                )
-                                                return true
-                                            }
-
+                                            // Keep the official YouTube mobile player in this same WebView.
+                                            // Returning false lets YouTube complete its own watch-page
+                                            // navigation instead of recursively reloading /watch and
+                                            // interrupting the media surface.
                                             override fun shouldOverrideUrlLoading(
                                                 view: WebView?,
                                                 request: android.webkit.WebResourceRequest?
-                                            ): Boolean = interceptYouTubeWatchLink(view, request?.url?.toString())
+                                            ): Boolean = false
 
                                             override fun shouldOverrideUrlLoading(
                                                 view: WebView?,
                                                 url: String?
-                                            ): Boolean = interceptYouTubeWatchLink(view, url)
+                                            ): Boolean = false
 
                                             override fun onPageFinished(view: WebView, url: String) {
                                                 super.onPageFinished(view, url)
@@ -8948,6 +8967,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         webChromeClient = WebChromeClient()
                                         CookieManager.getInstance().setAcceptCookie(true)
                                         CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                                        CookieManager.getInstance().flush()
                                         tag = inlineTrack.videoId
                                         youtubeInlineWebView = this
                                         // Use the official mobile watch page directly in this same
