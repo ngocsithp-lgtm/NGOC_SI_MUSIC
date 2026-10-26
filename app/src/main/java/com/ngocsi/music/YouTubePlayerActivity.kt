@@ -2019,17 +2019,33 @@ class YouTubePlayerActivity : ComponentActivity() {
      */
     private fun recoverVideoFrameStall() {
         if (isFinishing || isDestroyed || webView == null || explicitUserPause) return
+        val now = System.currentTimeMillis()
+
+        // Do not let the rendered-frame watchdog restart a healthy inline session.
+        // On some Android WebView builds requestVideoFrameCallback may stop reporting
+        // compositor frames even though the visible inline video is still playing.
+        // A recovery here sends another Play nudge and can interrupt playback at startup.
+        // Reserve this heavier recovery for fullscreen or a confirmed orientation handoff;
+        // normal portrait playback must remain passive.
+        val inFullscreen = customView != null || isCssFullscreen || fullscreenLayoutActive
+        val inOrientationTransition =
+            fullscreenExitTransitionInProgress ||
+                fullscreenExitRecoveryPending ||
+                pendingFullscreenExitGeometryCheck != null ||
+                now <= physicalOrientationNormalizationUntilMs ||
+                (lastOrientationConfigurationChangeAtMs > 0L &&
+                    now - lastOrientationConfigurationChangeAtMs in 0L..5000L)
+        if (!inFullscreen && !inOrientationTransition) return
+
         val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
         if (!prefs.getBoolean("youtube_player_foreground", true) ||
             !prefs.getBoolean("youtube_playback_is_playing", false)
         ) return
-        val now = System.currentTimeMillis()
         if (now < frameStallRecoveryCooldownUntilMs) return
         frameStallRecoveryCooldownUntilMs = now + 12_000L
 
         if (customView != null || isCssFullscreen) scheduleCssFullscreenLayoutSync()
-        // Keep one bounded recovery path for both inline and fullscreen video. A page recreation
-        // is permitted only after repeated rendered-frame checks prove the video surface is stuck.
+        // Fullscreen/rotation only: probe the existing media node before any bounded fallback.
         recoverFullscreenPlayback(
             allowPageReloadFallback = false,
             allowFrameReloadFallback = true
@@ -3051,8 +3067,21 @@ class YouTubePlayerActivity : ComponentActivity() {
                             }, true);
 
                             var lastHandoffAt = 0;
-                            function onViewportChange() {
+                            var lastViewportLandscape =
+                              (window.innerWidth || 1) > (window.innerHeight || 1);
+                            function onViewportChange(event) {
                               var now = Date.now();
+                              var viewportLandscape =
+                                (window.innerWidth || 1) > (window.innerHeight || 1);
+                              var actualOrientationChange = viewportLandscape !== lastViewportLandscape;
+                              lastViewportLandscape = viewportLandscape;
+
+                              // Browser/YouTube chrome and visualViewport can emit ordinary
+                              // resize events during playback. They are not phone rotation.
+                              // Only hand recovery to Android when the viewport crosses from
+                              // portrait to landscape (or back), which is the transition we
+                              // need to preserve across the same media element.
+                              if (!actualOrientationChange) return;
                               if (now - lastHandoffAt < 650) return;
                               var explicitPauseAt = Number(window.__ngocSiExplicitPauseAt || 0);
                               if (explicitPauseAt > 0 && now - explicitPauseAt < 5000) return;
