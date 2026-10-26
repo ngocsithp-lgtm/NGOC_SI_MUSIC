@@ -464,11 +464,12 @@ class YouTubePlayerActivity : ComponentActivity() {
                     return@runOnUiThread
                 }
 
+                // Only a confirmed PAUSED media element is eligible for an automatic
+                // recovery. State 3 means buffering/clock stall, not proof of a paused
+                // player; sending Play into that state can compete with YouTube's stream
+                // pipeline and produce repeated starts/stutters.
                 val recoverUnexpectedPause =
                     state == 2 && playbackIntentWasActive && !orientationHandoffActive &&
-                        previousPlayerState != 0
-                val recoverUnexpectedStall =
-                    state == 3 && playbackIntentWasActive && !orientationHandoffActive &&
                         previousPlayerState != 0
 
                 if (state == 1) {
@@ -498,12 +499,9 @@ class YouTubePlayerActivity : ComponentActivity() {
                 updatePlaybackButton()
                 syncYouTubeBackgroundPlayback(state)
                 if (state == 5 || state == 1) restoreSavedPlaybackPosition()
-                when {
-                    recoverUnexpectedPause -> scheduleUnexpectedPlaybackRecovery(
+                if (recoverUnexpectedPause) {
+                    scheduleUnexpectedPlaybackRecovery(
                         recoveryGeneration, stateVideoId, expectedState = 2, delayMs = 900L
-                    )
-                    recoverUnexpectedStall -> scheduleUnexpectedPlaybackRecovery(
-                        recoveryGeneration, stateVideoId, expectedState = 3, delayMs = 6000L
                     )
                 }
                 if (state == 0 && queue.isNotEmpty()) {
