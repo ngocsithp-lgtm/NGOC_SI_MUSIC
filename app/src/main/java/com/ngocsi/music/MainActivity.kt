@@ -9053,18 +9053,26 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         LazyColumn(
             state = youtubeListState,
             modifier = modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            contentPadding = if (youtubeInlineFullscreen) PaddingValues(0.dp)
+                else PaddingValues(start = 16.dp, end = 16.dp, bottom = 14.dp),
+            verticalArrangement = if (youtubeInlineFullscreen) Arrangement.spacedBy(0.dp)
+                else Arrangement.spacedBy(10.dp),
+            userScrollEnabled = !youtubeInlineFullscreen
         ) {
             item {
                 Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(22.dp),
-                    color = NgocSiVisuals.SurfaceRaised,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF292430))
+                    modifier = if (youtubeInlineFullscreen) Modifier.fillParentMaxSize()
+                        else Modifier.fillMaxWidth(),
+                    shape = if (youtubeInlineFullscreen) RoundedCornerShape(0.dp)
+                        else RoundedCornerShape(22.dp),
+                    color = if (youtubeInlineFullscreen) Color.Black else NgocSiVisuals.SurfaceRaised,
+                    border = if (youtubeInlineFullscreen) null
+                        else androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF292430))
                 ) {
-                    Column(Modifier.padding(14.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(
+                        Modifier.fillMaxSize().padding(if (youtubeInlineFullscreen) 0.dp else 14.dp)
+                    ) {
+                        if (!youtubeInlineFullscreen) Row(verticalAlignment = Alignment.CenterVertically) {
                             Surface(
                                 modifier = Modifier.size(42.dp),
                                 shape = RoundedCornerShape(13.dp),
@@ -9109,11 +9117,28 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 }
                             }
                         }
+                        }
                         youtubeInlineTrack?.let { inlineTrack ->
-                            Spacer(Modifier.height(12.dp))
+                            if (!youtubeInlineFullscreen) Spacer(Modifier.height(12.dp))
+                            Box(
+                                modifier = if (youtubeInlineFullscreen) {
+                                    Modifier.fillParentMaxSize().background(Color.Black)
+                                } else {
+                                    Modifier.fillMaxWidth()
+                                        .aspectRatio(16f / 9f)
+                                        .clip(RoundedCornerShape(14.dp))
+                                }
+                            ) {
                             AndroidView(
                                 factory = { context ->
-                                    WebView(context).apply {
+                                    InlineBackgroundAudioWebView(context).apply {
+                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                            setRendererPriorityPolicy(
+                                                if (inlineBackgroundPlaybackEnabled) WebView.RENDERER_PRIORITY_IMPORTANT
+                                                else WebView.RENDERER_PRIORITY_BOUND,
+                                                !inlineBackgroundPlaybackEnabled
+                                            )
+                                        }
                                         settings.apply {
                                             javaScriptEnabled = true
                                             domStorageEnabled = true
@@ -9175,11 +9200,18 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         view.loadUrl(inlineYouTubeMobileUrl(inlineTrack.videoId))
                                     }
                                 },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .aspectRatio(16f / 9f)
-                                    .clip(RoundedCornerShape(14.dp))
+                                modifier = Modifier.fillMaxSize()
                             )
+                            if (youtubeInlineFullscreen) {
+                                TextButton(
+                                    onClick = { exitInlineYouTubeFullscreen() },
+                                    modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)
+                                ) {
+                                    Text("⤢ THU NHỎ", color = Color.White, fontSize = 11.sp)
+                                }
+                            }
+                            }
+                            if (!youtubeInlineFullscreen) {
                             Spacer(Modifier.height(6.dp))
                             Row(
                                 Modifier.fillMaxWidth(),
@@ -9203,28 +9235,22 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 }
                                 TextButton(
                                     onClick = {
-                                        openDedicatedYouTubePlayer(
-                                            inlineTrack,
-                                            startFullscreen = true,
-                                            enableBackground = false
-                                        )
+                                        enterInlineYouTubeFullscreen()
                                     }
                                 ) {
                                     Text("⛶ PHÓNG TO", color = Color(0xFFFF7180), fontSize = 10.sp)
                                 }
                                 TextButton(
                                     onClick = {
-                                        openDedicatedYouTubePlayer(
-                                            inlineTrack,
-                                            startFullscreen = false,
-                                            enableBackground = true
-                                        )
+                                        enableInlineYouTubeBackground()
                                     }
                                 ) {
                                     Text("🎧 NỀN", color = Color(0xFF8FD694), fontSize = 10.sp)
                                 }
                             }
+                            }
                         }
+                        if (!youtubeInlineFullscreen) {
                         Spacer(Modifier.height(12.dp))
                         Row(
                             Modifier
@@ -9259,6 +9285,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     )
                                 }
                             }
+                        }
                         }
                     }
                 }
