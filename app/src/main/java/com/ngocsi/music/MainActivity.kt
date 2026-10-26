@@ -8883,7 +8883,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 // while leaving the surrounding 16:9 host correctly positioned.
                 var wrappers = document.querySelectorAll(
                   'ytm-watch,.player-container,.player-placeholder,ytm-player,' +
-                  '#player-container-id,#player-container,#player'
+                  '#player-container-id,#player-container,#player,' +
+                  '.html5-video-player,#movie_player,.html5-video-container'
                 );
                 Array.prototype.forEach.call(wrappers, function(node) {
                   if (!node || !node.isConnected) return;
@@ -8900,6 +8901,21 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   node.style.setProperty('min-width', '0px', 'important');
                   node.style.setProperty('box-sizing', 'border-box', 'important');
                 });
+                // Reset only video offsets/transforms (not width/height). This mirrors the
+                // stable player recovery path while leaving YouTube's own aspect-ratio sizing intact.
+                Array.prototype.forEach.call(
+                  document.querySelectorAll('video.html5-main-video'),
+                  function(video) {
+                    if (!video || !video.isConnected) return;
+                    video.style.setProperty('left', '0px', 'important');
+                    video.style.setProperty('top', '0px', 'important');
+                    video.style.setProperty('right', 'auto', 'important');
+                    video.style.setProperty('bottom', 'auto', 'important');
+                    video.style.setProperty('margin', '0px', 'important');
+                    video.style.setProperty('transform', 'none', 'important');
+                    video.style.setProperty('max-width', '100%', 'important');
+                  }
+                );
                 try {
                   if (document.scrollingElement) {
                     document.scrollingElement.scrollTop = 0;
