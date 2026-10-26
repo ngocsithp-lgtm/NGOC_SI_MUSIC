@@ -287,54 +287,14 @@ class YouTubePlayerActivity : ComponentActivity() {
                 updatePlaybackButton()
                 restoreSavedPlaybackPosition()
                 startPlaybackPositionSaver()
-                val hadPendingAction = pendingAiAction != null
-                val isRecoveryReload = recoverAfterPageReload
+                // The mobile watch URL already requests autoplay=1, and WebView allows
+                // media playback without a gesture. Do not send a second Play command during
+                // startup: the page may be buffering or establishing its media pipeline, and
+                // a competing command can cause the repeated stutter-then-stop behavior.
                 executePendingAiAction()
                 if (autoplayPendingForCurrentVideo) {
+                    // Consume the one-shot startup intent; actual autoplay belongs to YouTube.
                     autoplayPendingForCurrentVideo = false
-                    if (!hadPendingAction && !isRecoveryReload) {
-                        val expectedVideoId = sanitizeVideoId(videoId)
-                        playbackPositionHandler.postDelayed({
-                            if (!isFinishing && !isDestroyed && youtubePlayerReady &&
-                                webView != null && expectedVideoId == sanitizeVideoId(videoId) &&
-                                !explicitUserPause
-                            ) {
-                                val player = webView ?: return@postDelayed
-                                // The mobile page may already be autoplaying from its URL.
-                                // Probe first so the native startup command does not interrupt
-                                // a stream that is active or still buffering.
-                                val startupProbe = """
-                                    (function() {
-                                      var video = null;
-                                      try {
-                                        if (typeof window.__ngocSiFindActiveVideo === 'function')
-                                          video = window.__ngocSiFindActiveVideo();
-                                      } catch (_) {}
-                                      if (!video) video = document.querySelector('video.html5-main-video') ||
-                                        document.querySelector('#movie_player video') ||
-                                        document.querySelector('ytm-player video') ||
-                                        document.querySelector('video');
-                                      if (!video || !video.isConnected) return 'NO_VIDEO';
-                                      if (video.ended) return 'ENDED';
-                                      if (video.paused) return 'PAUSED';
-                                      if (video.readyState < 2 || video.currentTime < 0.05) return 'BUFFERING';
-                                      return 'PLAYING';
-                                    })();
-                                """.trimIndent()
-                                player.evaluateJavascript(startupProbe) { rawState ->
-                                    if (isFinishing || isDestroyed || player !== webView ||
-                                        !youtubePlayerReady ||
-                                        expectedVideoId != sanitizeVideoId(videoId) ||
-                                        explicitUserPause
-                                    ) return@evaluateJavascript
-                                    val state = rawState.orEmpty().trim('"')
-                                    if (state == "PAUSED" || state == "NO_VIDEO") {
-                                        requestYouTubePlayback()
-                                    }
-                                }
-                            }
-                        }, 1100L)
-                    }
                 }
                 if (recoverAfterPageReload) {
                     recoverAfterPageReload = false
@@ -468,9 +428,17 @@ class YouTubePlayerActivity : ComponentActivity() {
                 // recovery. State 3 means buffering/clock stall, not proof of a paused
                 // player; sending Play into that state can compete with YouTube's stream
                 // pipeline and produce repeated starts/stutters.
+                val inlinePortraitPlayback =
+                    resources.configuration.orientation ==
+                        android.content.res.Configuration.ORIENTATION_PORTRAIT &&
+                        customView == null && !isCssFullscreen && !fullscreenLayoutActive
                 val recoverUnexpectedPause =
+                    // In inline portrait, avoid sending another Play into a fresh or buffering
+                    // media session. YouTube's autoplay path owns startup; rotation/fullscreen
+                    // have separate recovery controllers. Only recover an unexpected pause
+                    // elsewhere after a confirmed PLAYING state, not after startup/buffering.
                     state == 2 && playbackIntentWasActive && !orientationHandoffActive &&
-                        previousPlayerState != 0
+                        !inlinePortraitPlayback && previousPlayerState == 1
 
                 if (state == 1) {
                     // State 1 is reported only after the JS media clock advances. A
