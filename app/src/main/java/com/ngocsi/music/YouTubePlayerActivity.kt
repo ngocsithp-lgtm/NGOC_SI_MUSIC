@@ -186,6 +186,8 @@ class YouTubePlayerActivity : ComponentActivity() {
     // Preserve the pre-fullscreen playback state even if YouTube reports PAUSED while rotating.
     private var wasPlayingBeforeFullscreen = false
     private var fullscreenRecoveryGeneration = 0
+    // Invalidate delayed recovery when fullscreen is exited or a newer rotation supersedes it.
+    private var fullscreenEntryRecoveryGeneration = 0
     // Coalesce duplicate fullscreen-dismiss callbacks so only one recovery cycle runs.
     private var fullscreenExitGeneration = 0
     // Prevent the orientation listener and onConfigurationChanged from cancelling
@@ -1246,6 +1248,33 @@ class YouTubePlayerActivity : ComponentActivity() {
                     .getBoolean("youtube_playback_is_playing", false))
         enterFullscreen()
         updateNativeFullscreenButton()
+    }
+
+    /**
+     * Changing the WebView viewport to fullscreen/landscape can leave Chromium's video
+     * surface detached or its media element paused. Resume only the existing YouTube
+     * element after the new viewport settles; the recovery controller probes playback
+     * and uses at most one saved-position reload only when it confirms a stall.
+     */
+    private fun scheduleManagedFullscreenEntryRecovery() {
+        if (!wasPlayingBeforeFullscreen || explicitUserPause || isFinishing || isDestroyed) return
+
+        val generation = ++fullscreenEntryRecoveryGeneration
+        playbackPositionHandler.postDelayed({
+            if (generation != fullscreenEntryRecoveryGeneration ||
+                isFinishing || isDestroyed || !fullscreenLayoutActive ||
+                customView != null || explicitUserPause || !wasPlayingBeforeFullscreen
+            ) return@postDelayed
+
+            val player = webView ?: return@postDelayed
+            player.onResume()
+            player.resumeTimers()
+            recoverFullscreenPlayback(
+                allowPageReloadFallback = true,
+                allowFrameReloadFallback = true,
+                issueInitialPlayIfPaused = true
+            )
+        }, 850L)
     }
 
     private fun actionButton(label: String, onClick: () -> Unit): Button =
@@ -3724,6 +3753,13 @@ class YouTubePlayerActivity : ComponentActivity() {
                 exitFullscreen()
                 return
             }
+            if (orientationActuallyChanged &&
+                newConfig.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+            ) {
+                // Re-check the same media element after the fullscreen viewport has settled.
+                // This also covers a physical rotate while fullscreen is already active.
+                scheduleManagedFullscreenEntryRecovery()
+            }
             // Do not immediately release the requested landscape orientation here. This callback
             // can be caused by our own forced landscape request while the handset is still
             // physically portrait; switching to FULL_SENSOR now makes Android snap straight back.
@@ -4019,6 +4055,9 @@ class YouTubePlayerActivity : ComponentActivity() {
                 WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
         updateNativeFullscreenButton()
+        // The Activity may already be landscape when the button is tapped, in which case
+        // Android emits no configuration callback. Schedule the same bounded recovery here.
+        scheduleManagedFullscreenEntryRecovery()
     }
 
     private fun exitFullscreen(notifyCallback: Boolean = true) {
@@ -4048,6 +4087,8 @@ class YouTubePlayerActivity : ComponentActivity() {
         // another CSS pass while we wait for the WebView to finish removing fullscreen CSS.
         fullscreenRecoveryGeneration++
         fullscreenViewportSyncGeneration++
+        // Cancel a pending recovery scheduled for the previous fullscreen viewport.
+        fullscreenEntryRecoveryGeneration++
 
         val wasNativeFullscreen = customView != null
         val wasCssFullscreen = isCssFullscreen
