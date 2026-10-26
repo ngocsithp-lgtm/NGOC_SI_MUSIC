@@ -8187,7 +8187,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         prefs.edit().putBoolean("youtube_playback_is_playing", true).apply()
 
         if (youtubeInlineTrack?.videoId == track.videoId) {
-            youtubeInlineWebView?.evaluateJavascript("playInlinePlayer();", null)
+            playInlineYouTubeWebView()
         } else {
             youtubeInlineTrack = track
         }
@@ -8425,13 +8425,13 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 return
             }
             "pause", "tạm dừng", "dừng" -> {
-                youtubeInlineWebView?.evaluateJavascript("pauseInlinePlayer();", null)
+                pauseInlineYouTubeWebView()
                 youtubePlaybackIsPlaying = false
                 prefs.edit().putBoolean("youtube_playback_is_playing", false).apply()
                 return
             }
             "stop", "dừng hẳn" -> {
-                youtubeInlineWebView?.evaluateJavascript("pauseInlinePlayer();", null)
+                pauseInlineYouTubeWebView()
                 youtubePlaybackIsPlaying = false
                 prefs.edit().putBoolean("youtube_playback_is_playing", false).apply()
                 return
@@ -8696,6 +8696,54 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         }
     }
 
+    /**
+     * Controls the inline player whether it is an IFrame API player or the official
+     * mobile YouTube watch page used when an individual video disallows embedding.
+     */
+    private fun playInlineYouTubeWebView() {
+        youtubeInlineWebView?.evaluateJavascript(
+            """
+            (function() {
+              try {
+                var p = window.player;
+                if (p && typeof p.playVideo === 'function') {
+                  p.unMute(); p.setVolume(100); p.playVideo(); return;
+                }
+              } catch (_) {}
+              var v = document.querySelector('video.html5-main-video') ||
+                      document.querySelector('video');
+              if (v) {
+                try { v.muted = false; } catch (_) {}
+                try {
+                  var result = v.play();
+                  if (result && result.catch) result.catch(function() {});
+                } catch (_) {}
+              }
+            })();
+            """.trimIndent(),
+            null
+        )
+    }
+
+    private fun pauseInlineYouTubeWebView() {
+        youtubeInlineWebView?.evaluateJavascript(
+            """
+            (function() {
+              try {
+                var p = window.player;
+                if (p && typeof p.pauseVideo === 'function') {
+                  p.pauseVideo(); return;
+                }
+              } catch (_) {}
+              var v = document.querySelector('video.html5-main-video') ||
+                      document.querySelector('video');
+              if (v) { try { v.pause(); } catch (_) {} }
+            })();
+            """.trimIndent(),
+            null
+        )
+    }
+
     private fun inlineYouTubeHtml(videoId: String): String {
         val safeVideoId = videoId.filter { it.isLetterOrDigit() || it == '_' || it == '-' }
         return """
@@ -8740,14 +8788,23 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         }
                       },
                       onError: function(event) {
+                        // YouTube error 101/150/152 means this video cannot play in an embedded player.
+                        // Fall back to the official mobile watch page in this same WebView.
+                        // Error 153 can also be resolved by using the real YouTube page context.
+                        if (event.data === 101 || event.data === 150 ||
+                            event.data === 152 || event.data === 153) {
+                          showPlayerError('Đang chuyển sang trình phát YouTube trong ứng dụng…');
+                          window.setTimeout(function() {
+                            window.location.replace(
+                              'https://m.youtube.com/watch?v=$safeVideoId&autoplay=1&playsinline=1'
+                            );
+                          }, 150);
+                          return;
+                        }
                         var messages = {
                           2: 'Mã video không hợp lệ.',
                           5: 'WebView không giải mã được video HTML5.',
-                          100: 'Video đã bị gỡ hoặc không còn khả dụng.',
-                          101: 'Chủ video không cho phép phát nhúng.',
-                          150: 'Chủ video không cho phép phát nhúng.',
-                          152: 'Video này bị YouTube chặn phát trong trình phát nhúng. Hãy thử video khác hoặc mở video trên YouTube.',
-                          153: 'YouTube không nhận được thông tin nguồn phát hợp lệ.'
+                          100: 'Video đã bị gỡ hoặc không còn khả dụng.'
                         };
                         showPlayerError(messages[event.data] || ('YouTube báo lỗi phát video (' + event.data + ').'));
                       }
@@ -8880,10 +8937,15 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                                 val safeId = videoId.orEmpty()
                                                     .filter { it.isLetterOrDigit() || it == '_' || it == '-' }
                                                 if (safeId.isBlank()) return false
-                                                // Keep a YouTube title/shorts link inside this same player.
-                                                view?.evaluateJavascript(
-                                                    "if (window.player && typeof player.loadVideoById === 'function') { player.loadVideoById('$safeId'); }",
-                                                    null
+                                                // Open the official YouTube watch page in this same inline WebView.
+                                                // This also supports videos whose owners have disabled IFrame embedding.
+                                                view?.loadUrl(
+                                                    Uri.parse("https://m.youtube.com/watch")
+                                                        .buildUpon()
+                                                        .appendQueryParameter("v", safeId)
+                                                        .appendQueryParameter("autoplay", "1")
+                                                        .appendQueryParameter("playsinline", "1")
+                                                        .build().toString()
                                                 )
                                                 return true
                                             }
@@ -8952,7 +9014,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 }
                                 TextButton(
                                     onClick = {
-                                        youtubeInlineWebView?.evaluateJavascript("pauseInlinePlayer();", null)
+                                        pauseInlineYouTubeWebView()
                                         playLastYouTube("play")
                                     }
                                 ) {
