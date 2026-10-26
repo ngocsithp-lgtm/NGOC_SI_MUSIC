@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - "feature/ngoc-si-ai-firebase-ai-logic-preview"
+      - "ngocsiAI"
     paths:
       - ".github/workflows/ngoc-si-ai-firebase-preview-apk.yml"
       - "app/src/main/**"
