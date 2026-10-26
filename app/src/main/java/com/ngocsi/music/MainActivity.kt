@@ -341,6 +341,7 @@ class MainActivity : ComponentActivity() {
     // Keeps YouTube playback inline on the YouTube discovery screen. The full-screen
     // Activity remains available for rotation/background playback when requested.
     private var youtubeInlineTrack by mutableStateOf<YouTubeTrack?>(null)
+    private var youtubeInlineOpenGeneration by mutableIntStateOf(0)
     private var youtubeInlineWebView: WebView? = null
     private var youtubeLastQueueJson by mutableStateOf<String?>(null)
     private var youtubeLastQueueIndex by mutableIntStateOf(0)
@@ -8180,6 +8181,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         } else {
             youtubeInlineTrack = track
         }
+        // Reveal the inline player even when the user selects a result far down the list.
+        youtubeInlineOpenGeneration++
     }
 
     private fun toggleYouTubeWatchLater(track: YouTubeTrack) {
@@ -8762,7 +8765,14 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
     @Composable
     private fun YouTubeFocusedScreen(modifier: Modifier = Modifier) {
+        val youtubeListState = rememberLazyListState()
+        LaunchedEffect(youtubeInlineOpenGeneration) {
+            if (youtubeInlineOpenGeneration > 0) {
+                youtubeListState.animateScrollToItem(0)
+            }
+        }
         LazyColumn(
+            state = youtubeListState,
             modifier = modifier.fillMaxSize(),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
