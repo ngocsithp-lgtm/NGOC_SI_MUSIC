@@ -163,6 +163,9 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var fullscreenRecoveryGeneration = 0
     // Coalesce duplicate fullscreen-dismiss callbacks so only one recovery cycle runs.
     private var fullscreenExitGeneration = 0
+    // Prevent the orientation listener and onConfigurationChanged from cancelling
+    // each other's fullscreen-exit recovery when both fire for the same rotation.
+    private var fullscreenExitTransitionInProgress = false
     // Prevent onConfigurationChanged from starting a second recovery cycle for the same fullscreen exit.
     private var fullscreenExitRecoveryPending = false
     // Runs one post-rotation geometry verification; a broken video surface can freeze
@@ -983,8 +986,8 @@ class YouTubePlayerActivity : ComponentActivity() {
      * device changed orientation. Chromium gets the new viewport through normal measurement.
      */
     private fun handlePhysicalOrientationLayoutChange(targetLandscape: Boolean? = null) {
-        if (isFinishing || isDestroyed || !::root.isInitialized ||
-            !::playerContainer.isInitialized || isCssFullscreen ||
+        if (isFinishing || isDestroyed || fullscreenExitTransitionInProgress ||
+            !::root.isInitialized || !::playerContainer.isInitialized || isCssFullscreen ||
             customView != null || fullscreenLayoutActive
         ) return
 
@@ -1059,15 +1062,16 @@ class YouTubePlayerActivity : ComponentActivity() {
             now <= fullscreenExitRecoveryActiveUntilMs
         ) return
 
-        // Some Android/WebView builds pause the HTML5 element as the viewport changes.
-        // Probe the same media element only after layout settles. This recovery is gated by
-        // the last saved PLAY intent and is forbidden from reloading the page, so it cannot
-        // replace a healthy playback session or override an explicit user pause.
+        // Some WebView builds keep audio/currentTime moving while the video compositor stops
+        // producing frames after a rotation. Probe the existing media node first; allow one
+        // reload only after repeated probes confirm a frame-only stall. An explicit user Pause
+        // invalidates this path, and healthy playback is never reloaded.
         val recoveryGeneration = ++automaticOrientationRecoveryGeneration
         playbackPositionHandler.postDelayed({
             if (recoveryGeneration != automaticOrientationRecoveryGeneration ||
                 isFinishing || isDestroyed || explicitUserPause ||
                 isCssFullscreen || customView != null ||
+                fullscreenExitTransitionInProgress ||
                 fullscreenExitRecoveryPending ||
                 pendingFullscreenExitGeometryCheck != null ||
                 System.currentTimeMillis() <= fullscreenExitRecoveryActiveUntilMs ||
@@ -1077,12 +1081,12 @@ class YouTubePlayerActivity : ComponentActivity() {
             if (!prefs.getBoolean("youtube_playback_is_playing", false)) {
                 return@postDelayed
             }
-            // Physical rotation must not reload a healthy stream. However, when audio time advances
-            // while rendered video frames stop, permit one diagnosed frame-only fallback.
-            // This catches the audio-but-no-picture case missed by clock-only recovery.
-            // Do not reload the page on an ordinary rotation. Ask the existing visible
-            // HTML5 video to resume once the viewport sync has had time to finish.
-            requestYouTubePlayback()
+            recoverFullscreenPlayback(
+                // Ordinary rotation keeps the current page. Only a confirmed rendered-frame
+                // stall can use the one-shot saved-position reload fallback.
+                allowPageReloadFallback = false,
+                allowFrameReloadFallback = true
+            )
         }, 1100L)
     }
 
@@ -1132,8 +1136,8 @@ class YouTubePlayerActivity : ComponentActivity() {
      * Keep the existing WebView and media element attached, and resize their native host.
      */
     private fun requestYoutubeFullscreen() {
-        if (isFinishing || isDestroyed || !::root.isInitialized ||
-            !::playerContainer.isInitialized
+        if (isFinishing || isDestroyed || fullscreenExitTransitionInProgress ||
+            !::root.isInitialized || !::playerContainer.isInitialized
         ) return
 
         if (fullscreenLayoutActive || customView != null || isCssFullscreen) {
@@ -2715,25 +2719,31 @@ class YouTubePlayerActivity : ComponentActivity() {
                               '.ytp-endscreen-content,.ytp-endscreen-previous,.ytp-endscreen-next,' +
                               '.ytp-ce-covering-overlay,.ytp-cards-teaser,.ytp-ce-element,.ytp-show-cards-title {' +
                               'display:none!important;} ' +
+                              // Keep YouTube's video compositor in normal document flow. Fixed-position
+                              // ytm-watch plus 100%-height children produced black frames when the WebView
+                              // viewport changed while the HTML5 media clock/audio kept running.
                               'html,body {margin:0!important;padding:0!important;width:100%!important;' +
-                              'height:100%!important;min-height:0!important;overflow:hidden!important;' +
-                              'background:#000!important;} ' +
+                              'min-height:100%!important;overflow:hidden!important;background:#000!important;} ' +
                               'ytm-app {margin:0!important;padding:0!important;min-height:0!important;} ' +
                               'ytm-app.sticky-player {padding-top:0!important;} ' +
-                              'ytm-watch {display:flex!important;flex-flow:column!important;position:fixed!important;' +
-                              'top:0!important;left:0!important;right:0!important;width:100%!important;' +
-                              'max-width:100%!important;height:auto!important;min-height:0!important;' +
-                              'margin:0!important;padding:0!important;transform:none!important;z-index:1!important;} ' +
-                              '.player-container.sticky-player {top:0!important;left:0!important;right:0!important;margin:0!important;} ' +
+                              'ytm-watch {position:relative!important;width:100%!important;max-width:100%!important;' +
+                              'min-height:0!important;margin:0!important;padding:0!important;transform:none!important;} ' +
+                              '.player-container.sticky-player {position:relative!important;top:auto!important;left:auto!important;' +
+                              'right:auto!important;width:100%!important;margin:0!important;} ' +
                               '.player-placeholder {position:relative!important;width:100%!important;max-width:100%!important;' +
-                              'height:auto!important;margin:0!important;padding-bottom:0!important;} ' +
-                              '.player-placeholder::before {content:""!important;display:block!important;padding-bottom:56.25%!important;} ' +
+                              'height:auto!important;aspect-ratio:16/9!important;margin:0!important;padding:0!important;} ' +
                               'ytm-player,#player-container-id,#player-container,#player {width:100%!important;' +
                               'max-width:100%!important;height:auto!important;min-height:0!important;max-height:none!important;' +
-                              'margin:0!important;padding:0!important;box-sizing:border-box!important;} ' +
+                              'aspect-ratio:16/9!important;margin:0!important;padding:0!important;box-sizing:border-box!important;} ' +
                               'ytm-player {display:block!important;} ' +
-                              '.html5-video-player,#movie_player,.html5-video-container {width:100%!important;height:100%!important;max-width:100%!important;} ' +
-                              'video.html5-main-video {object-fit:contain!important;}';
+                              '@media (orientation:landscape) {' +
+                              'html,body,ytm-app,ytm-watch {height:100%!important;min-height:100%!important;} ' +
+                              'ytm-watch {display:block!important;} ' +
+                              'ytm-player,#player-container-id,#player-container,#player {height:100%!important;' +
+                              'max-height:100%!important;aspect-ratio:auto!important;} ' +
+                              '.html5-video-player,#movie_player,.html5-video-container {width:100%!important;' +
+                              'height:100%!important;max-width:100%!important;} ' +
+                              'video.html5-main-video {width:100%!important;height:100%!important;object-fit:contain!important;}}';
                             (document.head || document.documentElement).appendChild(style);
 
                             function videoVisible(video) {
@@ -3634,10 +3644,13 @@ class YouTubePlayerActivity : ComponentActivity() {
 
     private fun exitFullscreen(notifyCallback: Boolean = true) {
         fullscreenEntryPending = false
+        // Sensor and configuration callbacks can request the same exit almost together.
+        // Keep the first exit transaction; a second one would invalidate its generation
+        // and cancel the only playback/frame-recovery sequence.
+        if (fullscreenExitTransitionInProgress) return
         clearFullscreenOrientationListener()
-        // A hardware Back/custom-view callback can report the same exit twice. Ignore
-        // duplicate exits; they otherwise schedule competing recovery/reload attempts.
         if (customView == null && !isCssFullscreen && !fullscreenLayoutActive) return
+        fullscreenExitTransitionInProgress = true
         val exitGeneration = ++fullscreenExitGeneration
         // Cancel any orientation-recovery callback queued before the fullscreen button was
         // pressed. This exit has its own single recovery/geometry pipeline below.
@@ -3710,6 +3723,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             setFullscreenLayout(false)
             applyResponsivePlayerLayout()
             updateNativeFullscreenButton()
+            fullscreenExitTransitionInProgress = false
             WindowCompat.setDecorFitsSystemWindows(window, true)
             WindowInsetsControllerCompat(window, window.decorView)
                 .show(WindowInsetsCompat.Type.systemBars())
