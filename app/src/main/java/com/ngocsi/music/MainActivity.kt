@@ -8704,13 +8704,20 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             <head>
               <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
               <style>
-                html,body,#player { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#000; }
+                html,body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#000; }
+              #player { width:100%; height:100%; }
+              #player-error { display:none; position:absolute; inset:0; padding:18px; box-sizing:border-box; color:#fff; background:#111; font:14px sans-serif; align-content:center; text-align:center; z-index:10; }
               </style>
             </head>
             <body>
               <div id="player"></div>
+              <div id="player-error" role="alert"></div>
               <script>
                 var player = null;
+                function showPlayerError(message) {
+                  var box = document.getElementById('player-error');
+                  if (box) { box.textContent = message; box.style.display = 'grid'; }
+                }
                 function onYouTubeIframeAPIReady() {
                   player = new YT.Player('player', {
                     width: '100%',
@@ -8723,10 +8730,25 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     events: {
                       onReady: function(event) {
                         try {
+                          var errorBox = document.getElementById('player-error');
+                          if (errorBox) errorBox.style.display = 'none';
                           event.target.unMute();
                           event.target.setVolume(100);
                           event.target.playVideo();
-                        } catch (e) {}
+                        } catch (e) {
+                          showPlayerError('Không thể khởi động trình phát: ' + e.message);
+                        }
+                      },
+                      onError: function(event) {
+                        var messages = {
+                          2: 'Mã video không hợp lệ.',
+                          5: 'WebView không giải mã được video HTML5.',
+                          100: 'Video đã bị gỡ hoặc không còn khả dụng.',
+                          101: 'Chủ video không cho phép phát nhúng.',
+                          150: 'Chủ video không cho phép phát nhúng.',
+                          153: 'YouTube không nhận được thông tin nguồn phát hợp lệ.'
+                        };
+                        showPlayerError(messages[event.data] || ('YouTube báo lỗi phát video (' + event.data + ').'));
                       }
                     }
                   });
