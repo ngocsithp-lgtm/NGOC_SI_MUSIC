@@ -1080,13 +1080,10 @@ class YouTubePlayerActivity : ComponentActivity() {
             // Physical rotation must not reload a healthy stream. However, when audio time advances
             // while rendered video frames stop, permit one diagnosed frame-only fallback.
             // This catches the audio-but-no-picture case missed by clock-only recovery.
-            recoverFullscreenPlayback(
-                // After a physical rotation, try the existing media first. Only reload at the
-                // last saved timestamp if bounded probes prove the clock/frames never recovered.
-                allowPageReloadFallback = true,
-                allowFrameReloadFallback = true
-            )
-        }, 700L)
+            // Do not reload the page on an ordinary rotation. Ask the existing visible
+            // HTML5 video to resume once the viewport sync has had time to finish.
+            requestYouTubePlayback()
+        }, 1100L)
     }
 
     private fun showMoreOptions(anchor: View) {
@@ -2470,7 +2467,11 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 geometryReloadFallbackAttemptedForCurrentPage = false
                             }
                             if (mediaStatus == "PAUSED" || mediaStatus == "STALLED") {
-                                recoverFullscreenPlayback()
+                                // Recovery from a Play tap must keep the current page/media node.
+                                recoverFullscreenPlayback(
+                                    allowPageReloadFallback = false,
+                                    allowFrameReloadFallback = false
+                                )
                             }
                         }
                     }, 1800L)
@@ -2715,14 +2716,24 @@ class YouTubePlayerActivity : ComponentActivity() {
                               '.ytp-ce-covering-overlay,.ytp-cards-teaser,.ytp-ce-element,.ytp-show-cards-title {' +
                               'display:none!important;} ' +
                               'html,body {margin:0!important;padding:0!important;width:100%!important;' +
-                              'min-height:100%!important;overflow:hidden!important;' +
+                              'height:100%!important;min-height:0!important;overflow:hidden!important;' +
                               'background:#000!important;} ' +
-                              'ytm-watch {width:100%!important;max-width:100%!important;margin:0!important;} ' +
-                              'ytm-player,#player-container-id,#player-container,#player {' +
-                              'width:100%!important;max-width:100%!important;height:auto!important;' +
-                              'min-height:0!important;max-height:none!important;aspect-ratio:16/9!important;' +
-                              'margin:0!important;box-sizing:border-box!important;} ' +
-                              'ytm-player {display:block!important;}';
+                              'ytm-app {margin:0!important;padding:0!important;min-height:0!important;} ' +
+                              'ytm-app.sticky-player {padding-top:0!important;} ' +
+                              'ytm-watch {display:flex!important;flex-flow:column!important;position:fixed!important;' +
+                              'top:0!important;left:0!important;right:0!important;width:100%!important;' +
+                              'max-width:100%!important;height:auto!important;min-height:0!important;' +
+                              'margin:0!important;padding:0!important;transform:none!important;z-index:1!important;} ' +
+                              '.player-container.sticky-player {top:0!important;left:0!important;right:0!important;margin:0!important;} ' +
+                              '.player-placeholder {position:relative!important;width:100%!important;max-width:100%!important;' +
+                              'height:auto!important;margin:0!important;padding-bottom:0!important;} ' +
+                              '.player-placeholder::before {content:""!important;display:block!important;padding-bottom:56.25%!important;} ' +
+                              'ytm-player,#player-container-id,#player-container,#player {width:100%!important;' +
+                              'max-width:100%!important;height:auto!important;min-height:0!important;max-height:none!important;' +
+                              'margin:0!important;padding:0!important;box-sizing:border-box!important;} ' +
+                              'ytm-player {display:block!important;} ' +
+                              '.html5-video-player,#movie_player,.html5-video-container {width:100%!important;height:100%!important;max-width:100%!important;} ' +
+                              'video.html5-main-video {object-fit:contain!important;}';
                             (document.head || document.documentElement).appendChild(style);
 
                             function videoVisible(video) {
@@ -2736,29 +2747,37 @@ class YouTubePlayerActivity : ComponentActivity() {
                                     Number(cs.opacity || 1) === 0) return false;
                                 node = node.parentElement;
                               }
-                              return true;
+                              // A connected video node can still belong to the old, off-screen
+                              // layout after rotation. Select only candidates intersecting this viewport.
+                              var viewportWidth = Math.max(1, document.documentElement.clientWidth || window.innerWidth || 1);
+                              var viewportHeight = Math.max(1, document.documentElement.clientHeight || window.innerHeight || 1);
+                              return rect.right > 0 && rect.bottom > 0 &&
+                                rect.left < viewportWidth && rect.top < viewportHeight;
                             }
 
                             function findActiveVideo() {
                               var videos = Array.prototype.slice.call(document.querySelectorAll('video'));
                               var visible = videos.filter(videoVisible);
-                              var primary = visible.find(function(video) {
-                                return video.classList.contains('html5-main-video') ||
+                              function score(video) {
+                                var r = video.getBoundingClientRect();
+                                var vw = Math.max(1, document.documentElement.clientWidth || window.innerWidth || 1);
+                                var vh = Math.max(1, document.documentElement.clientHeight || window.innerHeight || 1);
+                                var visibleWidth = Math.max(0, Math.min(r.right, vw) - Math.max(r.left, 0));
+                                var visibleHeight = Math.max(0, Math.min(r.bottom, vh) - Math.max(r.top, 0));
+                                // Visible intersection outranks DOM order and stale playback flags.
+                                var value = visibleWidth * visibleHeight * 100;
+                                var primary = video.classList.contains('html5-main-video') ||
                                   !!video.closest('#movie_player') ||
                                   !!video.closest('.html5-video-player') ||
                                   !!video.closest('ytm-player');
-                              });
-                              if (primary) return primary;
-                              visible.sort(function(a,b) {
-                                function score(v) {
-                                  var r = v.getBoundingClientRect();
-                                  return r.width * r.height +
-                                    (!v.paused && !v.ended ? 100000000 : 0) +
-                                    (v.readyState >= 2 ? 1000000 : 0) +
-                                    (v.currentTime > 0 ? 100000 : 0);
-                                }
-                                return score(b) - score(a);
-                              });
+                                if (primary) value += 1000000;
+                                if (video.videoWidth > 0 && video.videoHeight > 0) value += 500000;
+                                if (video.readyState >= 2) value += 400000;
+                                if (!video.paused && !video.ended) value += 300000;
+                                if (video.currentTime > 0) value += Math.min(video.currentTime, 600) * 100;
+                                return value;
+                              }
+                              visible.sort(function(a,b) { return score(b) - score(a); });
                               return visible[0] || null;
                             }
 
