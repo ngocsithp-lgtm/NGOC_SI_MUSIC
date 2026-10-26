@@ -406,6 +406,10 @@ class YouTubePlayerActivity : ComponentActivity() {
         @JavascriptInterface
         fun onStateChanged(state: Int) {
             runOnUiThread {
+                // Any fresh player-state event invalidates an older delayed recovery.
+                val recoveryGeneration = ++unexpectedPlaybackRecoveryGeneration
+                val previousPlayerState = youtubePlayerState
+                val stateVideoId = sanitizeVideoId(videoId)
                 val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
                 val isForeground = prefs.getBoolean("youtube_player_foreground", true)
                 val keepBackgroundPlayback = prefs.getBoolean(
@@ -422,26 +426,31 @@ class YouTubePlayerActivity : ComponentActivity() {
                     scheduleBackgroundPlaybackRecovery()
                     return@runOnUiThread
                 }
+                // Treat a pause as an orientation handoff only when there is an actual
+                // physical rotation/fullscreen transition. Play intent alone is not proof
+                // of rotation: the old condition swallowed ordinary portrait pauses forever.
                 val orientationHandoffActive =
-                    System.currentTimeMillis() <= orientationRecoveryWindowUntilMs ||
-                    customView != null || isCssFullscreen || fullscreenExitRecoveryPending
+                    System.currentTimeMillis() <= physicalOrientationNormalizationUntilMs ||
+                    customView != null || isCssFullscreen || fullscreenLayoutActive ||
+                    fullscreenExitTransitionInProgress || fullscreenExitRecoveryPending ||
+                    pendingFullscreenExitGeometryCheck != null
                 val playbackIntentStillActive =
                     prefs.getBoolean("youtube_playback_is_playing", false)
+                val playbackIntentWasActive = !explicitUserPause && (
+                    playbackIntentStillActive ||
+                        resumePlaybackOnNextOrientationChange ||
+                        previousPlayerState == 1
+                    )
 
-                // Auto-rotation can report PAUSED after the JS playback clock has already
-                // stalled, so youtubePlayerState may no longer be PLAYING/BUFFERING by the
-                // time Android delivers the configuration callback. Keep the last explicit
-                // play intent until the user actually pauses or the video ends. User Pause
-                // taps and media-session Pause actions are marked through markExplicitPauseIntent.
+                // YouTube can emit a transient PAUSED event while Android is really rotating.
+                // Preserve intent only during that known handoff; outside it, allow the
+                // state machine below to register PAUSED and schedule one bounded probe.
                 if (state == 2 &&
+                    orientationHandoffActive &&
                     !explicitUserPause &&
                     (playbackIntentStillActive || resumePlaybackOnNextOrientationChange) &&
-                    youtubePlayerState != 0
+                    previousPlayerState != 0
                 ) {
-                    orientationRecoveryWindowUntilMs = maxOf(
-                        orientationRecoveryWindowUntilMs,
-                        System.currentTimeMillis() + 5000L
-                    )
                     resumePlaybackOnNextOrientationChange = true
                     prefs.edit().putBoolean("youtube_playback_is_playing", true).apply()
                     return@runOnUiThread
@@ -455,11 +464,18 @@ class YouTubePlayerActivity : ComponentActivity() {
                     return@runOnUiThread
                 }
 
+                val recoverUnexpectedPause =
+                    state == 2 && playbackIntentWasActive && !orientationHandoffActive &&
+                        previousPlayerState != 0
+                val recoverUnexpectedStall =
+                    state == 3 && playbackIntentWasActive && !orientationHandoffActive &&
+                        previousPlayerState != 0
+
                 if (state == 1) {
                     // State 1 is reported only after the JS media clock advances. A
-                    // confirmed healthy playback re-arms the one-shot recovery budget so a
-                    // later, separate rotation stall can be recovered without a reload loop.
+                    // confirmed healthy playback re-arms bounded recovery for a later stall.
                     geometryReloadFallbackAttemptedForCurrentPage = false
+                    lastUnexpectedPlaybackRecoveryAtMs = 0L
                     explicitUserPause = false
                     orientationPlaybackRecoveryGeneration++
                     backgroundPlaybackRecoveryGeneration++
@@ -483,6 +499,14 @@ class YouTubePlayerActivity : ComponentActivity() {
                 updatePlaybackButton()
                 syncYouTubeBackgroundPlayback(state)
                 if (state == 5 || state == 1) restoreSavedPlaybackPosition()
+                when {
+                    recoverUnexpectedPause -> scheduleUnexpectedPlaybackRecovery(
+                        recoveryGeneration, stateVideoId, expectedState = 2, delayMs = 900L
+                    )
+                    recoverUnexpectedStall -> scheduleUnexpectedPlaybackRecovery(
+                        recoveryGeneration, stateVideoId, expectedState = 3, delayMs = 6000L
+                    )
+                }
                 if (state == 0 && queue.isNotEmpty()) {
                     val endedId = sanitizeVideoId(videoId)
                     if (endedId.isNotBlank() && lastHandledEndedVideoId != endedId) {
@@ -549,6 +573,9 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
     private var youtubeBackgroundServiceStarted = false
     private var backgroundPlaybackRecoveryGeneration = 0
+    // One bounded in-place repair for an unexpected portrait pause/buffer stall.
+    private var unexpectedPlaybackRecoveryGeneration = 0
+    private var lastUnexpectedPlaybackRecoveryAtMs = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -2012,6 +2039,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun markExplicitPauseIntent() {
+        unexpectedPlaybackRecoveryGeneration++
         automaticOrientationRecoveryGeneration++
         explicitUserPause = true
         resumePlaybackOnNextOrientationChange = false
@@ -2036,6 +2064,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     private fun markExplicitPlayIntent() {
         // A fresh user Play action supersedes any delayed recovery/reload queued for the
         // previous viewport state. Let the user's command own the current media session.
+        unexpectedPlaybackRecoveryGeneration++
         fullscreenRecoveryGeneration++
         explicitUserPause = false
         resumePlaybackOnNextOrientationChange = true
@@ -2449,6 +2478,80 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Recover an unexpected HTML5 pause or a sustained media-clock stall without reloading
+     * YouTube. A real rotation/fullscreen transition owns its own recovery path; this fallback
+     * is only for an unchanged inline player and issues at most one request per failed episode.
+     */
+    private fun scheduleUnexpectedPlaybackRecovery(
+        generation: Int,
+        expectedVideoId: String,
+        expectedState: Int,
+        delayMs: Long
+    ) {
+        playbackPositionHandler.postDelayed({
+            if (generation != unexpectedPlaybackRecoveryGeneration ||
+                explicitUserPause || isFinishing || isDestroyed ||
+                sanitizeVideoId(videoId) != expectedVideoId ||
+                youtubePlayerState != expectedState ||
+                webView == null ||
+                customView != null || isCssFullscreen || fullscreenLayoutActive ||
+                fullscreenExitTransitionInProgress || fullscreenExitRecoveryPending ||
+                pendingFullscreenExitGeometryCheck != null ||
+                System.currentTimeMillis() <= physicalOrientationNormalizationUntilMs
+            ) return@postDelayed
+
+            val now = System.currentTimeMillis()
+            if (lastUnexpectedPlaybackRecoveryAtMs > 0L &&
+                now - lastUnexpectedPlaybackRecoveryAtMs < 10_000L
+            ) return@postDelayed
+
+            val player = webView ?: return@postDelayed
+            val verifyScript = """
+                (function() {
+                  var video = null;
+                  try {
+                    if (typeof window.__ngocSiFindActiveVideo === 'function')
+                      video = window.__ngocSiFindActiveVideo();
+                  } catch (_) {}
+                  if (!video) video = document.querySelector('video.html5-main-video') ||
+                    document.querySelector('#movie_player video') ||
+                    document.querySelector('ytm-player video') ||
+                    document.querySelector('video');
+                  if (!video || !video.isConnected) return 'NO_VIDEO';
+                  if (video.ended) return 'ENDED';
+                  if (video.paused) return 'PAUSED';
+                  if (video.readyState < 2) return 'BUFFERING';
+                  var progressAt = Number(window.__ngocSiPlaybackProgressAt || 0);
+                  if (window.__ngocSiTrackedVideo === video &&
+                      window.__ngocSiPlaybackActuallyPlaying === true &&
+                      progressAt > 0 && Date.now() - progressAt < 1800)
+                    return 'PLAYING';
+                  return 'STALLED';
+                })();
+            """.trimIndent()
+            player.evaluateJavascript(verifyScript) recoveryVerification@{ result ->
+                if (generation != unexpectedPlaybackRecoveryGeneration ||
+                    explicitUserPause || isFinishing || isDestroyed ||
+                    player !== webView ||
+                    sanitizeVideoId(videoId) != expectedVideoId ||
+                    youtubePlayerState != expectedState
+                ) return@recoveryVerification
+
+                val mediaState = result.orEmpty().trim('"')
+                val shouldResume = if (expectedState == 2) {
+                    mediaState == "PAUSED"
+                } else {
+                    mediaState == "PAUSED" || mediaState == "STALLED"
+                }
+                if (shouldResume) {
+                    lastUnexpectedPlaybackRecoveryAtMs = System.currentTimeMillis()
+                    requestYouTubePlayback()
+                }
+            }
+        }, delayMs)
+    }
+
     private fun requestYouTubePlayback() {
         if (!youtubePlayerReady || webView == null || isFinishing || isDestroyed) return
         explicitUserPause = false
@@ -2691,6 +2794,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         updatePlaybackButton()
     }
     private fun createPlayer() {
+        unexpectedPlaybackRecoveryGeneration++
         removePlayer()
         autoplayPendingForCurrentVideo = true
         geometryReloadFallbackAttemptedForCurrentPage = false
