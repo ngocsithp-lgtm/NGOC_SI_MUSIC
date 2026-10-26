@@ -8863,10 +8863,9 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             errorMessage = "Chưa có video YouTube đang mở trong khung phát."
             return
         }
+        if (youtubeInlineFullscreen) return
         youtubeInlineFullscreen = true
-        inlineFullscreenHasReachedPhysicalLandscape =
-            resources.configuration.orientation ==
-                android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        inlineFullscreenHasReachedPhysicalLandscape = false
         inlineFullscreenOrientationListener?.disable()
         inlineFullscreenOrientationListener = null
 
@@ -8881,41 +8880,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 "window.scrollTo(0,0);window.dispatchEvent(new Event('resize'));",
             null
         )
-
-        if (inlineFullscreenHasReachedPhysicalLandscape) {
-            requestedOrientation =
-                android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
-        } else {
-            // Android first rotates the window to landscape. Do not release this orientation
-            // lock from onConfigurationChanged: that callback can fire before the phone sensor
-            // has actually rotated, causing an immediate snap back to portrait.
-            inlineFullscreenOrientationListener =
-                object : android.view.OrientationEventListener(this) {
-                    override fun onOrientationChanged(orientation: Int) {
-                        if (!youtubeInlineFullscreen ||
-                            inlineFullscreenHasReachedPhysicalLandscape ||
-                            orientation == ORIENTATION_UNKNOWN
-                        ) return
-                        val physicallyLandscape =
-                            orientation in 55..125 || orientation in 235..305
-                        if (!physicallyLandscape) return
-
-                        inlineFullscreenHasReachedPhysicalLandscape = true
-                        inlineFullscreenOrientationListener?.disable()
-                        inlineFullscreenOrientationListener = null
-                        requestedOrientation =
-                            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
-                        youtubeInlineWebView?.post {
-                            youtubeInlineWebView?.requestLayout()
-                            youtubeInlineWebView?.invalidate()
-                        }
-                    }
-                }.also { listener ->
-                    if (listener.canDetectOrientation()) listener.enable()
-                }
-            requestedOrientation =
-                android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-        }
+        // Lock the activity to landscape for the entire fullscreen session. Do not
+        // switch back to FULL_SENSOR from a sensor callback: that race caused the
+        // activity to snap back to portrait immediately after the first rotation.
+        requestedOrientation =
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
     }
 
     private fun exitInlineYouTubeFullscreen() {
