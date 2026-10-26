@@ -8744,92 +8744,106 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         )
     }
 
-    private fun inlineYouTubeHtml(videoId: String): String {
-        val safeVideoId = videoId.filter { it.isLetterOrDigit() || it == '_' || it == '-' }
-        return """
-            <!doctype html>
-            <html>
-            <head>
-              <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-              <style>
-                html,body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#000; }
-              #player { width:100%; height:100%; }
-              #player-error { display:none; position:absolute; inset:0; padding:18px; box-sizing:border-box; color:#fff; background:#111; font:14px sans-serif; align-content:center; text-align:center; z-index:10; }
-              </style>
-            </head>
-            <body>
-              <div id="player"></div>
-              <div id="player-error" role="alert"></div>
-              <script>
-                var player = null;
-                function showPlayerError(message) {
-                  var box = document.getElementById('player-error');
-                  if (box) { box.textContent = message; box.style.display = 'grid'; }
+    /**
+     * Keep playback on the official YouTube mobile watch page inside the existing inline
+     * player. The IFrame API can reject individual videos with error 152 when embedding
+     * is disabled by the video owner.
+     */
+    private fun inlineYouTubeMobileUrl(videoId: String): String {
+        val safeVideoId = videoId.filter { it.isLetterOrDigit() || it == '_' || it == '-' }.take(32)
+        return Uri.parse("https://m.youtube.com/watch")
+            .buildUpon()
+            .appendQueryParameter("v", safeVideoId)
+            .appendQueryParameter("autoplay", "1")
+            .appendQueryParameter("playsinline", "1")
+            .build()
+            .toString()
+    }
+
+    /**
+     * Minimize YouTube page chrome and keep the real mobile-site video surface fitted to
+     * the 16:9 WebView viewport. This styles only this embedded view; it does not create
+     * another Activity or move the selected video to an external app.
+     */
+    private fun applyInlineYouTubePageStyle(view: WebView) {
+        view.evaluateJavascript(
+            """
+            (function() {
+              try {
+                var styleId = 'ngocsi-inline-mobile-player-style';
+                var css =
+                  '#masthead-container,ytm-mobile-topbar-renderer,ytm-pivot-bar-renderer,' +
+                  'ytm-app-header,ytm-watch-metadata,ytm-slim-video-metadata-section-renderer,' +
+                  'ytm-video-description-infocontainer-renderer,ytm-comments-entry-point-header-renderer,' +
+                  'ytm-comments-entry-point-teaser-renderer,ytm-comment-section-renderer,' +
+                  'ytm-related-video-renderer,ytm-item-section-renderer,ytm-rich-section-renderer,' +
+                  'ytm-engagement-panel,ytm-engagement-panel-section-list-renderer,ytm-reel-shelf-renderer,' +
+                  'ytm-chip-cloud-renderer,ytm-single-column-watch-next-results-renderer {' +
+                  'display:none!important;} ' +
+                  'html,body,ytm-app {margin:0!important;padding:0!important;width:100%!important;' +
+                  'height:100%!important;min-height:0!important;overflow:hidden!important;background:#000!important;} ' +
+                  'ytm-watch {position:relative!important;display:block!important;top:0!important;left:0!important;' +
+                  'width:100%!important;max-width:100%!important;height:100%!important;min-height:0!important;' +
+                  'margin:0!important;padding:0!important;transform:none!important;} ' +
+                  '.player-container,.player-container.sticky-player,.player-placeholder {' +
+                  'position:relative!important;top:0!important;left:0!important;right:auto!important;bottom:auto!important;' +
+                  'width:100%!important;max-width:100%!important;height:auto!important;min-height:0!important;' +
+                  'aspect-ratio:16/9!important;margin:0!important;padding:0!important;transform:none!important;' +
+                  'overflow:hidden!important;box-sizing:border-box!important;} ' +
+                  'ytm-player,#player-container-id,#player-container,#player {' +
+                  'position:relative!important;top:0!important;left:0!important;right:auto!important;bottom:auto!important;' +
+                  'width:100%!important;max-width:100%!important;height:auto!important;min-height:0!important;' +
+                  'aspect-ratio:16/9!important;margin:0!important;padding:0!important;transform:none!important;' +
+                  'box-sizing:border-box!important;} ' +
+                  '.html5-video-player,#movie_player,.html5-video-container {' +
+                  'position:relative!important;top:0!important;left:0!important;right:auto!important;bottom:auto!important;' +
+                  'width:100%!important;height:100%!important;max-width:100%!important;min-width:0!important;' +
+                  'margin:0!important;transform:none!important;overflow:hidden!important;box-sizing:border-box!important;} ' +
+                  'video.html5-main-video,video {' +
+                  'position:absolute!important;left:0!important;top:0!important;right:auto!important;bottom:auto!important;' +
+                  'width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;' +
+                  'margin:0!important;transform:none!important;object-fit:contain!important;}';
+                var style = document.getElementById(styleId);
+                if (!style) {
+                  style = document.createElement('style');
+                  style.id = styleId;
+                  (document.head || document.documentElement).appendChild(style);
                 }
-                function onYouTubeIframeAPIReady() {
-                  player = new YT.Player('player', {
-                    width: '100%',
-                    height: '100%',
-                    videoId: '$safeVideoId',
-                    playerVars: {
-                      autoplay: 1, playsinline: 1, controls: 1, rel: 0,
-                      enablejsapi: 1, origin: 'https://www.youtube.com'
-                    },
-                    events: {
-                      onReady: function(event) {
-                        try {
-                          var errorBox = document.getElementById('player-error');
-                          if (errorBox) errorBox.style.display = 'none';
-                          event.target.unMute();
-                          event.target.setVolume(100);
-                          event.target.playVideo();
-                        } catch (e) {
-                          showPlayerError('Không thể khởi động trình phát: ' + e.message);
-                        }
-                      },
-                      onError: function(event) {
-                        // YouTube error 101/150/152 means this video cannot play in an embedded player.
-                        // Fall back to the official mobile watch page in this same WebView.
-                        // Error 153 can also be resolved by using the real YouTube page context.
-                        if (event.data === 101 || event.data === 150 ||
-                            event.data === 152 || event.data === 153) {
-                          showPlayerError('Đang chuyển sang trình phát YouTube trong ứng dụng…');
-                          window.setTimeout(function() {
-                            window.location.replace(
-                              'https://m.youtube.com/watch?v=$safeVideoId&autoplay=1&playsinline=1'
-                            );
-                          }, 150);
-                          return;
-                        }
-                        var messages = {
-                          2: 'Mã video không hợp lệ.',
-                          5: 'WebView không giải mã được video HTML5.',
-                          100: 'Video đã bị gỡ hoặc không còn khả dụng.'
-                        };
-                        showPlayerError(messages[event.data] || ('YouTube báo lỗi phát video (' + event.data + ').'));
+                if (style.textContent !== css) style.textContent = css;
+                try {
+                  window.scrollTo(0, 0);
+                  if (document.scrollingElement) {
+                    document.scrollingElement.scrollTop = 0;
+                    document.scrollingElement.scrollLeft = 0;
+                  }
+                } catch (_) {}
+                var videos = document.querySelectorAll('video');
+                Array.prototype.forEach.call(videos, function(video) {
+                  try { video.setAttribute('playsinline', ''); } catch (_) {}
+                });
+                if (!window.__ngocSiInlinePageStyleObserver && document.documentElement) {
+                  window.__ngocSiInlinePageStyleObserver = new MutationObserver(function() {
+                    try {
+                      if (!document.getElementById(styleId)) {
+                        var replacement = document.createElement('style');
+                        replacement.id = styleId;
+                        replacement.textContent = css;
+                        (document.head || document.documentElement).appendChild(replacement);
                       }
-                    }
+                    } catch (_) {}
                   });
+                  window.__ngocSiInlinePageStyleObserver.observe(
+                    document.documentElement, { childList: true, subtree: true }
+                  );
                 }
-                function playInlinePlayer() {
-                  try {
-                    if (player) {
-                      player.unMute();
-                      player.setVolume(100);
-                      player.playVideo();
-                    }
-                  } catch (e) {}
-                }
-                function pauseInlinePlayer() {
-                  try { if (player) player.pauseVideo(); } catch (e) {}
-                }
-                var tag = document.createElement('script');
-                tag.src = 'https://www.youtube.com/iframe_api';
-                document.head.appendChild(tag);
-              </script>
-            </body>
-            </html>
-        """.trimIndent()
+                return 'INLINE_PLAYER_STYLE_APPLIED';
+              } catch (_) {
+                return 'INLINE_PLAYER_STYLE_ERROR';
+              }
+            })();
+            """.trimIndent(),
+            null
+        )
     }
 
     @Composable
@@ -8904,10 +8918,17 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             AndroidView(
                                 factory = { context ->
                                     WebView(context).apply {
-                                        settings.javaScriptEnabled = true
-                                        settings.domStorageEnabled = true
-                                        settings.mediaPlaybackRequiresUserGesture = false
-                                        settings.loadsImagesAutomatically = true
+                                        settings.apply {
+                                            javaScriptEnabled = true
+                                            domStorageEnabled = true
+                                            mediaPlaybackRequiresUserGesture = false
+                                            loadsImagesAutomatically = true
+                                            useWideViewPort = true
+                                            loadWithOverviewMode = false
+                                            setSupportZoom(false)
+                                            builtInZoomControls = false
+                                            displayZoomControls = false
+                                        }
                                         isVerticalScrollBarEnabled = false
                                         isHorizontalScrollBarEnabled = false
                                         setBackgroundColor(android.graphics.Color.BLACK)
@@ -8959,31 +8980,28 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                                 view: WebView?,
                                                 url: String?
                                             ): Boolean = interceptYouTubeWatchLink(view, url)
+
+                                            override fun onPageFinished(view: WebView, url: String) {
+                                                super.onPageFinished(view, url)
+                                                applyInlineYouTubePageStyle(view)
+                                            }
                                         }
                                         webChromeClient = WebChromeClient()
+                                        CookieManager.getInstance().setAcceptCookie(true)
                                         CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                                         tag = inlineTrack.videoId
                                         youtubeInlineWebView = this
-                                        loadDataWithBaseURL(
-                                            "https://www.youtube.com",
-                                            inlineYouTubeHtml(inlineTrack.videoId),
-                                            "text/html",
-                                            "UTF-8",
-                                            null
-                                        )
+                                        // Use the official mobile watch page directly in this same
+                                        // inline WebView. This avoids IFrame embed error 152 and
+                                        // keeps playback inside the red-box player on the YouTube screen.
+                                        loadUrl(inlineYouTubeMobileUrl(inlineTrack.videoId))
                                     }
                                 },
                                 update = { view ->
                                     youtubeInlineWebView = view
                                     if (view.tag != inlineTrack.videoId) {
                                         view.tag = inlineTrack.videoId
-                                        view.loadDataWithBaseURL(
-                                            "https://www.youtube.com",
-                                            inlineYouTubeHtml(inlineTrack.videoId),
-                                            "text/html",
-                                            "UTF-8",
-                                            null
-                                        )
+                                        view.loadUrl(inlineYouTubeMobileUrl(inlineTrack.videoId))
                                     }
                                 },
                                 modifier = Modifier
