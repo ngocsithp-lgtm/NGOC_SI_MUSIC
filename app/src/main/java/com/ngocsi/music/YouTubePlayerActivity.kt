@@ -1253,8 +1253,39 @@ class YouTubePlayerActivity : ComponentActivity() {
             (youtubePlayerState == 1 ||
                 getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
                     .getBoolean("youtube_playback_is_playing", false))
-        enterFullscreen()
-        updateNativeFullscreenButton()
+
+        // Ask YouTube/Chromium for its native fullscreen surface first. This routes through
+        // WebChromeClient.onShowCustomView instead of stretching the inline video DOM node,
+        // which was the likely source of the black surface on this device.
+        val player = webView ?: return
+        player.evaluateJavascript(
+            """(function() {
+                try {
+                    var video = document.querySelector('video.html5-main-video') ||
+                                document.querySelector('video');
+                    if (video && typeof video.requestFullscreen === 'function') {
+                        var result = video.requestFullscreen();
+                        if (result && typeof result.catch === 'function') result.catch(function(){});
+                        return 'REQUESTED';
+                    }
+                    var button = document.querySelector('.ytp-fullscreen-button') ||
+                                 document.querySelector('[aria-label*="full screen" i]') ||
+                                 document.querySelector('[aria-label*="toàn màn hình" i]');
+                    if (button) { button.click(); return 'BUTTON'; }
+                } catch (_) {}
+                return 'UNAVAILABLE';
+            })()""".trimIndent()
+        ) { result ->
+            if (result.orEmpty().contains("UNAVAILABLE") &&
+                customView == null && !fullscreenLayoutActive &&
+                !isFinishing && !isDestroyed
+            ) {
+                // Compatibility fallback for mobile YouTube variants which expose no
+                // requestFullscreen API/control. Keep this path bounded and explicit.
+                enterFullscreen()
+                updateNativeFullscreenButton()
+            }
+        }
     }
 
     /**
@@ -3446,23 +3477,34 @@ class YouTubePlayerActivity : ComponentActivity() {
                     view: View,
                     callback: CustomViewCallback
                 ) {
-                    if (customView != null || fullscreenLayoutActive) {
+                    if (customView != null || isFinishing || isDestroyed) {
                         runCatching { callback.onCustomViewHidden() }
                         return
                     }
 
                     fullscreenEntryPending = false
-                    (view.parent as? ViewGroup)?.removeView(view)
-
-                    // Do not attach Chromium's separate fullscreen surface. Returning the
-                    // callback immediately keeps the original mobile page/media element alive;
-                    // then expand the permanent native WebView host for the same fullscreen view.
                     wasPlayingBeforeFullscreen = !explicitUserPause &&
                         (youtubePlayerState == 1 ||
                             getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
                                 .getBoolean("youtube_playback_is_playing", false))
-                    runCatching { callback.onCustomViewHidden() }
+
+                    // WebChromeClient supplies Chromium's real fullscreen video surface.
+                    // It must remain attached until onHideCustomView; calling
+                    // onCustomViewHidden immediately here dismisses that surface and can
+                    // leave only a black/ silent frame after the viewport changes.
+                    customView = view
+                    customViewCallback = callback
+                    (view.parent as? ViewGroup)?.removeView(view)
                     enterFullscreen()
+                    root.addView(
+                        view,
+                        FrameLayout.LayoutParams(
+                            FrameLayout.LayoutParams.MATCH_PARENT,
+                            FrameLayout.LayoutParams.MATCH_PARENT
+                        )
+                    )
+                    view.bringToFront()
+                    nativeFullscreenButton?.bringToFront()
                     updateNativeFullscreenButton()
                 }
 
