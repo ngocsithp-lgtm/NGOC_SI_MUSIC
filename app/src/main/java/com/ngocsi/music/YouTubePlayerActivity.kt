@@ -54,6 +54,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         const val EXTRA_QUEUE_JSON = "youtube_queue_json"
         const val EXTRA_QUEUE_INDEX = "youtube_queue_index"
         const val EXTRA_AI_ACTION = "youtube_ai_action"
+        const val EXTRA_START_FULLSCREEN = "youtube_start_fullscreen"
     }
 
     private lateinit var root: FrameLayout
@@ -262,6 +263,9 @@ class YouTubePlayerActivity : ComponentActivity() {
     // Selecting/opening a video should start it without requiring a second Play tap.
     // This is consumed once per selected video, never on each configuration change.
     private var autoplayPendingForCurrentVideo = true
+    // Requested only by the inline-frame fullscreen button; launch fullscreen after the
+    // YouTube page has a real media node, without competing with its autoplay startup.
+    private var startFullscreenWhenReady = false
     // Keep a forced landscape request until the handset is physically landscape; otherwise
     // switching to FULL_SENSOR immediately after Android's forced rotation snaps back to portrait.
     private var fullscreenOrientationListener: android.view.OrientationEventListener? = null
@@ -303,6 +307,16 @@ class YouTubePlayerActivity : ComponentActivity() {
                 updatePlaybackButton()
                 restoreSavedPlaybackPosition()
                 startPlaybackPositionSaver()
+                if (startFullscreenWhenReady) {
+                    startFullscreenWhenReady = false
+                    playbackPositionHandler.postDelayed({
+                        if (!isFinishing && !isDestroyed && webView != null &&
+                            youtubePlayerReady && !explicitUserPause
+                        ) {
+                            requestYoutubeFullscreen()
+                        }
+                    }, 850L)
+                }
                 val isRecoveryReload = recoverAfterPageReload
                 // The mobile watch URL already requests autoplay=1, and WebView allows
                 // media playback without a gesture. Do not send a second Play command during
@@ -620,6 +634,9 @@ class YouTubePlayerActivity : ComponentActivity() {
         val restoredQueueJson = savedInstanceState?.getString(EXTRA_QUEUE_JSON)
         parseQueue(restoredQueueJson ?: intent.getStringExtra(EXTRA_QUEUE_JSON))
         pendingAiAction = intent.getStringExtra(EXTRA_AI_ACTION)
+        startFullscreenWhenReady = savedInstanceState?.getBoolean(
+            EXTRA_START_FULLSCREEN, intent.getBooleanExtra(EXTRA_START_FULLSCREEN, false)
+        ) ?: intent.getBooleanExtra(EXTRA_START_FULLSCREEN, false)
         if (queue.isNotEmpty()) {
             queueIndex = queueIndex.coerceIn(0, queue.lastIndex)
             val selected = queue[queueIndex]
@@ -650,6 +667,17 @@ class YouTubePlayerActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        startFullscreenWhenReady = intent.getBooleanExtra(EXTRA_START_FULLSCREEN, false)
+        if (startFullscreenWhenReady && youtubePlayerReady && webView != null) {
+            playbackPositionHandler.postDelayed({
+                if (!isFinishing && !isDestroyed && youtubePlayerReady &&
+                    !explicitUserPause && startFullscreenWhenReady
+                ) {
+                    startFullscreenWhenReady = false
+                    requestYoutubeFullscreen()
+                }
+            }, 650L)
+        }
 
         // A new search result can target this existing Activity because the
         // caller uses SINGLE_TOP/REORDER_TO_FRONT. Update the current queue and
@@ -3817,6 +3845,7 @@ class YouTubePlayerActivity : ComponentActivity() {
 
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putString(EXTRA_VIDEO_ID, videoId)
+        outState.putBoolean(EXTRA_START_FULLSCREEN, startFullscreenWhenReady)
         outState.putString(EXTRA_TITLE, title)
         outState.putString(EXTRA_CHANNEL, channel)
         outState.putInt(EXTRA_QUEUE_INDEX, queueIndex.coerceAtLeast(0))
