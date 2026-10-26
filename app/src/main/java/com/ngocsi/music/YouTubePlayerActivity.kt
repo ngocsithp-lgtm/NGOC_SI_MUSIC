@@ -3214,7 +3214,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                             view.scrollTo(0, 0)
                             view.requestLayout()
                             view.invalidate()
-                            scheduleInlinePlayerLayoutSync()
+                            scheduleInlinePlayerLayoutSync(initialPageLoad = true)
                         }
                     }, 350L)
                 }
@@ -3467,7 +3467,7 @@ class YouTubePlayerActivity : ComponentActivity() {
      * orientation's width. A small, bounded series of layout passes lets root/WebView
      * measurements settle without a recurring timer that races YouTube's compositor.
      */
-    private fun scheduleInlinePlayerLayoutSync() {
+    private fun scheduleInlinePlayerLayoutSync(initialPageLoad: Boolean = false) {
         if (!::root.isInitialized || !::playerContainer.isInitialized) return
         val generation = ++inlineLayoutSyncGeneration
         val sync = object : Runnable {
@@ -3491,47 +3491,51 @@ class YouTubePlayerActivity : ComponentActivity() {
                         isFinishing || isDestroyed || webView == null ||
                         customView != null || isCssFullscreen
                     ) return@post
-                    // Share one normalization path with initial load so scroll offsets,
-                    // translated wrappers and stale landscape width/height cannot diverge.
-                    webView?.let { normalizeInlineYoutubeViewport(it) }
+                    normalizeInlineYoutubeViewport(webView ?: return@post)
                 }
             }
         }
         root.post(sync)
-        root.postDelayed(sync, 120L)
-        root.postDelayed(sync, 360L)
-        root.postDelayed(sync, 700L)
 
-        // Send one DOM viewport notification after native measurements settle. This lets
-        // mobile YouTube recalculate its inline player controls/viewport on portrait return;
-        // the same WebView and HTMLVideoElement remain attached throughout.
-        root.postDelayed({
-            if (generation != inlineLayoutSyncGeneration ||
-                isFinishing || isDestroyed || customView != null || isCssFullscreen
-            ) return@postDelayed
-            val player = webView ?: return@postDelayed
-            player.evaluateJavascript(
-                """
-                (function() {
-                  try {
-                    window.scrollTo(0, 0);
-                    if (typeof window.__ngocSiNormalizePlayerGeometry === 'function') {
-                      window.__ngocSiNormalizePlayerGeometry();
-                    }
-                    if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
-                    window.dispatchEvent(new Event('resize'));
-                    if (window.visualViewport) {
-                      window.visualViewport.dispatchEvent(new Event('resize'));
-                    }
-                    return 'inline-viewport-synced';
-                  } catch (_) {
-                    return 'inline-viewport-sync-failed';
-                  }
-                })();
-                """.trimIndent(),
-                null
-            )
-        }, 420L)
+        // Initial startup already has a freshly loaded mobile YouTube page. Repeated
+        // requestLayout/resize pulses in the first second overlap with media initialization
+        // and can interrupt portrait playback. Use one native measure on initial load only.
+        // Keep bounded delayed passes for actual orientation/fullscreen layout transitions.
+        if (!initialPageLoad) {
+            root.postDelayed(sync, 120L)
+            root.postDelayed(sync, 360L)
+            root.postDelayed(sync, 700L)
+
+            // Notify YouTube of a viewport change only after a real layout transition.
+            // Do not synthesize resize events while the initial stream is starting.
+            root.postDelayed({
+                if (generation != inlineLayoutSyncGeneration ||
+                    isFinishing || isDestroyed || customView != null || isCssFullscreen
+                ) return@postDelayed
+                val player = webView ?: return@postDelayed
+                player.evaluateJavascript(
+                    """
+                    (function() {
+                      try {
+                        window.scrollTo(0, 0);
+                        if (typeof window.__ngocSiNormalizePlayerGeometry === 'function') {
+                          window.__ngocSiNormalizePlayerGeometry();
+                        }
+                        if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
+                        window.dispatchEvent(new Event('resize'));
+                        if (window.visualViewport) {
+                          window.visualViewport.dispatchEvent(new Event('resize'));
+                        }
+                        return 'inline-viewport-synced';
+                      } catch (_) {
+                        return 'inline-viewport-sync-failed';
+                      }
+                    })();
+                    """.trimIndent(),
+                    null
+                )
+            }, 420L)
+        }
     }
 
     /**
