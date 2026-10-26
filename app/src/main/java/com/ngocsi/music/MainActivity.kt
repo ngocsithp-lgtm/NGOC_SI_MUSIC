@@ -8162,9 +8162,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
     }
 
     private fun playYouTube(track: YouTubeTrack) {
-        // Selecting a search result starts it in the card at the top of this same
-        // YouTube page instead of navigating away to YouTubePlayerActivity.
-        // Full-screen/background playback is still available via the expand control.
+        // Always return to the YouTube discovery screen before selecting playback.
+        // This also covers video cards opened from Home, history, favorites, and
+        // Watch Later: playback belongs in the top inline card, not a separate page.
+        selectedSection = "Online"
+        onlineHubTab = "YouTube"
         controller?.pause()
         setYouTubeActiveSource(true)
         youtubeSelectedVideoId = track.videoId
@@ -8821,7 +8823,50 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         isVerticalScrollBarEnabled = false
                                         isHorizontalScrollBarEnabled = false
                                         setBackgroundColor(android.graphics.Color.BLACK)
-                                        webViewClient = WebViewClient()
+                                        webViewClient = object : WebViewClient() {
+                                            private fun interceptYouTubeWatchLink(
+                                                view: WebView?,
+                                                rawUrl: String?
+                                            ): Boolean {
+                                                if (rawUrl.isNullOrBlank()) return false
+                                                val uri = runCatching { Uri.parse(rawUrl) }.getOrNull()
+                                                    ?: return false
+                                                val host = uri.host.orEmpty().lowercase()
+                                                val path = uri.path.orEmpty()
+                                                val isYouTubeHost = host == "youtu.be" ||
+                                                    host == "youtube.com" ||
+                                                    host.endsWith(".youtube.com")
+                                                val isWatchNavigation = path == "/watch" ||
+                                                    path.startsWith("/shorts/") ||
+                                                    path.startsWith("/live/") ||
+                                                    host == "youtu.be"
+                                                if (!isYouTubeHost || !isWatchNavigation) return false
+                                                val videoId = uri.getQueryParameter("v")
+                                                    ?: path.removePrefix("/shorts/")
+                                                        .removePrefix("/live/")
+                                                        .trim('/')
+                                                        .takeIf { host == "youtu.be" || path.startsWith("/shorts/") || path.startsWith("/live/") }
+                                                val safeId = videoId.orEmpty()
+                                                    .filter { it.isLetterOrDigit() || it == '_' || it == '-' }
+                                                if (safeId.isBlank()) return false
+                                                // Keep a YouTube title/shorts link inside this same player.
+                                                view?.evaluateJavascript(
+                                                    "if (window.player && typeof player.loadVideoById === 'function') { player.loadVideoById('$safeId'); }",
+                                                    null
+                                                )
+                                                return true
+                                            }
+
+                                            override fun shouldOverrideUrlLoading(
+                                                view: WebView?,
+                                                request: android.webkit.WebResourceRequest?
+                                            ): Boolean = interceptYouTubeWatchLink(view, request?.url?.toString())
+
+                                            override fun shouldOverrideUrlLoading(
+                                                view: WebView?,
+                                                url: String?
+                                            ): Boolean = interceptYouTubeWatchLink(view, url)
+                                        }
                                         webChromeClient = WebChromeClient()
                                         CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                                         tag = inlineTrack.videoId
