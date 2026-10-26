@@ -75,10 +75,15 @@ class YouTubePlayerActivity : ComponentActivity() {
             // This view is intended to fill the width allocated by the native layout.
             // A non-EXACT/UNSPECIFIED pass must not let WebView's intrinsic content size
             // shrink the player while its height is still calculated from the larger spec.
+            // AT_MOST is only a maximum constraint. On rotation WebView can briefly
+            // report the old larger width while its host has already narrowed; clamp to
+            // the measured host to prevent a right-shift/overflow during that frame.
             val targetWidth = when {
                 widthMode == View.MeasureSpec.EXACTLY && widthFromSpec > 0 -> widthFromSpec
-                widthFromSpec > 0 -> widthFromSpec
+                widthMode == View.MeasureSpec.AT_MOST && widthFromSpec > 0 ->
+                    if (parentWidth > 0) minOf(widthFromSpec, parentWidth) else widthFromSpec
                 parentWidth > 0 -> parentWidth
+                widthFromSpec > 0 -> widthFromSpec
                 else -> resources.displayMetrics.widthPixels
             }.coerceAtLeast(1)
             val exactWidthSpec = View.MeasureSpec.makeMeasureSpec(
@@ -111,15 +116,19 @@ class YouTubePlayerActivity : ComponentActivity() {
             }
 
             val aspectHeight = (targetWidth * 9f / 16f).toInt().coerceAtLeast(1)
-            // Inline landscape is constrained to the app's available height. Portrait keeps
-            // the same 16:9 ratio but now its measured width is guaranteed to fill the host.
+            // Honor the actual parent viewport in landscape. Subtracting a fixed 48dp
+            // here left the WebView shorter than its visible host and made YouTube's
+            // viewport/inset calculations place the picture below and to the side.
             val landscape = resources.configuration.orientation ==
                 android.content.res.Configuration.ORIENTATION_LANDSCAPE
-            val screenHeightPx = (resources.configuration.screenHeightDp *
-                resources.displayMetrics.density).toInt()
-            val availableLandscapeHeight = (screenHeightPx - dp(48)).coerceAtLeast(1)
-            val measuredHeight = if (landscape && screenHeightPx > 0) {
-                minOf(aspectHeight, availableLandscapeHeight)
+            val heightMode = View.MeasureSpec.getMode(heightMeasureSpec)
+            val heightLimit = when {
+                heightMode == View.MeasureSpec.EXACTLY || heightMode == View.MeasureSpec.AT_MOST ->
+                    View.MeasureSpec.getSize(heightMeasureSpec)
+                else -> 0
+            }
+            val measuredHeight = if (landscape && heightLimit > 0) {
+                minOf(aspectHeight, heightLimit)
             } else {
                 aspectHeight
             }
@@ -2749,6 +2758,85 @@ class YouTubePlayerActivity : ComponentActivity() {
                               'video.html5-main-video {width:100%!important;height:100%!important;object-fit:contain!important;}}';
                             (document.head || document.documentElement).appendChild(style);
 
+                            // YouTube mobile can retain a sticky-player offset or an old
+                            // inline margin after the WebView rotates. Normalize the nearest
+                            // player wrapper itself (never the composited <video> surface):
+                            // anchor its measured top-left to the current WebView viewport.
+                            window.__ngocSiNormalizePlayerGeometry = function() {
+                              try {
+                                if (window.__ngocSiFullscreenActive) return 'FULLSCREEN_SKIPPED';
+                                window.scrollTo(0, 0);
+                                if (document.scrollingElement) {
+                                  document.scrollingElement.scrollTop = 0;
+                                  document.scrollingElement.scrollLeft = 0;
+                                }
+                                if (document.documentElement) {
+                                  document.documentElement.scrollTop = 0;
+                                  document.documentElement.scrollLeft = 0;
+                                }
+                                if (document.body) {
+                                  document.body.scrollTop = 0;
+                                  document.body.scrollLeft = 0;
+                                }
+
+                                var videos = Array.prototype.slice.call(document.querySelectorAll('video'));
+                                var video = videos.find(function(v) {
+                                  return v.classList.contains('html5-main-video') && v.isConnected;
+                                }) || videos.find(function(v) { return v.isConnected; }) || null;
+                                var selectors = '.player-placeholder,.player-container,ytm-player,' +
+                                  '#player-container-id,#player-container,#player';
+                                var target = null;
+                                var node = video ? video.parentElement : null;
+                                while (node && node !== document.body &&
+                                       node !== document.documentElement) {
+                                  if (node.matches && node.matches(selectors)) target = node;
+                                  if (node.tagName && node.tagName.toLowerCase() === 'ytm-watch') break;
+                                  node = node.parentElement;
+                                }
+                                if (!target) {
+                                  target = document.querySelector('.player-placeholder') ||
+                                    document.querySelector('.player-container') ||
+                                    document.querySelector('ytm-player') ||
+                                    document.querySelector('#player-container-id') ||
+                                    document.querySelector('#player-container') ||
+                                    document.querySelector('#player');
+                                }
+                                if (!target) return 'PLAYER_WRAPPER_NOT_FOUND';
+
+                                // Undo page-level sticky/fixed positioning and transforms that
+                                // can survive an orientation transition. Keep the wrapper in
+                                // normal flow and correct only the measured offset.
+                                target.style.setProperty('position', 'relative', 'important');
+                                target.style.setProperty('top', 'auto', 'important');
+                                target.style.setProperty('right', 'auto', 'important');
+                                target.style.setProperty('bottom', 'auto', 'important');
+                                target.style.setProperty('left', 'auto', 'important');
+                                target.style.setProperty('transform', 'none', 'important');
+                                target.style.setProperty('width', '100%', 'important');
+                                target.style.setProperty('max-width', '100%', 'important');
+                                target.style.setProperty('min-width', '0', 'important');
+                                target.style.setProperty('box-sizing', 'border-box', 'important');
+
+                                var rect = target.getBoundingClientRect();
+                                var computed = window.getComputedStyle(target);
+                                var marginTop = parseFloat(computed.marginTop) || 0;
+                                var marginLeft = parseFloat(computed.marginLeft) || 0;
+                                if (Math.abs(rect.top) > 1) {
+                                  target.style.setProperty('margin-top',
+                                    (marginTop - rect.top) + 'px', 'important');
+                                }
+                                if (Math.abs(rect.left) > 1) {
+                                  target.style.setProperty('margin-left',
+                                    (marginLeft - rect.left) + 'px', 'important');
+                                }
+                                return 'PLAYER_GEOMETRY|' + Math.round(rect.top) + '|' +
+                                  Math.round(rect.left) + '|' + Math.round(rect.width) + '|' +
+                                  Math.round(rect.height);
+                              } catch (_) {
+                                return 'PLAYER_GEOMETRY_ERROR';
+                              }
+                            };
+
                             function videoVisible(video) {
                               if (!video || !video.isConnected) return false;
                               var rect = video.getBoundingClientRect();
@@ -3255,6 +3343,9 @@ class YouTubePlayerActivity : ComponentActivity() {
                 (function() {
                   try {
                     window.scrollTo(0, 0);
+                    if (typeof window.__ngocSiNormalizePlayerGeometry === 'function') {
+                      window.__ngocSiNormalizePlayerGeometry();
+                    }
                     if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
                     window.dispatchEvent(new Event('resize'));
                     if (window.visualViewport) {
