@@ -2380,7 +2380,8 @@ class YouTubePlayerActivity : ComponentActivity() {
             if (command == "toggle" && (
                     response.contains("requested-api") ||
                         response.contains("requested-button") ||
-                        response.contains("requested-video")
+                        response.contains("requested-video") ||
+                        response.contains("buffering")
                     )
             ) {
                 playbackPositionHandler.postDelayed({
@@ -2425,7 +2426,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                             "PLAYING" -> {
                                 geometryReloadFallbackAttemptedForCurrentPage = false
                             }
-                            "PAUSED", "STALLED" -> {
+                            "BUFFERING", "PAUSED", "STALLED" -> {
                                 // The user's single Play command was accepted, but the video did
                                 // not resume. Don't send another Play into the same frozen node.
                                 // Probe the media clock, then use at most one saved-position reload.
