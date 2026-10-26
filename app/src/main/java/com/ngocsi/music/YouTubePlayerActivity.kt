@@ -3031,22 +3031,33 @@ class YouTubePlayerActivity : ComponentActivity() {
                               'min-height:0!important;max-height:none!important;aspect-ratio:16/9!important;' +
                               'margin:0!important;padding:0!important;box-sizing:border-box!important;} ' +
                               'ytm-player {display:block!important;} ' +
-                              '@media (orientation:landscape) {' +
-                              'html,body,ytm-app,ytm-watch {height:100%!important;min-height:100%!important;} ' +
-                              'ytm-watch {display:block!important;} ' +
-                              '.player-container,.player-placeholder {height:100%!important;max-height:100%!important;' +
-                              'aspect-ratio:auto!important;} ' +
-                              'ytm-player,#player-container-id,#player-container,#player {height:100%!important;' +
-                              'max-height:100%!important;aspect-ratio:auto!important;} ' +
-                              '.html5-video-player,#movie_player,.html5-video-container {position:relative!important;' +
-                              'top:0!important;left:0!important;right:auto!important;bottom:auto!important;' +
-                              'transform:none!important;width:100%!important;height:100%!important;' +
+                              // Full-height rules are activated only by the app-managed fullscreen state.
+                              // Applying them to every landscape viewport made the DOM video taller than
+                              // the inline native 16:9 host during rotation and could blank Chromium's surface.
+                              'html.ngocsi-fullscreen-layout-active,html.ngocsi-fullscreen-layout-active body,' +
+                              'html.ngocsi-fullscreen-layout-active ytm-app,html.ngocsi-fullscreen-layout-active ytm-watch {' +
+                              'height:100%!important;min-height:100%!important;} ' +
+                              'html.ngocsi-fullscreen-layout-active ytm-watch {display:block!important;} ' +
+                              'html.ngocsi-fullscreen-layout-active .player-container,' +
+                              'html.ngocsi-fullscreen-layout-active .player-placeholder {' +
+                              'height:100%!important;max-height:100%!important;aspect-ratio:auto!important;} ' +
+                              'html.ngocsi-fullscreen-layout-active ytm-player,' +
+                              'html.ngocsi-fullscreen-layout-active #player-container-id,' +
+                              'html.ngocsi-fullscreen-layout-active #player-container,' +
+                              'html.ngocsi-fullscreen-layout-active #player {' +
+                              'height:100%!important;max-height:100%!important;aspect-ratio:auto!important;} ' +
+                              'html.ngocsi-fullscreen-layout-active .html5-video-player,' +
+                              'html.ngocsi-fullscreen-layout-active #movie_player,' +
+                              'html.ngocsi-fullscreen-layout-active .html5-video-container {' +
+                              'position:relative!important;top:0!important;left:0!important;right:auto!important;' +
+                              'bottom:auto!important;transform:none!important;width:100%!important;height:100%!important;' +
                               'max-width:100vw!important;max-height:100vh!important;min-width:0!important;' +
                               'margin:0!important;box-sizing:border-box!important;overflow:hidden!important;} ' +
-                              'video.html5-main-video {position:absolute!important;left:0!important;top:0!important;' +
-                              'right:auto!important;bottom:auto!important;margin:0!important;transform:none!important;' +
-                              'width:100%!important;height:100%!important;max-width:100vw!important;' +
-                              'max-height:100vh!important;min-width:0!important;object-fit:contain!important;}}';
+                              'html.ngocsi-fullscreen-layout-active video.html5-main-video {' +
+                              'position:absolute!important;left:0!important;top:0!important;right:auto!important;' +
+                              'bottom:0!important;margin:0!important;transform:none!important;width:100%!important;' +
+                              'height:100%!important;max-width:100vw!important;max-height:100vh!important;' +
+                              'min-width:0!important;object-fit:contain!important;}';
                             (document.head || document.documentElement).appendChild(style);
 
                             // Reset stale sticky positioning at every wrapper level after
@@ -4050,6 +4061,12 @@ class YouTubePlayerActivity : ComponentActivity() {
         // The existing WebView stays attached; only sibling UI is hidden so the player
         // receives the full activity viewport rather than the space below the header/actions.
         setFullscreenLayout(true)
+        // Match the DOM's full-height mode to the app-managed fullscreen state. Do not rely
+        // on CSS @media(orientation:landscape): ordinary landscape playback remains 16:9.
+        webView?.evaluateJavascript(
+            "(function(){if(document.documentElement)document.documentElement.classList.add('ngocsi-fullscreen-layout-active');window.__ngocSiFullscreenActive=true;return 'fullscreen-layout-active';})()",
+            null
+        )
         monitorPhysicalOrientationDuringFullscreen()
         // Always lock display orientation during the forced transition. The sensor listener
         // separately detects when the handset physically turns back to portrait and exits this
@@ -4243,6 +4260,10 @@ class YouTubePlayerActivity : ComponentActivity() {
                 (function() {
                   var style = document.getElementById('ngocsi-css-fullscreen');
                   if (style) style.remove();
+                  if (document.documentElement) {
+                    document.documentElement.classList.remove('ngocsi-fullscreen-layout-active');
+                  }
+                  window.__ngocSiFullscreenActive = false;
                   document.documentElement.style.removeProperty('width');
                   document.documentElement.style.removeProperty('height');
                   if (document.body) {
@@ -4280,7 +4301,21 @@ class YouTubePlayerActivity : ComponentActivity() {
             return
         }
 
-        finishExitLayout()
+        // Remove the explicit fullscreen DOM mode before changing Android back to portrait.
+        // Wait for JavaScript to apply the class removal, then restore the native 16:9 host.
+        val player = webView
+        if (player == null) {
+            finishExitLayout()
+            return
+        }
+        player.evaluateJavascript(
+            "(function(){if(document.documentElement)document.documentElement.classList.remove('ngocsi-fullscreen-layout-active');window.__ngocSiFullscreenActive=false;return 'inline-layout-restored';})()"
+        ) {
+            if (exitGeneration != fullscreenExitGeneration || isFinishing || isDestroyed) {
+                return@evaluateJavascript
+            }
+            finishExitLayout()
+        }
     }
 
     /**
