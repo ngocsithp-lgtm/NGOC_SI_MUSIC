@@ -807,7 +807,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT,
-                Gravity.TOP or Gravity.START
+                Gravity.TOP or Gravity.CENTER_HORIZONTAL
             )
         )
         playerVideoHost = videoHost
@@ -1026,6 +1026,13 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
 
         landscapePlayerLayoutActive = shouldUseLandscape
+        // Keep the inline player centered in its full-width host. WebView may retain a stale
+        // START gravity/old measured width after rotation, making the portrait video appear
+        // shifted to the right even though the parent itself spans the screen.
+        (playerContainer.layoutParams as? FrameLayout.LayoutParams)?.let { playerParams ->
+            playerParams.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            playerContainer.layoutParams = playerParams
+        }
         root.requestLayout()
         root.invalidate()
         content.requestLayout()
