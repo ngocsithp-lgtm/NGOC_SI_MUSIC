@@ -2060,14 +2060,10 @@ class YouTubePlayerActivity : ComponentActivity() {
         // Reserve this heavier recovery for fullscreen or a confirmed orientation handoff;
         // normal portrait playback must remain passive.
         val inFullscreen = customView != null || isCssFullscreen || fullscreenLayoutActive
-        val inOrientationTransition =
-            fullscreenExitTransitionInProgress ||
-                fullscreenExitRecoveryPending ||
-                pendingFullscreenExitGeometryCheck != null ||
-                now <= physicalOrientationNormalizationUntilMs ||
-                (lastOrientationConfigurationChangeAtMs > 0L &&
-                    now - lastOrientationConfigurationChangeAtMs in 0L..5000L)
-        if (!inFullscreen && !inOrientationTransition) return
+        // Inline/portrait playback is intentionally excluded. Physical orientation changes
+        // already have their own single recovery owner; letting this frame watchdog start a
+        // second recovery after a transient configuration callback can interrupt the stream.
+        if (!inFullscreen) return
 
         val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
         if (!prefs.getBoolean("youtube_player_foreground", true) ||
