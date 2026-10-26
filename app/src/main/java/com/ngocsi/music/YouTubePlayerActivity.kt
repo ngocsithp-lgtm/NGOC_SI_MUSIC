@@ -2426,7 +2426,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                             "PLAYING" -> {
                                 geometryReloadFallbackAttemptedForCurrentPage = false
                             }
-                            "BUFFERING", "PAUSED", "STALLED" -> {
+                            "NO_VIDEO", "BUFFERING", "PAUSED", "STALLED" -> {
                                 // The user's single Play command was accepted, but the video did
                                 // not resume. Don't send another Play into the same frozen node.
                                 // Probe the media clock, then use at most one saved-position reload.
