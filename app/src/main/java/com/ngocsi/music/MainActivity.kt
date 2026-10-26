@@ -8746,6 +8746,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                           100: 'Video đã bị gỡ hoặc không còn khả dụng.',
                           101: 'Chủ video không cho phép phát nhúng.',
                           150: 'Chủ video không cho phép phát nhúng.',
+                          152: 'Video này bị YouTube chặn phát trong trình phát nhúng. Hãy thử video khác hoặc mở video trên YouTube.',
                           153: 'YouTube không nhận được thông tin nguồn phát hợp lệ.'
                         };
                         showPlayerError(messages[event.data] || ('YouTube báo lỗi phát video (' + event.data + ').'));
