@@ -71,6 +71,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.MediaItem
@@ -343,8 +344,44 @@ class MainActivity : ComponentActivity() {
     private var youtubeInlineTrack by mutableStateOf<YouTubeTrack?>(null)
     private var youtubeInlineOpenGeneration by mutableIntStateOf(0)
     private var youtubeInlineWebView: WebView? = null
-    // True only while playback is temporarily handed to the proven full player for fullscreen/background use.
-    private var resumeInlineAfterDedicatedPlayer = false
+    // Fullscreen/background stay attached to this WebView, not a second player screen.
+    private var youtubeInlineFullscreen by mutableStateOf(false)
+    private var inlineBackgroundPlaybackEnabled = false
+    private var inlineBackgroundServiceStarted = false
+    private var inlineBackgroundReceiverRegistered = false
+    private var inlineConfigurationVersion by mutableIntStateOf(0)
+
+    private inner class InlineBackgroundAudioWebView(context: android.content.Context) : WebView(context) {
+        override fun onWindowVisibilityChanged(visibility: Int) {
+            if (inlineBackgroundPlaybackEnabled) {
+                if (visibility != android.view.View.GONE) {
+                    super.onWindowVisibilityChanged(android.view.View.VISIBLE)
+                }
+                return
+            }
+            super.onWindowVisibilityChanged(visibility)
+        }
+    }
+
+    private val inlineYouTubeBackgroundControlReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context?, intent: Intent?) {
+            if (intent?.action != YouTubeBackgroundService.ACTION_CONTROL) return
+            when (intent.getStringExtra(YouTubeBackgroundService.EXTRA_CONTROL)) {
+                "play" -> {
+                    playInlineYouTubeWebView()
+                    youtubePlaybackIsPlaying = true
+                    prefs.edit().putBoolean("youtube_playback_is_playing", true).apply()
+                }
+                "pause" -> {
+                    pauseInlineYouTubeWebView()
+                    youtubePlaybackIsPlaying = false
+                    prefs.edit().putBoolean("youtube_playback_is_playing", false).apply()
+                }
+                "next", "tiếp", "bài tiếp" -> playStoredYouTubeOffset(1)
+                "previous", "prev", "bài trước" -> playStoredYouTubeOffset(-1)
+            }
+        }
+    }
     private var youtubeLastQueueJson by mutableStateOf<String?>(null)
     private var youtubeLastQueueIndex by mutableIntStateOf(0)
     private var onlineUrl by mutableStateOf("")
@@ -687,6 +724,15 @@ class MainActivity : ComponentActivity() {
         // The UI is attached early so startup never appears as a blank window while
         // library/Drive state is being restored in the background.
         prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+        inlineBackgroundPlaybackEnabled =
+            prefs.getBoolean("youtube_background_playback_enabled", false)
+        ContextCompat.registerReceiver(
+            this,
+            inlineYouTubeBackgroundControlReceiver,
+            android.content.IntentFilter(YouTubeBackgroundService.ACTION_CONTROL),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+        inlineBackgroundReceiverRegistered = true
         // Restore selected playback engine and its matching YouTube item after
         // Activity/process recreation. Without loading the persisted track here,
         // the compact player's click can fall through to local Media3 playback.
@@ -4574,6 +4620,10 @@ class MainActivity : ComponentActivity() {
         artworkPrefetchJob = null
         speechRecognizer?.destroy()
         speechRecognizer = null
+        if (inlineBackgroundReceiverRegistered) {
+            runCatching { unregisterReceiver(inlineYouTubeBackgroundControlReceiver) }
+            inlineBackgroundReceiverRegistered = false
+        }
         sleepTimerJob?.cancel()
         sleepTimerJob = null
         savePlaybackState()
