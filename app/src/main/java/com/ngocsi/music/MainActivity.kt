@@ -8766,6 +8766,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
      * another Activity or move the selected video to an external app.
      */
     private fun applyInlineYouTubePageStyle(view: WebView) {
+        // Important: do not override the dimensions, position, transform, or overflow of
+        // YouTube's actual HTML5 player/video nodes. Earlier forced CSS sizing caused the
+        // audio to continue while the video compositor rendered a black frame.
+        // The native AndroidView already constrains this WebView to a 16:9 viewport;
+        // let YouTube's own mobile player calculate its video surface in that viewport.
         view.evaluateJavascript(
             """
             (function() {
@@ -8776,33 +8781,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   'ytm-app-header,ytm-watch-metadata,ytm-slim-video-metadata-section-renderer,' +
                   'ytm-video-description-infocontainer-renderer,ytm-comments-entry-point-header-renderer,' +
                   'ytm-comments-entry-point-teaser-renderer,ytm-comment-section-renderer,' +
-                  'ytm-related-video-renderer,ytm-item-section-renderer,ytm-rich-section-renderer,' +
-                  'ytm-engagement-panel,ytm-engagement-panel-section-list-renderer,ytm-reel-shelf-renderer,' +
-                  'ytm-chip-cloud-renderer,ytm-single-column-watch-next-results-renderer {' +
+                  'ytm-comment-thread-renderer,ytm-comment-renderer,ytm-related-video-renderer,' +
+                  'ytm-rich-section-renderer,ytm-engagement-panel,ytm-engagement-panel-section-list-renderer,' +
+                  'ytm-reel-shelf-renderer,ytm-chip-cloud-renderer,ytm-single-column-watch-next-results-renderer {' +
                   'display:none!important;} ' +
-                  'html,body,ytm-app {margin:0!important;padding:0!important;width:100%!important;' +
-                  'height:100%!important;min-height:0!important;overflow:hidden!important;background:#000!important;} ' +
-                  'ytm-watch {position:relative!important;display:block!important;top:0!important;left:0!important;' +
-                  'width:100%!important;max-width:100%!important;height:100%!important;min-height:0!important;' +
-                  'margin:0!important;padding:0!important;transform:none!important;} ' +
-                  '.player-container,.player-container.sticky-player,.player-placeholder {' +
-                  'position:relative!important;top:0!important;left:0!important;right:auto!important;bottom:auto!important;' +
-                  'width:100%!important;max-width:100%!important;height:auto!important;min-height:0!important;' +
-                  'aspect-ratio:16/9!important;margin:0!important;padding:0!important;transform:none!important;' +
-                  'overflow:hidden!important;box-sizing:border-box!important;} ' +
-                  'ytm-player,#player-container-id,#player-container,#player {' +
-                  'position:relative!important;top:0!important;left:0!important;right:auto!important;bottom:auto!important;' +
-                  'width:100%!important;max-width:100%!important;height:auto!important;min-height:0!important;' +
-                  'aspect-ratio:16/9!important;margin:0!important;padding:0!important;transform:none!important;' +
-                  'box-sizing:border-box!important;} ' +
-                  '.html5-video-player,#movie_player,.html5-video-container {' +
-                  'position:relative!important;top:0!important;left:0!important;right:auto!important;bottom:auto!important;' +
-                  'width:100%!important;height:100%!important;max-width:100%!important;min-width:0!important;' +
-                  'margin:0!important;transform:none!important;overflow:hidden!important;box-sizing:border-box!important;} ' +
-                  'video.html5-main-video,video {' +
-                  'position:absolute!important;left:0!important;top:0!important;right:auto!important;bottom:auto!important;' +
-                  'width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;' +
-                  'margin:0!important;transform:none!important;object-fit:contain!important;}';
+                  'body { background:#000!important; }';
                 var style = document.getElementById(styleId);
                 if (!style) {
                   style = document.createElement('style');
@@ -8810,33 +8793,9 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   (document.head || document.documentElement).appendChild(style);
                 }
                 if (style.textContent !== css) style.textContent = css;
-                try {
-                  window.scrollTo(0, 0);
-                  if (document.scrollingElement) {
-                    document.scrollingElement.scrollTop = 0;
-                    document.scrollingElement.scrollLeft = 0;
-                  }
-                } catch (_) {}
-                var videos = document.querySelectorAll('video');
-                Array.prototype.forEach.call(videos, function(video) {
-                  try { video.setAttribute('playsinline', ''); } catch (_) {}
-                });
-                if (!window.__ngocSiInlinePageStyleObserver && document.documentElement) {
-                  window.__ngocSiInlinePageStyleObserver = new MutationObserver(function() {
-                    try {
-                      if (!document.getElementById(styleId)) {
-                        var replacement = document.createElement('style');
-                        replacement.id = styleId;
-                        replacement.textContent = css;
-                        (document.head || document.documentElement).appendChild(replacement);
-                      }
-                    } catch (_) {}
-                  });
-                  window.__ngocSiInlinePageStyleObserver.observe(
-                    document.documentElement, { childList: true, subtree: true }
-                  );
-                }
-                return 'INLINE_PLAYER_STYLE_APPLIED';
+                // Return the page to the top without changing the player surface's layout.
+                try { window.scrollTo(0, 0); } catch (_) {}
+                return 'INLINE_PLAYER_CHROME_HIDDEN';
               } catch (_) {
                 return 'INLINE_PLAYER_STYLE_ERROR';
               }
