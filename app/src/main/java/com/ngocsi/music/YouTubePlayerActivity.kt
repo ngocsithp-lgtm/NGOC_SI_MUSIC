@@ -2473,7 +2473,8 @@ class YouTubePlayerActivity : ComponentActivity() {
                         """.trimIndent()
                         webView?.evaluateJavascript(verifyScript) verifyPlaybackCallback@{ verifyResult ->
                             if (requestGeneration != playbackRequestGeneration ||
-                                isFinishing || isDestroyed || fullscreenExitRecoveryPending ||
+                                explicitUserPause || isFinishing || isDestroyed ||
+                                fullscreenExitRecoveryPending ||
                                 pendingFullscreenExitGeometryCheck != null
                             ) return@verifyPlaybackCallback
 
@@ -2481,9 +2482,24 @@ class YouTubePlayerActivity : ComponentActivity() {
                             if (mediaStatus == "PLAYING") {
                                 // The real-time JS probe confirmed playback recovered.
                                 geometryReloadFallbackAttemptedForCurrentPage = false
-                            }
-                            if (mediaStatus == "PAUSED" || mediaStatus == "STALLED") {
-                                // Recovery from a Play tap must keep the current page/media node.
+                            } else if (mediaStatus == "PAUSED" && remaining > 0) {
+                                // YouTube's mobile page can acknowledge playVideo() before its
+                                // HTML5 media element actually starts. A single "accepted" result
+                                // must not end startup recovery while the poster image is still
+                                // visible. Retry the same bounded request sequence only while the
+                                // current request is valid and the user has not explicitly paused.
+                                playbackPositionHandler.postDelayed({
+                                    if (requestGeneration == playbackRequestGeneration &&
+                                        !explicitUserPause && !isFinishing && !isDestroyed &&
+                                        webView != null && youtubePlayerReady &&
+                                        !fullscreenExitRecoveryPending &&
+                                        pendingFullscreenExitGeometryCheck == null
+                                    ) {
+                                        attempt(remaining - 1)
+                                    }
+                                }, 500L)
+                            } else if (mediaStatus == "PAUSED" || mediaStatus == "STALLED") {
+                                // Final bounded fallback keeps the current page/media node.
                                 recoverFullscreenPlayback(
                                     allowPageReloadFallback = false,
                                     allowFrameReloadFallback = false
