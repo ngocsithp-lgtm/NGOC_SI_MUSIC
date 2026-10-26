@@ -8864,6 +8864,12 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             return
         }
         youtubeInlineFullscreen = true
+        inlineFullscreenHasReachedPhysicalLandscape =
+            resources.configuration.orientation ==
+                android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        inlineFullscreenOrientationListener?.disable()
+        inlineFullscreenOrientationListener = null
+
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).apply {
             systemBarsBehavior =
@@ -8875,18 +8881,49 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 "window.scrollTo(0,0);window.dispatchEvent(new Event('resize'));",
             null
         )
-        requestedOrientation = if (resources.configuration.orientation ==
-            android.content.res.Configuration.ORIENTATION_LANDSCAPE
-        ) {
-            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+
+        if (inlineFullscreenHasReachedPhysicalLandscape) {
+            requestedOrientation =
+                android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
         } else {
-            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            // Android first rotates the window to landscape. Do not release this orientation
+            // lock from onConfigurationChanged: that callback can fire before the phone sensor
+            // has actually rotated, causing an immediate snap back to portrait.
+            inlineFullscreenOrientationListener =
+                object : android.view.OrientationEventListener(this) {
+                    override fun onOrientationChanged(orientation: Int) {
+                        if (!youtubeInlineFullscreen ||
+                            inlineFullscreenHasReachedPhysicalLandscape ||
+                            orientation == ORIENTATION_UNKNOWN
+                        ) return
+                        val physicallyLandscape =
+                            orientation in 55..125 || orientation in 235..305
+                        if (!physicallyLandscape) return
+
+                        inlineFullscreenHasReachedPhysicalLandscape = true
+                        inlineFullscreenOrientationListener?.disable()
+                        inlineFullscreenOrientationListener = null
+                        requestedOrientation =
+                            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+                        youtubeInlineWebView?.post {
+                            youtubeInlineWebView?.requestLayout()
+                            youtubeInlineWebView?.invalidate()
+                        }
+                    }
+                }.also { listener ->
+                    if (listener.canDetectOrientation()) listener.enable()
+                }
+            requestedOrientation =
+                android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         }
     }
 
     private fun exitInlineYouTubeFullscreen() {
         if (!youtubeInlineFullscreen) return
         youtubeInlineFullscreen = false
+        inlineFullscreenOrientationListener?.disable()
+        inlineFullscreenOrientationListener = null
+        inlineFullscreenHasReachedPhysicalLandscape = false
         WindowInsetsControllerCompat(window, window.decorView)
             .show(WindowInsetsCompat.Type.systemBars())
         WindowCompat.setDecorFitsSystemWindows(window, true)
