@@ -8285,6 +8285,9 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         }
         // Reveal the inline player even when the user selects a result far down the list.
         youtubeInlineOpenGeneration++
+        if (inlineBackgroundPlaybackEnabled) {
+            updateInlineYouTubeBackgroundService(track, isPlaying = true)
+        }
     }
 
     private fun toggleYouTubeWatchLater(track: YouTubeTrack) {
@@ -8851,43 +8854,118 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
      * native player Activity, which owns Android fullscreen rotation and foreground media
      * service lifecycle. Ordinary search-result taps still stay in the inline frame.
      */
-    private fun openDedicatedYouTubePlayer(
-        track: YouTubeTrack,
-        startFullscreen: Boolean,
-        enableBackground: Boolean
-    ) {
-        val (queueJson, selectedIndex) = buildYouTubeQueueJson(track)
-        saveYouTubeLastPlayed(track, queueJson, selectedIndex)
-        resumeInlineAfterDedicatedPlayer = true
+    private fun enterInlineYouTubeFullscreen() {
+        if (youtubeInlineTrack == null || youtubeInlineWebView == null) {
+            errorMessage = "Chưa có video YouTube đang mở trong khung phát."
+            return
+        }
+        youtubeInlineFullscreen = true
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        WindowInsetsControllerCompat(window, window.decorView).apply {
+            systemBarsBehavior =
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            hide(WindowInsetsCompat.Type.systemBars())
+        }
+        youtubeInlineWebView?.evaluateJavascript(
+            "document.documentElement.classList.add('ngocsi-inline-fullscreen');" +
+                "window.scrollTo(0,0);window.dispatchEvent(new Event('resize'));",
+            null
+        )
+        requestedOrientation = if (resources.configuration.orientation ==
+            android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        ) {
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+        } else {
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        }
+    }
 
-        pauseInlineYouTubeWebView {
-            if (isFinishing || isDestroyed) return@pauseInlineYouTubeWebView
-            prefs.edit()
-                .putBoolean("youtube_active_source", true)
-                .putBoolean("youtube_playback_is_playing", true)
-                .apply()
-            if (enableBackground) {
-                prefs.edit()
-                    .putBoolean("youtube_background_playback_enabled", true)
-                    .putBoolean("youtube_player_foreground", true)
-                    .apply()
-            }
-            val intent = Intent(this, YouTubePlayerActivity::class.java).apply {
-                putExtra(YouTubePlayerActivity.EXTRA_VIDEO_ID, track.videoId)
-                putExtra(YouTubePlayerActivity.EXTRA_TITLE, track.title)
-                putExtra(YouTubePlayerActivity.EXTRA_CHANNEL, track.channelTitle)
-                putExtra(YouTubePlayerActivity.EXTRA_QUEUE_JSON, queueJson)
-                putExtra(YouTubePlayerActivity.EXTRA_QUEUE_INDEX, selectedIndex)
-                putExtra(YouTubePlayerActivity.EXTRA_START_FULLSCREEN, startFullscreen)
-                addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            }
+    private fun exitInlineYouTubeFullscreen() {
+        if (!youtubeInlineFullscreen) return
+        youtubeInlineFullscreen = false
+        WindowInsetsControllerCompat(window, window.decorView)
+            .show(WindowInsetsCompat.Type.systemBars())
+        WindowCompat.setDecorFitsSystemWindows(window, true)
+        requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+        youtubeInlineWebView?.let { view ->
+            view.evaluateJavascript(
+                "document.documentElement.classList.remove('ngocsi-inline-fullscreen');" +
+                    "window.scrollTo(0,0);window.dispatchEvent(new Event('resize'));",
+                null
+            )
+            view.requestLayout()
+            view.invalidate()
+        }
+    }
+
+    private fun enableInlineYouTubeBackground() {
+        val track = youtubeInlineTrack
+        val view = youtubeInlineWebView
+        if (track == null || view == null) {
+            errorMessage = "Hãy chọn và mở video YouTube trước khi bật phát nền."
+            return
+        }
+        inlineBackgroundPlaybackEnabled = true
+        youtubeIsActiveSource = true
+        youtubePlaybackIsPlaying = true
+        prefs.edit()
+            .putBoolean("youtube_background_playback_enabled", true)
+            .putBoolean("youtube_active_source", true)
+            .putBoolean("youtube_playback_is_playing", true)
+            .apply()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             runCatching {
-                startActivity(intent)
-            }.onFailure {
-                resumeInlineAfterDedicatedPlayer = false
-                playInlineYouTubeWebView()
-                errorMessage = "Không mở được trình phát YouTube toàn màn hình."
+                view.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false)
             }
+        }
+        // Keep the current media element; do not navigate/reload and do not issue another play().
+        view.evaluateJavascript(
+            """
+            (function() {
+              try {
+                var v = document.querySelector('video.html5-main-video') ||
+                        document.querySelector('video');
+                if (v) {
+                  v.defaultMuted = false;
+                  v.muted = false;
+                  v.volume = 1;
+                }
+                return 'INLINE_BACKGROUND_ENABLED';
+              } catch (_) { return 'INLINE_BACKGROUND_ENABLE_FAILED'; }
+            })();
+            """.trimIndent(),
+            null
+        )
+        updateInlineYouTubeBackgroundService(track, isPlaying = true)
+        errorMessage = "Đã bật phát nền YouTube. Video vẫn giữ nguyên trong khung này."
+    }
+
+    private fun updateInlineYouTubeBackgroundService(
+        track: YouTubeTrack,
+        isPlaying: Boolean
+    ) {
+        if (!inlineBackgroundPlaybackEnabled || isFinishing || isDestroyed) return
+        val (queueJson, queueIndex) = buildYouTubeQueueJson(track)
+        val serviceIntent = Intent(this, YouTubeBackgroundService::class.java).apply {
+            action = YouTubeBackgroundService.ACTION_UPDATE
+            putExtra(YouTubeBackgroundService.EXTRA_VIDEO_ID, track.videoId)
+            putExtra(YouTubeBackgroundService.EXTRA_TITLE, track.title)
+            putExtra(YouTubeBackgroundService.EXTRA_CHANNEL, track.channelTitle)
+            putExtra(YouTubeBackgroundService.EXTRA_QUEUE_JSON, queueJson)
+            putExtra(YouTubeBackgroundService.EXTRA_QUEUE_INDEX, queueIndex)
+            putExtra(YouTubeBackgroundService.EXTRA_PLAYER_STATE, if (isPlaying) 1 else 2)
+            putExtra(YouTubeBackgroundService.EXTRA_IS_PLAYING, isPlaying)
+        }
+        runCatching {
+            if (inlineBackgroundServiceStarted) {
+                startService(serviceIntent)
+            } else {
+                ContextCompat.startForegroundService(this, serviceIntent)
+                inlineBackgroundServiceStarted = true
+            }
+        }.onFailure {
+            errorMessage = "Không bật được dịch vụ phát nền YouTube: " +
+                (it.message ?: "hãy kiểm tra quyền thông báo")
         }
     }
 
@@ -8948,7 +9026,29 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   'bottom:auto!important;transform:none!important;width:100%!important;max-width:100%!important;' +
                   'height:auto!important;min-height:0!important;max-height:none!important;aspect-ratio:16/9!important;' +
                   'margin:0!important;padding:0!important;box-sizing:border-box!important;} ' +
-                  'ytm-player {display:block!important;}';
+                  'ytm-player {display:block!important;} ' +
+                  'html.ngocsi-inline-fullscreen,html.ngocsi-inline-fullscreen body,' +
+                  'html.ngocsi-inline-fullscreen ytm-app,html.ngocsi-inline-fullscreen ytm-watch {' +
+                  'height:100%!important;min-height:100%!important;} ' +
+                  'html.ngocsi-inline-fullscreen ytm-watch,' +
+                  'html.ngocsi-inline-fullscreen .player-container,' +
+                  'html.ngocsi-inline-fullscreen .player-placeholder,' +
+                  'html.ngocsi-inline-fullscreen ytm-player,' +
+                  'html.ngocsi-inline-fullscreen #player-container-id,' +
+                  'html.ngocsi-inline-fullscreen #player-container,' +
+                  'html.ngocsi-inline-fullscreen #player {' +
+                  'height:100%!important;max-height:100%!important;aspect-ratio:auto!important;} ' +
+                  'html.ngocsi-inline-fullscreen .html5-video-player,' +
+                  'html.ngocsi-inline-fullscreen #movie_player,' +
+                  'html.ngocsi-inline-fullscreen .html5-video-container {' +
+                  'position:relative!important;top:0!important;left:0!important;' +
+                  'width:100%!important;height:100%!important;max-width:100vw!important;' +
+                  'max-height:100vh!important;min-width:0!important;overflow:hidden!important;} ' +
+                  'html.ngocsi-inline-fullscreen video.html5-main-video {' +
+                  'position:absolute!important;left:0!important;top:0!important;right:auto!important;' +
+                  'bottom:auto!important;margin:0!important;transform:none!important;width:100%!important;' +
+                  'height:100%!important;max-width:100vw!important;max-height:100vh!important;' +
+                  'min-width:0!important;object-fit:contain!important;}';
                 var style = document.getElementById(styleId);
                 if (!style) {
                   style = document.createElement('style');
