@@ -475,7 +475,6 @@ class YouTubePlayerActivity : ComponentActivity() {
                     // State 1 is reported only after the JS media clock advances. A
                     // confirmed healthy playback re-arms bounded recovery for a later stall.
                     geometryReloadFallbackAttemptedForCurrentPage = false
-                    lastUnexpectedPlaybackRecoveryAtMs = 0L
                     explicitUserPause = false
                     orientationPlaybackRecoveryGeneration++
                     backgroundPlaybackRecoveryGeneration++
@@ -1688,6 +1687,9 @@ class YouTubePlayerActivity : ComponentActivity() {
                     selected
                 }
                 videoId = target.videoId
+                // A newly selected queue item gets its own single recovery budget.
+                unexpectedPlaybackRecoveryGeneration++
+                lastUnexpectedPlaybackRecoveryAtMs = 0L
                 title = target.title
                 channel = target.channelTitle
                 restoredPositionVideoId = null
@@ -2501,10 +2503,10 @@ class YouTubePlayerActivity : ComponentActivity() {
                 System.currentTimeMillis() <= physicalOrientationNormalizationUntilMs
             ) return@postDelayed
 
-            val now = System.currentTimeMillis()
-            if (lastUnexpectedPlaybackRecoveryAtMs > 0L &&
-                now - lastUnexpectedPlaybackRecoveryAtMs < 10_000L
-            ) return@postDelayed
+            // A recovery is allowed only once for the currently selected video.
+            // Clearing this cooldown as soon as state becomes PLAYING causes a retry loop:
+            // each short pause reissues Play and produces the very stutter we are avoiding.
+            if (lastUnexpectedPlaybackRecoveryAtMs > 0L) return@postDelayed
 
             val player = webView ?: return@postDelayed
             val verifyScript = """
@@ -2795,6 +2797,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
     private fun createPlayer() {
         unexpectedPlaybackRecoveryGeneration++
+        lastUnexpectedPlaybackRecoveryAtMs = 0L
         removePlayer()
         autoplayPendingForCurrentVideo = true
         geometryReloadFallbackAttemptedForCurrentPage = false
