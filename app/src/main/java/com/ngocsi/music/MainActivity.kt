@@ -8406,6 +8406,14 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         // Keep every in-app entry point on the inline YouTube card. Do not launch
         // YouTubePlayerActivity from the compact player or AI play command.
         when (aiAction?.lowercase()) {
+            "next", "tiếp", "bài tiếp" -> {
+                playStoredYouTubeOffset(1)
+                return
+            }
+            "previous", "prev", "lùi", "bài trước" -> {
+                playStoredYouTubeOffset(-1)
+                return
+            }
             "pause", "tạm dừng", "dừng" -> {
                 youtubeInlineWebView?.evaluateJavascript("pauseInlinePlayer();", null)
                 youtubePlaybackIsPlaying = false
