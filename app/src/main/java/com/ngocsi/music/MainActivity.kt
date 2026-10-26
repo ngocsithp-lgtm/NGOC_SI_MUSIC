@@ -33,6 +33,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
@@ -346,6 +347,8 @@ class MainActivity : ComponentActivity() {
     private var youtubeInlineWebView: WebView? = null
     // Fullscreen/background stay attached to this WebView, not a second player screen.
     private var youtubeInlineFullscreen by mutableStateOf(false)
+    private var inlineFullscreenHasReachedPhysicalLandscape = false
+    private var inlineFullscreenOrientationListener: android.view.OrientationEventListener? = null
     private var inlineBackgroundPlaybackEnabled = false
     private var inlineBackgroundServiceStarted = false
     private var inlineBackgroundReceiverRegistered = false
@@ -4592,16 +4595,17 @@ class MainActivity : ComponentActivity() {
             if (youtubeInlineFullscreen &&
                 newConfig.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
             ) {
-                // Release the one-shot landscape lock after rotation so a physical turn
-                // back to portrait returns to this same inline player.
-                requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+                // Keep the forced landscape lock until the physical-orientation sensor confirms
+                // that the handset itself is landscape. Unlocking here makes Android snap back
+                // to portrait before the user can finish rotating the phone.
                 view.evaluateJavascript(
                     "document.documentElement.classList.add('ngocsi-inline-fullscreen');" +
                         "window.dispatchEvent(new Event('resize'));",
                     null
                 )
             } else if (youtubeInlineFullscreen &&
-                newConfig.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
+                newConfig.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT &&
+                inlineFullscreenHasReachedPhysicalLandscape
             ) {
                 exitInlineYouTubeFullscreen()
             } else {
@@ -9142,6 +9146,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         )
     }
 
+    @OptIn(ExperimentalFoundationApi::class)
     @Composable
     private fun YouTubeFocusedScreen(modifier: Modifier = Modifier) {
         val youtubeListState = rememberLazyListState()
@@ -9159,7 +9164,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 else Arrangement.spacedBy(10.dp),
             userScrollEnabled = !youtubeInlineFullscreen
         ) {
-            item {
+            stickyHeader {
                 Surface(
                     modifier = if (youtubeInlineFullscreen) Modifier.fillParentMaxSize()
                         else Modifier.fillMaxWidth(),
@@ -9172,7 +9177,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     Column(
                         Modifier.fillMaxSize().padding(if (youtubeInlineFullscreen) 0.dp else 14.dp)
                     ) {
-                        if (!youtubeInlineFullscreen) Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (!youtubeInlineFullscreen && youtubeInlineTrack == null) Row(verticalAlignment = Alignment.CenterVertically) {
                             Surface(
                                 modifier = Modifier.size(42.dp),
                                 shape = RoundedCornerShape(13.dp),
@@ -9349,7 +9354,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             }
                             }
                         }
-                        if (!youtubeInlineFullscreen) {
+                        if (!youtubeInlineFullscreen && youtubeInlineTrack == null) {
                         Spacer(Modifier.height(12.dp))
                         Row(
                             Modifier
