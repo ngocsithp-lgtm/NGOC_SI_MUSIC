@@ -2314,8 +2314,15 @@ class YouTubePlayerActivity : ComponentActivity() {
 
     private fun runYoutubePlaybackCommand(command: String) {
         if (webView == null || isFinishing || isDestroyed) return
-        if (command == "toggle") {
+        if (command == "toggle" || command == "play") {
+            // A fresh user transport request must own the current playback episode.
+            // Cancel delayed orientation probes and older recovery commands before the
+            // WebView receives the user's Play/Tap command; otherwise the two Play paths
+            // can overlap after returning from landscape and cause a short stutter-stop.
+            automaticOrientationRecoveryGeneration++
+            fullscreenRecoveryGeneration++
             orientationPlaybackRecoveryGeneration++
+            playbackRequestGeneration++
         }
         val generation = ++playbackCommandGeneration
         // A button press sends one playback command. Do not repeatedly call playVideo()
@@ -4492,6 +4499,11 @@ class YouTubePlayerActivity : ComponentActivity() {
         var fallbackNudgeSent = false
         var frameStallSamples = 0
         var frameRepairAttempted = false
+        // Track whether this recovery observed any real media-clock movement. A non-paused
+        // element with a frozen clock must not receive repeated API Play nudges: those can
+        // produce one audible stutter and then stop on some Android WebView versions.
+        var clockProgressObserved = false
+        var activeClockStallObserved = false
         // Physical rotation may reload only when the rendered-frame watchdog proves a
         // video-surface stall; ordinary clock recovery remains reload-free in that path.
         var pageReloadFallbackUsed = !allowPageReloadFallback && !allowFrameReloadFallback
@@ -4635,21 +4647,11 @@ class YouTubePlayerActivity : ComponentActivity() {
                           return 'REQUESTED|' + position + '|' + ready;
                         } catch (_) {}
                       } else {
-                        // If the element claims to be playing but is stalled, make a single
-                        // idempotent Play request. Keep the one-time reload fallback as the
-                        // last resort rather than resetting the media pipeline in-place.
-                        if (player && typeof player.playVideo === 'function') {
-                          try {
-                            player.playVideo();
-                            return report('NUDGED');
-                          } catch (_) {}
-                        }
-                        try {
-                          var stalledPromise = video.play();
-                          if (stalledPromise && typeof stalledPromise.catch === 'function')
-                            stalledPromise.catch(function(){});
-                          return 'NUDGED|' + position + '|' + ready;
-                        } catch (_) {}
+                        // paused=false is not proof of active playback: Chromium can leave
+                        // the media element non-paused while its clock is frozen after rotation.
+                        // Do not send another Play command in this state; let the bounded probes
+                        // confirm the stall and then use the single saved-position reload fallback.
+                        return report('ACTIVE_STALLED');
                       }
                     }
 
@@ -4674,10 +4676,12 @@ class YouTubePlayerActivity : ComponentActivity() {
                     return@evaluateJavascript
                 }
                 if (state == "REQUESTED" || state == "API_ONLY") playRequested = true
+                if (state == "ACTIVE_STALLED") activeClockStallObserved = true
 
                 val previous = previousPosition
                 val clockAdvanced = previous != null && currentPosition != null &&
                     currentPosition > previous + 0.04
+                if (clockAdvanced) clockProgressObserved = true
                 // Audio/currentTime can keep moving while Chromium stops delivering the
                 // video frames. Do not declare recovery healthy until frame delivery resumes.
                 val frameStalledNow =
@@ -4745,7 +4749,11 @@ class YouTubePlayerActivity : ComponentActivity() {
                 // instead of leaving a silent frozen surface with no way to recover.
                 var reloadScheduled = false
                 val frameOnlyFallbackAllowed = allowPageReloadFallback ||
-                    (allowFrameReloadFallback && frameStallSamples >= 3)
+                    (allowFrameReloadFallback && (
+                        frameStallSamples >= 3 ||
+                            (activeClockStallObserved && number >= 7 &&
+                                !clockProgressObserved && currentPosition != null)
+                        ))
                 if (frameOnlyFallbackAllowed &&
                     !pageReloadFallbackUsed &&
                     !geometryReloadFallbackAttemptedForCurrentPage &&
