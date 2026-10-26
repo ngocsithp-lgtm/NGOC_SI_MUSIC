@@ -40,7 +40,6 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.media3.common.util.UnstableApi
-import java.io.ByteArrayInputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.Executors
@@ -1666,6 +1665,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                     Uri.parse("https://m.youtube.com/watch")
                         .buildUpon()
                         .appendQueryParameter("v", safeId)
+                        .appendQueryParameter("autoplay", "1")
                         .appendQueryParameter("playsinline", "1")
                         .build().toString()
                 )
@@ -2740,18 +2740,9 @@ class YouTubePlayerActivity : ComponentActivity() {
                     view: WebView,
                     request: WebResourceRequest
                 ): android.webkit.WebResourceResponse? {
-                    if (isKnownYouTubeAdvertisingRequest(request.url)) {
-                        // Block only recognizable ad-serving hosts/endpoints. Never block
-                        // googlevideo.com: it also delivers the actual video/audio streams.
-                        return android.webkit.WebResourceResponse(
-                            "text/plain",
-                            "UTF-8",
-                            204,
-                            "No Content",
-                            mapOf("Cache-Control" to "no-store"),
-                            ByteArrayInputStream(ByteArray(0))
-                        )
-                    }
+                    // Pass YouTube's requests through unchanged. Filtering its ad-break/player
+                    // endpoints can disrupt the mobile site's own playback state machine and
+                    // leave an otherwise loaded video paused or stalled after startup.
                     return super.shouldInterceptRequest(view, request)
                 }
 
@@ -3218,6 +3209,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 Uri.parse("https://m.youtube.com/watch")
                     .buildUpon()
                     .appendQueryParameter("v", safeId)
+                    .appendQueryParameter("autoplay", "1")
                     .appendQueryParameter("playsinline", "1")
                     .build().toString()
             )
@@ -4699,31 +4691,6 @@ class YouTubePlayerActivity : ComponentActivity() {
      * Do not filter googlevideo.com or broad Google/YouTube hosts because they
      * serve actual video/audio, player code, thumbnails and captions as well.
      */
-    private fun isKnownYouTubeAdvertisingRequest(uri: Uri): Boolean {
-        val host = uri.host?.lowercase().orEmpty()
-        val path = uri.path?.lowercase().orEmpty()
-        fun isHostOrSubdomain(domain: String): Boolean =
-            host == domain || host.endsWith(".$domain")
-
-        val knownAdDomains = listOf(
-            "doubleclick.net",
-            "googlesyndication.com",
-            "googleadservices.com",
-            "adservice.google.com",
-            "adservice.google.com.vn"
-        )
-        if (knownAdDomains.any(::isHostOrSubdomain)) return true
-
-        // Target clearly ad-specific endpoints on YouTube itself; avoid generic
-        // player/search APIs that are required for normal playback.
-        return isHostOrSubdomain("youtube.com") && (
-            path.contains("/pagead/") ||
-                path.contains("/get_midroll_info") ||
-                path.contains("/youtubei/v1/player/ad_break") ||
-                path.contains("/youtubei/v1/ad_break")
-            )
-    }
-
     private fun sanitizeVideoId(value: String): String =
         value.filter { it.isLetterOrDigit() || it == '-' || it == '_' }.take(32)
 
