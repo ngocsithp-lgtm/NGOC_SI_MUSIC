@@ -126,8 +126,24 @@ class YouTubePlayerActivity : ComponentActivity() {
                     View.MeasureSpec.getSize(heightMeasureSpec)
                 else -> 0
             }
-            val measuredHeight = if (landscape && heightLimit > 0) {
-                minOf(aspectHeight, heightLimit)
+            // A ScrollView measures its child with UNSPECIFIED height even when the
+            // phone is physically landscape. In that case heightLimit is zero, so using
+            // aspectHeight alone lets a wide-screen 16:9 player become taller than the
+            // actual phone viewport (e.g. 800dp wide -> 450dp tall on a ~360dp-high screen).
+            // Clamp against the measured Activity root first; configuration screenHeightDp
+            // is the fallback while the first post-rotation layout has not been measured yet.
+            val density = resources.displayMetrics.density
+            val rootViewportHeight = if (::root.isInitialized) root.height else 0
+            val configuredViewportHeight =
+                (resources.configuration.screenHeightDp * density).toInt()
+            val availableLandscapeHeight = when {
+                heightLimit > 0 -> heightLimit
+                rootViewportHeight > 0 -> rootViewportHeight
+                configuredViewportHeight > 0 -> configuredViewportHeight
+                else -> aspectHeight
+            }
+            val measuredHeight = if (landscape) {
+                minOf(aspectHeight, availableLandscapeHeight.coerceAtLeast(1))
             } else {
                 aspectHeight
             }
