@@ -343,6 +343,8 @@ class MainActivity : ComponentActivity() {
     private var youtubeInlineTrack by mutableStateOf<YouTubeTrack?>(null)
     private var youtubeInlineOpenGeneration by mutableIntStateOf(0)
     private var youtubeInlineWebView: WebView? = null
+    // True only while playback is temporarily handed to the proven full player for fullscreen/background use.
+    private var resumeInlineAfterDedicatedPlayer = false
     private var youtubeLastQueueJson by mutableStateOf<String?>(null)
     private var youtubeLastQueueIndex by mutableIntStateOf(0)
     private var onlineUrl by mutableStateOf("")
@@ -4502,6 +4504,17 @@ class MainActivity : ComponentActivity() {
         super.onResume()
 
         startSleepTimerUiTicker()
+
+        // When the user returns from the fullscreen/background player, restore playback
+        // in the original inline frame without keeping two audio streams active.
+        if (resumeInlineAfterDedicatedPlayer) {
+            resumeInlineAfterDedicatedPlayer = false
+            window.decorView.postDelayed({
+                if (!isFinishing && !isDestroyed) {
+                    youtubeInlineTrack?.let { track -> playYouTube(track) }
+                }
+            }, 450L)
+        }
 
         // Refresh YouTube library state after returning from the in-app player.
         // The player writes favorites/watch-later directly to SharedPreferences,
@@ -8725,23 +8738,78 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         )
     }
 
-    private fun pauseInlineYouTubeWebView() {
-        youtubeInlineWebView?.evaluateJavascript(
+    private fun pauseInlineYouTubeWebView(onPaused: (() -> Unit)? = null) {
+        val view = youtubeInlineWebView
+        if (view == null) {
+            onPaused?.invoke()
+            return
+        }
+        view.evaluateJavascript(
             """
             (function() {
               try {
                 var p = window.player;
                 if (p && typeof p.pauseVideo === 'function') {
-                  p.pauseVideo(); return;
+                  p.pauseVideo();
                 }
               } catch (_) {}
-              var v = document.querySelector('video.html5-main-video') ||
-                      document.querySelector('video');
-              if (v) { try { v.pause(); } catch (_) {} }
+              try {
+                var v = document.querySelector('video.html5-main-video') ||
+                        document.querySelector('video');
+                if (v) v.pause();
+              } catch (_) {}
+              return 'INLINE_PAUSED';
             })();
-            """.trimIndent(),
-            null
-        )
+            """.trimIndent()
+        ) {
+            onPaused?.invoke()
+        }
+    }
+
+    /**
+     * The inline frame uses the same official mobile YouTube page as the stable player.
+     * For explicit fullscreen/background actions, hand the selected video to the proven
+     * native player Activity, which owns Android fullscreen rotation and foreground media
+     * service lifecycle. Ordinary search-result taps still stay in the inline frame.
+     */
+    private fun openDedicatedYouTubePlayer(
+        track: YouTubeTrack,
+        startFullscreen: Boolean,
+        enableBackground: Boolean
+    ) {
+        val (queueJson, selectedIndex) = buildYouTubeQueueJson(track)
+        saveYouTubeLastPlayed(track, queueJson, selectedIndex)
+        resumeInlineAfterDedicatedPlayer = true
+
+        pauseInlineYouTubeWebView {
+            if (isFinishing || isDestroyed) return@pauseInlineYouTubeWebView
+            prefs.edit()
+                .putBoolean("youtube_active_source", true)
+                .putBoolean("youtube_playback_is_playing", true)
+                .apply()
+            if (enableBackground) {
+                prefs.edit()
+                    .putBoolean("youtube_background_playback_enabled", true)
+                    .putBoolean("youtube_player_foreground", true)
+                    .apply()
+            }
+            val intent = Intent(this, YouTubePlayerActivity::class.java).apply {
+                putExtra(YouTubePlayerActivity.EXTRA_VIDEO_ID, track.videoId)
+                putExtra(YouTubePlayerActivity.EXTRA_TITLE, track.title)
+                putExtra(YouTubePlayerActivity.EXTRA_CHANNEL, track.channelTitle)
+                putExtra(YouTubePlayerActivity.EXTRA_QUEUE_JSON, queueJson)
+                putExtra(YouTubePlayerActivity.EXTRA_QUEUE_INDEX, selectedIndex)
+                putExtra(YouTubePlayerActivity.EXTRA_START_FULLSCREEN, startFullscreen)
+                addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            }
+            runCatching {
+                startActivity(intent)
+            }.onFailure {
+                resumeInlineAfterDedicatedPlayer = false
+                playInlineYouTubeWebView()
+                errorMessage = "Không mở được trình phát YouTube toàn màn hình."
+            }
+        }
     }
 
     /**
@@ -8809,7 +8877,36 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   (document.head || document.documentElement).appendChild(style);
                 }
                 if (style.textContent !== css) style.textContent = css;
-                try { window.scrollTo(0, 0); } catch (_) {}
+
+                // Normalize the same wrapper geometry used by the stable native player.
+                // This clears stale sticky offsets that can push the picture to the right
+                // while leaving the surrounding 16:9 host correctly positioned.
+                var wrappers = document.querySelectorAll(
+                  'ytm-watch,.player-container,.player-placeholder,ytm-player,' +
+                  '#player-container-id,#player-container,#player'
+                );
+                Array.prototype.forEach.call(wrappers, function(node) {
+                  if (!node || !node.isConnected) return;
+                  node.style.setProperty('position', 'relative', 'important');
+                  node.style.setProperty('top', '0px', 'important');
+                  node.style.setProperty('left', '0px', 'important');
+                  node.style.setProperty('right', 'auto', 'important');
+                  node.style.setProperty('bottom', 'auto', 'important');
+                  node.style.setProperty('transform', 'none', 'important');
+                  node.style.setProperty('margin-left', '0px', 'important');
+                  node.style.setProperty('margin-right', '0px', 'important');
+                  node.style.setProperty('width', '100%', 'important');
+                  node.style.setProperty('max-width', '100%', 'important');
+                  node.style.setProperty('min-width', '0px', 'important');
+                  node.style.setProperty('box-sizing', 'border-box', 'important');
+                });
+                try {
+                  if (document.scrollingElement) {
+                    document.scrollingElement.scrollTop = 0;
+                    document.scrollingElement.scrollLeft = 0;
+                  }
+                  window.scrollTo(0, 0);
+                } catch (_) {}
 
                 // Apply the successful initial-audio fix here as well. Never issue another
                 // Play command during startup: YouTube owns autoplay, and competing Play calls
@@ -9011,11 +9108,25 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 }
                                 TextButton(
                                     onClick = {
-                                        pauseInlineYouTubeWebView()
-                                        playLastYouTube("play")
+                                        openDedicatedYouTubePlayer(
+                                            inlineTrack,
+                                            startFullscreen = true,
+                                            enableBackground = false
+                                        )
                                     }
                                 ) {
                                     Text("⛶ PHÓNG TO", color = Color(0xFFFF7180), fontSize = 10.sp)
+                                }
+                                TextButton(
+                                    onClick = {
+                                        openDedicatedYouTubePlayer(
+                                            inlineTrack,
+                                            startFullscreen = false,
+                                            enableBackground = true
+                                        )
+                                    }
+                                ) {
+                                    Text("🎧 NỀN", color = Color(0xFF8FD694), fontSize = 10.sp)
                                 }
                             }
                         }
