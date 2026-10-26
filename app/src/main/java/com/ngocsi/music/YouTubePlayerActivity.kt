@@ -720,7 +720,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT,
-                Gravity.CENTER
+                Gravity.TOP or Gravity.START
             )
         )
         playerVideoHost = videoHost
@@ -905,24 +905,23 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
         header.visibility = if (shouldUseLandscape) View.GONE else View.VISIBLE
         sidePanel.orientation = LinearLayout.VERTICAL
+        // Keep YouTube's WebView viewport full-width in landscape. A weighted side panel
+        // makes the embedded mobile site reflow into a narrow column and misaligns its
+        // internal video surface. Controls remain available in portrait and fullscreen.
+        sidePanel.visibility = if (shouldUseLandscape) View.GONE else View.VISIBLE
 
         if (shouldUseLandscape) {
-            // The ScrollView and content retain the same parent. The video host's width
-            // shares the landscape viewport with the action/info column; the inner video
-            // remains centred and 16:9 without replacing its WebView surface.
             content.layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
             )
             videoHost.layoutParams = LinearLayout.LayoutParams(
-                0,
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                1.15f
+                LinearLayout.LayoutParams.MATCH_PARENT
             )
             sidePanel.layoutParams = LinearLayout.LayoutParams(
-                0,
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                0.85f
+                LinearLayout.LayoutParams.WRAP_CONTENT
             )
         } else {
             content.layoutParams = FrameLayout.LayoutParams(
