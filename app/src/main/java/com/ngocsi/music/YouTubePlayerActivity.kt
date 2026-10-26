@@ -2694,7 +2694,11 @@ class YouTubePlayerActivity : ComponentActivity() {
             }
         }
 
-        attempt(4)
+        // Issue one Play transport command. If YouTube rejects it, wait for a new
+        // media/ready-state event or a deliberate user tap instead of sending a burst of
+        // retries. Repeated API Play commands are known to cause short starts followed by
+        // stalls in this WebView player.
+        attempt(0)
     }
 
     /**
