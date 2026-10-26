@@ -313,7 +313,12 @@ class YouTubePlayerActivity : ComponentActivity() {
                                     if (!isFinishing && !isDestroyed && webView != null &&
                                         customView != null && !explicitUserPause
                                     ) {
-                                        recoverFullscreenPlayback(allowPageReloadFallback = false)
+                                        // The replacement URL already requested autoplay.
+                                        // Observe its media clock first; don't issue a competing Play.
+                                        recoverFullscreenPlayback(
+                                            allowPageReloadFallback = false,
+                                            issueInitialPlayIfPaused = false
+                                        )
                                     }
                                 }, 900L)
                             }
@@ -321,8 +326,11 @@ class YouTubePlayerActivity : ComponentActivity() {
                     } else {
                         playbackPositionHandler.postDelayed({
                             if (!isFinishing && !isDestroyed && webView != null) {
-                                // Recover on the replacement page without starting a second reload.
-                                recoverFullscreenPlayback(allowPageReloadFallback = false)
+                                // The replacement URL already requested autoplay. Let that stream settle first.
+                                recoverFullscreenPlayback(
+                                    allowPageReloadFallback = false,
+                                    issueInitialPlayIfPaused = false
+                                )
                             }
                         }, 900L)
                     }
@@ -1118,10 +1126,11 @@ class YouTubePlayerActivity : ComponentActivity() {
                 return@postDelayed
             }
             recoverFullscreenPlayback(
-                // Ordinary rotation keeps the current page. Only a confirmed rendered-frame
-                // stall can use the one-shot saved-position reload fallback.
+                // Let rotation settle without another Play command. If the existing media clock
+                // never resumes, use one saved-position reload as the bounded fallback.
                 allowPageReloadFallback = false,
-                allowFrameReloadFallback = true
+                allowFrameReloadFallback = true,
+                issueInitialPlayIfPaused = false
             )
         }, 1100L)
     }
@@ -2074,7 +2083,8 @@ class YouTubePlayerActivity : ComponentActivity() {
         // Fullscreen/rotation only: probe the existing media node before any bounded fallback.
         recoverFullscreenPlayback(
             allowPageReloadFallback = false,
-            allowFrameReloadFallback = true
+            allowFrameReloadFallback = true,
+            issueInitialPlayIfPaused = false
         )
     }
 
@@ -2409,13 +2419,20 @@ class YouTubePlayerActivity : ComponentActivity() {
                         ) return@portraitPlaybackVerification
 
                         val mediaState = verifyResult.orEmpty().trim('"')
-                        // This was already a user-issued Play/toggle request. Do not route
-                        // its verification through requestYouTubePlayback(), which sends a
-                        // second YouTube API command and then a direct HTML5 play fallback.
-                        // That stacked recovery caused repeated short starts after rotation.
-                        // Leave the user's single command as the only transport action here.
-                        if (mediaState == "PLAYING") {
-                            geometryReloadFallbackAttemptedForCurrentPage = false
+                        when (mediaState) {
+                            "PLAYING" -> {
+                                geometryReloadFallbackAttemptedForCurrentPage = false
+                            }
+                            "PAUSED", "STALLED" -> {
+                                // The user's single Play command was accepted, but the video did
+                                // not resume. Don't send another Play into the same frozen node.
+                                // Probe the media clock, then use at most one saved-position reload.
+                                recoverFullscreenPlayback(
+                                    allowPageReloadFallback = true,
+                                    allowFrameReloadFallback = true,
+                                    issueInitialPlayIfPaused = false
+                                )
+                            }
                         }
                     }
                 }, 1400L)
@@ -4064,11 +4081,12 @@ class YouTubePlayerActivity : ComponentActivity() {
                                         webView != null && youtubePlayerReady
                                     ) {
                                         recoverFullscreenPlayback(
-                                            // The native view never changed, so the live page is
-                                            // preferred. If it is still stalled after bounded probes,
-                                            // the existing one-shot fallback reloads at the saved time.
+                                            // Wait for the existing stream after shrinking. Do not
+                                            // nudge the stalled media node; reload once at its saved
+                                            // position only if bounded probes confirm it is frozen.
                                             allowPageReloadFallback = true,
-                                            allowFrameReloadFallback = true
+                                            allowFrameReloadFallback = true,
+                                            issueInitialPlayIfPaused = false
                                         )
                                     }
                                 }, 260L)
@@ -4458,7 +4476,10 @@ class YouTubePlayerActivity : ComponentActivity() {
             exitGeneration != fullscreenExitGeneration || explicitUserPause
         ) return
 
-        recoverFullscreenPlayback(allowPageReloadFallback = true)
+        recoverFullscreenPlayback(
+            allowPageReloadFallback = true,
+            issueInitialPlayIfPaused = false
+        )
     }
 
     private fun scheduleFullscreenExitPlaybackRecovery(exitGeneration: Int, delayMs: Long) {
@@ -4495,7 +4516,8 @@ class YouTubePlayerActivity : ComponentActivity() {
 
     private fun recoverFullscreenPlayback(
         allowPageReloadFallback: Boolean = true,
-        allowFrameReloadFallback: Boolean = false
+        allowFrameReloadFallback: Boolean = false,
+        issueInitialPlayIfPaused: Boolean = true
     ) {
         if (isFinishing || isDestroyed || webView == null || explicitUserPause) return
         val generation = ++fullscreenRecoveryGeneration
@@ -4619,7 +4641,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                     // After returning from fullscreen, Chromium can leave a media element
                     // logically "playing" while currentTime no longer advances. Recover both
                     // a genuinely paused element and a stalled, non-paused one.
-                    if (mode === 'initial' && video.paused) {
+                    if (mode === 'initial' && video.paused && $issueInitialPlayIfPaused) {
                       // Do not pause/restart an element just because the YouTube state
                       // tracker is stale during rotation. That was interrupting streams
                       // which were already progressing. Only issue Play for a paused element.
