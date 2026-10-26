@@ -2738,30 +2738,42 @@ class YouTubePlayerActivity : ComponentActivity() {
                               'min-height:100%!important;overflow:hidden!important;background:#000!important;} ' +
                               'ytm-app {margin:0!important;padding:0!important;min-height:0!important;} ' +
                               'ytm-app.sticky-player {padding-top:0!important;} ' +
-                              'ytm-watch {position:relative!important;width:100%!important;max-width:100%!important;' +
+                              'ytm-watch {position:relative!important;top:0!important;left:0!important;' +
+                              'right:auto!important;bottom:auto!important;width:100%!important;max-width:100%!important;' +
                               'min-height:0!important;margin:0!important;padding:0!important;transform:none!important;} ' +
-                              '.player-container.sticky-player {position:relative!important;top:auto!important;left:auto!important;' +
-                              'right:auto!important;width:100%!important;margin:0!important;} ' +
-                              '.player-placeholder {position:relative!important;width:100%!important;max-width:100%!important;' +
-                              'height:auto!important;aspect-ratio:16/9!important;margin:0!important;padding:0!important;} ' +
-                              'ytm-player,#player-container-id,#player-container,#player {width:100%!important;' +
-                              'max-width:100%!important;height:auto!important;min-height:0!important;max-height:none!important;' +
-                              'aspect-ratio:16/9!important;margin:0!important;padding:0!important;box-sizing:border-box!important;} ' +
+                              '.player-container,.player-container.sticky-player {position:relative!important;' +
+                              'top:0!important;left:0!important;right:auto!important;bottom:auto!important;' +
+                              'width:100%!important;max-width:100%!important;margin:0!important;padding:0!important;' +
+                              'transform:none!important;box-sizing:border-box!important;} ' +
+                              '.player-placeholder {position:relative!important;top:0!important;left:0!important;' +
+                              'right:auto!important;bottom:auto!important;width:100%!important;max-width:100%!important;' +
+                              'height:auto!important;aspect-ratio:16/9!important;margin:0!important;padding:0!important;' +
+                              'transform:none!important;box-sizing:border-box!important;} ' +
+                              'ytm-player,#player-container-id,#player-container,#player {position:relative!important;' +
+                              'top:0!important;left:0!important;right:auto!important;bottom:auto!important;' +
+                              'transform:none!important;width:100%!important;max-width:100%!important;height:auto!important;' +
+                              'min-height:0!important;max-height:none!important;aspect-ratio:16/9!important;' +
+                              'margin:0!important;padding:0!important;box-sizing:border-box!important;} ' +
                               'ytm-player {display:block!important;} ' +
                               '@media (orientation:landscape) {' +
                               'html,body,ytm-app,ytm-watch {height:100%!important;min-height:100%!important;} ' +
                               'ytm-watch {display:block!important;} ' +
+                              '.player-container,.player-placeholder {height:100%!important;max-height:100%!important;' +
+                              'aspect-ratio:auto!important;} ' +
                               'ytm-player,#player-container-id,#player-container,#player {height:100%!important;' +
                               'max-height:100%!important;aspect-ratio:auto!important;} ' +
-                              '.html5-video-player,#movie_player,.html5-video-container {width:100%!important;' +
-                              'height:100%!important;max-width:100%!important;} ' +
-                              'video.html5-main-video {width:100%!important;height:100%!important;object-fit:contain!important;}}';
+                              '.html5-video-player,#movie_player,.html5-video-container {position:relative!important;' +
+                              'top:0!important;left:0!important;right:auto!important;bottom:auto!important;' +
+                              'transform:none!important;width:100%!important;height:100%!important;' +
+                              'max-width:100%!important;margin:0!important;box-sizing:border-box!important;} ' +
+                              'video.html5-main-video {position:absolute!important;left:0!important;top:0!important;' +
+                              'right:auto!important;bottom:auto!important;margin:0!important;transform:none!important;' +
+                              'width:100%!important;height:100%!important;object-fit:contain!important;}}';
                             (document.head || document.documentElement).appendChild(style);
 
-                            // YouTube mobile can retain a sticky-player offset or an old
-                            // inline margin after the WebView rotates. Normalize the nearest
-                            // player wrapper itself (never the composited <video> surface):
-                            // anchor its measured top-left to the current WebView viewport.
+                            // Reset stale sticky positioning at every wrapper level after
+                            // viewport changes. A measured negative margin on only one ancestor
+                            // can become incorrect when the phone changes from portrait to landscape.
                             window.__ngocSiNormalizePlayerGeometry = function() {
                               try {
                                 if (window.__ngocSiFullscreenActive) return 'FULLSCREEN_SKIPPED';
@@ -2779,59 +2791,43 @@ class YouTubePlayerActivity : ComponentActivity() {
                                   document.body.scrollLeft = 0;
                                 }
 
-                                var videos = Array.prototype.slice.call(document.querySelectorAll('video'));
-                                var video = videos.find(function(v) {
-                                  return v.classList.contains('html5-main-video') && v.isConnected;
-                                }) || videos.find(function(v) { return v.isConnected; }) || null;
-                                var selectors = '.player-placeholder,.player-container,ytm-player,' +
-                                  '#player-container-id,#player-container,#player';
-                                var target = null;
-                                var node = video ? video.parentElement : null;
-                                while (node && node !== document.body &&
-                                       node !== document.documentElement) {
-                                  if (node.matches && node.matches(selectors)) target = node;
-                                  if (node.tagName && node.tagName.toLowerCase() === 'ytm-watch') break;
-                                  node = node.parentElement;
-                                }
-                                if (!target) {
-                                  target = document.querySelector('.player-placeholder') ||
-                                    document.querySelector('.player-container') ||
-                                    document.querySelector('ytm-player') ||
-                                    document.querySelector('#player-container-id') ||
-                                    document.querySelector('#player-container') ||
-                                    document.querySelector('#player');
-                                }
-                                if (!target) return 'PLAYER_WRAPPER_NOT_FOUND';
-
-                                // Undo page-level sticky/fixed positioning and transforms that
-                                // can survive an orientation transition. Keep the wrapper in
-                                // normal flow and correct only the measured offset.
-                                target.style.setProperty('position', 'relative', 'important');
-                                target.style.setProperty('top', 'auto', 'important');
-                                target.style.setProperty('right', 'auto', 'important');
-                                target.style.setProperty('bottom', 'auto', 'important');
-                                target.style.setProperty('left', 'auto', 'important');
-                                target.style.setProperty('transform', 'none', 'important');
-                                target.style.setProperty('width', '100%', 'important');
-                                target.style.setProperty('max-width', '100%', 'important');
-                                target.style.setProperty('min-width', '0', 'important');
-                                target.style.setProperty('box-sizing', 'border-box', 'important');
-
-                                var rect = target.getBoundingClientRect();
-                                var computed = window.getComputedStyle(target);
-                                var marginTop = parseFloat(computed.marginTop) || 0;
-                                var marginLeft = parseFloat(computed.marginLeft) || 0;
-                                if (Math.abs(rect.top) > 1) {
-                                  target.style.setProperty('margin-top',
-                                    (marginTop - rect.top) + 'px', 'important');
-                                }
-                                if (Math.abs(rect.left) > 1) {
-                                  target.style.setProperty('margin-left',
-                                    (marginLeft - rect.left) + 'px', 'important');
-                                }
-                                return 'PLAYER_GEOMETRY|' + Math.round(rect.top) + '|' +
-                                  Math.round(rect.left) + '|' + Math.round(rect.width) + '|' +
-                                  Math.round(rect.height);
+                                var wrapperSelector = 'ytm-watch,.player-container,.player-placeholder,' +
+                                  'ytm-player,#player-container-id,#player-container,#player,' +
+                                  '.html5-video-player,#movie_player,.html5-video-container';
+                                var wrappers = Array.prototype.slice.call(
+                                  document.querySelectorAll(wrapperSelector)
+                                );
+                                wrappers.forEach(function(wrapper) {
+                                  if (!wrapper || !wrapper.isConnected) return;
+                                  wrapper.style.setProperty('position', 'relative', 'important');
+                                  wrapper.style.setProperty('top', '0px', 'important');
+                                  wrapper.style.setProperty('left', '0px', 'important');
+                                  wrapper.style.setProperty('right', 'auto', 'important');
+                                  wrapper.style.setProperty('bottom', 'auto', 'important');
+                                  wrapper.style.setProperty('transform', 'none', 'important');
+                                  wrapper.style.setProperty('margin-left', '0px', 'important');
+                                  wrapper.style.setProperty('margin-right', '0px', 'important');
+                                  wrapper.style.setProperty('box-sizing', 'border-box', 'important');
+                                  wrapper.style.setProperty('width', '100%', 'important');
+                                  wrapper.style.setProperty('max-width', '100%', 'important');
+                                  wrapper.style.setProperty('min-width', '0', 'important');
+                                });
+                                Array.prototype.forEach.call(
+                                  document.querySelectorAll('video.html5-main-video'),
+                                  function(video) {
+                                    video.style.setProperty('left', '0px', 'important');
+                                    video.style.setProperty('top', '0px', 'important');
+                                    video.style.setProperty('right', 'auto', 'important');
+                                    video.style.setProperty('bottom', 'auto', 'important');
+                                    video.style.setProperty('margin', '0px', 'important');
+                                    video.style.setProperty('transform', 'none', 'important');
+                                    video.style.setProperty('max-width', '100%', 'important');
+                                  }
+                                );
+                                var viewportWidth = Math.max(
+                                  1, document.documentElement.clientWidth || window.innerWidth || 1
+                                );
+                                return 'PLAYER_GEOMETRY_RESET|' + viewportWidth + '|' + wrappers.length;
                               } catch (_) {
                                 return 'PLAYER_GEOMETRY_ERROR';
                               }
@@ -2848,12 +2844,11 @@ class YouTubePlayerActivity : ComponentActivity() {
                                     Number(cs.opacity || 1) === 0) return false;
                                 node = node.parentElement;
                               }
-                              // A connected video node can still belong to the old, off-screen
-                              // layout after rotation. Select only candidates intersecting this viewport.
-                              var viewportWidth = Math.max(1, document.documentElement.clientWidth || window.innerWidth || 1);
-                              var viewportHeight = Math.max(1, document.documentElement.clientHeight || window.innerHeight || 1);
-                              return rect.right > 0 && rect.bottom > 0 &&
-                                rect.left < viewportWidth && rect.top < viewportHeight;
+                              // Do not reject a connected, visible-to-CSS video solely because
+                              // it is temporarily outside the viewport during rotation. The area
+                              // intersection is already part of findActiveVideo's score, so an
+                              // off-screen primary video remains selectable for Play/recovery.
+                              return true;
                             }
 
                             function findActiveVideo() {
