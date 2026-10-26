@@ -3122,6 +3122,36 @@ class YouTubePlayerActivity : ComponentActivity() {
                                 lastCurrentTime = Number(video.currentTime || 0);
                                 lastProgressAt = 0;
                                 lastFrameStallNoticeAt = 0;
+
+                                // On the first video element only, explicitly start with audio enabled.
+                                // WebView already allows media playback without a user gesture; this
+                                // removes YouTube's startup-muted state without issuing a competing Play
+                                // command (which caused the old stutter-then-stop regression).
+                                if (!window.__ngocSiInitialAudioEnabled) {
+                                  window.__ngocSiInitialAudioEnabled = true;
+                                  var enableInitialAudio = function() {
+                                    try {
+                                      video.defaultMuted = false;
+                                      video.muted = false;
+                                      video.volume = 1;
+                                    } catch (_) {}
+                                  };
+                                  enableInitialAudio();
+                                  video.addEventListener('loadedmetadata', enableInitialAudio, {once:true});
+                                  video.addEventListener('canplay', enableInitialAudio, {once:true});
+                                  video.addEventListener('playing', enableInitialAudio, {once:true});
+                                  try {
+                                    var initialPlayer = document.querySelector('#movie_player') ||
+                                      document.querySelector('.html5-video-player') ||
+                                      document.querySelector('ytm-player');
+                                    if (initialPlayer && typeof initialPlayer.unMute === 'function') {
+                                      initialPlayer.unMute();
+                                      if (typeof initialPlayer.setVolume === 'function') {
+                                        initialPlayer.setVolume(100);
+                                      }
+                                    }
+                                  } catch (_) {}
+                                }
                               }
 
                               if (typeof video.requestVideoFrameCallback === 'function' &&
