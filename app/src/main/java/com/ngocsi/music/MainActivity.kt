@@ -8403,48 +8403,30 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             }
             return
         }
-        val fallbackQueue = org.json.JSONArray().apply {
-            put(org.json.JSONObject().apply {
-                put("videoId", track.videoId)
-                put("title", track.title)
-                put("channelTitle", track.channelTitle)
-                put("thumbnailUrl", track.thumbnailUrl)
-            })
-        }.toString()
-        val queueJson = youtubeLastQueueJson?.takeIf { it.isNotBlank() } ?: fallbackQueue
-        val selectedIndex = runCatching {
-            val array = org.json.JSONArray(queueJson)
-            youtubeLastQueueIndex.coerceIn(0, (array.length() - 1).coerceAtLeast(0))
-        }.getOrDefault(0)
-
-        // The YouTube mini-player is not backed by the Media3 local player.
-        // Pause Media3 and route the compact play control back to YouTube.
-        controller?.pause()
-        setYouTubeActiveSource(true)
-        runCatching {
-            startActivity(
-                Intent(this, YouTubePlayerActivity::class.java).apply {
-                    putExtra(YouTubePlayerActivity.EXTRA_VIDEO_ID, track.videoId)
-                    putExtra(YouTubePlayerActivity.EXTRA_TITLE, track.title)
-                    putExtra(YouTubePlayerActivity.EXTRA_CHANNEL, track.channelTitle)
-                    putExtra(YouTubePlayerActivity.EXTRA_QUEUE_JSON, queueJson)
-                    putExtra(YouTubePlayerActivity.EXTRA_QUEUE_INDEX, selectedIndex)
-                    // Reopening the app's YouTube mini-player must explicitly
-                    // resume the embedded YouTube player, not just bring a stale
-                    // Activity to the front after screen-off interruption.
-                    putExtra(YouTubePlayerActivity.EXTRA_AI_ACTION, aiAction ?: "play")
-                    addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                }
-            )
-        }.onFailure {
-            errorMessage = "Không mở lại được video YouTube gần nhất."
+        // Keep every in-app entry point on the inline YouTube card. Do not launch
+        // YouTubePlayerActivity from the compact player or AI play command.
+        when (aiAction?.lowercase()) {
+            "pause", "tạm dừng", "dừng" -> {
+                youtubeInlineWebView?.evaluateJavascript("pauseInlinePlayer();", null)
+                youtubePlaybackIsPlaying = false
+                prefs.edit().putBoolean("youtube_playback_is_playing", false).apply()
+                return
+            }
+            "stop", "dừng hẳn" -> {
+                youtubeInlineWebView?.evaluateJavascript("pauseInlinePlayer();", null)
+                youtubePlaybackIsPlaying = false
+                prefs.edit().putBoolean("youtube_playback_is_playing", false).apply()
+                return
+            }
         }
+        playYouTube(track)
     }
 
     private fun playStoredYouTubeOffset(offset: Int) {
         val rawQueue = youtubeLastQueueJson ?: return
         runCatching {
             val array = JSONArray(rawQueue)
+            if (array.length() == 0) return@runCatching
             val targetIndex = (youtubeLastQueueIndex + offset).coerceIn(0, array.length() - 1)
             val item = array.getJSONObject(targetIndex)
             val targetTrack = YouTubeTrack(
@@ -8454,18 +8436,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 thumbnailUrl = item.optString("thumbnailUrl")
             )
             if (targetTrack.videoId.isBlank()) return@runCatching
-            controller?.pause()
-            setYouTubeActiveSource(true)
-            youtubeSelectedVideoId = targetTrack.videoId
-            startActivity(
-                Intent(this, YouTubePlayerActivity::class.java).apply {
-                    putExtra(YouTubePlayerActivity.EXTRA_VIDEO_ID, targetTrack.videoId)
-                    putExtra(YouTubePlayerActivity.EXTRA_TITLE, targetTrack.title)
-                    putExtra(YouTubePlayerActivity.EXTRA_CHANNEL, targetTrack.channelTitle)
-                    putExtra(YouTubePlayerActivity.EXTRA_QUEUE_JSON, rawQueue)
-                    putExtra(YouTubePlayerActivity.EXTRA_QUEUE_INDEX, targetIndex)
-                }
-            )
+            playYouTube(targetTrack)
         }.onFailure {
             errorMessage = "Không chuyển được video trong hàng đợi YouTube."
         }
