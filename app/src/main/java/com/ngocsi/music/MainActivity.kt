@@ -4551,17 +4551,6 @@ class MainActivity : ComponentActivity() {
 
         startSleepTimerUiTicker()
 
-        // When the user returns from the fullscreen/background player, restore playback
-        // in the original inline frame without keeping two audio streams active.
-        if (resumeInlineAfterDedicatedPlayer) {
-            resumeInlineAfterDedicatedPlayer = false
-            window.decorView.postDelayed({
-                if (!isFinishing && !isDestroyed) {
-                    youtubeInlineTrack?.let { track -> playYouTube(track) }
-                }
-            }, 450L)
-        }
-
         // Refresh YouTube library state after returning from the in-app player.
         // The player writes favorites/watch-later directly to SharedPreferences,
         // so the PRO/YouTube surface must reload them without requiring an app restart.
@@ -4591,6 +4580,36 @@ class MainActivity : ComponentActivity() {
             isPlaying = c.isPlaying
             shuffleEnabled = c.shuffleModeEnabled
             repeatMode = c.repeatMode
+        }
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        inlineConfigurationVersion++
+        youtubeInlineWebView?.let { view ->
+            view.requestLayout()
+            view.invalidate()
+            if (youtubeInlineFullscreen &&
+                newConfig.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+            ) {
+                // Release the one-shot landscape lock after rotation so a physical turn
+                // back to portrait returns to this same inline player.
+                requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+                view.evaluateJavascript(
+                    "document.documentElement.classList.add('ngocsi-inline-fullscreen');" +
+                        "window.dispatchEvent(new Event('resize'));",
+                    null
+                )
+            } else if (youtubeInlineFullscreen &&
+                newConfig.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
+            ) {
+                exitInlineYouTubeFullscreen()
+            } else {
+                view.evaluateJavascript(
+                    "window.scrollTo(0,0);window.dispatchEvent(new Event('resize'));",
+                    null
+                )
+            }
         }
     }
 
@@ -4678,8 +4697,11 @@ class MainActivity : ComponentActivity() {
             if (errorMessage == message) errorMessage = null
         }
 
+        BackHandler(enabled = youtubeInlineFullscreen) {
+            exitInlineYouTubeFullscreen()
+        }
         BackHandler(
-            enabled = selectedSection != "Trang chủ" && !hasModalOverlay
+            enabled = selectedSection != "Trang chủ" && !hasModalOverlay && !youtubeInlineFullscreen
         ) {
             selectedSection = "Trang chủ"
         }
@@ -4745,8 +4767,11 @@ class MainActivity : ComponentActivity() {
             )
         ) {
             Surface(
-                Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
-                color = NgocSiVisuals.Background
+                Modifier.fillMaxSize().then(
+                    if (youtubeInlineFullscreen) Modifier
+                    else Modifier.windowInsetsPadding(WindowInsets.safeDrawing)
+                ),
+                color = if (youtubeInlineFullscreen) Color.Black else NgocSiVisuals.Background
             ) {
                 Column(Modifier.fillMaxSize()) {
                     if (selectedSection == "Trang chủ") {
@@ -4807,13 +4832,15 @@ class MainActivity : ComponentActivity() {
                             onOpenSleepTimer = { showSleepTimer = true }
                         )
                     } else {
-                        if (!(selectedSection == "Online" && onlineHubTab == "YouTube")) {
+                        if (!youtubeInlineFullscreen &&
+                            !(selectedSection == "Online" && onlineHubTab == "YouTube")
+                        ) {
                             ProSectionHeader()
                         }
-                        if (selectedSection == "Thư viện") {
+                        if (selectedSection == "Thư viện" && !youtubeInlineFullscreen) {
                             SearchBarModern()
                         }
-                        Spacer(Modifier.height(4.dp))
+                        if (!youtubeInlineFullscreen) Spacer(Modifier.height(4.dp))
 
                         when (selectedSection) {
                         "Thư viện" -> {
@@ -4923,7 +4950,7 @@ class MainActivity : ComponentActivity() {
                     }
 
                     }
-                    SnackbarHost(
+                    if (!youtubeInlineFullscreen) SnackbarHost(
                         hostState = statusSnackbarHostState,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -4958,14 +4985,16 @@ class MainActivity : ComponentActivity() {
                     }
                     // The home dashboard already displays the active player controls.
                     // Show the compact player only on feature pages to avoid duplicate controls.
-                    if (selectedSection != "Trang chủ") {
-                        if (youtubeIsActiveSource && youtubeLastPlayed != null) {
-                            YouTubeMiniPlayer(youtubeLastPlayed!!)
-                        } else {
-                            currentSong?.let { MiniPlayer(it) }
+                    if (!youtubeInlineFullscreen) {
+                        if (selectedSection != "Trang chủ") {
+                            if (youtubeIsActiveSource && youtubeLastPlayed != null) {
+                                YouTubeMiniPlayer(youtubeLastPlayed!!)
+                            } else {
+                                currentSong?.let { MiniPlayer(it) }
+                            }
                         }
+                        BottomNav()
                     }
-                    BottomNav()
                 }
             }
         }
