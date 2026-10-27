@@ -4711,9 +4711,10 @@ class MainActivity : ComponentActivity() {
                 view.evaluateJavascript(
                     """
                     (function() {
-                      function normalizePortraitGeometry() {
+                      function normalizeOuterPlayerGeometry() {
                         try {
-                          if (document.documentElement.classList.contains('ngocsi-inline-fullscreen')) {
+                          if (document.documentElement.classList.contains('ngocsi-inline-fullscreen') ||
+                              document.fullscreenElement) {
                             return 'FULLSCREEN_SKIP';
                           }
                           window.scrollTo(0, 0);
@@ -4721,121 +4722,34 @@ class MainActivity : ComponentActivity() {
                             document.scrollingElement.scrollTop = 0;
                             document.scrollingElement.scrollLeft = 0;
                           }
-                          // Match the known-stable YouTubePlayerActivity recovery path:
-                          // normalize page wrappers only, never force the media element's size.
-                          var wrappers = document.querySelectorAll(
-                            'ytm-watch,.player-container,.player-placeholder,ytm-player,' +
-                            '#player-container-id,#player-container,#player'
+                          // Only restore the outer host to the current viewport. Do not touch
+                          // #player-container-id, #player-container, #player, .player-container,
+                          // or <video>; YouTube owns those widths and compositor transforms.
+                          var outerWrappers = document.querySelectorAll(
+                            'ytm-watch,ytm-player,.player-placeholder'
                           );
-                          Array.prototype.forEach.call(wrappers, function(node) {
+                          Array.prototype.forEach.call(outerWrappers, function(node) {
                             if (!node || !node.isConnected) return;
-                            node.style.setProperty('position', 'relative', 'important');
-                            node.style.setProperty('top', '0px', 'important');
                             node.style.setProperty('left', '0px', 'important');
                             node.style.setProperty('right', 'auto', 'important');
-                            node.style.setProperty('bottom', 'auto', 'important');
-                            node.style.setProperty('transform', 'none', 'important');
                             node.style.setProperty('margin-left', '0px', 'important');
                             node.style.setProperty('margin-right', '0px', 'important');
-                            node.style.setProperty('box-sizing', 'border-box', 'important');
-                            node.style.setProperty('width', '100%', 'important');
                             node.style.setProperty('max-width', '100%', 'important');
                             node.style.setProperty('min-width', '0px', 'important');
+                            node.style.setProperty('box-sizing', 'border-box', 'important');
                           });
-                          Array.prototype.forEach.call(
-                            document.querySelectorAll('video.html5-main-video'),
-                            function(video) {
-                              if (!video || !video.isConnected) return;
-                              video.style.setProperty('left', '0px', 'important');
-                              video.style.setProperty('right', 'auto', 'important');
-                              video.style.setProperty('margin-left', '0px', 'important');
-                              video.style.setProperty('margin-right', '0px', 'important');
-                              video.style.setProperty('transform', 'none', 'important');
-                              video.style.setProperty('max-width', '100%', 'important');
-                            }
-                          );
-                          // Repair a child player/video layer that retained a rightward landscape
-                          // offset after Android restored the portrait WebView viewport.
-                          // Prefer the visual viewport: documentElement.clientWidth can still
-                          // describe YouTube's old wide layout viewport after rotation, so comparing
-                          // video bounds against it misses the exact portrait right-shift.
-                          var viewportWidth = Math.max(
-                            1,
-                            Number(window.visualViewport && window.visualViewport.width) ||
-                              Number(window.innerWidth) ||
-                              Number(document.documentElement.clientWidth) || 1
-                          );
-                          var activeVideo = document.querySelector('video.html5-main-video') ||
-                                            document.querySelector('video');
-                          if (activeVideo) {
-                            // Inspect the video and its parent layers. The <video> box can look
-                            // centered while #movie_player/html5-video-container still carries the
-                            // stale landscape translation that shifts the visible picture.
-                            var shiftedRight = false;
-                            var measuredNode = activeVideo;
-                            var measureDepth = 0;
-                            while (measuredNode && measuredNode !== document.documentElement &&
-                                   measureDepth++ < 12) {
-                              var measuredRect = measuredNode.getBoundingClientRect();
-                              var measuredCenterOffset =
-                                ((measuredRect.left + measuredRect.right) / 2) - (viewportWidth / 2);
-                              if (measuredRect.width > viewportWidth * 0.50 &&
-                                  measuredCenterOffset > Math.max(18, viewportWidth * 0.05)) {
-                                shiftedRight = true;
-                                break;
-                              }
-                              var measuredTag = (measuredNode.tagName || '').toLowerCase();
-                              if (measuredTag === 'ytm-player' || measuredTag === 'ytm-watch' ||
-                                  (measuredNode.matches &&
-                                   measuredNode.matches('#player-container-id'))) break;
-                              measuredNode = measuredNode.parentElement;
-                            }
-                            if (shiftedRight) {
-                              // The offset can live on a padded/translated ancestor whose own
-                              // bounding box still spans the full viewport. Normalize the entire
-                              // video-parent chain, not just ancestors whose outer rect is shifted.
-                              var ancestor = activeVideo.parentElement;
-                              var depth = 0;
-                              while (ancestor && ancestor !== document.documentElement && depth++ < 12) {
-                                ['left','right','transform','translate','margin-left','margin-right',
-                                 'padding-left','padding-right'].forEach(function(property) {
-                                  ancestor.style.removeProperty(property);
-                                });
-                                ancestor.style.setProperty('left', '0px', 'important');
-                                ancestor.style.setProperty('right', 'auto', 'important');
-                                ancestor.style.setProperty('transform', 'none', 'important');
-                                ancestor.style.setProperty('translate', 'none', 'important');
-                                ancestor.style.setProperty('margin-left', '0px', 'important');
-                                ancestor.style.setProperty('margin-right', '0px', 'important');
-                                // Only normalize horizontal padding after a measured right-shift.
-                                ancestor.style.setProperty('padding-left', '0px', 'important');
-                                ancestor.style.setProperty('padding-right', '0px', 'important');
-                                var tag = (ancestor.tagName || '').toLowerCase();
-                                if (tag === 'ytm-player' || tag === 'ytm-watch' ||
-                                    (ancestor.matches && ancestor.matches('#player-container-id'))) break;
-                                ancestor = ancestor.parentElement;
-                              }
-                              // Keep decoder width/height/object-fit untouched; only reset X geometry.
-                              activeVideo.style.setProperty('left', '0px', 'important');
-                              activeVideo.style.setProperty('right', 'auto', 'important');
-                              activeVideo.style.setProperty('transform', 'none', 'important');
-                              activeVideo.style.setProperty('translate', 'none', 'important');
-                              activeVideo.style.setProperty('margin-left', '0px', 'important');
-                              activeVideo.style.setProperty('margin-right', '0px', 'important');
-                              window.dispatchEvent(new Event('resize'));
-                            }
-                          }
-                          return 'PORTRAIT_GEOMETRY_NORMALIZED';
+                          window.dispatchEvent(new Event('resize'));
+                          return 'OUTER_PLAYER_GEOMETRY_NORMALIZED';
                         } catch (_) {
-                          return 'PORTRAIT_GEOMETRY_ERROR';
+                          return 'OUTER_PLAYER_GEOMETRY_ERROR';
                         }
                       }
                       window.dispatchEvent(new Event('resize'));
-                      // Wait for WebView/YouTube to adopt the new viewport before clearing
-                      // stale horizontal offsets left over from the previous orientation.
-                      setTimeout(normalizePortraitGeometry, 120);
-                      setTimeout(normalizePortraitGeometry, 360);
-                      setTimeout(normalizePortraitGeometry, 700);
+                      // Wait for WebView to settle after Android's viewport changes. These
+                      // passes normalize only the outer host; native player geometry stays intact.
+                      [120, 360, 700].forEach(function(delay) {
+                        window.setTimeout(normalizeOuterPlayerGeometry, delay);
+                      });
                     })();
                     """.trimIndent(),
                     null
@@ -9550,7 +9464,10 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   'min-height:100%!important;overflow:hidden!important;background:#000!important;} ' +
                   'ytm-app {margin:0!important;padding:0!important;min-height:0!important;} ' +
                   'ytm-app.sticky-player {padding-top:0!important;} ' +
-                  'ytm-watch,.player-container,.player-container.sticky-player {' +
+                  // Keep the mobile watch root in the host, but leave YouTube's player-container
+                  // and sticky-player positioning rules alone. Those internal rules determine where
+                  // Chromium composites the video surface and overriding them can shift the picture.
+                  'ytm-watch {' +
                   'position:relative!important;top:0!important;left:0!important;right:auto!important;' +
                   'bottom:auto!important;width:100%!important;max-width:100%!important;min-height:0!important;' +
                   'margin:0!important;padding:0!important;transform:none!important;box-sizing:border-box!important;} ' +
@@ -9594,9 +9511,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 // Inline portrait layout controls only the outer mobile-page wrappers.
                 // Inner #player nodes keep YouTube's own responsive width and media metrics.
                 // Add those inner nodes to the sizing list only for the CSS fullscreen fallback.
+                // Only normalize the outer page/host wrappers inline. Nested player IDs and
+                // .player-container are owned by YouTube and are left untouched except in fullscreen.
                 var wrappers = document.querySelectorAll(
-                  'ytm-watch,.player-container,.player-placeholder,ytm-player' +
-                  (isFullscreen ? ',#player-container-id,#player-container,#player' : '')
+                  'ytm-watch,.player-placeholder,ytm-player' +
+                  (isFullscreen ? ',#player-container-id,#player-container,#player,.player-container' : '')
                 );
                 var watchRoot = document.querySelector('ytm-watch');
                 Array.prototype.forEach.call(wrappers, function(node) {
@@ -9675,185 +9594,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     node.style.setProperty('min-width', '0px', 'important');
                   });
                 }
-                // Match the tested player recovery rules: clear horizontal offsets only.
-                // Do not rewrite top/bottom, position, width/height or parent dimensions;
-                // YouTube owns those values to preserve its media compositor and aspect ratio.
-                Array.prototype.forEach.call(
-                  document.querySelectorAll('video.html5-main-video'),
-                  function(video) {
-                    if (!video || !video.isConnected) return;
-                    video.style.setProperty('left', '0px', 'important');
-                    video.style.setProperty('right', 'auto', 'important');
-                    video.style.setProperty('margin-left', '0px', 'important');
-                    video.style.setProperty('margin-right', '0px', 'important');
-                    video.style.setProperty('transform', 'none', 'important');
-                    video.style.setProperty('max-width', '100%', 'important');
-                  }
-                );
-
-                // After returning from landscape/fullscreen, some mobile YouTube builds leave
-                // the video surface right-aligned at its old width. Repair only when geometry
-                // proves that a wide video is shifted right and does not fill the inline host.
-                // Keep YouTube's aspect-ratio/media renderer in charge: do not force a new
-                // width/height onto the active video unless its previous inline dimensions are stale.
-                // Use the visible viewport, not just documentElement.clientWidth. Mobile
-                // YouTube can retain a wide layout viewport after rotation while the visible
-                // player is portrait-sized; that mismatch previously prevented the repair from
-                // detecting the rightward offset at all.
-                var inlineViewportWidth = Math.max(
-                  1,
-                  Number(window.visualViewport && window.visualViewport.width) ||
-                    Number(window.innerWidth) ||
-                    Number(document.documentElement.clientWidth) || 1
-                );
-                var inlineActiveVideo = document.querySelector('video.html5-main-video') ||
-                                        document.querySelector('video');
-                if (!isFullscreen && inlineActiveVideo) {
-                  // Probe the active video plus its ancestors. In some YouTube builds the
-                  // video rectangle remains centered while a video-container ancestor is shifted.
-                  var rightShiftedWideVideo = false;
-                  var measuredNode = inlineActiveVideo;
-                  var measuredDepth = 0;
-                  while (measuredNode && measuredNode !== document.documentElement &&
-                         measuredDepth++ < 12) {
-                    var measuredRect = measuredNode.getBoundingClientRect();
-                    var measuredCenterOffset =
-                      ((measuredRect.left + measuredRect.right) / 2) -
-                      (inlineViewportWidth / 2);
-                    if (measuredRect.width > inlineViewportWidth * 0.50 &&
-                        measuredCenterOffset > Math.max(18, inlineViewportWidth * 0.05)) {
-                      rightShiftedWideVideo = true;
-                      break;
-                    }
-                    if (measuredNode === watchRoot) break;
-                    var measuredTag = (measuredNode.tagName || '').toLowerCase();
-                    if (measuredTag === 'ytm-player' || measuredTag === 'ytm-watch' ||
-                        (measuredNode.matches &&
-                         measuredNode.matches('#player-container-id'))) break;
-                    measuredNode = measuredNode.parentElement;
-                  }
-                  if (rightShiftedWideVideo) {
-                    var ancestor = inlineActiveVideo.parentElement;
-                    var repairDepth = 0;
-                    while (ancestor && ancestor !== document.documentElement && repairDepth++ < 12) {
-                      ['left','right','transform','translate','margin-left','margin-right',
-                       'padding-left','padding-right'].forEach(function(property) {
-                        ancestor.style.removeProperty(property);
-                      });
-                      ancestor.style.setProperty('left', '0px', 'important');
-                      ancestor.style.setProperty('right', 'auto', 'important');
-                      ancestor.style.setProperty('transform', 'none', 'important');
-                      ancestor.style.setProperty('translate', 'none', 'important');
-                      ancestor.style.setProperty('margin-left', '0px', 'important');
-                      ancestor.style.setProperty('margin-right', '0px', 'important');
-                      ancestor.style.setProperty('padding-left', '0px', 'important');
-                      ancestor.style.setProperty('padding-right', '0px', 'important');
-                      var ancestorTag = (ancestor.tagName || '').toLowerCase();
-                      if (ancestor === watchRoot || ancestorTag === 'ytm-player' ||
-                          ancestorTag === 'ytm-watch' ||
-                          (ancestor.matches && ancestor.matches('#player-container-id'))) break;
-                      ancestor = ancestor.parentElement;
-                    }
-                    // Keep decoder width/height/object-fit untouched; only reset horizontal geometry.
-                    inlineActiveVideo.style.setProperty('left', '0px', 'important');
-                    inlineActiveVideo.style.setProperty('right', 'auto', 'important');
-                    inlineActiveVideo.style.setProperty('transform', 'none', 'important');
-                    inlineActiveVideo.style.setProperty('translate', 'none', 'important');
-                    inlineActiveVideo.style.setProperty('margin-left', '0px', 'important');
-                    inlineActiveVideo.style.setProperty('margin-right', '0px', 'important');
-                    window.dispatchEvent(new Event('resize'));
-                  }
-                }
-                // Expose the same guarded X-axis repair for configuration/visual viewport callbacks.
-                window.__ngocSiNormalizeInlineX = function() {
-                  try {
-                    // Do not touch geometry while Chromium or the app-managed page is fullscreen.
-                    if ((document.documentElement &&
-                         document.documentElement.classList.contains('ngocsi-inline-fullscreen')) ||
-                        document.fullscreenElement) return 'FULLSCREEN_SKIP';
-                    var viewportWidth = Math.max(
-                      1,
-                      Number(window.visualViewport && window.visualViewport.width) ||
-                        Number(window.innerWidth) ||
-                        Number(document.documentElement.clientWidth) || 1
-                    );
-                    var video = document.querySelector('video.html5-main-video') ||
-                                document.querySelector('video');
-                    if (!video) return 'NO_VIDEO';
-                    var shiftedRight = false;
-                    var measuredNode = video;
-                    var measureDepth = 0;
-                    while (measuredNode && measuredNode !== document.documentElement &&
-                           measureDepth++ < 12) {
-                      var r = measuredNode.getBoundingClientRect();
-                      var centerOffset = ((r.left + r.right) / 2) - viewportWidth / 2;
-                      if (r.width > viewportWidth * 0.5 &&
-                          centerOffset > Math.max(18, viewportWidth * 0.05)) {
-                        shiftedRight = true;
-                        break;
-                      }
-                      var measuredTag = (measuredNode.tagName || '').toLowerCase();
-                      if (measuredTag === 'ytm-player' || measuredTag === 'ytm-watch' ||
-                          (measuredNode.matches && measuredNode.matches('#player-container-id'))) break;
-                      measuredNode = measuredNode.parentElement;
-                    }
-                    if (!shiftedRight) return 'ALIGNED';
-                    var node = video.parentElement;
-                    var depth = 0;
-                    while (node && node !== document.documentElement && depth++ < 12) {
-                      ['left','right','transform','translate','margin-left','margin-right',
-                       'padding-left','padding-right'].forEach(function(property) {
-                        node.style.removeProperty(property);
-                      });
-                      node.style.setProperty('left', '0px', 'important');
-                      node.style.setProperty('right', 'auto', 'important');
-                      node.style.setProperty('transform', 'none', 'important');
-                      node.style.setProperty('translate', 'none', 'important');
-                      node.style.setProperty('margin-left', '0px', 'important');
-                      node.style.setProperty('margin-right', '0px', 'important');
-                      node.style.setProperty('padding-left', '0px', 'important');
-                      node.style.setProperty('padding-right', '0px', 'important');
-                      var tag = (node.tagName || '').toLowerCase();
-                      if (tag === 'ytm-player' || tag === 'ytm-watch' ||
-                          (node.matches && node.matches('#player-container-id'))) break;
-                      node = node.parentElement;
-                    }
-                    video.style.setProperty('left', '0px', 'important');
-                    video.style.setProperty('right', 'auto', 'important');
-                    video.style.setProperty('transform', 'none', 'important');
-                    video.style.setProperty('translate', 'none', 'important');
-                    video.style.setProperty('margin-left', '0px', 'important');
-                    video.style.setProperty('margin-right', '0px', 'important');
-                    return 'RIGHT_SHIFT_REPAIRED';
-                  } catch (_) { return 'X_REPAIR_ERROR'; }
-                };
-                if (!window.__ngocSiInlineViewportListener) {
-                  window.__ngocSiInlineViewportListener = true;
-                  var scheduleInlineXRepair = function() {
-                    window.setTimeout(function() {
-                      if (typeof window.__ngocSiNormalizeInlineX === 'function') {
-                        window.__ngocSiNormalizeInlineX();
-                      }
-                    }, 140);
-                  };
-                  window.addEventListener('resize', scheduleInlineXRepair, {passive:true});
-                  if (window.visualViewport) {
-                    window.visualViewport.addEventListener('resize', scheduleInlineXRepair, {passive:true});
-                  }
-                }
-                // YouTube can rewrite the media bounds after the initial page-finished callback.
-                // Re-run this guarded measurement after the viewport has settled.
-                if (!isFullscreen && !window.__ngocSiInlineXRepairScheduled) {
-                  window.__ngocSiInlineXRepairScheduled = true;
-                  [120, 360, 700].forEach(function(delay) {
-                    window.setTimeout(function() {
-                      window.__ngocSiInlineXRepairScheduled = false;
-                      if (typeof window.__ngocSiNormalizeInlineX === 'function') {
-                        window.__ngocSiNormalizeInlineX();
-                      }
-                    }, delay);
-                  });
-                }
+                // Keep the actual HTML5 video and its parent compositor under YouTube's
+                // own mobile CSS. Previous DOM-rectangle heuristics only inspected layout boxes,
+                // not the rendered video surface, and repeatedly overwrote native inline offsets.
+                // Neutralize any queued repair callbacks left by an already-open WebView.
+                window.__ngocSiNormalizeInlineX = function() { return 'NATIVE_YOUTUBE_LAYOUT'; };
                 try {
                   if (document.scrollingElement) {
                     document.scrollingElement.scrollTop = 0;
