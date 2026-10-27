@@ -3057,7 +3057,27 @@ class YouTubePlayerActivity : ComponentActivity() {
                                // Keep inline geometry under YouTube's control. Only strip page chrome;
                                // forcing wrapper dimensions/position here caused edge bands on viewport changes.
                                'html,body {margin:0!important;padding:0!important;overflow:hidden!important;' +
-                               'background:#000!important;} ' +
+                               'width:100%!important;overflow-x:hidden!important;background:#000!important;} ' +
+                              // Align only the outer mobile-page wrappers. Do not rewrite the
+                              // placeholder aspect-ratio padding or the HTML video transform: those
+                              // are owned by YouTube's compositor. Removing the hidden top-bar
+                              // must not leave the watch/player host offset within the native frame.
+                              'ytm-app {display:block!important;width:100%!important;max-width:100%!important;' +
+                              'min-width:0!important;margin:0!important;padding:0!important;box-sizing:border-box!important;} ' +
+                              'ytm-app.sticky-player {padding-top:0!important;} ' +
+                              'ytm-watch {position:relative!important;top:0!important;left:0!important;' +
+                              'right:auto!important;margin-left:0!important;margin-right:0!important;' +
+                              'padding-top:0!important;padding-left:0!important;padding-right:0!important;' +
+                              'width:100%!important;max-width:100%!important;min-width:0!important;' +
+                              'box-sizing:border-box!important;} ' +
+                              '.player-container,.player-container.sticky-player {position:relative!important;' +
+                              'top:0!important;left:0!important;right:auto!important;margin-left:0!important;' +
+                              'margin-right:0!important;width:100%!important;max-width:100%!important;' +
+                              'min-width:0!important;box-sizing:border-box!important;} ' +
+                              'ytm-player,#player-container-id,#player-container,#player {' +
+                              'position:relative!important;top:0!important;left:0!important;right:auto!important;' +
+                              'margin-left:0!important;margin-right:0!important;width:100%!important;' +
+                              'max-width:100%!important;min-width:0!important;box-sizing:border-box!important;} ' +
                               // Full-height rules are activated only by the app-managed fullscreen state.
                               // Applying them to every landscape viewport made the DOM video taller than
                               // the inline native 16:9 host during rotation and could blank Chromium's surface.
