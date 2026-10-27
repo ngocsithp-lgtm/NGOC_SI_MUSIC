@@ -3114,9 +3114,12 @@ class YouTubePlayerActivity : ComponentActivity() {
                                   document.body.scrollLeft = 0;
                                 }
 
+                                // Normalize only the page-level host wrappers. Do not rewrite YouTube's
+                                // internal .html5-video-player/#movie_player/.html5-video-container
+                                // geometry: those nodes own crop/letterbox positioning and forcing
+                                // them to relative + 100% can leave a black strip at one edge.
                                 var wrapperSelector = 'ytm-watch,.player-container,.player-placeholder,' +
-                                  'ytm-player,#player-container-id,#player-container,#player,' +
-                                  '.html5-video-player,#movie_player,.html5-video-container';
+                                  'ytm-player,#player-container-id,#player-container,#player';
                                 var wrappers = Array.prototype.slice.call(
                                   document.querySelectorAll(wrapperSelector)
                                 );
