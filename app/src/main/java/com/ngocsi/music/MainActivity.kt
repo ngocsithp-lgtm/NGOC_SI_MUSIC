@@ -770,6 +770,9 @@ class MainActivity : ComponentActivity() {
             intent.getStringExtra("ai_track_query"),
             intent.getStringExtra("ai_online_query")
         )
+        // Background notification taps must land on the inline player in this Activity,
+        // including cold starts after Android has reclaimed the previous process.
+        handleInlineYouTubeResumeIntent(intent)
 
         // Restore persisted Drive sources only after the first frame can render.
         if (driveOAuthSignedIn) {
@@ -1042,6 +1045,91 @@ class MainActivity : ComponentActivity() {
             intent.getStringExtra("ai_track_query"),
             intent.getStringExtra("ai_online_query")
         )
+        handleInlineYouTubeResumeIntent(intent)
+    }
+
+    /**
+     * Re-open the current YouTube item in the embedded card, never in YouTubePlayerActivity
+     * or an external browser. Reuse the existing WebView when it is still alive to avoid
+     * restarting the HTML5 media element after a normal background/foreground round-trip.
+     */
+    private fun handleInlineYouTubeResumeIntent(incoming: Intent?) {
+        val explicitInlineOpen = incoming?.getBooleanExtra(
+            YouTubeBackgroundService.EXTRA_OPEN_INLINE_PLAYER, false
+        ) == true || incoming?.action == YouTubeBackgroundService.ACTION_OPEN_INLINE_PLAYER
+
+        val launcherReopen = incoming?.action == Intent.ACTION_MAIN &&
+            incoming.hasCategory(Intent.CATEGORY_LAUNCHER) &&
+            incoming.getStringExtra("pro_destination") == null
+
+        if (!explicitInlineOpen && !launcherReopen) return
+
+        val shouldRestoreBackgroundPlayer = explicitInlineOpen ||
+            (launcherReopen &&
+                inlineBackgroundPlaybackEnabled &&
+                prefs.getBoolean("youtube_active_source", false))
+        if (!shouldRestoreBackgroundPlayer) return
+
+        val incomingId = incoming?.getStringExtra(YouTubeBackgroundService.EXTRA_VIDEO_ID)
+            .orEmpty()
+            .filter { it.isLetterOrDigit() || it == '-' || it == '_' }
+            .take(32)
+        val track = if (incomingId.isNotBlank()) {
+            val fallbackTitle = youtubeLastPlayed?.takeIf { it.videoId == incomingId }?.title
+            val fallbackChannel = youtubeLastPlayed?.takeIf { it.videoId == incomingId }?.channelTitle
+            val thumbnail = incoming?.getStringExtra(YouTubeBackgroundService.EXTRA_THUMBNAIL_URL)
+                .orEmpty().ifBlank {
+                    youtubeLastPlayed?.takeIf { it.videoId == incomingId }?.thumbnailUrl
+                        ?: "https://i.ytimg.com/vi/$incomingId/hqdefault.jpg"
+                }
+            YouTubeTrack(
+                incomingId,
+                incoming?.getStringExtra(YouTubeBackgroundService.EXTRA_TITLE).orEmpty()
+                    .ifBlank { fallbackTitle ?: "Video YouTube" },
+                incoming?.getStringExtra(YouTubeBackgroundService.EXTRA_CHANNEL).orEmpty()
+                    .ifBlank { fallbackChannel ?: "YouTube" },
+                thumbnail
+            )
+        } else {
+            youtubeLastPlayed
+        }
+
+        if (track == null) {
+            selectedSection = "Online"
+            onlineHubTab = "YouTube"
+            errorMessage = "Không tìm thấy video YouTube gần nhất để khôi phục trong khung phát."
+            return
+        }
+
+        val queueJson = incoming?.getStringExtra(YouTubeBackgroundService.EXTRA_QUEUE_JSON)
+            ?.takeIf { it.isNotBlank() }
+        if (queueJson != null) {
+            saveYouTubeLastPlayed(
+                track,
+                queueJson,
+                incoming?.getIntExtra(
+                    YouTubeBackgroundService.EXTRA_QUEUE_INDEX,
+                    youtubeLastQueueIndex
+                ) ?: youtubeLastQueueIndex
+            )
+        } else if (youtubeLastPlayed?.videoId != track.videoId) {
+            val (fallbackQueue, fallbackIndex) = buildYouTubeQueueJson(track)
+            saveYouTubeLastPlayed(track, fallbackQueue, fallbackIndex)
+        }
+
+        selectedSection = "Online"
+        onlineHubTab = "YouTube"
+        setYouTubeActiveSource(true)
+        youtubeSelectedVideoId = track.videoId
+        if (youtubeQuery.isBlank()) youtubeQuery = track.title
+        youtubePlaybackIsPlaying = prefs.getBoolean("youtube_playback_is_playing", true)
+
+        // Assign a new track only if needed. If the current WebView survived in the
+        // background, leave its media element untouched so playback remains continuous.
+        if (youtubeInlineTrack?.videoId != track.videoId) {
+            youtubeInlineTrack = track
+        }
+        youtubeInlineOpenGeneration++
     }
 
     private fun connectController() {
@@ -9018,6 +9106,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             putExtra(YouTubeBackgroundService.EXTRA_VIDEO_ID, track.videoId)
             putExtra(YouTubeBackgroundService.EXTRA_TITLE, track.title)
             putExtra(YouTubeBackgroundService.EXTRA_CHANNEL, track.channelTitle)
+            putExtra(YouTubeBackgroundService.EXTRA_THUMBNAIL_URL, track.thumbnailUrl)
             putExtra(YouTubeBackgroundService.EXTRA_QUEUE_JSON, queueJson)
             putExtra(YouTubeBackgroundService.EXTRA_QUEUE_INDEX, queueIndex)
             putExtra(YouTubeBackgroundService.EXTRA_PLAYER_STATE, if (isPlaying) 1 else 2)
