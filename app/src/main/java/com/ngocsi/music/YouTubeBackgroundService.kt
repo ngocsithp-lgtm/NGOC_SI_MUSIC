@@ -18,9 +18,9 @@ import android.os.PowerManager
  * media-playback priority while the screen is off or another app is foregrounded.
  *
  * The HTML5 video remains the audio renderer; this service does not download,
- * extract, or replace YouTube media. Its media session routes system controls
- * back to the live YouTubePlayerActivity and never to the independent Media3
- * local/Drive player.
+ * extract, or replace YouTube media. Its media session routes controls to the
+ * active inline player host and its notification opens MainActivity's embedded
+ * YouTube card, never the separate player page or the local/Drive player.
  */
 @androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 class YouTubeBackgroundService : Service() {
@@ -33,10 +33,13 @@ class YouTubeBackgroundService : Service() {
         const val ACTION_NEXT = "com.ngocsi.music.youtube.background.NEXT"
         const val ACTION_PREVIOUS = "com.ngocsi.music.youtube.background.PREVIOUS"
         const val ACTION_CONTROL = "com.ngocsi.music.youtube.background.CONTROL"
+        const val ACTION_OPEN_INLINE_PLAYER = "com.ngocsi.music.youtube.background.OPEN_INLINE_PLAYER"
+        const val EXTRA_OPEN_INLINE_PLAYER = "youtube_open_inline_player"
         const val EXTRA_CONTROL = "youtube_background_control"
         const val EXTRA_VIDEO_ID = "youtube_video_id"
         const val EXTRA_TITLE = "youtube_title"
         const val EXTRA_CHANNEL = "youtube_channel"
+        const val EXTRA_THUMBNAIL_URL = "youtube_thumbnail_url"
         const val EXTRA_QUEUE_JSON = "youtube_queue_json"
         const val EXTRA_QUEUE_INDEX = "youtube_queue_index"
         const val EXTRA_PLAYER_STATE = "youtube_player_state"
@@ -51,6 +54,7 @@ class YouTubeBackgroundService : Service() {
     private var videoId = ""
     private var title = "YouTube"
     private var channel = "NGỌC SĨ MUSIC"
+    private var thumbnailUrl = ""
     private var queueJson = "[]"
     private var queueIndex = 0
     private var playerState = PlaybackState.STATE_NONE
@@ -102,6 +106,9 @@ class YouTubeBackgroundService : Service() {
             }.orEmpty().ifBlank { videoId }
             title = intent.getStringExtra(EXTRA_TITLE)?.take(300).orEmpty().ifBlank { title }
             channel = intent.getStringExtra(EXTRA_CHANNEL)?.take(200).orEmpty().ifBlank { channel }
+            thumbnailUrl = intent.getStringExtra(EXTRA_THUMBNAIL_URL).orEmpty().ifBlank {
+                if (videoId.isNotBlank()) "https://i.ytimg.com/vi/$videoId/hqdefault.jpg" else thumbnailUrl
+            }
             queueJson = intent.getStringExtra(EXTRA_QUEUE_JSON)?.takeIf { it.isNotBlank() } ?: queueJson
             queueIndex = intent.getIntExtra(EXTRA_QUEUE_INDEX, queueIndex).coerceAtLeast(0)
             playerState = intent.getIntExtra(EXTRA_PLAYER_STATE, playerState)
@@ -197,13 +204,23 @@ class YouTubeBackgroundService : Service() {
 
     private fun buildNotification(): Notification {
         val sessionToken = mediaSession?.sessionToken
-        val openPlayer = Intent(this, YouTubePlayerActivity::class.java).apply {
-            putExtra(YouTubePlayerActivity.EXTRA_VIDEO_ID, videoId)
-            putExtra(YouTubePlayerActivity.EXTRA_TITLE, title)
-            putExtra(YouTubePlayerActivity.EXTRA_CHANNEL, channel)
-            putExtra(YouTubePlayerActivity.EXTRA_QUEUE_JSON, queueJson)
-            putExtra(YouTubePlayerActivity.EXTRA_QUEUE_INDEX, queueIndex)
-            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        // A notification tap must return to the embedded inline player on MainActivity.
+        // The older target opened YouTubePlayerActivity, which looked like a separate
+        // YouTube page and lost the user's inline-card context.
+        val openPlayer = Intent(this, MainActivity::class.java).apply {
+            action = ACTION_OPEN_INLINE_PLAYER
+            putExtra(EXTRA_OPEN_INLINE_PLAYER, true)
+            putExtra(EXTRA_VIDEO_ID, videoId)
+            putExtra(EXTRA_TITLE, title)
+            putExtra(EXTRA_CHANNEL, channel)
+            putExtra(EXTRA_THUMBNAIL_URL, thumbnailUrl)
+            putExtra(EXTRA_QUEUE_JSON, queueJson)
+            putExtra(EXTRA_QUEUE_INDEX, queueIndex)
+            addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP
+            )
         }
         val contentPendingIntent = PendingIntent.getActivity(
             this,
