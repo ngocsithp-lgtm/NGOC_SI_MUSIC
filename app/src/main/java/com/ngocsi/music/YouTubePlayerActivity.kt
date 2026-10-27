@@ -521,7 +521,14 @@ class YouTubePlayerActivity : ComponentActivity() {
                 } else if (state == 0 || (state == 2 && (!orientationHandoffActive || explicitUserPause))) {
                     // ENDED always clears intent. PAUSED clears it only when it is not a viewport
                     // handoff, or when the user explicitly asked to pause the player.
-                    if (state == 0) explicitUserPause = false
+                    if (state == 0) {
+                        explicitUserPause = false
+                        // An ended video must not inherit a stale fullscreen-exit Play intent.
+                        if (fullscreenExitPlaybackIntentVideoId == stateVideoId) {
+                            fullscreenExitPlaybackIntentVideoId = null
+                            fullscreenExitPlaybackIntentUntilMs = 0L
+                        }
+                    }
                     resumePlaybackOnNextOrientationChange = false
                     if (customView != null || isCssFullscreen || fullscreenLayoutActive) {
                         wasPlayingBeforeFullscreen = false
