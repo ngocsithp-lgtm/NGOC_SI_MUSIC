@@ -350,9 +350,6 @@ class MainActivity : ComponentActivity() {
     private var inlineFullscreenHasReachedPhysicalLandscape = false
     private var inlineFullscreenOrientationListener: android.view.OrientationEventListener? = null
     private var inlineBackgroundPlaybackEnabled = false
-    // The fullscreen player is a separate in-app Activity. While it is on top, the inline
-    // WebView must stay paused and ignore background-media broadcasts; resume it on return.
-    private var inlineFullscreenHandoffPending = false
     private var inlineBackgroundServiceStarted = false
     private var inlineBackgroundReceiverRegistered = false
     private var inlineConfigurationVersion by mutableIntStateOf(0)
@@ -371,7 +368,7 @@ class MainActivity : ComponentActivity() {
 
     private val inlineYouTubeBackgroundControlReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: android.content.Context?, intent: Intent?) {
-            if (inlineFullscreenHandoffPending || intent?.action != YouTubeBackgroundService.ACTION_CONTROL) return
+            if (intent?.action != YouTubeBackgroundService.ACTION_CONTROL) return
             when (intent.getStringExtra(YouTubeBackgroundService.EXTRA_CONTROL)) {
                 "play" -> {
                     playInlineYouTubeWebView()
@@ -4656,52 +4653,6 @@ class MainActivity : ComponentActivity() {
             youtubePlaybackIsPlaying = prefs.getBoolean("youtube_playback_is_playing", false)
             loadYouTubeLibraryState()
             loadYouTubeWatchLater()
-        }
-
-        // Returning from the dedicated fullscreen player: use its most recently saved
-        // position to resume the original inline WebView instead of leaving a dead player.
-        if (inlineFullscreenHandoffPending) {
-            inlineFullscreenHandoffPending = false
-            val track = youtubeInlineTrack
-            val view = youtubeInlineWebView
-            if (track != null && view != null) {
-                val positionMs = prefs.getLong("youtube_position_ms_" + track.videoId, 0L)
-                    .coerceAtLeast(0L)
-                youtubePlaybackIsPlaying = true
-                prefs.edit()
-                    .putBoolean("youtube_active_source", true)
-                    .putBoolean("youtube_playback_is_playing", true)
-                    .apply()
-                view.postDelayed({
-                    if (!isFinishing && !isDestroyed && view === youtubeInlineWebView) {
-                        view.evaluateJavascript(
-                            """
-                            (function() {
-                              try {
-                                var v = document.querySelector('video.html5-main-video') ||
-                                        document.querySelector('video');
-                                if (v && $positionMs > 0) {
-                                  try { v.currentTime = ${positionMs / 1000.0}; } catch (_) {}
-                                }
-                                try {
-                                  var p = window.player;
-                                  if (p && typeof p.playVideo === 'function') {
-                                    p.unMute(); p.setVolume(100); p.playVideo();
-                                  } else if (v) {
-                                    v.muted = false; v.volume = 1;
-                                    var result = v.play();
-                                    if (result && result.catch) result.catch(function() {});
-                                  }
-                                } catch (_) {}
-                                return 'INLINE_RESUMED_FROM_FULLSCREEN';
-                              } catch (_) { return 'INLINE_RESUME_FAILED'; }
-                            })();
-                            """.trimIndent(),
-                            null
-                        )
-                    }
-                }, 350L)
-            }
         }
 
         // Re-synchronize the Activity with Media3 after returning from the
@@ -9053,71 +9004,105 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
      * service lifecycle. Ordinary search-result taps still stay in the inline frame.
      */
     private fun enterInlineYouTubeFullscreen() {
-        val track = youtubeInlineTrack
         val view = youtubeInlineWebView
-        if (track == null || view == null) {
+        if (youtubeInlineTrack == null || view == null) {
             errorMessage = "Chưa có video YouTube đang mở trong khung phát."
             return
         }
-        if (inlineFullscreenHandoffPending) return
+        if (youtubeInlineFullscreen) return
 
-        // The inline Compose/WebView fullscreen CSS path can leave the media surface black
-        // after orientation changes. Hand fullscreen over to the dedicated in-app player,
-        // which owns its own responsive video host, landscape handling and playback recovery.
-        val (queueJson, queueIndex) = buildYouTubeQueueJson(track)
-        saveYouTubeLastPlayed(track, queueJson, queueIndex)
-        val playerIntent = Intent(this, YouTubePlayerActivity::class.java).apply {
-            putExtra(YouTubePlayerActivity.EXTRA_VIDEO_ID, track.videoId)
-            putExtra(YouTubePlayerActivity.EXTRA_TITLE, track.title)
-            putExtra(YouTubePlayerActivity.EXTRA_CHANNEL, track.channelTitle)
-            putExtra(YouTubePlayerActivity.EXTRA_QUEUE_JSON, queueJson)
-            putExtra(YouTubePlayerActivity.EXTRA_QUEUE_INDEX, queueIndex)
-            putExtra(YouTubePlayerActivity.EXTRA_START_FULLSCREEN, true)
-        }
+        youtubeInlineFullscreen = true
+        inlineFullscreenHasReachedPhysicalLandscape = false
+        inlineFullscreenOrientationListener?.disable()
+        inlineFullscreenOrientationListener = object : android.view.OrientationEventListener(this) {
+            override fun onOrientationChanged(orientation: Int) {
+                if (!youtubeInlineFullscreen ||
+                    orientation == android.view.OrientationEventListener.ORIENTATION_UNKNOWN
+                ) return
 
-        // Save the live HTML5 media position before pausing the inline renderer. The
-        // fullscreen Activity reads the same per-video preference after YouTube is ready.
-        view.evaluateJavascript(
-            """
-            (function() {
-              try {
-                var v = document.querySelector('video.html5-main-video') ||
-                        document.querySelector('video');
-                return v && isFinite(v.currentTime) ? Math.floor(v.currentTime * 1000) : 0;
-              } catch (_) { return 0; }
-            })();
-            """.trimIndent()
-        ) { rawPosition ->
-            if (isFinishing || isDestroyed) return@evaluateJavascript
-            val positionMs = rawPosition?.trim()?.trim('"')?.toDoubleOrNull()
-                ?.toLong()?.coerceAtLeast(0L)
-            if (positionMs != null) {
-                prefs.edit()
-                    .putLong("youtube_position_ms_" + track.videoId, positionMs)
-                    .apply()
-            }
+                val physicalLandscape = orientation in 60..120 || orientation in 240..300
+                val physicalPortrait = orientation in 0..30 ||
+                    orientation in 150..210 || orientation in 330..359
 
-            pauseInlineYouTubeWebView {
-                if (isFinishing || isDestroyed) return@pauseInlineYouTubeWebView
-                inlineFullscreenHandoffPending = true
-                youtubePlaybackIsPlaying = true
-                prefs.edit()
-                    .putBoolean("youtube_active_source", true)
-                    .putBoolean("youtube_playback_is_playing", true)
-                    .apply()
-                try {
-                    startActivity(playerIntent)
-                } catch (e: Exception) {
-                    inlineFullscreenHandoffPending = false
-                    playInlineYouTubeWebView()
-                    errorMessage = "Không mở được trình phát ngang trong app: " +
-                        (e.message ?: "lỗi khởi chạy")
+                if (physicalLandscape) {
+                    inlineFullscreenHasReachedPhysicalLandscape = true
+                } else if (physicalPortrait && inlineFullscreenHasReachedPhysicalLandscape) {
+                    // When the handset is physically returned to portrait, unlock the forced
+                    // landscape orientation and restore the same inline player host.
+                    exitInlineYouTubeFullscreen()
                 }
             }
+        }.also { listener ->
+            if (listener.canDetectOrientation()) listener.enable()
         }
+
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        WindowInsetsControllerCompat(window, window.decorView).apply {
+            systemBarsBehavior =
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            hide(WindowInsetsCompat.Type.systemBars())
+        }
+
+        // Mark the current page as fullscreen so only its outer viewport wrappers resize.
+        // Keep YouTube's own video element and renderer geometry under Chromium/YouTube control.
+        view.evaluateJavascript(
+            "document.documentElement.classList.add('ngocsi-inline-fullscreen');" +
+                "window.scrollTo(0,0);window.dispatchEvent(new Event('resize'));",
+            null
+        )
+        requestedOrientation =
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+
+        // Re-dispatch resize after Android finishes rotating the window. Never reload the URL
+        // or send a competing Play command here; both can turn a live video into black/audio-only.
+        view.postDelayed({
+            if (!isFinishing && !isDestroyed && youtubeInlineFullscreen &&
+                view === youtubeInlineWebView
+            ) {
+                view.requestLayout()
+                view.invalidate()
+                view.evaluateJavascript(
+                    "window.scrollTo(0,0);window.dispatchEvent(new Event('resize'));",
+                    null
+                )
+            }
+        }, 300L)
     }
 
     private fun exitInlineYouTubeFullscreen() {
+        if (!youtubeInlineFullscreen) return
+        youtubeInlineFullscreen = false
+        inlineFullscreenOrientationListener?.disable()
+        inlineFullscreenOrientationListener = null
+        inlineFullscreenHasReachedPhysicalLandscape = false
+        WindowInsetsControllerCompat(window, window.decorView)
+            .show(WindowInsetsCompat.Type.systemBars())
+        WindowCompat.setDecorFitsSystemWindows(window, true)
+        requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+        youtubeInlineWebView?.let { view ->
+            view.evaluateJavascript(
+                "document.documentElement.classList.remove('ngocsi-inline-fullscreen');" +
+                    "window.scrollTo(0,0);window.dispatchEvent(new Event('resize'));",
+                null
+            )
+            view.requestLayout()
+            view.invalidate()
+            view.postDelayed({
+                if (!isFinishing && !isDestroyed && !youtubeInlineFullscreen &&
+                    view === youtubeInlineWebView
+                ) {
+                    view.evaluateJavascript(
+                        "window.scrollTo(0,0);window.dispatchEvent(new Event('resize'));",
+                        null
+                    )
+                    view.requestLayout()
+                    view.invalidate()
+                }
+            }, 300L)
+        }
+    }
+
+
         if (!youtubeInlineFullscreen) return
         youtubeInlineFullscreen = false
         inlineFullscreenOrientationListener?.disable()
@@ -9304,21 +9289,21 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   'html.ngocsi-inline-fullscreen #player-container,' +
                   'html.ngocsi-inline-fullscreen #player {' +
                   'height:100%!important;max-height:100%!important;aspect-ratio:auto!important;} ' +
-                  'html.ngocsi-inline-fullscreen .html5-video-player,' +
-                  'html.ngocsi-inline-fullscreen #movie_player,' +
-                  'html.ngocsi-inline-fullscreen .html5-video-container {' +
-                  'position:relative!important;top:0!important;left:0!important;' +
-                  'width:100%!important;height:100%!important;max-width:100vw!important;' +
-                  'max-height:100vh!important;min-width:0!important;overflow:hidden!important;} ' +
-                  'html.ngocsi-inline-fullscreen video.html5-main-video {' +
-                  'position:absolute!important;left:0!important;top:0!important;right:auto!important;' +
-                  'bottom:auto!important;margin:0!important;transform:none!important;width:100%!important;' +
-                  'height:100%!important;max-width:100vw!important;max-height:100vh!important;' +
-                  'min-width:0!important;object-fit:contain!important;} ';
-                // Keep portrait media sizing under YouTube/Chromium control. Styling the
-                  // internal video containers as 100% absolute layers can shift/crop the video
-                  // or leave a black strip after a viewport change. Only fullscreen has special
-                  // geometry above; portrait normalization below resets offsets without sizing.
+                  'html.ngocsi-inline-fullscreen body,' +
+                  'html.ngocsi-inline-fullscreen ytm-app,' +
+                  'html.ngocsi-inline-fullscreen ytm-watch,' +
+                  'html.ngocsi-inline-fullscreen .player-container,' +
+                  'html.ngocsi-inline-fullscreen .player-placeholder,' +
+                  'html.ngocsi-inline-fullscreen ytm-player,' +
+                  'html.ngocsi-inline-fullscreen #player-container-id,' +
+                  'html.ngocsi-inline-fullscreen #player-container,' +
+                  'html.ngocsi-inline-fullscreen #player {' +
+                  'width:100vw!important;height:100vh!important;max-width:100vw!important;' +
+                  'max-height:100vh!important;min-width:0!important;min-height:0!important;' +
+                  'aspect-ratio:auto!important;overflow:hidden!important;box-sizing:border-box!important;} ';
+                // Keep the HTML5 video and Chromium media surface geometry under YouTube control.
+                // Fullscreen changes only outer page/player host dimensions; never set the video
+                // element's position, width, height or object-fit, which can cause black playback.
                 var style = document.getElementById(styleId);
                 if (!style) {
                   style = document.createElement('style');
