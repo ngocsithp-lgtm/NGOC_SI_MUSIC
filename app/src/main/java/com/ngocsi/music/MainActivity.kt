@@ -9180,7 +9180,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     inlineView.requestLayout()
                     inlineView.invalidate()
                 }
-            }, 250L)
+            }, 650L)
         }
     }
 
@@ -9534,14 +9534,23 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 // Do not stretch the HTML5 video or clip the inner #player surface: that
                 // combination previously allowed audio while Chromium rendered a black frame.
                 if (isFullscreen) {
+                  // Prefer the visible WebView viewport (it can be smaller than the
+                  // layout viewport when Android hides system bars or reports a display cutout).
+                  var visualViewport = window.visualViewport;
                   var viewportWidth = Math.max(
-                    1, window.innerWidth || document.documentElement.clientWidth || 1
+                    1, Math.floor((visualViewport && visualViewport.width) ||
+                      window.innerWidth || document.documentElement.clientWidth || 1)
                   );
                   var viewportHeight = Math.max(
-                    1, window.innerHeight || document.documentElement.clientHeight || 1
+                    1, Math.floor((visualViewport && visualViewport.height) ||
+                      window.innerHeight || document.documentElement.clientHeight || 1)
                   );
+                  // Leave a tiny safety inset so the 16:9 player never spills past the
+                  // physical screen edge on devices with rounded corners/display cutouts.
+                  var safeWidth = Math.max(1, viewportWidth - 8);
+                  var safeHeight = Math.max(1, viewportHeight - 8);
                   var fittedWidth = Math.max(
-                    1, Math.floor(Math.min(viewportWidth, viewportHeight * 16 / 9))
+                    1, Math.floor(Math.min(safeWidth, safeHeight * 16 / 9))
                   );
                   if (watchRoot) {
                     watchRoot.style.setProperty('display', 'flex', 'important');
