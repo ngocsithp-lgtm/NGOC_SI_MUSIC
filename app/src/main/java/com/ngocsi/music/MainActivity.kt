@@ -4772,16 +4772,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
- setTimeout(normalizePortraitGeometry, 120);
-                      setTimeout(normalizePortraitGeometry, 360);
-                      setTimeout(normalizePortraitGeometry, 700);
-                    })();
-                    """.trimIndent(),
-                    null
-                )
-            }
-        }
-    }
 
     override fun onStop() {
         // The MusicService owns the actual sleep-timer enforcement, so the UI only
