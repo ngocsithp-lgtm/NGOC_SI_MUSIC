@@ -9530,7 +9530,106 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 // WebView may keep audio alive while the hardware video surface disappears when these
                 // CSS properties are changed after playback starts. Keep YouTube's native geometry intact.
                 window.__ngocSiNormalizeInlineX = function() {
-                  return 'NATIVE_YOUTUBE_LAYOUT';
+                  try {
+                    if (document.fullscreenElement ||
+                        document.documentElement.classList.contains('ngocsi-inline-fullscreen')) {
+                      return 'FULLSCREEN_SKIP';
+                    }
+                    var vv = window.visualViewport;
+                    var vw = Math.max(1, Number(vv && vv.width) ||
+                      Number(window.innerWidth) || Number(document.documentElement.clientWidth) || 1);
+                    var vh = Math.max(1, Number(vv && vv.height) ||
+                      Number(window.innerHeight) || Number(document.documentElement.clientHeight) || 1);
+                    var video = document.querySelector('video.html5-main-video') ||
+                                document.querySelector('video');
+                    var host = document.querySelector('.player-placeholder') ||
+                               document.querySelector('ytm-player') ||
+                               document.querySelector('.player-container') ||
+                               document.querySelector('ytm-watch');
+                    if (!video || !host) return 'NO_VIDEO_OR_HOST';
+                    var vr = video.getBoundingClientRect();
+                    var hr = host.getBoundingClientRect();
+                    if (vr.width < 2 || vr.height < 2 || hr.width < 2 || hr.height < 2) {
+                      return 'LAYOUT_NOT_READY';
+                    }
+                    var hostW = Math.max(1, Math.min(vw * 1.5, hr.width));
+                    var hostH = Math.max(1, Math.min(vh * 1.5, hr.height));
+                    var hostCx = (hr.left + hr.right) / 2;
+                    var hostCy = (hr.top + hr.bottom) / 2;
+                    var videoCx = (vr.left + vr.right) / 2;
+                    var videoCy = (vr.top + vr.bottom) / 2;
+                    var xTolerance = Math.max(12, Math.min(vw, hostW) * 0.035);
+                    var yTolerance = Math.max(8, Math.min(vh, hostH) * 0.04);
+                    var shiftHostX = hr.width >= vw * 0.55 &&
+                      Math.abs(hostCx - vw / 2) > xTolerance;
+                    var shiftVideoX = vr.width >= hostW * 0.5 &&
+                      Math.abs(videoCx - hostCx) > xTolerance;
+                    var shiftHostY = hr.width >= vw * 0.55 &&
+                      hr.height >= hostW * 0.22 && hr.top > yTolerance;
+                    var shiftVideoY = vr.width >= hostW * 0.5 &&
+                      vr.height >= hostH * 0.45 && Math.abs(videoCy - hostCy) > yTolerance;
+                    function repairAxis(start, axis, stopAtHost) {
+                      var node = start;
+                      var depth = 0;
+                      while (node && node.nodeType === 1 &&
+                             node !== document.documentElement && depth++ < 14) {
+                        if (axis === 'x') {
+                          ['left','right','translate','margin-left','margin-right',
+                           'padding-left','padding-right'].forEach(function(p) {
+                            node.style.removeProperty(p);
+                          });
+                          node.style.setProperty('left', '0px', 'important');
+                          node.style.setProperty('right', 'auto', 'important');
+                          node.style.setProperty('margin-left', '0px', 'important');
+                          node.style.setProperty('margin-right', '0px', 'important');
+                          node.style.setProperty('padding-left', '0px', 'important');
+                          node.style.setProperty('padding-right', '0px', 'important');
+                          node.style.setProperty('translate', 'none', 'important');
+                          node.style.setProperty('transform', 'none', 'important');
+                        } else {
+                          ['top','bottom','translate','margin-top','margin-bottom',
+                           'padding-top','padding-bottom'].forEach(function(p) {
+                            node.style.removeProperty(p);
+                          });
+                          node.style.setProperty('top', '0px', 'important');
+                          node.style.setProperty('bottom', 'auto', 'important');
+                          node.style.setProperty('margin-top', '0px', 'important');
+                          node.style.setProperty('margin-bottom', '0px', 'important');
+                          node.style.setProperty('padding-top', '0px', 'important');
+                          node.style.setProperty('padding-bottom', '0px', 'important');
+                          node.style.setProperty('translate', 'none', 'important');
+                          node.style.setProperty('transform', 'none', 'important');
+                        }
+                        if (node === host && !stopAtHost) break;
+                        var tag = (node.tagName || '').toLowerCase();
+                        if (tag === 'ytm-player' || tag === 'ytm-watch' ||
+                            (!stopAtHost && node.matches &&
+                              (node.matches('#player-container-id') ||
+                               node.matches('.player-placeholder')))) {
+                          break;
+                        }
+                        node = node.parentElement;
+                      }
+                    }
+                    var repaired = [];
+                    if (shiftHostX) {
+                      repairAxis(host, 'x', true);
+                      repaired.push('HOST_X');
+                    } else if (shiftVideoX) {
+                      repairAxis(video, 'x', false);
+                      repaired.push('VIDEO_X');
+                    }
+                    if (shiftHostY) {
+                      repairAxis(host, 'y', true);
+                      repaired.push('HOST_Y');
+                    } else if (shiftVideoY) {
+                      repairAxis(video, 'y', false);
+                      repaired.push('VIDEO_Y');
+                    }
+                    return repaired.length ? 'REPAIRED_' + repaired.join('_') : 'ALIGNED';
+                  } catch (_) {
+                    return 'MEASURED_ALIGNMENT_ERROR';
+                  }
                 };
                 // YouTube recalculates its player after navigation and viewport changes.
                 // Re-check after its layout settles; the repair is guarded by measured offsets.
