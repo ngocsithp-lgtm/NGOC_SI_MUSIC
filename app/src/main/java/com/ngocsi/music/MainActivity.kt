@@ -351,6 +351,7 @@ class MainActivity : ComponentActivity() {
     private var youtubeInlineFullscreen by mutableStateOf(false)
     private var inlineFullscreenCustomViewVisible by mutableStateOf(false)
     private var inlineFullscreenCustomView: android.view.View? = null
+    private var inlineFullscreenContainer: android.widget.FrameLayout? = null
     private var inlineFullscreenCustomViewCallback: WebChromeClient.CustomViewCallback? = null
     private var inlineFullscreenRequestPending = false
     private var inlineFullscreenRequestGeneration = 0
@@ -9080,8 +9081,54 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
         (view.parent as? android.view.ViewGroup)?.removeView(view)
         view.setBackgroundColor(android.graphics.Color.BLACK)
-        decor.addView(
+
+        // Put a persistent exit control ABOVE Chromium's custom fullscreen surface.
+        // The supplied video view can cover all touch targets added behind it, so the
+        // close button must be a sibling layered on top in the same FrameLayout.
+        val fullscreenLayer = android.widget.FrameLayout(this)
+        fullscreenLayer.setBackgroundColor(android.graphics.Color.BLACK)
+        fullscreenLayer.addView(
             view,
+            android.widget.FrameLayout.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        )
+        val exitButton = android.widget.TextView(this).apply {
+            text = "✕"
+            contentDescription = "Quay về màn hình phát"
+            setTextColor(android.graphics.Color.WHITE)
+            textSize = 25f
+            gravity = android.view.Gravity.CENTER
+            isClickable = true
+            isFocusable = true
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(0xCC202020.toInt())
+                cornerRadius = 28f * resources.displayMetrics.density
+                setStroke(
+                    (1 * resources.displayMetrics.density).toInt().coerceAtLeast(1),
+                    0x88FFFFFF.toInt()
+                )
+            }
+            setOnClickListener { exitInlineYouTubeFullscreen() }
+            elevation = 24f * resources.displayMetrics.density
+        }
+        val buttonSize = (56 * resources.displayMetrics.density).toInt()
+        val buttonMargin = (14 * resources.displayMetrics.density).toInt()
+        fullscreenLayer.addView(
+            exitButton,
+            android.widget.FrameLayout.LayoutParams(
+                buttonSize,
+                buttonSize,
+                android.view.Gravity.TOP or android.view.Gravity.END
+            ).apply {
+                topMargin = buttonMargin
+                marginEnd = buttonMargin
+            }
+        )
+        inlineFullscreenContainer = fullscreenLayer
+        decor.addView(
+            fullscreenLayer,
             android.view.ViewGroup.LayoutParams(
                 android.view.ViewGroup.LayoutParams.MATCH_PARENT,
                 android.view.ViewGroup.LayoutParams.MATCH_PARENT
@@ -9096,10 +9143,12 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
     private fun hideInlineYouTubeCustomView(notifyCallback: Boolean) {
         val view = inlineFullscreenCustomView
+        val container = inlineFullscreenContainer
         val callback = inlineFullscreenCustomViewCallback
         if (view == null && callback == null && !inlineFullscreenCustomViewVisible) return
 
         inlineFullscreenCustomView = null
+        inlineFullscreenContainer = null
         inlineFullscreenCustomViewCallback = null
         inlineFullscreenCustomViewVisible = false
         inlineFullscreenRequestPending = false
@@ -9108,6 +9157,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         inlineFullscreenOrientationListener = null
         inlineFullscreenHasReachedPhysicalLandscape = false
 
+        (container?.parent as? android.view.ViewGroup)?.removeView(container)
         (view?.parent as? android.view.ViewGroup)?.removeView(view)
         window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN)
         WindowInsetsControllerCompat(window, window.decorView)
