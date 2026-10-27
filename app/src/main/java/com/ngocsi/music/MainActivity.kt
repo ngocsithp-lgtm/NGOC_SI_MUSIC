@@ -9065,7 +9065,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   'html:not(.ngocsi-inline-fullscreen) .html5-video-player,' +
                   'html:not(.ngocsi-inline-fullscreen) #movie_player,' +
                   'html:not(.ngocsi-inline-fullscreen) .html5-video-container {' +
-                  'position:absolute!important;inset:0!important;width:100%!important;' +
+                  'position:absolute!important;top:0!important;left:0!important;right:auto!important;' +
+                  'bottom:auto!important;width:100%!important;' +
                   'height:100%!important;min-width:0!important;max-width:100%!important;' +
                   'margin:0!important;padding:0!important;overflow:hidden!important;' +
                   'transform:none!important;box-sizing:border-box!important;} ' +
