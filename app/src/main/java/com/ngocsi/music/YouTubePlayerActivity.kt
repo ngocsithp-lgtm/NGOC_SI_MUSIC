@@ -1254,38 +1254,13 @@ class YouTubePlayerActivity : ComponentActivity() {
                 getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
                     .getBoolean("youtube_playback_is_playing", false))
 
-        // Ask YouTube/Chromium for its native fullscreen surface first. This routes through
-        // WebChromeClient.onShowCustomView instead of stretching the inline video DOM node,
-        // which was the likely source of the black surface on this device.
-        val player = webView ?: return
-        player.evaluateJavascript(
-            """(function() {
-                try {
-                    var video = document.querySelector('video.html5-main-video') ||
-                                document.querySelector('video');
-                    if (video && typeof video.requestFullscreen === 'function') {
-                        var result = video.requestFullscreen();
-                        if (result && typeof result.catch === 'function') result.catch(function(){});
-                        return 'REQUESTED';
-                    }
-                    var button = document.querySelector('.ytp-fullscreen-button') ||
-                                 document.querySelector('[aria-label*="full screen" i]') ||
-                                 document.querySelector('[aria-label*="toàn màn hình" i]');
-                    if (button) { button.click(); return 'BUTTON'; }
-                } catch (_) {}
-                return 'UNAVAILABLE';
-            })()""".trimIndent()
-        ) { result ->
-            if (result.orEmpty().contains("UNAVAILABLE") &&
-                customView == null && !fullscreenLayoutActive &&
-                !isFinishing && !isDestroyed
-            ) {
-                // Compatibility fallback for mobile YouTube variants which expose no
-                // requestFullscreen API/control. Keep this path bounded and explicit.
-                enterFullscreen()
-                updateNativeFullscreenButton()
-            }
-        }
+        // Use the app-managed fullscreen layout and keep the original WebView/video element
+        // attached. Calling video.requestFullscreen() transfers Chromium to a separate
+        // WebChromeClient custom surface; on affected Android builds that surface can stay
+        // black or stop rendering after returning to portrait even while audio continues.
+        // The native expand/shrink button and the physical-rotation listener both use this
+        // same path, so there is only one player surface and one exit/recovery transaction.
+        enterFullscreen()
     }
 
     /**
