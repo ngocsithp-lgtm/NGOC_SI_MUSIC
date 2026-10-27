@@ -5148,7 +5148,15 @@ class MainActivity : ComponentActivity() {
                     // The home dashboard already displays the active player controls.
                     // Show the compact player only on feature pages to avoid duplicate controls.
                     if (!youtubeInlineFullscreen) {
-                        if (selectedSection != "Trang chủ") {
+                        // The YouTube tab already owns the full inline player and its
+                        // current-item controls. Do not stack a second copy above BottomNav.
+                        val inlineYouTubeOwnsPlaybackControls =
+                            selectedSection == "Online" &&
+                                onlineHubTab == "YouTube" &&
+                                youtubeInlineTrack != null
+                        if (selectedSection != "Trang chủ" &&
+                            !inlineYouTubeOwnsPlaybackControls
+                        ) {
                             if (youtubeIsActiveSource && youtubeLastPlayed != null) {
                                 YouTubeMiniPlayer(youtubeLastPlayed!!)
                             } else {
@@ -9605,6 +9613,53 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     video.style.setProperty('max-width', '100%', 'important');
                   }
                 );
+
+                // After returning from landscape/fullscreen, some mobile YouTube builds leave
+                // the video surface right-aligned at its old width. Repair only when geometry
+                // proves that a wide video is shifted right and does not fill the inline host.
+                // Keep YouTube's aspect-ratio/media renderer in charge: do not force a new
+                // width/height onto the active video unless its previous inline dimensions are stale.
+                var inlineViewportWidth = Math.max(
+                  1, document.documentElement.clientWidth || window.innerWidth || 1
+                );
+                var inlineActiveVideo = document.querySelector('video.html5-main-video') ||
+                                        document.querySelector('video');
+                if (!isFullscreen && inlineActiveVideo) {
+                  var inlineVideoRect = inlineActiveVideo.getBoundingClientRect();
+                  var rightShiftedWideVideo =
+                    inlineVideoRect.width > inlineViewportWidth * 0.55 &&
+                    inlineVideoRect.left > inlineViewportWidth * 0.08 &&
+                    inlineVideoRect.right <= inlineViewportWidth * 1.08;
+                  if (rightShiftedWideVideo) {
+                    var ancestor = inlineActiveVideo.parentElement;
+                    var repairDepth = 0;
+                    while (ancestor && ancestor !== document.documentElement && repairDepth++ < 10) {
+                      if (ancestor.matches &&
+                          ancestor.matches('#movie_player,.html5-video-player,.html5-video-container')) {
+                        ['left','right','transform','margin-left','margin-right'].forEach(
+                          function(property) { ancestor.style.removeProperty(property); }
+                        );
+                        ancestor.style.setProperty('left', '0px', 'important');
+                        ancestor.style.setProperty('right', 'auto', 'important');
+                        ancestor.style.setProperty('transform', 'none', 'important');
+                        ancestor.style.setProperty('margin-left', '0px', 'important');
+                        ancestor.style.setProperty('margin-right', '0px', 'important');
+                      }
+                      if (ancestor === watchRoot) break;
+                      ancestor = ancestor.parentElement;
+                    }
+                    // Release fixed inline dimensions from the previous viewport; the site's
+                    // normal CSS can then size this same media node against the portrait host.
+                    inlineActiveVideo.style.removeProperty('width');
+                    inlineActiveVideo.style.removeProperty('height');
+                    inlineActiveVideo.style.setProperty('left', '0px', 'important');
+                    inlineActiveVideo.style.setProperty('right', 'auto', 'important');
+                    inlineActiveVideo.style.setProperty('transform', 'none', 'important');
+                    inlineActiveVideo.style.setProperty('margin-left', '0px', 'important');
+                    inlineActiveVideo.style.setProperty('margin-right', '0px', 'important');
+                    window.dispatchEvent(new Event('resize'));
+                  }
+                }
                 try {
                   if (document.scrollingElement) {
                     document.scrollingElement.scrollTop = 0;
