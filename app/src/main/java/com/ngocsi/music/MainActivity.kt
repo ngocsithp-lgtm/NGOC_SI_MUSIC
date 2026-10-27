@@ -9102,27 +9102,6 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         }
     }
 
-
-        if (!youtubeInlineFullscreen) return
-        youtubeInlineFullscreen = false
-        inlineFullscreenOrientationListener?.disable()
-        inlineFullscreenOrientationListener = null
-        inlineFullscreenHasReachedPhysicalLandscape = false
-        WindowInsetsControllerCompat(window, window.decorView)
-            .show(WindowInsetsCompat.Type.systemBars())
-        WindowCompat.setDecorFitsSystemWindows(window, true)
-        requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
-        youtubeInlineWebView?.let { view ->
-            view.evaluateJavascript(
-                "document.documentElement.classList.remove('ngocsi-inline-fullscreen');" +
-                    "window.scrollTo(0,0);window.dispatchEvent(new Event('resize'));",
-                null
-            )
-            view.requestLayout()
-            view.invalidate()
-        }
-    }
-
     private fun enableInlineYouTubeBackground() {
         val track = youtubeInlineTrack
         val view = youtubeInlineWebView
