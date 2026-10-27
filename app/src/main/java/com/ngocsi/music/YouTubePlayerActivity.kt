@@ -4287,10 +4287,13 @@ class YouTubePlayerActivity : ComponentActivity() {
                                         webView != null && youtubePlayerReady
                                     ) {
                                         recoverFullscreenPlayback(
-                                            // Keep the same page/media node during the shrink transition.
-                                            // If YouTube really paused the element, allow one Play request;
-                                            // never reload the page merely because this viewport is settling.
-                                            allowPageReloadFallback = false,
+                                            // First keep the existing page and media element: the controller
+                                            // sends at most one Play request for a genuinely paused video,
+                                            // then observes real media-clock/frame progress across bounded probes.
+                                            // If shrinking has left Chromium's media pipeline truly stalled,
+                                            // permit its single saved-position reload fallback rather than
+                                            // leaving the player permanently frozen with audio or no picture.
+                                            allowPageReloadFallback = true,
                                             allowFrameReloadFallback = false,
                                             issueInitialPlayIfPaused = true
                                         )
