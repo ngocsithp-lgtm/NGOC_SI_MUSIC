@@ -3135,16 +3135,21 @@ class YouTubePlayerActivity : ComponentActivity() {
                                   wrapper.style.setProperty('max-width', '100%', 'important');
                                   wrapper.style.setProperty('min-width', '0', 'important');
                                 });
+                                // Do not pin the active video element to the top-left corner. YouTube
+                                // calculates its own crop/centering from the source aspect ratio; forcing
+                                // left/top/transform here caused a stale horizontal offset and a black
+                                // edge after the WebView resized back to portrait. Clear only our old
+                                // overrides and let the YouTube player stylesheet/layout own the video.
                                 Array.prototype.forEach.call(
                                   document.querySelectorAll('video.html5-main-video'),
                                   function(video) {
-                                    video.style.setProperty('left', '0px', 'important');
-                                    video.style.setProperty('top', '0px', 'important');
-                                    video.style.setProperty('right', 'auto', 'important');
-                                    video.style.setProperty('bottom', 'auto', 'important');
-                                    video.style.setProperty('margin', '0px', 'important');
-                                    video.style.setProperty('transform', 'none', 'important');
-                                    video.style.setProperty('max-width', '100%', 'important');
+                                    [
+                                      'left', 'top', 'right', 'bottom',
+                                      'margin', 'margin-left', 'margin-right',
+                                      'transform', 'max-width'
+                                    ].forEach(function(property) {
+                                      video.style.removeProperty(property);
+                                    });
                                   }
                                 );
                                 var viewportWidth = Math.max(
