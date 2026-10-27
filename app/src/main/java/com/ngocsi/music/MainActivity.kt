@@ -346,7 +346,14 @@ class MainActivity : ComponentActivity() {
     private var youtubeInlineOpenGeneration by mutableIntStateOf(0)
     private var youtubeInlineWebView: WebView? = null
     // Fullscreen/background stay attached to this WebView, not a second player screen.
+    // CSS-managed fullscreen is only the compatibility fallback. Prefer WebView's native
+    // HTML5 fullscreen surface so Chromium does not leave audio playing over a black frame.
     private var youtubeInlineFullscreen by mutableStateOf(false)
+    private var inlineFullscreenCustomViewVisible by mutableStateOf(false)
+    private var inlineFullscreenCustomView: android.view.View? = null
+    private var inlineFullscreenCustomViewCallback: WebChromeClient.CustomViewCallback? = null
+    private var inlineFullscreenRequestPending = false
+    private var inlineFullscreenRequestGeneration = 0
     private var inlineFullscreenHasReachedPhysicalLandscape = false
     private var inlineFullscreenOrientationListener: android.view.OrientationEventListener? = null
     private var inlineBackgroundPlaybackEnabled = false
@@ -4762,6 +4769,17 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+ setTimeout(normalizePortraitGeometry, 120);
+                      setTimeout(normalizePortraitGeometry, 360);
+                      setTimeout(normalizePortraitGeometry, 700);
+                    })();
+                    """.trimIndent(),
+                    null
+                )
+            }
+        }
+    }
+
     override fun onStop() {
         // The MusicService owns the actual sleep-timer enforcement, so the UI only
         // needs to stop its countdown ticker when the Activity leaves the foreground.
@@ -4846,11 +4864,12 @@ class MainActivity : ComponentActivity() {
             if (errorMessage == message) errorMessage = null
         }
 
-        BackHandler(enabled = youtubeInlineFullscreen) {
+        BackHandler(enabled = youtubeInlineFullscreen || inlineFullscreenCustomViewVisible) {
             exitInlineYouTubeFullscreen()
         }
         BackHandler(
-            enabled = selectedSection != "Trang chủ" && !hasModalOverlay && !youtubeInlineFullscreen
+            enabled = selectedSection != "Trang chủ" && !hasModalOverlay &&
+                !youtubeInlineFullscreen && !inlineFullscreenCustomViewVisible
         ) {
             selectedSection = "Trang chủ"
         }
@@ -9003,38 +9022,60 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
      * native player Activity, which owns Android fullscreen rotation and foreground media
      * service lifecycle. Ordinary search-result taps still stay in the inline frame.
      */
-    private fun enterInlineYouTubeFullscreen() {
-        val view = youtubeInlineWebView
-        if (youtubeInlineTrack == null || view == null) {
-            errorMessage = "Chưa có video YouTube đang mở trong khung phát."
+    private fun installInlineFullscreenOrientationListener() {
+        inlineFullscreenOrientationListener?.disable()
+        inlineFullscreenOrientationListener =
+            object : android.view.OrientationEventListener(this) {
+                override fun onOrientationChanged(orientation: Int) {
+                    if ((!youtubeInlineFullscreen && !inlineFullscreenCustomViewVisible) ||
+                        orientation == android.view.OrientationEventListener.ORIENTATION_UNKNOWN
+                    ) return
+
+                    val physicalLandscape = orientation in 60..120 || orientation in 240..300
+                    val physicalPortrait = orientation in 0..30 ||
+                        orientation in 150..210 || orientation in 330..359
+                    if (physicalLandscape) {
+                        inlineFullscreenHasReachedPhysicalLandscape = true
+                    } else if (physicalPortrait && inlineFullscreenHasReachedPhysicalLandscape) {
+                        exitInlineYouTubeFullscreen()
+                    }
+                }
+            }.also { listener ->
+                if (listener.canDetectOrientation()) listener.enable()
+            }
+    }
+
+    private fun showInlineYouTubeCustomView(
+        view: android.view.View,
+        callback: WebChromeClient.CustomViewCallback
+    ) {
+        if (inlineFullscreenCustomView != null) {
+            callback.onCustomViewHidden()
             return
         }
-        if (youtubeInlineFullscreen) return
-
-        youtubeInlineFullscreen = true
-        inlineFullscreenHasReachedPhysicalLandscape = false
-        inlineFullscreenOrientationListener?.disable()
-        inlineFullscreenOrientationListener = object : android.view.OrientationEventListener(this) {
-            override fun onOrientationChanged(orientation: Int) {
-                if (!youtubeInlineFullscreen ||
-                    orientation == android.view.OrientationEventListener.ORIENTATION_UNKNOWN
-                ) return
-
-                val physicalLandscape = orientation in 60..120 || orientation in 240..300
-                val physicalPortrait = orientation in 0..30 ||
-                    orientation in 150..210 || orientation in 330..359
-
-                if (physicalLandscape) {
-                    inlineFullscreenHasReachedPhysicalLandscape = true
-                } else if (physicalPortrait && inlineFullscreenHasReachedPhysicalLandscape) {
-                    // When the handset is physically returned to portrait, unlock the forced
-                    // landscape orientation and restore the same inline player host.
-                    exitInlineYouTubeFullscreen()
-                }
-            }
-        }.also { listener ->
-            if (listener.canDetectOrientation()) listener.enable()
+        val decor = window.decorView as? android.view.ViewGroup
+        if (decor == null) {
+            callback.onCustomViewHidden()
+            return
         }
+
+        inlineFullscreenRequestPending = false
+        inlineFullscreenRequestGeneration++
+        // If a delayed CSS fallback was just entered, roll it back before showing the real
+        // Chromium fullscreen view. There must never be two competing video surfaces.
+        if (youtubeInlineFullscreen) {
+            youtubeInlineFullscreen = false
+            youtubeInlineWebView?.evaluateJavascript(
+                "document.documentElement.classList.remove('ngocsi-inline-fullscreen');" +
+                    "window.dispatchEvent(new Event('resize'));",
+                null
+            )
+        }
+        inlineFullscreenCustomView = view
+        inlineFullscreenCustomViewCallback = callback
+        inlineFullscreenCustomViewVisible = true
+        inlineFullscreenHasReachedPhysicalLandscape = false
+        installInlineFullscreenOrientationListener()
 
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).apply {
@@ -9043,8 +9084,142 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             hide(WindowInsetsCompat.Type.systemBars())
         }
 
-        // Mark the current page as fullscreen so only its outer viewport wrappers resize.
-        // Keep YouTube's own video element and renderer geometry under Chromium/YouTube control.
+        (view.parent as? android.view.ViewGroup)?.removeView(view)
+        view.setBackgroundColor(android.graphics.Color.BLACK)
+        decor.addView(
+            view,
+            android.view.ViewGroup.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        )
+        view.isFocusable = true
+        view.isFocusableInTouchMode = true
+        view.requestFocus()
+        requestedOrientation =
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+    }
+
+    private fun hideInlineYouTubeCustomView(notifyCallback: Boolean) {
+        val view = inlineFullscreenCustomView
+        val callback = inlineFullscreenCustomViewCallback
+        if (view == null && callback == null && !inlineFullscreenCustomViewVisible) return
+
+        inlineFullscreenCustomView = null
+        inlineFullscreenCustomViewCallback = null
+        inlineFullscreenCustomViewVisible = false
+        inlineFullscreenRequestPending = false
+        inlineFullscreenRequestGeneration++
+        inlineFullscreenOrientationListener?.disable()
+        inlineFullscreenOrientationListener = null
+        inlineFullscreenHasReachedPhysicalLandscape = false
+
+        (view?.parent as? android.view.ViewGroup)?.removeView(view)
+        WindowInsetsControllerCompat(window, window.decorView)
+            .show(WindowInsetsCompat.Type.systemBars())
+        WindowCompat.setDecorFitsSystemWindows(window, true)
+        requestedOrientation =
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+        if (notifyCallback) runCatching { callback?.onCustomViewHidden() }
+
+        // Give the original WebView a fresh layout pass after the native fullscreen surface
+        // disappears. Do not reload the page or issue Play; the same media element stays alive.
+        youtubeInlineWebView?.let { inlineView ->
+            inlineView.postDelayed({
+                if (!isFinishing && !isDestroyed && inlineView === youtubeInlineWebView) {
+                    applyInlineYouTubePageStyle(inlineView)
+                    inlineView.evaluateJavascript(
+                        "window.scrollTo(0,0);window.dispatchEvent(new Event('resize'));",
+                        null
+                    )
+                    inlineView.requestLayout()
+                    inlineView.invalidate()
+                }
+            }, 250L)
+        }
+    }
+
+    private fun enterInlineYouTubeFullscreen() {
+        val track = youtubeInlineTrack
+        val view = youtubeInlineWebView
+        if (track == null || view == null) {
+            errorMessage = "Chưa có video YouTube đang mở trong khung phát."
+            return
+        }
+        if (youtubeInlineFullscreen || inlineFullscreenCustomViewVisible ||
+            inlineFullscreenRequestPending
+        ) return
+
+        // Request the official HTML5 fullscreen surface first. WebChromeClient will attach
+        // Chromium's real video surface over this same Activity, avoiding CSS-only video
+        // stretching that can leave sound playing while the picture turns black.
+        inlineFullscreenRequestPending = true
+        val generation = ++inlineFullscreenRequestGeneration
+        view.evaluateJavascript(
+            """
+            (function() {
+              try {
+                var button = document.querySelector('.ytp-fullscreen-button') ||
+                             document.querySelector('[aria-label*="full screen" i]') ||
+                             document.querySelector('[aria-label*="toàn màn hình" i]');
+                if (button) {
+                  button.click();
+                  return 'BUTTON_CLICKED';
+                }
+              } catch (_) {}
+              try {
+                var video = document.querySelector('video.html5-main-video') ||
+                            document.querySelector('video');
+                if (video && typeof video.requestFullscreen === 'function') {
+                  var result = video.requestFullscreen();
+                  if (result && typeof result.catch === 'function') result.catch(function() {});
+                  return 'REQUESTED';
+                }
+              } catch (_) {}
+              return 'UNAVAILABLE';
+            })();
+            """.trimIndent()
+        ) { result ->
+            if (isFinishing || isDestroyed ||
+                generation != inlineFullscreenRequestGeneration ||
+                !inlineFullscreenRequestPending
+            ) return@evaluateJavascript
+
+            if (result.orEmpty().contains("UNAVAILABLE")) {
+                inlineFullscreenRequestPending = false
+                enterInlineCssFullscreenFallback(view)
+            } else {
+                // requestFullscreen can be rejected asynchronously by some YouTube variants.
+                // If Chromium did not supply a CustomView, use the fitted 16:9 CSS fallback.
+                view.postDelayed({
+                    if (!isFinishing && !isDestroyed &&
+                        generation == inlineFullscreenRequestGeneration &&
+                        inlineFullscreenRequestPending &&
+                        !inlineFullscreenCustomViewVisible &&
+                        !youtubeInlineFullscreen
+                    ) {
+                        inlineFullscreenRequestPending = false
+                        enterInlineCssFullscreenFallback(view)
+                    }
+                }, 1200L)
+            }
+        }
+    }
+
+    private fun enterInlineCssFullscreenFallback(view: WebView) {
+        if (inlineFullscreenCustomViewVisible || youtubeInlineFullscreen ||
+            isFinishing || isDestroyed
+        ) return
+        youtubeInlineFullscreen = true
+        inlineFullscreenHasReachedPhysicalLandscape = false
+        installInlineFullscreenOrientationListener()
+
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        WindowInsetsControllerCompat(window, window.decorView).apply {
+            systemBarsBehavior =
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            hide(WindowInsetsCompat.Type.systemBars())
+        }
         view.evaluateJavascript(
             "document.documentElement.classList.add('ngocsi-inline-fullscreen');" +
                 "window.scrollTo(0,0);window.dispatchEvent(new Event('resize'));",
@@ -9053,8 +9228,6 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         requestedOrientation =
             android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
 
-        // Re-dispatch resize after Android finishes rotating the window. Never reload the URL
-        // or send a competing Play command here; both can turn a live video into black/audio-only.
         view.postDelayed({
             if (!isFinishing && !isDestroyed && youtubeInlineFullscreen &&
                 view === youtubeInlineWebView
@@ -9071,7 +9244,14 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
     }
 
     private fun exitInlineYouTubeFullscreen() {
+        if (inlineFullscreenCustomViewVisible || inlineFullscreenCustomView != null) {
+            hideInlineYouTubeCustomView(notifyCallback = true)
+            return
+        }
+        inlineFullscreenRequestPending = false
+        inlineFullscreenRequestGeneration++
         if (!youtubeInlineFullscreen) return
+
         youtubeInlineFullscreen = false
         inlineFullscreenOrientationListener?.disable()
         inlineFullscreenOrientationListener = null
@@ -9079,7 +9259,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         WindowInsetsControllerCompat(window, window.decorView)
             .show(WindowInsetsCompat.Type.systemBars())
         WindowCompat.setDecorFitsSystemWindows(window, true)
-        requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+        requestedOrientation =
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
         youtubeInlineWebView?.let { view ->
             view.evaluateJavascript(
                 "document.documentElement.classList.remove('ngocsi-inline-fullscreen');" +
@@ -9556,7 +9737,18 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                                 applyInlineYouTubePageStyle(view)
                                             }
                                         }
-                                        webChromeClient = WebChromeClient()
+                                        webChromeClient = object : WebChromeClient() {
+                                            override fun onShowCustomView(
+                                                view: android.view.View,
+                                                callback: CustomViewCallback
+                                            ) {
+                                                showInlineYouTubeCustomView(view, callback)
+                                            }
+
+                                            override fun onHideCustomView() {
+                                                hideInlineYouTubeCustomView(notifyCallback = true)
+                                            }
+                                        }
                                         CookieManager.getInstance().setAcceptCookie(true)
                                         CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                                         CookieManager.getInstance().flush()
