@@ -3054,30 +3054,10 @@ class YouTubePlayerActivity : ComponentActivity() {
                               '.ytp-endscreen-content,.ytp-endscreen-previous,.ytp-endscreen-next,' +
                               '.ytp-ce-covering-overlay,.ytp-cards-teaser,.ytp-ce-element,.ytp-show-cards-title {' +
                               'display:none!important;} ' +
-                              // Keep YouTube's video compositor in normal document flow. Fixed-position
-                              // ytm-watch plus 100%-height children produced black frames when the WebView
-                              // viewport changed while the HTML5 media clock/audio kept running.
-                              'html,body {margin:0!important;padding:0!important;width:100%!important;' +
-                              'min-height:100%!important;overflow:hidden!important;background:#000!important;} ' +
-                              'ytm-app {margin:0!important;padding:0!important;min-height:0!important;} ' +
-                              'ytm-app.sticky-player {padding-top:0!important;} ' +
-                              'ytm-watch {position:relative!important;top:0!important;left:0!important;' +
-                              'right:auto!important;bottom:auto!important;width:100%!important;max-width:100%!important;' +
-                              'min-height:0!important;margin:0!important;padding:0!important;transform:none!important;} ' +
-                              '.player-container,.player-container.sticky-player {position:relative!important;' +
-                              'top:0!important;left:0!important;right:auto!important;bottom:auto!important;' +
-                              'width:100%!important;max-width:100%!important;margin:0!important;padding:0!important;' +
-                              'transform:none!important;box-sizing:border-box!important;} ' +
-                              '.player-placeholder {position:relative!important;top:0!important;left:0!important;' +
-                              'right:auto!important;bottom:auto!important;width:100%!important;max-width:100%!important;' +
-                              'height:auto!important;aspect-ratio:16/9!important;margin:0!important;padding:0!important;' +
-                              'transform:none!important;box-sizing:border-box!important;} ' +
-                              'ytm-player,#player-container-id,#player-container,#player {position:relative!important;' +
-                              'top:0!important;left:0!important;right:auto!important;bottom:auto!important;' +
-                              'transform:none!important;width:100%!important;max-width:100%!important;height:auto!important;' +
-                              'min-height:0!important;max-height:none!important;aspect-ratio:16/9!important;' +
-                              'margin:0!important;padding:0!important;box-sizing:border-box!important;} ' +
-                              'ytm-player {display:block!important;} ' +
+                               // Keep inline geometry under YouTube's control. Only strip page chrome;
+                               // forcing wrapper dimensions/position here caused edge bands on viewport changes.
+                               'html,body {margin:0!important;padding:0!important;overflow:hidden!important;' +
+                               'background:#000!important;} ' +
                               // Full-height rules are activated only by the app-managed fullscreen state.
                               // Applying them to every landscape viewport made the DOM video taller than
                               // the inline native 16:9 host during rotation and could blank Chromium's surface.
@@ -3110,71 +3090,20 @@ class YouTubePlayerActivity : ComponentActivity() {
                             // Reset stale sticky positioning at every wrapper level after
                             // viewport changes. A measured negative margin on only one ancestor
                             // can become incorrect when the phone changes from portrait to landscape.
-                            window.__ngocSiNormalizePlayerGeometry = function() {
-                              try {
-                                if (window.__ngocSiFullscreenActive) return 'FULLSCREEN_SKIPPED';
-                                window.scrollTo(0, 0);
-                                if (document.scrollingElement) {
-                                  document.scrollingElement.scrollTop = 0;
-                                  document.scrollingElement.scrollLeft = 0;
-                                }
-                                if (document.documentElement) {
-                                  document.documentElement.scrollTop = 0;
-                                  document.documentElement.scrollLeft = 0;
-                                }
-                                if (document.body) {
-                                  document.body.scrollTop = 0;
-                                  document.body.scrollLeft = 0;
-                                }
-
-                                // Normalize only the page-level host wrappers. Do not rewrite YouTube's
-                                // internal .html5-video-player/#movie_player/.html5-video-container
-                                // geometry: those nodes own crop/letterbox positioning and forcing
-                                // them to relative + 100% can leave a black strip at one edge.
-                                var wrapperSelector = 'ytm-watch,.player-container,.player-placeholder,' +
-                                  'ytm-player,#player-container-id,#player-container,#player';
-                                var wrappers = Array.prototype.slice.call(
-                                  document.querySelectorAll(wrapperSelector)
-                                );
-                                wrappers.forEach(function(wrapper) {
-                                  if (!wrapper || !wrapper.isConnected) return;
-                                  wrapper.style.setProperty('position', 'relative', 'important');
-                                  wrapper.style.setProperty('top', '0px', 'important');
-                                  wrapper.style.setProperty('left', '0px', 'important');
-                                  wrapper.style.setProperty('right', 'auto', 'important');
-                                  wrapper.style.setProperty('bottom', 'auto', 'important');
-                                  wrapper.style.setProperty('transform', 'none', 'important');
-                                  wrapper.style.setProperty('margin-left', '0px', 'important');
-                                  wrapper.style.setProperty('margin-right', '0px', 'important');
-                                  wrapper.style.setProperty('box-sizing', 'border-box', 'important');
-                                  wrapper.style.setProperty('width', '100%', 'important');
-                                  wrapper.style.setProperty('max-width', '100%', 'important');
-                                  wrapper.style.setProperty('min-width', '0', 'important');
-                                });
-                                // The page-level wrappers have already been normalized above. Now align only
-                                // the primary video surface to the left edge of its own player box;
-                                // leaving YouTube's stale inline left/translate from the old landscape
-                                // viewport intact is what can leave a black stripe on the portrait left.
-                                // Do not change video width/height or its parent dimensions here.
-                                Array.prototype.forEach.call(
-                                  document.querySelectorAll('video.html5-main-video'),
-                                  function(video) {
-                                    video.style.setProperty('left', '0px', 'important');
-                                    video.style.setProperty('right', 'auto', 'important');
-                                    video.style.setProperty('margin-left', '0px', 'important');
-                                    video.style.setProperty('margin-right', '0px', 'important');
-                                    video.style.setProperty('transform', 'none', 'important');
-                                    video.style.setProperty('max-width', '100%', 'important');
-                                  }
-                                );
-                                var viewportWidth = Math.max(
-                                  1, document.documentElement.clientWidth || window.innerWidth || 1
-                                );
-                                return 'PLAYER_GEOMETRY_RESET|' + viewportWidth + '|' + wrappers.length;
-                              } catch (_) {
-                                return 'PLAYER_GEOMETRY_ERROR';
-                              }
-                            };
+                             // Scroll the page to the top, but never overwrite YouTube's player/video
+                             // geometry. Chromium owns its letterboxing and viewport-specific offsets.
+                             window.__ngocSiNormalizePlayerGeometry = function() {
+                               try {
+                                 window.scrollTo(0, 0);
+                                 if (document.scrollingElement) {
+                                   document.scrollingElement.scrollTop = 0;
+                                   document.scrollingElement.scrollLeft = 0;
+                                 }
+                                 return 'PLAYER_GEOMETRY_RESET|NATIVE';
+                               } catch (_) {
+                                 return 'PLAYER_GEOMETRY_ERROR';
+                               }
+                             };
 
                             function videoVisible(video) {
                               if (!video || !video.isConnected) return false;
