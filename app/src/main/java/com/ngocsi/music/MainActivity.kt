@@ -4722,9 +4722,8 @@ class MainActivity : ComponentActivity() {
                             document.scrollingElement.scrollTop = 0;
                             document.scrollingElement.scrollLeft = 0;
                           }
-                          // Only restore the outer host to the current viewport. Do not touch
-                          // #player-container-id, #player-container, #player, .player-container,
-                          // or <video>; YouTube owns those widths and compositor transforms.
+                          // Normalize the outer host and its sticky .player-container wrapper.
+                          // Leave inner player IDs and <video> geometry to YouTube's compositor.
                           var outerWrappers = document.querySelectorAll(
                             'ytm-watch,ytm-player,.player-placeholder,.player-container'
                           );
@@ -9515,8 +9514,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 // Inline portrait layout controls only the outer mobile-page wrappers.
                 // Inner #player nodes keep YouTube's own responsive width and media metrics.
                 // Add those inner nodes to the sizing list only for the CSS fullscreen fallback.
-                // Only normalize the outer page/host wrappers inline. Nested player IDs and
-                // .player-container are owned by YouTube and are left untouched except in fullscreen.
+                // Normalize outer page wrappers and the sticky .player-container host inline.
+                // Leave nested #player IDs to YouTube except in the CSS-fullscreen fallback.
                 var wrappers = document.querySelectorAll(
                   'ytm-watch,.player-placeholder,ytm-player,.player-container' +
                   (isFullscreen ? ',#player-container-id,#player-container,#player' : '')
