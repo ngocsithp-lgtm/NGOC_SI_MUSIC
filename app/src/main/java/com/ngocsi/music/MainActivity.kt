@@ -9761,6 +9761,10 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 // Expose the same guarded X-axis repair for configuration/visual viewport callbacks.
                 window.__ngocSiNormalizeInlineX = function() {
                   try {
+                    // Do not touch geometry while Chromium or the app-managed page is fullscreen.
+                    if ((document.documentElement &&
+                         document.documentElement.classList.contains('ngocsi-inline-fullscreen')) ||
+                        document.fullscreenElement) return 'FULLSCREEN_SKIP';
                     var viewportWidth = Math.max(
                       1,
                       Number(window.visualViewport && window.visualViewport.width) ||
