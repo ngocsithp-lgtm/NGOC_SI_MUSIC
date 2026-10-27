@@ -9003,8 +9003,9 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
     private fun applyInlineYouTubePageStyle(view: WebView) {
         // Mirror the proven mobile-watch player setup from YouTubePlayerActivity, but keep
         // the native Compose AndroidView as the only host so playback stays in the top frame.
-        // Size the page wrappers to the host's 16:9 viewport; do not force dimensions on the
-        // HTML5 video element itself because that can leave audio running against a black frame.
+        // Size the page wrappers to the host's 16:9 viewport. Keep YouTube's own computed
+        // video width/height: forcing them can desynchronize its renderer and produce audio-only
+        // playback. Reset page wrappers separately from the internal video surface.
         view.evaluateJavascript(
             """
             (function() {
@@ -9063,17 +9064,19 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   // YouTube can retain stale pixel offsets after navigation/recomposition;
                   // force the video and its immediate containers to share the same viewport.
                   'html:not(.ngocsi-inline-fullscreen) .html5-video-player,' +
-                  'html:not(.ngocsi-inline-fullscreen) #movie_player,' +
+                  'html:not(.ngocsi-inline-fullscreen) #movie_player {' +
+                  'position:relative!important;top:0!important;left:0!important;right:auto!important;' +
+                  'bottom:auto!important;width:100%!important;height:100%!important;' +
+                  'min-width:0!important;max-width:100%!important;margin:0!important;padding:0!important;' +
+                  'overflow:hidden!important;transform:none!important;box-sizing:border-box!important;} ' +
                   'html:not(.ngocsi-inline-fullscreen) .html5-video-container {' +
                   'position:absolute!important;top:0!important;left:0!important;right:auto!important;' +
-                  'bottom:auto!important;width:100%!important;' +
-                  'height:100%!important;min-width:0!important;max-width:100%!important;' +
-                  'margin:0!important;padding:0!important;overflow:hidden!important;' +
-                  'transform:none!important;box-sizing:border-box!important;} ' +
+                  'bottom:auto!important;width:100%!important;height:100%!important;' +
+                  'min-width:0!important;max-width:100%!important;margin:0!important;padding:0!important;' +
+                  'overflow:hidden!important;transform:none!important;box-sizing:border-box!important;} ' +
                   'html:not(.ngocsi-inline-fullscreen) video.html5-main-video {' +
                   'position:absolute!important;top:0!important;left:0!important;right:auto!important;' +
-                  'bottom:auto!important;width:100%!important;' +
-                  'height:100%!important;min-width:0!important;max-width:100%!important;' +
+                  'bottom:auto!important;min-width:0!important;max-width:100%!important;' +
                   'margin:0!important;padding:0!important;transform:none!important;' +
                   'object-fit:contain!important;box-sizing:border-box!important;}';
                 var style = document.getElementById(styleId);
@@ -9084,13 +9087,12 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 }
                 if (style.textContent !== css) style.textContent = css;
 
-                // Normalize the same wrapper geometry used by the stable native player.
-                // This clears stale sticky offsets that can push the picture to the right
-                // while leaving the surrounding 16:9 host correctly positioned.
+                // Normalize only the mobile-page wrappers. The internal player and video
+                // surface have separate CSS rules below; overwriting their positioning here
+                // would conflict with the media geometry and can leave a black side strip.
                 var wrappers = document.querySelectorAll(
                   'ytm-watch,.player-container,.player-placeholder,ytm-player,' +
-                  '#player-container-id,#player-container,#player,' +
-                  '.html5-video-player,#movie_player,.html5-video-container'
+                  '#player-container-id,#player-container,#player'
                 );
                 Array.prototype.forEach.call(wrappers, function(node) {
                   if (!node || !node.isConnected) return;
