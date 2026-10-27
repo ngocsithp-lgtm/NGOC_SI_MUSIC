@@ -4726,7 +4726,7 @@ class MainActivity : ComponentActivity() {
                           // #player-container-id, #player-container, #player, .player-container,
                           // or <video>; YouTube owns those widths and compositor transforms.
                           var outerWrappers = document.querySelectorAll(
-                            'ytm-watch,ytm-player,.player-placeholder'
+                            'ytm-watch,ytm-player,.player-placeholder,.player-container'
                           );
                           Array.prototype.forEach.call(outerWrappers, function(node) {
                             if (!node || !node.isConnected) return;
@@ -9471,6 +9471,10 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   'position:relative!important;top:0!important;left:0!important;right:auto!important;' +
                   'bottom:auto!important;width:100%!important;max-width:100%!important;min-height:0!important;' +
                   'margin:0!important;padding:0!important;transform:none!important;box-sizing:border-box!important;} ' +
+                  '.player-container,.player-container.sticky-player {' +
+                  'position:relative!important;top:0!important;left:0!important;right:auto!important;' +
+                  'bottom:auto!important;width:100%!important;max-width:100%!important;min-width:0!important;' +
+                  'margin:0!important;padding:0!important;transform:none!important;box-sizing:border-box!important;} ' +
                   '.player-placeholder {position:relative!important;top:0!important;left:0!important;' +
                   'right:auto!important;bottom:auto!important;width:100%!important;max-width:100%!important;' +
                   'height:auto!important;aspect-ratio:16/9!important;margin:0!important;padding:0!important;' +
@@ -9514,8 +9518,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 // Only normalize the outer page/host wrappers inline. Nested player IDs and
                 // .player-container are owned by YouTube and are left untouched except in fullscreen.
                 var wrappers = document.querySelectorAll(
-                  'ytm-watch,.player-placeholder,ytm-player' +
-                  (isFullscreen ? ',#player-container-id,#player-container,#player,.player-container' : '')
+                  'ytm-watch,.player-placeholder,ytm-player,.player-container' +
+                  (isFullscreen ? ',#player-container-id,#player-container,#player' : '')
                 );
                 var watchRoot = document.querySelector('ytm-watch');
                 Array.prototype.forEach.call(wrappers, function(node) {
