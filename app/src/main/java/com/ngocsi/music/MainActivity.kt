@@ -350,6 +350,9 @@ class MainActivity : ComponentActivity() {
     private var inlineFullscreenHasReachedPhysicalLandscape = false
     private var inlineFullscreenOrientationListener: android.view.OrientationEventListener? = null
     private var inlineBackgroundPlaybackEnabled = false
+    // The fullscreen player is a separate in-app Activity. While it is on top, the inline
+    // WebView must stay paused and ignore background-media broadcasts; resume it on return.
+    private var inlineFullscreenHandoffPending = false
     private var inlineBackgroundServiceStarted = false
     private var inlineBackgroundReceiverRegistered = false
     private var inlineConfigurationVersion by mutableIntStateOf(0)
@@ -368,7 +371,7 @@ class MainActivity : ComponentActivity() {
 
     private val inlineYouTubeBackgroundControlReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: android.content.Context?, intent: Intent?) {
-            if (intent?.action != YouTubeBackgroundService.ACTION_CONTROL) return
+            if (inlineFullscreenHandoffPending || intent?.action != YouTubeBackgroundService.ACTION_CONTROL) return
             when (intent.getStringExtra(YouTubeBackgroundService.EXTRA_CONTROL)) {
                 "play" -> {
                     playInlineYouTubeWebView()
@@ -4653,6 +4656,52 @@ class MainActivity : ComponentActivity() {
             youtubePlaybackIsPlaying = prefs.getBoolean("youtube_playback_is_playing", false)
             loadYouTubeLibraryState()
             loadYouTubeWatchLater()
+        }
+
+        // Returning from the dedicated fullscreen player: use its most recently saved
+        // position to resume the original inline WebView instead of leaving a dead player.
+        if (inlineFullscreenHandoffPending) {
+            inlineFullscreenHandoffPending = false
+            val track = youtubeInlineTrack
+            val view = youtubeInlineWebView
+            if (track != null && view != null) {
+                val positionMs = prefs.getLong("youtube_position_ms_" + track.videoId, 0L)
+                    .coerceAtLeast(0L)
+                youtubePlaybackIsPlaying = true
+                prefs.edit()
+                    .putBoolean("youtube_active_source", true)
+                    .putBoolean("youtube_playback_is_playing", true)
+                    .apply()
+                view.postDelayed({
+                    if (!isFinishing && !isDestroyed && view === youtubeInlineWebView) {
+                        view.evaluateJavascript(
+                            """
+                            (function() {
+                              try {
+                                var v = document.querySelector('video.html5-main-video') ||
+                                        document.querySelector('video');
+                                if (v && \u0024{positionMs} > 0) {
+                                  try { v.currentTime = \u0024{positionMs / 1000.0}; } catch (_) {}
+                                }
+                                try {
+                                  var p = window.player;
+                                  if (p && typeof p.playVideo === 'function') {
+                                    p.unMute(); p.setVolume(100); p.playVideo();
+                                  } else if (v) {
+                                    v.muted = false; v.volume = 1;
+                                    var result = v.play();
+                                    if (result && result.catch) result.catch(function() {});
+                                  }
+                                } catch (_) {}
+                                return 'INLINE_RESUMED_FROM_FULLSCREEN';
+                              } catch (_) { return 'INLINE_RESUME_FAILED'; }
+                            })();
+                            """.trimIndent(),
+                            null
+                        )
+                    }
+                }, 350L)
+            }
         }
 
         // Re-synchronize the Activity with Media3 after returning from the
@@ -9004,32 +9053,68 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
      * service lifecycle. Ordinary search-result taps still stay in the inline frame.
      */
     private fun enterInlineYouTubeFullscreen() {
-        if (youtubeInlineTrack == null || youtubeInlineWebView == null) {
+        val track = youtubeInlineTrack
+        val view = youtubeInlineWebView
+        if (track == null || view == null) {
             errorMessage = "Chưa có video YouTube đang mở trong khung phát."
             return
         }
-        if (youtubeInlineFullscreen) return
-        youtubeInlineFullscreen = true
-        inlineFullscreenHasReachedPhysicalLandscape = false
-        inlineFullscreenOrientationListener?.disable()
-        inlineFullscreenOrientationListener = null
+        if (inlineFullscreenHandoffPending) return
 
-        WindowCompat.setDecorFitsSystemWindows(window, false)
-        WindowInsetsControllerCompat(window, window.decorView).apply {
-            systemBarsBehavior =
-                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            hide(WindowInsetsCompat.Type.systemBars())
+        // The inline Compose/WebView fullscreen CSS path can leave the media surface black
+        // after orientation changes. Hand fullscreen over to the dedicated in-app player,
+        // which owns its own responsive video host, landscape handling and playback recovery.
+        val (queueJson, queueIndex) = buildYouTubeQueueJson(track)
+        saveYouTubeLastPlayed(track, queueJson, queueIndex)
+        val playerIntent = Intent(this, YouTubePlayerActivity::class.java).apply {
+            putExtra(YouTubePlayerActivity.EXTRA_VIDEO_ID, track.videoId)
+            putExtra(YouTubePlayerActivity.EXTRA_TITLE, track.title)
+            putExtra(YouTubePlayerActivity.EXTRA_CHANNEL, track.channelTitle)
+            putExtra(YouTubePlayerActivity.EXTRA_QUEUE_JSON, queueJson)
+            putExtra(YouTubePlayerActivity.EXTRA_QUEUE_INDEX, queueIndex)
+            putExtra(YouTubePlayerActivity.EXTRA_START_FULLSCREEN, true)
         }
-        youtubeInlineWebView?.evaluateJavascript(
-            "document.documentElement.classList.add('ngocsi-inline-fullscreen');" +
-                "window.scrollTo(0,0);window.dispatchEvent(new Event('resize'));",
-            null
-        )
-        // Lock the activity to landscape for the entire fullscreen session. Do not
-        // switch back to FULL_SENSOR from a sensor callback: that race caused the
-        // activity to snap back to portrait immediately after the first rotation.
-        requestedOrientation =
-            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+
+        // Save the live HTML5 media position before pausing the inline renderer. The
+        // fullscreen Activity reads the same per-video preference after YouTube is ready.
+        view.evaluateJavascript(
+            """
+            (function() {
+              try {
+                var v = document.querySelector('video.html5-main-video') ||
+                        document.querySelector('video');
+                return v && isFinite(v.currentTime) ? Math.floor(v.currentTime * 1000) : 0;
+              } catch (_) { return 0; }
+            })();
+            """.trimIndent()
+        ) { rawPosition ->
+            if (isFinishing || isDestroyed) return@evaluateJavascript
+            val positionMs = rawPosition?.trim()?.trim('"')?.toDoubleOrNull()
+                ?.toLong()?.coerceAtLeast(0L)
+            if (positionMs != null) {
+                prefs.edit()
+                    .putLong("youtube_position_ms_" + track.videoId, positionMs)
+                    .apply()
+            }
+
+            pauseInlineYouTubeWebView {
+                if (isFinishing || isDestroyed) return@pauseInlineYouTubeWebView
+                inlineFullscreenHandoffPending = true
+                youtubePlaybackIsPlaying = true
+                prefs.edit()
+                    .putBoolean("youtube_active_source", true)
+                    .putBoolean("youtube_playback_is_playing", true)
+                    .apply()
+                try {
+                    startActivity(playerIntent)
+                } catch (e: Exception) {
+                    inlineFullscreenHandoffPending = false
+                    playInlineYouTubeWebView()
+                    errorMessage = "Không mở được trình phát ngang trong app: " +
+                        (e.message ?: "lỗi khởi chạy")
+                }
+            }
+        }
     }
 
     private fun exitInlineYouTubeFullscreen() {
