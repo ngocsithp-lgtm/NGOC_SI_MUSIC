@@ -4754,6 +4754,53 @@ class MainActivity : ComponentActivity() {
                               video.style.setProperty('max-width', '100%', 'important');
                             }
                           );
+                          // Repair a child player/video layer that retained a rightward landscape
+                          // offset after Android restored the portrait WebView viewport.
+                          var viewportWidth = Math.max(
+                            1, document.documentElement.clientWidth || window.innerWidth || 1
+                          );
+                          var activeVideo = document.querySelector('video.html5-main-video') ||
+                                            document.querySelector('video');
+                          if (activeVideo) {
+                            var videoRect = activeVideo.getBoundingClientRect();
+                            var leftGap = Math.max(0, videoRect.left);
+                            var rightGap = Math.max(0, viewportWidth - videoRect.right);
+                            var shiftedRight =
+                              videoRect.width > viewportWidth * 0.50 &&
+                              videoRect.right > viewportWidth * 0.75 &&
+                              leftGap > Math.max(16, viewportWidth * 0.04) &&
+                              leftGap > rightGap * 1.6 + 12;
+                            if (shiftedRight) {
+                              var ancestor = activeVideo.parentElement;
+                              var depth = 0;
+                              while (ancestor && ancestor !== document.documentElement && depth++ < 12) {
+                                var r = ancestor.getBoundingClientRect();
+                                var l = Math.max(0, r.left);
+                                var rr = Math.max(0, viewportWidth - r.right);
+                                if (r.width > viewportWidth * 0.45 &&
+                                    r.right > viewportWidth * 0.75 &&
+                                    l > Math.max(12, viewportWidth * 0.035) &&
+                                    l > rr * 1.6 + 12) {
+                                  ['left','right','transform','margin-left','margin-right'].forEach(
+                                    function(property) { ancestor.style.removeProperty(property); }
+                                  );
+                                  ancestor.style.setProperty('left', '0px', 'important');
+                                  ancestor.style.setProperty('right', 'auto', 'important');
+                                  ancestor.style.setProperty('transform', 'none', 'important');
+                                  ancestor.style.setProperty('margin-left', '0px', 'important');
+                                  ancestor.style.setProperty('margin-right', '0px', 'important');
+                                }
+                                ancestor = ancestor.parentElement;
+                              }
+                              // Keep the decoder's width/height untouched. Only reset stale X offsets.
+                              activeVideo.style.setProperty('left', '0px', 'important');
+                              activeVideo.style.setProperty('right', 'auto', 'important');
+                              activeVideo.style.setProperty('transform', 'none', 'important');
+                              activeVideo.style.setProperty('margin-left', '0px', 'important');
+                              activeVideo.style.setProperty('margin-right', '0px', 'important');
+                              window.dispatchEvent(new Event('resize'));
+                            }
+                          }
                           return 'PORTRAIT_GEOMETRY_NORMALIZED';
                         } catch (_) {
                           return 'PORTRAIT_GEOMETRY_ERROR';
@@ -9626,16 +9673,31 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         document.querySelector('video');
                 if (!isFullscreen && inlineActiveVideo) {
                   var inlineVideoRect = inlineActiveVideo.getBoundingClientRect();
+                  var inlineLeftGap = Math.max(0, inlineVideoRect.left);
+                  var inlineRightGap = Math.max(0, inlineViewportWidth - inlineVideoRect.right);
+                  // Detect an asymmetric horizontal offset, not ordinary black letterboxing.
+                  // The old check missed cases where the right edge was outside the viewport,
+                  // and could mistake a centered 4:3 clip for a shifted 16:9 video.
                   var rightShiftedWideVideo =
-                    inlineVideoRect.width > inlineViewportWidth * 0.55 &&
-                    inlineVideoRect.left > inlineViewportWidth * 0.08 &&
-                    inlineVideoRect.right > inlineViewportWidth * 0.85;
+                    inlineVideoRect.width > inlineViewportWidth * 0.50 &&
+                    inlineVideoRect.right > inlineViewportWidth * 0.75 &&
+                    inlineLeftGap > Math.max(16, inlineViewportWidth * 0.04) &&
+                    inlineLeftGap > inlineRightGap * 1.6 + 12;
                   if (rightShiftedWideVideo) {
                     var ancestor = inlineActiveVideo.parentElement;
                     var repairDepth = 0;
-                    while (ancestor && ancestor !== document.documentElement && repairDepth++ < 10) {
-                      if (ancestor.matches &&
-                          ancestor.matches('#movie_player,.html5-video-player,.html5-video-container')) {
+                    while (ancestor && ancestor !== document.documentElement && repairDepth++ < 12) {
+                      var ancestorRect = ancestor.getBoundingClientRect();
+                      var ancestorLeftGap = Math.max(0, ancestorRect.left);
+                      var ancestorRightGap = Math.max(0, inlineViewportWidth - ancestorRect.right);
+                      var ancestorShiftedRight =
+                        ancestorRect.width > inlineViewportWidth * 0.45 &&
+                        ancestorRect.right > inlineViewportWidth * 0.75 &&
+                        ancestorLeftGap > Math.max(12, inlineViewportWidth * 0.035) &&
+                        ancestorLeftGap > ancestorRightGap * 1.6 + 12;
+                      // Reset only layers whose measured geometry confirms the same right shift.
+                      // Keep their width/height and YouTube's internal crop/letterbox sizing intact.
+                      if (ancestorShiftedRight) {
                         ['left','right','transform','margin-left','margin-right'].forEach(
                           function(property) { ancestor.style.removeProperty(property); }
                         );
@@ -9648,10 +9710,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                       if (ancestor === watchRoot) break;
                       ancestor = ancestor.parentElement;
                     }
-                    // Release fixed inline dimensions from the previous viewport; the site's
-                    // normal CSS can then size this same media node against the portrait host.
-                    inlineActiveVideo.style.removeProperty('width');
-                    inlineActiveVideo.style.removeProperty('height');
+                    // Clear stale positioning from the video itself, but do not remove width or
+                    // height: YouTube can need those dimensions to keep its decoder surface alive.
                     inlineActiveVideo.style.setProperty('left', '0px', 'important');
                     inlineActiveVideo.style.setProperty('right', 'auto', 'important');
                     inlineActiveVideo.style.setProperty('transform', 'none', 'important');
