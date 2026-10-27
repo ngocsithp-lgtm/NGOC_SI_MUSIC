@@ -9091,15 +9091,37 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             """.trimIndent(),
             null
         )
-        updateInlineYouTubeBackgroundService(track, isPlaying = true)
-        errorMessage = "Đã bật phát nền YouTube. Video vẫn giữ nguyên trong khung này."
+        val serviceStarted = updateInlineYouTubeBackgroundService(track, isPlaying = true)
+        if (!serviceStarted) {
+            inlineBackgroundPlaybackEnabled = false
+            prefs.edit().putBoolean("youtube_background_playback_enabled", false).apply()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                runCatching {
+                    view.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_BOUND, true)
+                }
+            }
+            return
+        }
+
+        errorMessage = "Đã bật phát nền YouTube. Đang chuyển ứng dụng ra nền…"
+        // The old button only changed a flag and showed a message; it never actually
+        // sent this Activity to the background. Move the task after the foreground
+        // service start request has been queued, keeping this same WebView alive.
+        window.decorView.postDelayed({
+            if (!isFinishing && !isDestroyed) {
+                val movedToBack = moveTaskToBack(true)
+                if (!movedToBack) {
+                    errorMessage = "Đã bật phát nền YouTube, nhưng Android chưa chuyển được ứng dụng ra nền."
+                }
+            }
+        }, 250L)
     }
 
     private fun updateInlineYouTubeBackgroundService(
         track: YouTubeTrack,
         isPlaying: Boolean
-    ) {
-        if (!inlineBackgroundPlaybackEnabled || isFinishing || isDestroyed) return
+    ): Boolean {
+        if (!inlineBackgroundPlaybackEnabled || isFinishing || isDestroyed) return false
         val (queueJson, queueIndex) = buildYouTubeQueueJson(track)
         val serviceIntent = Intent(this, YouTubeBackgroundService::class.java).apply {
             action = YouTubeBackgroundService.ACTION_UPDATE
@@ -9112,16 +9134,18 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             putExtra(YouTubeBackgroundService.EXTRA_PLAYER_STATE, if (isPlaying) 1 else 2)
             putExtra(YouTubeBackgroundService.EXTRA_IS_PLAYING, isPlaying)
         }
-        runCatching {
+        return runCatching {
             if (inlineBackgroundServiceStarted) {
                 startService(serviceIntent)
             } else {
                 ContextCompat.startForegroundService(this, serviceIntent)
                 inlineBackgroundServiceStarted = true
             }
-        }.onFailure {
+            true
+        }.getOrElse {
             errorMessage = "Không bật được dịch vụ phát nền YouTube: " +
                 (it.message ?: "hãy kiểm tra quyền thông báo")
+            false
         }
     }
 
