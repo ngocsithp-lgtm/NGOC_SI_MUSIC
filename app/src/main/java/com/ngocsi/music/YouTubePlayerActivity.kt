@@ -3138,21 +3138,20 @@ class YouTubePlayerActivity : ComponentActivity() {
                                   wrapper.style.setProperty('max-width', '100%', 'important');
                                   wrapper.style.setProperty('min-width', '0', 'important');
                                 });
-                                // Do not pin the active video element to the top-left corner. YouTube
-                                // calculates its own crop/centering from the source aspect ratio; forcing
-                                // left/top/transform here caused a stale horizontal offset and a black
-                                // edge after the WebView resized back to portrait. Clear only our old
-                                // overrides and let the YouTube player stylesheet/layout own the video.
+                                // The page-level wrappers have already been normalized above. Now align only
+                                // the primary video surface to the left edge of its own player box;
+                                // leaving YouTube's stale inline left/translate from the old landscape
+                                // viewport intact is what can leave a black stripe on the portrait left.
+                                // Do not change video width/height or its parent dimensions here.
                                 Array.prototype.forEach.call(
                                   document.querySelectorAll('video.html5-main-video'),
                                   function(video) {
-                                    [
-                                      'left', 'top', 'right', 'bottom',
-                                      'margin', 'margin-left', 'margin-right',
-                                      'transform', 'max-width'
-                                    ].forEach(function(property) {
-                                      video.style.removeProperty(property);
-                                    });
+                                    video.style.setProperty('left', '0px', 'important');
+                                    video.style.setProperty('right', 'auto', 'important');
+                                    video.style.setProperty('margin-left', '0px', 'important');
+                                    video.style.setProperty('margin-right', '0px', 'important');
+                                    video.style.setProperty('transform', 'none', 'important');
+                                    video.style.setProperty('max-width', '100%', 'important');
                                   }
                                 );
                                 var viewportWidth = Math.max(
