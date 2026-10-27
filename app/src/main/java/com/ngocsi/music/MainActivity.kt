@@ -4722,10 +4722,10 @@ class MainActivity : ComponentActivity() {
                             document.scrollingElement.scrollTop = 0;
                             document.scrollingElement.scrollLeft = 0;
                           }
-                          // Normalize the outer host and its sticky .player-container wrapper.
-                          // Leave inner player IDs and <video> geometry to YouTube's compositor.
+                          // Normalize the outer host and sticky-wrapper width only.
+                          // Leave sticky positioning, inner player IDs and <video> geometry intact.
                           var outerWrappers = document.querySelectorAll(
-                            'ytm-watch,ytm-player,.player-placeholder'
+                            'ytm-watch,ytm-player,.player-placeholder,.player-container'
                           );
                           Array.prototype.forEach.call(outerWrappers, function(node) {
                             if (!node || !node.isConnected) return;
@@ -9470,6 +9470,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   'position:relative!important;top:0!important;left:0!important;right:auto!important;' +
                   'bottom:auto!important;width:100%!important;max-width:100%!important;min-height:0!important;' +
                   'margin:0!important;padding:0!important;transform:none!important;box-sizing:border-box!important;} ' +
+                  // Correct the width of YouTube's sticky player wrapper without overriding its
+                  // position/transform, which are part of YouTube's media-surface behavior.
+                  '.player-container,.player-container.sticky-player {' +
+                  'width:100%!important;max-width:100%!important;min-width:0!important;' +
+                  'margin-left:0!important;margin-right:0!important;box-sizing:border-box!important;} ' +
                   '.player-placeholder {position:relative!important;top:0!important;left:0!important;' +
                   'right:auto!important;bottom:auto!important;width:100%!important;max-width:100%!important;' +
                   'height:auto!important;aspect-ratio:16/9!important;margin:0!important;padding:0!important;' +
@@ -9510,10 +9515,10 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 // Inline portrait layout controls only the outer mobile-page wrappers.
                 // Inner #player nodes keep YouTube's own responsive width and media metrics.
                 // Add those inner nodes to the sizing list only for the CSS fullscreen fallback.
-                // Normalize outer page wrappers and the sticky .player-container host inline.
-                // Leave nested #player IDs to YouTube except in the CSS-fullscreen fallback.
+                // Normalize outer page wrappers and sticky-wrapper width inline.
+                // Keep sticky positioning and nested #player geometry owned by YouTube.
                 var wrappers = document.querySelectorAll(
-                  'ytm-watch,.player-placeholder,ytm-player' +
+                  'ytm-watch,.player-placeholder,ytm-player,.player-container' +
                   (isFullscreen ? ',#player-container-id,#player-container,#player' : '')
                 );
                 var watchRoot = document.querySelector('ytm-watch');
