@@ -9629,7 +9629,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   var rightShiftedWideVideo =
                     inlineVideoRect.width > inlineViewportWidth * 0.55 &&
                     inlineVideoRect.left > inlineViewportWidth * 0.08 &&
-                    inlineVideoRect.right <= inlineViewportWidth * 1.08;
+                    inlineVideoRect.right > inlineViewportWidth * 0.85;
                   if (rightShiftedWideVideo) {
                     var ancestor = inlineActiveVideo.parentElement;
                     var repairDepth = 0;
