@@ -1167,7 +1167,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         playbackPositionHandler.postDelayed({
             if (recoveryGeneration != automaticOrientationRecoveryGeneration ||
                 isFinishing || isDestroyed || explicitUserPause ||
-                isCssFullscreen || customView != null ||
+                isCssFullscreen || customView != null || fullscreenLayoutActive ||
                 fullscreenExitTransitionInProgress ||
                 fullscreenExitRecoveryPending ||
                 pendingFullscreenExitGeometryCheck != null ||
@@ -2146,7 +2146,10 @@ class YouTubePlayerActivity : ComponentActivity() {
      * Keep a cooldown so the watchdog cannot repeatedly reload the same YouTube page.
      */
     private fun recoverVideoFrameStall() {
-        if (isFinishing || isDestroyed || webView == null || explicitUserPause) return
+        if (isFinishing || isDestroyed || webView == null || explicitUserPause ||
+            fullscreenExitTransitionInProgress || fullscreenExitRecoveryPending ||
+            pendingFullscreenExitGeometryCheck != null
+        ) return
         val now = System.currentTimeMillis()
 
         // Do not let the rendered-frame watchdog restart a healthy inline session.
@@ -3664,7 +3667,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         val sync = object : Runnable {
             override fun run() {
                 if (generation != inlineLayoutSyncGeneration ||
-                    isFinishing || isDestroyed || customView != null || isCssFullscreen
+                    isFinishing || isDestroyed || customView != null || isCssFullscreen || fullscreenLayoutActive
                 ) return
 
                 // Returning from fullscreen must restore both scroll containers to the same
@@ -3680,7 +3683,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 webView?.post {
                     if (generation != inlineLayoutSyncGeneration ||
                         isFinishing || isDestroyed || webView == null ||
-                        customView != null || isCssFullscreen
+                        customView != null || isCssFullscreen || fullscreenLayoutActive
                     ) return@post
                     normalizeInlineYoutubeViewport(webView ?: return@post)
                 }
@@ -3701,7 +3704,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             // Do not synthesize resize events while the initial stream is starting.
             root.postDelayed({
                 if (generation != inlineLayoutSyncGeneration ||
-                    isFinishing || isDestroyed || customView != null || isCssFullscreen
+                    isFinishing || isDestroyed || customView != null || isCssFullscreen || fullscreenLayoutActive
                 ) return@postDelayed
                 val player = webView ?: return@postDelayed
                 player.evaluateJavascript(
@@ -3737,7 +3740,7 @@ class YouTubePlayerActivity : ComponentActivity() {
      */
     private fun normalizeInlineYoutubeViewport(player: WebView) {
         if (isFinishing || isDestroyed || player !== webView ||
-            isCssFullscreen || customView != null
+            isCssFullscreen || customView != null || fullscreenLayoutActive
         ) return
         playerScrollView?.scrollTo(0, 0)
         player.scrollTo(0, 0)
@@ -4094,6 +4097,15 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun enterFullscreen() {
+        // Invalidate delayed inline layout and rotation recovery before changing the viewport.
+        // A stale resize callback can otherwise race fullscreen entry and supersede its
+        // dedicated playback recovery against the same WebView.
+        inlineLayoutSyncGeneration++
+        automaticOrientationRecoveryGeneration++
+        orientationPlaybackRecoveryGeneration++
+        fullscreenRecoveryGeneration++
+        fullscreenEntryRecoveryGeneration++
+
         // The existing WebView stays attached; only sibling UI is hidden so the player
         // receives the full activity viewport rather than the space below the header/actions.
         setFullscreenLayout(true)
