@@ -9059,8 +9059,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   'position:absolute!important;left:0!important;top:0!important;right:auto!important;' +
                   'bottom:auto!important;margin:0!important;transform:none!important;width:100%!important;' +
                   'height:100%!important;max-width:100vw!important;max-height:100vh!important;' +
-                  'min-width:0!important;object-fit:contain!important;} ' +
-                  // Keep portrait media sizing under YouTube/Chromium control. Styling the
+                  'min-width:0!important;object-fit:contain!important;} ';
+                // Keep portrait media sizing under YouTube/Chromium control. Styling the
                   // internal video containers as 100% absolute layers can shift/crop the video
                   // or leave a black strip after a viewport change. Only fullscreen has special
                   // geometry above; portrait normalization below resets offsets without sizing.
