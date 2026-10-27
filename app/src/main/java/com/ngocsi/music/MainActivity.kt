@@ -4725,7 +4725,7 @@ class MainActivity : ComponentActivity() {
                           // Normalize the outer host and sticky-wrapper width only.
                           // Leave sticky positioning, inner player IDs and <video> geometry intact.
                           var outerWrappers = document.querySelectorAll(
-                            'ytm-watch,ytm-player,.player-placeholder,.player-container'
+                            'ytm-watch,ytm-player,.player-placeholder'
                           );
                           Array.prototype.forEach.call(outerWrappers, function(node) {
                             if (!node || !node.isConnected) return;
@@ -4735,6 +4735,17 @@ class MainActivity : ComponentActivity() {
                             node.style.setProperty('margin-right', '0px', 'important');
                             node.style.setProperty('max-width', '100%', 'important');
                             node.style.setProperty('min-width', '0px', 'important');
+                            node.style.setProperty('box-sizing', 'border-box', 'important');
+                          });
+                          // Width-only correction: never rewrite sticky position/offset/transform.
+                          var stickyHosts = document.querySelectorAll('.player-container');
+                          Array.prototype.forEach.call(stickyHosts, function(node) {
+                            if (!node || !node.isConnected) return;
+                            node.style.setProperty('width', '100%', 'important');
+                            node.style.setProperty('max-width', '100%', 'important');
+                            node.style.setProperty('min-width', '0px', 'important');
+                            node.style.setProperty('margin-left', '0px', 'important');
+                            node.style.setProperty('margin-right', '0px', 'important');
                             node.style.setProperty('box-sizing', 'border-box', 'important');
                           });
                           window.dispatchEvent(new Event('resize'));
@@ -9518,10 +9529,20 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 // Normalize outer page wrappers and sticky-wrapper width inline.
                 // Keep sticky positioning and nested #player geometry owned by YouTube.
                 var wrappers = document.querySelectorAll(
-                  'ytm-watch,.player-placeholder,ytm-player,.player-container' +
+                  'ytm-watch,.player-placeholder,ytm-player' +
                   (isFullscreen ? ',#player-container-id,#player-container,#player' : '')
                 );
                 var watchRoot = document.querySelector('ytm-watch');
+                var stickyHosts = document.querySelectorAll('.player-container');
+                Array.prototype.forEach.call(stickyHosts, function(node) {
+                  if (!node || !node.isConnected) return;
+                  node.style.setProperty('width', '100%', 'important');
+                  node.style.setProperty('max-width', '100%', 'important');
+                  node.style.setProperty('min-width', '0px', 'important');
+                  node.style.setProperty('margin-left', '0px', 'important');
+                  node.style.setProperty('margin-right', '0px', 'important');
+                  node.style.setProperty('box-sizing', 'border-box', 'important');
+                });
                 Array.prototype.forEach.call(wrappers, function(node) {
                   if (!node || !node.isConnected) return;
                   node.style.setProperty('position', 'relative', 'important');
