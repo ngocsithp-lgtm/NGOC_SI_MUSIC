@@ -4687,7 +4687,10 @@ class MainActivity : ComponentActivity() {
         youtubeInlineWebView?.let { view ->
             view.requestLayout()
             view.invalidate()
-            if (youtubeInlineFullscreen &&
+            if (inlineFullscreenCustomViewVisible) {
+                // Chromium owns the visible fullscreen surface now. Leave its media DOM alone
+                // while the underlying inline WebView receives a configuration change.
+            } else if (youtubeInlineFullscreen &&
                 newConfig.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
             ) {
                 // Keep the forced landscape lock until the physical-orientation sensor confirms
@@ -9078,6 +9081,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         installInlineFullscreenOrientationListener()
 
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN)
         WindowInsetsControllerCompat(window, window.decorView).apply {
             systemBarsBehavior =
                 WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
@@ -9115,6 +9119,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         inlineFullscreenHasReachedPhysicalLandscape = false
 
         (view?.parent as? android.view.ViewGroup)?.removeView(view)
+        window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN)
         WindowInsetsControllerCompat(window, window.decorView)
             .show(WindowInsetsCompat.Type.systemBars())
         WindowCompat.setDecorFitsSystemWindows(window, true)
@@ -9740,7 +9745,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         webChromeClient = object : WebChromeClient() {
                                             override fun onShowCustomView(
                                                 view: android.view.View,
-                                                callback: CustomViewCallback
+                                                callback: WebChromeClient.CustomViewCallback
                                             ) {
                                                 showInlineYouTubeCustomView(view, callback)
                                             }
