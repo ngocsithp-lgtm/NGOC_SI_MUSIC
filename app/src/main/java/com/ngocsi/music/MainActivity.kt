@@ -9463,9 +9463,9 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   'min-height:100%!important;overflow:hidden!important;background:#000!important;} ' +
                   'ytm-app {margin:0!important;padding:0!important;min-height:0!important;} ' +
                   'ytm-app.sticky-player {padding-top:0!important;} ' +
-                  // Keep the mobile watch root in the host, but leave YouTube's player-container
-                  // and sticky-player positioning rules alone. Those internal rules determine where
-                  // Chromium composites the video surface and overriding them can shift the picture.
+                  // Keep the mobile watch root inside the WebView and align its sticky player host to the
+                  // current viewport. Leave #player-container-id, #player and <video> geometry to
+                  // YouTube; forcing inner media dimensions can shift or blank Chromium's surface.
                   'ytm-watch {' +
                   'position:relative!important;top:0!important;left:0!important;right:auto!important;' +
                   'bottom:auto!important;width:100%!important;max-width:100%!important;min-height:0!important;' +
