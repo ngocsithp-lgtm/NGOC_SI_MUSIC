@@ -4768,12 +4768,28 @@ class MainActivity : ComponentActivity() {
                           var activeVideo = document.querySelector('video.html5-main-video') ||
                                             document.querySelector('video');
                           if (activeVideo) {
-                            var videoRect = activeVideo.getBoundingClientRect();
-                            var videoCenterOffset =
-                              ((videoRect.left + videoRect.right) / 2) - (viewportWidth / 2);
-                            var shiftedRight =
-                              videoRect.width > viewportWidth * 0.50 &&
-                              videoCenterOffset > Math.max(18, viewportWidth * 0.05);
+                            // Inspect the video and its parent layers. The <video> box can look
+                            // centered while #movie_player/html5-video-container still carries the
+                            // stale landscape translation that shifts the visible picture.
+                            var shiftedRight = false;
+                            var measuredNode = activeVideo;
+                            var measureDepth = 0;
+                            while (measuredNode && measuredNode !== document.documentElement &&
+                                   measureDepth++ < 12) {
+                              var measuredRect = measuredNode.getBoundingClientRect();
+                              var measuredCenterOffset =
+                                ((measuredRect.left + measuredRect.right) / 2) - (viewportWidth / 2);
+                              if (measuredRect.width > viewportWidth * 0.50 &&
+                                  measuredCenterOffset > Math.max(18, viewportWidth * 0.05)) {
+                                shiftedRight = true;
+                                break;
+                              }
+                              var measuredTag = (measuredNode.tagName || '').toLowerCase();
+                              if (measuredTag === 'ytm-player' || measuredTag === 'ytm-watch' ||
+                                  (measuredNode.matches &&
+                                   measuredNode.matches('#player-container-id'))) break;
+                              measuredNode = measuredNode.parentElement;
+                            }
                             if (shiftedRight) {
                               // The offset can live on a padded/translated ancestor whose own
                               // bounding box still spans the full viewport. Normalize the entire
@@ -9687,15 +9703,29 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 var inlineActiveVideo = document.querySelector('video.html5-main-video') ||
                                         document.querySelector('video');
                 if (!isFullscreen && inlineActiveVideo) {
-                  var inlineVideoRect = inlineActiveVideo.getBoundingClientRect();
-                  var inlineVideoCenterOffset =
-                    ((inlineVideoRect.left + inlineVideoRect.right) / 2) -
-                    (inlineViewportWidth / 2);
-                  // Center offset catches a player shifted right even when its right edge spills
-                  // beyond the viewport. Centered 4:3/portrait media remains untouched.
-                  var rightShiftedWideVideo =
-                    inlineVideoRect.width > inlineViewportWidth * 0.50 &&
-                    inlineVideoCenterOffset > Math.max(18, inlineViewportWidth * 0.05);
+                  // Probe the active video plus its ancestors. In some YouTube builds the
+                  // video rectangle remains centered while a video-container ancestor is shifted.
+                  var rightShiftedWideVideo = false;
+                  var measuredNode = inlineActiveVideo;
+                  var measuredDepth = 0;
+                  while (measuredNode && measuredNode !== document.documentElement &&
+                         measuredDepth++ < 12) {
+                    var measuredRect = measuredNode.getBoundingClientRect();
+                    var measuredCenterOffset =
+                      ((measuredRect.left + measuredRect.right) / 2) -
+                      (inlineViewportWidth / 2);
+                    if (measuredRect.width > inlineViewportWidth * 0.50 &&
+                        measuredCenterOffset > Math.max(18, inlineViewportWidth * 0.05)) {
+                      rightShiftedWideVideo = true;
+                      break;
+                    }
+                    if (measuredNode === watchRoot) break;
+                    var measuredTag = (measuredNode.tagName || '').toLowerCase();
+                    if (measuredTag === 'ytm-player' || measuredTag === 'ytm-watch' ||
+                        (measuredNode.matches &&
+                         measuredNode.matches('#player-container-id'))) break;
+                    measuredNode = measuredNode.parentElement;
+                  }
                   if (rightShiftedWideVideo) {
                     var ancestor = inlineActiveVideo.parentElement;
                     var repairDepth = 0;
@@ -9740,10 +9770,24 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     var video = document.querySelector('video.html5-main-video') ||
                                 document.querySelector('video');
                     if (!video) return 'NO_VIDEO';
-                    var r = video.getBoundingClientRect();
-                    var centerOffset = ((r.left + r.right) / 2) - viewportWidth / 2;
-                    if (r.width <= viewportWidth * 0.5 ||
-                        centerOffset <= Math.max(18, viewportWidth * 0.05)) return 'ALIGNED';
+                    var shiftedRight = false;
+                    var measuredNode = video;
+                    var measureDepth = 0;
+                    while (measuredNode && measuredNode !== document.documentElement &&
+                           measureDepth++ < 12) {
+                      var r = measuredNode.getBoundingClientRect();
+                      var centerOffset = ((r.left + r.right) / 2) - viewportWidth / 2;
+                      if (r.width > viewportWidth * 0.5 &&
+                          centerOffset > Math.max(18, viewportWidth * 0.05)) {
+                        shiftedRight = true;
+                        break;
+                      }
+                      var measuredTag = (measuredNode.tagName || '').toLowerCase();
+                      if (measuredTag === 'ytm-player' || measuredTag === 'ytm-watch' ||
+                          (measuredNode.matches && measuredNode.matches('#player-container-id'))) break;
+                      measuredNode = measuredNode.parentElement;
+                    }
+                    if (!shiftedRight) return 'ALIGNED';
                     var node = video.parentElement;
                     var depth = 0;
                     while (node && node !== document.documentElement && depth++ < 12) {
