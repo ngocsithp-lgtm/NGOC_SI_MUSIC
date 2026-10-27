@@ -4756,46 +4756,54 @@ class MainActivity : ComponentActivity() {
                           );
                           // Repair a child player/video layer that retained a rightward landscape
                           // offset after Android restored the portrait WebView viewport.
+                          // Prefer the visual viewport: documentElement.clientWidth can still
+                          // describe YouTube's old wide layout viewport after rotation, so comparing
+                          // video bounds against it misses the exact portrait right-shift.
                           var viewportWidth = Math.max(
-                            1, document.documentElement.clientWidth || window.innerWidth || 1
+                            1,
+                            Number(window.visualViewport && window.visualViewport.width) ||
+                              Number(window.innerWidth) ||
+                              Number(document.documentElement.clientWidth) || 1
                           );
                           var activeVideo = document.querySelector('video.html5-main-video') ||
                                             document.querySelector('video');
                           if (activeVideo) {
                             var videoRect = activeVideo.getBoundingClientRect();
-                            var leftGap = Math.max(0, videoRect.left);
-                            var rightGap = Math.max(0, viewportWidth - videoRect.right);
+                            var videoCenterOffset =
+                              ((videoRect.left + videoRect.right) / 2) - (viewportWidth / 2);
                             var shiftedRight =
                               videoRect.width > viewportWidth * 0.50 &&
-                              videoRect.right > viewportWidth * 0.75 &&
-                              leftGap > Math.max(16, viewportWidth * 0.04) &&
-                              leftGap > rightGap * 1.6 + 12;
+                              videoCenterOffset > Math.max(18, viewportWidth * 0.05);
                             if (shiftedRight) {
+                              // The offset can live on a padded/translated ancestor whose own
+                              // bounding box still spans the full viewport. Normalize the entire
+                              // video-parent chain, not just ancestors whose outer rect is shifted.
                               var ancestor = activeVideo.parentElement;
                               var depth = 0;
                               while (ancestor && ancestor !== document.documentElement && depth++ < 12) {
-                                var r = ancestor.getBoundingClientRect();
-                                var l = Math.max(0, r.left);
-                                var rr = Math.max(0, viewportWidth - r.right);
-                                if (r.width > viewportWidth * 0.45 &&
-                                    r.right > viewportWidth * 0.75 &&
-                                    l > Math.max(12, viewportWidth * 0.035) &&
-                                    l > rr * 1.6 + 12) {
-                                  ['left','right','transform','margin-left','margin-right'].forEach(
-                                    function(property) { ancestor.style.removeProperty(property); }
-                                  );
-                                  ancestor.style.setProperty('left', '0px', 'important');
-                                  ancestor.style.setProperty('right', 'auto', 'important');
-                                  ancestor.style.setProperty('transform', 'none', 'important');
-                                  ancestor.style.setProperty('margin-left', '0px', 'important');
-                                  ancestor.style.setProperty('margin-right', '0px', 'important');
-                                }
+                                ['left','right','transform','translate','margin-left','margin-right',
+                                 'padding-left','padding-right'].forEach(function(property) {
+                                  ancestor.style.removeProperty(property);
+                                });
+                                ancestor.style.setProperty('left', '0px', 'important');
+                                ancestor.style.setProperty('right', 'auto', 'important');
+                                ancestor.style.setProperty('transform', 'none', 'important');
+                                ancestor.style.setProperty('translate', 'none', 'important');
+                                ancestor.style.setProperty('margin-left', '0px', 'important');
+                                ancestor.style.setProperty('margin-right', '0px', 'important');
+                                // Only normalize horizontal padding after a measured right-shift.
+                                ancestor.style.setProperty('padding-left', '0px', 'important');
+                                ancestor.style.setProperty('padding-right', '0px', 'important');
+                                var tag = (ancestor.tagName || '').toLowerCase();
+                                if (tag === 'ytm-player' || tag === 'ytm-watch' ||
+                                    (ancestor.matches && ancestor.matches('#player-container-id'))) break;
                                 ancestor = ancestor.parentElement;
                               }
-                              // Keep the decoder's width/height untouched. Only reset stale X offsets.
+                              // Keep decoder width/height/object-fit untouched; only reset X geometry.
                               activeVideo.style.setProperty('left', '0px', 'important');
                               activeVideo.style.setProperty('right', 'auto', 'important');
                               activeVideo.style.setProperty('transform', 'none', 'important');
+                              activeVideo.style.setProperty('translate', 'none', 'important');
                               activeVideo.style.setProperty('margin-left', '0px', 'important');
                               activeVideo.style.setProperty('margin-right', '0px', 'important');
                               window.dispatchEvent(new Event('resize'));
@@ -9666,59 +9674,131 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 // proves that a wide video is shifted right and does not fill the inline host.
                 // Keep YouTube's aspect-ratio/media renderer in charge: do not force a new
                 // width/height onto the active video unless its previous inline dimensions are stale.
+                // Use the visible viewport, not just documentElement.clientWidth. Mobile
+                // YouTube can retain a wide layout viewport after rotation while the visible
+                // player is portrait-sized; that mismatch previously prevented the repair from
+                // detecting the rightward offset at all.
                 var inlineViewportWidth = Math.max(
-                  1, document.documentElement.clientWidth || window.innerWidth || 1
+                  1,
+                  Number(window.visualViewport && window.visualViewport.width) ||
+                    Number(window.innerWidth) ||
+                    Number(document.documentElement.clientWidth) || 1
                 );
                 var inlineActiveVideo = document.querySelector('video.html5-main-video') ||
                                         document.querySelector('video');
                 if (!isFullscreen && inlineActiveVideo) {
                   var inlineVideoRect = inlineActiveVideo.getBoundingClientRect();
-                  var inlineLeftGap = Math.max(0, inlineVideoRect.left);
-                  var inlineRightGap = Math.max(0, inlineViewportWidth - inlineVideoRect.right);
-                  // Detect an asymmetric horizontal offset, not ordinary black letterboxing.
-                  // The old check missed cases where the right edge was outside the viewport,
-                  // and could mistake a centered 4:3 clip for a shifted 16:9 video.
+                  var inlineVideoCenterOffset =
+                    ((inlineVideoRect.left + inlineVideoRect.right) / 2) -
+                    (inlineViewportWidth / 2);
+                  // Center offset catches a player shifted right even when its right edge spills
+                  // beyond the viewport. Centered 4:3/portrait media remains untouched.
                   var rightShiftedWideVideo =
                     inlineVideoRect.width > inlineViewportWidth * 0.50 &&
-                    inlineVideoRect.right > inlineViewportWidth * 0.75 &&
-                    inlineLeftGap > Math.max(16, inlineViewportWidth * 0.04) &&
-                    inlineLeftGap > inlineRightGap * 1.6 + 12;
+                    inlineVideoCenterOffset > Math.max(18, inlineViewportWidth * 0.05);
                   if (rightShiftedWideVideo) {
                     var ancestor = inlineActiveVideo.parentElement;
                     var repairDepth = 0;
                     while (ancestor && ancestor !== document.documentElement && repairDepth++ < 12) {
-                      var ancestorRect = ancestor.getBoundingClientRect();
-                      var ancestorLeftGap = Math.max(0, ancestorRect.left);
-                      var ancestorRightGap = Math.max(0, inlineViewportWidth - ancestorRect.right);
-                      var ancestorShiftedRight =
-                        ancestorRect.width > inlineViewportWidth * 0.45 &&
-                        ancestorRect.right > inlineViewportWidth * 0.75 &&
-                        ancestorLeftGap > Math.max(12, inlineViewportWidth * 0.035) &&
-                        ancestorLeftGap > ancestorRightGap * 1.6 + 12;
-                      // Reset only layers whose measured geometry confirms the same right shift.
-                      // Keep their width/height and YouTube's internal crop/letterbox sizing intact.
-                      if (ancestorShiftedRight) {
-                        ['left','right','transform','margin-left','margin-right'].forEach(
-                          function(property) { ancestor.style.removeProperty(property); }
-                        );
-                        ancestor.style.setProperty('left', '0px', 'important');
-                        ancestor.style.setProperty('right', 'auto', 'important');
-                        ancestor.style.setProperty('transform', 'none', 'important');
-                        ancestor.style.setProperty('margin-left', '0px', 'important');
-                        ancestor.style.setProperty('margin-right', '0px', 'important');
-                      }
-                      if (ancestor === watchRoot) break;
+                      ['left','right','transform','translate','margin-left','margin-right',
+                       'padding-left','padding-right'].forEach(function(property) {
+                        ancestor.style.removeProperty(property);
+                      });
+                      ancestor.style.setProperty('left', '0px', 'important');
+                      ancestor.style.setProperty('right', 'auto', 'important');
+                      ancestor.style.setProperty('transform', 'none', 'important');
+                      ancestor.style.setProperty('translate', 'none', 'important');
+                      ancestor.style.setProperty('margin-left', '0px', 'important');
+                      ancestor.style.setProperty('margin-right', '0px', 'important');
+                      ancestor.style.setProperty('padding-left', '0px', 'important');
+                      ancestor.style.setProperty('padding-right', '0px', 'important');
+                      var ancestorTag = (ancestor.tagName || '').toLowerCase();
+                      if (ancestor === watchRoot || ancestorTag === 'ytm-player' ||
+                          ancestorTag === 'ytm-watch' ||
+                          (ancestor.matches && ancestor.matches('#player-container-id'))) break;
                       ancestor = ancestor.parentElement;
                     }
-                    // Clear stale positioning from the video itself, but do not remove width or
-                    // height: YouTube can need those dimensions to keep its decoder surface alive.
+                    // Keep decoder width/height/object-fit untouched; only reset horizontal geometry.
                     inlineActiveVideo.style.setProperty('left', '0px', 'important');
                     inlineActiveVideo.style.setProperty('right', 'auto', 'important');
                     inlineActiveVideo.style.setProperty('transform', 'none', 'important');
+                    inlineActiveVideo.style.setProperty('translate', 'none', 'important');
                     inlineActiveVideo.style.setProperty('margin-left', '0px', 'important');
                     inlineActiveVideo.style.setProperty('margin-right', '0px', 'important');
                     window.dispatchEvent(new Event('resize'));
                   }
+                }
+                // Expose the same guarded X-axis repair for configuration/visual viewport callbacks.
+                window.__ngocSiNormalizeInlineX = function() {
+                  try {
+                    var viewportWidth = Math.max(
+                      1,
+                      Number(window.visualViewport && window.visualViewport.width) ||
+                        Number(window.innerWidth) ||
+                        Number(document.documentElement.clientWidth) || 1
+                    );
+                    var video = document.querySelector('video.html5-main-video') ||
+                                document.querySelector('video');
+                    if (!video) return 'NO_VIDEO';
+                    var r = video.getBoundingClientRect();
+                    var centerOffset = ((r.left + r.right) / 2) - viewportWidth / 2;
+                    if (r.width <= viewportWidth * 0.5 ||
+                        centerOffset <= Math.max(18, viewportWidth * 0.05)) return 'ALIGNED';
+                    var node = video.parentElement;
+                    var depth = 0;
+                    while (node && node !== document.documentElement && depth++ < 12) {
+                      ['left','right','transform','translate','margin-left','margin-right',
+                       'padding-left','padding-right'].forEach(function(property) {
+                        node.style.removeProperty(property);
+                      });
+                      node.style.setProperty('left', '0px', 'important');
+                      node.style.setProperty('right', 'auto', 'important');
+                      node.style.setProperty('transform', 'none', 'important');
+                      node.style.setProperty('translate', 'none', 'important');
+                      node.style.setProperty('margin-left', '0px', 'important');
+                      node.style.setProperty('margin-right', '0px', 'important');
+                      node.style.setProperty('padding-left', '0px', 'important');
+                      node.style.setProperty('padding-right', '0px', 'important');
+                      var tag = (node.tagName || '').toLowerCase();
+                      if (tag === 'ytm-player' || tag === 'ytm-watch' ||
+                          (node.matches && node.matches('#player-container-id'))) break;
+                      node = node.parentElement;
+                    }
+                    video.style.setProperty('left', '0px', 'important');
+                    video.style.setProperty('right', 'auto', 'important');
+                    video.style.setProperty('transform', 'none', 'important');
+                    video.style.setProperty('translate', 'none', 'important');
+                    video.style.setProperty('margin-left', '0px', 'important');
+                    video.style.setProperty('margin-right', '0px', 'important');
+                    return 'RIGHT_SHIFT_REPAIRED';
+                  } catch (_) { return 'X_REPAIR_ERROR'; }
+                };
+                if (!window.__ngocSiInlineViewportListener) {
+                  window.__ngocSiInlineViewportListener = true;
+                  var scheduleInlineXRepair = function() {
+                    window.setTimeout(function() {
+                      if (typeof window.__ngocSiNormalizeInlineX === 'function') {
+                        window.__ngocSiNormalizeInlineX();
+                      }
+                    }, 140);
+                  };
+                  window.addEventListener('resize', scheduleInlineXRepair, {passive:true});
+                  if (window.visualViewport) {
+                    window.visualViewport.addEventListener('resize', scheduleInlineXRepair, {passive:true});
+                  }
+                }
+                // YouTube can rewrite the media bounds after the initial page-finished callback.
+                // Re-run this guarded measurement after the viewport has settled.
+                if (!isFullscreen && !window.__ngocSiInlineXRepairScheduled) {
+                  window.__ngocSiInlineXRepairScheduled = true;
+                  [120, 360, 700].forEach(function(delay) {
+                    window.setTimeout(function() {
+                      window.__ngocSiInlineXRepairScheduled = false;
+                      if (typeof window.__ngocSiNormalizeInlineX === 'function') {
+                        window.__ngocSiNormalizeInlineX();
+                      }
+                    }, delay);
+                  });
                 }
                 try {
                   if (document.scrollingElement) {
