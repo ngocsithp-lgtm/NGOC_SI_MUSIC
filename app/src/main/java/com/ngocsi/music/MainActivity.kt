@@ -4610,7 +4610,64 @@ class MainActivity : ComponentActivity() {
                 exitInlineYouTubeFullscreen()
             } else {
                 view.evaluateJavascript(
-                    "window.scrollTo(0,0);window.dispatchEvent(new Event('resize'));",
+                    """
+                    (function() {
+                      function normalizePortraitGeometry() {
+                        try {
+                          if (document.documentElement.classList.contains('ngocsi-inline-fullscreen')) {
+                            return 'FULLSCREEN_SKIP';
+                          }
+                          window.scrollTo(0, 0);
+                          if (document.scrollingElement) {
+                            document.scrollingElement.scrollTop = 0;
+                            document.scrollingElement.scrollLeft = 0;
+                          }
+                          // Match the known-stable YouTubePlayerActivity recovery path:
+                          // normalize page wrappers only, never force the media element's size.
+                          var wrappers = document.querySelectorAll(
+                            'ytm-watch,.player-container,.player-placeholder,ytm-player,' +
+                            '#player-container-id,#player-container,#player'
+                          );
+                          Array.prototype.forEach.call(wrappers, function(node) {
+                            if (!node || !node.isConnected) return;
+                            node.style.setProperty('position', 'relative', 'important');
+                            node.style.setProperty('top', '0px', 'important');
+                            node.style.setProperty('left', '0px', 'important');
+                            node.style.setProperty('right', 'auto', 'important');
+                            node.style.setProperty('bottom', 'auto', 'important');
+                            node.style.setProperty('transform', 'none', 'important');
+                            node.style.setProperty('margin-left', '0px', 'important');
+                            node.style.setProperty('margin-right', '0px', 'important');
+                            node.style.setProperty('box-sizing', 'border-box', 'important');
+                            node.style.setProperty('width', '100%', 'important');
+                            node.style.setProperty('max-width', '100%', 'important');
+                            node.style.setProperty('min-width', '0px', 'important');
+                          });
+                          Array.prototype.forEach.call(
+                            document.querySelectorAll('video.html5-main-video'),
+                            function(video) {
+                              if (!video || !video.isConnected) return;
+                              video.style.setProperty('left', '0px', 'important');
+                              video.style.setProperty('right', 'auto', 'important');
+                              video.style.setProperty('margin-left', '0px', 'important');
+                              video.style.setProperty('margin-right', '0px', 'important');
+                              video.style.setProperty('transform', 'none', 'important');
+                              video.style.setProperty('max-width', '100%', 'important');
+                            }
+                          );
+                          return 'PORTRAIT_GEOMETRY_NORMALIZED';
+                        } catch (_) {
+                          return 'PORTRAIT_GEOMETRY_ERROR';
+                        }
+                      }
+                      window.dispatchEvent(new Event('resize'));
+                      // Wait for WebView/YouTube to adopt the new viewport before clearing
+                      // stale horizontal offsets left over from the previous orientation.
+                      setTimeout(normalizePortraitGeometry, 120);
+                      setTimeout(normalizePortraitGeometry, 360);
+                      setTimeout(normalizePortraitGeometry, 700);
+                    })();
+                    """.trimIndent(),
                     null
                 )
             }
