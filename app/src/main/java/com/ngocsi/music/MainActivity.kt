@@ -9558,12 +9558,15 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   'right:auto!important;bottom:auto!important;width:100%!important;max-width:100%!important;' +
                   'height:auto!important;aspect-ratio:16/9!important;margin:0!important;padding:0!important;' +
                   'transform:none!important;box-sizing:border-box!important;} ' +
-                  'ytm-player,#player-container-id,#player-container,#player {' +
-                  'position:relative!important;top:0!important;left:0!important;right:auto!important;' +
-                  'bottom:auto!important;transform:none!important;width:100%!important;max-width:100%!important;' +
-                  'height:auto!important;min-height:0!important;max-height:none!important;aspect-ratio:16/9!important;' +
-                  'margin:0!important;padding:0!important;box-sizing:border-box!important;} ' +
-                  'ytm-player {display:block!important;} ' +
+                  // Only the mobile site's outer player host gets a forced 16:9 box.
+                  // Do not apply width:100% / aspect-ratio to nested #player IDs: those are
+                  // YouTube's internal media containers and the nested constraints can anchor
+                  // their rendered surface to the right edge, leaving a black strip on the left.
+                  'ytm-player {' +
+                  'display:block!important;position:relative!important;top:0!important;left:0!important;' +
+                  'right:auto!important;bottom:auto!important;transform:none!important;width:100%!important;' +
+                  'max-width:100%!important;min-width:0!important;height:auto!important;min-height:0!important;' +
+                  'max-height:none!important;margin:0!important;padding:0!important;box-sizing:border-box!important;} ' +
                   'html.ngocsi-inline-fullscreen,html.ngocsi-inline-fullscreen body,' +
                   'html.ngocsi-inline-fullscreen ytm-app,html.ngocsi-inline-fullscreen ytm-watch {' +
                   'width:100vw!important;height:100vh!important;max-width:100vw!important;' +
@@ -9585,12 +9588,15 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 // Normalize only the mobile-page wrappers. The internal player and video
                 // surface have separate CSS rules below; overwriting their positioning here
                 // would conflict with the media geometry and can leave a black side strip.
-                var wrappers = document.querySelectorAll(
-                  'ytm-watch,.player-container,.player-placeholder,ytm-player,' +
-                  '#player-container-id,#player-container,#player'
-                );
                 var isFullscreen = document.documentElement.classList.contains(
                   'ngocsi-inline-fullscreen'
+                );
+                // Inline portrait layout controls only the outer mobile-page wrappers.
+                // Inner #player nodes keep YouTube's own responsive width and media metrics.
+                // Add those inner nodes to the sizing list only for the CSS fullscreen fallback.
+                var wrappers = document.querySelectorAll(
+                  'ytm-watch,.player-container,.player-placeholder,ytm-player' +
+                  (isFullscreen ? ',#player-container-id,#player-container,#player' : '')
                 );
                 var watchRoot = document.querySelector('ytm-watch');
                 Array.prototype.forEach.call(wrappers, function(node) {
