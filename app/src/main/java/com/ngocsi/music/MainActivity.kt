@@ -9061,6 +9061,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             ) {
                 view.requestLayout()
                 view.invalidate()
+                applyInlineYouTubePageStyle(view)
                 view.evaluateJavascript(
                     "window.scrollTo(0,0);window.dispatchEvent(new Event('resize'));",
                     null
@@ -9091,6 +9092,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 if (!isFinishing && !isDestroyed && !youtubeInlineFullscreen &&
                     view === youtubeInlineWebView
                 ) {
+                    applyInlineYouTubePageStyle(view)
                     view.evaluateJavascript(
                         "window.scrollTo(0,0);window.dispatchEvent(new Event('resize'));",
                         null
@@ -9259,27 +9261,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   'ytm-player {display:block!important;} ' +
                   'html.ngocsi-inline-fullscreen,html.ngocsi-inline-fullscreen body,' +
                   'html.ngocsi-inline-fullscreen ytm-app,html.ngocsi-inline-fullscreen ytm-watch {' +
-                  'height:100%!important;min-height:100%!important;} ' +
-                  'html.ngocsi-inline-fullscreen ytm-watch,' +
-                  'html.ngocsi-inline-fullscreen .player-container,' +
-                  'html.ngocsi-inline-fullscreen .player-placeholder,' +
-                  'html.ngocsi-inline-fullscreen ytm-player,' +
-                  'html.ngocsi-inline-fullscreen #player-container-id,' +
-                  'html.ngocsi-inline-fullscreen #player-container,' +
-                  'html.ngocsi-inline-fullscreen #player {' +
-                  'height:100%!important;max-height:100%!important;aspect-ratio:auto!important;} ' +
-                  'html.ngocsi-inline-fullscreen body,' +
-                  'html.ngocsi-inline-fullscreen ytm-app,' +
-                  'html.ngocsi-inline-fullscreen ytm-watch,' +
-                  'html.ngocsi-inline-fullscreen .player-container,' +
-                  'html.ngocsi-inline-fullscreen .player-placeholder,' +
-                  'html.ngocsi-inline-fullscreen ytm-player,' +
-                  'html.ngocsi-inline-fullscreen #player-container-id,' +
-                  'html.ngocsi-inline-fullscreen #player-container,' +
-                  'html.ngocsi-inline-fullscreen #player {' +
                   'width:100vw!important;height:100vh!important;max-width:100vw!important;' +
-                  'max-height:100vh!important;min-width:0!important;min-height:0!important;' +
-                  'aspect-ratio:auto!important;overflow:hidden!important;box-sizing:border-box!important;} ';
+                  'max-height:100vh!important;min-width:0!important;min-height:100vh!important;' +
+                  'overflow:hidden!important;box-sizing:border-box!important;} ' +
+                  'html.ngocsi-inline-fullscreen ytm-watch {' +
+                  'display:flex!important;align-items:center!important;justify-content:center!important;} ';
                 // Keep the HTML5 video and Chromium media surface geometry under YouTube control.
                 // Fullscreen changes only outer page/player host dimensions; never set the video
                 // element's position, width, height or object-fit, which can cause black playback.
@@ -9298,6 +9284,10 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   'ytm-watch,.player-container,.player-placeholder,ytm-player,' +
                   '#player-container-id,#player-container,#player'
                 );
+                var isFullscreen = document.documentElement.classList.contains(
+                  'ngocsi-inline-fullscreen'
+                );
+                var watchRoot = document.querySelector('ytm-watch');
                 Array.prototype.forEach.call(wrappers, function(node) {
                   if (!node || !node.isConnected) return;
                   node.style.setProperty('position', 'relative', 'important');
@@ -9313,6 +9303,58 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   node.style.setProperty('min-width', '0px', 'important');
                   node.style.setProperty('box-sizing', 'border-box', 'important');
                 });
+
+                // Fit outer YouTube wrappers to a centered 16:9 viewport in fullscreen.
+                // Do not stretch the HTML5 video or clip the inner #player surface: that
+                // combination previously allowed audio while Chromium rendered a black frame.
+                if (isFullscreen) {
+                  var viewportWidth = Math.max(
+                    1, window.innerWidth || document.documentElement.clientWidth || 1
+                  );
+                  var viewportHeight = Math.max(
+                    1, window.innerHeight || document.documentElement.clientHeight || 1
+                  );
+                  var fittedWidth = Math.max(
+                    1, Math.floor(Math.min(viewportWidth, viewportHeight * 16 / 9))
+                  );
+                  if (watchRoot) {
+                    watchRoot.style.setProperty('display', 'flex', 'important');
+                    watchRoot.style.setProperty('align-items', 'center', 'important');
+                    watchRoot.style.setProperty('justify-content', 'center', 'important');
+                    watchRoot.style.setProperty('height', viewportHeight + 'px', 'important');
+                    watchRoot.style.setProperty('min-height', viewportHeight + 'px', 'important');
+                    watchRoot.style.setProperty('width', '100%', 'important');
+                    watchRoot.style.setProperty('max-width', '100%', 'important');
+                  }
+                  Array.prototype.forEach.call(wrappers, function(node) {
+                    if (!node || !node.isConnected || node === watchRoot) return;
+                    node.style.setProperty('width', fittedWidth + 'px', 'important');
+                    node.style.setProperty('max-width', fittedWidth + 'px', 'important');
+                    node.style.setProperty('height', 'auto', 'important');
+                    node.style.setProperty('max-height', viewportHeight + 'px', 'important');
+                    node.style.setProperty('aspect-ratio', '16 / 9', 'important');
+                    node.style.setProperty('margin-left', 'auto', 'important');
+                    node.style.setProperty('margin-right', 'auto', 'important');
+                    node.style.removeProperty('overflow');
+                  });
+                } else {
+                  if (watchRoot) {
+                    ['display','align-items','justify-content','height','min-height'].forEach(
+                      function(property) { watchRoot.style.removeProperty(property); }
+                    );
+                  }
+                  Array.prototype.forEach.call(wrappers, function(node) {
+                    if (!node || !node.isConnected) return;
+                    ['height','max-height','aspect-ratio','overflow','flex-shrink'].forEach(
+                      function(property) { node.style.removeProperty(property); }
+                    );
+                    node.style.setProperty('margin-left', '0px', 'important');
+                    node.style.setProperty('margin-right', '0px', 'important');
+                    node.style.setProperty('width', '100%', 'important');
+                    node.style.setProperty('max-width', '100%', 'important');
+                    node.style.setProperty('min-width', '0px', 'important');
+                  });
+                }
                 // Match the tested player recovery rules: clear horizontal offsets only.
                 // Do not rewrite top/bottom, position, width/height or parent dimensions;
                 // YouTube owns those values to preserve its media compositor and aspect ratio.
