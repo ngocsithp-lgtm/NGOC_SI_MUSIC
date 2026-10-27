@@ -4702,7 +4702,10 @@ class YouTubePlayerActivity : ComponentActivity() {
 
         recoverFullscreenPlayback(
             allowPageReloadFallback = true,
-            issueInitialPlayIfPaused = false
+            // Chromium can return from the native fullscreen surface with the same HTML5
+            // video element genuinely paused. Permit one Play request only for that paused
+            // element; an already-progressing stream is observed rather than restarted.
+            issueInitialPlayIfPaused = true
         )
     }
 
