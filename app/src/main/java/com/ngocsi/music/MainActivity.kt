@@ -9058,7 +9058,22 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   'position:absolute!important;left:0!important;top:0!important;right:auto!important;' +
                   'bottom:auto!important;margin:0!important;transform:none!important;width:100%!important;' +
                   'height:100%!important;max-width:100vw!important;max-height:100vh!important;' +
-                  'min-width:0!important;object-fit:contain!important;}';
+                  'min-width:0!important;object-fit:contain!important;} ' +
+                  // Portrait inline recovery: pin the media surface to the exact 16:9 host.
+                  // YouTube can retain stale pixel offsets after navigation/recomposition;
+                  // force the video and its immediate containers to share the same viewport.
+                  'html:not(.ngocsi-inline-fullscreen) .html5-video-player,' +
+                  'html:not(.ngocsi-inline-fullscreen) #movie_player,' +
+                  'html:not(.ngocsi-inline-fullscreen) .html5-video-container {' +
+                  'position:absolute!important;inset:0!important;width:100%!important;' +
+                  'height:100%!important;min-width:0!important;max-width:100%!important;' +
+                  'margin:0!important;padding:0!important;overflow:hidden!important;' +
+                  'transform:none!important;box-sizing:border-box!important;} ' +
+                  'html:not(.ngocsi-inline-fullscreen) video.html5-main-video {' +
+                  'position:absolute!important;inset:0!important;width:100%!important;' +
+                  'height:100%!important;min-width:0!important;max-width:100%!important;' +
+                  'margin:0!important;padding:0!important;transform:none!important;' +
+                  'object-fit:contain!important;box-sizing:border-box!important;}';
                 var style = document.getElementById(styleId);
                 if (!style) {
                   style = document.createElement('style');
