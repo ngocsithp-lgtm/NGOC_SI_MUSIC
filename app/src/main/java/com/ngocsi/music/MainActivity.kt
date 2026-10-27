@@ -4725,7 +4725,7 @@ class MainActivity : ComponentActivity() {
                           // Normalize the outer host and its sticky .player-container wrapper.
                           // Leave inner player IDs and <video> geometry to YouTube's compositor.
                           var outerWrappers = document.querySelectorAll(
-                            'ytm-watch,ytm-player,.player-placeholder,.player-container'
+                            'ytm-watch,ytm-player,.player-placeholder'
                           );
                           Array.prototype.forEach.call(outerWrappers, function(node) {
                             if (!node || !node.isConnected) return;
@@ -9470,10 +9470,6 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   'position:relative!important;top:0!important;left:0!important;right:auto!important;' +
                   'bottom:auto!important;width:100%!important;max-width:100%!important;min-height:0!important;' +
                   'margin:0!important;padding:0!important;transform:none!important;box-sizing:border-box!important;} ' +
-                  '.player-container,.player-container.sticky-player {' +
-                  'position:relative!important;top:0!important;left:0!important;right:auto!important;' +
-                  'bottom:auto!important;width:100%!important;max-width:100%!important;min-width:0!important;' +
-                  'margin:0!important;padding:0!important;transform:none!important;box-sizing:border-box!important;} ' +
                   '.player-placeholder {position:relative!important;top:0!important;left:0!important;' +
                   'right:auto!important;bottom:auto!important;width:100%!important;max-width:100%!important;' +
                   'height:auto!important;aspect-ratio:16/9!important;margin:0!important;padding:0!important;' +
@@ -9517,7 +9513,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 // Normalize outer page wrappers and the sticky .player-container host inline.
                 // Leave nested #player IDs to YouTube except in the CSS-fullscreen fallback.
                 var wrappers = document.querySelectorAll(
-                  'ytm-watch,.player-placeholder,ytm-player,.player-container' +
+                  'ytm-watch,.player-placeholder,ytm-player' +
                   (isFullscreen ? ',#player-container-id,#player-container,#player' : '')
                 );
                 var watchRoot = document.querySelector('ytm-watch');
