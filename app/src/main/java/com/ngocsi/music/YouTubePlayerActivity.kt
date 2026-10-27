@@ -185,6 +185,11 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var restoreNativeFullscreenAfterRecoveryReload = false
     // Preserve the pre-fullscreen playback state even if YouTube reports PAUSED while rotating.
     private var wasPlayingBeforeFullscreen = false
+    // YouTube can dispatch a delayed PAUSED callback after fullscreen flags and the saved
+    // pre-fullscreen flag are already cleared. Keep an exit-scoped, video-specific play intent
+    // through the bounded layout/playback recovery window; an explicit user Pause cancels it.
+    private var fullscreenExitPlaybackIntentVideoId: String? = null
+    private var fullscreenExitPlaybackIntentUntilMs = 0L
     private var fullscreenRecoveryGeneration = 0
     // Invalidate delayed recovery when fullscreen is exited or a newer rotation supersedes it.
     private var fullscreenEntryRecoveryGeneration = 0
@@ -427,23 +432,31 @@ class YouTubePlayerActivity : ComponentActivity() {
                     scheduleBackgroundPlaybackRecovery()
                     return@runOnUiThread
                 }
-                // Treat a pause as an orientation handoff only when there is an actual
-                // physical rotation/fullscreen transition. Play intent alone is not proof
-                // of rotation: the old condition swallowed ordinary portrait pauses forever.
+                // Keep the fullscreen-exit intent alive briefly after the native layout flags
+                // are cleared. YouTube's PAUSED callback can arrive asynchronously after
+                // exitFullscreen() has already reset wasPlayingBeforeFullscreen.
+                val nowForFullscreenIntent = System.currentTimeMillis()
+                val fullscreenExitIntentActive = !explicitUserPause &&
+                    fullscreenExitPlaybackIntentVideoId == stateVideoId &&
+                    stateVideoId.isNotBlank() &&
+                    nowForFullscreenIntent <= fullscreenExitPlaybackIntentUntilMs
+                // Treat a pause as an orientation handoff only during an actual rotation or
+                // the bounded fullscreen-exit recovery window. Never infer handoff from Play
+                // intent alone, which could swallow an ordinary portrait pause.
                 val orientationHandoffActive =
-                    System.currentTimeMillis() <= physicalOrientationNormalizationUntilMs ||
+                    nowForFullscreenIntent <= physicalOrientationNormalizationUntilMs ||
                     customView != null || isCssFullscreen || fullscreenLayoutActive ||
                     fullscreenExitTransitionInProgress || fullscreenExitRecoveryPending ||
-                    pendingFullscreenExitGeometryCheck != null
+                    pendingFullscreenExitGeometryCheck != null || fullscreenExitIntentActive
                 val playbackIntentStillActive =
                     prefs.getBoolean("youtube_playback_is_playing", false)
                 // Capture the pre-transition playing intent before YouTube can emit a
                 // transient PAUSED/BUFFERING event while the fullscreen viewport is shrinking.
-                // The saved intent must remain authoritative even if a stale callback has
-                // already cleared the preference during the orientation handoff.
-                val fullscreenPlaybackIntent = wasPlayingBeforeFullscreen &&
-                    (customView != null || isCssFullscreen || fullscreenLayoutActive ||
-                        fullscreenExitTransitionInProgress || fullscreenExitRecoveryPending)
+                // The exit-scoped intent remains authoritative after the old flag is reset.
+                val fullscreenPlaybackIntent = fullscreenExitIntentActive ||
+                    (wasPlayingBeforeFullscreen &&
+                        (customView != null || isCssFullscreen || fullscreenLayoutActive ||
+                            fullscreenExitTransitionInProgress || fullscreenExitRecoveryPending))
                 val playbackIntentWasActive = !explicitUserPause && (
                     playbackIntentStillActive ||
                         resumePlaybackOnNextOrientationChange ||
@@ -2123,6 +2136,9 @@ class YouTubePlayerActivity : ComponentActivity() {
         explicitUserPause = true
         resumePlaybackOnNextOrientationChange = false
         wasPlayingBeforeFullscreen = false
+        // An explicit Pause always wins over a delayed fullscreen/orientation recovery.
+        fullscreenExitPlaybackIntentVideoId = null
+        fullscreenExitPlaybackIntentUntilMs = 0L
         orientationRecoveryWindowUntilMs = 0L
         fullscreenExitGeneration++
         fullscreenExitRecoveryPending = false
@@ -4191,6 +4207,19 @@ class YouTubePlayerActivity : ComponentActivity() {
         val shouldRecoverPlayback =
             !explicitUserPause && playbackIntentBeforeExit &&
                 (shouldResumeAfterNativeFullscreen || shouldResumeAfterCssFullscreen || wasManagedFullscreen)
+        // Preserve the intent across asynchronous YouTube PAUSED callbacks that may arrive
+        // after finishExitLayout() has cleared wasPlayingBeforeFullscreen and fullscreen flags.
+        // Scope this latch to the selected video and bound it to the exit recovery window.
+        fullscreenExitPlaybackIntentVideoId = if (shouldRecoverPlayback) {
+            sanitizeVideoId(videoId).takeIf { it.isNotBlank() }
+        } else {
+            null
+        }
+        fullscreenExitPlaybackIntentUntilMs = if (shouldRecoverPlayback) {
+            System.currentTimeMillis() + 12_000L
+        } else {
+            0L
+        }
         if (shouldRecoverPlayback) {
             resumePlaybackOnNextOrientationChange = true
             getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
