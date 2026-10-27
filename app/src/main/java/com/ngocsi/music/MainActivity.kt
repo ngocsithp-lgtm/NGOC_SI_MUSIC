@@ -9593,6 +9593,74 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     }
                   } catch (_) {}
                 }
+                // Put fullscreen activation inside the page so the click is a real
+                // Web-content user gesture. A Compose/native button calling requestFullscreen
+                // through evaluateJavascript loses transient activation on some WebView builds.
+                var fullscreenButtonId = 'ngocsi-native-fullscreen-control';
+                var fullscreenButton = document.getElementById(fullscreenButtonId);
+                if (!fullscreenButton) {
+                  fullscreenButton = document.createElement('button');
+                  fullscreenButton.id = fullscreenButtonId;
+                  fullscreenButton.type = 'button';
+                  fullscreenButton.textContent = '⛶';
+                  fullscreenButton.setAttribute('aria-label', 'Phóng to toàn màn hình');
+                  fullscreenButton.style.cssText =
+                    'position:fixed;top:10px;right:10px;z-index:2147483647;' +
+                    'display:flex;align-items:center;justify-content:center;' +
+                    'width:42px;height:42px;padding:0;border:1px solid rgba(255,255,255,.65);' +
+                    'border-radius:12px;background:rgba(8,10,14,.82);color:#fff;' +
+                    'font:700 25px sans-serif;line-height:1;cursor:pointer;' +
+                    'touch-action:manipulation;-webkit-tap-highlight-color:transparent;';
+                  fullscreenButton.addEventListener('click', function(event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    var targetVideo = document.querySelector('video.html5-main-video') ||
+                                      document.querySelector('video');
+                    var youtubeFullscreenButton =
+                      document.querySelector('.ytp-fullscreen-button') ||
+                      document.querySelector('[aria-label*="full screen" i]') ||
+                      document.querySelector('[aria-label*="toàn màn hình" i]');
+                    fullscreenButton.style.display = 'none';
+                    var usedRequest = false;
+                    try {
+                      // This call runs directly inside the real DOM click gesture, allowing
+                      // WebChromeClient.onShowCustomView to receive Chromium's video surface.
+                      if (targetVideo && typeof targetVideo.requestFullscreen === 'function') {
+                        var promise = targetVideo.requestFullscreen();
+                        usedRequest = true;
+                        if (promise && typeof promise.catch === 'function') {
+                          promise.catch(function() {
+                            fullscreenButton.style.display = 'flex';
+                            try {
+                              if (youtubeFullscreenButton) youtubeFullscreenButton.click();
+                            } catch (_) {}
+                          });
+                        }
+                      } else if (targetVideo &&
+                                 typeof targetVideo.webkitEnterFullscreen === 'function') {
+                        targetVideo.webkitEnterFullscreen();
+                        usedRequest = true;
+                      }
+                    } catch (_) {}
+                    if (!usedRequest) {
+                      try {
+                        if (youtubeFullscreenButton) youtubeFullscreenButton.click();
+                      } catch (_) {}
+                    }
+                    // If YouTube/WebView rejects fullscreen, restore the in-frame button.
+                    window.setTimeout(function() {
+                      if (fullscreenButton && fullscreenButton.isConnected &&
+                          !document.fullscreenElement) {
+                        fullscreenButton.style.display = 'flex';
+                      }
+                    }, 1400);
+                  });
+                  (document.body || document.documentElement).appendChild(fullscreenButton);
+                }
+                fullscreenButton.style.display =
+                  document.documentElement.classList.contains('ngocsi-inline-fullscreen')
+                    ? 'none' : 'flex';
+
                 return 'INLINE_PLAYER_READY_WITH_AUDIO';
               } catch (_) {
                 return 'INLINE_PLAYER_STYLE_ERROR';
@@ -9805,13 +9873,12 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         overflow = TextOverflow.Ellipsis
                                     )
                                 }
-                                TextButton(
-                                    onClick = {
-                                        enterInlineYouTubeFullscreen()
-                                    }
-                                ) {
-                                    Text("⛶ PHÓNG TO", color = Color(0xFFFF7180), fontSize = 10.sp)
-                                }
+                                Text(
+                                    "Chạm ⛶ trong khung video",
+                                    color = Color(0xFFFF9AA4),
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
                                 TextButton(
                                     onClick = {
                                         enableInlineYouTubeBackground()
