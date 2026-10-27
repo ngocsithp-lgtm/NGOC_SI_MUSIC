@@ -4708,58 +4708,26 @@ class MainActivity : ComponentActivity() {
             ) {
                 exitInlineYouTubeFullscreen()
             } else {
+                // Let YouTube's own responsive layout follow the new WebView viewport.
+                // Do not write sticky offsets/transforms during rotation; that produced both
+                // the left-side gap and the black band across the top in portrait mode.
                 view.evaluateJavascript(
                     """
                     (function() {
-                      function normalizeOuterPlayerGeometry() {
-                        try {
-                          if (document.documentElement.classList.contains('ngocsi-inline-fullscreen') ||
-                              document.fullscreenElement) {
-                            return 'FULLSCREEN_SKIP';
-                          }
+                      try {
+                        if (!document.fullscreenElement &&
+                            !document.documentElement.classList.contains('ngocsi-inline-fullscreen')) {
                           window.scrollTo(0, 0);
                           if (document.scrollingElement) {
                             document.scrollingElement.scrollTop = 0;
                             document.scrollingElement.scrollLeft = 0;
                           }
-                          // Normalize the outer host and sticky-wrapper width only.
-                          // Leave sticky positioning, inner player IDs and <video> geometry intact.
-                          var outerWrappers = document.querySelectorAll(
-                            'ytm-watch,ytm-player,.player-placeholder'
-                          );
-                          Array.prototype.forEach.call(outerWrappers, function(node) {
-                            if (!node || !node.isConnected) return;
-                            node.style.setProperty('left', '0px', 'important');
-                            node.style.setProperty('right', 'auto', 'important');
-                            node.style.setProperty('margin-left', '0px', 'important');
-                            node.style.setProperty('margin-right', '0px', 'important');
-                            node.style.setProperty('max-width', '100%', 'important');
-                            node.style.setProperty('min-width', '0px', 'important');
-                            node.style.setProperty('box-sizing', 'border-box', 'important');
-                          });
-                          // Width-only correction: never rewrite sticky position/offset/transform.
-                          var stickyHosts = document.querySelectorAll('.player-container');
-                          Array.prototype.forEach.call(stickyHosts, function(node) {
-                            if (!node || !node.isConnected) return;
-                            node.style.setProperty('width', '100%', 'important');
-                            node.style.setProperty('max-width', '100%', 'important');
-                            node.style.setProperty('min-width', '0px', 'important');
-                            node.style.setProperty('margin-left', '0px', 'important');
-                            node.style.setProperty('margin-right', '0px', 'important');
-                            node.style.setProperty('box-sizing', 'border-box', 'important');
-                          });
-                          window.dispatchEvent(new Event('resize'));
-                          return 'OUTER_PLAYER_GEOMETRY_NORMALIZED';
-                        } catch (_) {
-                          return 'OUTER_PLAYER_GEOMETRY_ERROR';
                         }
+                        window.dispatchEvent(new Event('resize'));
+                        return 'NATIVE_YOUTUBE_LAYOUT_RESIZED';
+                      } catch (_) {
+                        return 'NATIVE_YOUTUBE_LAYOUT_RESIZE_ERROR';
                       }
-                      window.dispatchEvent(new Event('resize'));
-                      // Wait for WebView to settle after Android's viewport changes. These
-                      // passes normalize only the outer host; native player geometry stays intact.
-                      [120, 360, 700].forEach(function(delay) {
-                        window.setTimeout(normalizeOuterPlayerGeometry, delay);
-                      });
                     })();
                     """.trimIndent(),
                     null
@@ -9470,35 +9438,10 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   'ytm-rich-section-renderer,ytm-engagement-panel,ytm-engagement-panel-section-list-renderer,' +
                   'ytm-reel-shelf-renderer,ytm-chip-cloud-renderer,ytm-single-column-watch-next-results-renderer {' +
                   'display:none!important;} ' +
+                  // Keep the embedded document background clean, but let YouTube size and position
+                  // its mobile player naturally inside the native 16:9 AndroidView host.
                   'html,body {margin:0!important;padding:0!important;width:100%!important;' +
                   'min-height:100%!important;overflow:hidden!important;background:#000!important;} ' +
-                  'ytm-app {margin:0!important;padding:0!important;min-height:0!important;} ' +
-                  'ytm-app.sticky-player {padding-top:0!important;} ' +
-                  // Keep the mobile watch root inside the WebView and align its sticky player host to the
-                  // current viewport. Leave #player-container-id, #player and <video> geometry to
-                  // YouTube; forcing inner media dimensions can shift or blank Chromium's surface.
-                  'ytm-watch {' +
-                  'position:relative!important;top:0!important;left:0!important;right:auto!important;' +
-                  'bottom:auto!important;width:100%!important;max-width:100%!important;min-height:0!important;' +
-                  'margin:0!important;padding:0!important;transform:none!important;box-sizing:border-box!important;} ' +
-                  // Correct the width of YouTube's sticky player wrapper without overriding its
-                  // position/transform, which are part of YouTube's media-surface behavior.
-                  '.player-container,.player-container.sticky-player {' +
-                  'width:100%!important;max-width:100%!important;min-width:0!important;' +
-                  'margin-left:0!important;margin-right:0!important;box-sizing:border-box!important;} ' +
-                  '.player-placeholder {position:relative!important;top:0!important;left:0!important;' +
-                  'right:auto!important;bottom:auto!important;width:100%!important;max-width:100%!important;' +
-                  'height:auto!important;aspect-ratio:16/9!important;margin:0!important;padding:0!important;' +
-                  'transform:none!important;box-sizing:border-box!important;} ' +
-                  // Only the mobile site's outer player host gets a forced 16:9 box.
-                  // Do not apply width:100% / aspect-ratio to nested #player IDs: those are
-                  // YouTube's internal media containers and the nested constraints can anchor
-                  // their rendered surface to the right edge, leaving a black strip on the left.
-                  'ytm-player {' +
-                  'display:block!important;position:relative!important;top:0!important;left:0!important;' +
-                  'right:auto!important;bottom:auto!important;transform:none!important;width:100%!important;' +
-                  'max-width:100%!important;min-width:0!important;height:auto!important;min-height:0!important;' +
-                  'max-height:none!important;margin:0!important;padding:0!important;box-sizing:border-box!important;} ' +
                   'html.ngocsi-inline-fullscreen,html.ngocsi-inline-fullscreen body,' +
                   'html.ngocsi-inline-fullscreen ytm-app,html.ngocsi-inline-fullscreen ytm-watch {' +
                   'width:100vw!important;height:100vh!important;max-width:100vw!important;' +
@@ -9523,48 +9466,10 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 var isFullscreen = document.documentElement.classList.contains(
                   'ngocsi-inline-fullscreen'
                 );
-                // Inline portrait layout controls only the outer mobile-page wrappers.
-                // Inner #player nodes keep YouTube's own responsive width and media metrics.
-                // Add those inner nodes to the sizing list only for the CSS fullscreen fallback.
-                // Normalize outer page wrappers and sticky-wrapper width inline.
-                // Keep sticky positioning and nested #player geometry owned by YouTube.
-                var wrappers = document.querySelectorAll(
-                  'ytm-watch,.player-placeholder,ytm-player' +
-                  (isFullscreen ? ',#player-container-id,#player-container,#player' : '')
-                );
-                var watchRoot = document.querySelector('ytm-watch');
-                var stickyHosts = document.querySelectorAll('.player-container');
-                Array.prototype.forEach.call(stickyHosts, function(node) {
-                  if (!node || !node.isConnected) return;
-                  node.style.setProperty('width', '100%', 'important');
-                  node.style.setProperty('max-width', '100%', 'important');
-                  node.style.setProperty('min-width', '0px', 'important');
-                  node.style.setProperty('margin-left', '0px', 'important');
-                  node.style.setProperty('margin-right', '0px', 'important');
-                  node.style.setProperty('box-sizing', 'border-box', 'important');
-                });
-                Array.prototype.forEach.call(wrappers, function(node) {
-                  if (!node || !node.isConnected) return;
-                  node.style.setProperty('position', 'relative', 'important');
-                  node.style.setProperty('top', '0px', 'important');
-                  node.style.setProperty('left', '0px', 'important');
-                  node.style.setProperty('right', 'auto', 'important');
-                  node.style.setProperty('bottom', 'auto', 'important');
-                  node.style.setProperty('transform', 'none', 'important');
-                  node.style.setProperty('margin-left', '0px', 'important');
-                  node.style.setProperty('margin-right', '0px', 'important');
-                  node.style.setProperty('width', '100%', 'important');
-                  node.style.setProperty('max-width', '100%', 'important');
-                  node.style.setProperty('min-width', '0px', 'important');
-                  node.style.setProperty('box-sizing', 'border-box', 'important');
-                });
-
-                // Fit outer YouTube wrappers to a centered 16:9 viewport in fullscreen.
-                // Do not stretch the HTML5 video or clip the inner #player surface: that
-                // combination previously allowed audio while Chromium rendered a black frame.
+                // In normal inline mode, do not force position, width, height, or transforms on
+                // YouTube-owned nodes. The host AndroidView already supplies the 16:9 viewport.
+                // Only calculate a bounded frame size while the app's CSS fullscreen fallback is active.
                 if (isFullscreen) {
-                  // Prefer the visible WebView viewport (it can be smaller than the
-                  // layout viewport when Android hides system bars or reports a display cutout).
                   var visualViewport = window.visualViewport;
                   var viewportWidth = Math.max(
                     1, Math.floor((visualViewport && visualViewport.width) ||
@@ -9574,13 +9479,10 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     1, Math.floor((visualViewport && visualViewport.height) ||
                       window.innerHeight || document.documentElement.clientHeight || 1)
                   );
-                  // Leave a tiny safety inset so the 16:9 player never spills past the
-                  // physical screen edge on devices with rounded corners/display cutouts.
                   var safeWidth = Math.max(1, viewportWidth - 8);
                   var safeHeight = Math.max(1, viewportHeight - 8);
-                  var fittedWidth = Math.max(
-                    1, Math.floor(Math.min(safeWidth, safeHeight * 16 / 9))
-                  );
+                  var fittedWidth = Math.max(1, Math.floor(Math.min(safeWidth, safeHeight * 16 / 9)));
+                  var watchRoot = document.querySelector('ytm-watch');
                   if (watchRoot) {
                     watchRoot.style.setProperty('display', 'flex', 'important');
                     watchRoot.style.setProperty('align-items', 'center', 'important');
@@ -9590,7 +9492,10 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     watchRoot.style.setProperty('width', '100%', 'important');
                     watchRoot.style.setProperty('max-width', '100%', 'important');
                   }
-                  Array.prototype.forEach.call(wrappers, function(node) {
+                  var fullscreenWrappers = document.querySelectorAll(
+                    'ytm-watch,.player-placeholder,ytm-player,#player-container-id,#player-container,#player'
+                  );
+                  Array.prototype.forEach.call(fullscreenWrappers, function(node) {
                     if (!node || !node.isConnected || node === watchRoot) return;
                     node.style.setProperty('width', fittedWidth + 'px', 'important');
                     node.style.setProperty('max-width', fittedWidth + 'px', 'important');
@@ -9602,22 +9507,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     node.style.removeProperty('overflow');
                   });
                 } else {
-                  if (watchRoot) {
-                    ['display','align-items','justify-content','height','min-height'].forEach(
-                      function(property) { watchRoot.style.removeProperty(property); }
-                    );
+                  window.scrollTo(0, 0);
+                  if (document.scrollingElement) {
+                    document.scrollingElement.scrollTop = 0;
+                    document.scrollingElement.scrollLeft = 0;
                   }
-                  Array.prototype.forEach.call(wrappers, function(node) {
-                    if (!node || !node.isConnected) return;
-                    ['height','max-height','aspect-ratio','overflow','flex-shrink'].forEach(
-                      function(property) { node.style.removeProperty(property); }
-                    );
-                    node.style.setProperty('margin-left', '0px', 'important');
-                    node.style.setProperty('margin-right', '0px', 'important');
-                    node.style.setProperty('width', '100%', 'important');
-                    node.style.setProperty('max-width', '100%', 'important');
-                    node.style.setProperty('min-width', '0px', 'important');
-                  });
                 }
                 // Keep the actual HTML5 video and its parent compositor under YouTube's
                 // own mobile CSS. Previous DOM-rectangle heuristics only inspected layout boxes,
