@@ -9442,6 +9442,16 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                   // its mobile player naturally inside the native 16:9 AndroidView host.
                   'html,body {margin:0!important;padding:0!important;width:100%!important;' +
                   'min-height:100%!important;overflow:hidden!important;background:#000!important;} ' +
+                  // YouTube adds top padding when its mobile app enters sticky-player mode.
+                  // Remove that reserved strip, which otherwise appears as a black band in our fixed inline card.
+                  'ytm-app.sticky-player {padding-top:0!important;} ' +
+                  // Constrain only the outer page/player hosts to the AndroidView width. Do not modify
+                  // their position/transform or the inner HTML5 video, which can break its compositor.
+                  'ytm-watch,ytm-player,.player-container,.player-container.sticky-player,' +
+                  '.player-placeholder {' +
+                  'width:100%!important;max-width:100%!important;min-width:0!important;' +
+                  'margin-left:0!important;margin-right:0!important;box-sizing:border-box!important;} ' +
+                  '.player-placeholder {aspect-ratio:16/9!important;} ' +
                   'html.ngocsi-inline-fullscreen,html.ngocsi-inline-fullscreen body,' +
                   'html.ngocsi-inline-fullscreen ytm-app,html.ngocsi-inline-fullscreen ytm-watch {' +
                   'width:100vw!important;height:100vh!important;max-width:100vw!important;' +
