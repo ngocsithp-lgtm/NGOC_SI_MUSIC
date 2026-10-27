@@ -4680,8 +4680,8 @@ class MainActivity : ComponentActivity() {
                               try {
                                 var v = document.querySelector('video.html5-main-video') ||
                                         document.querySelector('video');
-                                if (v && \u0024{positionMs} > 0) {
-                                  try { v.currentTime = \u0024{positionMs / 1000.0}; } catch (_) {}
+                                if (v && $positionMs > 0) {
+                                  try { v.currentTime = ${positionMs / 1000.0}; } catch (_) {}
                                 }
                                 try {
                                   var p = window.player;
