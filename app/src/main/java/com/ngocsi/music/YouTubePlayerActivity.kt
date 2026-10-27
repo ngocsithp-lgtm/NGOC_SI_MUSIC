@@ -4213,16 +4213,14 @@ class YouTubePlayerActivity : ComponentActivity() {
             // racing Chromium's fullscreen video surface and leaving a frozen frame.
             scheduleInlinePlayerLayoutSync()
 
-            // Only inspect/repair geometry after the playback recovery controller has
-            // either observed real media-clock progress or exhausted its bounded retries.
-            // Starting the geometry reload during that window can interrupt the same WebView.
+            // Defer geometry inspection until playback recovery has observed real clock/frame
+            // progress or completed its bounded recovery. This applies to managed fullscreen too:
+            // keeping the same DOM node does not guarantee YouTube's landscape CSS/rectangles
+            // were restored correctly, and the media clock can advance while its picture is
+            // clipped or shifted. Running the inspector concurrently could reload the same page
+            // while the playback controller is still probing it.
             pendingFullscreenExitGeometryCheck = null
-            if (wasManagedFullscreen) {
-                // The same DOM video element never left the WebView. Avoid starting the
-                // native-custom-view reload/geometry pipeline on an ordinary portrait return.
-                // The bounded frame-stall watchdog remains available if actual frame delivery
-                // later stops while media time advances.
-            } else if (shouldRecoverPlayback) {
+            if (shouldRecoverPlayback) {
                 pendingFullscreenExitGeometryCheck = {
                     if (exitGeneration == fullscreenExitGeneration &&
                         !isFinishing && !isDestroyed && !explicitUserPause
