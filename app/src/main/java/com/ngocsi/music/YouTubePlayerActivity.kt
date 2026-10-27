@@ -437,19 +437,29 @@ class YouTubePlayerActivity : ComponentActivity() {
                     pendingFullscreenExitGeometryCheck != null
                 val playbackIntentStillActive =
                     prefs.getBoolean("youtube_playback_is_playing", false)
+                // Capture the pre-transition playing intent before YouTube can emit a
+                // transient PAUSED/BUFFERING event while the fullscreen viewport is shrinking.
+                // The saved intent must remain authoritative even if a stale callback has
+                // already cleared the preference during the orientation handoff.
+                val fullscreenPlaybackIntent = wasPlayingBeforeFullscreen &&
+                    (customView != null || isCssFullscreen || fullscreenLayoutActive ||
+                        fullscreenExitTransitionInProgress || fullscreenExitRecoveryPending)
                 val playbackIntentWasActive = !explicitUserPause && (
                     playbackIntentStillActive ||
                         resumePlaybackOnNextOrientationChange ||
+                        fullscreenPlaybackIntent ||
                         previousPlayerState == 1
                     )
 
                 // YouTube can emit a transient PAUSED event while Android is really rotating.
-                // Preserve intent only during that known handoff; outside it, allow the
-                // state machine below to register PAUSED and schedule one bounded probe.
+                // Preserve the pre-fullscreen PLAY intent even when a stale callback has
+                // already cleared the preference; otherwise a later shrink sees PAUSED as a
+                // deliberate stop and cancels the only recovery path.
                 if (state == 2 &&
                     orientationHandoffActive &&
                     !explicitUserPause &&
-                    (playbackIntentStillActive || resumePlaybackOnNextOrientationChange) &&
+                    (playbackIntentStillActive || resumePlaybackOnNextOrientationChange ||
+                        fullscreenPlaybackIntent) &&
                     previousPlayerState != 0
                 ) {
                     resumePlaybackOnNextOrientationChange = true
@@ -460,7 +470,9 @@ class YouTubePlayerActivity : ComponentActivity() {
                 // Do not publish a temporary PAUSED/BUFFERING state to the UI or media
                 // session while the viewport is handing off between portrait and landscape.
                 if ((state == 2 || state == 3) && orientationHandoffActive &&
-                    !explicitUserPause && playbackIntentStillActive
+                    !explicitUserPause &&
+                    (playbackIntentStillActive || resumePlaybackOnNextOrientationChange ||
+                        fullscreenPlaybackIntent)
                 ) {
                     return@runOnUiThread
                 }
