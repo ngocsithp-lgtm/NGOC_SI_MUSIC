@@ -9600,8 +9600,9 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         if (node === host && !stopAtHost) break;
                         var tag = (node.tagName || '').toLowerCase();
                         if (tag === 'ytm-player' || tag === 'ytm-watch' ||
-                            (node.matches && node.matches('#player-container-id')) ||
-                            (!stopAtHost && node.matches && node.matches('.player-placeholder'))) {
+                            (!stopAtHost && node.matches &&
+                              (node.matches('#player-container-id') ||
+                               node.matches('.player-placeholder')))) {
                           break;
                         }
                         node = node.parentElement;
