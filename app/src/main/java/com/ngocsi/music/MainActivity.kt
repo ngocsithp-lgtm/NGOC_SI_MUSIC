@@ -5225,18 +5225,11 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
-                    // The home dashboard already displays the active player controls.
-                    // Show the compact player only on feature pages to avoid duplicate controls.
+                    // Keep the YouTube mini-player visible on feature pages, including
+                    // the YouTube page itself, so previous/play-pause/next are always reachable.
+                    // The official YouTube IFrame controls remain available inside the video.
                     if (!youtubeInlineFullscreen) {
-                        // The YouTube tab already owns the full inline player and its
-                        // current-item controls. Do not stack a second copy above BottomNav.
-                        val inlineYouTubeOwnsPlaybackControls =
-                            selectedSection == "Online" &&
-                                onlineHubTab == "YouTube" &&
-                                youtubeInlineTrack != null
-                        if (selectedSection != "Trang chủ" &&
-                            !inlineYouTubeOwnsPlaybackControls
-                        ) {
+                        if (selectedSection != "Trang chủ") {
                             if (youtubeIsActiveSource && youtubeLastPlayed != null) {
                                 YouTubeMiniPlayer(youtubeLastPlayed!!)
                             } else {
@@ -8768,6 +8761,20 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             "previous", "prev", "lùi", "bài trước" -> {
                 playStoredYouTubeOffset(-1)
                 return
+            }
+            "play", "resume", "phát", "tiếp tục" -> {
+                // Resume the current inline WebView instead of reloading the same
+                // video, which can reset playback or briefly blank the video surface.
+                val inlineTrack = youtubeInlineTrack
+                if (youtubeInlineWebView != null && inlineTrack?.videoId == track.videoId) {
+                    playInlineYouTubeWebView()
+                    youtubePlaybackIsPlaying = true
+                    prefs.edit()
+                        .putBoolean("youtube_active_source", true)
+                        .putBoolean("youtube_playback_is_playing", true)
+                        .apply()
+                    return
+                }
             }
             "pause", "tạm dừng", "dừng" -> {
                 pauseInlineYouTubeWebView()
