@@ -374,6 +374,88 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Native event bridge for the previously stable YouTube IFrame player.
+     * The HTML5 video lives inside YouTube's cross-origin iframe, so MainActivity
+     * must use the IFrame API's player controls instead of querying video DOM nodes.
+     */
+    private inner class InlineYouTubeIFrameBridge {
+        @android.webkit.JavascriptInterface
+        fun onReady() {
+            runOnUiThread {
+                if (isFinishing || isDestroyed || youtubeInlineWebView == null) return@runOnUiThread
+                youtubeIsActiveSource = true
+                prefs.edit().putBoolean("youtube_active_source", true).apply()
+            }
+        }
+
+        @android.webkit.JavascriptInterface
+        fun onStateChanged(state: Int, reportedVideoId: String?) {
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                val track = youtubeInlineTrack ?: return@runOnUiThread
+                val reportedId = reportedVideoId.orEmpty()
+                    .filter { it.isLetterOrDigit() || it == '-' || it == '_' }
+                    .take(32)
+                if (reportedId.isNotBlank() && reportedId != track.videoId) return@runOnUiThread
+
+                val isPlaying = state == 1 || state == 3
+                youtubePlaybackIsPlaying = isPlaying
+                youtubeIsActiveSource = true
+                prefs.edit()
+                    .putBoolean("youtube_active_source", true)
+                    .putBoolean("youtube_playback_is_playing", isPlaying)
+                    .apply()
+                if (inlineBackgroundPlaybackEnabled) {
+                    updateInlineYouTubeBackgroundService(track, isPlaying)
+                }
+            }
+        }
+
+        @android.webkit.JavascriptInterface
+        fun onError(code: Int, reportedVideoId: String?) {
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                val track = youtubeInlineTrack ?: return@runOnUiThread
+                val reportedId = reportedVideoId.orEmpty()
+                    .filter { it.isLetterOrDigit() || it == '-' || it == '_' }
+                    .take(32)
+                if (reportedId.isNotBlank() && reportedId != track.videoId) return@runOnUiThread
+
+                youtubePlaybackIsPlaying = false
+                prefs.edit().putBoolean("youtube_playback_is_playing", false).apply()
+                errorMessage = when (code) {
+                    101, 150, 152 ->
+                        "YouTube không cho phép phát video này trong trình phát nhúng (lỗi $code). Hãy thử video khác."
+                    153 ->
+                        "YouTube không xác thực được trình phát (lỗi 153). Hãy thử tải lại video."
+                    100 ->
+                        "Video YouTube không tồn tại hoặc đã bị gỡ."
+                    2 ->
+                        "YouTube từ chối mã video này."
+                    5 ->
+                        "WebView không phát được định dạng video này."
+                    else ->
+                        "YouTube báo lỗi trình phát ($code)."
+                }
+            }
+        }
+
+        @android.webkit.JavascriptInterface
+        fun onAutoplayBlocked(reportedVideoId: String?) {
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                val activeId = youtubeInlineTrack?.videoId ?: return@runOnUiThread
+                val reportedId = reportedVideoId.orEmpty()
+                    .filter { it.isLetterOrDigit() || it == '-' || it == '_' }
+                    .take(32)
+                if (reportedId.isNotBlank() && reportedId != activeId) return@runOnUiThread
+                youtubePlaybackIsPlaying = false
+                prefs.edit().putBoolean("youtube_playback_is_playing", false).apply()
+            }
+        }
+    }
+
     private val inlineYouTubeBackgroundControlReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: android.content.Context?, intent: Intent?) {
             if (intent?.action != YouTubeBackgroundService.ACTION_CONTROL) return
@@ -9175,6 +9257,9 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             """
             (function() {
               try {
+                if (window.__ngocSiInlineIframeApi === true) return 'UNAVAILABLE';
+              } catch (_) {}
+              try {
                 var button = document.querySelector('.ytp-fullscreen-button') ||
                              document.querySelector('[aria-label*="full screen" i]') ||
                              document.querySelector('[aria-label*="toàn màn hình" i]');
@@ -9326,6 +9411,12 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             """
             (function() {
               try {
+                var p = window.player;
+                if (p && typeof p.unMute === 'function') {
+                  p.unMute();
+                  if (typeof p.setVolume === 'function') p.setVolume(100);
+                  return 'INLINE_BACKGROUND_ENABLED';
+                }
                 var v = document.querySelector('video.html5-main-video') ||
                         document.querySelector('video');
                 if (v) {
@@ -9418,352 +9509,279 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
      * the 16:9 WebView viewport. This styles only this embedded view; it does not create
      * another Activity or move the selected video to an external app.
      */
+    /**
+     * Load the stable IFrame API player directly into the inline 16:9 host.
+     * This restores the same player engine used by the previously working dedicated player,
+     * rather than positioning YouTube's mobile page with CSS or editing its video element.
+     */
+    private fun loadInlineYouTubeStablePlayer(view: WebView, requestedVideoId: String) {
+        val safeId = requestedVideoId
+            .filter { it.isLetterOrDigit() || it == '_' || it == '-' }
+            .take(32)
+        if (safeId.isBlank()) return
+
+        val appIdentityUrl = "https://$packageName/"
+        val html = """
+            <!doctype html>
+            <html lang="vi">
+            <head>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                <meta name="referrer" content="strict-origin-when-cross-origin">
+                <style>
+                    html, body {
+                        position: fixed;
+                        inset: 0;
+                        margin: 0;
+                        padding: 0;
+                        width: 100%;
+                        height: 100%;
+                        min-width: 100%;
+                        min-height: 100%;
+                        background: #000;
+                        overflow: hidden;
+                        box-sizing: border-box;
+                    }
+                    #player {
+                        position: absolute;
+                        inset: 0;
+                        width: 100%;
+                        height: 100%;
+                        margin: 0;
+                        padding: 0;
+                        background: #000;
+                        overflow: hidden;
+                    }
+                    #player iframe, iframe#player {
+                        position: absolute !important;
+                        inset: 0 !important;
+                        display: block !important;
+                        width: 100% !important;
+                        height: 100% !important;
+                        max-width: 100% !important;
+                        max-height: 100% !important;
+                        border: 0 !important;
+                        transform: translate3d(0, 0, 0);
+                        backface-visibility: hidden;
+                    }
+                    html.ngocsi-inline-fullscreen,
+                    html.ngocsi-inline-fullscreen body {
+                        width: 100vw !important;
+                        height: 100vh !important;
+                        min-width: 100vw !important;
+                        min-height: 100vh !important;
+                        max-width: 100vw !important;
+                        max-height: 100vh !important;
+                    }
+                    html.ngocsi-inline-fullscreen #player {
+                        width: 100vw !important;
+                        height: 100vh !important;
+                    }
+                </style>
+            </head>
+            <body>
+                <div id="player"></div>
+                <script>
+                    window.__ngocSiInlineIframeApi = true;
+                    var player = null;
+
+                    function getCurrentVideoId() {
+                        try {
+                            if (player && typeof player.getVideoData === 'function') {
+                                return String(player.getVideoData().video_id || '');
+                            }
+                        } catch (_) {}
+                        return '';
+                    }
+
+                    function refreshVideoSurface() {
+                        try {
+                            var root = document.getElementById('player');
+                            var width = Math.floor(Number(
+                                document.documentElement.clientWidth || window.innerWidth || 0
+                            ));
+                            var height = Math.floor(Number(
+                                document.documentElement.clientHeight || window.innerHeight || 0
+                            ));
+                            if (!isFinite(width) || !isFinite(height) || width <= 0 || height <= 0) {
+                                return false;
+                            }
+                            if (root) {
+                                root.style.width = width + 'px';
+                                root.style.height = height + 'px';
+                            }
+                            if (player && typeof player.setSize === 'function') {
+                                player.setSize(width, height);
+                            }
+                            var frame = null;
+                            try {
+                                if (player && typeof player.getIframe === 'function') {
+                                    frame = player.getIframe();
+                                }
+                            } catch (_) {}
+                            if (!frame && root) frame = root.querySelector('iframe');
+                            if (frame && frame.style) {
+                                frame.style.display = 'block';
+                                frame.style.visibility = 'visible';
+                                frame.style.opacity = '1';
+                                frame.style.width = '100%';
+                                frame.style.height = '100%';
+                                frame.style.maxWidth = '100%';
+                                frame.style.maxHeight = '100%';
+                                frame.style.transform = 'translate3d(0, 0, 0)';
+                                frame.style.backfaceVisibility = 'hidden';
+                                frame.getBoundingClientRect();
+                            }
+                            document.body.getBoundingClientRect();
+                            return true;
+                        } catch (_) {
+                            return false;
+                        }
+                    }
+
+                    var resizePending = false;
+                    function resizeVideoSurface() {
+                        if (resizePending) return;
+                        resizePending = true;
+                        requestAnimationFrame(function() {
+                            resizePending = false;
+                            refreshVideoSurface();
+                        });
+                    }
+                    window.resizeVideoSurface = resizeVideoSurface;
+                    window.addEventListener('resize', resizeVideoSurface);
+                    window.addEventListener('orientationchange', resizeVideoSurface);
+                    if (window.visualViewport && window.visualViewport.addEventListener) {
+                        window.visualViewport.addEventListener('resize', resizeVideoSurface);
+                    }
+
+                    function onYouTubeIframeAPIReady() {
+                        player = new YT.Player('player', {
+                            width: '100%',
+                            height: '100%',
+                            videoId: '$safeId',
+                            playerVars: {
+                                playsinline: 1,
+                                autoplay: 1,
+                                rel: 0,
+                                controls: 1,
+                                fs: 1,
+                                hl: 'vi',
+                                cc_lang_pref: 'vi',
+                                origin: '$appIdentityUrl',
+                                widget_referrer: '$appIdentityUrl'
+                            },
+                            events: {
+                                onReady: function() {
+                                    resizeVideoSurface();
+                                    setTimeout(resizeVideoSurface, 120);
+                                    setTimeout(resizeVideoSurface, 420);
+                                    try {
+                                        player.unMute();
+                                        player.setVolume(100);
+                                        player.playVideo();
+                                    } catch (_) {}
+                                    try { AndroidBridge.onReady(); } catch (_) {}
+                                },
+                                onStateChange: function(event) {
+                                    try {
+                                        AndroidBridge.onStateChanged(
+                                            Number(event.data), getCurrentVideoId()
+                                        );
+                                    } catch (_) {}
+                                },
+                                onError: function(event) {
+                                    try {
+                                        AndroidBridge.onError(
+                                            Number(event.data), getCurrentVideoId()
+                                        );
+                                    } catch (_) {}
+                                },
+                                onAutoplayBlocked: function() {
+                                    try { AndroidBridge.onAutoplayBlocked(getCurrentVideoId()); } catch (_) {}
+                                }
+                            }
+                        });
+                    }
+
+                    function playVideo() {
+                        if (player && typeof player.playVideo === 'function') {
+                            player.unMute();
+                            player.setVolume(100);
+                            player.playVideo();
+                        }
+                    }
+                    function pauseVideo() {
+                        if (player && typeof player.pauseVideo === 'function') player.pauseVideo();
+                    }
+                    function seekTo(seconds, allowSeekAhead) {
+                        if (player && typeof player.seekTo === 'function') {
+                            player.seekTo(seconds, allowSeekAhead);
+                        }
+                    }
+                    function getCurrentTime() {
+                        return player && typeof player.getCurrentTime === 'function'
+                            ? player.getCurrentTime() : 0;
+                    }
+                    function loadVideoById(id, startSeconds) {
+                        if (!player || typeof player.loadVideoById !== 'function') return;
+                        var options = {videoId: id};
+                        var start = Number(startSeconds);
+                        if (isFinite(start) && start > 0) options.startSeconds = start;
+                        try { player.loadVideoById(options); }
+                        catch (_) { try { player.loadVideoById(id); } catch (_) {} }
+                    }
+                </script>
+                <script src="https://www.youtube.com/iframe_api"></script>
+            </body>
+            </html>
+        """.trimIndent()
+
+        // Match the previously stable dedicated player's identity/referrer setup.
+        if (androidx.webkit.WebViewFeature.isFeatureSupported(
+                androidx.webkit.WebViewFeature.WEBVIEW_MEDIA_INTEGRITY_API_STATUS
+            )
+        ) {
+            runCatching {
+                val integrityConfig = androidx.webkit.WebViewMediaIntegrityApiStatusConfig.Builder(
+                    androidx.webkit.WebViewMediaIntegrityApiStatusConfig.WEBVIEW_MEDIA_INTEGRITY_API_ENABLED
+                )
+                    .addOverrideRule(
+                        "https://www.youtube.com",
+                        androidx.webkit.WebViewMediaIntegrityApiStatusConfig.WEBVIEW_MEDIA_INTEGRITY_API_ENABLED
+                    )
+                    .addOverrideRule(
+                        "https://*.youtube.com",
+                        androidx.webkit.WebViewMediaIntegrityApiStatusConfig.WEBVIEW_MEDIA_INTEGRITY_API_ENABLED
+                    )
+                    .build()
+                androidx.webkit.WebSettingsCompat.setWebViewMediaIntegrityApiStatus(
+                    view.settings,
+                    integrityConfig
+                )
+            }
+        }
+
+        view.loadDataWithBaseURL(
+            appIdentityUrl, html, "text/html", "UTF-8", appIdentityUrl
+        )
+    }
+
     private fun applyInlineYouTubePageStyle(view: WebView) {
-        // Mirror the proven mobile-watch player setup from YouTubePlayerActivity, but keep
-        // the native Compose AndroidView as the only host so playback stays in the top frame.
-        // Size the page wrappers to the host's 16:9 viewport. Keep YouTube's own computed
-        // video width/height: forcing them can desynchronize its renderer and produce audio-only
-        // playback. Reset page wrappers separately from the internal video surface.
+        // The stable IFrame player owns its own 100% x 100% viewport. Only request a
+        // natural resize after Android changes the native 16:9 host; never mutate video
+        // or ancestor transforms from measured DOM rectangles.
         view.evaluateJavascript(
             """
             (function() {
               try {
-                var styleId = 'ngocsi-inline-mobile-player-style';
-                var css =
-                  '#masthead-container,ytm-mobile-topbar-renderer,ytm-pivot-bar-renderer,' +
-                  'ytm-app-header,ytm-watch-metadata,ytm-slim-video-metadata-section-renderer,' +
-                  'ytm-video-description-infocontainer-renderer,ytm-comments-entry-point-header-renderer,' +
-                  'ytm-comments-entry-point-teaser-renderer,ytm-comment-section-renderer,' +
-                  'ytm-comment-thread-renderer,ytm-comment-renderer,ytm-related-video-renderer,' +
-                  'ytm-rich-section-renderer,ytm-engagement-panel,ytm-engagement-panel-section-list-renderer,' +
-                  'ytm-reel-shelf-renderer,ytm-chip-cloud-renderer,ytm-single-column-watch-next-results-renderer {' +
-                  'display:none!important;} ' +
-                  // Keep the embedded document background clean, but let YouTube size and position
-                  // its mobile player naturally inside the native 16:9 AndroidView host.
-                  'html,body {margin:0!important;padding:0!important;width:100%!important;' +
-                  'min-height:100%!important;overflow:hidden!important;background:#000!important;} ' +
-                  // YouTube adds top padding when its mobile app enters sticky-player mode.
-                  // Remove that reserved strip, which otherwise appears as a black band in our fixed inline card.
-                  'ytm-app.sticky-player {padding-top:0!important;} ' +
-                  // Constrain only the outer page/player hosts to the AndroidView width. Do not modify
-                  // their position/transform or the inner HTML5 video, which can break its compositor.
-                  'ytm-watch,ytm-player,.player-container,.player-container.sticky-player,' +
-                  '.player-placeholder {' +
-                  'width:100%!important;max-width:100%!important;min-width:0!important;' +
-                  'margin-left:0!important;margin-right:0!important;box-sizing:border-box!important;} ' +
-                  '.player-placeholder {aspect-ratio:16/9!important;} ' +
-                  'html.ngocsi-inline-fullscreen,html.ngocsi-inline-fullscreen body,' +
-                  'html.ngocsi-inline-fullscreen ytm-app,html.ngocsi-inline-fullscreen ytm-watch {' +
-                  'width:100vw!important;height:100vh!important;max-width:100vw!important;' +
-                  'max-height:100vh!important;min-width:0!important;min-height:100vh!important;' +
-                  'overflow:hidden!important;box-sizing:border-box!important;} ' +
-                  'html.ngocsi-inline-fullscreen ytm-watch {' +
-                  'display:flex!important;align-items:center!important;justify-content:center!important;} ';
-                // Keep the HTML5 video and Chromium media surface geometry under YouTube control.
-                // Fullscreen changes only outer page/player host dimensions; never set the video
-                // element's position, width, height or object-fit, which can cause black playback.
-                var style = document.getElementById(styleId);
-                if (!style) {
-                  style = document.createElement('style');
-                  style.id = styleId;
-                  (document.head || document.documentElement).appendChild(style);
+                if (window.__ngocSiInlineIframeApi === true &&
+                    typeof window.resizeVideoSurface === 'function') {
+                  window.resizeVideoSurface();
+                  return 'STABLE_IFRAME_RESIZED';
                 }
-                if (style.textContent !== css) style.textContent = css;
-
-                // Normalize only the mobile-page wrappers. The internal player and video
-                // surface have separate CSS rules below; overwriting their positioning here
-                // would conflict with the media geometry and can leave a black side strip.
-                var isFullscreen = document.documentElement.classList.contains(
-                  'ngocsi-inline-fullscreen'
-                );
-                // In normal inline mode, do not force position, width, height, or transforms on
-                // YouTube-owned nodes. The host AndroidView already supplies the 16:9 viewport.
-                // Only calculate a bounded frame size while the app's CSS fullscreen fallback is active.
-                if (isFullscreen) {
-                  var visualViewport = window.visualViewport;
-                  var viewportWidth = Math.max(
-                    1, Math.floor((visualViewport && visualViewport.width) ||
-                      window.innerWidth || document.documentElement.clientWidth || 1)
-                  );
-                  var viewportHeight = Math.max(
-                    1, Math.floor((visualViewport && visualViewport.height) ||
-                      window.innerHeight || document.documentElement.clientHeight || 1)
-                  );
-                  var safeWidth = Math.max(1, viewportWidth - 8);
-                  var safeHeight = Math.max(1, viewportHeight - 8);
-                  var fittedWidth = Math.max(1, Math.floor(Math.min(safeWidth, safeHeight * 16 / 9)));
-                  var watchRoot = document.querySelector('ytm-watch');
-                  if (watchRoot) {
-                    watchRoot.style.setProperty('display', 'flex', 'important');
-                    watchRoot.style.setProperty('align-items', 'center', 'important');
-                    watchRoot.style.setProperty('justify-content', 'center', 'important');
-                    watchRoot.style.setProperty('height', viewportHeight + 'px', 'important');
-                    watchRoot.style.setProperty('min-height', viewportHeight + 'px', 'important');
-                    watchRoot.style.setProperty('width', '100%', 'important');
-                    watchRoot.style.setProperty('max-width', '100%', 'important');
-                  }
-                  var fullscreenWrappers = document.querySelectorAll(
-                    'ytm-watch,.player-placeholder,ytm-player,#player-container-id,#player-container,#player'
-                  );
-                  Array.prototype.forEach.call(fullscreenWrappers, function(node) {
-                    if (!node || !node.isConnected || node === watchRoot) return;
-                    node.style.setProperty('width', fittedWidth + 'px', 'important');
-                    node.style.setProperty('max-width', fittedWidth + 'px', 'important');
-                    node.style.setProperty('height', 'auto', 'important');
-                    node.style.setProperty('max-height', viewportHeight + 'px', 'important');
-                    node.style.setProperty('aspect-ratio', '16 / 9', 'important');
-                    node.style.setProperty('margin-left', 'auto', 'important');
-                    node.style.setProperty('margin-right', 'auto', 'important');
-                    node.style.removeProperty('overflow');
-                  });
-                } else {
-                  window.scrollTo(0, 0);
-                  if (document.scrollingElement) {
-                    document.scrollingElement.scrollTop = 0;
-                    document.scrollingElement.scrollLeft = 0;
-                  }
-                }
-                // Measure the real HTML5 video and its surrounding boxes after YouTube lays out.
-                // Repair an axis only when the measured rectangles prove a material offset.
-                // Never set video width/height/object-fit: those belong to YouTube's compositor.
-                // Do not mutate YouTube video/player transforms or offsets from DOM rectangle heuristics.
-                // WebView may keep audio alive while the hardware video surface disappears when these
-                // CSS properties are changed after playback starts. Keep YouTube's native geometry intact.
-                window.__ngocSiNormalizeInlineX = function() {
-                  try {
-                    if (document.fullscreenElement ||
-                        document.documentElement.classList.contains('ngocsi-inline-fullscreen')) {
-                      return 'FULLSCREEN_SKIP';
-                    }
-                    var vv = window.visualViewport;
-                    var vw = Math.max(1, Number(vv && vv.width) ||
-                      Number(window.innerWidth) || Number(document.documentElement.clientWidth) || 1);
-                    var vh = Math.max(1, Number(vv && vv.height) ||
-                      Number(window.innerHeight) || Number(document.documentElement.clientHeight) || 1);
-                    var video = document.querySelector('video.html5-main-video') ||
-                                document.querySelector('video');
-                    var host = document.querySelector('.player-placeholder') ||
-                               document.querySelector('ytm-player') ||
-                               document.querySelector('.player-container') ||
-                               document.querySelector('ytm-watch');
-                    if (!video || !host) return 'NO_VIDEO_OR_HOST';
-                    var vr = video.getBoundingClientRect();
-                    var hr = host.getBoundingClientRect();
-                    if (vr.width < 2 || vr.height < 2 || hr.width < 2 || hr.height < 2) {
-                      return 'LAYOUT_NOT_READY';
-                    }
-                    var hostW = Math.max(1, Math.min(vw * 1.5, hr.width));
-                    var hostH = Math.max(1, Math.min(vh * 1.5, hr.height));
-                    var hostCx = (hr.left + hr.right) / 2;
-                    var hostCy = (hr.top + hr.bottom) / 2;
-                    var videoCx = (vr.left + vr.right) / 2;
-                    var videoCy = (vr.top + vr.bottom) / 2;
-                    var xTolerance = Math.max(12, Math.min(vw, hostW) * 0.035);
-                    var yTolerance = Math.max(8, Math.min(vh, hostH) * 0.04);
-                    var shiftHostX = hr.width >= vw * 0.55 &&
-                      Math.abs(hostCx - vw / 2) > xTolerance;
-                    var shiftVideoX = vr.width >= hostW * 0.5 &&
-                      Math.abs(videoCx - hostCx) > xTolerance;
-                    var shiftHostY = hr.width >= vw * 0.55 &&
-                      hr.height >= hostW * 0.22 && hr.top > yTolerance;
-                    var shiftVideoY = vr.width >= hostW * 0.5 &&
-                      vr.height >= hostH * 0.45 && Math.abs(videoCy - hostCy) > yTolerance;
-                    function repairAxis(start, axis, stopAtHost) {
-                      var node = start;
-                      var depth = 0;
-                      while (node && node.nodeType === 1 &&
-                             node !== document.documentElement && depth++ < 14) {
-                        if (axis === 'x') {
-                          ['left','right','translate','margin-left','margin-right',
-                           'padding-left','padding-right'].forEach(function(p) {
-                            node.style.removeProperty(p);
-                          });
-                          node.style.setProperty('left', '0px', 'important');
-                          node.style.setProperty('right', 'auto', 'important');
-                          node.style.setProperty('margin-left', '0px', 'important');
-                          node.style.setProperty('margin-right', '0px', 'important');
-                          node.style.setProperty('padding-left', '0px', 'important');
-                          node.style.setProperty('padding-right', '0px', 'important');
-                          node.style.setProperty('translate', 'none', 'important');
-                          node.style.setProperty('transform', 'none', 'important');
-                        } else {
-                          ['top','bottom','translate','margin-top','margin-bottom',
-                           'padding-top','padding-bottom'].forEach(function(p) {
-                            node.style.removeProperty(p);
-                          });
-                          node.style.setProperty('top', '0px', 'important');
-                          node.style.setProperty('bottom', 'auto', 'important');
-                          node.style.setProperty('margin-top', '0px', 'important');
-                          node.style.setProperty('margin-bottom', '0px', 'important');
-                          node.style.setProperty('padding-top', '0px', 'important');
-                          node.style.setProperty('padding-bottom', '0px', 'important');
-                          node.style.setProperty('translate', 'none', 'important');
-                          node.style.setProperty('transform', 'none', 'important');
-                        }
-                        if (node === host && !stopAtHost) break;
-                        var tag = (node.tagName || '').toLowerCase();
-                        if (tag === 'ytm-player' || tag === 'ytm-watch' ||
-                            (!stopAtHost && node.matches &&
-                              (node.matches('#player-container-id') ||
-                               node.matches('.player-placeholder')))) {
-                          break;
-                        }
-                        node = node.parentElement;
-                      }
-                    }
-                    var repaired = [];
-                    if (shiftHostX) {
-                      repairAxis(host, 'x', true);
-                      repaired.push('HOST_X');
-                    } else if (shiftVideoX) {
-                      repairAxis(video, 'x', false);
-                      repaired.push('VIDEO_X');
-                    }
-                    if (shiftHostY) {
-                      repairAxis(host, 'y', true);
-                      repaired.push('HOST_Y');
-                    } else if (shiftVideoY) {
-                      repairAxis(video, 'y', false);
-                      repaired.push('VIDEO_Y');
-                    }
-                    return repaired.length ? 'REPAIRED_' + repaired.join('_') : 'ALIGNED';
-                  } catch (_) {
-                    return 'MEASURED_ALIGNMENT_ERROR';
-                  }
-                };
-                // YouTube recalculates its player after navigation and viewport changes.
-                // Re-check after its layout settles; the repair is guarded by measured offsets.
-                if (!window.__ngocSiInlineViewportListener) {
-                  window.__ngocSiInlineViewportListener = true;
-                  var scheduleInlineAlignmentCheck = function() {
-                    [120, 360].forEach(function(delay) {
-                      window.setTimeout(function() {
-                        if (typeof window.__ngocSiNormalizeInlineX === 'function') {
-                          window.__ngocSiNormalizeInlineX();
-                        }
-                      }, delay);
-                    });
-                  };
-                  window.addEventListener('resize', scheduleInlineAlignmentCheck, {passive:true});
-                  if (window.visualViewport) {
-                    window.visualViewport.addEventListener('resize', scheduleInlineAlignmentCheck, {passive:true});
-                  }
-                }
-                [160, 420, 760].forEach(function(delay) {
-                  window.setTimeout(function() {
-                    if (typeof window.__ngocSiNormalizeInlineX === 'function') {
-                      window.__ngocSiNormalizeInlineX();
-                    }
-                  }, delay);
-                });
-                try {
-                  if (document.scrollingElement) {
-                    document.scrollingElement.scrollTop = 0;
-                    document.scrollingElement.scrollLeft = 0;
-                  }
-                  window.scrollTo(0, 0);
-                } catch (_) {}
-
-                // Apply the successful initial-audio fix here as well. Never issue another
-                // Play command during startup: YouTube owns autoplay, and competing Play calls
-                // previously caused the stutter-then-stop regression.
-                var video = document.querySelector('video.html5-main-video') ||
-                            document.querySelector('video');
-                if (video) {
-                  var enableInitialAudio = function() {
-                    try {
-                      video.defaultMuted = false;
-                      video.muted = false;
-                      video.volume = 1;
-                    } catch (_) {}
-                  };
-                  enableInitialAudio();
-                  video.addEventListener('loadedmetadata', enableInitialAudio, {once:true});
-                  video.addEventListener('canplay', enableInitialAudio, {once:true});
-                  video.addEventListener('playing', enableInitialAudio, {once:true});
-                  try {
-                    var initialPlayer = document.querySelector('#movie_player') ||
-                      document.querySelector('.html5-video-player') ||
-                      document.querySelector('ytm-player');
-                    if (initialPlayer && typeof initialPlayer.unMute === 'function') {
-                      initialPlayer.unMute();
-                      if (typeof initialPlayer.setVolume === 'function') {
-                        initialPlayer.setVolume(100);
-                      }
-                    }
-                  } catch (_) {}
-                }
-                // Put fullscreen activation inside the page so the click is a real
-                // Web-content user gesture. A Compose/native button calling requestFullscreen
-                // through evaluateJavascript loses transient activation on some WebView builds.
-                var fullscreenButtonId = 'ngocsi-native-fullscreen-control';
-                var fullscreenButton = document.getElementById(fullscreenButtonId);
-                if (!fullscreenButton) {
-                  fullscreenButton = document.createElement('button');
-                  fullscreenButton.id = fullscreenButtonId;
-                  fullscreenButton.type = 'button';
-                  fullscreenButton.textContent = '⛶';
-                  fullscreenButton.setAttribute('aria-label', 'Phóng to toàn màn hình');
-                  fullscreenButton.style.cssText =
-                    'position:fixed;top:10px;right:10px;z-index:2147483647;' +
-                    'display:flex;align-items:center;justify-content:center;' +
-                    'width:42px;height:42px;padding:0;border:1px solid rgba(255,255,255,.65);' +
-                    'border-radius:12px;background:rgba(8,10,14,.82);color:#fff;' +
-                    'font:700 25px sans-serif;line-height:1;cursor:pointer;' +
-                    'touch-action:manipulation;-webkit-tap-highlight-color:transparent;';
-                  fullscreenButton.addEventListener('click', function(event) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    var targetVideo = document.querySelector('video.html5-main-video') ||
-                                      document.querySelector('video');
-                    var youtubeFullscreenButton =
-                      document.querySelector('.ytp-fullscreen-button') ||
-                      document.querySelector('[aria-label*="full screen" i]') ||
-                      document.querySelector('[aria-label*="toàn màn hình" i]');
-                    fullscreenButton.style.display = 'none';
-                    var usedRequest = false;
-                    try {
-                      // This call runs directly inside the real DOM click gesture, allowing
-                      // WebChromeClient.onShowCustomView to receive Chromium's video surface.
-                      if (targetVideo && typeof targetVideo.requestFullscreen === 'function') {
-                        var promise = targetVideo.requestFullscreen();
-                        usedRequest = true;
-                        if (promise && typeof promise.catch === 'function') {
-                          promise.catch(function() {
-                            fullscreenButton.style.display = 'flex';
-                            try {
-                              if (youtubeFullscreenButton) youtubeFullscreenButton.click();
-                            } catch (_) {}
-                          });
-                        }
-                      } else if (targetVideo &&
-                                 typeof targetVideo.webkitEnterFullscreen === 'function') {
-                        targetVideo.webkitEnterFullscreen();
-                        usedRequest = true;
-                      }
-                    } catch (_) {}
-                    if (!usedRequest) {
-                      try {
-                        if (youtubeFullscreenButton) youtubeFullscreenButton.click();
-                      } catch (_) {}
-                    }
-                    // If YouTube/WebView rejects fullscreen, restore the in-frame button.
-                    window.setTimeout(function() {
-                      if (fullscreenButton && fullscreenButton.isConnected &&
-                          !document.fullscreenElement) {
-                        fullscreenButton.style.display = 'flex';
-                      }
-                    }, 1400);
-                  });
-                  (document.body || document.documentElement).appendChild(fullscreenButton);
-                }
-                fullscreenButton.style.display =
-                  document.documentElement.classList.contains('ngocsi-inline-fullscreen')
-                    ? 'none' : 'flex';
-
-                return 'INLINE_PLAYER_READY_WITH_AUDIO';
+                return 'STABLE_IFRAME_WAITING';
               } catch (_) {
-                return 'INLINE_PLAYER_STYLE_ERROR';
+                return 'STABLE_IFRAME_RESIZE_FAILED';
               }
             })();
             """.trimIndent(),
@@ -9925,19 +9943,22 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         CookieManager.getInstance().setAcceptCookie(true)
                                         CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                                         CookieManager.getInstance().flush()
+                                        addJavascriptInterface(
+                                            InlineYouTubeIFrameBridge(),
+                                            "AndroidBridge"
+                                        )
                                         tag = inlineTrack.videoId
                                         youtubeInlineWebView = this
-                                        // Use the official mobile watch page directly in this same
-                                        // inline WebView. This avoids IFrame embed error 152 and
-                                        // keeps playback inside the red-box player on the YouTube screen.
-                                        loadUrl(inlineYouTubeMobileUrl(inlineTrack.videoId))
+                                        // Restore the stable IFrame API renderer inside this same
+                                        // inline host; do not open a separate player screen.
+                                        loadInlineYouTubeStablePlayer(this, inlineTrack.videoId)
                                     }
                                 },
                                 update = { view ->
                                     youtubeInlineWebView = view
                                     if (view.tag != inlineTrack.videoId) {
                                         view.tag = inlineTrack.videoId
-                                        view.loadUrl(inlineYouTubeMobileUrl(inlineTrack.videoId))
+                                        loadInlineYouTubeStablePlayer(view, inlineTrack.videoId)
                                     }
                                 },
                                 modifier = Modifier.fillMaxSize()
