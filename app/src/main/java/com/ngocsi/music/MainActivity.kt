@@ -12128,13 +12128,15 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     modifier = Modifier
                         .size(40.dp)
                         .clip(CircleShape)
-                        .clickable { playLastYouTube("play") },
+                        .clickable {
+                            playLastYouTube(if (youtubePlaybackIsPlaying) "pause" else "play")
+                        },
                     shape = CircleShape,
                     color = Color(0xFFFF6678)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Text(
-                            "▶",
+                            if (youtubePlaybackIsPlaying) "⏸" else "▶",
                             color = Color.White,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Black
