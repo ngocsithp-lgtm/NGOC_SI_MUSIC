@@ -9820,6 +9820,23 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             ?: (youtubeConfiguration.screenHeightDp.dp * 0.75f)
         val landscapeVideoMaxHeight = (landscapePaneHeight - 88.dp).coerceAtLeast(120.dp)
         val landscapeVideoMaxWidth = landscapeVideoMaxHeight * (16f / 9f)
+        val landscapeQueueTracks = remember(youtubeLastQueueJson) {
+            val parsed = runCatching {
+                val queueArray = JSONArray(youtubeLastQueueJson.orEmpty())
+                (0 until queueArray.length()).mapNotNull { index ->
+                    val item = queueArray.optJSONObject(index) ?: return@mapNotNull null
+                    val videoId = item.optString("videoId").takeIf { it.isNotBlank() }
+                        ?: return@mapNotNull null
+                    YouTubeTrack(
+                        videoId = videoId,
+                        title = item.optString("title").ifBlank { "YouTube" },
+                        channelTitle = item.optString("channelTitle").ifBlank { "YouTube" },
+                        thumbnailUrl = item.optString("thumbnailUrl")
+                    )
+                }
+            }.getOrDefault(emptyList())
+            if (parsed.isNotEmpty()) parsed else youtubeTracks.toList()
+        }
         LaunchedEffect(youtubeInlineOpenGeneration) {
             if (youtubeInlineOpenGeneration > 0) {
                 youtubeListState.animateScrollToItem(0)
@@ -9836,17 +9853,16 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         ) {
             stickyHeader {
                 Surface(
-                    modifier = if (youtubeInlineFullscreen) Modifier.fillParentMaxSize()
-                        else Modifier.fillMaxWidth(),
+                    modifier = if (
+                        youtubeInlineFullscreen || (inlineLandscape && youtubeInlineTrack != null)
+                    ) Modifier.fillParentMaxSize() else Modifier.fillMaxWidth(),
                     shape = if (youtubeInlineFullscreen) RoundedCornerShape(0.dp)
                         else RoundedCornerShape(22.dp),
                     color = if (youtubeInlineFullscreen) Color.Black else NgocSiVisuals.SurfaceRaised,
                     border = if (youtubeInlineFullscreen) null
                         else androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF292430))
                 ) {
-                    Column(
-                        Modifier.fillMaxSize().padding(if (youtubeInlineFullscreen) 0.dp else 14.dp)
-                    ) {
+                    val youtubeHeaderContent: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit = {
                         if (!youtubeInlineFullscreen && youtubeInlineTrack == null) Row(verticalAlignment = Alignment.CenterVertically) {
                             Surface(
                                 modifier = Modifier.size(42.dp),
@@ -10091,6 +10107,129 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             }
                         }
                         }
+                    }
+                    if (inlineLandscape && youtubeInlineTrack != null) {
+                        Row(
+                            modifier = Modifier.fillMaxSize().padding(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            Column(
+                                modifier = Modifier.weight(0.60f).fillMaxHeight()
+                                    .verticalScroll(rememberScrollState()),
+                                content = youtubeHeaderContent
+                            )
+                            Column(
+                                modifier = Modifier.weight(0.40f).fillMaxHeight()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(Color(0xFF101219))
+                                    .padding(8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        "HÀNG ĐỢI VIDEO",
+                                        color = Color.White,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Black,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Text(
+                                        landscapeQueueTracks.size.toString(),
+                                        color = Color(0xFF9298A7),
+                                        fontSize = 10.sp
+                                    )
+                                }
+                                if (landscapeQueueTracks.isEmpty()) {
+                                    Box(
+                                        modifier = Modifier.fillMaxWidth().weight(1f),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            "Chưa có video trong hàng đợi",
+                                            color = Color(0xFF8C92A0),
+                                            fontSize = 11.sp,
+                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                        )
+                                    }
+                                } else {
+                                    LazyColumn(
+                                        modifier = Modifier.fillMaxWidth().weight(1f),
+                                        verticalArrangement = Arrangement.spacedBy(5.dp),
+                                        contentPadding = PaddingValues(bottom = 6.dp)
+                                    ) {
+                                        items(
+                                            items = landscapeQueueTracks,
+                                            key = { it.videoId }
+                                        ) { queuedTrack ->
+                                            val isQueueCurrent =
+                                                queuedTrack.videoId == youtubeInlineTrack?.videoId
+                                            Surface(
+                                                modifier = Modifier.fillMaxWidth()
+                                                    .clickable { playYouTube(queuedTrack) },
+                                                shape = RoundedCornerShape(10.dp),
+                                                color = if (isQueueCurrent) Color(0xFF352027)
+                                                    else Color(0xFF1A1D25),
+                                                border = androidx.compose.foundation.BorderStroke(
+                                                    1.dp,
+                                                    if (isQueueCurrent) Color(0xFF8A3C4A)
+                                                    else Color(0xFF292D38)
+                                                )
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth().padding(6.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    OnlineArtwork(
+                                                        queuedTrack.thumbnailUrl,
+                                                        Modifier.size(76.dp, 44.dp)
+                                                            .clip(RoundedCornerShape(6.dp))
+                                                    )
+                                                    Spacer(Modifier.width(7.dp))
+                                                    Column(
+                                                        modifier = Modifier.weight(1f),
+                                                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                                                    ) {
+                                                        if (isQueueCurrent) {
+                                                            Text(
+                                                                "▶ ĐANG PHÁT",
+                                                                color = Color(0xFFFF8390),
+                                                                fontSize = 8.sp,
+                                                                fontWeight = FontWeight.Black
+                                                            )
+                                                        }
+                                                        Text(
+                                                            queuedTrack.title,
+                                                            color = Color.White,
+                                                            fontSize = 10.sp,
+                                                            lineHeight = 13.sp,
+                                                            fontWeight = if (isQueueCurrent) FontWeight.Bold
+                                                                else FontWeight.Medium,
+                                                            maxLines = 2,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                        Text(
+                                                            queuedTrack.channelTitle,
+                                                            color = Color(0xFF9298A7),
+                                                            fontSize = 9.sp,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        Column(
+                            Modifier.fillMaxSize().padding(if (youtubeInlineFullscreen) 0.dp else 14.dp),
+                            content = youtubeHeaderContent
+                        )
                     }
                 }
             }
