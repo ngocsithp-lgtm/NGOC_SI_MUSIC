@@ -9820,23 +9820,6 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             ?: (youtubeConfiguration.screenHeightDp.dp * 0.75f)
         val landscapeVideoMaxHeight = (landscapePaneHeight - 88.dp).coerceAtLeast(120.dp)
         val landscapeVideoMaxWidth = landscapeVideoMaxHeight * (16f / 9f)
-        val landscapeQueueTracks = remember(youtubeLastQueueJson) {
-            val parsed = runCatching {
-                val queueArray = JSONArray(youtubeLastQueueJson.orEmpty())
-                (0 until queueArray.length()).mapNotNull { index ->
-                    val item = queueArray.optJSONObject(index) ?: return@mapNotNull null
-                    val videoId = item.optString("videoId").takeIf { it.isNotBlank() }
-                        ?: return@mapNotNull null
-                    YouTubeTrack(
-                        videoId = videoId,
-                        title = item.optString("title").ifBlank { "YouTube" },
-                        channelTitle = item.optString("channelTitle").ifBlank { "YouTube" },
-                        thumbnailUrl = item.optString("thumbnailUrl")
-                    )
-                }
-            }.getOrDefault(emptyList())
-            if (parsed.isNotEmpty()) parsed else youtubeTracks.toList()
-        }
         LaunchedEffect(youtubeInlineOpenGeneration) {
             if (youtubeInlineOpenGeneration > 0) {
                 youtubeListState.animateScrollToItem(0)
@@ -10129,26 +10112,43 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(
+                                            "KẾT QUẢ TÌM KIẾM",
+                                            color = Color.White,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Black
+                                        )
+                                        if (youtubeQuery.isNotBlank()) {
+                                            Text(
+                                                youtubeQuery,
+                                                color = Color(0xFF9298A7),
+                                                fontSize = 9.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
                                     Text(
-                                        "HÀNG ĐỢI VIDEO",
-                                        color = Color.White,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Black,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    Text(
-                                        landscapeQueueTracks.size.toString(),
+                                        youtubeTracks.size.toString(),
                                         color = Color(0xFF9298A7),
                                         fontSize = 10.sp
                                     )
                                 }
-                                if (landscapeQueueTracks.isEmpty()) {
+                                if (youtubeLoading) {
+                                    LinearProgressIndicator(
+                                        modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp).height(2.dp),
+                                        color = Color(0xFFFF6678),
+                                        trackColor = Color(0xFF28232A)
+                                    )
+                                }
+                                if (youtubeTracks.isEmpty()) {
                                     Box(
                                         modifier = Modifier.fillMaxWidth().weight(1f),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
-                                            "Chưa có video trong hàng đợi",
+                                            if (youtubeLoading) "Đang tìm video..." else "Nhập từ khóa để xem kết quả tìm kiếm",
                                             color = Color(0xFF8C92A0),
                                             fontSize = 11.sp,
                                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -10161,20 +10161,19 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         contentPadding = PaddingValues(bottom = 6.dp)
                                     ) {
                                         items(
-                                            items = landscapeQueueTracks,
+                                            items = youtubeTracks,
                                             key = { it.videoId }
-                                        ) { queuedTrack ->
-                                            val isQueueCurrent =
-                                                queuedTrack.videoId == youtubeInlineTrack?.videoId
+                                        ) { track ->
+                                            val isCurrent = track.videoId == youtubeInlineTrack?.videoId
                                             Surface(
                                                 modifier = Modifier.fillMaxWidth()
-                                                    .clickable { playYouTube(queuedTrack) },
+                                                    .clickable { playYouTube(track) },
                                                 shape = RoundedCornerShape(10.dp),
-                                                color = if (isQueueCurrent) Color(0xFF352027)
+                                                color = if (isCurrent) Color(0xFF352027)
                                                     else Color(0xFF1A1D25),
                                                 border = androidx.compose.foundation.BorderStroke(
                                                     1.dp,
-                                                    if (isQueueCurrent) Color(0xFF8A3C4A)
+                                                    if (isCurrent) Color(0xFF8A3C4A)
                                                     else Color(0xFF292D38)
                                                 )
                                             ) {
@@ -10183,7 +10182,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                                     verticalAlignment = Alignment.CenterVertically
                                                 ) {
                                                     OnlineArtwork(
-                                                        queuedTrack.thumbnailUrl,
+                                                        track.thumbnailUrl,
                                                         Modifier.size(76.dp, 44.dp)
                                                             .clip(RoundedCornerShape(6.dp))
                                                     )
@@ -10192,7 +10191,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                                         modifier = Modifier.weight(1f),
                                                         verticalArrangement = Arrangement.spacedBy(2.dp)
                                                     ) {
-                                                        if (isQueueCurrent) {
+                                                        if (isCurrent) {
                                                             Text(
                                                                 "▶ ĐANG PHÁT",
                                                                 color = Color(0xFFFF8390),
@@ -10201,23 +10200,40 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                                             )
                                                         }
                                                         Text(
-                                                            queuedTrack.title,
+                                                            track.title,
                                                             color = Color.White,
                                                             fontSize = 10.sp,
                                                             lineHeight = 13.sp,
-                                                            fontWeight = if (isQueueCurrent) FontWeight.Bold
+                                                            fontWeight = if (isCurrent) FontWeight.Bold
                                                                 else FontWeight.Medium,
                                                             maxLines = 2,
                                                             overflow = TextOverflow.Ellipsis
                                                         )
                                                         Text(
-                                                            queuedTrack.channelTitle,
+                                                            track.channelTitle,
                                                             color = Color(0xFF9298A7),
                                                             fontSize = 9.sp,
                                                             maxLines = 1,
                                                             overflow = TextOverflow.Ellipsis
                                                         )
                                                     }
+                                                }
+                                            }
+                                        }
+                                        if (youtubeNextPageToken != null) {
+                                            item {
+                                                OutlinedButton(
+                                                    onClick = { searchYouTube(loadMore = true) },
+                                                    enabled = !youtubeLoading,
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    shape = RoundedCornerShape(10.dp),
+                                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 5.dp)
+                                                ) {
+                                                    Text(
+                                                        if (youtubeLoading) "ĐANG TẢI..." else "XEM THÊM KẾT QUẢ",
+                                                        fontSize = 9.sp,
+                                                        maxLines = 1
+                                                    )
                                                 }
                                             }
                                         }
