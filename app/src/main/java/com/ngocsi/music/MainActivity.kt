@@ -9489,27 +9489,6 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
     }
 
     /**
-     * Keep playback on the official YouTube mobile watch page inside the existing inline
-     * player. The IFrame API can reject individual videos with error 152 when embedding
-     * is disabled by the video owner.
-     */
-    private fun inlineYouTubeMobileUrl(videoId: String): String {
-        val safeVideoId = videoId.filter { it.isLetterOrDigit() || it == '_' || it == '-' }.take(32)
-        return Uri.parse("https://m.youtube.com/watch")
-            .buildUpon()
-            .appendQueryParameter("v", safeVideoId)
-            .appendQueryParameter("autoplay", "1")
-            .appendQueryParameter("playsinline", "1")
-            .build()
-            .toString()
-    }
-
-    /**
-     * Minimize YouTube page chrome and keep the real mobile-site video surface fitted to
-     * the 16:9 WebView viewport. This styles only this embedded view; it does not create
-     * another Activity or move the selected video to an external app.
-     */
-    /**
      * Load the stable IFrame API player directly into the inline 16:9 host.
      * This restores the same player engine used by the previously working dedicated player,
      * rather than positioning YouTube's mobile page with CSS or editing its video element.
@@ -9661,7 +9640,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             videoId: '$safeId',
                             playerVars: {
                                 playsinline: 1,
-                                autoplay: 1,
+                                autoplay: 0,
                                 rel: 0,
                                 controls: 1,
                                 fs: 1,
