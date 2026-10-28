@@ -5145,10 +5145,10 @@ class MainActivity : ComponentActivity() {
 
                         "Online" -> {
                             if (onlineHubTab == "YouTube") {
-                                Box(
+                                BoxWithConstraints(
                                     Modifier.weight(1f).fillMaxWidth()
                                 ) {
-                                    OnlineSourcesCard()
+                                    OnlineSourcesCard(availableContentHeight = maxHeight)
                                 }
                             } else {
                                 Column(
@@ -9805,14 +9805,21 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
     @OptIn(ExperimentalFoundationApi::class)
     @Composable
-    private fun YouTubeFocusedScreen(modifier: Modifier = Modifier) {
+    private fun YouTubeFocusedScreen(
+        modifier: Modifier = Modifier,
+        availableContentHeight: androidx.compose.ui.unit.Dp? = null
+    ) {
         val youtubeListState = rememberLazyListState()
         val youtubeConfiguration = androidx.compose.ui.platform.LocalConfiguration.current
         val inlineLandscape = !youtubeInlineFullscreen &&
             youtubeConfiguration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
-        // On a phone, landscape screen width is often wider than the 16:9 video height
-        // can fit. Cap the player by the usable landscape height to prevent zoom/cropping.
-        val landscapeVideoMaxHeight = (youtubeConfiguration.screenHeightDp - 32).coerceAtLeast(160).dp
+        // Use the real height assigned to the YouTube content pane. Configuration.screenHeightDp
+        // includes room used by app chrome, so it made the inline player too tall after rotation.
+        val landscapePaneHeight = availableContentHeight
+            ?.takeIf { it > 0.dp }
+            ?: (youtubeConfiguration.screenHeightDp.dp * 0.75f)
+        val landscapeVideoMaxHeight = (landscapePaneHeight - 88.dp).coerceAtLeast(120.dp)
+        val landscapeVideoMaxWidth = landscapeVideoMaxHeight * (16f / 9f)
         LaunchedEffect(youtubeInlineOpenGeneration) {
             if (youtubeInlineOpenGeneration > 0) {
                 youtubeListState.animateScrollToItem(0)
@@ -9887,19 +9894,30 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         }
                         youtubeInlineTrack?.let { inlineTrack ->
                             if (!youtubeInlineFullscreen) Spacer(Modifier.height(12.dp))
+                            // Keep the outer row centered, but give the actual video host
+                            // one exact 16:9 size. The old parent was full-width while its WebView
+                            // child was width-capped, leaving a mismatched container on rotation.
                             Box(
                                 modifier = if (youtubeInlineFullscreen) {
                                     Modifier.fillParentMaxSize().background(Color.Black)
-                                } else if (inlineLandscape) {
+                                } else {
                                     Modifier.fillMaxWidth()
-                                        .heightIn(max = landscapeVideoMaxHeight)
+                                },
+                                contentAlignment = Alignment.Center
+                            ) {
+                            Box(
+                                modifier = if (youtubeInlineFullscreen) {
+                                    Modifier.fillMaxSize().background(Color.Black)
+                                } else if (inlineLandscape) {
+                                    Modifier.widthIn(max = landscapeVideoMaxWidth)
+                                        .fillMaxWidth()
+                                        .aspectRatio(16f / 9f)
                                         .clip(RoundedCornerShape(14.dp))
                                 } else {
                                     Modifier.fillMaxWidth()
                                         .aspectRatio(16f / 9f)
                                         .clip(RoundedCornerShape(14.dp))
-                                },
-                                contentAlignment = Alignment.Center
+                                }
                             ) {
                             AndroidView(
                                 factory = { context ->
@@ -9986,16 +10004,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         loadInlineYouTubeStablePlayer(view, inlineTrack.videoId)
                                     }
                                 },
-                                modifier = if (youtubeInlineFullscreen) {
-                                    Modifier.fillMaxSize()
-                                } else if (inlineLandscape) {
-                                    Modifier
-                                        .widthIn(max = landscapeVideoMaxHeight * (16f / 9f))
-                                        .fillMaxWidth()
-                                        .aspectRatio(16f / 9f)
-                                } else {
-                                    Modifier.fillMaxSize()
-                                }
+                                modifier = Modifier.fillMaxSize()
                             )
                             if (youtubeInlineFullscreen) {
                                 TextButton(
@@ -10004,6 +10013,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 ) {
                                     Text("⤢ THU NHỎ", color = Color.White, fontSize = 11.sp)
                                 }
+                            }
                             }
                             }
                             if (!youtubeInlineFullscreen) {
@@ -10635,9 +10645,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         }
     }
     @Composable
-    private fun OnlineSourcesCard() {
+    private fun OnlineSourcesCard(
+        availableContentHeight: androidx.compose.ui.unit.Dp? = null
+    ) {
         if (onlineHubTab == "YouTube") {
-            YouTubeFocusedScreen()
+            YouTubeFocusedScreen(availableContentHeight = availableContentHeight)
             return
         }
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(NgocSiVisuals.SurfaceRaised).padding(14.dp)) {
