@@ -9825,7 +9825,12 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         val landscapePaneHeight = availableContentHeight
             ?.takeIf { it > 0.dp }
             ?: (youtubeConfiguration.screenHeightDp.dp * 0.75f)
-        val landscapeVideoMaxHeight = (landscapePaneHeight - 88.dp).coerceAtLeast(120.dp)
+        // Reserve vertical room for the title/status row and controls. The percentage cap
+        // also prevents the 16:9 player from becoming oversized on taller landscape viewports.
+        val landscapeVideoMaxHeight = minOf(
+            (landscapePaneHeight - 88.dp).coerceAtLeast(120.dp),
+            (landscapePaneHeight * 0.70f).coerceAtLeast(120.dp)
+        )
         val landscapeVideoMaxWidth = landscapeVideoMaxHeight * (16f / 9f)
         LaunchedEffect(youtubeInlineOpenGeneration) {
             if (youtubeInlineOpenGeneration > 0) {
