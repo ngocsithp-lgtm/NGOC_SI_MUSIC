@@ -4898,6 +4898,13 @@ class MainActivity : ComponentActivity() {
     private fun NgocSiMusicApp() {
         val currentSong = songs.getOrNull(currentIndex)
         val statusSnackbarHostState = remember { SnackbarHostState() }
+        // The inline YouTube landscape layout needs the freed vertical space for the video.
+        // Keep Mini Player on portrait and other pages, but omit it from this split-screen view.
+        val isLandscapeYouTubePage =
+            selectedSection == "Online" &&
+                onlineHubTab == "YouTube" &&
+                androidx.compose.ui.platform.LocalConfiguration.current.orientation ==
+                    android.content.res.Configuration.ORIENTATION_LANDSCAPE
 
         // Keep Android Back/gesture navigation predictable: on any feature screen,
         // the first Back returns to the app home instead of immediately exiting.
@@ -5229,7 +5236,7 @@ class MainActivity : ComponentActivity() {
                     // the YouTube page itself, so previous/play-pause/next are always reachable.
                     // The official YouTube IFrame controls remain available inside the video.
                     if (!youtubeInlineFullscreen) {
-                        if (selectedSection != "Trang chủ") {
+                        if (selectedSection != "Trang chủ" && !isLandscapeYouTubePage) {
                             if (youtubeIsActiveSource && youtubeLastPlayed != null) {
                                 YouTubeMiniPlayer(youtubeLastPlayed!!)
                             } else {
