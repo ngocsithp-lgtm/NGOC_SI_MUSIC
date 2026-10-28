@@ -363,6 +363,41 @@ class MainActivity : ComponentActivity() {
     private var inlineConfigurationVersion by mutableIntStateOf(0)
 
     private inner class InlineBackgroundAudioWebView(context: android.content.Context) : WebView(context) {
+        override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+            super.onSizeChanged(w, h, oldw, oldh)
+            if (w <= 0 || h <= 0 || (w == oldw && h == oldh)) return
+
+            // Android can resize this WebView during auto-rotation without Chromium
+            // delivering a timely viewport event. Re-measure the existing IFrame surface
+            // after native layout settles; do not reload the video or reset playback.
+            val resizeScript = """
+                (function() {
+                  try {
+                    window.dispatchEvent(new Event('resize'));
+                    if (typeof window.resizeVideoSurface === 'function') {
+                      window.resizeVideoSurface();
+                      setTimeout(window.resizeVideoSurface, 120);
+                    }
+                  } catch (_) {}
+                })();
+            """.trimIndent()
+            post {
+                if (!isFinishing && !isDestroyed && this === youtubeInlineWebView) {
+                    evaluateJavascript(resizeScript, null)
+                }
+            }
+            postDelayed({
+                if (!isFinishing && !isDestroyed && this === youtubeInlineWebView) {
+                    evaluateJavascript(resizeScript, null)
+                }
+            }, 150L)
+            postDelayed({
+                if (!isFinishing && !isDestroyed && this === youtubeInlineWebView) {
+                    evaluateJavascript(resizeScript, null)
+                }
+            }, 420L)
+        }
+
         override fun onWindowVisibilityChanged(visibility: Int) {
             if (inlineBackgroundPlaybackEnabled) {
                 if (visibility != android.view.View.GONE) {
@@ -9772,6 +9807,12 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
     @Composable
     private fun YouTubeFocusedScreen(modifier: Modifier = Modifier) {
         val youtubeListState = rememberLazyListState()
+        val youtubeConfiguration = androidx.compose.ui.platform.LocalConfiguration.current
+        val inlineLandscape = !youtubeInlineFullscreen &&
+            youtubeConfiguration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        // On a phone, landscape screen width is often wider than the 16:9 video height
+        // can fit. Cap the player by the usable landscape height to prevent zoom/cropping.
+        val landscapeVideoMaxHeight = (youtubeConfiguration.screenHeightDp - 32).coerceAtLeast(160).dp
         LaunchedEffect(youtubeInlineOpenGeneration) {
             if (youtubeInlineOpenGeneration > 0) {
                 youtubeListState.animateScrollToItem(0)
@@ -9849,11 +9890,16 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             Box(
                                 modifier = if (youtubeInlineFullscreen) {
                                     Modifier.fillParentMaxSize().background(Color.Black)
+                                } else if (inlineLandscape) {
+                                    Modifier.fillMaxWidth()
+                                        .heightIn(max = landscapeVideoMaxHeight)
+                                        .clip(RoundedCornerShape(14.dp))
                                 } else {
                                     Modifier.fillMaxWidth()
                                         .aspectRatio(16f / 9f)
                                         .clip(RoundedCornerShape(14.dp))
-                                }
+                                },
+                                contentAlignment = Alignment.Center
                             ) {
                             AndroidView(
                                 factory = { context ->
@@ -9940,7 +9986,16 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         loadInlineYouTubeStablePlayer(view, inlineTrack.videoId)
                                     }
                                 },
-                                modifier = Modifier.fillMaxSize()
+                                modifier = if (youtubeInlineFullscreen) {
+                                    Modifier.fillMaxSize()
+                                } else if (inlineLandscape) {
+                                    Modifier
+                                        .widthIn(max = landscapeVideoMaxHeight * (16f / 9f))
+                                        .fillMaxWidth()
+                                        .aspectRatio(16f / 9f)
+                                } else {
+                                    Modifier.fillMaxSize()
+                                }
                             )
                             if (youtubeInlineFullscreen) {
                                 TextButton(
