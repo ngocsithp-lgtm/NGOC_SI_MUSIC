@@ -12085,7 +12085,13 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 5.dp),
+                .padding(horizontal = 10.dp, vertical = 5.dp)
+                // Tapping the non-control area returns to the in-app YouTube screen.
+                // Nested previous/play-pause/next controls keep their own click actions.
+                .clickable {
+                    selectedSection = "Online"
+                    onlineHubTab = "YouTube"
+                },
             shape = RoundedCornerShape(18.dp),
             color = Color(0xFF11151D),
             tonalElevation = 5.dp,
@@ -12106,7 +12112,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     Text(
-                        "YOUTUBE • NGUỒN ĐANG CHỌN",
+                        "ĐANG PHÁT • YOUTUBE",
                         color = Color(0xFFFF7A86),
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Black,
