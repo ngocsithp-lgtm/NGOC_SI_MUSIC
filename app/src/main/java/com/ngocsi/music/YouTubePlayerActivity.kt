@@ -179,6 +179,8 @@ class YouTubePlayerActivity : ComponentActivity() {
     // or its video surface is temporarily black after a viewport change.
     private var fullscreenEntryPending = false
     private var nativeFullscreenButton: Button? = null
+    private var nativeFillScreenButton: Button? = null
+    private var fillScreenEnabled = false
     private var frameStallRecoveryCooldownUntilMs = 0L
     // Restore the real Chromium fullscreen surface if a confirmed frame stall requires
     // rebuilding the same YouTube page at the last saved playback position.
@@ -998,9 +1000,9 @@ class YouTubePlayerActivity : ComponentActivity() {
         landscapeOverride: Boolean? = null,
         force: Boolean = false
     ) {
-        if (!::root.isInitialized || fullscreenLayoutActive ||
-            isCssFullscreen || customView != null
-        ) return
+        if (!::root.isInitialized) return
+        updateNativeFillScreenButtonVisibility()
+        if (fullscreenLayoutActive || isCssFullscreen || customView != null) return
 
         val content = contentContainer ?: return
         val scroll = playerScrollView ?: return
@@ -3106,6 +3108,39 @@ class YouTubePlayerActivity : ComponentActivity() {
                               'bottom:0!important;margin:0!important;transform:none!important;' +
                               'width:100%!important;height:100%!important;min-width:100%!important;' +
                               'min-height:100%!important;max-width:none!important;max-height:none!important;' +
+                              'object-fit:contain!important;object-position:center center!important;} ' +
+                              // Optional landscape fill mode: force the mobile watch/player wrappers to
+                              // the WebView viewport, then crop the video centrally with object-fit:cover.
+                              'html.ngocsi-fill-screen-active,html.ngocsi-fill-screen-active body,' +
+                              'html.ngocsi-fill-screen-active ytm-app,html.ngocsi-fill-screen-active ytm-watch {' +
+                              'width:100vw!important;height:100vh!important;min-width:100vw!important;' +
+                              'min-height:100vh!important;max-width:none!important;max-height:none!important;' +
+                              'overflow:hidden!important;margin:0!important;padding:0!important;} ' +
+                              'html.ngocsi-fill-screen-active ytm-watch,' +
+                              'html.ngocsi-fill-screen-active .player-container,' +
+                              'html.ngocsi-fill-screen-active .player-placeholder,' +
+                              'html.ngocsi-fill-screen-active ytm-player,' +
+                              'html.ngocsi-fill-screen-active #player-container-id,' +
+                              'html.ngocsi-fill-screen-active #player-container,' +
+                              'html.ngocsi-fill-screen-active #player {' +
+                              'position:relative!important;top:0!important;left:0!important;right:auto!important;' +
+                              'bottom:auto!important;transform:none!important;width:100vw!important;height:100vh!important;' +
+                              'min-width:100vw!important;min-height:100vh!important;max-width:none!important;' +
+                              'max-height:none!important;margin:0!important;padding:0!important;aspect-ratio:auto!important;' +
+                              'box-sizing:border-box!important;overflow:hidden!important;} ' +
+                              'html.ngocsi-fill-screen-active .html5-video-player,' +
+                              'html.ngocsi-fill-screen-active #movie_player,' +
+                              'html.ngocsi-fill-screen-active .html5-video-container {' +
+                              'position:relative!important;top:0!important;left:0!important;right:auto!important;' +
+                              'bottom:auto!important;transform:none!important;width:100vw!important;height:100vh!important;' +
+                              'min-width:100vw!important;min-height:100vh!important;max-width:none!important;' +
+                              'max-height:none!important;margin:0!important;box-sizing:border-box!important;' +
+                              'overflow:hidden!important;} ' +
+                              'html.ngocsi-fill-screen-active video,' +
+                              'html.ngocsi-fill-screen-active video.html5-main-video {' +
+                              'position:absolute!important;left:0!important;top:0!important;right:0!important;bottom:0!important;' +
+                              'margin:0!important;transform:none!important;width:100vw!important;height:100vh!important;' +
+                              'min-width:100vw!important;min-height:100vh!important;max-width:none!important;max-height:none!important;' +
                               'object-fit:cover!important;object-position:center center!important;}';
                             (document.head || document.documentElement).appendChild(style);
 
@@ -3374,6 +3409,12 @@ class YouTubePlayerActivity : ComponentActivity() {
                             null
                         )
                     }
+                    if (fillScreenEnabled) {
+                        view.evaluateJavascript(
+                            "(function(){if(document.documentElement)document.documentElement.classList.add('ngocsi-fill-screen-active');window.__ngocSiFillScreenEnabled=true;return 'fill-screen-restored-after-navigation';})()",
+                            null
+                        )
+                    }
                     // Let Android/WebView own responsive dimensions. Only request one normal
                     // layout pass after YouTube has inserted its media node.
                     view.postDelayed({
@@ -3540,7 +3581,41 @@ class YouTubePlayerActivity : ComponentActivity() {
             )
             button.bringToFront()
         }
+        nativeFillScreenButton = Button(this).apply {
+            text = if (fillScreenEnabled) "VỪA" else "LẤP"
+            textSize = 12f
+            isAllCaps = false
+            setTextColor(AndroidColor.WHITE)
+            background = roundedButtonDrawable(
+                if (fillScreenEnabled) AndroidColor.rgb(34, 98, 126) else AndroidColor.argb(220, 18, 18, 24),
+                AndroidColor.rgb(112, 116, 128),
+                dp(8)
+            )
+            backgroundTintList = null
+            setPadding(dp(2), 0, dp(2), 0)
+            minWidth = 0
+            minimumWidth = 0
+            minHeight = 0
+            minimumHeight = 0
+            contentDescription = if (fillScreenEnabled) {
+                "Tắt chế độ lấp đầy màn hình"
+            } else {
+                "Lấp đầy màn hình"
+            }
+            elevation = dp(6).toFloat()
+            setOnClickListener { toggleFillScreenMode() }
+        }.also { button ->
+            playerContainer.addView(
+                button,
+                FrameLayout.LayoutParams(dp(56), dp(42), Gravity.TOP or Gravity.END).apply {
+                    topMargin = dp(8)
+                    marginEnd = dp(60)
+                }
+            )
+            button.bringToFront()
+        }
         updateNativeFullscreenButton()
+        updateNativeFillScreenButton() 
         if (::titleView.isInitialized) titleView.text = title
         if (::channelView.isInitialized) channelView.text = channel
         updateActionState()
@@ -3947,6 +4022,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
         webView = null
         nativeFullscreenButton = null
+        nativeFillScreenButton = null
         fullscreenEntryPending = false
         playerContainer.takeIf { ::playerContainer.isInitialized }?.removeAllViews()
     }
@@ -3961,6 +4037,63 @@ class YouTubePlayerActivity : ComponentActivity() {
             }
             bringToFront()
         }
+        updateNativeFillScreenButtonVisibility()
+    }
+
+    private fun updateNativeFillScreenButtonVisibility() {
+        val landscape = resources.configuration.orientation ==
+            android.content.res.Configuration.ORIENTATION_LANDSCAPE ||
+            fullscreenLayoutActive || isCssFullscreen || customView != null
+        nativeFillScreenButton?.visibility = if (landscape) View.VISIBLE else View.GONE
+    }
+
+    private fun updateNativeFillScreenButton() {
+        nativeFillScreenButton?.apply {
+            text = if (fillScreenEnabled) "VỪA" else "LẤP"
+            contentDescription = if (fillScreenEnabled) {
+                "Tắt chế độ lấp đầy màn hình"
+            } else {
+                "Lấp đầy màn hình"
+            }
+            background = roundedButtonDrawable(
+                if (fillScreenEnabled) AndroidColor.rgb(34, 98, 126) else AndroidColor.argb(220, 18, 18, 24),
+                AndroidColor.rgb(112, 116, 128),
+                dp(8)
+            )
+            backgroundTintList = null
+            bringToFront()
+        }
+        updateNativeFillScreenButtonVisibility()
+    }
+
+    private fun toggleFillScreenMode() {
+        val landscape = resources.configuration.orientation ==
+            android.content.res.Configuration.ORIENTATION_LANDSCAPE ||
+            fullscreenLayoutActive || isCssFullscreen || customView != null
+        if (!landscape) {
+            android.widget.Toast.makeText(
+                this,
+                "Xoay ngang điện thoại để dùng chế độ lấp đầy",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
+            return
+        }
+        fillScreenEnabled = !fillScreenEnabled
+        updateNativeFillScreenButton()
+        webView?.evaluateJavascript(
+            "(function(){var d=document.documentElement;if(!d)return 'no-root';" +
+                "d.classList.toggle('ngocsi-fill-screen-active'," +
+                (if (fillScreenEnabled) "true" else "false") +
+                ");window.__ngocSiFillScreenEnabled=" +
+                (if (fillScreenEnabled) "true" else "false") +
+                ";return window.__ngocSiFillScreenEnabled?'fill-on':'fill-off';})()",
+            null
+        )
+        android.widget.Toast.makeText(
+            this,
+            if (fillScreenEnabled) "Đã bật lấp đầy màn hình" else "Đã tắt lấp đầy màn hình",
+            android.widget.Toast.LENGTH_SHORT
+        ).show()
     }
 
     private fun setFullscreenLayout(active: Boolean) {
