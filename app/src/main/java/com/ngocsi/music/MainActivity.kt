@@ -9953,6 +9953,9 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         availableContentHeight: androidx.compose.ui.unit.Dp? = null
     ) {
         val youtubeListState = rememberLazyListState()
+        // Keep a dedicated state for the landscape result/queue pane. Stable video IDs
+        // let Compose preserve the visible scroll position when the active track changes.
+        val youtubeLandscapeQueueState = rememberLazyListState()
         val youtubeConfiguration = androidx.compose.ui.platform.LocalConfiguration.current
         val inlineLandscape = !youtubeInlineFullscreen &&
             youtubeConfiguration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
@@ -9971,6 +9974,26 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         LaunchedEffect(youtubeInlineOpenGeneration) {
             if (youtubeInlineOpenGeneration > 0) {
                 youtubeListState.animateScrollToItem(0)
+            }
+        }
+        // In landscape, reveal the active search result only when it is outside the
+        // visible window. If it is already visible, leave the user's scroll position
+        // untouched. Selecting a result therefore never jumps the queue back to row 0.
+        LaunchedEffect(
+            inlineLandscape,
+            youtubeInlineTrack?.videoId,
+            youtubeTracks.map { it.videoId }
+        ) {
+            val activeVideoId = youtubeInlineTrack?.videoId
+            if (!inlineLandscape || activeVideoId.isNullOrBlank()) return@LaunchedEffect
+            val activeIndex = youtubeTracks.indexOfFirst { it.videoId == activeVideoId }
+            if (activeIndex < 0) return@LaunchedEffect
+
+            val alreadyVisible = youtubeLandscapeQueueState.layoutInfo.visibleItemsInfo.any {
+                it.key == activeVideoId
+            }
+            if (!alreadyVisible) {
+                youtubeLandscapeQueueState.animateScrollToItem(activeIndex)
             }
         }
         LazyColumn(
@@ -10401,6 +10424,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     }
                                 } else {
                                     LazyColumn(
+                                        state = youtubeLandscapeQueueState,
                                         modifier = Modifier.fillMaxWidth().weight(1f),
                                         verticalArrangement = Arrangement.spacedBy(5.dp),
                                         contentPadding = PaddingValues(bottom = 6.dp)
