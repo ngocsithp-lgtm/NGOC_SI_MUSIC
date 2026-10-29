@@ -10251,6 +10251,19 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         }
                         }
                     }
+
+                    // The player WebView lives inside this content lambda. The portrait and
+                    // landscape layouts place the content under different parent groups;
+                    // ordinary recomposition would dispose/recreate the AndroidView, leaving
+                    // the old WebView's audio alive while the new surface starts at a stale time.
+                    // Movable content preserves the same WebView/IFrame instance as it moves
+                    // between the portrait column and the landscape left pane.
+                    val movableYouTubeHeaderContent = remember {
+                        movableContentOf { content: @Composable ColumnScope.() -> Unit ->
+                            Column(content = content)
+                        }
+                    }
+
                     if (inlineLandscape && youtubeInlineTrack != null) {
                         Row(
                             modifier = Modifier.fillMaxSize().padding(8.dp),
@@ -10259,9 +10272,10 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         ) {
                             Column(
                                 modifier = Modifier.weight(0.44f).fillMaxHeight()
-                                    .verticalScroll(rememberScrollState()),
-                                content = youtubeHeaderContent
-                            )
+                                    .verticalScroll(rememberScrollState())
+                            ) {
+                                movableYouTubeHeaderContent(youtubeHeaderContent)
+                            }
                             Column(
                                 modifier = Modifier.weight(0.56f).fillMaxHeight()
                                     .clip(RoundedCornerShape(14.dp))
@@ -10449,9 +10463,10 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         }
                     } else {
                         Column(
-                            Modifier.fillMaxSize().padding(if (youtubeInlineFullscreen) 0.dp else 14.dp),
-                            content = youtubeHeaderContent
-                        )
+                            Modifier.fillMaxSize().padding(if (youtubeInlineFullscreen) 0.dp else 14.dp)
+                        ) {
+                            movableYouTubeHeaderContent(youtubeHeaderContent)
+                        }
                     }
                 }
             }
