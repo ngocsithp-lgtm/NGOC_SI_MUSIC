@@ -12480,7 +12480,6 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
     }
 
     @Composable
-    @Composable
     private fun YouTubeMiniPlayer(track: YouTubeTrack) {
         Surface(
             modifier = Modifier
