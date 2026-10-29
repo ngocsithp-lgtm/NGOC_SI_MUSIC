@@ -8548,7 +8548,18 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 withContext(Dispatchers.Main) {
                     if (OnlineSearchRequestRules.isCurrent(requestGeneration, youtubeSearchGeneration)) {
                         youtubeLoading = false
-                        errorMessage = "YouTube: " + (e.message ?: "không thể tìm kiếm")
+                        val apiError = e.message.orEmpty()
+                        val friendlyError = when {
+                            apiError.contains("quotaExceeded", ignoreCase = true) ||
+                                apiError.contains("dailyLimitExceeded", ignoreCase = true) ->
+                                "YouTube API đã hết hạn mức tìm kiếm. Trang tiếp theo chưa tải được; cần chờ hạn mức được cấp lại."
+                            apiError.contains("invalidPageToken", ignoreCase = true) ||
+                                (apiError.contains("pageToken", ignoreCase = true) && apiError.contains("invalid", ignoreCase = true)) ->
+                                "Mã trang tiếp theo không còn hợp lệ. Hãy tìm lại từ khóa để tải danh sách mới."
+                            apiError.isBlank() -> "Không nhận được phản hồi từ máy chủ."
+                            else -> apiError
+                        }
+                        errorMessage = "YouTube: " + friendlyError
                     }
                 }
             } finally {
@@ -11813,6 +11824,14 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     ) {
                         Text(if (youtubeLoading) "ĐANG TẢI..." else "XEM THÊM 50 VIDEO")
                     }
+                }
+                errorMessage?.takeIf { it.startsWith("YouTube:") }?.let { message ->
+                    Text(
+                        text = message,
+                        color = Color(0xFFFFB4AB),
+                        fontSize = 12.sp,
+                        modifier = Modifier.fillMaxWidth().padding(top = 6.dp)
+                    )
                 }
             } else if (!youtubeLoading && youtubeQuery.isNotBlank()) {
                 Spacer(Modifier.height(10.dp))
