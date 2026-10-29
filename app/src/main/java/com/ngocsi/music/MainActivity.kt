@@ -533,6 +533,11 @@ class MainActivity : ComponentActivity() {
                     pauseInlineYouTubeWebView()
                     youtubePlaybackIsPlaying = false
                     prefs.edit().putBoolean("youtube_playback_is_playing", false).apply()
+                    if (inlineBackgroundPlaybackEnabled) {
+                        (youtubeInlineTrack ?: youtubeLastPlayed)?.let { track ->
+                            updateInlineYouTubeBackgroundService(track, isPlaying = false)
+                        }
+                    }
                 }
                 "next", "tiếp", "bài tiếp" -> playStoredYouTubeOffset(1)
                 "previous", "prev", "bài trước" -> playStoredYouTubeOffset(-1)
@@ -3995,12 +4000,16 @@ class MainActivity : ComponentActivity() {
             // Do not let an expired timer survive an idle service and pause a
             // newly selected song later. When playback is active or requested,
             // leave enforcement to MusicService instead.
+            val externalPlaybackActive =
+                prefs.getBoolean("youtube_active_source", false) &&
+                    prefs.getBoolean("youtube_playback_is_playing", false)
             if (SleepTimerRules.shouldClearExpiredDeadlineForIdlePlayer(
                     deadlineMillis = endAt,
                     nowMillis = now,
                     controllerAvailable = controller != null,
                     isPlaying = controller?.isPlaying == true,
-                    playWhenReady = controller?.playWhenReady == true
+                    playWhenReady = controller?.playWhenReady == true,
+                    externalPlaybackActive = externalPlaybackActive
                 )
             ) {
                 prefs.edit().remove("sleep_timer_end_at").apply()
@@ -4033,9 +4042,11 @@ class MainActivity : ComponentActivity() {
                 storedDeadlineMillis = prefs.getLong("sleep_timer_end_at", 0L)
             )
             sleepTimerJob = null
-            refreshSleepTimerUiState()
             if (timerExpired) {
+                stopPlaybackForSleepTimer()
                 errorMessage = "Hẹn giờ đã kết thúc."
+            } else {
+                refreshSleepTimerUiState()
             }
         }
     }
@@ -4056,6 +4067,42 @@ class MainActivity : ComponentActivity() {
         prefs.edit().putLong("sleep_timer_end_at", endAt).apply()
         startSleepTimerUiTicker()
         errorMessage = "Đã bật hẹn giờ tắt nhạc trong $minutes phút."
+    }
+
+    /**
+     * Stops both playback engines when the sleep deadline expires. YouTube is rendered
+     * in a WebView, so pausing the Media3 controller alone cannot stop its audio.
+     */
+    private fun stopPlaybackForSleepTimer() {
+        val youtubeSelected = youtubeIsActiveSource ||
+            prefs.getBoolean("youtube_active_source", false)
+
+        // Pause the current Media3 session too, even when YouTube is the selected source.
+        runCatching { controller?.pause() }
+
+        if (youtubeSelected) {
+            pauseInlineYouTubeWebView()
+            youtubePlaybackIsPlaying = false
+            prefs.edit()
+                .putBoolean("youtube_playback_is_playing", false)
+                .apply()
+
+            // Also pause a separately hosted YouTube player, if one is still alive.
+            sendBroadcast(
+                Intent(YouTubeBackgroundService.ACTION_CONTROL)
+                    .setPackage(packageName)
+                    .putExtra(YouTubeBackgroundService.EXTRA_CONTROL, "pause")
+            )
+            if (inlineBackgroundPlaybackEnabled) {
+                (youtubeInlineTrack ?: youtubeLastPlayed)?.let { track ->
+                    updateInlineYouTubeBackgroundService(track, isPlaying = false)
+                }
+            }
+        }
+
+        prefs.edit().remove("sleep_timer_end_at").apply()
+        sleepTimerEndAt = 0L
+        sleepMinutes = 0
     }
 
     private fun setYouTubeActiveSource(active: Boolean) {
@@ -4884,10 +4931,8 @@ class MainActivity : ComponentActivity() {
 
 
     override fun onStop() {
-        // The MusicService owns the actual sleep-timer enforcement, so the UI only
-        // needs to stop its countdown ticker when the Activity leaves the foreground.
-        sleepTimerJob?.cancel()
-        sleepTimerJob = null
+        // Keep the wall-clock countdown alive while this Activity is backgrounded.
+        // MusicService also enforces the same deadline if the UI process is reclaimed.
         if (::prefs.isInitialized) savePlaybackState()
         super.onStop()
     }

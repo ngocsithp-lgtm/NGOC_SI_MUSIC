@@ -36,12 +36,14 @@ internal object SleepTimerRules {
         nowMillis: Long,
         controllerAvailable: Boolean,
         isPlaying: Boolean,
-        playWhenReady: Boolean
+        playWhenReady: Boolean,
+        externalPlaybackActive: Boolean = false
     ): Boolean =
         isExpired(deadlineMillis, nowMillis) &&
             controllerAvailable &&
             !isPlaying &&
-            !playWhenReady
+            !playWhenReady &&
+            !externalPlaybackActive
     
     /**
      * Avoid a UI race at the deadline: the service may not have cleared the

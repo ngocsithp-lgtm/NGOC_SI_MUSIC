@@ -57,7 +57,23 @@ class MusicService : MediaSessionService() {
                 // Stop at the current position. A sleep timer should not rewind
                 // the track when it expires, including when it expires paused.
                 player.pause()
-                prefs.edit().remove("sleep_timer_end_at").apply()
+
+                // YouTube audio is rendered by a WebView, outside this Media3 player.
+                // Send the shared playback-control event so the YouTube host also pauses
+                // when the deadline expires in the background.
+                val youtubeSelected = prefs.getBoolean("youtube_active_source", false)
+                val editor = prefs.edit().remove("sleep_timer_end_at")
+                if (youtubeSelected) {
+                    editor.putBoolean("youtube_playback_is_playing", false)
+                }
+                editor.apply()
+                if (youtubeSelected) {
+                    sendBroadcast(
+                        Intent(YouTubeBackgroundService.ACTION_CONTROL)
+                            .setPackage(packageName)
+                            .putExtra(YouTubeBackgroundService.EXTRA_CONTROL, "pause")
+                    )
+                }
                 savePlaybackState()
                 broadcastWidget()
             }

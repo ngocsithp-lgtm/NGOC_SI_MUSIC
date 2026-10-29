@@ -87,6 +87,20 @@ class SleepTimerRulesTest {
     }
 
     @Test
+    fun preservesExpiredDeadlineWhileExternalYouTubePlaybackIsActive() {
+        assertFalse(
+            SleepTimerRules.shouldClearExpiredDeadlineForIdlePlayer(
+                deadlineMillis = 60_000L,
+                nowMillis = 60_000L,
+                controllerAvailable = true,
+                isPlaying = false,
+                playWhenReady = false,
+                externalPlaybackActive = true
+            )
+        )
+    }
+
+    @Test
     fun doesNotClearWhenControllerIsUnavailableOrDeadlineIsFuture() {
         assertFalse(
             SleepTimerRules.shouldClearExpiredDeadlineForIdlePlayer(
