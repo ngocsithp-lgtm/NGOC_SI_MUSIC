@@ -10462,8 +10462,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                                     ) {
                                                         if (isCurrent) {
                                                             Text(
-                                                                "▶ ĐANG PHÁT",
-                                                                color = Color(0xFFFF8390),
+                                                                if (youtubePlaybackIsPlaying) "▶ ĐANG PHÁT" else "Ⅱ ĐÃ TẠM DỪNG",
+                                                                color = if (youtubePlaybackIsPlaying) Color(0xFFFF8390) else Color(0xFFB5BAC7),
                                                                 fontSize = 8.sp,
                                                                 fontWeight = FontWeight.Black
                                                             )
@@ -10485,6 +10485,34 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                                             maxLines = 1,
                                                             overflow = TextOverflow.Ellipsis
                                                         )
+                                                    }
+                                                    if (isCurrent) {
+                                                        IconButton(
+                                                            onClick = {
+                                                                val nextPlaying = !youtubePlaybackIsPlaying
+                                                                youtubePlaybackIsPlaying = nextPlaying
+                                                                prefs.edit()
+                                                                    .putBoolean("youtube_active_source", true)
+                                                                    .putBoolean("youtube_playback_is_playing", nextPlaying)
+                                                                    .apply()
+                                                                if (nextPlaying) {
+                                                                    playInlineYouTubeWebView()
+                                                                } else {
+                                                                    pauseInlineYouTubeWebView()
+                                                                }
+                                                                if (inlineBackgroundPlaybackEnabled) {
+                                                                    updateInlineYouTubeBackgroundService(track, isPlaying = nextPlaying)
+                                                                }
+                                                            },
+                                                            modifier = Modifier.size(34.dp)
+                                                        ) {
+                                                            Text(
+                                                                if (youtubePlaybackIsPlaying) "Ⅱ" else "▶",
+                                                                color = if (youtubePlaybackIsPlaying) Color(0xFFFF8390) else Color(0xFF8FD694),
+                                                                fontSize = 17.sp,
+                                                                fontWeight = FontWeight.Black
+                                                            )
+                                                        }
                                                     }
                                                 }
                                             }
