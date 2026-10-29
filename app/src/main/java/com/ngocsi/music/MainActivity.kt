@@ -5292,6 +5292,36 @@ class MainActivity : ComponentActivity() {
                         BottomNav()
                     }
                     }
+                    // A compact floating YouTube mini-player appears on Home while the same
+                    // inline WebView stays composed behind the screen. It never creates a second
+                    // player, so returning to YouTube does not reload or interrupt the video.
+                    if (
+                        selectedSection == "Trang chủ" &&
+                        !youtubeInlineFullscreen &&
+                        youtubeIsActiveSource &&
+                        youtubeInlineTrack != null &&
+                        youtubeLastPlayed != null
+                    ) {
+                        val landscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation ==
+                            android.content.res.Configuration.ORIENTATION_LANDSCAPE
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = if (landscape) Alignment.BottomEnd else Alignment.BottomCenter
+                        ) {
+                            YouTubeHomeMiniPlayer(
+                                track = youtubeLastPlayed!!,
+                                modifier = Modifier
+                                    .padding(
+                                        start = 12.dp,
+                                        end = 12.dp,
+                                        top = 8.dp,
+                                        bottom = 78.dp
+                                    )
+                                    .widthIn(max = if (landscape) 340.dp else 520.dp)
+                                    .fillMaxWidth()
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -12431,6 +12461,98 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     contentScale = ContentScale.Crop
                 )
             } ?: Text("♫", color = Color(0xFFC8B7FF), fontSize = 42.sp)
+        }
+    }
+
+    @Composable
+    private fun YouTubeHomeMiniPlayer(track: YouTubeTrack, modifier: Modifier = Modifier) {
+        Surface(
+            modifier = modifier
+                .clickable {
+                    selectedSection = "Online"
+                    onlineHubTab = "YouTube"
+                },
+            shape = RoundedCornerShape(16.dp),
+            color = Color(0xF0141822),
+            tonalElevation = 7.dp,
+            shadowElevation = 9.dp,
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF4A303A))
+        ) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 7.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(9.dp)
+            ) {
+                Box(
+                    Modifier
+                        .size(width = 78.dp, height = 44.dp)
+                        .clip(RoundedCornerShape(9.dp))
+                        .background(Color(0xFF252A35)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    OnlineArtwork(track.thumbnailUrl, Modifier.fillMaxSize())
+                    Surface(
+                        shape = CircleShape,
+                        color = Color(0x99000000),
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text("▶", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Black)
+                        }
+                    }
+                }
+                Column(
+                    Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text(
+                        "YOUTUBE ĐANG PHÁT",
+                        color = Color(0xFFFF8290),
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.Black,
+                        maxLines = 1
+                    )
+                    Text(
+                        track.title,
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        track.channelTitle.ifBlank { "YouTube" },
+                        color = Color(0xFFA0A7B7),
+                        fontSize = 10.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                IconButton(
+                    onClick = {
+                        playLastYouTube(if (youtubePlaybackIsPlaying) "pause" else "play")
+                    },
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Text(
+                        if (youtubePlaybackIsPlaying) "⏸" else "▶",
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Black
+                    )
+                }
+                IconButton(
+                    onClick = {
+                        selectedSection = "Online"
+                        onlineHubTab = "YouTube"
+                    },
+                    modifier = Modifier.size(34.dp)
+                ) {
+                    Text("↗", color = Color(0xFFC9B7FF), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                }
+            }
         }
     }
 
