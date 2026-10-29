@@ -10271,13 +10271,13 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             verticalAlignment = Alignment.Top
                         ) {
                             Column(
-                                modifier = Modifier.weight(0.44f).fillMaxHeight()
+                                modifier = Modifier.weight(0.48f).fillMaxHeight()
                                     .verticalScroll(rememberScrollState())
                             ) {
                                 movableYouTubeHeaderContent(youtubeHeaderContent)
                             }
                             Column(
-                                modifier = Modifier.weight(0.56f).fillMaxHeight()
+                                modifier = Modifier.weight(0.52f).fillMaxHeight()
                                     .clip(RoundedCornerShape(14.dp))
                                     .background(Color(0xFF101219))
                                     .padding(8.dp)
@@ -10288,10 +10288,19 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 ) {
                                     Column(Modifier.weight(1f)) {
                                         Text(
-                                            "KẾT QUẢ TÌM KIẾM",
+                                            if (youtubeInlineTrack != null) "HÀNG ĐỢI VIDEO" else "KẾT QUẢ TÌM KIẾM",
                                             color = Color.White,
                                             fontSize = 11.sp,
-                                            fontWeight = FontWeight.Black
+                                            fontWeight = FontWeight.Black,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            if (youtubeInlineTrack != null) "Chạm video để chuyển bài" else "Chọn video để phát",
+                                            color = Color(0xFF9298A7),
+                                            fontSize = 8.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                     }
                                     Text(
@@ -10299,6 +10308,22 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         color = Color(0xFF9298A7),
                                         fontSize = 10.sp
                                     )
+                                    Spacer(Modifier.width(4.dp))
+                                    OutlinedButton(
+                                        onClick = {
+                                            youtubeTracks.firstOrNull()?.let { playYouTube(it) }
+                                        },
+                                        enabled = youtubeTracks.isNotEmpty() && !youtubeLoading,
+                                        shape = RoundedCornerShape(9.dp),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                        modifier = Modifier.height(30.dp)
+                                    ) {
+                                        Text(
+                                            "▶ PHÁT TẤT CẢ",
+                                            fontSize = 8.sp,
+                                            maxLines = 1
+                                        )
+                                    }
                                 }
                                 OutlinedTextField(
                                     value = youtubeQuery,
