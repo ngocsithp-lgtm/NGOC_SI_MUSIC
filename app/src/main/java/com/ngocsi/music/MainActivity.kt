@@ -9986,11 +9986,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         val landscapePaneHeight = availableContentHeight
             ?.takeIf { it > 0.dp }
             ?: (youtubeConfiguration.screenHeightDp.dp * 0.75f)
-        // Reserve vertical room for the title/status row and controls. The percentage cap
-        // also prevents the 16:9 player from becoming oversized on taller landscape viewports.
+        // Give the inline landscape video more height while preserving room for its title
+        // and playback controls. The parent can scroll on unusually short screens.
         val landscapeVideoMaxHeight = minOf(
-            (landscapePaneHeight - 88.dp).coerceAtLeast(120.dp),
-            (landscapePaneHeight * 0.70f).coerceAtLeast(120.dp)
+            (landscapePaneHeight - 80.dp).coerceAtLeast(120.dp),
+            (landscapePaneHeight * 0.76f).coerceAtLeast(120.dp)
         )
         val landscapeVideoMaxWidth = landscapeVideoMaxHeight * (16f / 9f)
         LaunchedEffect(youtubeInlineOpenGeneration) {
@@ -10085,7 +10085,9 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             }
                         }
                         youtubeInlineTrack?.let { inlineTrack ->
-                            if (!youtubeInlineFullscreen) Spacer(Modifier.height(12.dp))
+                            if (!youtubeInlineFullscreen) {
+                                Spacer(Modifier.height(if (inlineLandscape) 6.dp else 12.dp))
+                            }
                             // Keep the outer row centered, but give the actual video host
                             // one exact 16:9 size. The old parent was full-width while its WebView
                             // child was width-capped, leaving a mismatched container on rotation.
@@ -10209,7 +10211,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             }
                             }
                             if (!youtubeInlineFullscreen) {
-                                Spacer(Modifier.height(8.dp))
+                                Spacer(Modifier.height(if (inlineLandscape) 4.dp else 8.dp))
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically
@@ -10316,13 +10318,13 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             verticalAlignment = Alignment.Top
                         ) {
                             Column(
-                                modifier = Modifier.weight(0.48f).fillMaxHeight()
+                                modifier = Modifier.weight(0.58f).fillMaxHeight()
                                     .verticalScroll(rememberScrollState())
                             ) {
                                 movableYouTubeHeaderContent(youtubeHeaderContent)
                             }
                             Column(
-                                modifier = Modifier.weight(0.52f).fillMaxHeight()
+                                modifier = Modifier.weight(0.42f).fillMaxHeight()
                                     .clip(RoundedCornerShape(14.dp))
                                     .background(Color(0xFF101219))
                                     .padding(8.dp)
