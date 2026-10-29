@@ -8440,7 +8440,14 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             return
         }
 
-        if (loadMore && youtubeNextPageToken.isNullOrBlank()) return
+        // Capture the continuation token on the UI thread before the IO coroutine starts.
+        // This prevents a later state change from making the next-page request use an empty token.
+        val pageTokenForRequest = if (loadMore) {
+            youtubeNextPageToken?.takeIf { it.isNotBlank() }
+        } else {
+            null
+        }
+        if (loadMore && (youtubeLoading || pageTokenForRequest == null)) return
 
         val requestGeneration = ++youtubeSearchGeneration
         youtubeSearchJob?.cancel()
@@ -8460,7 +8467,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     append("&safeSearch=moderate")
                     if (loadMore) {
                         append("&pageToken=")
-                        append(java.net.URLEncoder.encode(youtubeNextPageToken.orEmpty(), "UTF-8"))
+                        append(java.net.URLEncoder.encode(pageTokenForRequest.orEmpty(), "UTF-8"))
                     }
                     append("&q=")
                     append(java.net.URLEncoder.encode(q, "UTF-8"))
@@ -8519,7 +8526,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     if (OnlineSearchRequestRules.isCurrent(requestGeneration, youtubeSearchGeneration)) {
                         if (loadMore) {
                             val existingIds = youtubeTracks.mapTo(mutableSetOf()) { it.videoId }
-                            youtubeTracks.addAll(found.filter { existingIds.add(it.videoId) })
+                            val newTracks = found.filter { existingIds.add(it.videoId) }
+                            youtubeTracks.addAll(newTracks)
+                            if (newTracks.isEmpty()) {
+                                errorMessage = "YouTube không trả thêm video mới ở trang này. Hãy thử tìm lại từ khóa."
+                            }
                         } else {
                             youtubeTracks.clear()
                             youtubeTracks.addAll(found)
@@ -10916,7 +10927,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             }
                         }
                         items(
-                            items = youtubeTracks.take(30),
+                            items = youtubeTracks,
                             key = { it.videoId }
                         ) { track ->
                             val isFavorite = youtubeFavoriteSet.contains(track.videoId)
