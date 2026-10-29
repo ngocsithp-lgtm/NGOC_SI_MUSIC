@@ -5317,8 +5317,9 @@ class MainActivity : ComponentActivity() {
                                         top = 8.dp,
                                         bottom = 78.dp
                                     )
-                                    .widthIn(max = if (landscape) 340.dp else 520.dp)
-                                    .fillMaxWidth()
+                                    .widthIn(max = if (landscape) 288.dp else 360.dp)
+                                    .fillMaxWidth(),
+                                compact = landscape
                             )
                         }
                     }
@@ -12465,7 +12466,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
     }
 
     @Composable
-    private fun YouTubeHomeMiniPlayer(track: YouTubeTrack, modifier: Modifier = Modifier) {
+    private fun YouTubeHomeMiniPlayer(
+        track: YouTubeTrack,
+        modifier: Modifier = Modifier,
+        compact: Boolean = false
+    ) {
         Surface(
             modifier = modifier
                 .clickable {
@@ -12487,7 +12492,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             ) {
                 Box(
                     Modifier
-                        .size(width = 78.dp, height = 44.dp)
+                        .size(width = if (compact) 64.dp else 78.dp, height = if (compact) 36.dp else 44.dp)
                         .clip(RoundedCornerShape(9.dp))
                         .background(Color(0xFF252A35)),
                     contentAlignment = Alignment.Center
@@ -12522,35 +12527,28 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Text(
-                        track.channelTitle.ifBlank { "YouTube" },
-                        color = Color(0xFFA0A7B7),
-                        fontSize = 10.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    if (!compact) {
+                        Text(
+                            track.channelTitle.ifBlank { "YouTube" },
+                            color = Color(0xFFA0A7B7),
+                            fontSize = 10.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
                 IconButton(
                     onClick = {
                         playLastYouTube(if (youtubePlaybackIsPlaying) "pause" else "play")
                     },
-                    modifier = Modifier.size(40.dp)
+                    modifier = Modifier.size(if (compact) 36.dp else 40.dp)
                 ) {
                     Text(
                         if (youtubePlaybackIsPlaying) "⏸" else "▶",
                         color = Color.White,
-                        fontSize = 18.sp,
+                        fontSize = if (compact) 16.sp else 18.sp,
                         fontWeight = FontWeight.Black
                     )
-                }
-                IconButton(
-                    onClick = {
-                        selectedSection = "Online"
-                        onlineHubTab = "YouTube"
-                    },
-                    modifier = Modifier.size(34.dp)
-                ) {
-                    Text("↗", color = Color(0xFFC9B7FF), fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
