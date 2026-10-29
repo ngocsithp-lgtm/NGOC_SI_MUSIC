@@ -10181,20 +10181,34 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         Text("⌕", color = Color(0xFFFF7180), fontSize = 20.sp)
                                     },
                                     trailingIcon = {
-                                        IconButton(
-                                            onClick = ::searchYouTube,
-                                            enabled = !youtubeLoading && youtubeQuery.isNotBlank()
-                                        ) {
-                                            Text(
-                                                "➜",
-                                                color = if (!youtubeLoading && youtubeQuery.isNotBlank()) {
-                                                    Color(0xFFFF7180)
-                                                } else {
-                                                    Color(0xFF555966)
-                                                },
-                                                fontSize = 17.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            if (youtubeQuery.isNotBlank()) {
+                                                IconButton(
+                                                    onClick = {
+                                                        updateYouTubeQuery("")
+                                                        youtubeTracks.clear()
+                                                        youtubeNextPageToken = null
+                                                        errorMessage = null
+                                                    }
+                                                ) {
+                                                    Text("×", color = Color(0xFF858B9A), fontSize = 19.sp)
+                                                }
+                                            }
+                                            IconButton(
+                                                onClick = ::searchYouTube,
+                                                enabled = !youtubeLoading && youtubeQuery.isNotBlank()
+                                            ) {
+                                                Text(
+                                                    "➜",
+                                                    color = if (!youtubeLoading && youtubeQuery.isNotBlank()) {
+                                                        Color(0xFFFF7180)
+                                                    } else {
+                                                        Color(0xFF555966)
+                                                    },
+                                                    fontSize = 17.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
                                         }
                                     },
                                     shape = RoundedCornerShape(12.dp),
