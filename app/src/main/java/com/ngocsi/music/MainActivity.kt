@@ -4898,13 +4898,11 @@ class MainActivity : ComponentActivity() {
     private fun NgocSiMusicApp() {
         val currentSong = songs.getOrNull(currentIndex)
         val statusSnackbarHostState = remember { SnackbarHostState() }
-        // The inline YouTube landscape layout needs the freed vertical space for the video.
-        // Keep Mini Player on portrait and other pages, but omit it from this split-screen view.
-        val isLandscapeYouTubePage =
-            selectedSection == "Online" &&
-                onlineHubTab == "YouTube" &&
-                androidx.compose.ui.platform.LocalConfiguration.current.orientation ==
-                    android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        // The YouTube screen already owns the main player controls. Showing a second
+        // mini-player below it duplicates controls and covers content in portrait.
+        // Keep the mini-player only on other feature screens.
+        val isYouTubePage =
+            selectedSection == "Online" && onlineHubTab == "YouTube"
 
         // Keep Android Back/gesture navigation predictable: on any feature screen,
         // the first Back returns to the app home instead of immediately exiting.
@@ -5232,11 +5230,10 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
-                    // Keep the YouTube mini-player visible on feature pages, including
-                    // the YouTube page itself, so previous/play-pause/next are always reachable.
-                    // The official YouTube IFrame controls remain available inside the video.
+                    // The inline player already exposes YouTube controls on its own screen.
+                    // Avoid duplicating the mini-player there; keep it available on other tabs.
                     if (!youtubeInlineFullscreen) {
-                        if (selectedSection != "Trang chủ" && !isLandscapeYouTubePage) {
+                        if (selectedSection != "Trang chủ" && !isYouTubePage) {
                             if (youtubeIsActiveSource && youtubeLastPlayed != null) {
                                 YouTubeMiniPlayer(youtubeLastPlayed!!)
                             } else {
@@ -10035,41 +10032,53 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             }
                             }
                             if (!youtubeInlineFullscreen) {
-                            Spacer(Modifier.height(6.dp))
-                            Row(
-                                Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(
-                                        "ĐANG PHÁT NGAY TRÊN TRANG NÀY",
-                                        color = Color(0xFF8FD694),
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.Black
-                                    )
-                                    Text(
-                                        inlineTrack.title,
-                                        color = Color.White,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                                Text(
-                                    "Chạm ⛶ trong khung video",
-                                    color = Color(0xFFFF9AA4),
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                TextButton(
-                                    onClick = {
-                                        enableInlineYouTubeBackground()
-                                    }
+                                Spacer(Modifier.height(8.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text("🎧 NỀN", color = Color(0xFF8FD694), fontSize = 10.sp)
+                                    Surface(
+                                        shape = RoundedCornerShape(50),
+                                        color = Color(0xFF17261E)
+                                    ) {
+                                        Text(
+                                            "● ĐANG PHÁT",
+                                            color = Color(0xFF8FD694),
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                                        )
+                                    }
+                                    Spacer(Modifier.weight(1f))
+                                    TextButton(
+                                        onClick = { enableInlineYouTubeBackground() },
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            "🎧 PHÁT NỀN",
+                                            color = Color(0xFF8FD694),
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
                                 }
-                            }
+                                Spacer(Modifier.height(3.dp))
+                                Text(
+                                    inlineTrack.title,
+                                    color = Color.White,
+                                    fontSize = 13.sp,
+                                    lineHeight = 17.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    inlineTrack.channelTitle.ifBlank { "YouTube" },
+                                    color = Color(0xFFA0A7B7),
+                                    fontSize = 10.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
                         }
                         if (!youtubeInlineFullscreen && youtubeInlineTrack == null) {
@@ -10117,12 +10126,12 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             verticalAlignment = Alignment.Top
                         ) {
                             Column(
-                                modifier = Modifier.weight(0.60f).fillMaxHeight()
+                                modifier = Modifier.weight(0.47f).fillMaxHeight()
                                     .verticalScroll(rememberScrollState()),
                                 content = youtubeHeaderContent
                             )
                             Column(
-                                modifier = Modifier.weight(0.40f).fillMaxHeight()
+                                modifier = Modifier.weight(0.53f).fillMaxHeight()
                                     .clip(RoundedCornerShape(14.dp))
                                     .background(Color(0xFF101219))
                                     .padding(8.dp)
@@ -10138,15 +10147,6 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Black
                                         )
-                                        if (youtubeQuery.isNotBlank()) {
-                                            Text(
-                                                youtubeQuery,
-                                                color = Color(0xFF9298A7),
-                                                fontSize = 9.sp,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                        }
                                     }
                                     Text(
                                         youtubeTracks.size.toString(),
@@ -10154,6 +10154,47 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         fontSize = 10.sp
                                     )
                                 }
+                                OutlinedTextField(
+                                    value = youtubeQuery,
+                                    onValueChange = ::updateYouTubeQuery,
+                                    modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+                                    singleLine = true,
+                                    placeholder = {
+                                        Text("Tìm video...", color = Color(0xFF747A89), fontSize = 11.sp)
+                                    },
+                                    leadingIcon = {
+                                        Text("⌕", color = Color(0xFFFF7180), fontSize = 20.sp)
+                                    },
+                                    trailingIcon = {
+                                        IconButton(
+                                            onClick = ::searchYouTube,
+                                            enabled = !youtubeLoading && youtubeQuery.isNotBlank()
+                                        ) {
+                                            Text(
+                                                "➜",
+                                                color = if (!youtubeLoading && youtubeQuery.isNotBlank()) {
+                                                    Color(0xFFFF7180)
+                                                } else {
+                                                    Color(0xFF555966)
+                                                },
+                                                fontSize = 17.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    },
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        unfocusedContainerColor = Color(0xFF171B24),
+                                        focusedContainerColor = Color(0xFF171B24),
+                                        unfocusedBorderColor = Color(0xFF2A303D),
+                                        focusedBorderColor = Color(0xFFFF7180)
+                                    ),
+                                    keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Search),
+                                    keyboardActions = KeyboardActions(
+                                        onSearch = { searchYouTube() },
+                                        onDone = { searchYouTube() }
+                                    )
+                                )
                                 if (youtubeLoading) {
                                     LinearProgressIndicator(
                                         modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp).height(2.dp),
