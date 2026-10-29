@@ -10496,6 +10496,14 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 }
             }
 
+            // In landscape with an active inline YouTube player, the sticky header already
+            // owns the whole two-pane layout (player left, single result/queue list right).
+            // Hide the portrait/discovery LazyColumn items below it to avoid a second
+            // search/results list appearing under the player when the user scrolls.
+            if (!(youtubeConfiguration.orientation ==
+                    android.content.res.Configuration.ORIENTATION_LANDSCAPE &&
+                    youtubeInlineTrack != null)
+            ) {
             item {
                 Column {
                     SectionTitle("KHÁM PHÁ THEO THỂ LOẠI", "5 gợi ý")
@@ -11004,6 +11012,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         modifier = Modifier.padding(horizontal = 2.dp)
                     )
                 }
+            }
             }
         }
     }
