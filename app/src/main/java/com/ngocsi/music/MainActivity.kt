@@ -378,6 +378,13 @@ class MainActivity : ComponentActivity() {
                       window.resizeVideoSurface();
                       setTimeout(window.resizeVideoSurface, 120);
                     }
+                    setTimeout(function() {
+                      try {
+                        if (typeof window.recoverPlayingVideoFrame === 'function') {
+                          window.recoverPlayingVideoFrame();
+                        }
+                      } catch (_) {}
+                    }, 260);
                   } catch (_) {}
                 })();
             """.trimIndent()
@@ -9419,7 +9426,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 view.invalidate()
                 applyInlineYouTubePageStyle(view)
                 view.evaluateJavascript(
-                    "window.scrollTo(0,0);window.dispatchEvent(new Event('resize'));",
+                    "window.scrollTo(0,0);window.dispatchEvent(new Event('resize'));" +
+                        "setTimeout(function(){if(window.recoverPlayingVideoFrame)window.recoverPlayingVideoFrame();},220);",
                     null
                 )
             }
@@ -9458,7 +9466,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 ) {
                     applyInlineYouTubePageStyle(view)
                     view.evaluateJavascript(
-                        "window.scrollTo(0,0);window.dispatchEvent(new Event('resize'));",
+                        "window.scrollTo(0,0);window.dispatchEvent(new Event('resize'));" +
+                            "setTimeout(function(){if(window.recoverPlayingVideoFrame)window.recoverPlayingVideoFrame();},220);",
                         null
                     )
                     view.requestLayout()
@@ -9663,6 +9672,10 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         return '';
                     }
 
+                    var lastAppliedVideoWidth = 0;
+                    var lastAppliedVideoHeight = 0;
+                    var lastFrameRecoveryAtMs = 0;
+
                     function refreshVideoSurface() {
                         try {
                             var root = document.getElementById('player');
@@ -9675,6 +9688,13 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             if (!isFinite(width) || !isFinite(height) || width <= 0 || height <= 0) {
                                 return false;
                             }
+                            var priorWidth = lastAppliedVideoWidth;
+                            var priorHeight = lastAppliedVideoHeight;
+                            var viewportChanged = priorWidth > 0 && priorHeight > 0 &&
+                                (Math.abs(width - priorWidth) >= Math.max(48, priorWidth * 0.08) ||
+                                 Math.abs(height - priorHeight) >= Math.max(48, priorHeight * 0.08));
+                            lastAppliedVideoWidth = width;
+                            lastAppliedVideoHeight = height;
                             if (root) {
                                 root.style.width = width + 'px';
                                 root.style.height = height + 'px';
@@ -9702,6 +9722,15 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 frame.getBoundingClientRect();
                             }
                             document.body.getBoundingClientRect();
+                            if (viewportChanged) {
+                                setTimeout(function() {
+                                    try {
+                                        if (typeof window.recoverPlayingVideoFrame === 'function') {
+                                            window.recoverPlayingVideoFrame();
+                                        }
+                                    } catch (_) {}
+                                }, 220);
+                            }
                             return true;
                         } catch (_) {
                             return false;
@@ -9810,6 +9839,46 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         return player && typeof player.getCurrentTime === 'function'
                             ? player.getCurrentTime() : 0;
                     }
+
+                    window.recoverPlayingVideoFrame = function() {
+                        try {
+                            var now = Date.now();
+                            if (now - lastFrameRecoveryAtMs < 1100) return 'THROTTLED';
+                            if (!player || typeof player.getPlayerState !== 'function' ||
+                                typeof player.playVideo !== 'function') return 'NOT_READY';
+                            // Do not override a deliberate Pause. A stuck picture with audio
+                            // still playing reports PLAYING; a Play nudge wakes the video renderer
+                            // without replacing the IFrame, loading another video, or seeking.
+                            if (Number(player.getPlayerState()) !== 1) return 'NOT_PLAYING';
+                            lastFrameRecoveryAtMs = now;
+                            player.playVideo();
+                            setTimeout(function() {
+                                try {
+                                    if (!player || Number(player.getPlayerState()) !== 1) return;
+                                    var w = Math.floor(Number(
+                                        document.documentElement.clientWidth || window.innerWidth || 0
+                                    ));
+                                    var h = Math.floor(Number(
+                                        document.documentElement.clientHeight || window.innerHeight || 0
+                                    ));
+                                    if (w > 0 && h > 0 && typeof player.setSize === 'function') {
+                                        player.setSize(w, h);
+                                    }
+                                    var frame = typeof player.getIframe === 'function'
+                                        ? player.getIframe() : null;
+                                    if (frame) {
+                                        frame.style.transform = 'translate3d(0, 0, 0)';
+                                        frame.getBoundingClientRect();
+                                    }
+                                    document.body.getBoundingClientRect();
+                                } catch (_) {}
+                            }, 160);
+                            return 'PLAYING_FRAME_NUDGE_SENT';
+                        } catch (_) {
+                            return 'PLAYING_FRAME_NUDGE_FAILED';
+                        }
+                    };
+
                     function loadVideoById(id, startSeconds) {
                         if (!player || typeof player.loadVideoById !== 'function') return;
                         var options = {videoId: id};
