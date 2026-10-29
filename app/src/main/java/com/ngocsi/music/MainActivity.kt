@@ -53,6 +53,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.asImageBitmap
@@ -4922,8 +4923,19 @@ class MainActivity : ComponentActivity() {
     }
 
 
+    @OptIn(ExperimentalFoundationApi::class)
     @Composable
     private fun NgocSiMusicApp() {
+        // Keep the exact same YouTube screen/WebView composed when navigating to Home or another tab.
+        // movableContentOf transfers the existing player instead of disposing it and stopping playback.
+        val persistentYouTubeContent = remember {
+            movableContentOf {
+                BoxWithConstraints(Modifier.fillMaxSize()) {
+                    YouTubeFocusedScreen(availableContentHeight = maxHeight)
+                }
+            }
+        }
+        val isYouTubeScreenVisible = selectedSection == "Online" && onlineHubTab == "YouTube"
         val currentSong = songs.getOrNull(currentIndex)
         val statusSnackbarHostState = remember { SnackbarHostState() }
         // The YouTube screen already owns the main player controls. Showing a second
@@ -5048,7 +5060,16 @@ class MainActivity : ComponentActivity() {
                 ),
                 color = if (youtubeInlineFullscreen) Color.Black else NgocSiVisuals.Background
             ) {
-                Column(Modifier.fillMaxSize()) {
+                Box(Modifier.fillMaxSize()) {
+                    // Keep the inline player attached behind the active screen. Alpha hides its UI,
+                    // while its WebView remains in the same composition so YouTube audio is not
+                    // interrupted when the in-app Home button changes the selected section.
+                    if (!isYouTubeScreenVisible && youtubeInlineTrack != null) {
+                        Box(Modifier.fillMaxSize().alpha(0f)) {
+                            persistentYouTubeContent()
+                        }
+                    }
+                    Column(Modifier.fillMaxSize()) {
                     if (selectedSection == "Trang chủ") {
                         ProHomeScreen(
                             modifier = Modifier.weight(1f),
@@ -5178,10 +5199,10 @@ class MainActivity : ComponentActivity() {
 
                         "Online" -> {
                             if (onlineHubTab == "YouTube") {
-                                BoxWithConstraints(
+                                Box(
                                     Modifier.weight(1f).fillMaxWidth()
                                 ) {
-                                    OnlineSourcesCard(availableContentHeight = maxHeight)
+                                    persistentYouTubeContent()
                                 }
                             } else {
                                 Column(
@@ -5269,6 +5290,7 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                         BottomNav()
+                    }
                     }
                 }
             }
