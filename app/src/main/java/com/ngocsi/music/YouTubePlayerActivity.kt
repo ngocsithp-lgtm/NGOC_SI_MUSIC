@@ -3104,7 +3104,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                               'position:absolute!important;left:0!important;top:0!important;right:auto!important;' +
                               'bottom:0!important;margin:0!important;transform:none!important;width:100%!important;' +
                               'height:100%!important;max-width:100vw!important;max-height:100vh!important;' +
-                              'min-width:0!important;object-fit:contain!important;}';
+                              'min-width:0!important;object-fit:cover!important;}';
                             (document.head || document.documentElement).appendChild(style);
 
                             // Reset stale sticky positioning at every wrapper level after
