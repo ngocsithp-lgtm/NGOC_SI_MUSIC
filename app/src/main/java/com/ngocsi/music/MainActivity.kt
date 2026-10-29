@@ -441,9 +441,30 @@ class MainActivity : ComponentActivity() {
                     .putBoolean("youtube_active_source", true)
                     .putBoolean("youtube_playback_is_playing", isPlaying)
                     .apply()
+                if (state == 0) {
+                    // Do not resume a completed video at its last saved position.
+                    prefs.edit().remove("youtube_inline_position_ms_" + track.videoId).apply()
+                }
                 if (inlineBackgroundPlaybackEnabled) {
                     updateInlineYouTubeBackgroundService(track, isPlaying)
                 }
+            }
+        }
+
+        @android.webkit.JavascriptInterface
+        fun onPositionChanged(positionMs: Long, reportedVideoId: String?) {
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                val track = youtubeInlineTrack ?: return@runOnUiThread
+                val reportedId = reportedVideoId.orEmpty()
+                    .filter { it.isLetterOrDigit() || it == '-' || it == '_' }
+                    .take(32)
+                // Ignore a delayed report from the previous video when a new result was selected.
+                if (reportedId.isBlank() || reportedId != track.videoId) return@runOnUiThread
+                val safePositionMs = positionMs.coerceIn(0L, 86_400_000L)
+                prefs.edit()
+                    .putLong("youtube_inline_position_ms_" + reportedId, safePositionMs)
+                    .apply()
             }
         }
 
@@ -9559,6 +9580,15 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             .filter { it.isLetterOrDigit() || it == '_' || it == '-' }
             .take(32)
         if (safeId.isBlank()) return
+        // The responsive portrait/landscape Compose branches can recreate AndroidView.
+        // Persist position from the IFrame API and let YouTube start near that point.
+        val savedPositionMs = prefs.getLong("youtube_inline_position_ms_" + safeId, 0L)
+            .coerceIn(0L, 86_400_000L)
+        val resumeStartSeconds = if (savedPositionMs >= 3_000L) {
+            (savedPositionMs / 1_000L).coerceAtMost(86_400L)
+        } else {
+            0L
+        }
 
         val appIdentityUrl = "https://$packageName/"
         val html = """
@@ -9694,6 +9724,23 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         window.visualViewport.addEventListener('resize', resizeVideoSurface);
                     }
 
+                    var hasObservedPlayback = false;
+                    window.setInterval(function() {
+                        try {
+                            if (!player || typeof player.getPlayerState !== 'function') return;
+                            var state = Number(player.getPlayerState());
+                            if (state === 1) hasObservedPlayback = true;
+                            if (!hasObservedPlayback || (state !== 1 && state !== 2)) return;
+                            var currentSeconds = Number(player.getCurrentTime());
+                            var currentId = getCurrentVideoId();
+                            if (currentId && isFinite(currentSeconds) && currentSeconds >= 0) {
+                                AndroidBridge.onPositionChanged(
+                                    Math.floor(currentSeconds * 1000), currentId
+                                );
+                            }
+                        } catch (_) {}
+                    }, 1000);
+
                     function onYouTubeIframeAPIReady() {
                         player = new YT.Player('player', {
                             width: '100%',
@@ -9702,6 +9749,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             playerVars: {
                                 playsinline: 1,
                                 autoplay: 0,
+                                start: $resumeStartSeconds,
                                 rel: 0,
                                 controls: 1,
                                 fs: 1,
