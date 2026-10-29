@@ -5831,6 +5831,7 @@ class MainActivity : ComponentActivity() {
         icon: String,
         label: String,
         selected: Boolean,
+        compact: Boolean = false,
         onClick: () -> Unit
     ) {
         val itemShape = RoundedCornerShape(14.dp)
@@ -5846,21 +5847,27 @@ class MainActivity : ComponentActivity() {
             )
         ) {
             Column(
-                modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                modifier = Modifier.padding(
+                    horizontal = if (compact) 7.dp else 9.dp,
+                    vertical = if (compact) 2.dp else 5.dp
+                ),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
                     icon,
                     color = if (selected) NgocSiVisuals.Secondary else Color(0xFF7A8394),
-                    fontSize = 17.sp,
+                    fontSize = if (compact) 15.sp else 17.sp,
+                    lineHeight = if (compact) 16.sp else 20.sp,
                     fontWeight = if (selected) FontWeight.Black else FontWeight.Normal
                 )
                 Spacer(Modifier.height(1.dp))
                 Text(
                     label,
                     color = if (selected) NgocSiVisuals.Text else Color(0xFF7A8394),
-                    fontSize = 11.sp,
-                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                    fontSize = if (compact) 9.sp else 11.sp,
+                    lineHeight = if (compact) 10.sp else 13.sp,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                    maxLines = 1
                 )
             }
         }
@@ -6393,6 +6400,11 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun BottomNav() {
         var showMore by remember { mutableStateOf(false) }
+        val compactLandscapeNav =
+            selectedSection == "Online" &&
+                onlineHubTab == "YouTube" &&
+                androidx.compose.ui.platform.LocalConfiguration.current.orientation ==
+                    android.content.res.Configuration.ORIENTATION_LANDSCAPE
 
         Column(Modifier.fillMaxWidth()) {
             if (showMore) {
@@ -6448,30 +6460,33 @@ class MainActivity : ComponentActivity() {
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 7.dp, vertical = 5.dp),
+                        .padding(
+                            horizontal = 7.dp,
+                            vertical = if (compactLandscapeNav) 2.dp else 5.dp
+                        ),
                     horizontalArrangement = Arrangement.SpaceAround,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    ProHomeNavItem("⌂", "Trang chủ", selectedSection == "Trang chủ") {
+                    ProHomeNavItem("⌂", "Trang chủ", selectedSection == "Trang chủ", compact = compactLandscapeNav) {
                         showMore = false
                         selectedSection = "Trang chủ"
                     }
-                    ProHomeNavItem("♫", "Nhạc", selectedSection == "Thư viện") {
+                    ProHomeNavItem("♫", "Nhạc", selectedSection == "Thư viện", compact = compactLandscapeNav) {
                         showMore = false
                         selectedSection = "Thư viện"
                         selectedLibrary = "Tất cả"
                         libraryView = "Bài hát"
                     }
-                    ProHomeNavItem("▶", "YouTube", selectedSection == "Online" && onlineHubTab == "YouTube") {
+                    ProHomeNavItem("▶", "YouTube", selectedSection == "Online" && onlineHubTab == "YouTube", compact = compactLandscapeNav) {
                         showMore = false
                         selectedSection = "Online"
                         onlineHubTab = "YouTube"
                     }
-                    ProHomeNavItem("◉", "Radio", selectedSection == "Radio") {
+                    ProHomeNavItem("◉", "Radio", selectedSection == "Radio", compact = compactLandscapeNav) {
                         showMore = false
                         selectedSection = "Radio"
                     }
-                    ProHomeNavItem("＋", "Thêm", showMore) {
+                    ProHomeNavItem("＋", "Thêm", showMore, compact = compactLandscapeNav) {
                         showMore = !showMore
                     }
                 }
@@ -10126,12 +10141,12 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             verticalAlignment = Alignment.Top
                         ) {
                             Column(
-                                modifier = Modifier.weight(0.47f).fillMaxHeight()
+                                modifier = Modifier.weight(0.44f).fillMaxHeight()
                                     .verticalScroll(rememberScrollState()),
                                 content = youtubeHeaderContent
                             )
                             Column(
-                                modifier = Modifier.weight(0.53f).fillMaxHeight()
+                                modifier = Modifier.weight(0.56f).fillMaxHeight()
                                     .clip(RoundedCornerShape(14.dp))
                                     .background(Color(0xFF101219))
                                     .padding(8.dp)
