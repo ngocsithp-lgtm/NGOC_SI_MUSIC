@@ -31,6 +31,8 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import android.view.Gravity
+import android.view.MotionEvent
+import android.view.ScaleGestureDetector
 import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewFeature
 import androidx.webkit.WebViewMediaIntegrityApiStatusConfig
@@ -161,6 +163,69 @@ class YouTubePlayerActivity : ComponentActivity() {
      * background audio, keep the renderer's window-visibility state alive.
      */
     private inner class BackgroundAudioWebView(context: android.content.Context) : WebView(context) {
+        // Native pinch zoom scales only this video WebView, not the Activity or queue.
+        // The video host clips the enlarged WebView so the picture is cropped at its edges.
+        private var consumeVideoPinchUntilUp = false
+
+        private val videoPinchDetector = ScaleGestureDetector(
+            context,
+            object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+                    if (!isLandscapeVideoViewport() || width <= 0 || height <= 0 ||
+                        visibility != View.VISIBLE ||
+                        detector.focusX < 0f || detector.focusY < 0f ||
+                        detector.focusX > width || detector.focusY > height
+                    ) return false
+
+                    consumeVideoPinchUntilUp = true
+                    parent?.requestDisallowInterceptTouchEvent(true)
+                    return true
+                }
+
+                override fun onScale(detector: ScaleGestureDetector): Boolean {
+                    if (!consumeVideoPinchUntilUp) return false
+
+                    val currentScale = scaleX.coerceIn(0.80f, 2.50f)
+                    var nextScale = (currentScale * detector.scaleFactor)
+                        .coerceIn(0.80f, 2.50f)
+                    // Make returning to the original size predictable rather than leaving
+                    // a nearly-1x scale that still crops a thin strip around the picture.
+                    if (nextScale in 0.97f..1.03f) nextScale = 1f
+
+                    pivotX = width / 2f
+                    pivotY = height / 2f
+                    scaleX = nextScale
+                    scaleY = nextScale
+                    return true
+                }
+            }
+        )
+
+        override fun onTouchEvent(event: MotionEvent): Boolean {
+            val wasConsumingPinch = consumeVideoPinchUntilUp
+            videoPinchDetector.onTouchEvent(event)
+
+            // Cancel the WebView's one-finger tap/seek sequence when a real pinch begins.
+            // This prevents the first finger-down from becoming an accidental video tap.
+            if (!wasConsumingPinch && consumeVideoPinchUntilUp) {
+                val cancelEvent = MotionEvent.obtain(event)
+                cancelEvent.setAction(MotionEvent.ACTION_CANCEL)
+                super.onTouchEvent(cancelEvent)
+                cancelEvent.recycle()
+            }
+
+            if (consumeVideoPinchUntilUp) {
+                if (event.actionMasked == MotionEvent.ACTION_UP ||
+                    event.actionMasked == MotionEvent.ACTION_CANCEL
+                ) {
+                    consumeVideoPinchUntilUp = false
+                    parent?.requestDisallowInterceptTouchEvent(false)
+                }
+                return true
+            }
+            return super.onTouchEvent(event)
+        }
+
         override fun onWindowVisibilityChanged(visibility: Int) {
             if (inAppBackgroundPlaybackEnabled) {
                 if (visibility != View.GONE) {
@@ -3524,6 +3589,10 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
 
         webView = player
+        // Keep zoomed video pixels inside the player's own frame; never let them cover
+        // the landscape queue panel or neighboring Activity content.
+        playerContainer.clipChildren = true
+        playerContainer.clipToPadding = true
         playerContainer.addView(
             player,
             FrameLayout.LayoutParams(
