@@ -898,33 +898,17 @@ class YouTubePlayerActivity : ComponentActivity() {
 
             val onControls = isTouchOnNativeVideoControls(event.rawX, event.rawY)
             if (!onControls && isLandscapeVideoViewport()) {
-                if (customView != null) {
-                    val fullscreenHost = fullscreenPinchContainer
-                    // Chromium's fullscreen custom view occupies the full Activity
-                    // viewport. Accept the root as a fallback when the detached
-                    // container's screen bounds are temporarily stale after rotation.
-                    val insideFullscreen = fullscreenHost != null &&
-                        fullscreenHost.isShown &&
-                        (pointInsideViewOnScreen(fullscreenHost, event.rawX, event.rawY) ||
-                            pointInsideViewOnScreen(customView, event.rawX, event.rawY) ||
-                            pointInsideViewOnScreen(root, event.rawX, event.rawY))
-                    if (insideFullscreen) {
-                        activityPinchTracking = true
-                        activityPinchTargetsNativeFullscreen = true
-                        fullscreenHost?.parent?.requestDisallowInterceptTouchEvent(true)
-                    }
+                // Start observing the stream at Activity level. Do not reject the
+                // first pointer using WebView/container bounds: in Android WebView
+                // + SurfaceView fullscreen transitions those bounds can be stale,
+                // even while the video visibly fills the screen. The second-pointer
+                // midpoint is validated against the active video viewport below.
+                activityPinchTracking = true
+                activityPinchTargetsNativeFullscreen = customView != null
+                if (activityPinchTargetsNativeFullscreen) {
+                    fullscreenPinchContainer?.parent?.requestDisallowInterceptTouchEvent(true)
                 } else {
-                    // The actual WebView and its clipping FrameLayout are both valid
-                    // hit targets. This covers small layout-bound differences between
-                    // Chromium's video surface and the native player host.
-                    val insideInlineVideo =
-                        pointInsideViewOnScreen(webView, event.rawX, event.rawY) ||
-                            pointInsideViewOnScreen(playerContainer, event.rawX, event.rawY)
-                    if (insideInlineVideo) {
-                        activityPinchTracking = true
-                        activityPinchTargetsNativeFullscreen = false
-                        playerContainer.parent?.requestDisallowInterceptTouchEvent(true)
-                    }
+                    playerContainer.parent?.requestDisallowInterceptTouchEvent(true)
                 }
             }
         }
@@ -934,22 +918,24 @@ class YouTubePlayerActivity : ComponentActivity() {
         if (action == MotionEvent.ACTION_POINTER_DOWN &&
             activityPinchTracking && event.pointerCount == 2
         ) {
-            // ACTION_POINTER_DOWN carries both coordinates. Require both fingers to
-            // start inside the same video viewport and outside our native controls;
-            // a finger that begins on the queue/buttons must not steal their gestures.
+            // Validate the midpoint rather than both individual touch points.
+            // This tolerates edge pinches where one fingertip slightly crosses the
+            // measured video boundary, while keeping the queue and native buttons
+            // outside the gesture area.
             val rawOffsetX = event.rawX - event.x
             val rawOffsetY = event.rawY - event.y
-            val firstRawX = event.getX(0) + rawOffsetX
-            val firstRawY = event.getY(0) + rawOffsetY
+            val firstRawX = event.rawX
+            val firstRawY = event.rawY
             val secondRawX = event.getX(event.actionIndex) + rawOffsetX
             val secondRawY = event.getY(event.actionIndex) + rawOffsetY
-            val bothFingersOnVideo =
-                isPointInsideActivePinchViewport(firstRawX, firstRawY) &&
-                    isPointInsideActivePinchViewport(secondRawX, secondRawY) &&
+            val midpointX = (firstRawX + secondRawX) / 2f
+            val midpointY = (firstRawY + secondRawY) / 2f
+            val midpointOnVideo =
+                isPointInsideActivePinchViewport(midpointX, midpointY) &&
                     !isTouchOnNativeVideoControls(firstRawX, firstRawY) &&
                     !isTouchOnNativeVideoControls(secondRawX, secondRawY)
 
-            if (bothFingersOnVideo) {
+            if (midpointOnVideo) {
                 activityPinchPointerId2 = event.getPointerId(event.actionIndex)
                 activityPinchStartSpan = pointerSpan(event)
                 activityPinchStartScale = activityPinchScale
