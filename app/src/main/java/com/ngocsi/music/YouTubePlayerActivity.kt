@@ -109,20 +109,28 @@ class YouTubePlayerActivity : ComponentActivity() {
             }
         )
 
-        override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
+        override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+            val wasConsumingPinch = consumeVideoPinchUntilUp
             videoPinchDetector.onTouchEvent(event)
-            return consumeVideoPinchUntilUp || super.onInterceptTouchEvent(event)
-        }
 
-        override fun onTouchEvent(event: MotionEvent): Boolean {
-            if (!consumeVideoPinchUntilUp) return super.onTouchEvent(event)
-            if (event.actionMasked == MotionEvent.ACTION_UP ||
-                event.actionMasked == MotionEvent.ACTION_CANCEL
-            ) {
-                consumeVideoPinchUntilUp = false
-                parent?.requestDisallowInterceptTouchEvent(false)
+            // Cancel the child's one-finger tap/seek stream exactly when the pinch takes over.
+            if (!wasConsumingPinch && consumeVideoPinchUntilUp) {
+                val cancelEvent = MotionEvent.obtain(event)
+                cancelEvent.setAction(MotionEvent.ACTION_CANCEL)
+                super.dispatchTouchEvent(cancelEvent)
+                cancelEvent.recycle()
             }
-            return true
+
+            if (consumeVideoPinchUntilUp) {
+                if (event.actionMasked == MotionEvent.ACTION_UP ||
+                    event.actionMasked == MotionEvent.ACTION_CANCEL
+                ) {
+                    consumeVideoPinchUntilUp = false
+                    parent?.requestDisallowInterceptTouchEvent(false)
+                }
+                return true
+            }
+            return super.dispatchTouchEvent(event)
         }
 
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
