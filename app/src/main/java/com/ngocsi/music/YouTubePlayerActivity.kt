@@ -3593,17 +3593,18 @@ class YouTubePlayerActivity : ComponentActivity() {
             button.bringToFront()
         }
         nativeFillScreenButton = Button(this).apply {
-            text = if (fillScreenEnabled) "VỪA" else "LẤP"
-            textSize = 12f
+            text = if (fillScreenEnabled) "VỪA" else "LẤP ĐẦY"
+            textSize = 11f
             isAllCaps = false
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
             setTextColor(AndroidColor.WHITE)
             background = roundedButtonDrawable(
-                if (fillScreenEnabled) AndroidColor.rgb(34, 98, 126) else AndroidColor.argb(220, 18, 18, 24),
-                AndroidColor.rgb(112, 116, 128),
+                if (fillScreenEnabled) AndroidColor.rgb(25, 116, 139) else AndroidColor.rgb(18, 78, 105),
+                AndroidColor.rgb(136, 205, 226),
                 dp(8)
             )
             backgroundTintList = null
-            setPadding(dp(2), 0, dp(2), 0)
+            setPadding(dp(5), 0, dp(5), 0)
             minWidth = 0
             minimumWidth = 0
             minHeight = 0
@@ -3613,20 +3614,21 @@ class YouTubePlayerActivity : ComponentActivity() {
             } else {
                 "Lấp đầy màn hình"
             }
-            elevation = dp(6).toFloat()
+            isClickable = true
+            isFocusable = true
+            elevation = dp(24).toFloat()
             setOnClickListener { toggleFillScreenMode() }
         }.also { button ->
-            // Keep this control on the Activity root, not inside the WebView host.
-            // Chromium's real fullscreen surface is added above playerContainer and
-            // otherwise completely covers any native child attached to that host.
+            // Add the control directly to the Activity root, above the scrolling WebView.
+            // It stays outside Chromium's player surface so YouTube cannot consume or hide it.
             root.addView(
                 button,
-                FrameLayout.LayoutParams(dp(60), dp(44), Gravity.TOP or Gravity.END).apply {
+                FrameLayout.LayoutParams(dp(88), dp(44), Gravity.TOP or Gravity.END).apply {
                     topMargin = dp(8)
                     marginEnd = dp(58)
                 }
             )
-            button.bringToFront()
+            root.bringChildToFront(button)
         }
         updateNativeFullscreenButton()
         updateNativeFillScreenButton()
@@ -3933,6 +3935,9 @@ class YouTubePlayerActivity : ComponentActivity() {
                     root.requestLayout()
                     fullscreenView.requestLayout()
                     root.bringChildToFront(fullscreenView)
+                    // The fullscreen video surface is re-raised after rotation. Re-raise
+                    // the native fill control immediately afterwards so it remains tappable.
+                    updateNativeFillScreenButtonPosition()
 
                     // Switching to landscape can pause the HTML5 video even though the
                     // fullscreen custom view is still attached. If it was playing before
@@ -4076,41 +4081,35 @@ class YouTubePlayerActivity : ComponentActivity() {
      */
     private fun updateNativeFillScreenButtonPosition() {
         val button = nativeFillScreenButton ?: return
-        if (!::root.isInitialized || !::playerContainer.isInitialized) return
+        if (!::root.isInitialized) return
         val params = button.layoutParams as? FrameLayout.LayoutParams ?: return
+
+        // Never derive visibility from WebView/player measurements. During a physical
+        // rotation Chromium can report a zero-height frame for one layout pass; hiding the
+        // control at that moment left it GONE because no later callback was guaranteed.
+        // Keep a fixed, predictable location next to the fullscreen control instead.
+        val landscape =
+            resources.configuration.orientation ==
+                android.content.res.Configuration.ORIENTATION_LANDSCAPE ||
+                landscapePlayerLayoutActive || fullscreenLayoutActive ||
+                isCssFullscreen || customView != null
         params.gravity = Gravity.TOP or Gravity.END
+        params.topMargin = if (landscape) dp(8) else dp(56)
         params.marginEnd = dp(58)
-
-        val fullscreen = customView != null || fullscreenLayoutActive || isCssFullscreen
-        if (fullscreen) {
-            params.topMargin = dp(8)
-            button.visibility = View.VISIBLE
-        } else {
-            val playerLocation = IntArray(2)
-            val rootLocation = IntArray(2)
-            playerContainer.getLocationOnScreen(playerLocation)
-            root.getLocationOnScreen(rootLocation)
-            val playerTop = playerLocation[1] - rootLocation[1]
-            val playerBottom = playerTop + playerContainer.height
-            val visibleTop = maxOf(0, playerTop)
-            val visibleBottom = minOf(root.height, playerBottom)
-            if (playerContainer.height <= 0 || visibleBottom - visibleTop < dp(44)) {
-                button.visibility = View.GONE
-                button.layoutParams = params
-                return
-            }
-            params.topMargin = maxOf(dp(4), visibleTop + dp(8))
-            button.visibility = View.VISIBLE
-        }
-
         button.layoutParams = params
-        button.elevation = dp(18).toFloat()
+        button.visibility = View.VISIBLE
+        button.isEnabled = true
+        button.alpha = 1f
+        button.elevation = dp(32).toFloat()
+        button.translationZ = dp(8).toFloat()
+        root.bringChildToFront(button)
         button.bringToFront()
+        root.invalidate()
     }
 
     private fun updateNativeFillScreenButton() {
         nativeFillScreenButton?.apply {
-            text = if (fillScreenEnabled) "VỪA" else "LẤP"
+            text = if (fillScreenEnabled) "VỪA" else "LẤP ĐẦY"
             contentDescription = if (fillScreenEnabled) {
                 "Tắt chế độ lấp đầy màn hình"
             } else {
