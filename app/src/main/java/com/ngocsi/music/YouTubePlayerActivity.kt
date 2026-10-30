@@ -234,6 +234,13 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
     }
 
+    private data class VideoViewClipState(
+        val clipToOutline: Boolean,
+        val clipBounds: android.graphics.Rect?,
+        val clipChildren: Boolean?,
+        val clipToPadding: Boolean?
+    )
+
     /**
      * Owns touch gestures for Chromium's native fullscreen custom view.
      *
@@ -249,6 +256,8 @@ class YouTubePlayerActivity : ComponentActivity() {
 
         private var pinchActive = false
         private var pinchScale = 1f
+        private val savedClipStates =
+            java.util.IdentityHashMap<View, VideoViewClipState>()
 
         private val scaleDetector = ScaleGestureDetector(
             context,
@@ -293,24 +302,64 @@ class YouTubePlayerActivity : ComponentActivity() {
             view.scaleY = scale
         }
 
-        private fun applyPinchScale() {
-            // Scale the actual Chromium fullscreen view. WebView page scaling alone
-            // cannot affect a custom fullscreen surface after onShowCustomView().
-            scaleView(videoView, pinchScale)
-
-            // Some Android/WebView video paths use a separately composed native surface.
-            // Apply the same transform to direct SurfaceView/TextureView children, as
-            // native YouTube players do, so the picture follows the player view transform.
-            if (videoView is ViewGroup) {
-                for (index in 0 until videoView.childCount) {
-                    val child = videoView.getChildAt(index)
-                    if (child is android.view.SurfaceView ||
-                        child is android.view.TextureView
-                    ) {
-                        scaleView(child, pinchScale)
-                    }
+        private fun disableVideoTreeClipping(view: View) {
+            if (!savedClipStates.containsKey(view)) {
+                savedClipStates[view] = VideoViewClipState(
+                    clipToOutline = view.clipToOutline,
+                    clipBounds = view.clipBounds?.let { android.graphics.Rect(it) },
+                    clipChildren = (view as? ViewGroup)?.clipChildren,
+                    clipToPadding = (view as? ViewGroup)?.clipToPadding
+                )
+            }
+            view.clipToOutline = false
+            view.clipBounds = null
+            if (view is ViewGroup) {
+                view.clipChildren = false
+                view.clipToPadding = false
+                for (index in 0 until view.childCount) {
+                    disableVideoTreeClipping(view.getChildAt(index))
                 }
             }
+        }
+
+        private fun scaleVideoTreeSurfaces(view: View, scale: Float) {
+            if (view is android.view.SurfaceView || view is android.view.TextureView) {
+                // Chromium can nest ContentVideoView/VideoSurfaceView several levels below
+                // the custom fullscreen wrapper. Scaling only direct children misses it.
+                scaleView(view, scale)
+                return
+            }
+            if (view is ViewGroup) {
+                for (index in 0 until view.childCount) {
+                    scaleVideoTreeSurfaces(view.getChildAt(index), scale)
+                }
+            }
+        }
+
+        private fun restoreVideoTreeClipping() {
+            savedClipStates.forEach { (view, state) ->
+                view.clipToOutline = state.clipToOutline
+                view.clipBounds = state.clipBounds?.let { android.graphics.Rect(it) }
+                if (view is ViewGroup) {
+                    state.clipChildren?.let { view.clipChildren = it }
+                    state.clipToPadding?.let { view.clipToPadding = it }
+                }
+            }
+            savedClipStates.clear()
+        }
+
+        private fun applyPinchScale() {
+            // The outer container remains the screen crop boundary. Inside it, disable
+            // intermediate clipping just as the Morphe native implementation does.
+            // Chromium may insert multiple FrameLayouts before the actual SurfaceView.
+            if (pinchScale > 1.01f) {
+                disableVideoTreeClipping(videoView)
+            }
+
+            // Scale the Chromium fullscreen view plus every native video surface in its
+            // descendant tree. HTML/WebView page zoom cannot scale this detached surface.
+            scaleView(videoView, pinchScale)
+            scaleVideoTreeSurfaces(videoView, pinchScale)
             invalidate()
         }
 
@@ -318,6 +367,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             pinchActive = false
             pinchScale = 1f
             applyPinchScale()
+            restoreVideoTreeClipping()
         }
 
         override fun dispatchTouchEvent(event: MotionEvent): Boolean {
