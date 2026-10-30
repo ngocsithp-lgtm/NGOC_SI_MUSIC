@@ -773,23 +773,29 @@ class YouTubePlayerActivity : ComponentActivity() {
                     activityPinchScale = (activityPinchScale * detector.scaleFactor)
                         .coerceIn(1f, 4f)
 
+                    var zoomPath = "FULL"
                     if (activityPinchTargetsNativeFullscreen) {
                         fullscreenPinchContainer?.applyPinchScaleFromActivity(activityPinchScale)
                     } else {
-                        // Inline WebView video may be rendered through a separate Android
-                        // SurfaceView/TextureView. Scale those compositor surfaces natively,
-                        // then apply the CSS fallback to the DOM video element.
-                        applyInlineNativeSurfacePinchScale(activityPinchScale)
-                        applyInlineVideoPinchScale(activityPinchScale)
+                        // Prefer Chromium's native video surface when one is present.
+                        // Applying CSS scaling at the same time would multiply the zoom.
+                        val surfaceCount = applyInlineNativeSurfacePinchScale(activityPinchScale)
+                        if (surfaceCount > 0) {
+                            applyInlineVideoPinchScale(1f)
+                            zoomPath = "HW"
+                        } else {
+                            applyInlineVideoPinchScale(activityPinchScale)
+                            zoomPath = "DOM"
+                        }
                     }
-                    updatePinchZoomIndicator(activityPinchScale)
+                    updatePinchZoomIndicator(activityPinchScale, zoomPath)
                     return true
                 }
             }
         )
     }
 
-    private fun updatePinchZoomIndicator(scale: Float) {
+    private fun updatePinchZoomIndicator(scale: Float, zoomPath: String = "") {
         if (!::root.isInitialized) return
         val indicator = pinchZoomIndicator ?: TextView(this).apply {
             gravity = Gravity.CENTER
@@ -834,7 +840,8 @@ class YouTubePlayerActivity : ComponentActivity() {
                 .coerceAtLeast(dp(8))
             indicator.layoutParams = params
         }
-        indicator.text = "ZOOM  ${String.format(java.util.Locale.US, "%.1f", scale)}×"
+        indicator.text = "ZOOM  ${String.format(java.util.Locale.US, "%.1f", scale)}×" +
+            if (zoomPath.isNotEmpty()) " · $zoomPath" else ""
         indicator.visibility = View.VISIBLE
         indicator.bringToFront()
     }
