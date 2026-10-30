@@ -3600,8 +3600,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             if (webView === player && !isFinishing && !isDestroyed) {
                 moveNativeVideoControlsTo(root)
                 positionNativeVideoControls()
-                root.bringChildToFront(nativeVideoControls)
-                nativeVideoControls?.bringToFront()
+                nativeVideoControls?.let { root.bringChildToFront(it); it.bringToFront() }
             }
         }
         if (::titleView.isInitialized) titleView.text = title
@@ -4062,7 +4061,7 @@ class YouTubePlayerActivity : ComponentActivity() {
 
     private fun positionNativeVideoControls() {
         val controls = nativeVideoControls ?: return
-        if (controls.parent !== root || !::root.isInitialized || !::playerContainer.isInitialized) return
+        if (!::root.isInitialized || !::playerContainer.isInitialized || controls.parent !== root) return
         if (playerContainer.width <= 0 || playerContainer.height <= 0) return
         val rootLocation = IntArray(2)
         val playerLocation = IntArray(2)
