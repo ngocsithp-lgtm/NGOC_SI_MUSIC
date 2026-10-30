@@ -12994,6 +12994,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         val playlistSongs = playlist.songUris.mapNotNull { uri ->
             songs.firstOrNull { it.uri.toString() == uri }
         }
+        val playlistSourceCount = playlistSongs.map { it.source }.distinct().size
+        val unavailableSongCount = (playlist.songUris.size - playlistSongs.size).coerceAtLeast(0)
 
         Dialog(onDismissRequest = { playlistDetailId = null }) {
             Surface(
@@ -13013,13 +13015,19 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         }
                         Column(Modifier.weight(1f)) {
                             Text(playlist.name, color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(playlist.songUris.size.toString() + " bài", color = Color(0xFF888894), fontSize = 12.sp)
+                            Text(
+                                "${playlistSongs.size}/${playlist.songUris.size} bài khả dụng • ${playlistSourceCount} nguồn",
+                                color = Color(0xFF888894),
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                             TextButton(
                                 onClick = { playPlaylist(playlist) },
                                 enabled = playlistSongs.isNotEmpty()
-                            ) { Text("▶ Phát") }
+                            ) { Text(if (playlistSourceCount > 1) "▶ Nguồn đầu" else "▶ Phát") }
                             TextButton(
                                 onClick = { addQueueToPlaylist(playlist) },
                                 enabled = queueSongs.isNotEmpty()
@@ -13028,9 +13036,31 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     }
                     Spacer(Modifier.height(8.dp))
 
+                    if (unavailableSongCount > 0) {
+                        Text(
+                            "${unavailableSongCount} mục đã lưu chưa có trong thư viện hiện tại. Nếu đây là nhạc Google Drive, hãy kết nối hoặc khôi phục nguồn Drive để ứng dụng nhận lại bài hát.",
+                            color = Color(0xFFFFC66D),
+                            fontSize = 11.sp,
+                            lineHeight = 15.sp
+                        )
+                        Spacer(Modifier.height(6.dp))
+                    }
+                    if (playlistSourceCount > 1) {
+                        Text(
+                            "Playlist có nhiều nguồn. Khi phát một bài, ứng dụng giữ các bài cùng nguồn trong hàng đợi để không trộn thư viện.",
+                            color = Color(0xFF9B9EAD),
+                            fontSize = 11.sp,
+                            lineHeight = 15.sp
+                        )
+                        Spacer(Modifier.height(6.dp))
+                    }
                     if (playlistSongs.isEmpty()) {
                         Text(
-                            "Playlist chưa có bài khả dụng. Hãy thêm nhạc bằng nút ▣ trong thư viện.",
+                            if (playlist.songUris.isEmpty()) {
+                                "Playlist chưa có bài. Hãy thêm nhạc bằng nút ▣ trong thư viện."
+                            } else {
+                                "Hiện chưa có bài nào trong playlist khả dụng. Hãy kiểm tra thư viện thiết bị hoặc kết nối lại Google Drive."
+                            },
                             color = Color(0xFF9999A5),
                             fontSize = 13.sp
                         )
