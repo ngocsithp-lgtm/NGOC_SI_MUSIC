@@ -4059,14 +4059,6 @@ class YouTubePlayerActivity : ComponentActivity() {
         if (::root.isInitialized && ::playerContainer.isInitialized) {
             moveNativeVideoControlsTo(root)
             positionNativeVideoControls()
-            if (fullscreen) {
-                // Reposition once the fullscreen surface and overlay have completed layout.
-                nativeVideoControls?.post {
-                    if (!isFinishing && !isDestroyed && nativeVideoControls?.parent === root) {
-                                positionNativeVideoControls()
-                    }
-                }
-            }
         }
     }
 
