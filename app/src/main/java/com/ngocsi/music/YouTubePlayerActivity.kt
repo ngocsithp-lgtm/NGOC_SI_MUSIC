@@ -4062,18 +4062,32 @@ class YouTubePlayerActivity : ComponentActivity() {
     private fun positionNativeVideoControls() {
         val controls = nativeVideoControls ?: return
         if (!::root.isInitialized || !::playerContainer.isInitialized || controls.parent !== root) return
-        if (playerContainer.width <= 0 || playerContainer.height <= 0) return
-        val rootLocation = IntArray(2)
-        val playerLocation = IntArray(2)
-        root.getLocationOnScreen(rootLocation)
-        playerContainer.getLocationOnScreen(playerLocation)
-        val left = playerLocation[0] - rootLocation[0] +
-            playerContainer.width - controls.measuredWidth - dp(8)
-        val top = playerLocation[1] - rootLocation[1] + dp(8)
+        if (root.width <= 0 || root.height <= 0) return
+
+        val fullscreen = fullscreenLayoutActive || isCssFullscreen || customView != null
+        val left: Int
+        val top: Int
+        if (fullscreen) {
+            // In fullscreen the playerContainer may retain its old inline/portrait
+            // bounds. Anchor the control strip to the visible Activity viewport instead
+            // of those stale dimensions so the Fill button cannot be laid out off-screen.
+            left = root.width - controls.measuredWidth - dp(8)
+            top = dp(8)
+        } else {
+            if (playerContainer.width <= 0 || playerContainer.height <= 0) return
+            val rootLocation = IntArray(2)
+            val playerLocation = IntArray(2)
+            root.getLocationOnScreen(rootLocation)
+            playerContainer.getLocationOnScreen(playerLocation)
+            left = playerLocation[0] - rootLocation[0] +
+                playerContainer.width - controls.measuredWidth - dp(8)
+            top = playerLocation[1] - rootLocation[1] + dp(8)
+        }
+
         val params = controls.layoutParams as? FrameLayout.LayoutParams ?: return
         params.gravity = Gravity.TOP or Gravity.START
-        params.leftMargin = left.coerceAtLeast(0)
-        params.topMargin = top.coerceAtLeast(0)
+        params.leftMargin = left.coerceAtLeast(dp(4))
+        params.topMargin = top.coerceAtLeast(dp(4))
         if (controls.layoutParams !== params) controls.layoutParams = params else controls.requestLayout()
         root.bringChildToFront(controls)
         controls.bringToFront()
@@ -4089,16 +4103,27 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun updateNativeVideoControlsVisibility() {
-        val landscape = isLandscapeVideoViewport()
+        val fullscreen = fullscreenLayoutActive || isCssFullscreen || customView != null
+        val landscape = isLandscapeVideoViewport() || fullscreen
         nativeFillModeButton?.apply {
+            // Keep the Fill button available whenever the video owns a landscape or
+            // fullscreen viewport. It must not disappear because root measurement lags
+            // behind Android's orientation callback.
             visibility = if (landscape) View.VISIBLE else View.GONE
             isEnabled = landscape
         }
         if (::root.isInitialized && ::playerContainer.isInitialized) {
-            // Keep controls on root in both modes. WebView can be added after the controls
-            // and otherwise become the topmost child of playerContainer.
             moveNativeVideoControlsTo(root)
             positionNativeVideoControls()
+            if (fullscreen) {
+                // Reposition once the fullscreen surface and overlay have completed layout.
+                nativeVideoControls?.post {
+                    if (!isFinishing && !isDestroyed && nativeVideoControls?.parent === root) {
+                        nativeFillModeButton?.visibility = View.VISIBLE
+                        positionNativeVideoControls()
+                    }
+                }
+            }
         }
     }
 
