@@ -70,83 +70,6 @@ class YouTubePlayerActivity : ComponentActivity() {
      */
     private inner class InlinePlayerFrameLayout(context: android.content.Context) :
         FrameLayout(context) {
-        // Detect on the unscaled video host, then scale only its WebView child. This keeps
-        // pinch distance measurements stable while the picture itself is zoomed.
-        private var consumeVideoPinchUntilUp = false
-
-        private val videoPinchDetector = ScaleGestureDetector(
-            context,
-            object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-                override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
-                    if (!isLandscapeVideoViewport() || width <= 0 || height <= 0 ||
-                        webView == null ||
-                        detector.focusX < 0f || detector.focusY < 0f ||
-                        detector.focusX > width || detector.focusY > height
-                    ) return false
-
-                    consumeVideoPinchUntilUp = true
-                    parent?.requestDisallowInterceptTouchEvent(true)
-                    return true
-                }
-
-                override fun onScale(detector: ScaleGestureDetector): Boolean {
-                    if (!consumeVideoPinchUntilUp) return false
-                    val video = webView ?: return false
-                    if (video.width <= 0 || video.height <= 0) return false
-
-                    val currentScale = video.scaleX.coerceIn(0.80f, 2.50f)
-                    var nextScale = (currentScale * detector.scaleFactor)
-                        .coerceIn(0.80f, 2.50f)
-                    // Snap cleanly back to native size when the user pinches inward.
-                    if (nextScale in 0.97f..1.03f) nextScale = 1f
-
-                    video.pivotX = video.width / 2f
-                    video.pivotY = video.height / 2f
-                    video.scaleX = nextScale
-                    video.scaleY = nextScale
-                    return true
-                }
-            }
-        )
-
-        override fun dispatchTouchEvent(event: MotionEvent): Boolean {
-            // This frame lives inside a ScrollView. Disallow ancestor interception from the
-            // first touch so the ScrollView cannot steal the stream before two-finger scale
-            // crosses ScaleGestureDetector's start threshold.
-            if (event.actionMasked == MotionEvent.ACTION_DOWN) {
-                parent?.requestDisallowInterceptTouchEvent(true)
-            }
-
-            val wasConsumingPinch = consumeVideoPinchUntilUp
-            videoPinchDetector.onTouchEvent(event)
-
-            // Cancel the child's one-finger tap/seek stream exactly when the pinch takes over.
-            if (!wasConsumingPinch && consumeVideoPinchUntilUp) {
-                val cancelEvent = MotionEvent.obtain(event)
-                cancelEvent.setAction(MotionEvent.ACTION_CANCEL)
-                super.dispatchTouchEvent(cancelEvent)
-                cancelEvent.recycle()
-            }
-
-            val finishedTouchSequence =
-                event.actionMasked == MotionEvent.ACTION_UP ||
-                event.actionMasked == MotionEvent.ACTION_CANCEL
-
-            if (consumeVideoPinchUntilUp) {
-                if (finishedTouchSequence) consumeVideoPinchUntilUp = false
-                if (finishedTouchSequence) {
-                    parent?.requestDisallowInterceptTouchEvent(false)
-                }
-                return true
-            }
-
-            val handled = super.dispatchTouchEvent(event)
-            if (finishedTouchSequence) {
-                parent?.requestDisallowInterceptTouchEvent(false)
-            }
-            return handled
-        }
-
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
             val widthMode = View.MeasureSpec.getMode(widthMeasureSpec)
             val widthFromSpec = View.MeasureSpec.getSize(widthMeasureSpec)
@@ -401,6 +324,75 @@ class YouTubePlayerActivity : ComponentActivity() {
      * background audio, keep the renderer's window-visibility state alive.
      */
     private inner class BackgroundAudioWebView(context: android.content.Context) : WebView(context) {
+        // The inline landscape player is a mobile YouTube HTML5 video inside WebView.
+        // Pinch must scale that <video> element, not WebView.scaleX/scaleY (which zooms
+        // the entire page and often appears to have no effect on Chromium's video plane).
+        private var pinchActive = false
+        private var pinchScale = 1f
+
+        private val inlinePinchDetector = ScaleGestureDetector(
+            context,
+            object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+                    if (!isLandscapeVideoViewport() || customView != null ||
+                        width <= 0 || height <= 0 ||
+                        detector.focusX < 0f || detector.focusY < 0f ||
+                        detector.focusX > width || detector.focusY > height
+                    ) return false
+                    pinchActive = true
+                    return true
+                }
+
+                override fun onScale(detector: ScaleGestureDetector): Boolean {
+                    if (!pinchActive) return false
+                    pinchScale = (pinchScale * detector.scaleFactor).coerceIn(1f, 4f)
+                    applyInlineVideoPinchScale(pinchScale)
+                    return true
+                }
+
+                override fun onScaleEnd(detector: ScaleGestureDetector) {
+                    // Keep the last zoom level. Pinching inward returns gradually to 1x.
+                    if (pinchScale <= 1.01f) {
+                        pinchScale = 1f
+                        applyInlineVideoPinchScale(1f)
+                    }
+                }
+            }
+        )
+
+        override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+            // A parent ScrollView must not steal the first pointer before the second
+            // finger goes down and the scale detector can begin.
+            if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                parent?.requestDisallowInterceptTouchEvent(true)
+            }
+
+            val wasPinching = pinchActive
+            inlinePinchDetector.onTouchEvent(event)
+
+            if (!wasPinching && pinchActive) {
+                // Cancel WebView's first-finger tap/seek after the second finger starts.
+                val cancelEvent = MotionEvent.obtain(event)
+                cancelEvent.setAction(MotionEvent.ACTION_CANCEL)
+                super.dispatchTouchEvent(cancelEvent)
+                cancelEvent.recycle()
+            }
+
+            val sequenceFinished =
+                event.actionMasked == MotionEvent.ACTION_UP ||
+                event.actionMasked == MotionEvent.ACTION_CANCEL
+
+            if (pinchActive) {
+                if (sequenceFinished) pinchActive = false
+                if (sequenceFinished) parent?.requestDisallowInterceptTouchEvent(false)
+                return true
+            }
+
+            val handled = super.dispatchTouchEvent(event)
+            if (sequenceFinished) parent?.requestDisallowInterceptTouchEvent(false)
+            return handled
+        }
+
         override fun onWindowVisibilityChanged(visibility: Int) {
             if (inAppBackgroundPlaybackEnabled) {
                 if (visibility != View.GONE) {
@@ -5504,6 +5496,76 @@ class YouTubePlayerActivity : ComponentActivity() {
      * Do not filter googlevideo.com or broad Google/YouTube hosts because they
      * serve actual video/audio, player code, thumbnails and captions as well.
      */
+    /**
+     * Apply pinch scale to the active HTML5 video node in the mobile YouTube page.
+     * The scale is a CSS individual transform so YouTube's own translate/position
+     * transform remains intact. Only the media element is scaled; page chrome/queue
+     * and the WebView viewport remain at their original dimensions.
+     */
+    private fun applyInlineVideoPinchScale(scale: Float) {
+        val safeScale = scale.coerceIn(1f, 4f)
+        val scaleText = String.format(java.util.Locale.US, "%.3f", safeScale)
+        webView?.evaluateJavascript(
+            """
+            (function(value) {
+              try {
+                var video = null;
+                try {
+                  if (typeof window.__ngocSiFindActiveVideo === 'function')
+                    video = window.__ngocSiFindActiveVideo();
+                } catch (_) {}
+                if (!video) video = document.querySelector('video.html5-main-video') ||
+                  document.querySelector('#movie_player video') ||
+                  document.querySelector('ytm-player video') ||
+                  document.querySelector('video');
+                if (!video) return 'PINCH_NO_VIDEO';
+
+                var host = video.closest('.html5-video-container') ||
+                           video.parentElement;
+                if (!window.__ngocSiPinchOriginalStyles)
+                  window.__ngocSiPinchOriginalStyles = new WeakMap();
+                var originals = window.__ngocSiPinchOriginalStyles;
+                if (!originals.has(video)) {
+                  originals.set(video, {
+                    scale: video.style.getPropertyValue('scale'),
+                    scalePriority: video.style.getPropertyPriority('scale'),
+                    origin: video.style.getPropertyValue('transform-origin'),
+                    originPriority: video.style.getPropertyPriority('transform-origin'),
+                    host: host,
+                    overflow: host ? host.style.getPropertyValue('overflow') : '',
+                    overflowPriority: host ? host.style.getPropertyPriority('overflow') : ''
+                  });
+                }
+
+                var original = originals.get(video);
+                if (value <= 1.001) {
+                  if (original.scale) video.style.setProperty('scale', original.scale, original.scalePriority);
+                  else video.style.removeProperty('scale');
+                  if (original.origin) video.style.setProperty('transform-origin', original.origin, original.originPriority);
+                  else video.style.removeProperty('transform-origin');
+                  if (original.host) {
+                    if (original.overflow) original.host.style.setProperty('overflow', original.overflow, original.overflowPriority);
+                    else original.host.style.removeProperty('overflow');
+                  }
+                  originals.delete(video);
+                  window.__ngocSiPinchScale = 1;
+                  return 'PINCH_RESET';
+                }
+
+                video.style.setProperty('transform-origin', '50% 50%', 'important');
+                video.style.setProperty('scale', String(value), 'important');
+                if (host) host.style.setProperty('overflow', 'hidden', 'important');
+                window.__ngocSiPinchScale = value;
+                return 'PINCH_APPLIED|' + value;
+              } catch (error) {
+                return 'PINCH_ERROR|' + String(error);
+              }
+            })($scaleText);
+            """.trimIndent(),
+            null
+        )
+    }
+
     private fun sanitizeVideoId(value: String): String =
         value.filter { it.isLetterOrDigit() || it == '-' || it == '_' }.take(32)
 
