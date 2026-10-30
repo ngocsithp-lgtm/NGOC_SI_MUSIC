@@ -3114,7 +3114,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                               // ownership of player wrappers, viewport sizing and fullscreen geometry.
                               'html.ngocsi-video-fill-mode video.html5-main-video,' +
                               'html.ngocsi-video-fill-mode video {' +
-                              'object-fit:cover!important;object-position:center center!important;}'
+                              'object-fit:cover!important;object-position:center center!important;}';
                             (document.head || document.documentElement).appendChild(style);
 
                             // Reset stale sticky positioning at every wrapper level after
@@ -3491,8 +3491,6 @@ class YouTubePlayerActivity : ComponentActivity() {
                     view.bringToFront()
                     moveNativeVideoControlsTo(root)
                     updateNativeFullscreenButton()
-                    // Keep the native controls together above Chromium's fullscreen surface.
-                    moveNativeVideoControlsTo(root)
                 }
 
                 override fun onHideCustomView() {
