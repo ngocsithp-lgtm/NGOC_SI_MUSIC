@@ -982,6 +982,17 @@ class YouTubePlayerActivity : ComponentActivity() {
         ))
 
         setContentView(root)
+        // Reposition the root-level fill control whenever the player moves because of
+        // rotation, responsive layout changes, or scrolling.
+        root.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            updateNativeFillScreenButtonPosition()
+        }
+        playerContainer.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            updateNativeFillScreenButtonPosition()
+        }
+        scroll.setOnScrollChangeListener { _, _, _, _, _ ->
+            updateNativeFillScreenButtonPosition()
+        }
         applyResponsivePlayerLayout()
         installPhysicalOrientationLayoutWatcher()
         updateActionState()
@@ -3605,7 +3616,10 @@ class YouTubePlayerActivity : ComponentActivity() {
             elevation = dp(6).toFloat()
             setOnClickListener { toggleFillScreenMode() }
         }.also { button ->
-            playerContainer.addView(
+            // Keep this control on the Activity root, not inside the WebView host.
+            // Chromium's real fullscreen surface is added above playerContainer and
+            // otherwise completely covers any native child attached to that host.
+            root.addView(
                 button,
                 FrameLayout.LayoutParams(dp(60), dp(44), Gravity.TOP or Gravity.END).apply {
                     topMargin = dp(8)
@@ -3618,8 +3632,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         updateNativeFillScreenButton()
         player.post {
             if (webView === player && !isFinishing && !isDestroyed) {
-                nativeFillScreenButton?.visibility = View.VISIBLE
-                nativeFillScreenButton?.bringToFront()
+                updateNativeFillScreenButtonPosition()
                 nativeFullscreenButton?.bringToFront()
                 nativeFillScreenButton?.bringToFront()
             }
@@ -4030,6 +4043,9 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
         webView = null
         nativeFullscreenButton = null
+        nativeFillScreenButton?.let { button ->
+            (button.parent as? ViewGroup)?.removeView(button)
+        }
         nativeFillScreenButton = null
         fullscreenEntryPending = false
         playerContainer.takeIf { ::playerContainer.isInitialized }?.removeAllViews()
@@ -4049,14 +4065,47 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun updateNativeFillScreenButtonVisibility() {
-        // Keep this native control visible in every orientation. Configuration callbacks can
-        // be coalesced by the manifest, and hiding it on a stale portrait configuration made
-        // the feature impossible to discover after the player switched to landscape.
-        nativeFillScreenButton?.apply {
-            visibility = View.VISIBLE
-            bringToFront()
-            elevation = dp(12).toFloat()
+        updateNativeFillScreenButtonPosition()
+    }
+
+    /**
+     * Position the fill control above the current video rectangle. The button is a child
+     * of the Activity root so it remains above Chromium's separate fullscreen video surface.
+     * In inline mode it follows the player as the ScrollView moves; in true fullscreen it
+     * moves to the top-right corner of the full viewport.
+     */
+    private fun updateNativeFillScreenButtonPosition() {
+        val button = nativeFillScreenButton ?: return
+        if (!::root.isInitialized || !::playerContainer.isInitialized) return
+        val params = button.layoutParams as? FrameLayout.LayoutParams ?: return
+        params.gravity = Gravity.TOP or Gravity.END
+        params.marginEnd = dp(58)
+
+        val fullscreen = customView != null || fullscreenLayoutActive || isCssFullscreen
+        if (fullscreen) {
+            params.topMargin = dp(8)
+            button.visibility = View.VISIBLE
+        } else {
+            val playerLocation = IntArray(2)
+            val rootLocation = IntArray(2)
+            playerContainer.getLocationOnScreen(playerLocation)
+            root.getLocationOnScreen(rootLocation)
+            val playerTop = playerLocation[1] - rootLocation[1]
+            val playerBottom = playerTop + playerContainer.height
+            val visibleTop = maxOf(0, playerTop)
+            val visibleBottom = minOf(root.height, playerBottom)
+            if (playerContainer.height <= 0 || visibleBottom - visibleTop < dp(44)) {
+                button.visibility = View.GONE
+                button.layoutParams = params
+                return
+            }
+            params.topMargin = maxOf(dp(4), visibleTop + dp(8))
+            button.visibility = View.VISIBLE
         }
+
+        button.layoutParams = params
+        button.elevation = dp(18).toFloat()
+        button.bringToFront()
     }
 
     private fun updateNativeFillScreenButton() {
