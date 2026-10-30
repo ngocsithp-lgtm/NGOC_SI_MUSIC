@@ -758,6 +758,8 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var activityPinchScale = 1f
     private var activityPinchStartSpan = 0f
     private var activityPinchStartScale = 1f
+    private var activityPinchPointerId1 = -1
+    private var activityPinchPointerId2 = -1
     private var pinchZoomIndicator: TextView? = null
     private var inlineWebViewPinchTarget: WebView? = null
     private var inlineWebViewPinchOriginalTransform: WebViewPinchTransformState? = null
@@ -777,9 +779,16 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun pointerSpan(event: MotionEvent): Float {
-        if (event.pointerCount < 2) return 0f
-        val dx = event.getX(0) - event.getX(1)
-        val dy = event.getY(0) - event.getY(1)
+        if (event.pointerCount < 2 ||
+            activityPinchPointerId1 < 0 || activityPinchPointerId2 < 0
+        ) return 0f
+        // Pointer indices can change between MotionEvents. Resolve stable IDs
+        // for every move rather than assuming the two fingers keep slots 0 and 1.
+        val firstIndex = event.findPointerIndex(activityPinchPointerId1)
+        val secondIndex = event.findPointerIndex(activityPinchPointerId2)
+        if (firstIndex < 0 || secondIndex < 0) return 0f
+        val dx = event.getX(firstIndex) - event.getX(secondIndex)
+        val dy = event.getY(firstIndex) - event.getY(secondIndex)
         return kotlin.math.sqrt(dx * dx + dy * dy)
     }
 
@@ -863,6 +872,8 @@ class YouTubePlayerActivity : ComponentActivity() {
             activityPinchTargetsNativeFullscreen = false
             activityPinchStartSpan = 0f
             activityPinchStartScale = activityPinchScale
+            activityPinchPointerId1 = event.getPointerId(0)
+            activityPinchPointerId2 = -1
 
             val onControls = isTouchOnNativeVideoControls(event.rawX, event.rawY)
             if (!onControls && isLandscapeVideoViewport()) {
@@ -886,8 +897,9 @@ class YouTubePlayerActivity : ComponentActivity() {
         // Do not rely on ScaleGestureDetector's gesture lifecycle. Track the two
         // pointer coordinates directly from the Activity's original MotionEvents.
         if (action == MotionEvent.ACTION_POINTER_DOWN &&
-            activityPinchTracking && event.pointerCount >= 2
+            activityPinchTracking && event.pointerCount == 2
         ) {
+            activityPinchPointerId2 = event.getPointerId(event.actionIndex)
             activityPinchStartSpan = pointerSpan(event)
             activityPinchStartScale = activityPinchScale
             updatePinchZoomIndicator(activityPinchScale, "2 NGÓN")
@@ -926,11 +938,15 @@ class YouTubePlayerActivity : ComponentActivity() {
                 // remaining finger would be delivered to YouTube without its DOWN.
                 activityPinchTracking = false
                 activityPinchStartSpan = 0f
+                activityPinchPointerId1 = -1
+                activityPinchPointerId2 = -1
             }
             if (sequenceFinished) {
                 activityPinchTracking = false
                 activityPinchConsumed = false
                 activityPinchStartSpan = 0f
+                activityPinchPointerId1 = -1
+                activityPinchPointerId2 = -1
                 playerContainer.parent?.requestDisallowInterceptTouchEvent(false)
                 fullscreenPinchContainer?.parent?.requestDisallowInterceptTouchEvent(false)
                 hidePinchZoomIndicator()
@@ -941,11 +957,15 @@ class YouTubePlayerActivity : ComponentActivity() {
         if (pointerReleased) {
             activityPinchStartSpan = 0f
             activityPinchStartScale = activityPinchScale
+            activityPinchPointerId1 = -1
+            activityPinchPointerId2 = -1
         }
         val handled = super.dispatchTouchEvent(event)
         if (sequenceFinished) {
             activityPinchTracking = false
             activityPinchStartSpan = 0f
+            activityPinchPointerId1 = -1
+            activityPinchPointerId2 = -1
             playerContainer.parent?.requestDisallowInterceptTouchEvent(false)
             fullscreenPinchContainer?.parent?.requestDisallowInterceptTouchEvent(false)
             hidePinchZoomIndicator()
