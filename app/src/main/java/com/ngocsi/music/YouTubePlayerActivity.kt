@@ -5585,10 +5585,9 @@ class YouTubePlayerActivity : ComponentActivity() {
      * serve actual video/audio, player code, thumbnails and captions as well.
      */
     /**
-     * Apply pinch scale to the active HTML5 video node in the mobile YouTube page.
-     * The scale is a CSS individual transform so YouTube's own translate/position
-     * transform remains intact. Only the media element is scaled; page chrome/queue
-     * and the WebView viewport remain at their original dimensions.
+     * Apply pinch zoom to the WebView view that occupies the fixed player frame.
+     * Android applies the View transform at the compositor layer; playerContainer
+     * remains fixed and clips the enlarged WebView so the queue and side panel stay put.
      */
     private fun restoreInlineWebViewPinchTransform() {
         val target = inlineWebViewPinchTarget
@@ -5648,7 +5647,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         target.invalidate()
     }
 
-    private fun sanitizeVideoId(value: String): String =    private fun sanitizeVideoId(value: String): String =
+    private fun sanitizeVideoId(value: String): String =
         value.filter { it.isLetterOrDigit() || it == '-' || it == '_' }.take(32)
 
     private fun dp(value: Int): Int =
