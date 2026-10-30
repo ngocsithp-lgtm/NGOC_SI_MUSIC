@@ -68,10 +68,17 @@ class MusicService : MediaSessionService() {
                 }
                 editor.apply()
                 if (youtubeSelected) {
+                    // Pause the live WebView host when MainActivity is still present.
                     sendBroadcast(
                         Intent(YouTubeBackgroundService.ACTION_CONTROL)
                             .setPackage(packageName)
                             .putExtra(YouTubeBackgroundService.EXTRA_CONTROL, "pause")
+                    )
+                    // Also update the background media session and release its wake lock,
+                    // even when MainActivity is no longer registered to receive controls.
+                    sendBroadcast(
+                        Intent(YouTubeBackgroundService.ACTION_SLEEP_TIMER_EXPIRED)
+                            .setPackage(packageName)
                     )
                 }
                 savePlaybackState()
