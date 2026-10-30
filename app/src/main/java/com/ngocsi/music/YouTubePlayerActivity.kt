@@ -983,6 +983,9 @@ class YouTubePlayerActivity : ComponentActivity() {
         ))
 
         setContentView(root)
+        root.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            updateNativeVideoControlsVisibility()
+        }
         applyResponsivePlayerLayout()
         installPhysicalOrientationLayoutWatcher()
         updateActionState()
@@ -4048,10 +4051,17 @@ class YouTubePlayerActivity : ComponentActivity() {
         controls.bringToFront()
     }
 
+    private fun isLandscapeVideoViewport(): Boolean {
+        val measuredLandscape = ::root.isInitialized && root.width > 0 && root.height > 0 &&
+            root.width > root.height
+        val configuredLandscape = resources.configuration.orientation ==
+            android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        return measuredLandscape || configuredLandscape || fullscreenLayoutActive ||
+            isCssFullscreen || customView != null
+    }
+
     private fun updateNativeVideoControlsVisibility() {
-        val landscape = resources.configuration.orientation ==
-            android.content.res.Configuration.ORIENTATION_LANDSCAPE ||
-            fullscreenLayoutActive || isCssFullscreen || customView != null
+        val landscape = isLandscapeVideoViewport()
         nativeFillModeButton?.apply {
             visibility = if (landscape) View.VISIBLE else View.GONE
             isEnabled = landscape
@@ -4080,10 +4090,7 @@ class YouTubePlayerActivity : ComponentActivity() {
      * YouTube retains ownership of its player wrappers and viewport dimensions.
      */
     private fun toggleVideoFillMode() {
-        val landscape = resources.configuration.orientation ==
-            android.content.res.Configuration.ORIENTATION_LANDSCAPE ||
-            fullscreenLayoutActive || isCssFullscreen || customView != null
-        if (!landscape) {
+        if (!isLandscapeVideoViewport()) {
             android.widget.Toast.makeText(
                 this,
                 "Xoay ngang điện thoại để dùng chế độ lấp đầy",
