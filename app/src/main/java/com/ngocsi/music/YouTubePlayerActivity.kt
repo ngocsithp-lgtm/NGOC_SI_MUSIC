@@ -985,6 +985,10 @@ class YouTubePlayerActivity : ComponentActivity() {
         setContentView(root)
         root.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
             updateNativeVideoControlsVisibility()
+            positionNativeVideoControls()
+        }
+        playerContainer.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            positionNativeVideoControls()
         }
         applyResponsivePlayerLayout()
         installPhysicalOrientationLayoutWatcher()
@@ -3493,6 +3497,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                     )
                     view.bringToFront()
                     moveNativeVideoControlsTo(root)
+                    positionNativeVideoControls()
                     updateNativeFullscreenButton()
                 }
 
@@ -3588,12 +3593,14 @@ class YouTubePlayerActivity : ComponentActivity() {
                 marginStart = dp(6)
             }
         )
-        moveNativeVideoControlsTo(playerContainer)
+        moveNativeVideoControlsTo(root)
         updateNativeFullscreenButton()
         updateNativeVideoControlsVisibility()
         player.post {
             if (webView === player && !isFinishing && !isDestroyed) {
-                updateNativeVideoControlsVisibility()
+                moveNativeVideoControlsTo(root)
+                positionNativeVideoControls()
+                root.bringChildToFront(nativeVideoControls)
                 nativeVideoControls?.bringToFront()
             }
         }
@@ -4030,6 +4037,10 @@ class YouTubePlayerActivity : ComponentActivity() {
      * inside the player host; Chromium fullscreen places it above the custom fullscreen
      * surface in the Activity root.
      */
+    /**
+     * Keep the native controls on the Activity root so a WebView inserted later cannot
+     * cover them. Their position is computed from the actual player host rectangle.
+     */
     private fun moveNativeVideoControlsTo(targetParent: FrameLayout) {
         val controls = nativeVideoControls ?: return
         if (controls.parent !== targetParent) {
@@ -4039,15 +4050,33 @@ class YouTubePlayerActivity : ComponentActivity() {
                 FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.WRAP_CONTENT,
                     dp(44),
-                    Gravity.TOP or Gravity.END
-                ).apply {
-                    topMargin = dp(8)
-                    marginEnd = dp(8)
-                }
+                    Gravity.TOP or Gravity.START
+                )
             )
         }
         controls.visibility = View.VISIBLE
         targetParent.bringChildToFront(controls)
+        controls.bringToFront()
+        positionNativeVideoControls()
+    }
+
+    private fun positionNativeVideoControls() {
+        val controls = nativeVideoControls ?: return
+        if (controls.parent !== root || !::root.isInitialized || !::playerContainer.isInitialized) return
+        if (playerContainer.width <= 0 || playerContainer.height <= 0) return
+        val rootLocation = IntArray(2)
+        val playerLocation = IntArray(2)
+        root.getLocationOnScreen(rootLocation)
+        playerContainer.getLocationOnScreen(playerLocation)
+        val left = playerLocation[0] - rootLocation[0] +
+            playerContainer.width - controls.measuredWidth - dp(8)
+        val top = playerLocation[1] - rootLocation[1] + dp(8)
+        val params = controls.layoutParams as? FrameLayout.LayoutParams ?: return
+        params.gravity = Gravity.TOP or Gravity.START
+        params.leftMargin = left.coerceAtLeast(0)
+        params.topMargin = top.coerceAtLeast(0)
+        if (controls.layoutParams !== params) controls.layoutParams = params else controls.requestLayout()
+        root.bringChildToFront(controls)
         controls.bringToFront()
     }
 
@@ -4067,7 +4096,10 @@ class YouTubePlayerActivity : ComponentActivity() {
             isEnabled = landscape
         }
         if (::root.isInitialized && ::playerContainer.isInitialized) {
-            moveNativeVideoControlsTo(if (customView != null) root else playerContainer)
+            // Keep controls on root in both modes. WebView can be added after the controls
+            // and otherwise become the topmost child of playerContainer.
+            moveNativeVideoControlsTo(root)
+            positionNativeVideoControls()
         }
     }
 
@@ -4364,7 +4396,8 @@ class YouTubePlayerActivity : ComponentActivity() {
             playerContainer.visibility = View.VISIBLE
             setFullscreenLayout(false)
             applyResponsivePlayerLayout()
-            moveNativeVideoControlsTo(playerContainer)
+            moveNativeVideoControlsTo(root)
+            positionNativeVideoControls()
             updateNativeFullscreenButton()
             fullscreenExitTransitionInProgress = false
             WindowCompat.setDecorFitsSystemWindows(window, true)
