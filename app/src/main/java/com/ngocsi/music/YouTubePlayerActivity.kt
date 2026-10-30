@@ -70,72 +70,6 @@ class YouTubePlayerActivity : ComponentActivity() {
      */
     private inner class InlinePlayerFrameLayout(context: android.content.Context) :
         FrameLayout(context) {
-        // Observe the touch stream before WebView/Chromium handles it. Only after a
-        // two-finger scale starts do we cancel the child's tap stream and take ownership.
-        private var pinchActive = false
-        private var pinchScale = 1f
-
-        private val inlinePinchDetector = ScaleGestureDetector(
-            context,
-            object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-                override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
-                    if (!isLandscapeVideoViewport() || customView != null ||
-                        width <= 0 || height <= 0 ||
-                        detector.focusX < 0f || detector.focusY < 0f ||
-                        detector.focusX > width || detector.focusY > height
-                    ) return false
-                    pinchActive = true
-                    return true
-                }
-
-                override fun onScale(detector: ScaleGestureDetector): Boolean {
-                    if (!pinchActive) return false
-                    pinchScale = (pinchScale * detector.scaleFactor).coerceIn(1f, 4f)
-                    applyInlineVideoPinchScale(pinchScale)
-                    return true
-                }
-
-                override fun onScaleEnd(detector: ScaleGestureDetector) {
-                    if (pinchScale <= 1.01f) {
-                        pinchScale = 1f
-                        applyInlineVideoPinchScale(1f)
-                    }
-                }
-            }
-        )
-
-        override fun dispatchTouchEvent(event: MotionEvent): Boolean {
-            // Keep a parent ScrollView from stealing the gesture after the first finger.
-            if (event.actionMasked == MotionEvent.ACTION_DOWN) {
-                parent?.requestDisallowInterceptTouchEvent(true)
-            }
-
-            val wasPinching = pinchActive
-            inlinePinchDetector.onTouchEvent(event)
-
-            if (!wasPinching && pinchActive) {
-                // Cancel the video tap/seek gesture only once the second finger pinches.
-                val cancelEvent = MotionEvent.obtain(event)
-                cancelEvent.setAction(MotionEvent.ACTION_CANCEL)
-                super.dispatchTouchEvent(cancelEvent)
-                cancelEvent.recycle()
-            }
-
-            val sequenceFinished =
-                event.actionMasked == MotionEvent.ACTION_UP ||
-                event.actionMasked == MotionEvent.ACTION_CANCEL
-
-            if (pinchActive) {
-                if (sequenceFinished) pinchActive = false
-                if (sequenceFinished) parent?.requestDisallowInterceptTouchEvent(false)
-                return true
-            }
-
-            val handled = super.dispatchTouchEvent(event)
-            if (sequenceFinished) parent?.requestDisallowInterceptTouchEvent(false)
-            return handled
-        }
-
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
             val widthMode = View.MeasureSpec.getMode(widthMeasureSpec)
             val widthFromSpec = View.MeasureSpec.getSize(widthMeasureSpec)
@@ -243,36 +177,9 @@ class YouTubePlayerActivity : ComponentActivity() {
         private val videoView: View
     ) : FrameLayout(context) {
 
-        private var pinchActive = false
         private var pinchScale = 1f
         private val savedClipStates =
             java.util.IdentityHashMap<View, VideoViewClipState>()
-
-        private val scaleDetector = ScaleGestureDetector(
-            context,
-            object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-                override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
-                    if (width <= 0 || height <= 0 ||
-                        detector.focusX < 0f || detector.focusY < 0f ||
-                        detector.focusX > width || detector.focusY > height
-                    ) return false
-                    pinchActive = true
-                    return true
-                }
-
-                override fun onScale(detector: ScaleGestureDetector): Boolean {
-                    if (!pinchActive) return false
-                    pinchScale = (pinchScale * detector.scaleFactor).coerceIn(1f, 4f)
-                    applyPinchScale()
-                    return true
-                }
-
-                override fun onScaleEnd(detector: ScaleGestureDetector) {
-                    // Keep the selected zoom after the user lifts one or both fingers.
-                    applyPinchScale()
-                }
-            }
-        )
 
         init {
             clipChildren = true
@@ -352,36 +259,18 @@ class YouTubePlayerActivity : ComponentActivity() {
             invalidate()
         }
 
+        fun applyPinchScaleFromActivity(scale: Float) {
+            pinchScale = scale.coerceIn(1f, 4f)
+            applyPinchScale()
+        }
+
         fun resetPinchScale() {
-            pinchActive = false
             pinchScale = 1f
             applyPinchScale()
             restoreVideoTreeClipping()
         }
 
-        override fun dispatchTouchEvent(event: MotionEvent): Boolean {
-            val wasPinching = pinchActive
-            scaleDetector.onTouchEvent(event)
 
-            // The first finger may already have started a normal YouTube tap. Cancel that
-            // stream once a second finger starts scaling, then own the rest of this gesture.
-            if (!wasPinching && pinchActive) {
-                val cancelEvent = MotionEvent.obtain(event)
-                cancelEvent.setAction(MotionEvent.ACTION_CANCEL)
-                super.dispatchTouchEvent(cancelEvent)
-                cancelEvent.recycle()
-            }
-
-            if (pinchActive) {
-                if (event.actionMasked == MotionEvent.ACTION_UP ||
-                    event.actionMasked == MotionEvent.ACTION_CANCEL
-                ) {
-                    pinchActive = false
-                }
-                return true
-            }
-            return super.dispatchTouchEvent(event)
-        }
     }
 
     /**
@@ -847,6 +736,115 @@ class YouTubePlayerActivity : ComponentActivity() {
     // One bounded in-place repair for an unexpected portrait pause/buffer stall.
     private var unexpectedPlaybackRecoveryGeneration = 0
     private var lastUnexpectedPlaybackRecoveryAtMs = 0L
+
+    // One Activity-level detector sees the complete touch stream before Android
+    // routes it through nested ScrollView/WebView/Chromium surfaces. This avoids the
+    // competing child detectors that caused the previous iterations to miss the pinch.
+    private var activityPinchTracking = false
+    private var activityPinchConsumed = false
+    private var activityPinchTargetsNativeFullscreen = false
+    private var activityPinchScale = 1f
+
+    private val activityPinchScaleDetector by lazy {
+        ScaleGestureDetector(
+            this,
+            object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+                    if (!activityPinchTracking || isFinishing || isDestroyed) return false
+                    activityPinchConsumed = true
+                    return true
+                }
+
+                override fun onScale(detector: ScaleGestureDetector): Boolean {
+                    if (!activityPinchConsumed) return false
+                    activityPinchScale = (activityPinchScale * detector.scaleFactor)
+                        .coerceIn(1f, 4f)
+
+                    if (activityPinchTargetsNativeFullscreen) {
+                        fullscreenPinchContainer?.applyPinchScaleFromActivity(activityPinchScale)
+                    } else {
+                        applyInlineVideoPinchScale(activityPinchScale)
+                    }
+                    return true
+                }
+            }
+        )
+    }
+
+    private fun pointInsideViewOnScreen(view: View?, rawX: Float, rawY: Float): Boolean {
+        if (view == null || view.visibility != View.VISIBLE || view.width <= 0 || view.height <= 0) {
+            return false
+        }
+        val location = IntArray(2)
+        view.getLocationOnScreen(location)
+        return rawX >= location[0] && rawX < location[0] + view.width &&
+            rawY >= location[1] && rawY < location[1] + view.height
+    }
+
+    private fun isTouchOnNativeVideoControls(rawX: Float, rawY: Float): Boolean =
+        pointInsideViewOnScreen(nativeVideoControls, rawX, rawY)
+
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        val action = event.actionMasked
+        val sequenceFinished = action == MotionEvent.ACTION_UP ||
+            action == MotionEvent.ACTION_CANCEL
+
+        if (action == MotionEvent.ACTION_DOWN) {
+            activityPinchTracking = false
+            activityPinchConsumed = false
+            activityPinchTargetsNativeFullscreen = false
+
+            val onControls = isTouchOnNativeVideoControls(event.rawX, event.rawY)
+            if (!onControls && isLandscapeVideoViewport()) {
+                val fullscreenHost = fullscreenPinchContainer
+                if (customView != null &&
+                    pointInsideViewOnScreen(fullscreenHost, event.rawX, event.rawY)
+                ) {
+                    activityPinchTracking = true
+                    activityPinchTargetsNativeFullscreen = true
+                    fullscreenHost?.parent?.requestDisallowInterceptTouchEvent(true)
+                } else if (customView == null &&
+                    pointInsideViewOnScreen(playerContainer, event.rawX, event.rawY)
+                ) {
+                    activityPinchTracking = true
+                    activityPinchTargetsNativeFullscreen = false
+                    playerContainer.parent?.requestDisallowInterceptTouchEvent(true)
+                }
+            }
+        }
+
+        val wasConsumed = activityPinchConsumed
+        if (activityPinchTracking) {
+            activityPinchScaleDetector.onTouchEvent(event)
+        }
+
+        // Cancel the original one-finger video tap only after the detector confirms
+        // a two-finger scale. Before that point ordinary YouTube taps/seeks pass through.
+        if (!wasConsumed && activityPinchConsumed) {
+            val cancelEvent = MotionEvent.obtain(event)
+            cancelEvent.action = MotionEvent.ACTION_CANCEL
+            super.dispatchTouchEvent(cancelEvent)
+            cancelEvent.recycle()
+        }
+
+        if (activityPinchConsumed) {
+            if (sequenceFinished) {
+                activityPinchTracking = false
+                activityPinchConsumed = false
+                playerContainer.parent?.requestDisallowInterceptTouchEvent(false)
+                fullscreenPinchContainer?.parent?.requestDisallowInterceptTouchEvent(false)
+            }
+            return true
+        }
+
+        val handled = super.dispatchTouchEvent(event)
+        if (sequenceFinished) {
+            activityPinchTracking = false
+            playerContainer.parent?.requestDisallowInterceptTouchEvent(false)
+            fullscreenPinchContainer?.parent?.requestDisallowInterceptTouchEvent(false)
+        }
+        return handled
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
