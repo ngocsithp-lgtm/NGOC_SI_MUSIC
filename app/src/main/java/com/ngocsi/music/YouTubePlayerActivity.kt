@@ -4107,8 +4107,12 @@ class YouTubePlayerActivity : ComponentActivity() {
         // ScrollView and its screen position can be stale during rotation/first layout;
         // that previously allowed the root overlay to be positioned outside the visible
         // video area. Keep the control anchored to the actual player FrameLayout instead.
-        val fullscreen = customView != null || fullscreenLayoutActive || isCssFullscreen
-        val targetParent: FrameLayout = if (fullscreen) root else playerContainer
+        // Keep this control in the same native overlay layer as the expand button.
+        // CSS fullscreen flags can be set by YouTube while the Activity is still showing
+        // the inline player; moving only this button to the Activity root then detaches it
+        // from the visible video bounds and can place it underneath the page/scroll layer.
+        // Only Chromium's actual custom fullscreen surface needs the Activity root.
+        val targetParent: FrameLayout = if (customView != null) root else playerContainer
         if (button.parent !== targetParent) {
             (button.parent as? ViewGroup)?.removeView(button)
             targetParent.addView(
