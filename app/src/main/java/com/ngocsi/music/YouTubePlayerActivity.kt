@@ -920,7 +920,14 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
 
         if (activityPinchConsumed) {
-            if (pointerReleased || sequenceFinished) {
+            if (pointerReleased) {
+                // Continue consuming the remainder of the original two-pointer
+                // stream until the last finger lifts. Otherwise a MOVE/UP from the
+                // remaining finger would be delivered to YouTube without its DOWN.
+                activityPinchTracking = false
+                activityPinchStartSpan = 0f
+            }
+            if (sequenceFinished) {
                 activityPinchTracking = false
                 activityPinchConsumed = false
                 activityPinchStartSpan = 0f
