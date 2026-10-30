@@ -10507,8 +10507,27 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
-                                            if (youtubeLoading) "Đang tìm video..." else "Nhập từ khóa để xem kết quả tìm kiếm",
-                                            color = Color(0xFF8C92A0),
+                                            when {
+                                                youtubeLoading -> "Đang tìm video..."
+                                                youtubeQuery.isBlank() -> "Nhập từ khóa để xem kết quả tìm kiếm"
+                                                errorMessage?.startsWith("YouTube:", ignoreCase = true) == true ->
+                                                    errorMessage.orEmpty()
+                                                errorMessage?.contains(
+                                                    "Không tìm thấy nội dung YouTube",
+                                                    ignoreCase = true
+                                                ) == true ->
+                                                    "Không tìm thấy video phù hợp. Hãy thử từ khóa khác."
+                                                else ->
+                                                    "Đã có từ khóa. Nhấn ➜ hoặc phím Tìm kiếm để tải kết quả."
+                                            },
+                                            color = if (
+                                                !youtubeLoading &&
+                                                (errorMessage?.startsWith("YouTube:", ignoreCase = true) == true ||
+                                                    errorMessage?.contains(
+                                                        "Không tìm thấy nội dung YouTube",
+                                                        ignoreCase = true
+                                                    ) == true)
+                                            ) Color(0xFFFF9AA5) else Color(0xFF8C92A0),
                                             fontSize = 11.sp,
                                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                         )
@@ -10664,6 +10683,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             "Nhạc trẻ",
                             "Nhạc xưa"
                         ).forEach { preset ->
+                            val selected = youtubeQuery.trim().equals(preset, ignoreCase = true)
                             Surface(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(12.dp))
@@ -10672,17 +10692,17 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         searchYouTube()
                                     },
                                 shape = RoundedCornerShape(12.dp),
-                                color = Color(0xFF181A22),
+                                color = if (selected) Color(0xFF30202A) else Color(0xFF181A22),
                                 border = androidx.compose.foundation.BorderStroke(
                                     1.dp,
-                                    Color(0xFF292D38)
+                                    if (selected) Color(0xFFFF7180) else Color(0xFF292D38)
                                 )
                             ) {
                                 Text(
                                     preset,
-                                    color = Color(0xFFD5D7E0),
+                                    color = if (selected) Color(0xFFFFA0AA) else Color(0xFFD5D7E0),
                                     fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
+                                    fontWeight = if (selected) FontWeight.Black else FontWeight.SemiBold,
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp)
                                 )
                             }
