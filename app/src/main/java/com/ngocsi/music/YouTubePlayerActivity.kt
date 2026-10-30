@@ -164,6 +164,13 @@ class YouTubePlayerActivity : ComponentActivity() {
         val clipToPadding: Boolean?
     )
 
+    private data class InlineVideoSurfaceState(
+        val scaleX: Float,
+        val scaleY: Float,
+        val pivotX: Float,
+        val pivotY: Float
+    )
+
     /**
      * Owns touch gestures for Chromium's native fullscreen custom view.
      *
@@ -744,6 +751,11 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var activityPinchConsumed = false
     private var activityPinchTargetsNativeFullscreen = false
     private var activityPinchScale = 1f
+    private var pinchZoomIndicator: TextView? = null
+    private val inlinePinchClipStates =
+        java.util.IdentityHashMap<View, VideoViewClipState>()
+    private val inlinePinchSurfaceStates =
+        java.util.IdentityHashMap<View, InlineVideoSurfaceState>()
 
     private val activityPinchScaleDetector by lazy {
         ScaleGestureDetector(
@@ -752,6 +764,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
                     if (!activityPinchTracking || isFinishing || isDestroyed) return false
                     activityPinchConsumed = true
+                    updatePinchZoomIndicator(activityPinchScale)
                     return true
                 }
 
@@ -763,12 +776,71 @@ class YouTubePlayerActivity : ComponentActivity() {
                     if (activityPinchTargetsNativeFullscreen) {
                         fullscreenPinchContainer?.applyPinchScaleFromActivity(activityPinchScale)
                     } else {
+                        // Inline WebView video may be rendered through a separate Android
+                        // SurfaceView/TextureView. Scale those compositor surfaces natively,
+                        // then apply the CSS fallback to the DOM video element.
+                        applyInlineNativeSurfacePinchScale(activityPinchScale)
                         applyInlineVideoPinchScale(activityPinchScale)
                     }
+                    updatePinchZoomIndicator(activityPinchScale)
                     return true
                 }
             }
         )
+    }
+
+    private fun updatePinchZoomIndicator(scale: Float) {
+        if (!::root.isInitialized) return
+        val indicator = pinchZoomIndicator ?: TextView(this).apply {
+            gravity = Gravity.CENTER
+            textSize = 12f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            setTextColor(AndroidColor.WHITE)
+            setPadding(dp(10), dp(5), dp(10), dp(5))
+            background = GradientDrawable().apply {
+                setColor(AndroidColor.argb(220, 20, 22, 28))
+                cornerRadius = dp(10).toFloat()
+                setStroke(dp(1), AndroidColor.rgb(92, 180, 255))
+            }
+            elevation = dp(8).toFloat()
+            visibility = View.GONE
+        }.also {
+            pinchZoomIndicator = it
+            root.addView(
+                it,
+                FrameLayout.LayoutParams(
+                    dp(104),
+                    dp(36),
+                    Gravity.TOP or Gravity.START
+                )
+            )
+        }
+
+        val target = if (activityPinchTargetsNativeFullscreen) {
+            fullscreenPinchContainer
+        } else {
+            if (::playerContainer.isInitialized) playerContainer else null
+        }
+        if (target != null && target.width > 0 && target.height > 0) {
+            val targetLocation = IntArray(2)
+            val rootLocation = IntArray(2)
+            target.getLocationOnScreen(targetLocation)
+            root.getLocationOnScreen(rootLocation)
+            val params = indicator.layoutParams as? FrameLayout.LayoutParams
+                ?: FrameLayout.LayoutParams(dp(104), dp(36))
+            params.leftMargin = (targetLocation[0] - rootLocation[0] + dp(12))
+                .coerceAtLeast(dp(8))
+            params.topMargin = (targetLocation[1] - rootLocation[1] + dp(12))
+                .coerceAtLeast(dp(8))
+            indicator.layoutParams = params
+        }
+        indicator.text = "ZOOM  ${String.format(java.util.Locale.US, "%.1f", scale)}×"
+        indicator.visibility = View.VISIBLE
+        indicator.bringToFront()
+    }
+
+    private fun hidePinchZoomIndicator() {
+        pinchZoomIndicator?.visibility = View.GONE
     }
 
     private fun pointInsideViewOnScreen(view: View?, rawX: Float, rawY: Float): Boolean {
@@ -833,6 +905,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                 activityPinchConsumed = false
                 playerContainer.parent?.requestDisallowInterceptTouchEvent(false)
                 fullscreenPinchContainer?.parent?.requestDisallowInterceptTouchEvent(false)
+                hidePinchZoomIndicator()
             }
             return true
         }
@@ -3169,6 +3242,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         activityPinchTracking = false
         activityPinchConsumed = false
         activityPinchScale = 1f
+        restoreInlineVideoSurfacePinch()
         unexpectedPlaybackRecoveryGeneration++
         lastUnexpectedPlaybackRecoveryAtMs = 0L
         removePlayer()
@@ -4250,6 +4324,8 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun removePlayer() {
+        restoreInlineVideoSurfacePinch()
+        hidePinchZoomIndicator()
         webView?.let { view ->
             try {
                 view.stopLoading()
@@ -5505,6 +5581,85 @@ class YouTubePlayerActivity : ComponentActivity() {
      * transform remains intact. Only the media element is scaled; page chrome/queue
      * and the WebView viewport remain at their original dimensions.
      */
+    private fun disableInlineVideoSurfaceClipping(view: View) {
+        if (view is ViewGroup) {
+            if (!inlinePinchClipStates.containsKey(view)) {
+                inlinePinchClipStates[view] = VideoViewClipState(
+                    clipToOutline = view.clipToOutline,
+                    clipBounds = view.clipBounds?.let { android.graphics.Rect(it) },
+                    clipChildren = view.clipChildren,
+                    clipToPadding = view.clipToPadding
+                )
+            }
+            view.clipToOutline = false
+            view.clipBounds = null
+            view.clipChildren = false
+            view.clipToPadding = false
+            for (index in 0 until view.childCount) {
+                disableInlineVideoSurfaceClipping(view.getChildAt(index))
+            }
+        }
+    }
+
+    private fun scaleInlineVideoSurfaceDescendants(view: View, scale: Float): Int {
+        if (view is android.view.SurfaceView || view is android.view.TextureView) {
+            if (!inlinePinchSurfaceStates.containsKey(view)) {
+                inlinePinchSurfaceStates[view] = InlineVideoSurfaceState(
+                    scaleX = view.scaleX,
+                    scaleY = view.scaleY,
+                    pivotX = view.pivotX,
+                    pivotY = view.pivotY
+                )
+            }
+            if (view.width > 0 && view.height > 0) {
+                view.pivotX = view.width / 2f
+                view.pivotY = view.height / 2f
+            }
+            view.scaleX = scale
+            view.scaleY = scale
+            return 1
+        }
+
+        if (view !is ViewGroup) return 0
+        var count = 0
+        for (index in 0 until view.childCount) {
+            count += scaleInlineVideoSurfaceDescendants(view.getChildAt(index), scale)
+        }
+        return count
+    }
+
+    private fun restoreInlineVideoSurfacePinch() {
+        inlinePinchSurfaceStates.forEach { (view, state) ->
+            view.scaleX = state.scaleX
+            view.scaleY = state.scaleY
+            view.pivotX = state.pivotX
+            view.pivotY = state.pivotY
+        }
+        inlinePinchSurfaceStates.clear()
+
+        inlinePinchClipStates.forEach { (view, state) ->
+            view.clipToOutline = state.clipToOutline
+            view.clipBounds = state.clipBounds?.let { android.graphics.Rect(it) }
+            if (view is ViewGroup) {
+                state.clipChildren?.let { view.clipChildren = it }
+                state.clipToPadding?.let { view.clipToPadding = it }
+            }
+        }
+        inlinePinchClipStates.clear()
+    }
+
+    private fun applyInlineNativeSurfacePinchScale(scale: Float): Int {
+        val host = webView ?: return 0
+        if (scale <= 1.001f) {
+            restoreInlineVideoSurfacePinch()
+            return 0
+        }
+        // Keep playerContainer as the final crop boundary. Only turn off clipping
+        // inside the WebView tree so transformed video surfaces can extend to its edge.
+        disableInlineVideoSurfaceClipping(host)
+        return scaleInlineVideoSurfaceDescendants(host, scale)
+    }
+
     private fun applyInlineVideoPinchScale(scale: Float) {
         val safeScale = scale.coerceIn(1f, 4f)
         val scaleText = String.format(java.util.Locale.US, "%.3f", safeScale)
