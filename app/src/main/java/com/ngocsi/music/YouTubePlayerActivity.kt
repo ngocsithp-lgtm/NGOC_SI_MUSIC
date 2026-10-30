@@ -70,6 +70,72 @@ class YouTubePlayerActivity : ComponentActivity() {
      */
     private inner class InlinePlayerFrameLayout(context: android.content.Context) :
         FrameLayout(context) {
+        // Observe the touch stream before WebView/Chromium handles it. Only after a
+        // two-finger scale starts do we cancel the child's tap stream and take ownership.
+        private var pinchActive = false
+        private var pinchScale = 1f
+
+        private val inlinePinchDetector = ScaleGestureDetector(
+            context,
+            object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+                    if (!isLandscapeVideoViewport() || customView != null ||
+                        width <= 0 || height <= 0 ||
+                        detector.focusX < 0f || detector.focusY < 0f ||
+                        detector.focusX > width || detector.focusY > height
+                    ) return false
+                    pinchActive = true
+                    return true
+                }
+
+                override fun onScale(detector: ScaleGestureDetector): Boolean {
+                    if (!pinchActive) return false
+                    pinchScale = (pinchScale * detector.scaleFactor).coerceIn(1f, 4f)
+                    applyInlineVideoPinchScale(pinchScale)
+                    return true
+                }
+
+                override fun onScaleEnd(detector: ScaleGestureDetector) {
+                    if (pinchScale <= 1.01f) {
+                        pinchScale = 1f
+                        applyInlineVideoPinchScale(1f)
+                    }
+                }
+            }
+        )
+
+        override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+            // Keep a parent ScrollView from stealing the gesture after the first finger.
+            if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                parent?.requestDisallowInterceptTouchEvent(true)
+            }
+
+            val wasPinching = pinchActive
+            inlinePinchDetector.onTouchEvent(event)
+
+            if (!wasPinching && pinchActive) {
+                // Cancel the video tap/seek gesture only once the second finger pinches.
+                val cancelEvent = MotionEvent.obtain(event)
+                cancelEvent.setAction(MotionEvent.ACTION_CANCEL)
+                super.dispatchTouchEvent(cancelEvent)
+                cancelEvent.recycle()
+            }
+
+            val sequenceFinished =
+                event.actionMasked == MotionEvent.ACTION_UP ||
+                event.actionMasked == MotionEvent.ACTION_CANCEL
+
+            if (pinchActive) {
+                if (sequenceFinished) pinchActive = false
+                if (sequenceFinished) parent?.requestDisallowInterceptTouchEvent(false)
+                return true
+            }
+
+            val handled = super.dispatchTouchEvent(event)
+            if (sequenceFinished) parent?.requestDisallowInterceptTouchEvent(false)
+            return handled
+        }
+
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
             val widthMode = View.MeasureSpec.getMode(widthMeasureSpec)
             val widthFromSpec = View.MeasureSpec.getSize(widthMeasureSpec)
@@ -324,75 +390,6 @@ class YouTubePlayerActivity : ComponentActivity() {
      * background audio, keep the renderer's window-visibility state alive.
      */
     private inner class BackgroundAudioWebView(context: android.content.Context) : WebView(context) {
-        // The inline landscape player is a mobile YouTube HTML5 video inside WebView.
-        // Pinch must scale that <video> element, not WebView.scaleX/scaleY (which zooms
-        // the entire page and often appears to have no effect on Chromium's video plane).
-        private var pinchActive = false
-        private var pinchScale = 1f
-
-        private val inlinePinchDetector = ScaleGestureDetector(
-            context,
-            object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-                override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
-                    if (!isLandscapeVideoViewport() || customView != null ||
-                        width <= 0 || height <= 0 ||
-                        detector.focusX < 0f || detector.focusY < 0f ||
-                        detector.focusX > width || detector.focusY > height
-                    ) return false
-                    pinchActive = true
-                    return true
-                }
-
-                override fun onScale(detector: ScaleGestureDetector): Boolean {
-                    if (!pinchActive) return false
-                    pinchScale = (pinchScale * detector.scaleFactor).coerceIn(1f, 4f)
-                    applyInlineVideoPinchScale(pinchScale)
-                    return true
-                }
-
-                override fun onScaleEnd(detector: ScaleGestureDetector) {
-                    // Keep the last zoom level. Pinching inward returns gradually to 1x.
-                    if (pinchScale <= 1.01f) {
-                        pinchScale = 1f
-                        applyInlineVideoPinchScale(1f)
-                    }
-                }
-            }
-        )
-
-        override fun dispatchTouchEvent(event: MotionEvent): Boolean {
-            // A parent ScrollView must not steal the first pointer before the second
-            // finger goes down and the scale detector can begin.
-            if (event.actionMasked == MotionEvent.ACTION_DOWN) {
-                parent?.requestDisallowInterceptTouchEvent(true)
-            }
-
-            val wasPinching = pinchActive
-            inlinePinchDetector.onTouchEvent(event)
-
-            if (!wasPinching && pinchActive) {
-                // Cancel WebView's first-finger tap/seek after the second finger starts.
-                val cancelEvent = MotionEvent.obtain(event)
-                cancelEvent.setAction(MotionEvent.ACTION_CANCEL)
-                super.dispatchTouchEvent(cancelEvent)
-                cancelEvent.recycle()
-            }
-
-            val sequenceFinished =
-                event.actionMasked == MotionEvent.ACTION_UP ||
-                event.actionMasked == MotionEvent.ACTION_CANCEL
-
-            if (pinchActive) {
-                if (sequenceFinished) pinchActive = false
-                if (sequenceFinished) parent?.requestDisallowInterceptTouchEvent(false)
-                return true
-            }
-
-            val handled = super.dispatchTouchEvent(event)
-            if (sequenceFinished) parent?.requestDisallowInterceptTouchEvent(false)
-            return handled
-        }
-
         override fun onWindowVisibilityChanged(visibility: Int) {
             if (inAppBackgroundPlaybackEnabled) {
                 if (visibility != View.GONE) {
