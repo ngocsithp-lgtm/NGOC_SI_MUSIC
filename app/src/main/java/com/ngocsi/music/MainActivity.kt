@@ -7498,7 +7498,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        if (activeRadioTitle != null) "Đang phát: $activeRadioTitle" else "Chọn đài bên dưới để phát trực tiếp",
+                        when {
+                            activeRadioTitle == null -> "Chọn đài bên dưới để phát trực tiếp"
+                            isPlaying -> "Đang phát: $activeRadioTitle"
+                            else -> "Đã tạm dừng: $activeRadioTitle"
+                        },
                         color = Color(0xFFB8B8C6),
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium
@@ -7506,10 +7510,14 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     if (activeRadioTitle != null) {
                         Spacer(Modifier.height(4.dp))
                         OutlinedButton(
-                            onClick = { controller?.pause() },
+                            onClick = {
+                                if (isPlaying) controller?.pause() else controller?.play()
+                            },
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp)
-                        ) { Text("TẠM DỪNG RADIO") }
+                        ) {
+                            Text(if (isPlaying) "TẠM DỪNG RADIO" else "TIẾP TỤC RADIO")
+                        }
                     }
                     Spacer(Modifier.height(10.dp))
                     OutlinedTextField(
@@ -7528,46 +7536,91 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         fontSize = 11.sp
                     )
                     Spacer(Modifier.height(6.dp))
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        filteredSources.forEach { source ->
-                            val streamUrls = verifiedStreams[source.first]
-                            Surface(
-                                shape = RoundedCornerShape(16.dp),
-                                color = Color(0xFF181922),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    Modifier.fillMaxWidth().padding(10.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                    if (filteredSources.isEmpty()) {
+                        Column(
+                            Modifier.fillMaxWidth().padding(vertical = 28.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text("Không tìm thấy đài phù hợp", color = Color.White, fontWeight = FontWeight.SemiBold)
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                "Thử tìm theo tên đài, tần số FM hoặc khu vực.",
+                                color = Color(0xFF8F8F9A),
+                                fontSize = 11.sp
+                            )
+                            TextButton(onClick = { radioFilter = "" }) { Text("XÓA TÌM KIẾM") }
+                        }
+                    } else {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            filteredSources.forEach { source ->
+                                val streamUrls = verifiedStreams[source.first]
+                                val isCurrentRadio = activeRadioTitle == source.first
+                                val isCurrentPlaying = isCurrentRadio && isPlaying
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = if (isCurrentRadio) Color(0xFF252033) else Color(0xFF181922),
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        1.dp,
+                                        if (isCurrentRadio) Color(0xFF7056A8) else Color(0xFF292D38)
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Column(Modifier.weight(1f)) {
-                                        Text(source.first, color = Color.White, fontWeight = FontWeight.SemiBold)
-                                        Spacer(Modifier.height(2.dp))
-                                        Text(
-                                            if (!streamUrls.isNullOrEmpty()) "${source.second} • HLS + tự động dùng luồng dự phòng" else source.second,
-                                            color = Color(0xFF8F8F9A),
-                                            fontSize = 11.sp
-                                        )
-                                    }
-                                    Spacer(Modifier.width(8.dp))
-                                    if (!streamUrls.isNullOrEmpty()) {
-                                        Button(
-                                            onClick = {
-                                                playVerifiedRadio(source.first, streamUrls)
-                                            },
-                                            shape = RoundedCornerShape(12.dp)
-                                        ) { Text("PHÁT APP") }
-                                    } else {
-                                        OutlinedButton(
-                                            onClick = {
-                                                radioWebTitle = source.first
-                                                radioWebUrl = source.third
-                                            },
-                                            shape = RoundedCornerShape(12.dp)
-                                        ) { Text("MỞ NGUỒN") }
+                                    Row(
+                                        Modifier.fillMaxWidth().padding(10.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(Modifier.weight(1f)) {
+                                            Text(
+                                                source.first,
+                                                color = Color.White,
+                                                fontWeight = if (isCurrentRadio) FontWeight.ExtraBold else FontWeight.SemiBold
+                                            )
+                                            Spacer(Modifier.height(2.dp))
+                                            Text(
+                                                if (!streamUrls.isNullOrEmpty()) "${source.second} • HLS + tự động dùng luồng dự phòng" else source.second,
+                                                color = Color(0xFF8F8F9A),
+                                                fontSize = 11.sp
+                                            )
+                                            if (isCurrentRadio) {
+                                                Text(
+                                                    if (isCurrentPlaying) "● ĐANG PHÁT" else "Ⅱ ĐÃ TẠM DỪNG",
+                                                    color = if (isCurrentPlaying) Color(0xFF8FD694) else Color(0xFFFFC66D),
+                                                    fontSize = 9.sp,
+                                                    fontWeight = FontWeight.Black
+                                                )
+                                            }
+                                        }
+                                        Spacer(Modifier.width(8.dp))
+                                        if (!streamUrls.isNullOrEmpty()) {
+                                            if (isCurrentRadio) {
+                                                OutlinedButton(
+                                                    onClick = {
+                                                        if (isPlaying) controller?.pause() else controller?.play()
+                                                    },
+                                                    shape = RoundedCornerShape(12.dp)
+                                                ) {
+                                                    Text(if (isPlaying) "TẠM DỪNG" else "TIẾP TỤC")
+                                                }
+                                            } else {
+                                                Button(
+                                                    onClick = {
+                                                        playVerifiedRadio(source.first, streamUrls)
+                                                    },
+                                                    shape = RoundedCornerShape(12.dp)
+                                                ) { Text("PHÁT APP") }
+                                            }
+                                        } else {
+                                            OutlinedButton(
+                                                onClick = {
+                                                    radioWebTitle = source.first
+                                                    radioWebUrl = source.third
+                                                },
+                                                shape = RoundedCornerShape(12.dp)
+                                            ) { Text("MỞ NGUỒN") }
+                                        }
                                     }
                                 }
                             }
