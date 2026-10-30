@@ -110,6 +110,13 @@ class YouTubePlayerActivity : ComponentActivity() {
         )
 
         override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+            // This frame lives inside a ScrollView. Disallow ancestor interception from the
+            // first touch so the ScrollView cannot steal the stream before two-finger scale
+            // crosses ScaleGestureDetector's start threshold.
+            if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                parent?.requestDisallowInterceptTouchEvent(true)
+            }
+
             val wasConsumingPinch = consumeVideoPinchUntilUp
             videoPinchDetector.onTouchEvent(event)
 
@@ -121,16 +128,23 @@ class YouTubePlayerActivity : ComponentActivity() {
                 cancelEvent.recycle()
             }
 
+            val finishedTouchSequence =
+                event.actionMasked == MotionEvent.ACTION_UP ||
+                event.actionMasked == MotionEvent.ACTION_CANCEL
+
             if (consumeVideoPinchUntilUp) {
-                if (event.actionMasked == MotionEvent.ACTION_UP ||
-                    event.actionMasked == MotionEvent.ACTION_CANCEL
-                ) {
-                    consumeVideoPinchUntilUp = false
+                if (finishedTouchSequence) consumeVideoPinchUntilUp = false
+                if (finishedTouchSequence) {
                     parent?.requestDisallowInterceptTouchEvent(false)
                 }
                 return true
             }
-            return super.dispatchTouchEvent(event)
+
+            val handled = super.dispatchTouchEvent(event)
+            if (finishedTouchSequence) {
+                parent?.requestDisallowInterceptTouchEvent(false)
+            }
+            return handled
         }
 
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
