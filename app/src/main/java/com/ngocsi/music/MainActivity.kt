@@ -10358,15 +10358,32 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     }
                                 }
                                 Spacer(Modifier.height(3.dp))
+                                var inlineTitleExpanded by remember(inlineTrack.videoId) {
+                                    mutableStateOf(false)
+                                }
                                 Text(
                                     inlineTrack.title,
                                     color = Color.White,
                                     fontSize = 13.sp,
                                     lineHeight = 17.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    maxLines = 2,
+                                    maxLines = if (inlineTitleExpanded) 7 else 2,
                                     overflow = TextOverflow.Ellipsis
                                 )
+                                if (inlineTrack.title.length > 68) {
+                                    Text(
+                                        if (inlineTitleExpanded) "THU GỌN" else "XEM ĐẦY ĐỦ",
+                                        color = Color(0xFFFF8A98),
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .clickable {
+                                                inlineTitleExpanded = !inlineTitleExpanded
+                                            }
+                                            .padding(vertical = 3.dp, horizontal = 2.dp)
+                                    )
+                                }
                                 Text(
                                     inlineTrack.channelTitle.ifBlank { "YouTube" },
                                     color = Color(0xFFA0A7B7),
