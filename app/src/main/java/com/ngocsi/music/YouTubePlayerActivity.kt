@@ -164,11 +164,13 @@ class YouTubePlayerActivity : ComponentActivity() {
         val clipToPadding: Boolean?
     )
 
-    private data class InlineVideoSurfaceState(
+    private data class WebViewPinchTransformState(
         val scaleX: Float,
         val scaleY: Float,
         val pivotX: Float,
-        val pivotY: Float
+        val pivotY: Float,
+        val translationX: Float,
+        val translationY: Float
     )
 
     /**
@@ -193,6 +195,9 @@ class YouTubePlayerActivity : ComponentActivity() {
             clipToPadding = true
             isClickable = true
             setBackgroundColor(AndroidColor.BLACK)
+            videoView.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+                if (pinchScale > 1.01f) applyPinchScale()
+            }
         }
 
         private fun scaleView(view: View, scale: Float) {
@@ -752,10 +757,8 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var activityPinchTargetsNativeFullscreen = false
     private var activityPinchScale = 1f
     private var pinchZoomIndicator: TextView? = null
-    private val inlinePinchClipStates =
-        java.util.IdentityHashMap<View, VideoViewClipState>()
-    private val inlinePinchSurfaceStates =
-        java.util.IdentityHashMap<View, InlineVideoSurfaceState>()
+    private var inlineWebViewPinchTarget: WebView? = null
+    private var inlineWebViewPinchOriginalTransform: WebViewPinchTransformState? = null
 
     private val activityPinchScaleDetector by lazy {
         ScaleGestureDetector(
@@ -773,20 +776,15 @@ class YouTubePlayerActivity : ComponentActivity() {
                     activityPinchScale = (activityPinchScale * detector.scaleFactor)
                         .coerceIn(1f, 4f)
 
-                    var zoomPath = "FULL"
-                    if (activityPinchTargetsNativeFullscreen) {
+                    val zoomPath = if (activityPinchTargetsNativeFullscreen) {
                         fullscreenPinchContainer?.applyPinchScaleFromActivity(activityPinchScale)
+                        "FULL"
                     } else {
-                        // Prefer Chromium's native video surface when one is present.
-                        // Applying CSS scaling at the same time would multiply the zoom.
-                        val surfaceCount = applyInlineNativeSurfacePinchScale(activityPinchScale)
-                        if (surfaceCount > 0) {
-                            applyInlineVideoPinchScale(1f)
-                            zoomPath = "HW"
-                        } else {
-                            applyInlineVideoPinchScale(activityPinchScale)
-                            zoomPath = "DOM"
-                        }
+                        // Inline YouTube content is a WebView compositor surface, not a
+                        // native YouTube PlayerView or a guaranteed child SurfaceView.
+                        // Transform the WebView View itself and let playerContainer crop it.
+                        applyInlineWebViewPinchScale(activityPinchScale)
+                        "WEBVIEW"
                     }
                     updatePinchZoomIndicator(activityPinchScale, zoomPath)
                     return true
@@ -815,7 +813,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             root.addView(
                 it,
                 FrameLayout.LayoutParams(
-                    dp(104),
+                    dp(168),
                     dp(36),
                     Gravity.TOP or Gravity.START
                 )
@@ -833,7 +831,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             target.getLocationOnScreen(targetLocation)
             root.getLocationOnScreen(rootLocation)
             val params = indicator.layoutParams as? FrameLayout.LayoutParams
-                ?: FrameLayout.LayoutParams(dp(104), dp(36))
+                ?: FrameLayout.LayoutParams(dp(168), dp(36))
             params.leftMargin = (targetLocation[0] - rootLocation[0] + dp(12))
                 .coerceAtLeast(dp(8))
             params.topMargin = (targetLocation[1] - rootLocation[1] + dp(12))
@@ -1297,6 +1295,9 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
         playerContainer.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
             positionNativeVideoControls()
+            if (inlineWebViewPinchOriginalTransform != null && activityPinchScale > 1.001f) {
+                applyInlineWebViewPinchScale(activityPinchScale)
+            }
         }
         applyResponsivePlayerLayout()
         installPhysicalOrientationLayoutWatcher()
@@ -3249,7 +3250,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         activityPinchTracking = false
         activityPinchConsumed = false
         activityPinchScale = 1f
-        restoreInlineVideoSurfacePinch()
+        restoreInlineWebViewPinchTransform()
         unexpectedPlaybackRecoveryGeneration++
         lastUnexpectedPlaybackRecoveryAtMs = 0L
         removePlayer()
@@ -4331,7 +4332,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun removePlayer() {
-        restoreInlineVideoSurfacePinch()
+        restoreInlineWebViewPinchTransform()
         hidePinchZoomIndicator()
         webView?.let { view ->
             try {
@@ -4723,6 +4724,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             activityPinchTracking = false
             activityPinchConsumed = false
             activityPinchScale = 1f
+            restoreInlineWebViewPinchTransform()
             fullscreenPinchContainer = null
             fullscreenView?.let { view ->
                 (view.parent as? ViewGroup)?.removeView(view)
@@ -5588,150 +5590,65 @@ class YouTubePlayerActivity : ComponentActivity() {
      * transform remains intact. Only the media element is scaled; page chrome/queue
      * and the WebView viewport remain at their original dimensions.
      */
-    private fun disableInlineVideoSurfaceClipping(view: View) {
-        if (view is ViewGroup) {
-            if (!inlinePinchClipStates.containsKey(view)) {
-                inlinePinchClipStates[view] = VideoViewClipState(
-                    clipToOutline = view.clipToOutline,
-                    clipBounds = view.clipBounds?.let { android.graphics.Rect(it) },
-                    clipChildren = view.clipChildren,
-                    clipToPadding = view.clipToPadding
-                )
-            }
-            view.clipToOutline = false
-            view.clipBounds = null
-            view.clipChildren = false
-            view.clipToPadding = false
-            for (index in 0 until view.childCount) {
-                disableInlineVideoSurfaceClipping(view.getChildAt(index))
-            }
+    private fun restoreInlineWebViewPinchTransform() {
+        val target = inlineWebViewPinchTarget
+        val original = inlineWebViewPinchOriginalTransform
+        if (target != null && original != null) {
+            target.scaleX = original.scaleX
+            target.scaleY = original.scaleY
+            target.pivotX = original.pivotX
+            target.pivotY = original.pivotY
+            target.translationX = original.translationX
+            target.translationY = original.translationY
+            target.invalidate()
         }
+        inlineWebViewPinchTarget = null
+        inlineWebViewPinchOriginalTransform = null
     }
 
-    private fun scaleInlineVideoSurfaceDescendants(view: View, scale: Float): Int {
-        if (view is android.view.SurfaceView || view is android.view.TextureView) {
-            if (!inlinePinchSurfaceStates.containsKey(view)) {
-                inlinePinchSurfaceStates[view] = InlineVideoSurfaceState(
-                    scaleX = view.scaleX,
-                    scaleY = view.scaleY,
-                    pivotX = view.pivotX,
-                    pivotY = view.pivotY
-                )
-            }
-            if (view.width > 0 && view.height > 0) {
-                view.pivotX = view.width / 2f
-                view.pivotY = view.height / 2f
-            }
-            view.scaleX = scale
-            view.scaleY = scale
-            return 1
-        }
-
-        if (view !is ViewGroup) return 0
-        var count = 0
-        for (index in 0 until view.childCount) {
-            count += scaleInlineVideoSurfaceDescendants(view.getChildAt(index), scale)
-        }
-        return count
-    }
-
-    private fun restoreInlineVideoSurfacePinch() {
-        inlinePinchSurfaceStates.forEach { (view, state) ->
-            view.scaleX = state.scaleX
-            view.scaleY = state.scaleY
-            view.pivotX = state.pivotX
-            view.pivotY = state.pivotY
-        }
-        inlinePinchSurfaceStates.clear()
-
-        inlinePinchClipStates.forEach { (view, state) ->
-            view.clipToOutline = state.clipToOutline
-            view.clipBounds = state.clipBounds?.let { android.graphics.Rect(it) }
-            if (view is ViewGroup) {
-                state.clipChildren?.let { view.clipChildren = it }
-                state.clipToPadding?.let { view.clipToPadding = it }
-            }
-        }
-        inlinePinchClipStates.clear()
-    }
-
-    private fun applyInlineNativeSurfacePinchScale(scale: Float): Int {
-        val host = webView ?: return 0
-        if (scale <= 1.001f) {
-            restoreInlineVideoSurfacePinch()
-            return 0
-        }
-        // Keep playerContainer as the final crop boundary. Only turn off clipping
-        // inside the WebView tree so transformed video surfaces can extend to its edge.
-        disableInlineVideoSurfaceClipping(host)
-        return scaleInlineVideoSurfaceDescendants(host, scale)
-    }
-
-    private fun applyInlineVideoPinchScale(scale: Float) {
+    private fun applyInlineWebViewPinchScale(scale: Float) {
+        val target = webView ?: return
         val safeScale = scale.coerceIn(1f, 4f)
-        val scaleText = String.format(java.util.Locale.US, "%.3f", safeScale)
-        webView?.evaluateJavascript(
-            """
-            (function(value) {
-              try {
-                var video = null;
-                try {
-                  if (typeof window.__ngocSiFindActiveVideo === 'function')
-                    video = window.__ngocSiFindActiveVideo();
-                } catch (_) {}
-                if (!video) video = document.querySelector('video.html5-main-video') ||
-                  document.querySelector('#movie_player video') ||
-                  document.querySelector('ytm-player video') ||
-                  document.querySelector('video');
-                if (!video) return 'PINCH_NO_VIDEO';
 
-                var host = video.closest('.html5-video-container') ||
-                           video.parentElement;
-                if (!window.__ngocSiPinchOriginalStyles)
-                  window.__ngocSiPinchOriginalStyles = new WeakMap();
-                var originals = window.__ngocSiPinchOriginalStyles;
-                if (!originals.has(video)) {
-                  originals.set(video, {
-                    scale: video.style.getPropertyValue('scale'),
-                    scalePriority: video.style.getPropertyPriority('scale'),
-                    origin: video.style.getPropertyValue('transform-origin'),
-                    originPriority: video.style.getPropertyPriority('transform-origin'),
-                    host: host,
-                    overflow: host ? host.style.getPropertyValue('overflow') : '',
-                    overflowPriority: host ? host.style.getPropertyPriority('overflow') : ''
-                  });
-                }
+        if (safeScale <= 1.001f) {
+            restoreInlineWebViewPinchTransform()
+            return
+        }
 
-                var original = originals.get(video);
-                if (value <= 1.001) {
-                  if (original.scale) video.style.setProperty('scale', original.scale, original.scalePriority);
-                  else video.style.removeProperty('scale');
-                  if (original.origin) video.style.setProperty('transform-origin', original.origin, original.originPriority);
-                  else video.style.removeProperty('transform-origin');
-                  if (original.host) {
-                    if (original.overflow) original.host.style.setProperty('overflow', original.overflow, original.overflowPriority);
-                    else original.host.style.removeProperty('overflow');
-                  }
-                  originals.delete(video);
-                  window.__ngocSiPinchScale = 1;
-                  return 'PINCH_RESET';
-                }
+        if (inlineWebViewPinchTarget !== target) {
+            restoreInlineWebViewPinchTransform()
+            inlineWebViewPinchTarget = target
+            inlineWebViewPinchOriginalTransform = WebViewPinchTransformState(
+                scaleX = target.scaleX,
+                scaleY = target.scaleY,
+                pivotX = target.pivotX,
+                pivotY = target.pivotY,
+                translationX = target.translationX,
+                translationY = target.translationY
+            )
+        }
 
-                video.style.setProperty('transform-origin', '50% 50%', 'important');
-                video.style.setProperty('scale', String(value), 'important');
-                if (host) host.style.setProperty('overflow', 'hidden', 'important');
-                window.__ngocSiPinchScale = value;
-                return 'PINCH_APPLIED|' + value;
-              } catch (error) {
-                return 'PINCH_ERROR|' + String(error);
-              }
-            })($scaleText);
-            """.trimIndent(),
-            null
-        )
+        val original = inlineWebViewPinchOriginalTransform ?: return
+        if (target.width <= 0 || target.height <= 0) return
+
+        // Pinch the one WebView that occupies the player frame, not the Activity,
+        // queue, ScrollView, or neighboring landscape panel. The permanent
+        // playerContainer remains the crop boundary at all zoom levels.
+        if (::playerContainer.isInitialized) {
+            playerContainer.clipChildren = true
+            playerContainer.clipToPadding = true
+            playerContainer.clipBounds = null
+        }
+        target.pivotX = target.width / 2f
+        target.pivotY = target.height / 2f
+        target.scaleX = original.scaleX * safeScale
+        target.scaleY = original.scaleY * safeScale
+        target.translationX = original.translationX
+        target.translationY = original.translationY
+        target.invalidate()
     }
 
-    private fun sanitizeVideoId(value: String): String =
+    private fun sanitizeVideoId(value: String): String =    private fun sanitizeVideoId(value: String): String =
         value.filter { it.isLetterOrDigit() || it == '-' || it == '_' }.take(32)
 
     private fun dp(value: Int): Int =
