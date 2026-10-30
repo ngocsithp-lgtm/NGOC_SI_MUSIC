@@ -10878,7 +10878,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     Spacer(Modifier.width(10.dp))
                                     Column(Modifier.weight(1f)) {
                                         Text(
-                                            "TIẾP TỤC NGHE",
+                                            if (youtubePlaybackIsPlaying) "ĐANG PHÁT" else "TIẾP TỤC NGHE",
                                             color = Color(0xFF8FD694),
                                             fontSize = 9.sp,
                                             fontWeight = FontWeight.Black
@@ -10913,13 +10913,19 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         modifier = Modifier
                                             .size(42.dp)
                                             .clip(CircleShape)
-                                            .clickable { playLastYouTube() },
+                                            .clickable {
+                                                if (youtubePlaybackIsPlaying) {
+                                                    playLastYouTube("pause")
+                                                } else {
+                                                    playLastYouTube("play")
+                                                }
+                                            },
                                         shape = CircleShape,
                                         color = Color(0xFFFF6678)
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
                                             Text(
-                                                "▶",
+                                                if (youtubePlaybackIsPlaying) "Ⅱ" else "▶",
                                                 color = Color.White,
                                                 fontSize = 15.sp,
                                                 fontWeight = FontWeight.Black
