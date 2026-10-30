@@ -992,10 +992,10 @@ class YouTubePlayerActivity : ComponentActivity() {
         // Reposition the root-level fill control whenever the player moves because of
         // rotation, responsive layout changes, or scrolling.
         root.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-            updateFillScreenWebControl()
+            updateNativeFillScreenButtonPosition()
         }
         playerContainer.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-            updateFillScreenWebControl()
+            updateNativeFillScreenButtonPosition()
         }
         scroll.setOnScrollChangeListener { _, _, _, _, _ ->
             updateNativeFillScreenButtonPosition()
@@ -3537,6 +3537,9 @@ class YouTubePlayerActivity : ComponentActivity() {
                     view.bringToFront()
                     nativeFullscreenButton?.bringToFront()
                     updateNativeFullscreenButton()
+                    // This button belongs to the Activity root, not the WebView.
+                    // Re-raise it after Chromium's fullscreen surface is attached.
+                    updateNativeFillScreenButtonPosition()
                 }
 
                 override fun onHideCustomView() {
@@ -3600,9 +3603,39 @@ class YouTubePlayerActivity : ComponentActivity() {
             )
             button.bringToFront()
         }
-        // Fill-screen control is injected into the WebView DOM so it shares the
-        // YouTube video compositor layer and cannot be covered by a SurfaceView.
-        nativeFillScreenButton = null
+        // A real Android control is attached to the Activity root, not to the YouTube DOM.
+        // This avoids the missing-button failure when Chromium creates its fullscreen surface.
+        nativeFillScreenButton = Button(this).apply {
+            text = if (fillScreenEnabled) "VỪA" else "LẤP ĐẦY"
+            textSize = 11f
+            isAllCaps = false
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            setTextColor(AndroidColor.WHITE)
+            background = roundedButtonDrawable(
+                AndroidColor.rgb(18, 78, 105),
+                AndroidColor.rgb(139, 205, 226),
+                dp(8)
+            )
+            backgroundTintList = null
+            setPadding(dp(5), 0, dp(5), 0)
+            minWidth = 0
+            minimumWidth = 0
+            minHeight = 0
+            minimumHeight = 0
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Lấp đầy màn hình video"
+            elevation = dp(32).toFloat()
+            translationZ = dp(8).toFloat()
+            setOnClickListener { toggleFillScreenMode() }
+        }.also { button ->
+            root.addView(
+                button,
+                FrameLayout.LayoutParams(dp(88), dp(44), Gravity.TOP or Gravity.START)
+            )
+            root.bringChildToFront(button)
+            button.bringToFront()
+        }
         updateNativeFullscreenButton()
         updateNativeFillScreenButton()
         player.post {
@@ -4041,80 +4074,80 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     /**
-     * Install the fill-mode control inside the YouTube document, not as an Android sibling.
-     * This keeps the button in the same Chromium composition layer as the HTML5 video, so
-     * a native video surface cannot cover it. It is idempotent and can be re-run after reload.
+     * Remove any older DOM-based control. The visible control is a native Android Button
+     * attached to the Activity root, so it remains above both the WebView and fullscreen view.
      */
     private fun installFillScreenWebControl(target: WebView) {
         if (isFinishing || isDestroyed) return
         target.evaluateJavascript(
-            """
-            (function() {
-              try {
-                var id = 'ngocsi-fill-screen-control';
-                var button = document.getElementById(id);
-                if (!button) {
-                  button = document.createElement('button');
-                  button.id = id;
-                  button.type = 'button';
-                  button.setAttribute('aria-label', 'Lấp đầy màn hình video');
-                  button.setAttribute('role', 'button');
-                  button.addEventListener('click', function(event) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    event.stopImmediatePropagation();
-                    try {
-                      if (window.AndroidBridge && AndroidBridge.onToggleFillScreen) {
-                        AndroidBridge.onToggleFillScreen();
-                      }
-                    } catch (_) {}
-                  }, true);
-                  (document.documentElement || document.body).appendChild(button);
-                }
-                button.textContent = window.__ngocSiFillScreenEnabled ? 'VỪA' : 'LẤP ĐẦY';
-                button.style.cssText =
-                  'position:fixed!important;' +
-                  'top:8px!important;right:58px!important;' +
-                  'z-index:2147483647!important;' +
-                  'display:flex!important;visibility:visible!important;opacity:1!important;' +
-                  'pointer-events:auto!important;touch-action:manipulation!important;' +
-                  'align-items:center!important;justify-content:center!important;' +
-                  'width:88px!important;height:44px!important;min-width:88px!important;' +
-                  'padding:0 6px!important;margin:0!important;box-sizing:border-box!important;' +
-                  'border:2px solid #8bcde2!important;border-radius:8px!important;' +
-                  'background:rgba(18,78,105,.97)!important;color:#fff!important;' +
-                  'font:700 12px Roboto,Arial,sans-serif!important;' +
-                  'line-height:1!important;text-align:center!important;' +
-                  'text-shadow:none!important;box-shadow:0 2px 8px rgba(0,0,0,.65)!important;' +
-                  'transform:translateZ(0)!important;-webkit-transform:translateZ(0)!important;' +
-                  '-webkit-appearance:none!important;appearance:none!important;' +
-                  '-webkit-tap-highlight-color:transparent!important;';
-                return 'ngocsi-fill-control-installed';
-              } catch (e) {
-                return 'ngocsi-fill-control-error:' + String(e);
-              }
-            })();
-            """.trimIndent(),
+            "(function(){var b=document.getElementById('ngocsi-fill-screen-control');" +
+                "if(b)b.remove();return 'native-fill-control-active';})()",
             null
         )
     }
 
     private fun updateFillScreenWebControl() {
-        val target = webView ?: return
-        installFillScreenWebControl(target)
+        installFillScreenWebControl(webView ?: return)
+        updateNativeFillScreenButtonPosition()
     }
 
-    // Legacy lifecycle hook retained, but no Android overlay visibility is managed here.
     private fun updateNativeFillScreenButtonVisibility() {
-        updateFillScreenWebControl()
+        val button = nativeFillScreenButton ?: return
+        button.visibility = View.VISIBLE
+        button.isEnabled = true
+        button.alpha = 1f
+        updateNativeFillScreenButtonPosition()
     }
 
     private fun updateNativeFillScreenButtonPosition() {
-        updateFillScreenWebControl()
+        val button = nativeFillScreenButton ?: return
+        if (!::root.isInitialized) return
+        val params = button.layoutParams as? FrameLayout.LayoutParams ?: return
+        val buttonWidth = dp(88)
+        val fullscreen = customView != null || fullscreenLayoutActive || isCssFullscreen
+
+        if (fullscreen) {
+            params.gravity = Gravity.TOP or Gravity.END
+            params.topMargin = dp(8)
+            params.marginEnd = dp(58)
+            params.leftMargin = 0
+        } else {
+            val playerLocation = IntArray(2)
+            val rootLocation = IntArray(2)
+            playerContainer.getLocationOnScreen(playerLocation)
+            root.getLocationOnScreen(rootLocation)
+            val x = (playerLocation[0] - rootLocation[0] + playerContainer.width -
+                buttonWidth - dp(58)).coerceAtLeast(dp(8))
+            val y = (playerLocation[1] - rootLocation[1] + dp(8)).coerceAtLeast(dp(8))
+            params.gravity = Gravity.TOP or Gravity.START
+            params.leftMargin = x
+            params.topMargin = y
+            params.marginEnd = 0
+        }
+        button.layoutParams = params
+        button.visibility = View.VISIBLE
+        button.isEnabled = true
+        button.alpha = 1f
+        button.elevation = dp(32).toFloat()
+        button.translationZ = dp(8).toFloat()
+        root.bringChildToFront(button)
+        button.bringToFront()
+        root.invalidate()
     }
 
     private fun updateNativeFillScreenButton() {
-        updateFillScreenWebControl()
+        nativeFillScreenButton?.apply {
+            text = if (fillScreenEnabled) "VỪA" else "LẤP ĐẦY"
+            contentDescription = if (fillScreenEnabled) {
+                "Tắt chế độ lấp đầy màn hình"
+            } else {
+                "Lấp đầy màn hình"
+            }
+            visibility = View.VISIBLE
+            isEnabled = true
+            bringToFront()
+        }
+        updateNativeFillScreenButtonPosition()
     }
 
     private fun toggleFillScreenMode() {
