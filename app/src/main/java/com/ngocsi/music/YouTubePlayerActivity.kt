@@ -70,6 +70,61 @@ class YouTubePlayerActivity : ComponentActivity() {
      */
     private inner class InlinePlayerFrameLayout(context: android.content.Context) :
         FrameLayout(context) {
+        // Detect on the unscaled video host, then scale only its WebView child. This keeps
+        // pinch distance measurements stable while the picture itself is zoomed.
+        private var consumeVideoPinchUntilUp = false
+
+        private val videoPinchDetector = ScaleGestureDetector(
+            context,
+            object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+                    if (!isLandscapeVideoViewport() || width <= 0 || height <= 0 ||
+                        webView == null ||
+                        detector.focusX < 0f || detector.focusY < 0f ||
+                        detector.focusX > width || detector.focusY > height
+                    ) return false
+
+                    consumeVideoPinchUntilUp = true
+                    parent?.requestDisallowInterceptTouchEvent(true)
+                    return true
+                }
+
+                override fun onScale(detector: ScaleGestureDetector): Boolean {
+                    if (!consumeVideoPinchUntilUp) return false
+                    val video = webView ?: return false
+                    if (video.width <= 0 || video.height <= 0) return false
+
+                    val currentScale = video.scaleX.coerceIn(0.80f, 2.50f)
+                    var nextScale = (currentScale * detector.scaleFactor)
+                        .coerceIn(0.80f, 2.50f)
+                    // Snap cleanly back to native size when the user pinches inward.
+                    if (nextScale in 0.97f..1.03f) nextScale = 1f
+
+                    video.pivotX = video.width / 2f
+                    video.pivotY = video.height / 2f
+                    video.scaleX = nextScale
+                    video.scaleY = nextScale
+                    return true
+                }
+            }
+        )
+
+        override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
+            videoPinchDetector.onTouchEvent(event)
+            return consumeVideoPinchUntilUp || super.onInterceptTouchEvent(event)
+        }
+
+        override fun onTouchEvent(event: MotionEvent): Boolean {
+            if (!consumeVideoPinchUntilUp) return super.onTouchEvent(event)
+            if (event.actionMasked == MotionEvent.ACTION_UP ||
+                event.actionMasked == MotionEvent.ACTION_CANCEL
+            ) {
+                consumeVideoPinchUntilUp = false
+                parent?.requestDisallowInterceptTouchEvent(false)
+            }
+            return true
+        }
+
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
             val widthMode = View.MeasureSpec.getMode(widthMeasureSpec)
             val widthFromSpec = View.MeasureSpec.getSize(widthMeasureSpec)
@@ -163,69 +218,6 @@ class YouTubePlayerActivity : ComponentActivity() {
      * background audio, keep the renderer's window-visibility state alive.
      */
     private inner class BackgroundAudioWebView(context: android.content.Context) : WebView(context) {
-        // Native pinch zoom scales only this video WebView, not the Activity or queue.
-        // The video host clips the enlarged WebView so the picture is cropped at its edges.
-        private var consumeVideoPinchUntilUp = false
-
-        private val videoPinchDetector = ScaleGestureDetector(
-            context,
-            object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-                override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
-                    if (!isLandscapeVideoViewport() || width <= 0 || height <= 0 ||
-                        visibility != View.VISIBLE ||
-                        detector.focusX < 0f || detector.focusY < 0f ||
-                        detector.focusX > width || detector.focusY > height
-                    ) return false
-
-                    consumeVideoPinchUntilUp = true
-                    parent?.requestDisallowInterceptTouchEvent(true)
-                    return true
-                }
-
-                override fun onScale(detector: ScaleGestureDetector): Boolean {
-                    if (!consumeVideoPinchUntilUp) return false
-
-                    val currentScale = scaleX.coerceIn(0.80f, 2.50f)
-                    var nextScale = (currentScale * detector.scaleFactor)
-                        .coerceIn(0.80f, 2.50f)
-                    // Make returning to the original size predictable rather than leaving
-                    // a nearly-1x scale that still crops a thin strip around the picture.
-                    if (nextScale in 0.97f..1.03f) nextScale = 1f
-
-                    pivotX = width / 2f
-                    pivotY = height / 2f
-                    scaleX = nextScale
-                    scaleY = nextScale
-                    return true
-                }
-            }
-        )
-
-        override fun onTouchEvent(event: MotionEvent): Boolean {
-            val wasConsumingPinch = consumeVideoPinchUntilUp
-            videoPinchDetector.onTouchEvent(event)
-
-            // Cancel the WebView's one-finger tap/seek sequence when a real pinch begins.
-            // This prevents the first finger-down from becoming an accidental video tap.
-            if (!wasConsumingPinch && consumeVideoPinchUntilUp) {
-                val cancelEvent = MotionEvent.obtain(event)
-                cancelEvent.setAction(MotionEvent.ACTION_CANCEL)
-                super.onTouchEvent(cancelEvent)
-                cancelEvent.recycle()
-            }
-
-            if (consumeVideoPinchUntilUp) {
-                if (event.actionMasked == MotionEvent.ACTION_UP ||
-                    event.actionMasked == MotionEvent.ACTION_CANCEL
-                ) {
-                    consumeVideoPinchUntilUp = false
-                    parent?.requestDisallowInterceptTouchEvent(false)
-                }
-                return true
-            }
-            return super.onTouchEvent(event)
-        }
-
         override fun onWindowVisibilityChanged(visibility: Int) {
             if (inAppBackgroundPlaybackEnabled) {
                 if (visibility != View.GONE) {
