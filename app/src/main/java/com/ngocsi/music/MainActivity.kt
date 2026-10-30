@@ -10949,7 +10949,35 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
                     if (youtubeHistory.isNotEmpty() && youtubeTracks.isEmpty()) {
                         item {
-                            SectionTitle("TÌM GẦN ĐÂY", youtubeHistory.size.toString() + " mục")
+                            Row(
+                                Modifier.fillMaxWidth().padding(horizontal = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "TÌM GẦN ĐÂY",
+                                    color = Color.White,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Black,
+                                    letterSpacing = 0.8.sp,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Text(
+                                    youtubeHistory.size.toString() + " mục",
+                                    color = Color(0xFF777D8D),
+                                    fontSize = 10.sp
+                                )
+                                TextButton(
+                                    onClick = ::clearYouTubeHistory,
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                                ) {
+                                    Text(
+                                        "XÓA",
+                                        color = Color(0xFFFF8A98),
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
                         }
                         item {
                             Row(
