@@ -8586,6 +8586,23 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             youtubeTracks.addAll(newTracks)
                             if (newTracks.isEmpty()) {
                                 errorMessage = "YouTube không trả thêm video mới ở trang này. Hãy thử tìm lại từ khóa."
+                            } else {
+                                val activeTrack = youtubeLastPlayed
+                                if (activeTrack != null && youtubeTracks.any { it.videoId == activeTrack.videoId }) {
+                                    val (updatedQueueJson, updatedQueueIndex) =
+                                        buildYouTubeQueueJson(activeTrack)
+                                    saveYouTubeLastPlayed(
+                                        activeTrack,
+                                        updatedQueueJson,
+                                        updatedQueueIndex
+                                    )
+                                    if (inlineBackgroundServiceStarted) {
+                                        updateInlineYouTubeBackgroundService(
+                                            activeTrack,
+                                            isPlaying = youtubePlaybackIsPlaying
+                                        )
+                                    }
+                                }
                             }
                         } else {
                             youtubeTracks.clear()
@@ -8652,6 +8669,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
     }
 
     private fun playYouTube(track: YouTubeTrack) {
+        val (queueJson, selectedIndex) = buildYouTubeQueueJson(track)
+        playYouTube(track, queueJson, selectedIndex)
+    }
+
+    private fun playYouTube(track: YouTubeTrack, queueJson: String, selectedIndex: Int) {
         // Always return to the YouTube discovery screen before selecting playback.
         // This also covers video cards opened from Home, history, favorites, and
         // Watch Later: playback belongs in the top inline card, not a separate page.
@@ -8663,7 +8685,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         youtubeQuery = youtubeQuery.ifBlank { track.title }
         rememberYouTubeHistory(track.title)
 
-        val (queueJson, selectedIndex) = buildYouTubeQueueJson(track)
+        // Save the exact queue snapshot used to select this item. Do not rebuild it
+        // from the currently visible search results when moving through a saved queue.
         saveYouTubeLastPlayed(track, queueJson, selectedIndex)
         youtubePlaybackIsPlaying = true
         prefs.edit().putBoolean("youtube_playback_is_playing", true).apply()
@@ -8944,7 +8967,15 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         runCatching {
             val array = JSONArray(rawQueue)
             if (array.length() == 0) return@runCatching
-            val targetIndex = (youtubeLastQueueIndex + offset).coerceIn(0, array.length() - 1)
+            val targetIndex = youtubeLastQueueIndex + offset
+            if (targetIndex !in 0 until array.length()) {
+                errorMessage = if (offset > 0) {
+                    "Đã tới video cuối hàng đợi."
+                } else {
+                    "Đã tới video đầu hàng đợi."
+                }
+                return@runCatching
+            }
             val item = array.getJSONObject(targetIndex)
             val targetTrack = YouTubeTrack(
                 videoId = item.optString("videoId"),
@@ -8953,7 +8984,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 thumbnailUrl = item.optString("thumbnailUrl")
             )
             if (targetTrack.videoId.isBlank()) return@runCatching
-            playYouTube(targetTrack)
+            playYouTube(targetTrack, rawQueue, targetIndex)
         }.onFailure {
             errorMessage = "Không chuyển được video trong hàng đợi YouTube."
         }
@@ -9652,7 +9683,14 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         isPlaying: Boolean
     ): Boolean {
         if (!inlineBackgroundPlaybackEnabled || isFinishing || isDestroyed) return false
-        val (queueJson, queueIndex) = buildYouTubeQueueJson(track)
+        val (queueJson, queueIndex) = if (
+            youtubeLastPlayed?.videoId == track.videoId &&
+            !youtubeLastQueueJson.isNullOrBlank()
+        ) {
+            youtubeLastQueueJson!! to youtubeLastQueueIndex
+        } else {
+            buildYouTubeQueueJson(track)
+        }
         val serviceIntent = Intent(this, YouTubeBackgroundService::class.java).apply {
             action = YouTubeBackgroundService.ACTION_UPDATE
             putExtra(YouTubeBackgroundService.EXTRA_VIDEO_ID, track.videoId)
