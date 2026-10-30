@@ -837,7 +837,8 @@ class YouTubePlayerActivity : ComponentActivity() {
                 .coerceAtLeast(dp(8))
             indicator.layoutParams = params
         }
-        indicator.text = "ZOOM  ${String.format(java.util.Locale.US, "%.1f", scale)}×" +
+        val zoomLabel = if (scale > 1.01f) "PHÓNG TO" else "KÍCH THƯỚC GỐC"
+        indicator.text = "$zoomLabel  ${String.format(java.util.Locale.US, "%.1f", scale)}×" +
             if (zoomPath.isNotEmpty()) " · $zoomPath" else ""
         indicator.visibility = View.VISIBLE
         indicator.bringToFront()
@@ -860,6 +861,26 @@ class YouTubePlayerActivity : ComponentActivity() {
     private fun isTouchOnNativeVideoControls(rawX: Float, rawY: Float): Boolean =
         pointInsideViewOnScreen(nativeVideoControls, rawX, rawY)
 
+    /**
+     * Resolve the active video viewport for the Activity-level pinch recognizer.
+     *
+     * In Chromium fullscreen, the custom video view is detached from WebView and
+     * placed in a full-window container. During the first layout/rotation frames,
+     * its measured bounds can lag behind the visible viewport. The Activity root
+     * is therefore an intentional fullscreen fallback, while native app controls
+     * are filtered separately.
+     */
+    private fun isPointInsideActivePinchViewport(rawX: Float, rawY: Float): Boolean {
+        return if (activityPinchTargetsNativeFullscreen) {
+            pointInsideViewOnScreen(fullscreenPinchContainer, rawX, rawY) ||
+                pointInsideViewOnScreen(customView, rawX, rawY) ||
+                pointInsideViewOnScreen(root, rawX, rawY)
+        } else {
+            pointInsideViewOnScreen(webView, rawX, rawY) ||
+                pointInsideViewOnScreen(playerContainer, rawX, rawY)
+        }
+    }
+
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
         val action = event.actionMasked
         val sequenceFinished = action == MotionEvent.ACTION_UP ||
@@ -877,19 +898,33 @@ class YouTubePlayerActivity : ComponentActivity() {
 
             val onControls = isTouchOnNativeVideoControls(event.rawX, event.rawY)
             if (!onControls && isLandscapeVideoViewport()) {
-                val fullscreenHost = fullscreenPinchContainer
-                if (customView != null &&
-                    pointInsideViewOnScreen(fullscreenHost, event.rawX, event.rawY)
-                ) {
-                    activityPinchTracking = true
-                    activityPinchTargetsNativeFullscreen = true
-                    fullscreenHost?.parent?.requestDisallowInterceptTouchEvent(true)
-                } else if (customView == null &&
-                    pointInsideViewOnScreen(playerContainer, event.rawX, event.rawY)
-                ) {
-                    activityPinchTracking = true
-                    activityPinchTargetsNativeFullscreen = false
-                    playerContainer.parent?.requestDisallowInterceptTouchEvent(true)
+                if (customView != null) {
+                    val fullscreenHost = fullscreenPinchContainer
+                    // Chromium's fullscreen custom view occupies the full Activity
+                    // viewport. Accept the root as a fallback when the detached
+                    // container's screen bounds are temporarily stale after rotation.
+                    val insideFullscreen = fullscreenHost != null &&
+                        fullscreenHost.isShown &&
+                        (pointInsideViewOnScreen(fullscreenHost, event.rawX, event.rawY) ||
+                            pointInsideViewOnScreen(customView, event.rawX, event.rawY) ||
+                            pointInsideViewOnScreen(root, event.rawX, event.rawY))
+                    if (insideFullscreen) {
+                        activityPinchTracking = true
+                        activityPinchTargetsNativeFullscreen = true
+                        fullscreenHost?.parent?.requestDisallowInterceptTouchEvent(true)
+                    }
+                } else {
+                    // The actual WebView and its clipping FrameLayout are both valid
+                    // hit targets. This covers small layout-bound differences between
+                    // Chromium's video surface and the native player host.
+                    val insideInlineVideo =
+                        pointInsideViewOnScreen(webView, event.rawX, event.rawY) ||
+                            pointInsideViewOnScreen(playerContainer, event.rawX, event.rawY)
+                    if (insideInlineVideo) {
+                        activityPinchTracking = true
+                        activityPinchTargetsNativeFullscreen = false
+                        playerContainer.parent?.requestDisallowInterceptTouchEvent(true)
+                    }
                 }
             }
         }
@@ -899,10 +934,33 @@ class YouTubePlayerActivity : ComponentActivity() {
         if (action == MotionEvent.ACTION_POINTER_DOWN &&
             activityPinchTracking && event.pointerCount == 2
         ) {
-            activityPinchPointerId2 = event.getPointerId(event.actionIndex)
-            activityPinchStartSpan = pointerSpan(event)
-            activityPinchStartScale = activityPinchScale
-            updatePinchZoomIndicator(activityPinchScale, "2 NGÓN")
+            // ACTION_POINTER_DOWN carries both coordinates. Require both fingers to
+            // start inside the same video viewport and outside our native controls;
+            // a finger that begins on the queue/buttons must not steal their gestures.
+            val rawOffsetX = event.rawX - event.x
+            val rawOffsetY = event.rawY - event.y
+            val firstRawX = event.getX(0) + rawOffsetX
+            val firstRawY = event.getY(0) + rawOffsetY
+            val secondRawX = event.getX(event.actionIndex) + rawOffsetX
+            val secondRawY = event.getY(event.actionIndex) + rawOffsetY
+            val bothFingersOnVideo =
+                isPointInsideActivePinchViewport(firstRawX, firstRawY) &&
+                    isPointInsideActivePinchViewport(secondRawX, secondRawY) &&
+                    !isTouchOnNativeVideoControls(firstRawX, firstRawY) &&
+                    !isTouchOnNativeVideoControls(secondRawX, secondRawY)
+
+            if (bothFingersOnVideo) {
+                activityPinchPointerId2 = event.getPointerId(event.actionIndex)
+                activityPinchStartSpan = pointerSpan(event)
+                activityPinchStartScale = activityPinchScale
+                updatePinchZoomIndicator(activityPinchScale, "2 NGÓN")
+            } else {
+                activityPinchTracking = false
+                activityPinchPointerId2 = -1
+                activityPinchStartSpan = 0f
+                playerContainer.parent?.requestDisallowInterceptTouchEvent(false)
+                fullscreenPinchContainer?.parent?.requestDisallowInterceptTouchEvent(false)
+            }
         }
 
         if (action == MotionEvent.ACTION_MOVE &&
