@@ -4101,38 +4101,38 @@ class YouTubePlayerActivity : ComponentActivity() {
 
     private fun updateNativeFillScreenButtonPosition() {
         val button = nativeFillScreenButton ?: return
-        if (!::root.isInitialized) return
-        val params = button.layoutParams as? FrameLayout.LayoutParams ?: return
-        val buttonWidth = dp(88)
-        val fullscreen = customView != null || fullscreenLayoutActive || isCssFullscreen
+        if (!::root.isInitialized || !::playerContainer.isInitialized) return
 
-        if (fullscreen) {
-            params.gravity = Gravity.TOP or Gravity.END
-            params.topMargin = dp(8)
-            params.marginEnd = dp(58)
-            params.leftMargin = 0
-        } else {
-            val playerLocation = IntArray(2)
-            val rootLocation = IntArray(2)
-            playerContainer.getLocationOnScreen(playerLocation)
-            root.getLocationOnScreen(rootLocation)
-            val x = (playerLocation[0] - rootLocation[0] + playerContainer.width -
-                buttonWidth - dp(58)).coerceAtLeast(dp(8))
-            val y = (playerLocation[1] - rootLocation[1] + dp(8)).coerceAtLeast(dp(8))
-            params.gravity = Gravity.TOP or Gravity.START
-            params.leftMargin = x
-            params.topMargin = y
-            params.marginEnd = 0
+        // Avoid screen-coordinate math for the inline player. The player sits inside a
+        // ScrollView and its screen position can be stale during rotation/first layout;
+        // that previously allowed the root overlay to be positioned outside the visible
+        // video area. Keep the control anchored to the actual player FrameLayout instead.
+        val fullscreen = customView != null || fullscreenLayoutActive || isCssFullscreen
+        val targetParent: FrameLayout = if (fullscreen) root else playerContainer
+        if (button.parent !== targetParent) {
+            (button.parent as? ViewGroup)?.removeView(button)
+            targetParent.addView(
+                button,
+                FrameLayout.LayoutParams(dp(88), dp(44), Gravity.TOP or Gravity.END)
+            )
         }
+
+        val params = button.layoutParams as? FrameLayout.LayoutParams ?: return
+        params.width = dp(88)
+        params.height = dp(44)
+        params.gravity = Gravity.TOP or Gravity.END
+        params.topMargin = dp(8)
+        params.marginEnd = dp(58)
+        params.leftMargin = 0
         button.layoutParams = params
         button.visibility = View.VISIBLE
         button.isEnabled = true
         button.alpha = 1f
         button.elevation = dp(32).toFloat()
         button.translationZ = dp(8).toFloat()
-        root.bringChildToFront(button)
+        targetParent.bringChildToFront(button)
         button.bringToFront()
-        root.invalidate()
+        targetParent.invalidate()
     }
 
     private fun updateNativeFillScreenButton() {
