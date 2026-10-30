@@ -31,8 +31,6 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import android.view.Gravity
-import android.view.MotionEvent
-import android.view.ViewTreeObserver
 import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewFeature
 import androidx.webkit.WebViewMediaIntegrityApiStatusConfig
@@ -157,134 +155,6 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
     }
 
-    private data class VideoViewClipState(
-        val clipToOutline: Boolean,
-        val clipBounds: android.graphics.Rect?,
-        val clipChildren: Boolean?,
-        val clipToPadding: Boolean?
-    )
-
-    private data class WebViewPinchTransformState(
-        val scaleX: Float,
-        val scaleY: Float,
-        val pivotX: Float,
-        val pivotY: Float,
-        val translationX: Float,
-        val translationY: Float
-    )
-
-    /**
-     * Owns touch gestures for Chromium's native fullscreen custom view.
-     *
-     * The fullscreen view is moved out of WebView by WebChromeClient and is attached
-     * directly to the Activity root. The inline player host therefore cannot receive
-     * its touch stream. This wrapper observes the actual fullscreen surface, passes
-     * ordinary taps through, and takes ownership only after a two-finger pinch begins.
-     */
-    private inner class FullscreenPinchContainer(
-        context: android.content.Context,
-        private val videoView: View
-    ) : FrameLayout(context) {
-
-        private var pinchScale = 1f
-        private val savedClipStates =
-            java.util.IdentityHashMap<View, VideoViewClipState>()
-
-        init {
-            clipChildren = true
-            clipToPadding = true
-            isClickable = true
-            setBackgroundColor(AndroidColor.BLACK)
-            videoView.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-                if (pinchScale > 1.01f) applyPinchScale()
-            }
-        }
-
-        private fun scaleView(view: View, scale: Float) {
-            if (view.width > 0 && view.height > 0) {
-                view.pivotX = view.width / 2f
-                view.pivotY = view.height / 2f
-            }
-            view.clipBounds = null
-            view.scaleX = scale
-            view.scaleY = scale
-        }
-
-        private fun disableVideoTreeClipping(view: View) {
-            if (!savedClipStates.containsKey(view)) {
-                savedClipStates[view] = VideoViewClipState(
-                    clipToOutline = view.clipToOutline,
-                    clipBounds = view.clipBounds?.let { android.graphics.Rect(it) },
-                    clipChildren = (view as? ViewGroup)?.clipChildren,
-                    clipToPadding = (view as? ViewGroup)?.clipToPadding
-                )
-            }
-            view.clipToOutline = false
-            view.clipBounds = null
-            if (view is ViewGroup) {
-                view.clipChildren = false
-                view.clipToPadding = false
-                for (index in 0 until view.childCount) {
-                    disableVideoTreeClipping(view.getChildAt(index))
-                }
-            }
-        }
-
-        private fun scaleVideoTreeSurfaces(view: View, scale: Float) {
-            if (view is android.view.SurfaceView || view is android.view.TextureView) {
-                // Chromium can nest ContentVideoView/VideoSurfaceView several levels below
-                // the custom fullscreen wrapper. Scaling only direct children misses it.
-                scaleView(view, scale)
-                return
-            }
-            if (view is ViewGroup) {
-                for (index in 0 until view.childCount) {
-                    scaleVideoTreeSurfaces(view.getChildAt(index), scale)
-                }
-            }
-        }
-
-        private fun restoreVideoTreeClipping() {
-            savedClipStates.forEach { (view, state) ->
-                view.clipToOutline = state.clipToOutline
-                view.clipBounds = state.clipBounds?.let { android.graphics.Rect(it) }
-                if (view is ViewGroup) {
-                    state.clipChildren?.let { view.clipChildren = it }
-                    state.clipToPadding?.let { view.clipToPadding = it }
-                }
-            }
-            savedClipStates.clear()
-        }
-
-        private fun applyPinchScale() {
-            // The outer container remains the screen crop boundary. Inside it, disable
-            // intermediate clipping just as the Morphe native implementation does.
-            // Chromium may insert multiple FrameLayouts before the actual SurfaceView.
-            if (pinchScale > 1.01f) {
-                disableVideoTreeClipping(videoView)
-            }
-
-            // Scale the Chromium fullscreen view plus every native video surface in its
-            // descendant tree. HTML/WebView page zoom cannot scale this detached surface.
-            scaleView(videoView, pinchScale)
-            scaleVideoTreeSurfaces(videoView, pinchScale)
-            invalidate()
-        }
-
-        fun applyPinchScaleFromActivity(scale: Float) {
-            pinchScale = scale.coerceIn(1f, 4f)
-            applyPinchScale()
-        }
-
-        fun resetPinchScale() {
-            pinchScale = 1f
-            applyPinchScale()
-            restoreVideoTreeClipping()
-        }
-
-
-    }
-
     /**
      * WebView normally receives GONE when its Activity goes to the background.
      * Chromium may then suspend the HTML5 media element. When the user enables
@@ -302,7 +172,6 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
     }
     private var customView: View? = null
-    private var fullscreenPinchContainer: FullscreenPinchContainer? = null
     private var customViewCallback: WebChromeClient.CustomViewCallback? = null
     // Use Chromium's actual video surface for fullscreen instead of restyling the page.
     private var isCssFullscreen = false
@@ -749,274 +618,6 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var unexpectedPlaybackRecoveryGeneration = 0
     private var lastUnexpectedPlaybackRecoveryAtMs = 0L
 
-    // One Activity-level detector sees the complete touch stream before Android
-    // routes it through nested ScrollView/WebView/Chromium surfaces. This avoids the
-    // competing child detectors that caused the previous iterations to miss the pinch.
-    private var activityPinchTracking = false
-    private var activityPinchConsumed = false
-    private var activityPinchTargetsNativeFullscreen = false
-    private var activityPinchScale = 1f
-    private var activityPinchStartSpan = 0f
-    private var activityPinchStartScale = 1f
-    private var activityPinchPointerId1 = -1
-    private var activityPinchPointerId2 = -1
-    private var pinchZoomIndicator: TextView? = null
-    private var inlineWebViewPinchTarget: WebView? = null
-    private var inlineWebViewPinchOriginalTransform: WebViewPinchTransformState? = null
-    private var inlineWebViewPinchPreDrawObserver: ViewTreeObserver? = null
-    private var inlineWebViewPinchPreDrawListener: ViewTreeObserver.OnPreDrawListener? = null
-
-    private fun applyActivityPinchScale(scale: Float) {
-        activityPinchScale = scale.coerceIn(1f, 4f)
-        val zoomPath = if (activityPinchTargetsNativeFullscreen) {
-            fullscreenPinchContainer?.applyPinchScaleFromActivity(activityPinchScale)
-            "FULL"
-        } else {
-            applyInlineWebViewPinchScale(activityPinchScale)
-            "WEBVIEW"
-        }
-        updatePinchZoomIndicator(activityPinchScale, zoomPath)
-    }
-
-    private fun pointerSpan(event: MotionEvent): Float {
-        if (event.pointerCount < 2 ||
-            activityPinchPointerId1 < 0 || activityPinchPointerId2 < 0
-        ) return 0f
-        // Pointer indices can change between MotionEvents. Resolve stable IDs
-        // for every move rather than assuming the two fingers keep slots 0 and 1.
-        val firstIndex = event.findPointerIndex(activityPinchPointerId1)
-        val secondIndex = event.findPointerIndex(activityPinchPointerId2)
-        if (firstIndex < 0 || secondIndex < 0) return 0f
-        val dx = event.getX(firstIndex) - event.getX(secondIndex)
-        val dy = event.getY(firstIndex) - event.getY(secondIndex)
-        return kotlin.math.sqrt(dx * dx + dy * dy)
-    }
-
-    private fun updatePinchZoomIndicator(scale: Float, zoomPath: String = "") {
-        if (!::root.isInitialized) return
-        val indicator = pinchZoomIndicator ?: TextView(this).apply {
-            gravity = Gravity.CENTER
-            textSize = 12f
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-            setTextColor(AndroidColor.WHITE)
-            setPadding(dp(10), dp(5), dp(10), dp(5))
-            background = GradientDrawable().apply {
-                setColor(AndroidColor.argb(220, 20, 22, 28))
-                cornerRadius = dp(10).toFloat()
-                setStroke(dp(1), AndroidColor.rgb(92, 180, 255))
-            }
-            elevation = dp(8).toFloat()
-            visibility = View.GONE
-        }.also {
-            pinchZoomIndicator = it
-            root.addView(
-                it,
-                FrameLayout.LayoutParams(
-                    dp(168),
-                    dp(36),
-                    Gravity.TOP or Gravity.START
-                )
-            )
-        }
-
-        val target = if (activityPinchTargetsNativeFullscreen) {
-            fullscreenPinchContainer
-        } else {
-            if (::playerContainer.isInitialized) playerContainer else null
-        }
-        if (target != null && target.width > 0 && target.height > 0) {
-            val targetLocation = IntArray(2)
-            val rootLocation = IntArray(2)
-            target.getLocationOnScreen(targetLocation)
-            root.getLocationOnScreen(rootLocation)
-            val params = indicator.layoutParams as? FrameLayout.LayoutParams
-                ?: FrameLayout.LayoutParams(dp(168), dp(36))
-            params.leftMargin = (targetLocation[0] - rootLocation[0] + dp(12))
-                .coerceAtLeast(dp(8))
-            params.topMargin = (targetLocation[1] - rootLocation[1] + dp(12))
-                .coerceAtLeast(dp(8))
-            indicator.layoutParams = params
-        }
-        val zoomLabel = if (scale > 1.01f) "PHÓNG TO" else "KÍCH THƯỚC GỐC"
-        indicator.text = "$zoomLabel  ${String.format(java.util.Locale.US, "%.1f", scale)}×" +
-            if (zoomPath.isNotEmpty()) " · $zoomPath" else ""
-        indicator.visibility = View.VISIBLE
-        indicator.bringToFront()
-    }
-
-    private fun hidePinchZoomIndicator() {
-        pinchZoomIndicator?.visibility = View.GONE
-    }
-
-    private fun pointInsideViewOnScreen(view: View?, rawX: Float, rawY: Float): Boolean {
-        if (view == null || view.visibility != View.VISIBLE || view.width <= 0 || view.height <= 0) {
-            return false
-        }
-        val location = IntArray(2)
-        view.getLocationOnScreen(location)
-        return rawX >= location[0] && rawX < location[0] + view.width &&
-            rawY >= location[1] && rawY < location[1] + view.height
-    }
-
-    private fun isTouchOnNativeVideoControls(rawX: Float, rawY: Float): Boolean =
-        pointInsideViewOnScreen(nativeVideoControls, rawX, rawY)
-
-    /**
-     * Resolve the active video viewport for the Activity-level pinch recognizer.
-     *
-     * In Chromium fullscreen, the custom video view is detached from WebView and
-     * placed in a full-window container. During the first layout/rotation frames,
-     * its measured bounds can lag behind the visible viewport. The Activity root
-     * is therefore an intentional fullscreen fallback, while native app controls
-     * are filtered separately.
-     */
-    private fun isPointInsideActivePinchViewport(rawX: Float, rawY: Float): Boolean {
-        return if (activityPinchTargetsNativeFullscreen) {
-            pointInsideViewOnScreen(fullscreenPinchContainer, rawX, rawY) ||
-                pointInsideViewOnScreen(customView, rawX, rawY) ||
-                pointInsideViewOnScreen(root, rawX, rawY)
-        } else {
-            pointInsideViewOnScreen(webView, rawX, rawY) ||
-                pointInsideViewOnScreen(playerContainer, rawX, rawY)
-        }
-    }
-
-    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
-        val action = event.actionMasked
-        val sequenceFinished = action == MotionEvent.ACTION_UP ||
-            action == MotionEvent.ACTION_CANCEL
-        val pointerReleased = action == MotionEvent.ACTION_POINTER_UP
-
-        if (action == MotionEvent.ACTION_DOWN) {
-            activityPinchTracking = false
-            activityPinchConsumed = false
-            activityPinchTargetsNativeFullscreen = false
-            activityPinchStartSpan = 0f
-            activityPinchStartScale = activityPinchScale
-            activityPinchPointerId1 = event.getPointerId(0)
-            activityPinchPointerId2 = -1
-
-            val onControls = isTouchOnNativeVideoControls(event.rawX, event.rawY)
-            if (!onControls && isLandscapeVideoViewport()) {
-                // Start observing the stream at Activity level. Do not reject the
-                // first pointer using WebView/container bounds: in Android WebView
-                // + SurfaceView fullscreen transitions those bounds can be stale,
-                // even while the video visibly fills the screen. The second-pointer
-                // midpoint is validated against the active video viewport below.
-                activityPinchTracking = true
-                activityPinchTargetsNativeFullscreen = customView != null
-                if (activityPinchTargetsNativeFullscreen) {
-                    fullscreenPinchContainer?.parent?.requestDisallowInterceptTouchEvent(true)
-                } else {
-                    playerContainer.parent?.requestDisallowInterceptTouchEvent(true)
-                }
-            }
-        }
-
-        // Do not rely on ScaleGestureDetector's gesture lifecycle. Track the two
-        // pointer coordinates directly from the Activity's original MotionEvents.
-        if (action == MotionEvent.ACTION_POINTER_DOWN &&
-            activityPinchTracking && event.pointerCount == 2
-        ) {
-            // Validate the midpoint rather than both individual touch points.
-            // This tolerates edge pinches where one fingertip slightly crosses the
-            // measured video boundary, while keeping the queue and native buttons
-            // outside the gesture area.
-            val rawOffsetX = event.rawX - event.x
-            val rawOffsetY = event.rawY - event.y
-            val firstRawX = event.rawX
-            val firstRawY = event.rawY
-            val secondRawX = event.getX(event.actionIndex) + rawOffsetX
-            val secondRawY = event.getY(event.actionIndex) + rawOffsetY
-            val midpointX = (firstRawX + secondRawX) / 2f
-            val midpointY = (firstRawY + secondRawY) / 2f
-            val midpointOnVideo =
-                isPointInsideActivePinchViewport(midpointX, midpointY) &&
-                    !isTouchOnNativeVideoControls(firstRawX, firstRawY) &&
-                    !isTouchOnNativeVideoControls(secondRawX, secondRawY)
-
-            if (midpointOnVideo) {
-                activityPinchPointerId2 = event.getPointerId(event.actionIndex)
-                activityPinchStartSpan = pointerSpan(event)
-                activityPinchStartScale = activityPinchScale
-                updatePinchZoomIndicator(activityPinchScale, "2 NGÓN")
-            } else {
-                activityPinchTracking = false
-                activityPinchPointerId2 = -1
-                activityPinchStartSpan = 0f
-                playerContainer.parent?.requestDisallowInterceptTouchEvent(false)
-                fullscreenPinchContainer?.parent?.requestDisallowInterceptTouchEvent(false)
-            }
-        }
-
-        if (action == MotionEvent.ACTION_MOVE &&
-            activityPinchTracking && event.pointerCount >= 2 &&
-            activityPinchStartSpan > 1f
-        ) {
-            val currentSpan = pointerSpan(event)
-            if (currentSpan > 1f) {
-                val nextScale = (activityPinchStartScale * currentSpan /
-                    activityPinchStartSpan).coerceIn(1f, 4f)
-                val scaleChanged = kotlin.math.abs(nextScale - activityPinchScale) >= 0.012f
-
-                if (scaleChanged) {
-                    val wasConsumed = activityPinchConsumed
-                    activityPinchConsumed = true
-                    if (!wasConsumed) {
-                        // Cancel YouTube's pending tap/seek only after two-finger
-                        // movement has actually changed the zoom factor.
-                        val cancelEvent = MotionEvent.obtain(event)
-                        cancelEvent.action = MotionEvent.ACTION_CANCEL
-                        super.dispatchTouchEvent(cancelEvent)
-                        cancelEvent.recycle()
-                    }
-                    applyActivityPinchScale(nextScale)
-                }
-            }
-        }
-
-        if (activityPinchConsumed) {
-            if (pointerReleased) {
-                // Continue consuming the remainder of the original two-pointer
-                // stream until the last finger lifts. Otherwise a MOVE/UP from the
-                // remaining finger would be delivered to YouTube without its DOWN.
-                activityPinchTracking = false
-                activityPinchStartSpan = 0f
-                activityPinchPointerId1 = -1
-                activityPinchPointerId2 = -1
-            }
-            if (sequenceFinished) {
-                activityPinchTracking = false
-                activityPinchConsumed = false
-                activityPinchStartSpan = 0f
-                activityPinchPointerId1 = -1
-                activityPinchPointerId2 = -1
-                playerContainer.parent?.requestDisallowInterceptTouchEvent(false)
-                fullscreenPinchContainer?.parent?.requestDisallowInterceptTouchEvent(false)
-                hidePinchZoomIndicator()
-            }
-            return true
-        }
-
-        if (pointerReleased) {
-            activityPinchStartSpan = 0f
-            activityPinchStartScale = activityPinchScale
-            activityPinchPointerId1 = -1
-            activityPinchPointerId2 = -1
-        }
-        val handled = super.dispatchTouchEvent(event)
-        if (sequenceFinished) {
-            activityPinchTracking = false
-            activityPinchStartSpan = 0f
-            activityPinchPointerId1 = -1
-            activityPinchPointerId2 = -1
-            playerContainer.parent?.requestDisallowInterceptTouchEvent(false)
-            fullscreenPinchContainer?.parent?.requestDisallowInterceptTouchEvent(false)
-            hidePinchZoomIndicator()
-        }
-        return handled
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         lastKnownConfigurationOrientation = resources.configuration.orientation
@@ -1388,9 +989,6 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
         playerContainer.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
             positionNativeVideoControls()
-            if (inlineWebViewPinchOriginalTransform != null && activityPinchScale > 1.001f) {
-                applyInlineWebViewPinchScale(activityPinchScale)
-            }
         }
         applyResponsivePlayerLayout()
         installPhysicalOrientationLayoutWatcher()
@@ -3338,12 +2936,6 @@ class YouTubePlayerActivity : ComponentActivity() {
         updatePlaybackButton()
     }
     private fun createPlayer() {
-        // A newly selected video starts at native fit size; never inherit the previous
-        // video's pinch multiplier or an interrupted pointer sequence.
-        activityPinchTracking = false
-        activityPinchConsumed = false
-        activityPinchScale = 1f
-        restoreInlineWebViewPinchTransform()
         unexpectedPlaybackRecoveryGeneration++
         lastUnexpectedPlaybackRecoveryAtMs = 0L
         removePlayer()
@@ -3896,27 +3488,14 @@ class YouTubePlayerActivity : ComponentActivity() {
                     customViewCallback = callback
                     (view.parent as? ViewGroup)?.removeView(view)
                     enterFullscreen()
-
-                    // The native fullscreen view is a separate surface from the inline WebView.
-                    // Wrap this exact view so pinch gestures are received in fullscreen too.
-                    val pinchContainer = FullscreenPinchContainer(this@YouTubePlayerActivity, view)
-                    pinchContainer.addView(
-                        view,
-                        FrameLayout.LayoutParams(
-                            FrameLayout.LayoutParams.MATCH_PARENT,
-                            FrameLayout.LayoutParams.MATCH_PARENT,
-                            Gravity.FILL
-                        )
-                    )
-                    fullscreenPinchContainer = pinchContainer
                     root.addView(
-                        pinchContainer,
+                        view,
                         FrameLayout.LayoutParams(
                             FrameLayout.LayoutParams.MATCH_PARENT,
                             FrameLayout.LayoutParams.MATCH_PARENT
                         )
                     )
-                    pinchContainer.bringToFront()
+                    view.bringToFront()
                     moveNativeVideoControlsTo(root)
                     positionNativeVideoControls()
                     updateNativeFullscreenButton()
@@ -3945,10 +3524,6 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
 
         webView = player
-        // Keep zoomed video pixels inside the player's own frame; never let them cover
-        // the landscape queue panel or neighboring Activity content.
-        playerContainer.clipChildren = true
-        playerContainer.clipToPadding = true
         playerContainer.addView(
             player,
             FrameLayout.LayoutParams(
@@ -4316,16 +3891,14 @@ class YouTubePlayerActivity : ComponentActivity() {
             }
             root.post {
                 if (customView === fullscreenView && !isFinishing && !isDestroyed) {
-                    val fullscreenContainer = fullscreenPinchContainer
-                    fullscreenContainer?.layoutParams = FrameLayout.LayoutParams(
+                    fullscreenView.layoutParams = FrameLayout.LayoutParams(
                         FrameLayout.LayoutParams.MATCH_PARENT,
                         FrameLayout.LayoutParams.MATCH_PARENT,
                         Gravity.FILL
                     )
-                    fullscreenContainer?.requestLayout()
                     root.requestLayout()
                     fullscreenView.requestLayout()
-                    fullscreenContainer?.let { root.bringChildToFront(it) }
+                    root.bringChildToFront(fullscreenView)
                     // The WebView DOM fill control remains in the same video document layer.
 
                     // Switching to landscape can pause the HTML5 video even though the
@@ -4425,8 +3998,6 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun removePlayer() {
-        restoreInlineWebViewPinchTransform()
-        hidePinchZoomIndicator()
         webView?.let { view ->
             try {
                 view.stopLoading()
@@ -4809,16 +4380,6 @@ class YouTubePlayerActivity : ComponentActivity() {
             // Chromium/rotation can change callback order; remove it from its actual parent.
             val fullscreenView = customView
             customView = null
-            fullscreenPinchContainer?.let { container ->
-                // Restore native video/surface transforms before releasing Chromium's view.
-                container.resetPinchScale()
-                (container.parent as? ViewGroup)?.removeView(container)
-            }
-            activityPinchTracking = false
-            activityPinchConsumed = false
-            activityPinchScale = 1f
-            restoreInlineWebViewPinchTransform()
-            fullscreenPinchContainer = null
             fullscreenView?.let { view ->
                 (view.parent as? ViewGroup)?.removeView(view)
                 if (view.parent != null) {
@@ -5677,122 +5238,6 @@ class YouTubePlayerActivity : ComponentActivity() {
      * Do not filter googlevideo.com or broad Google/YouTube hosts because they
      * serve actual video/audio, player code, thumbnails and captions as well.
      */
-    /**
-     * Apply pinch zoom to the WebView view that occupies the fixed player frame.
-     * Android applies the View transform at the compositor layer; playerContainer
-     * remains fixed and clips the enlarged WebView so the queue and side panel stay put.
-     */
-    private fun detachInlineWebViewPinchPreDraw() {
-        val observer = inlineWebViewPinchPreDrawObserver
-        val listener = inlineWebViewPinchPreDrawListener
-        inlineWebViewPinchPreDrawObserver = null
-        inlineWebViewPinchPreDrawListener = null
-        if (observer != null && listener != null && observer.isAlive) {
-            runCatching { observer.removeOnPreDrawListener(listener) }
-        }
-    }
-
-    private fun applyInlineWebViewPinchTransform(target: WebView) {
-        val original = inlineWebViewPinchOriginalTransform ?: return
-        val scale = activityPinchScale.coerceIn(1f, 4f)
-        if (target.width <= 0 || target.height <= 0 || scale <= 1.001f) return
-
-        if (::playerContainer.isInitialized) {
-            // Keep zoom strictly inside the video viewport; the landscape queue is
-            // a sibling outside this clipping boundary.
-            playerContainer.clipChildren = true
-            playerContainer.clipToPadding = true
-            playerContainer.clipBounds = null
-        }
-
-        val desiredScaleX = original.scaleX * scale
-        val desiredScaleY = original.scaleY * scale
-        val desiredPivotX = target.width / 2f
-        val desiredPivotY = target.height / 2f
-        if (target.pivotX != desiredPivotX) target.pivotX = desiredPivotX
-        if (target.pivotY != desiredPivotY) target.pivotY = desiredPivotY
-        if (target.scaleX != desiredScaleX) target.scaleX = desiredScaleX
-        if (target.scaleY != desiredScaleY) target.scaleY = desiredScaleY
-        if (target.translationX != original.translationX) {
-            target.translationX = original.translationX
-        }
-        if (target.translationY != original.translationY) {
-            target.translationY = original.translationY
-        }
-    }
-
-    private fun attachInlineWebViewPinchPreDraw(target: WebView) {
-        val currentObserver = target.viewTreeObserver
-        if (!currentObserver.isAlive) return
-        if (inlineWebViewPinchPreDrawListener != null &&
-            inlineWebViewPinchPreDrawObserver === currentObserver
-        ) return
-
-        detachInlineWebViewPinchPreDraw()
-        val listener = ViewTreeObserver.OnPreDrawListener {
-            val currentTarget = inlineWebViewPinchTarget
-            if (currentTarget === target &&
-                inlineWebViewPinchOriginalTransform != null &&
-                activityPinchScale > 1.001f &&
-                target.isAttachedToWindow
-            ) {
-                // YouTube/WebView can re-layout player internals and overwrite child
-                // geometry during rotation or media viewport changes. Reapply the
-                // zoom before each draw, matching the native-player approach used by
-                // Morphe, but target only this app's WebView viewport.
-                applyInlineWebViewPinchTransform(target)
-            }
-            true
-        }
-        currentObserver.addOnPreDrawListener(listener)
-        inlineWebViewPinchPreDrawObserver = currentObserver
-        inlineWebViewPinchPreDrawListener = listener
-    }
-
-    private fun restoreInlineWebViewPinchTransform() {
-        detachInlineWebViewPinchPreDraw()
-        val target = inlineWebViewPinchTarget
-        val original = inlineWebViewPinchOriginalTransform
-        if (target != null && original != null) {
-            target.scaleX = original.scaleX
-            target.scaleY = original.scaleY
-            target.pivotX = original.pivotX
-            target.pivotY = original.pivotY
-            target.translationX = original.translationX
-            target.translationY = original.translationY
-            target.invalidate()
-        }
-        inlineWebViewPinchTarget = null
-        inlineWebViewPinchOriginalTransform = null
-    }
-
-    private fun applyInlineWebViewPinchScale(scale: Float) {
-        val target = webView ?: return
-        val safeScale = scale.coerceIn(1f, 4f)
-
-        if (safeScale <= 1.001f) {
-            restoreInlineWebViewPinchTransform()
-            return
-        }
-
-        if (inlineWebViewPinchTarget !== target) {
-            restoreInlineWebViewPinchTransform()
-            inlineWebViewPinchTarget = target
-            inlineWebViewPinchOriginalTransform = WebViewPinchTransformState(
-                scaleX = target.scaleX,
-                scaleY = target.scaleY,
-                pivotX = target.pivotX,
-                pivotY = target.pivotY,
-                translationX = target.translationX,
-                translationY = target.translationY
-            )
-        }
-
-        applyInlineWebViewPinchTransform(target)
-        attachInlineWebViewPinchPreDraw(target)
-        target.invalidate()
-    }
-
     private fun sanitizeVideoId(value: String): String =
         value.filter { it.isLetterOrDigit() || it == '-' || it == '_' }.take(32)
 
