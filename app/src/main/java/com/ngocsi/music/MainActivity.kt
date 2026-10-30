@@ -4093,6 +4093,10 @@ class MainActivity : ComponentActivity() {
                     .setPackage(packageName)
                     .putExtra(YouTubeBackgroundService.EXTRA_CONTROL, "pause")
             )
+            sendBroadcast(
+                Intent(YouTubeBackgroundService.ACTION_SLEEP_TIMER_EXPIRED)
+                    .setPackage(packageName)
+            )
             if (inlineBackgroundPlaybackEnabled) {
                 (youtubeInlineTrack ?: youtubeLastPlayed)?.let { track ->
                     updateInlineYouTubeBackgroundService(track, isPlaying = false)
@@ -5362,7 +5366,14 @@ class MainActivity : ComponentActivity() {
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
-                            if (sleepMinutes > 0) "Tự động dừng sau $sleepMinutes phút" else "Chọn thời gian để tự động dừng nhạc.",
+                            if (sleepMinutes > 0) {
+                                val target = if (
+                                    youtubeIsActiveSource || prefs.getBoolean("youtube_active_source", false)
+                                ) "YouTube" else "nguồn nhạc đang phát"
+                                "Tự động dừng $target sau $sleepMinutes phút."
+                            } else {
+                                "Chọn thời gian tự động dừng YouTube, nhạc thiết bị hoặc Google Drive."
+                            },
                             color = Color(0xFF8E8E99),
                             fontSize = 13.sp
                         )
