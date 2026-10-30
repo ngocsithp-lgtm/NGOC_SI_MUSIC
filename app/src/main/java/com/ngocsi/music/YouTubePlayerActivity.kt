@@ -235,6 +235,117 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     /**
+     * Owns touch gestures for Chromium's native fullscreen custom view.
+     *
+     * The fullscreen view is moved out of WebView by WebChromeClient and is attached
+     * directly to the Activity root. The inline player host therefore cannot receive
+     * its touch stream. This wrapper observes the actual fullscreen surface, passes
+     * ordinary taps through, and takes ownership only after a two-finger pinch begins.
+     */
+    private inner class FullscreenPinchContainer(
+        context: android.content.Context,
+        private val videoView: View
+    ) : FrameLayout(context) {
+
+        private var pinchActive = false
+        private var pinchScale = 1f
+
+        private val scaleDetector = ScaleGestureDetector(
+            context,
+            object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+                    if (width <= 0 || height <= 0 ||
+                        detector.focusX < 0f || detector.focusY < 0f ||
+                        detector.focusX > width || detector.focusY > height
+                    ) return false
+                    pinchActive = true
+                    return true
+                }
+
+                override fun onScale(detector: ScaleGestureDetector): Boolean {
+                    if (!pinchActive) return false
+                    pinchScale = (pinchScale * detector.scaleFactor).coerceIn(1f, 4f)
+                    applyPinchScale()
+                    return true
+                }
+
+                override fun onScaleEnd(detector: ScaleGestureDetector) {
+                    // Keep the selected zoom after the user lifts one or both fingers.
+                    applyPinchScale()
+                }
+            }
+        )
+
+        init {
+            clipChildren = true
+            clipToPadding = true
+            isClickable = true
+            setBackgroundColor(AndroidColor.BLACK)
+        }
+
+        private fun scaleView(view: View, scale: Float) {
+            if (view.width > 0 && view.height > 0) {
+                view.pivotX = view.width / 2f
+                view.pivotY = view.height / 2f
+            }
+            view.clipBounds = null
+            view.scaleX = scale
+            view.scaleY = scale
+        }
+
+        private fun applyPinchScale() {
+            // Scale the actual Chromium fullscreen view. WebView page scaling alone
+            // cannot affect a custom fullscreen surface after onShowCustomView().
+            scaleView(videoView, pinchScale)
+
+            // Some Android/WebView video paths use a separately composed native surface.
+            // Apply the same transform to direct SurfaceView/TextureView children, as
+            // native YouTube players do, so the picture follows the player view transform.
+            if (videoView is ViewGroup) {
+                for (index in 0 until videoView.childCount) {
+                    val child = videoView.getChildAt(index)
+                    if (child is android.view.SurfaceView ||
+                        child is android.view.TextureView
+                    ) {
+                        scaleView(child, pinchScale)
+                    }
+                }
+            }
+            invalidate()
+        }
+
+        fun resetPinchScale() {
+            pinchActive = false
+            pinchScale = 1f
+            applyPinchScale()
+        }
+
+        override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+            val wasPinching = pinchActive
+            scaleDetector.onTouchEvent(event)
+
+            // The first finger may already have started a normal YouTube tap. Cancel that
+            // stream once a second finger starts scaling, then own the rest of this gesture.
+            if (!wasPinching && pinchActive) {
+                val cancelEvent = MotionEvent.obtain(event)
+                cancelEvent.setAction(MotionEvent.ACTION_CANCEL)
+                super.dispatchTouchEvent(cancelEvent)
+                cancelEvent.recycle()
+            }
+
+            if (pinchActive) {
+                if (event.actionMasked == MotionEvent.ACTION_UP ||
+                    event.actionMasked == MotionEvent.ACTION_CANCEL
+                ) {
+                    pinchActive = false
+                }
+                return true
+            }
+            return super.dispatchTouchEvent(event)
+        }
+    }
+
+    /**
      * WebView normally receives GONE when its Activity goes to the background.
      * Chromium may then suspend the HTML5 media element. When the user enables
      * background audio, keep the renderer's window-visibility state alive.
@@ -251,6 +362,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
     }
     private var customView: View? = null
+    private var fullscreenPinchContainer: FullscreenPinchContainer? = null
     private var customViewCallback: WebChromeClient.CustomViewCallback? = null
     // Use Chromium's actual video surface for fullscreen instead of restyling the page.
     private var isCssFullscreen = false
@@ -3567,14 +3679,27 @@ class YouTubePlayerActivity : ComponentActivity() {
                     customViewCallback = callback
                     (view.parent as? ViewGroup)?.removeView(view)
                     enterFullscreen()
-                    root.addView(
+
+                    // The native fullscreen view is a separate surface from the inline WebView.
+                    // Wrap this exact view so pinch gestures are received in fullscreen too.
+                    val pinchContainer = FullscreenPinchContainer(this@YouTubePlayerActivity, view)
+                    pinchContainer.addView(
                         view,
+                        FrameLayout.LayoutParams(
+                            FrameLayout.LayoutParams.MATCH_PARENT,
+                            FrameLayout.LayoutParams.MATCH_PARENT,
+                            Gravity.FILL
+                        )
+                    )
+                    fullscreenPinchContainer = pinchContainer
+                    root.addView(
+                        pinchContainer,
                         FrameLayout.LayoutParams(
                             FrameLayout.LayoutParams.MATCH_PARENT,
                             FrameLayout.LayoutParams.MATCH_PARENT
                         )
                     )
-                    view.bringToFront()
+                    pinchContainer.bringToFront()
                     moveNativeVideoControlsTo(root)
                     positionNativeVideoControls()
                     updateNativeFullscreenButton()
@@ -3974,14 +4099,16 @@ class YouTubePlayerActivity : ComponentActivity() {
             }
             root.post {
                 if (customView === fullscreenView && !isFinishing && !isDestroyed) {
-                    fullscreenView.layoutParams = FrameLayout.LayoutParams(
+                    val fullscreenContainer = fullscreenPinchContainer
+                    fullscreenContainer?.layoutParams = FrameLayout.LayoutParams(
                         FrameLayout.LayoutParams.MATCH_PARENT,
                         FrameLayout.LayoutParams.MATCH_PARENT,
                         Gravity.FILL
                     )
+                    fullscreenContainer?.requestLayout()
                     root.requestLayout()
                     fullscreenView.requestLayout()
-                    root.bringChildToFront(fullscreenView)
+                    fullscreenContainer?.let { root.bringChildToFront(it) }
                     // The WebView DOM fill control remains in the same video document layer.
 
                     // Switching to landscape can pause the HTML5 video even though the
@@ -4463,6 +4590,12 @@ class YouTubePlayerActivity : ComponentActivity() {
             // Chromium/rotation can change callback order; remove it from its actual parent.
             val fullscreenView = customView
             customView = null
+            fullscreenPinchContainer?.let { container ->
+                // Restore native video/surface transforms before releasing Chromium's view.
+                container.resetPinchScale()
+                (container.parent as? ViewGroup)?.removeView(container)
+            }
+            fullscreenPinchContainer = null
             fullscreenView?.let { view ->
                 (view.parent as? ViewGroup)?.removeView(view)
                 if (view.parent != null) {
