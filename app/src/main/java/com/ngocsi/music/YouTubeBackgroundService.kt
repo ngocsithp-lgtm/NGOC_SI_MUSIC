@@ -12,6 +12,9 @@ import android.media.session.PlaybackState
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
+import androidx.core.content.ContextCompat
 
 /**
  * Keeps the currently user-started in-app YouTube WebView playback process at
@@ -33,6 +36,7 @@ class YouTubeBackgroundService : Service() {
         const val ACTION_NEXT = "com.ngocsi.music.youtube.background.NEXT"
         const val ACTION_PREVIOUS = "com.ngocsi.music.youtube.background.PREVIOUS"
         const val ACTION_CONTROL = "com.ngocsi.music.youtube.background.CONTROL"
+        const val ACTION_SLEEP_TIMER_EXPIRED = "com.ngocsi.music.youtube.background.SLEEP_TIMER_EXPIRED"
         const val ACTION_OPEN_INLINE_PLAYER = "com.ngocsi.music.youtube.background.OPEN_INLINE_PLAYER"
         const val EXTRA_OPEN_INLINE_PLAYER = "youtube_open_inline_player"
         const val EXTRA_CONTROL = "youtube_background_control"
@@ -59,9 +63,28 @@ class YouTubeBackgroundService : Service() {
     private var queueIndex = 0
     private var playerState = PlaybackState.STATE_NONE
     private var isPlaying = false
+    private var sleepTimerReceiverRegistered = false
+
+    private val sleepTimerExpirationReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context?, intent: Intent?) {
+            if (intent?.action != ACTION_SLEEP_TIMER_EXPIRED) return
+            isPlaying = false
+            playerState = PlaybackState.STATE_PAUSED
+            releaseWakeLock()
+            // Keep lock-screen/notification controls in sync with the timer.
+            if (videoId.isNotBlank()) refreshSessionAndNotification()
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
+        ContextCompat.registerReceiver(
+            this,
+            sleepTimerExpirationReceiver,
+            IntentFilter(ACTION_SLEEP_TIMER_EXPIRED),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+        sleepTimerReceiverRegistered = true
         createNotificationChannel()
         val powerManager = getSystemService(PowerManager::class.java)
         wakeLock = powerManager?.newWakeLock(
@@ -327,6 +350,10 @@ class YouTubeBackgroundService : Service() {
 
     override fun onDestroy() {
         releaseWakeLock()
+        if (sleepTimerReceiverRegistered) {
+            runCatching { unregisterReceiver(sleepTimerExpirationReceiver) }
+            sleepTimerReceiverRegistered = false
+        }
         runCatching {
             mediaSession?.apply {
                 isActive = false
