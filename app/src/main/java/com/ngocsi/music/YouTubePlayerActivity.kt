@@ -32,7 +32,6 @@ import android.widget.TextView
 import android.widget.Toast
 import android.view.Gravity
 import android.view.MotionEvent
-import android.view.ScaleGestureDetector
 import android.view.ViewTreeObserver
 import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewFeature
@@ -757,43 +756,31 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var activityPinchConsumed = false
     private var activityPinchTargetsNativeFullscreen = false
     private var activityPinchScale = 1f
+    private var activityPinchStartSpan = 0f
+    private var activityPinchStartScale = 1f
     private var pinchZoomIndicator: TextView? = null
     private var inlineWebViewPinchTarget: WebView? = null
     private var inlineWebViewPinchOriginalTransform: WebViewPinchTransformState? = null
     private var inlineWebViewPinchPreDrawObserver: ViewTreeObserver? = null
     private var inlineWebViewPinchPreDrawListener: ViewTreeObserver.OnPreDrawListener? = null
 
-    private val activityPinchScaleDetector by lazy {
-        ScaleGestureDetector(
-            this,
-            object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-                override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
-                    if (!activityPinchTracking || isFinishing || isDestroyed) return false
-                    activityPinchConsumed = true
-                    updatePinchZoomIndicator(activityPinchScale)
-                    return true
-                }
+    private fun applyActivityPinchScale(scale: Float) {
+        activityPinchScale = scale.coerceIn(1f, 4f)
+        val zoomPath = if (activityPinchTargetsNativeFullscreen) {
+            fullscreenPinchContainer?.applyPinchScaleFromActivity(activityPinchScale)
+            "FULL"
+        } else {
+            applyInlineWebViewPinchScale(activityPinchScale)
+            "WEBVIEW"
+        }
+        updatePinchZoomIndicator(activityPinchScale, zoomPath)
+    }
 
-                override fun onScale(detector: ScaleGestureDetector): Boolean {
-                    if (!activityPinchConsumed) return false
-                    activityPinchScale = (activityPinchScale * detector.scaleFactor)
-                        .coerceIn(1f, 4f)
-
-                    val zoomPath = if (activityPinchTargetsNativeFullscreen) {
-                        fullscreenPinchContainer?.applyPinchScaleFromActivity(activityPinchScale)
-                        "FULL"
-                    } else {
-                        // Inline YouTube content is a WebView compositor surface, not a
-                        // native YouTube PlayerView or a guaranteed child SurfaceView.
-                        // Transform the WebView View itself and let playerContainer crop it.
-                        applyInlineWebViewPinchScale(activityPinchScale)
-                        "WEBVIEW"
-                    }
-                    updatePinchZoomIndicator(activityPinchScale, zoomPath)
-                    return true
-                }
-            }
-        )
+    private fun pointerSpan(event: MotionEvent): Float {
+        if (event.pointerCount < 2) return 0f
+        val dx = event.getX(0) - event.getX(1)
+        val dy = event.getY(0) - event.getY(1)
+        return kotlin.math.sqrt(dx * dx + dy * dy)
     }
 
     private fun updatePinchZoomIndicator(scale: Float, zoomPath: String = "") {
@@ -868,11 +855,14 @@ class YouTubePlayerActivity : ComponentActivity() {
         val action = event.actionMasked
         val sequenceFinished = action == MotionEvent.ACTION_UP ||
             action == MotionEvent.ACTION_CANCEL
+        val pointerReleased = action == MotionEvent.ACTION_POINTER_UP
 
         if (action == MotionEvent.ACTION_DOWN) {
             activityPinchTracking = false
             activityPinchConsumed = false
             activityPinchTargetsNativeFullscreen = false
+            activityPinchStartSpan = 0f
+            activityPinchStartScale = activityPinchScale
 
             val onControls = isTouchOnNativeVideoControls(event.rawX, event.rawY)
             if (!onControls && isLandscapeVideoViewport()) {
@@ -893,24 +883,47 @@ class YouTubePlayerActivity : ComponentActivity() {
             }
         }
 
-        val wasConsumed = activityPinchConsumed
-        if (activityPinchTracking) {
-            activityPinchScaleDetector.onTouchEvent(event)
+        // Do not rely on ScaleGestureDetector's gesture lifecycle. Track the two
+        // pointer coordinates directly from the Activity's original MotionEvents.
+        if (action == MotionEvent.ACTION_POINTER_DOWN &&
+            activityPinchTracking && event.pointerCount >= 2
+        ) {
+            activityPinchStartSpan = pointerSpan(event)
+            activityPinchStartScale = activityPinchScale
+            updatePinchZoomIndicator(activityPinchScale, "2 NGÓN")
         }
 
-        // Cancel the original one-finger video tap only after the detector confirms
-        // a two-finger scale. Before that point ordinary YouTube taps/seeks pass through.
-        if (!wasConsumed && activityPinchConsumed) {
-            val cancelEvent = MotionEvent.obtain(event)
-            cancelEvent.action = MotionEvent.ACTION_CANCEL
-            super.dispatchTouchEvent(cancelEvent)
-            cancelEvent.recycle()
+        if (action == MotionEvent.ACTION_MOVE &&
+            activityPinchTracking && event.pointerCount >= 2 &&
+            activityPinchStartSpan > 1f
+        ) {
+            val currentSpan = pointerSpan(event)
+            if (currentSpan > 1f) {
+                val nextScale = (activityPinchStartScale * currentSpan /
+                    activityPinchStartSpan).coerceIn(1f, 4f)
+                val scaleChanged = kotlin.math.abs(nextScale - activityPinchScale) >= 0.012f
+
+                if (scaleChanged) {
+                    val wasConsumed = activityPinchConsumed
+                    activityPinchConsumed = true
+                    if (!wasConsumed) {
+                        // Cancel YouTube's pending tap/seek only after two-finger
+                        // movement has actually changed the zoom factor.
+                        val cancelEvent = MotionEvent.obtain(event)
+                        cancelEvent.action = MotionEvent.ACTION_CANCEL
+                        super.dispatchTouchEvent(cancelEvent)
+                        cancelEvent.recycle()
+                    }
+                    applyActivityPinchScale(nextScale)
+                }
+            }
         }
 
         if (activityPinchConsumed) {
-            if (sequenceFinished) {
+            if (pointerReleased || sequenceFinished) {
                 activityPinchTracking = false
                 activityPinchConsumed = false
+                activityPinchStartSpan = 0f
                 playerContainer.parent?.requestDisallowInterceptTouchEvent(false)
                 fullscreenPinchContainer?.parent?.requestDisallowInterceptTouchEvent(false)
                 hidePinchZoomIndicator()
@@ -918,11 +931,17 @@ class YouTubePlayerActivity : ComponentActivity() {
             return true
         }
 
+        if (pointerReleased) {
+            activityPinchStartSpan = 0f
+            activityPinchStartScale = activityPinchScale
+        }
         val handled = super.dispatchTouchEvent(event)
         if (sequenceFinished) {
             activityPinchTracking = false
+            activityPinchStartSpan = 0f
             playerContainer.parent?.requestDisallowInterceptTouchEvent(false)
             fullscreenPinchContainer?.parent?.requestDisallowInterceptTouchEvent(false)
+            hidePinchZoomIndicator()
         }
         return handled
     }
