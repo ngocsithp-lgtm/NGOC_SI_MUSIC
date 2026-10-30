@@ -33,6 +33,7 @@ import android.widget.Toast
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
+import android.view.ViewTreeObserver
 import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewFeature
 import androidx.webkit.WebViewMediaIntegrityApiStatusConfig
@@ -759,6 +760,8 @@ class YouTubePlayerActivity : ComponentActivity() {
     private var pinchZoomIndicator: TextView? = null
     private var inlineWebViewPinchTarget: WebView? = null
     private var inlineWebViewPinchOriginalTransform: WebViewPinchTransformState? = null
+    private var inlineWebViewPinchPreDrawObserver: ViewTreeObserver? = null
+    private var inlineWebViewPinchPreDrawListener: ViewTreeObserver.OnPreDrawListener? = null
 
     private val activityPinchScaleDetector by lazy {
         ScaleGestureDetector(
@@ -5589,7 +5592,75 @@ class YouTubePlayerActivity : ComponentActivity() {
      * Android applies the View transform at the compositor layer; playerContainer
      * remains fixed and clips the enlarged WebView so the queue and side panel stay put.
      */
+    private fun detachInlineWebViewPinchPreDraw() {
+        val observer = inlineWebViewPinchPreDrawObserver
+        val listener = inlineWebViewPinchPreDrawListener
+        inlineWebViewPinchPreDrawObserver = null
+        inlineWebViewPinchPreDrawListener = null
+        if (observer != null && listener != null && observer.isAlive) {
+            runCatching { observer.removeOnPreDrawListener(listener) }
+        }
+    }
+
+    private fun applyInlineWebViewPinchTransform(target: WebView) {
+        val original = inlineWebViewPinchOriginalTransform ?: return
+        val scale = activityPinchScale.coerceIn(1f, 4f)
+        if (target.width <= 0 || target.height <= 0 || scale <= 1.001f) return
+
+        if (::playerContainer.isInitialized) {
+            // Keep zoom strictly inside the video viewport; the landscape queue is
+            // a sibling outside this clipping boundary.
+            playerContainer.clipChildren = true
+            playerContainer.clipToPadding = true
+            playerContainer.clipBounds = null
+        }
+
+        val desiredScaleX = original.scaleX * scale
+        val desiredScaleY = original.scaleY * scale
+        val desiredPivotX = target.width / 2f
+        val desiredPivotY = target.height / 2f
+        if (target.pivotX != desiredPivotX) target.pivotX = desiredPivotX
+        if (target.pivotY != desiredPivotY) target.pivotY = desiredPivotY
+        if (target.scaleX != desiredScaleX) target.scaleX = desiredScaleX
+        if (target.scaleY != desiredScaleY) target.scaleY = desiredScaleY
+        if (target.translationX != original.translationX) {
+            target.translationX = original.translationX
+        }
+        if (target.translationY != original.translationY) {
+            target.translationY = original.translationY
+        }
+    }
+
+    private fun attachInlineWebViewPinchPreDraw(target: WebView) {
+        val currentObserver = target.viewTreeObserver
+        if (!currentObserver.isAlive) return
+        if (inlineWebViewPinchPreDrawListener != null &&
+            inlineWebViewPinchPreDrawObserver === currentObserver
+        ) return
+
+        detachInlineWebViewPinchPreDraw()
+        val listener = ViewTreeObserver.OnPreDrawListener {
+            val currentTarget = inlineWebViewPinchTarget
+            if (currentTarget === target &&
+                inlineWebViewPinchOriginalTransform != null &&
+                activityPinchScale > 1.001f &&
+                target.isAttachedToWindow
+            ) {
+                // YouTube/WebView can re-layout player internals and overwrite child
+                // geometry during rotation or media viewport changes. Reapply the
+                // zoom before each draw, matching the native-player approach used by
+                // Morphe, but target only this app's WebView viewport.
+                applyInlineWebViewPinchTransform(target)
+            }
+            true
+        }
+        currentObserver.addOnPreDrawListener(listener)
+        inlineWebViewPinchPreDrawObserver = currentObserver
+        inlineWebViewPinchPreDrawListener = listener
+    }
+
     private fun restoreInlineWebViewPinchTransform() {
+        detachInlineWebViewPinchPreDraw()
         val target = inlineWebViewPinchTarget
         val original = inlineWebViewPinchOriginalTransform
         if (target != null && original != null) {
@@ -5627,23 +5698,8 @@ class YouTubePlayerActivity : ComponentActivity() {
             )
         }
 
-        val original = inlineWebViewPinchOriginalTransform ?: return
-        if (target.width <= 0 || target.height <= 0) return
-
-        // Pinch the one WebView that occupies the player frame, not the Activity,
-        // queue, ScrollView, or neighboring landscape panel. The permanent
-        // playerContainer remains the crop boundary at all zoom levels.
-        if (::playerContainer.isInitialized) {
-            playerContainer.clipChildren = true
-            playerContainer.clipToPadding = true
-            playerContainer.clipBounds = null
-        }
-        target.pivotX = target.width / 2f
-        target.pivotY = target.height / 2f
-        target.scaleX = original.scaleX * safeScale
-        target.scaleY = original.scaleY * safeScale
-        target.translationX = original.translationX
-        target.translationY = original.translationY
+        applyInlineWebViewPinchTransform(target)
+        attachInlineWebViewPinchPreDraw(target)
         target.invalidate()
     }
 
