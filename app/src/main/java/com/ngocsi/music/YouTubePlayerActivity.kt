@@ -179,8 +179,9 @@ class YouTubePlayerActivity : ComponentActivity() {
     // or its video surface is temporarily black after a viewport change.
     private var fullscreenEntryPending = false
     private var nativeFullscreenButton: Button? = null
-    private var nativeFillScreenButton: Button? = null
-    private var fillScreenEnabled = false
+    private var nativeFillModeButton: Button? = null
+    private var nativeVideoControls: LinearLayout? = null
+    private var videoFillModeEnabled = false
     private var frameStallRecoveryCooldownUntilMs = 0L
     // Restore the real Chromium fullscreen surface if a confirmed frame stall requires
     // rebuilding the same YouTube page at the last saved playback position.
@@ -387,13 +388,6 @@ class YouTubePlayerActivity : ComponentActivity() {
         fun onViewportPlaybackHandoff() {
             runOnUiThread {
                 noteViewportPlaybackHandoff()
-            }
-        }
-
-        @JavascriptInterface
-        fun onToggleFillScreen() {
-            runOnUiThread {
-                toggleFillScreenMode()
             }
         }
 
@@ -989,17 +983,6 @@ class YouTubePlayerActivity : ComponentActivity() {
         ))
 
         setContentView(root)
-        // Reposition the root-level fill control whenever the player moves because of
-        // rotation, responsive layout changes, or scrolling.
-        root.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-            updateNativeFillScreenButtonPosition()
-        }
-        playerContainer.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-            updateNativeFillScreenButtonPosition()
-        }
-        scroll.setOnScrollChangeListener { _, _, _, _, _ ->
-            updateNativeFillScreenButtonPosition()
-        }
         applyResponsivePlayerLayout()
         installPhysicalOrientationLayoutWatcher()
         updateActionState()
@@ -1019,7 +1002,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         force: Boolean = false
     ) {
         if (!::root.isInitialized) return
-        updateNativeFillScreenButtonVisibility()
+        updateNativeVideoControlsVisibility()
         if (fullscreenLayoutActive || isCssFullscreen || customView != null) return
 
         val content = contentContainer ?: return
@@ -3127,39 +3110,11 @@ class YouTubePlayerActivity : ComponentActivity() {
                               'width:100%!important;height:100%!important;min-width:100%!important;' +
                               'min-height:100%!important;max-width:none!important;max-height:none!important;' +
                               'object-fit:contain!important;object-position:center center!important;} ' +
-                              // Optional landscape fill mode: force the mobile watch/player wrappers to
-                              // the WebView viewport, then crop the video centrally with object-fit:cover.
-                              'html.ngocsi-fill-screen-active,html.ngocsi-fill-screen-active body,' +
-                              'html.ngocsi-fill-screen-active ytm-app,html.ngocsi-fill-screen-active ytm-watch {' +
-                              'width:100vw!important;height:100vh!important;min-width:100vw!important;' +
-                              'min-height:100vh!important;max-width:none!important;max-height:none!important;' +
-                              'overflow:hidden!important;margin:0!important;padding:0!important;} ' +
-                              'html.ngocsi-fill-screen-active ytm-watch,' +
-                              'html.ngocsi-fill-screen-active .player-container,' +
-                              'html.ngocsi-fill-screen-active .player-placeholder,' +
-                              'html.ngocsi-fill-screen-active ytm-player,' +
-                              'html.ngocsi-fill-screen-active #player-container-id,' +
-                              'html.ngocsi-fill-screen-active #player-container,' +
-                              'html.ngocsi-fill-screen-active #player {' +
-                              'position:relative!important;top:0!important;left:0!important;right:auto!important;' +
-                              'bottom:auto!important;transform:none!important;width:100vw!important;height:100vh!important;' +
-                              'min-width:100vw!important;min-height:100vh!important;max-width:none!important;' +
-                              'max-height:none!important;margin:0!important;padding:0!important;aspect-ratio:auto!important;' +
-                              'box-sizing:border-box!important;overflow:hidden!important;} ' +
-                              'html.ngocsi-fill-screen-active .html5-video-player,' +
-                              'html.ngocsi-fill-screen-active #movie_player,' +
-                              'html.ngocsi-fill-screen-active .html5-video-container {' +
-                              'position:relative!important;top:0!important;left:0!important;right:auto!important;' +
-                              'bottom:auto!important;transform:none!important;width:100vw!important;height:100vh!important;' +
-                              'min-width:100vw!important;min-height:100vh!important;max-width:none!important;' +
-                              'max-height:none!important;margin:0!important;box-sizing:border-box!important;' +
-                              'overflow:hidden!important;} ' +
-                              'html.ngocsi-fill-screen-active video,' +
-                              'html.ngocsi-fill-screen-active video.html5-main-video {' +
-                              'position:absolute!important;left:0!important;top:0!important;right:0!important;bottom:0!important;' +
-                              'margin:0!important;transform:none!important;width:100vw!important;height:100vh!important;' +
-                              'min-width:100vw!important;min-height:100vh!important;max-width:none!important;max-height:none!important;' +
-                              'object-fit:cover!important;object-position:center center!important;}';
+                              // Cover mode changes only the actual HTML video content. YouTube keeps
+                              // ownership of player wrappers, viewport sizing and fullscreen geometry.
+                              'html.ngocsi-video-fill-mode video.html5-main-video,' +
+                              'html.ngocsi-video-fill-mode video {' +
+                              'object-fit:cover!important;object-position:center center!important;}'
                             (document.head || document.documentElement).appendChild(style);
 
                             // Reset stale sticky positioning at every wrapper level after
@@ -3427,13 +3382,12 @@ class YouTubePlayerActivity : ComponentActivity() {
                             null
                         )
                     }
-                    if (fillScreenEnabled) {
+                    if (videoFillModeEnabled) {
                         view.evaluateJavascript(
-                            "(function(){if(document.documentElement)document.documentElement.classList.add('ngocsi-fill-screen-active');window.__ngocSiFillScreenEnabled=true;return 'fill-screen-restored-after-navigation';})()",
+                            "(function(){var root=document.documentElement;if(root)root.classList.add('ngocsi-video-fill-mode');return 'video-fill-mode-restored';})()",
                             null
                         )
                     }
-                    installFillScreenWebControl(view)
                     // Let Android/WebView own responsive dimensions. Only request one normal
                     // layout pass after YouTube has inserted its media node.
                     view.postDelayed({
@@ -3535,11 +3489,10 @@ class YouTubePlayerActivity : ComponentActivity() {
                         )
                     )
                     view.bringToFront()
-                    nativeFullscreenButton?.bringToFront()
+                    moveNativeVideoControlsTo(root)
                     updateNativeFullscreenButton()
-                    // This button belongs to the Activity root, not the WebView.
-                    // Re-raise it after Chromium's fullscreen surface is attached.
-                    updateNativeFillScreenButtonPosition()
+                    // Keep the native controls together above Chromium's fullscreen surface.
+                    moveNativeVideoControlsTo(root)
                 }
 
                 override fun onHideCustomView() {
@@ -3572,8 +3525,15 @@ class YouTubePlayerActivity : ComponentActivity() {
                 FrameLayout.LayoutParams.MATCH_PARENT
             )
         )
-        // Do not depend on YouTube's mutable DOM/shadow-root fullscreen control. This native
-        // overlay stays above the WebView and remains usable when the video image is black.
+        // One shared native overlay hosts both controls so they cannot be split across
+        // the player layer and Activity root during fullscreen transitions.
+        nativeVideoControls = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            clipChildren = false
+            clipToPadding = false
+            setBackgroundColor(AndroidColor.TRANSPARENT)
+        }
         nativeFullscreenButton = Button(this).apply {
             text = "⛶"
             textSize = 21f
@@ -3593,20 +3553,13 @@ class YouTubePlayerActivity : ComponentActivity() {
             contentDescription = "Phóng to toàn màn hình"
             elevation = dp(6).toFloat()
             setOnClickListener { requestYoutubeFullscreen() }
-        }.also { button ->
-            playerContainer.addView(
-                button,
-                FrameLayout.LayoutParams(dp(44), dp(42), Gravity.TOP or Gravity.END).apply {
-                    topMargin = dp(8)
-                    marginEnd = dp(8)
-                }
-            )
-            button.bringToFront()
         }
-        // A real Android control is attached to the Activity root, not to the YouTube DOM.
-        // This avoids the missing-button failure when Chromium creates its fullscreen surface.
-        nativeFillScreenButton = Button(this).apply {
-            text = if (fillScreenEnabled) "VỪA" else "LẤP ĐẦY"
+        nativeVideoControls?.addView(
+            nativeFullscreenButton,
+            LinearLayout.LayoutParams(dp(44), dp(42))
+        )
+        nativeFillModeButton = Button(this).apply {
+            text = if (videoFillModeEnabled) "VỪA" else "LẤP ĐẦY"
             textSize = 11f
             isAllCaps = false
             typeface = android.graphics.Typeface.DEFAULT_BOLD
@@ -3625,24 +3578,22 @@ class YouTubePlayerActivity : ComponentActivity() {
             isClickable = true
             isFocusable = true
             contentDescription = "Lấp đầy màn hình video"
-            elevation = dp(32).toFloat()
-            translationZ = dp(8).toFloat()
-            setOnClickListener { toggleFillScreenMode() }
-        }.also { button ->
-            root.addView(
-                button,
-                FrameLayout.LayoutParams(dp(88), dp(44), Gravity.TOP or Gravity.START)
-            )
-            root.bringChildToFront(button)
-            button.bringToFront()
+            elevation = dp(6).toFloat()
+            setOnClickListener { toggleVideoFillMode() }
         }
+        nativeVideoControls?.addView(
+            nativeFillModeButton,
+            LinearLayout.LayoutParams(dp(88), dp(42)).apply {
+                marginStart = dp(6)
+            }
+        )
+        moveNativeVideoControlsTo(playerContainer)
         updateNativeFullscreenButton()
-        updateNativeFillScreenButton()
+        updateNativeVideoControlsVisibility()
         player.post {
             if (webView === player && !isFinishing && !isDestroyed) {
-                updateNativeFillScreenButtonPosition()
-                nativeFullscreenButton?.bringToFront()
-                nativeFillScreenButton?.bringToFront()
+                updateNativeVideoControlsVisibility()
+                nativeVideoControls?.bringToFront()
             }
         }
         if (::titleView.isInitialized) titleView.text = title
@@ -4051,11 +4002,12 @@ class YouTubePlayerActivity : ComponentActivity() {
             }
         }
         webView = null
-        nativeFullscreenButton = null
-        nativeFillScreenButton?.let { button ->
-            (button.parent as? ViewGroup)?.removeView(button)
+        nativeVideoControls?.let { controls ->
+            (controls.parent as? ViewGroup)?.removeView(controls)
         }
-        nativeFillScreenButton = null
+        nativeVideoControls = null
+        nativeFullscreenButton = null
+        nativeFillModeButton = null
         fullscreenEntryPending = false
         playerContainer.takeIf { ::playerContainer.isInitialized }?.removeAllViews()
     }
@@ -4068,93 +4020,68 @@ class YouTubePlayerActivity : ComponentActivity() {
             } else {
                 "Phóng to toàn màn hình"
             }
-            bringToFront()
         }
-        updateNativeFillScreenButtonVisibility()
+        updateNativeVideoControlsVisibility()
     }
 
     /**
-     * Remove any older DOM-based control. The visible control is a native Android Button
-     * attached to the Activity root, so it remains above both the WebView and fullscreen view.
+     * Keep expand and fill controls in one overlay. Inline playback places the overlay
+     * inside the player host; Chromium fullscreen places it above the custom fullscreen
+     * surface in the Activity root.
      */
-    private fun installFillScreenWebControl(target: WebView) {
-        if (isFinishing || isDestroyed) return
-        target.evaluateJavascript(
-            "(function(){var b=document.getElementById('ngocsi-fill-screen-control');" +
-                "if(b)b.remove();return 'native-fill-control-active';})()",
-            null
-        )
-    }
-
-    private fun updateFillScreenWebControl() {
-        installFillScreenWebControl(webView ?: return)
-        updateNativeFillScreenButtonPosition()
-    }
-
-    private fun updateNativeFillScreenButtonVisibility() {
-        val button = nativeFillScreenButton ?: return
-        button.visibility = View.VISIBLE
-        button.isEnabled = true
-        button.alpha = 1f
-        updateNativeFillScreenButtonPosition()
-    }
-
-    private fun updateNativeFillScreenButtonPosition() {
-        val button = nativeFillScreenButton ?: return
-        if (!::root.isInitialized || !::playerContainer.isInitialized) return
-
-        // Avoid screen-coordinate math for the inline player. The player sits inside a
-        // ScrollView and its screen position can be stale during rotation/first layout;
-        // that previously allowed the root overlay to be positioned outside the visible
-        // video area. Keep the control anchored to the actual player FrameLayout instead.
-        // Keep this control in the same native overlay layer as the expand button.
-        // CSS fullscreen flags can be set by YouTube while the Activity is still showing
-        // the inline player; moving only this button to the Activity root then detaches it
-        // from the visible video bounds and can place it underneath the page/scroll layer.
-        // Only Chromium's actual custom fullscreen surface needs the Activity root.
-        val targetParent: FrameLayout = if (customView != null) root else playerContainer
-        if (button.parent !== targetParent) {
-            (button.parent as? ViewGroup)?.removeView(button)
+    private fun moveNativeVideoControlsTo(targetParent: FrameLayout) {
+        val controls = nativeVideoControls ?: return
+        if (controls.parent !== targetParent) {
+            (controls.parent as? ViewGroup)?.removeView(controls)
             targetParent.addView(
-                button,
-                FrameLayout.LayoutParams(dp(88), dp(44), Gravity.TOP or Gravity.END)
+                controls,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    dp(44),
+                    Gravity.TOP or Gravity.END
+                ).apply {
+                    topMargin = dp(8)
+                    marginEnd = dp(8)
+                }
             )
         }
-
-        val params = button.layoutParams as? FrameLayout.LayoutParams ?: return
-        params.width = dp(88)
-        params.height = dp(44)
-        params.gravity = Gravity.TOP or Gravity.END
-        params.topMargin = dp(8)
-        params.marginEnd = dp(58)
-        params.leftMargin = 0
-        button.layoutParams = params
-        button.visibility = View.VISIBLE
-        button.isEnabled = true
-        button.alpha = 1f
-        button.elevation = dp(32).toFloat()
-        button.translationZ = dp(8).toFloat()
-        targetParent.bringChildToFront(button)
-        button.bringToFront()
-        targetParent.invalidate()
+        controls.visibility = View.VISIBLE
+        targetParent.bringChildToFront(controls)
+        controls.bringToFront()
     }
 
-    private fun updateNativeFillScreenButton() {
-        nativeFillScreenButton?.apply {
-            text = if (fillScreenEnabled) "VỪA" else "LẤP ĐẦY"
-            contentDescription = if (fillScreenEnabled) {
+    private fun updateNativeVideoControlsVisibility() {
+        val landscape = resources.configuration.orientation ==
+            android.content.res.Configuration.ORIENTATION_LANDSCAPE ||
+            fullscreenLayoutActive || isCssFullscreen || customView != null
+        nativeFillModeButton?.apply {
+            visibility = if (landscape) View.VISIBLE else View.GONE
+            isEnabled = landscape
+        }
+        if (::root.isInitialized && ::playerContainer.isInitialized) {
+            moveNativeVideoControlsTo(if (customView != null) root else playerContainer)
+        }
+    }
+
+    private fun updateNativeFillModeButton() {
+        nativeFillModeButton?.apply {
+            text = if (videoFillModeEnabled) "VỪA" else "LẤP ĐẦY"
+            contentDescription = if (videoFillModeEnabled) {
                 "Tắt chế độ lấp đầy màn hình"
             } else {
                 "Lấp đầy màn hình"
             }
             visibility = View.VISIBLE
             isEnabled = true
-            bringToFront()
         }
-        updateNativeFillScreenButtonPosition()
+        updateNativeVideoControlsVisibility()
     }
 
-    private fun toggleFillScreenMode() {
+    /**
+     * Cover mode fills the existing HTML video element's box and crops only the excess.
+     * YouTube retains ownership of its player wrappers and viewport dimensions.
+     */
+    private fun toggleVideoFillMode() {
         val landscape = resources.configuration.orientation ==
             android.content.res.Configuration.ORIENTATION_LANDSCAPE ||
             fullscreenLayoutActive || isCssFullscreen || customView != null
@@ -4166,22 +4093,18 @@ class YouTubePlayerActivity : ComponentActivity() {
             ).show()
             return
         }
-        fillScreenEnabled = !fillScreenEnabled
-        updateNativeFillScreenButton()
+        videoFillModeEnabled = !videoFillModeEnabled
+        updateNativeFillModeButton()
         webView?.evaluateJavascript(
-            "(function(){var d=document.documentElement;if(!d)return 'no-root';" +
-                "d.classList.toggle('ngocsi-fill-screen-active'," +
-                (if (fillScreenEnabled) "true" else "false") +
-                ");window.__ngocSiFillScreenEnabled=" +
-                (if (fillScreenEnabled) "true" else "false") +
-                ";var b=document.getElementById('ngocsi-fill-screen-control');" +
-                "if(b)b.textContent=window.__ngocSiFillScreenEnabled?'VỪA':'LẤP ĐẦY';" +
-                "return window.__ngocSiFillScreenEnabled?'fill-on':'fill-off';})()",
+            "(function(){var root=document.documentElement;if(!root)return 'no-root';" +
+                "root.classList.toggle('ngocsi-video-fill-mode'," +
+                (if (videoFillModeEnabled) "true" else "false") +
+                ");return root.classList.contains('ngocsi-video-fill-mode')?'cover-on':'cover-off';})()",
             null
         )
         android.widget.Toast.makeText(
             this,
-            if (fillScreenEnabled) "Đã bật lấp đầy màn hình" else "Đã tắt lấp đầy màn hình",
+            if (videoFillModeEnabled) "Đã bật lấp đầy màn hình" else "Đã khôi phục khung hình vừa",
             android.widget.Toast.LENGTH_SHORT
         ).show()
     }
@@ -4436,6 +4359,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             playerContainer.visibility = View.VISIBLE
             setFullscreenLayout(false)
             applyResponsivePlayerLayout()
+            moveNativeVideoControlsTo(playerContainer)
             updateNativeFullscreenButton()
             fullscreenExitTransitionInProgress = false
             WindowCompat.setDecorFitsSystemWindows(window, true)
