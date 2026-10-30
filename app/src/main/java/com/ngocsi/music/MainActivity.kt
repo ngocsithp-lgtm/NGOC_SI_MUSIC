@@ -5239,7 +5239,12 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                         "TV" -> {
-                            TvHub()
+                            val officialUrl = radioWebUrl
+                            if (officialUrl != null) {
+                                OfficialSourceWebPanel(officialUrl, radioWebTitle)
+                            } else {
+                                TvHub()
+                            }
                         }
 
                         "Playlist" -> {
@@ -5278,7 +5283,12 @@ class MainActivity : ComponentActivity() {
                                     .padding(horizontal = 16.dp),
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                VietnamRadioHubContent()
+                                val officialUrl = radioWebUrl
+                                if (officialUrl != null) {
+                                    OfficialSourceWebPanel(officialUrl, radioWebTitle)
+                                } else {
+                                    VietnamRadioHubContent()
+                                }
                                 errorMessage?.takeIf { activeRadioTitle != null }?.let {
                                     Text(it, color = Color(0xFFFFB4AB), fontSize = 13.sp)
                                 }
@@ -5358,7 +5368,6 @@ class MainActivity : ComponentActivity() {
         if (showCreatePlaylist) CreatePlaylistDialog()
         if (showTvSourceDialog) TvSourceDialog()
         if (showDriveOAuthDiagnostics) DriveOAuthDiagnosticsDialog()
-        radioWebUrl?.let { RadioWebViewDialog(it, radioWebTitle) }
         if (showSleepTimer) {
             AlertDialog(
                 onDismissRequest = { showSleepTimer = false },
@@ -7633,17 +7642,13 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
 
     @Composable
-    private fun RadioWebViewDialog(url: String, title: String) {
-        Dialog(
-            onDismissRequest = { radioWebUrl = null },
-            properties = DialogProperties(usePlatformDefaultWidth = false)
+    private fun OfficialSourceWebPanel(url: String, title: String) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = Color(0xFF101117),
+            modifier = Modifier.fillMaxWidth().height(560.dp)
         ) {
-            Surface(
-                shape = RoundedCornerShape(24.dp),
-                color = Color(0xFF101117),
-                modifier = Modifier.fillMaxWidth(0.97f).fillMaxHeight(0.88f)
-            ) {
-                Column(Modifier.fillMaxSize()) {
+            Column(Modifier.fillMaxSize()) {
                     Row(
                         Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -7669,18 +7674,20 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         ) {
                             Text("Mở ngoài")
                         }
-                        TextButton(onClick = { radioWebUrl = null }) { Text("Đóng") }
+                        TextButton(onClick = { radioWebUrl = null }) { Text("VỀ DANH SÁCH") }
                     }
                     var webViewRef by remember { mutableStateOf<WebView?>(null) }
 
-                    androidx.activity.compose.BackHandler(
-                        enabled = webViewRef?.canGoBack() == true
-                    ) {
-                        webViewRef?.goBack()
+                    androidx.activity.compose.BackHandler(enabled = true) {
+                        if (webViewRef?.canGoBack() == true) {
+                            webViewRef?.goBack()
+                        } else {
+                            radioWebUrl = null
+                        }
                     }
 
                     AndroidView(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
                         factory = { context ->
                             WebView(context).apply {
                                 webViewRef = this
@@ -7779,7 +7786,6 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             }
                         }
                     )
-                }
             }
         }
     }
