@@ -3164,6 +3164,11 @@ class YouTubePlayerActivity : ComponentActivity() {
         updatePlaybackButton()
     }
     private fun createPlayer() {
+        // A newly selected video starts at native fit size; never inherit the previous
+        // video's pinch multiplier or an interrupted pointer sequence.
+        activityPinchTracking = false
+        activityPinchConsumed = false
+        activityPinchScale = 1f
         unexpectedPlaybackRecoveryGeneration++
         lastUnexpectedPlaybackRecoveryAtMs = 0L
         removePlayer()
@@ -4632,6 +4637,9 @@ class YouTubePlayerActivity : ComponentActivity() {
                 container.resetPinchScale()
                 (container.parent as? ViewGroup)?.removeView(container)
             }
+            activityPinchTracking = false
+            activityPinchConsumed = false
+            activityPinchScale = 1f
             fullscreenPinchContainer = null
             fullscreenView?.let { view ->
                 (view.parent as? ViewGroup)?.removeView(view)
