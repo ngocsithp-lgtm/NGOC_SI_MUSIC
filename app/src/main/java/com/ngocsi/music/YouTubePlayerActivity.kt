@@ -3607,15 +3607,23 @@ class YouTubePlayerActivity : ComponentActivity() {
         }.also { button ->
             playerContainer.addView(
                 button,
-                FrameLayout.LayoutParams(dp(56), dp(42), Gravity.TOP or Gravity.END).apply {
+                FrameLayout.LayoutParams(dp(60), dp(44), Gravity.TOP or Gravity.END).apply {
                     topMargin = dp(8)
-                    marginEnd = dp(60)
+                    marginEnd = dp(58)
                 }
             )
             button.bringToFront()
         }
         updateNativeFullscreenButton()
-        updateNativeFillScreenButton() 
+        updateNativeFillScreenButton()
+        player.post {
+            if (webView === player && !isFinishing && !isDestroyed) {
+                nativeFillScreenButton?.visibility = View.VISIBLE
+                nativeFillScreenButton?.bringToFront()
+                nativeFullscreenButton?.bringToFront()
+                nativeFillScreenButton?.bringToFront()
+            }
+        }
         if (::titleView.isInitialized) titleView.text = title
         if (::channelView.isInitialized) channelView.text = channel
         updateActionState()
@@ -4041,10 +4049,14 @@ class YouTubePlayerActivity : ComponentActivity() {
     }
 
     private fun updateNativeFillScreenButtonVisibility() {
-        val landscape = resources.configuration.orientation ==
-            android.content.res.Configuration.ORIENTATION_LANDSCAPE ||
-            fullscreenLayoutActive || isCssFullscreen || customView != null
-        nativeFillScreenButton?.visibility = if (landscape) View.VISIBLE else View.GONE
+        // Keep this native control visible in every orientation. Configuration callbacks can
+        // be coalesced by the manifest, and hiding it on a stale portrait configuration made
+        // the feature impossible to discover after the player switched to landscape.
+        nativeFillScreenButton?.apply {
+            visibility = View.VISIBLE
+            bringToFront()
+            elevation = dp(12).toFloat()
+        }
     }
 
     private fun updateNativeFillScreenButton() {
