@@ -4069,15 +4069,6 @@ class YouTubePlayerActivity : ComponentActivity() {
                       }
                     } catch (_) {}
                   }, true);
-                  button.addEventListener('touchend', function(event) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    try {
-                      if (window.AndroidBridge && AndroidBridge.onToggleFillScreen) {
-                        AndroidBridge.onToggleFillScreen();
-                      }
-                    } catch (_) {}
-                  }, {capture:true, passive:false});
                   (document.documentElement || document.body).appendChild(button);
                 }
                 button.textContent = window.__ngocSiFillScreenEnabled ? 'VỪA' : 'LẤP ĐẦY';
