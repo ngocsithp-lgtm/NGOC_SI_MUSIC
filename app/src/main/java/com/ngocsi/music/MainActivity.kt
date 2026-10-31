@@ -10304,6 +10304,10 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         val showingStoredQueue = landscapePaneTab == "queue" && storedQueueTracks.isNotEmpty()
         val landscapePaneTracks = if (showingStoredQueue) storedQueueTracks else youtubeTracks
         val youtubeConfiguration = androidx.compose.ui.platform.LocalConfiguration.current
+        // Give the queue a little more width on phones and keep the video pane large
+        // enough for its 16:9 frame on wider landscape displays.
+        val landscapeLeftPaneWeight =
+            YouTubeLandscapePaneRules.leftPaneWeight(youtubeConfiguration.screenWidthDp)
         val inlineLandscape = !youtubeInlineFullscreen &&
             youtubeConfiguration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
         // Use the real height assigned to the YouTube content pane. Configuration.screenHeightDp
@@ -10677,13 +10681,13 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             verticalAlignment = Alignment.Top
                         ) {
                             Column(
-                                modifier = Modifier.weight(0.58f).fillMaxHeight()
+                                modifier = Modifier.weight(landscapeLeftPaneWeight).fillMaxHeight()
                                     .verticalScroll(rememberScrollState())
                             ) {
                                 movableYouTubeHeaderContent(youtubeHeaderContent)
                             }
                             Column(
-                                modifier = Modifier.weight(0.42f).fillMaxHeight()
+                                modifier = Modifier.weight(1f - landscapeLeftPaneWeight).fillMaxHeight()
                                     .clip(RoundedCornerShape(14.dp))
                                     .background(Color(0xFF101219))
                                     .padding(8.dp)
