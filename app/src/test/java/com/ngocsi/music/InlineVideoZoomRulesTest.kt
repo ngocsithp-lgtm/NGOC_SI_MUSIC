@@ -28,7 +28,7 @@ class InlineVideoZoomRulesTest {
             InlineVideoZoomRules.updateScale(1.03f, 1.5f),
             0.001f
         )
-        assertEquals(InlineVideoZoomRules.FILL_THRESHOLD, InlineVideoZoomRules.MAX_SCALE, 0.001f)
+        assertEquals(1.25f, InlineVideoZoomRules.MAX_SCALE, 0.001f)
     }
 
     @Test
@@ -37,10 +37,10 @@ class InlineVideoZoomRulesTest {
         val secondUpdate = InlineVideoZoomRules.updateScale(firstUpdate, 1.02f)
         val thirdUpdate = InlineVideoZoomRules.updateScale(secondUpdate, 1.2f)
         assertEquals(1.02f, firstUpdate, 0.001f)
-        assertEquals(InlineVideoZoomRules.FILL_THRESHOLD, secondUpdate, 0.001f)
-        assertEquals(InlineVideoZoomRules.FILL_THRESHOLD, thirdUpdate, 0.001f)
+        assertEquals(1.0404f, secondUpdate, 0.001f)
+        assertEquals(1.25f, thirdUpdate, 0.001f)
         assertFalse(InlineVideoZoomRules.isFillActive(firstUpdate))
-        assertTrue(InlineVideoZoomRules.isFillActive(secondUpdate))
+        assertFalse(InlineVideoZoomRules.isFillActive(secondUpdate))
     }
 
     @Test
@@ -52,8 +52,8 @@ class InlineVideoZoomRulesTest {
 
     @Test
     fun fillStatusUsesTheSameThresholdAsTheGestureRule() {
-        assertFalse(InlineVideoZoomRules.isFillActive(1.03f))
-        assertTrue(InlineVideoZoomRules.isFillActive(1.04f))
+        assertFalse(InlineVideoZoomRules.isFillActive(1.19f))
+        assertTrue(InlineVideoZoomRules.isFillActive(1.20f))
     }
 
     @Test
