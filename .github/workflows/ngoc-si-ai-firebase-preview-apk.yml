@@ -20,7 +20,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ngoc-si-ai-firebase-preview-apk
+  group: ngoc-si-ai-firebase-preview-apk-v2
   cancel-in-progress: true
 
 jobs:
