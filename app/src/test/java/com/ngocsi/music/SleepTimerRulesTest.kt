@@ -22,6 +22,13 @@ class SleepTimerRulesTest {
     }
 
     @Test
+    fun deadlineSupportsShortOneFiveAndTenMinuteTimers() {
+        assertEquals(61_000L, SleepTimerRules.deadline(1_000L, 1))
+        assertEquals(301_000L, SleepTimerRules.deadline(1_000L, 5))
+        assertEquals(601_000L, SleepTimerRules.deadline(1_000L, 10))
+    }
+
+    @Test
     fun remainingMinutesRoundsPartialMinuteUp() {
         assertEquals(2, SleepTimerRules.remainingMinutes(120_001L, 60_000L))
         assertEquals(1, SleepTimerRules.remainingMinutes(60_001L, 60_000L))
