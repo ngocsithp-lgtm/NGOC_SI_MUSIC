@@ -19,12 +19,12 @@ class InlineVideoZoomRulesTest {
     @Test
     fun zoomStopsExactlyAtTheLandscapeFillBoundary() {
         assertEquals(
-            InlineVideoZoomRules.FILL_THRESHOLD,
+            InlineVideoZoomRules.MAX_SCALE,
             InlineVideoZoomRules.updateScale(1.0f, 1.5f),
             0.001f
         )
         assertEquals(
-            InlineVideoZoomRules.FILL_THRESHOLD,
+            InlineVideoZoomRules.MAX_SCALE,
             InlineVideoZoomRules.updateScale(1.03f, 1.5f),
             0.001f
         )
@@ -35,7 +35,7 @@ class InlineVideoZoomRulesTest {
     fun smallGestureUpdatesAccumulateOnlyUntilTheFillBoundary() {
         val firstUpdate = InlineVideoZoomRules.updateScale(1.0f, 1.02f)
         val secondUpdate = InlineVideoZoomRules.updateScale(firstUpdate, 1.02f)
-        val thirdUpdate = InlineVideoZoomRules.updateScale(secondUpdate, 1.2f)
+        val thirdUpdate = InlineVideoZoomRules.updateScale(secondUpdate, 1.3f)
         assertEquals(1.02f, firstUpdate, 0.001f)
         assertEquals(1.0404f, secondUpdate, 0.001f)
         assertEquals(1.25f, thirdUpdate, 0.001f)
