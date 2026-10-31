@@ -3173,6 +3173,19 @@ class YouTubePlayerActivity : ComponentActivity() {
                               '.ytp-upnext,.ytp-upnext-container,.ytp-autonav-endscreen,' +
                               '.ytp-autonav-endscreen-upnext-container,.ytp-videowall-still,' +
                               '.ytp-cards-button,.ytp-cards-teaser,.ytp-show-cards-title,.ytp-suggestion-set,' +
+                              'ytm-player-overlay .player-controls-top,ytm-player-overlay .player-controls-top-left,' +
+                              'ytm-player-overlay .player-controls-top-right,.ytm-player-overlay .player-controls-top,' +
+                              '.ytm-player-overlay .player-controls-top-left,.ytm-player-overlay .player-controls-top-right,' +
+                              'ytm-custom-control .player-controls-top,ytm-custom-control .player-controls-top-left,' +
+                              'ytm-custom-control .player-controls-top-right,ytm-watermark,.ytm-watermark,' +
+                              '.ytm-youtube-logo,.ytm-watch-on-youtube-button,ytm-watch-on-youtube-button,' +
+                              '.player-controls-top .player-title,.player-controls-top .video-title,' +
+                              'ytm-player-overlay .player-controls-top,ytm-player-overlay .player-controls-top-left,' +
+                              'ytm-player-overlay .player-controls-top-right,.ytm-player-overlay .player-controls-top,' +
+                              '.ytm-player-overlay .player-controls-top-left,.ytm-player-overlay .player-controls-top-right,' +
+                              'ytm-custom-control .player-controls-top,ytm-custom-control .player-controls-top-left,' +
+                              'ytm-custom-control .player-controls-top-right,ytm-watermark,.ytm-watermark,' +
+                              '.ytm-youtube-logo,.ytm-watch-on-youtube-button,ytm-watch-on-youtube-button,' +
                               '#player-controls .player-controls-top,#player-controls .player-controls-top-left,' +
                               '#player-controls .player-controls-top-right,#player-controls .quick-actions-wrapper,' +
                               '#player-controls .fullscreen-action-menu,' +
