@@ -6051,7 +6051,7 @@ class MainActivity : ComponentActivity() {
         OutlinedTextField(
             value = searchQuery,
             onValueChange = { searchQuery = it },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp).height(46.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp).heightIn(min = 56.dp),
             textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
             singleLine = true,
             placeholder = {
