@@ -9,6 +9,7 @@ on:
   push:
     branches:
       - "feature/ngoc-si-ai-complete-preview"
+      - "ngocsiAI"
     paths:
       - "functions/**"
       - ".github/workflows/ai-backend-ci.yml"
