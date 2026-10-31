@@ -5348,28 +5348,53 @@ class MainActivity : ComponentActivity() {
                 onDismissRequest = { showSleepTimer = false },
                 title = { Text("Hẹn giờ tắt nhạc") },
                 text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
                         Text(
                             if (sleepMinutes > 0) {
                                 val target = if (
                                     youtubeIsActiveSource || prefs.getBoolean("youtube_active_source", false)
                                 ) "YouTube" else "nguồn nhạc đang phát"
-                                "Tự động dừng $target sau $sleepMinutes phút."
+                                "Tự động dừng $target. Còn khoảng $sleepMinutes phút."
                             } else {
                                 "Chọn thời gian tự động dừng YouTube, nhạc thiết bị hoặc Google Drive."
                             },
-                            color = Color(0xFF8E8E99),
-                            fontSize = 13.sp
+                            color = if (sleepMinutes > 0) Color(0xFFBDA7FF) else Color(0xFF8E8E99),
+                            fontSize = 12.sp,
+                            lineHeight = 17.sp
                         )
-                        listOf(15, 30, 45, 60, 90, 120).forEach { min ->
-                            OutlinedButton(
-                                onClick = {
-                                    startSleepTimer(min)
-                                    showSleepTimer = false
-                                },
-                                modifier = Modifier.fillMaxWidth()
+                        listOf(listOf(15, 30, 45), listOf(60, 90, 120)).forEach { rowMinutes ->
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Text(if (sleepMinutes == min) "✓ $min phút" else "$min phút")
+                                rowMinutes.forEach { min ->
+                                    val selected = sleepMinutes == min
+                                    Surface(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(40.dp)
+                                            .clickable {
+                                                startSleepTimer(min)
+                                                showSleepTimer = false
+                                            },
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = if (selected) Color(0xFF30234D) else Color(0xFF171B25),
+                                        border = androidx.compose.foundation.BorderStroke(
+                                            1.dp,
+                                            if (selected) Color(0xFF8063C4) else Color(0xFF303746)
+                                        )
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Text(
+                                                if (selected) "✓ $min phút" else "$min phút",
+                                                color = if (selected) Color.White else Color(0xFFD5D8E1),
+                                                fontSize = 11.sp,
+                                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                                maxLines = 1
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                         TextButton(onClick = {
@@ -7424,8 +7449,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 // Keep the hub inside the usable phone viewport instead of covering the whole screen.
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(Modifier.fillMaxWidth().padding(14.dp)) {
-                    Text("RADIO VIỆT NAM", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                    Text("RADIO VIỆT NAM", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(4.dp))
                     Text(
                         "VOV1 • VOV2 • VOV3 phát trực tiếp bằng Media3/HLS; có tự động chuyển luồng dự phòng",
@@ -7450,18 +7475,20 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 if (isPlaying) controller?.pause() else controller?.play()
                             },
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 3.dp),
+                            modifier = Modifier.height(34.dp)
                         ) {
-                            Text(if (isPlaying) "TẠM DỪNG RADIO" else "TIẾP TỤC RADIO")
+                            Text(if (isPlaying) "TẠM DỪNG RADIO" else "TIẾP TỤC RADIO", fontSize = 10.sp)
                         }
                     }
                     Spacer(Modifier.height(10.dp))
                     OutlinedTextField(
                         value = radioFilter,
                         onValueChange = { radioFilter = it },
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
                         singleLine = true,
-                        textStyle = LocalTextStyle.current.copy(fontSize = 14.sp, lineHeight = 20.sp),
+                        textStyle = LocalTextStyle.current.copy(fontSize = 13.sp, lineHeight = 18.sp),
                         label = { Text("Tìm đài", fontSize = 12.sp) },
                         placeholder = {
                             Text(
@@ -7497,14 +7524,14 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     } else {
                         Column(
                             modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             filteredSources.forEach { source ->
                                 val streamUrls = verifiedStreams[source.first]
                                 val isCurrentRadio = activeRadioTitle == source.first
                                 val isCurrentPlaying = isCurrentRadio && isPlaying
                                 Surface(
-                                    shape = RoundedCornerShape(16.dp),
+                                    shape = RoundedCornerShape(14.dp),
                                     color = if (isCurrentRadio) Color(0xFF252033) else Color(0xFF181922),
                                     border = androidx.compose.foundation.BorderStroke(
                                         1.dp,
@@ -7513,14 +7540,14 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Row(
-                                        Modifier.fillMaxWidth().padding(10.dp),
+                                        Modifier.fillMaxWidth().padding(8.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                             Text(
                                                 source.first,
                                                 color = Color.White,
-                                                fontSize = 13.sp,
+                                                fontSize = 12.sp,
                                                 fontWeight = if (isCurrentRadio) FontWeight.ExtraBold else FontWeight.SemiBold,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis
@@ -7528,8 +7555,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                             Text(
                                                 if (!streamUrls.isNullOrEmpty()) "${source.second} • HLS + tự động dùng luồng dự phòng" else source.second,
                                                 color = Color(0xFF8F8F9A),
-                                                fontSize = 10.sp,
-                                                lineHeight = 14.sp,
+                                                fontSize = 9.sp,
+                                                lineHeight = 13.sp,
                                                 maxLines = 2,
                                                 overflow = TextOverflow.Ellipsis
                                             )
@@ -7549,17 +7576,21 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                                     onClick = {
                                                         if (isPlaying) controller?.pause() else controller?.play()
                                                     },
-                                                    shape = RoundedCornerShape(12.dp)
+                                                    shape = RoundedCornerShape(10.dp),
+                                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 3.dp),
+                                                    modifier = Modifier.height(34.dp)
                                                 ) {
-                                                    Text(if (isPlaying) "TẠM DỪNG" else "TIẾP TỤC")
+                                                    Text(if (isPlaying) "TẠM DỪNG" else "TIẾP TỤC", fontSize = 10.sp)
                                                 }
                                             } else {
                                                 Button(
                                                     onClick = {
                                                         playVerifiedRadio(source.first, streamUrls)
                                                     },
-                                                    shape = RoundedCornerShape(12.dp)
-                                                ) { Text("PHÁT APP") }
+                                                    shape = RoundedCornerShape(10.dp),
+                                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 3.dp),
+                                                    modifier = Modifier.height(34.dp)
+                                                ) { Text("PHÁT", fontSize = 10.sp)
                                             }
                                         } else {
                                             OutlinedButton(
@@ -7567,8 +7598,10 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                                     radioWebTitle = source.first
                                                     radioWebUrl = source.third
                                                 },
-                                                shape = RoundedCornerShape(12.dp)
-                                            ) { Text("MỞ NGUỒN") }
+                                                shape = RoundedCornerShape(10.dp),
+                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 3.dp),
+                                                modifier = Modifier.height(34.dp)
+                                            ) { Text("MỞ", fontSize = 10.sp)
                                         }
                                     }
                                 }
@@ -7870,13 +7903,13 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     Column(
                         Modifier
                             .fillMaxSize()
-                            .padding(horizontal = 16.dp)
+                            .padding(horizontal = 14.dp)
                     ) {
                         Box(
                             modifier = Modifier
                                 .align(Alignment.CenterHorizontally)
-                                .padding(top = 8.dp, bottom = 10.dp)
-                                .size(width = 38.dp, height = 4.dp)
+                                .padding(top = 7.dp, bottom = 8.dp)
+                                .size(width = 34.dp, height = 4.dp)
                                 .clip(RoundedCornerShape(50))
                                 .background(Color(0xFF414654))
                         )
@@ -7889,7 +7922,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 Text(
                                     "Hàng đợi",
                                     color = Color.White,
-                                    fontSize = 23.sp,
+                                    fontSize = 21.sp,
                                     fontWeight = FontWeight.Black
                                 )
                                 Text(
@@ -7899,7 +7932,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         else -> queueSongs.size.toString() + " bài • Theo thứ tự"
                                     },
                                     color = Color(0xFFA0A7B6),
-                                    fontSize = 12.sp
+                                    fontSize = 11.sp
                                 )
                             }
 
@@ -7910,7 +7943,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             )
                         }
 
-                        Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(8.dp))
 
                         if (activeSource.isNotBlank()) {
                             Surface(
@@ -7919,7 +7952,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF292E3A))
                             ) {
                                 Row(
-                                    Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                                    Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
@@ -7937,17 +7970,17 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     )
                                 }
                             }
-                            Spacer(Modifier.height(10.dp))
+                            Spacer(Modifier.height(8.dp))
                         }
 
                         if (queueSongs.isNotEmpty()) {
                             Column(
                                 Modifier.fillMaxWidth(),
-                                verticalArrangement = Arrangement.spacedBy(7.dp)
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 Row(
                                     Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(7.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
                                     QueueActionChip(
                                         icon = "▶",
@@ -7966,7 +7999,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 }
                                 Row(
                                     Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(7.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
                                     QueueActionChip(
                                         icon = "＋",
@@ -7987,7 +8020,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     )
                                 }
                             }
-                            Spacer(Modifier.height(14.dp))
+                            Spacer(Modifier.height(10.dp))
 
                             if (currentSong != null) {
                                 Text(
@@ -8014,11 +8047,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     )
                                 ) {
                                     Row(
-                                        Modifier.padding(9.dp),
+                                        Modifier.padding(8.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Box {
-                                            SongArtwork(currentSong, Modifier.size(58.dp))
+                                            SongArtwork(currentSong, Modifier.size(52.dp))
                                             Surface(
                                                 modifier = Modifier
                                                     .align(Alignment.BottomEnd)
@@ -8044,8 +8077,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                             Text(
                                                 currentSong.title,
                                                 color = Color.White,
-                                                fontSize = 14.sp,
-                                                lineHeight = 18.sp,
+                                                fontSize = 13.sp,
+                                                lineHeight = 17.sp,
                                                 fontWeight = FontWeight.Black,
                                                 maxLines = 2,
                                                 overflow = TextOverflow.Ellipsis
@@ -8091,7 +8124,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 }
                             }
 
-                            Spacer(Modifier.height(14.dp))
+                            Spacer(Modifier.height(10.dp))
 
                             Row(
                                 Modifier.fillMaxWidth(),
@@ -8242,7 +8275,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                             Row(
                                                 Modifier
                                                     .fillMaxWidth()
-                                                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                                                    .padding(horizontal = 7.dp, vertical = 5.dp),
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 Text(
@@ -8253,7 +8286,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                                     modifier = Modifier.width(24.dp)
                                                 )
 
-                                                SongArtwork(song, Modifier.size(50.dp))
+                                                SongArtwork(song, Modifier.size(46.dp))
 
                                                 Spacer(Modifier.width(10.dp))
 
@@ -8264,8 +8297,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                                     Text(
                                                         song.title,
                                                         color = Color(0xFFF2F3F7),
-                                                        fontSize = 14.sp,
-                                                        lineHeight = 18.sp,
+                                                        fontSize = 13.sp,
+                                                        lineHeight = 17.sp,
                                                         fontWeight = FontWeight.SemiBold,
                                                         maxLines = 2,
                                                         overflow = TextOverflow.Ellipsis
@@ -8273,7 +8306,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                                     Text(
                                                         song.artist.ifBlank { "Nghệ sĩ chưa xác định" },
                                                         color = Color(0xFFA3AABB),
-                                                        fontSize = 11.sp,
+                                                        fontSize = 10.sp,
                                                         maxLines = 1,
                                                         overflow = TextOverflow.Ellipsis
                                                     )
@@ -8389,7 +8422,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
     ) {
         Surface(
             modifier = modifier
-                .height(46.dp)
+                .height(40.dp)
                 .clickable(onClick = onClick),
             shape = RoundedCornerShape(14.dp),
             color = if (emphasized) Color(0xFF241D40) else Color(0xFF141923),
