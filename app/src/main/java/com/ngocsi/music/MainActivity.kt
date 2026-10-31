@@ -5199,31 +5199,6 @@ class MainActivity : ComponentActivity() {
                                     contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 18.dp),
                                     verticalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    item {
-                                        Row(
-                                            Modifier.fillMaxWidth().padding(vertical = 5.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                when (libraryView) {
-                                                    "Nghệ sĩ" -> "NGHỆ SĨ"
-                                                    "Album" -> "ALBUM"
-                                                    "Thư mục" -> "THƯ MỤC"
-                                                    else -> "BÀI HÁT"
-                                                },
-                                                color = Color(0xFF9A9BA7),
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.ExtraBold,
-                                                letterSpacing = 1.3.sp,
-                                                modifier = Modifier.weight(1f)
-                                            )
-                                            Text(
-                                                "${filteredSongs.size} bài",
-                                                color = Color(0xFF777987),
-                                                fontSize = 11.sp
-                                            )
-                                        }
-                                    }
                                     if (filteredSongs.isEmpty()) {
                                         item { LibraryEmptyState() }
                                     } else {
@@ -6417,19 +6392,36 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun LibraryViewTabs() {
         Row(
-            Modifier.padding(horizontal = 16.dp).fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(18.dp)
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             listOf("Bài hát", "Nghệ sĩ", "Album", "Thư mục").forEach { tab ->
                 val selected = libraryView == tab
                 Column(
-                    Modifier.clip(RoundedCornerShape(8.dp)).clickable { libraryView = tab }.padding(vertical = 5.dp),
+                    Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(9.dp))
+                        .clickable { libraryView = tab }
+                        .background(if (selected) Color(0xFF211B31) else Color.Transparent)
+                        .padding(horizontal = 2.dp, vertical = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(tab, color = if (selected) Color.White else Color(0xFF858A99), fontSize = 12.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium)
-                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        tab,
+                        color = if (selected) Color.White else Color(0xFF858A99),
+                        fontSize = 11.sp,
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(Modifier.height(5.dp))
                     Box(
-                        Modifier.width(if (selected) 30.dp else 0.dp).height(2.dp).clip(RoundedCornerShape(2.dp))
+                        Modifier
+                            .width(if (selected) 24.dp else 0.dp)
+                            .height(2.dp)
+                            .clip(RoundedCornerShape(2.dp))
                             .background(Color(0xFFB99AFF))
                     )
                 }
