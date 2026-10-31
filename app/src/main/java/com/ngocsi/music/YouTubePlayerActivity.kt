@@ -3160,8 +3160,59 @@ class YouTubePlayerActivity : ComponentActivity() {
                               'display:none!important;visibility:hidden!important;opacity:0!important;' +
                               'pointer-events:none!important;}';
                             var ngocsiStyledRoots = new WeakSet();
+                            var ngocsiOverlayRemovalSelector =
+                              '.ytp-title,.ytp-title-text,.ytp-title-link,.ytp-title-expanded-overlay,' +
+                              '.ytp-title-channel,.ytp-watermark,.ytp-watermark-container,.ytp-branding,' +
+                              '.ytp-youtube-button,.ytp-impression-link,.ytp-chrome-top,.ytp-gradient-top,' +
+                              '.ytp-subtitles-button,.ytp-caption-window-container,.caption-window,' +
+                              '.caption-window-container,.ytp-caption-segment,.captions-text,' +
+                              '.ytp-upnext,.ytp-upnext-container,.ytp-autonav-endscreen,' +
+                              '.ytp-autonav-endscreen-upnext-container,.ytp-videowall-still,' +
+                              '.ytp-cards-button,.ytp-cards-teaser,.ytp-show-cards-title,.ytp-suggestion-set,' +
+                              '#player-controls .player-controls-top,#player-controls .player-controls-top-left,' +
+                              '#player-controls .player-controls-top-right,#player-controls .quick-actions-wrapper,' +
+                              '#player-controls .fullscreen-action-menu,' +
+                              '#player-controls .action-menu-engagement-buttons-wrapper,' +
+                              'ytm-custom-control .player-controls-top,ytm-custom-control .player-controls-top-left,' +
+                              'ytm-custom-control .player-controls-top-right,.player-controls-top,' +
+                              '.player-controls-top-left,.player-controls-top-right,yt-closed-captions-toggle-button,' +
+                              '.watch-on-youtube-button-wrapper,.quick-actions-wrapper,' +
+                              '.action-menu-engagement-buttons-wrapper,.fullscreen-action-menu';
+                            function ngocsiRemoveOverlayElements(root) {
+                              if (!root) return;
+                              try {
+                                if (root.nodeType === 1 && root.matches &&
+                                    root.matches(ngocsiOverlayRemovalSelector)) {
+                                  if (root.parentNode) root.parentNode.removeChild(root);
+                                  return;
+                                }
+                                if (root.querySelectorAll) {
+                                  var overlays = root.querySelectorAll(ngocsiOverlayRemovalSelector);
+                                  for (var i = overlays.length - 1; i >= 0; i--) {
+                                    var overlay = overlays[i];
+                                    if (overlay && overlay.parentNode) {
+                                      overlay.parentNode.removeChild(overlay);
+                                    }
+                                  }
+                                  // Also disable native text tracks; HTML captions are separate
+                                  // from the CC button and can remain visible after its removal.
+                                  var videos = root.querySelectorAll('video');
+                                  for (var v = 0; v < videos.length; v++) {
+                                    var tracks = videos[v].textTracks;
+                                    if (!tracks) continue;
+                                    for (var t = 0; t < tracks.length; t++) {
+                                      var kind = String(tracks[t].kind || '').toLowerCase();
+                                      if (kind === 'captions' || kind === 'subtitles') {
+                                        tracks[t].mode = 'disabled';
+                                      }
+                                    }
+                                  }
+                                }
+                              } catch (_) {}
+                            }
                             function ngocsiScanOverlayRoots(root) {
                               if (!root) return;
+                              ngocsiRemoveOverlayElements(root);
                               var nodes = [];
                               if (root.nodeType === 1) nodes.push(root);
                               if (root.querySelectorAll) {
