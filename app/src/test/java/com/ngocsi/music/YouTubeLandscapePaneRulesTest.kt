@@ -43,6 +43,16 @@ class YouTubeLandscapePaneRulesTest {
     }
 
     @Test
+    fun queueTabHidesRedundantSearchField() {
+        assertEquals(false, YouTubeLandscapePaneRules.showSearchField(true))
+    }
+
+    @Test
+    fun resultsTabKeepsSearchFieldVisible() {
+        assertEquals(true, YouTubeLandscapePaneRules.showSearchField(false))
+    }
+
+    @Test
     fun rightPaneAlwaysReceivesTheRemainingWidth() {
         listOf(360, 719, 720, 899, 900, 1440).forEach { width ->
             val left = YouTubeLandscapePaneRules.leftPaneWeight(width)

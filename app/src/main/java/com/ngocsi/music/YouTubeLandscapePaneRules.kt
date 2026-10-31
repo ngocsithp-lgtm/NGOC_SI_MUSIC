@@ -21,4 +21,6 @@ internal object YouTubeLandscapePaneRules {
 
     fun titleFontSizeSp(screenWidthDp: Int): Int =
         if (screenWidthDp >= 900) 12 else 11
+
+    fun showSearchField(showingStoredQueue: Boolean): Boolean = !showingStoredQueue
 }
