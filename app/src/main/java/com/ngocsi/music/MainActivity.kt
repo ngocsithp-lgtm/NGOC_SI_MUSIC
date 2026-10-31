@@ -12285,13 +12285,26 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     OutlinedTextField(
                         value = driveBrowserQuery,
                         onValueChange = { driveBrowserQuery = it },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
                         singleLine = true,
-                        placeholder = { Text("Tìm bài hát hoặc thư mục…") },
+                        textStyle = LocalTextStyle.current.copy(
+                            fontSize = 14.sp,
+                            lineHeight = 20.sp
+                        ),
+                        placeholder = {
+                            Text(
+                                "Tìm bài hát hoặc thư mục…",
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        },
                         shape = RoundedCornerShape(14.dp),
                         trailingIcon = {
                             if (driveBrowserQuery.isNotBlank()) {
-                                TextButton(onClick = { driveBrowserQuery = "" }) { Text("X") }
+                                TextButton(onClick = { driveBrowserQuery = "" }) {
+                                    Text("X", fontSize = 14.sp)
+                                }
                             }
                         }
                     )
