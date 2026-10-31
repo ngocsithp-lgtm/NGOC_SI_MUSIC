@@ -872,6 +872,9 @@ class YouTubePlayerActivity : ComponentActivity() {
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
         ))
+        // Keep the video frame uncluttered: title/channel are already available in the queue.
+        // Do not render a second metadata block directly under the video.
+        info.visibility = View.GONE
         playerInfoView = info
 
         // Keep only the essential playback controls visible.
