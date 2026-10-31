@@ -10,7 +10,9 @@ import android.content.pm.ServiceInfo
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.os.PowerManager
 import android.content.BroadcastReceiver
 import android.content.IntentFilter
@@ -64,6 +66,34 @@ class YouTubeBackgroundService : Service() {
     private var playerState = PlaybackState.STATE_NONE
     private var isPlaying = false
     private var sleepTimerReceiverRegistered = false
+    private val prefs by lazy { getSharedPreferences("ngoc_si_music", MODE_PRIVATE) }
+    private val sleepTimerHandler = Handler(Looper.getMainLooper())
+
+    // The inline YouTube renderer has its own foreground service. Keep a timer
+    // watchdog here so background playback does not depend on MusicService being
+    // alive or bound to MainActivity when the deadline is reached.
+    private val sleepTimerWatchdog = object : Runnable {
+        override fun run() {
+            val deadline = prefs.getLong("sleep_timer_end_at", 0L)
+            val youtubeSelected = prefs.getBoolean("youtube_active_source", false)
+            if (youtubeSelected && SleepTimerRules.isExpired(deadline, System.currentTimeMillis())) {
+                // Clear only after confirming YouTube is the selected source.
+                // MusicService remains responsible for local/Drive playback timers.
+                prefs.edit()
+                    .remove("sleep_timer_end_at")
+                    .putBoolean("youtube_playback_is_playing", false)
+                    .apply()
+                isPlaying = false
+                playerState = PlaybackState.STATE_PAUSED
+                dispatchControl("pause")
+                releaseWakeLock()
+                if (videoId.isNotBlank()) refreshSessionAndNotification()
+            }
+
+            val activeDeadline = prefs.getLong("sleep_timer_end_at", 0L)
+            sleepTimerHandler.postDelayed(this, if (activeDeadline > 0L) 1_000L else 5_000L)
+        }
+    }
 
     private val sleepTimerExpirationReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: android.content.Context?, intent: Intent?) {
@@ -94,6 +124,7 @@ class YouTubeBackgroundService : Service() {
             setReferenceCounted(false)
         }
         createMediaSession()
+        sleepTimerHandler.post(sleepTimerWatchdog)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -349,6 +380,7 @@ class YouTubeBackgroundService : Service() {
     }
 
     override fun onDestroy() {
+        sleepTimerHandler.removeCallbacks(sleepTimerWatchdog)
         releaseWakeLock()
         if (sleepTimerReceiverRegistered) {
             runCatching { unregisterReceiver(sleepTimerExpirationReceiver) }
