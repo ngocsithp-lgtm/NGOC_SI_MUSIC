@@ -3045,10 +3045,15 @@ class YouTubePlayerActivity : ComponentActivity() {
                               'ytm-comment-simplebox-renderer,ytm-engagement-panel,ytm-engagement-panel-section-list-renderer,' +
                               'ytm-rich-section-renderer,ytm-related-video-renderer,ytm-item-section-renderer {' +
                               'display:none!important;} ' +
-                              '.ytp-title,.ytp-title-text,.ytp-title-link,.ytp-pause-overlay,' +
+                              '.ytp-title,.ytp-title-text,.ytp-title-link,.ytp-title-expanded-overlay,.ytp-title-channel,' +
+                               'ytm-video-title,ytm-video-title-renderer,.ytm-video-title,.ytp-pause-overlay,' +
                               '.ytp-pause-overlay-container,.ytp-large-play-button,.ytp-cued-thumbnail-overlay,' +
                               // Remove branding and the top title/menu strip that appears after a screen tap.
                               '.ytp-watermark,.ytp-watermark-container,.ytp-branding,.ytp-impression-link,' +
+                               // Hide only the closed-caption control; preserve play/pause and seeking controls.
+                               '.ytp-subtitles-button,.ytp-button[aria-label*="Subtitles"],.ytp-button[aria-label*="Captions"],' +
+                               '.ytp-button[aria-label*="phụ đề"],button[aria-label*="Subtitles"],' +
+                               'button[aria-label*="Captions"],button[aria-label*="phụ đề"],[aria-label="CC"],[title="CC"],' +
                               '.ytp-chrome-top,.ytp-gradient-top,.ytp-title-channel,' +
                               // Remove "Up next", suggested-video cards and end-screen recommendations.
                               '.ytp-upnext,.ytp-upnext-container,.ytp-autonav-endscreen,' +
