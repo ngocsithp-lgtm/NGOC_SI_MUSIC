@@ -3128,24 +3128,34 @@ class YouTubePlayerActivity : ComponentActivity() {
                             // those separate DOM roots. Inject only the overlay rules into roots
                             // that WebView is legally able to access (same-origin frames/open roots).
                             var ngocsiOverlayCss =
+                              // Mobile player chrome and the desktop fallback watermark/title strip.
                               '.ytp-title,.ytp-title-text,.ytp-title-link,.ytp-title-expanded-overlay,' +
                               '.ytp-title-channel,.ytp-watermark,.ytp-watermark-container,.ytp-branding,' +
-                              '.ytp-impression-link,.ytp-chrome-top,.ytp-gradient-top,.ytp-subtitles-button,' +
-                              '.ytp-caption-window-container,.ytp-upnext,.ytp-upnext-container,' +
-                              '.ytp-autonav-endscreen,.ytp-autonav-endscreen-upnext-container,' +
-                              '.ytp-videowall-still,.ytp-cards-button,.ytp-cards-teaser,' +
-                              '.ytp-show-cards-title,.ytp-suggestion-set,' +
-                              // Match the mobile m.youtube.com player chrome, not only desktop .ytp-* controls.
-                              'ytm-custom-control .player-controls-top,.player-controls-top,' +
-                              '.player-controls-top-left,.player-controls-top-right,' +
-                              'yt-closed-captions-toggle-button,.watch-on-youtube-button-wrapper,' +
-                              '.quick-actions-wrapper,.action-menu-engagement-buttons-wrapper,' +
-                              '.fullscreen-action-menu {' +
-                              'display:none!important;opacity:0!important;pointer-events:none!important;} ' +
+                              '.ytp-youtube-button,.ytp-impression-link,.ytp-chrome-top,.ytp-gradient-top,' +
+                              '.ytp-subtitles-button,.ytp-caption-window-container,.caption-window,' +
+                              '.caption-window-container,.ytp-caption-segment,.captions-text,' +
+                              '.ytp-upnext,.ytp-upnext-container,.ytp-autonav-endscreen,' +
+                              '.ytp-autonav-endscreen-upnext-container,.ytp-videowall-still,' +
+                              '.ytp-cards-button,.ytp-cards-teaser,.ytp-show-cards-title,.ytp-suggestion-set,' +
+                              // Mobile YouTube uses #player-controls and the ytm-custom-control tree.
+                              '#player-controls .player-controls-top,' +
+                              '#player-controls .player-controls-top-left,' +
+                              '#player-controls .player-controls-top-right,' +
+                              '#player-controls .quick-actions-wrapper,' +
+                              '#player-controls .fullscreen-action-menu,' +
+                              '#player-controls .action-menu-engagement-buttons-wrapper,' +
+                              '#player-controls .watch-on-youtube-button-wrapper,' +
+                              '#player-controls .fullscreen-watch-next-entrypoint-wrapper,' +
+                              'ytm-custom-control .player-controls-top,' +
+                              'ytm-custom-control .player-controls-top-left,' +
+                              'ytm-custom-control .player-controls-top-right,' +
                               '.player-controls-top,.player-controls-top-left,.player-controls-top-right,' +
                               'yt-closed-captions-toggle-button,.watch-on-youtube-button-wrapper,' +
-                              '.quick-actions-wrapper,.action-menu-engagement-buttons-wrapper {' +
-                              'visibility:hidden!important;}';
+                              '.quick-actions-wrapper > .watch-on-youtube-button-wrapper,' +
+                              '.quick-actions-wrapper > .fullscreen-watch-next-entrypoint-wrapper,' +
+                              '.action-menu-engagement-buttons-wrapper,.fullscreen-action-menu {' +
+                              'display:none!important;visibility:hidden!important;opacity:0!important;' +
+                              'pointer-events:none!important;}';
                             var ngocsiStyledRoots = new WeakSet();
                             function ngocsiScanOverlayRoots(root) {
                               if (!root) return;
@@ -3219,6 +3229,31 @@ class YouTubePlayerActivity : ComponentActivity() {
                               return 'OVERLAY_STYLE_REAPPLIED';
                             };
                             window.__ngocSiReapplyOverlayClean();
+                            // Re-scan briefly after page load and after user interaction.                             // Some YouTube builds attach the player ShadowRoot after onPageFinished.
+                            var ngocsiOverlayScanCount = 0;
+                            var ngocsiOverlayScanTimer = window.setInterval(function() {
+                              try {
+                                ngocsiInjectOverlayStyle(document);
+                                ngocsiScanOverlayRoots(document);
+                              } catch (_) {}
+                              ngocsiOverlayScanCount++;
+                              if (ngocsiOverlayScanCount >= 40) {
+                                window.clearInterval(ngocsiOverlayScanTimer);
+                              }
+                            }, 350);
+                            document.addEventListener('touchend', function() {
+                              try {
+                                ngocsiInjectOverlayStyle(document);
+                                ngocsiScanOverlayRoots(document);
+                              } catch (_) {}
+                            }, true);
+                            document.addEventListener('click', function() {
+                              try {
+                                ngocsiInjectOverlayStyle(document);
+                                ngocsiScanOverlayRoots(document);
+                              } catch (_) {}
+                            }, true);
+
 
                             // Reset stale sticky positioning at every wrapper level after
                             // viewport changes. A measured negative margin on only one ancestor
