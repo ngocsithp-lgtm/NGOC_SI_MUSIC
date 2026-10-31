@@ -12939,27 +12939,27 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 2.dp)
+                .padding(horizontal = 8.dp, vertical = 1.dp)
                 // Tapping the non-control area returns to the in-app YouTube screen.
                 .clickable {
                     selectedSection = "Online"
                     onlineHubTab = "YouTube"
                 },
-            shape = RoundedCornerShape(15.dp),
+            shape = RoundedCornerShape(13.dp),
             color = Color(0xFF11151D),
             tonalElevation = 3.dp,
             shadowElevation = 3.dp,
             border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF3A2630))
         ) {
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 7.dp, vertical = 3.dp),
+                Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 1.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 OnlineArtwork(
                     track.thumbnailUrl,
-                    Modifier.size(36.dp).clip(RoundedCornerShape(8.dp))
+                    Modifier.size(32.dp).clip(RoundedCornerShape(8.dp))
                 )
-                Spacer(Modifier.width(7.dp))
+                Spacer(Modifier.width(6.dp))
                 Column(
                     Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(1.dp)
@@ -13017,9 +13017,9 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 2.dp)
+                .padding(horizontal = 8.dp, vertical = 1.dp)
                 .clickable { showNowPlaying = true },
-            shape = RoundedCornerShape(15.dp),
+            shape = RoundedCornerShape(13.dp),
             color = Color(0xFF11151D),
             tonalElevation = 3.dp,
             shadowElevation = 3.dp,
@@ -13029,12 +13029,12 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 7.dp, vertical = 3.dp),
+                        .padding(horizontal = 6.dp, vertical = 1.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
                         Modifier
-                            .size(36.dp)
+                            .size(32.dp)
                             .clip(RoundedCornerShape(8.dp))
                     ) {
                         SongArtwork(song, Modifier.fillMaxSize())
@@ -13055,7 +13055,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         }
                     }
 
-                    Spacer(Modifier.width(7.dp))
+                    Spacer(Modifier.width(6.dp))
 
                     Column(
                         Modifier.weight(1f),
