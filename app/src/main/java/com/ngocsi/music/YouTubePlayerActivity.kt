@@ -808,17 +808,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         }
         header.addView(backButton, LinearLayout.LayoutParams(dp(42), dp(42)))
 
-        val headerTitle = TextView(this).apply {
-            text = "YouTube"
-            setTextColor(AndroidColor.WHITE)
-            textSize = 16f
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-            setPadding(dp(12), 0, 0, 0)
-        }
-        header.addView(headerTitle, LinearLayout.LayoutParams(
-            0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
-        ))
-
+        // Keep the player header distraction-free: only the back control remains.
         playerContainer = InlinePlayerFrameLayout(this).apply {
             setBackgroundColor(AndroidColor.BLACK)
             contentDescription = "Trình phát video YouTube"
@@ -3057,10 +3047,17 @@ class YouTubePlayerActivity : ComponentActivity() {
                               'display:none!important;} ' +
                               '.ytp-title,.ytp-title-text,.ytp-title-link,.ytp-pause-overlay,' +
                               '.ytp-pause-overlay-container,.ytp-large-play-button,.ytp-cued-thumbnail-overlay,' +
+                              // Remove branding and the top title/menu strip that appears after a screen tap.
+                              '.ytp-watermark,.ytp-watermark-container,.ytp-branding,.ytp-impression-link,' +
+                              '.ytp-chrome-top,.ytp-gradient-top,.ytp-title-channel,' +
+                              // Remove "Up next", suggested-video cards and end-screen recommendations.
+                              '.ytp-upnext,.ytp-upnext-container,.ytp-autonav-endscreen,' +
+                              '.ytp-autonav-endscreen-upnext-container,.ytp-videowall-still,' +
                               '.ytp-next-button,.ytp-prev-button,.ytp-next-button-container,.ytp-prev-button-container,' +
                               '.ytp-fullscreen-button,.ytp-size-button,ytm-player-fullscreen-button-renderer,' +
                               '.ytp-endscreen-content,.ytp-endscreen-previous,.ytp-endscreen-next,' +
-                              '.ytp-ce-covering-overlay,.ytp-cards-teaser,.ytp-ce-element,.ytp-show-cards-title {' +
+                              '.ytp-ce-covering-overlay,.ytp-cards-teaser,.ytp-cards-button,.ytp-ce-element,' +
+                              '.ytp-show-cards-title,.ytp-suggestion-set {' +
                               'display:none!important;} ' +
                                // Keep inline geometry under YouTube's control. Only strip page chrome;
                                // forcing wrapper dimensions/position here caused edge bands on viewport changes.
