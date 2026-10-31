@@ -5460,7 +5460,7 @@ class MainActivity : ComponentActivity() {
                             fontSize = 12.sp,
                             lineHeight = 17.sp
                         )
-                        listOf(listOf(15, 30, 45), listOf(60, 90, 120)).forEach { rowMinutes ->
+                        listOf(listOf(1, 5, 10), listOf(15, 30, 45), listOf(60, 90, 120)).forEach { rowMinutes ->
                             Row(
                                 Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
