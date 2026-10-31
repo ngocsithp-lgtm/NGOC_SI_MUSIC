@@ -4952,7 +4952,7 @@ class MainActivity : ComponentActivity() {
             view.invalidate()
             // A zoomed landscape crop should never carry over into portrait playback.
             if (newConfig.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT) {
-                view.resetInlineVideoZoom()
+                (view as? InlineBackgroundAudioWebView)?.resetInlineVideoZoom()
             }
             if (inlineFullscreenCustomViewVisible) {
                 // Chromium owns the visible fullscreen surface now. Leave its media DOM alone
