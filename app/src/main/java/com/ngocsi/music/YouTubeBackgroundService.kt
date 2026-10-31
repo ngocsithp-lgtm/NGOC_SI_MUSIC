@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.content.SharedPreferences
 import android.content.pm.ServiceInfo
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
@@ -68,6 +69,15 @@ class YouTubeBackgroundService : Service() {
     private var sleepTimerReceiverRegistered = false
     private val prefs by lazy { getSharedPreferences("ngoc_si_music", MODE_PRIVATE) }
     private val sleepTimerHandler = Handler(Looper.getMainLooper())
+    private val sleepTimerPreferenceListener =
+        SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == "sleep_timer_end_at") {
+                // A timer may be created while this service is already running.
+                // Recheck immediately rather than waiting for the idle poll interval.
+                sleepTimerHandler.removeCallbacks(sleepTimerWatchdog)
+                sleepTimerHandler.post(sleepTimerWatchdog)
+            }
+        }
 
     // The inline YouTube renderer has its own foreground service. Keep a timer
     // watchdog here so background playback does not depend on MusicService being
@@ -76,7 +86,12 @@ class YouTubeBackgroundService : Service() {
         override fun run() {
             val deadline = prefs.getLong("sleep_timer_end_at", 0L)
             val youtubeSelected = prefs.getBoolean("youtube_active_source", false)
-            if (youtubeSelected && SleepTimerRules.isExpired(deadline, System.currentTimeMillis())) {
+            if (SleepTimerRules.shouldStopYouTubePlayback(
+                    deadlineMillis = deadline,
+                    nowMillis = System.currentTimeMillis(),
+                    youtubeSelected = youtubeSelected
+                )
+            ) {
                 // Clear only after confirming YouTube is the selected source.
                 // MusicService remains responsible for local/Drive playback timers.
                 prefs.edit()
@@ -124,6 +139,7 @@ class YouTubeBackgroundService : Service() {
             setReferenceCounted(false)
         }
         createMediaSession()
+        prefs.registerOnSharedPreferenceChangeListener(sleepTimerPreferenceListener)
         sleepTimerHandler.post(sleepTimerWatchdog)
     }
 
@@ -380,6 +396,7 @@ class YouTubeBackgroundService : Service() {
     }
 
     override fun onDestroy() {
+        prefs.unregisterOnSharedPreferenceChangeListener(sleepTimerPreferenceListener)
         sleepTimerHandler.removeCallbacks(sleepTimerWatchdog)
         releaseWakeLock()
         if (sleepTimerReceiverRegistered) {
