@@ -10,11 +10,8 @@ internal object InlineVideoZoomRules {
     const val FILL_THRESHOLD = 1.04f
 
     fun updateScale(currentScale: Float, gestureScaleFactor: Float): Float {
-        val current = if (currentScale.isFinite()) {
-            currentScale.coerceIn(MIN_SCALE, MAX_SCALE)
-        } else {
-            MIN_SCALE
-        }
+        if (!currentScale.isFinite()) return MIN_SCALE
+        val current = currentScale.coerceIn(MIN_SCALE, MAX_SCALE)
         if (!gestureScaleFactor.isFinite() || gestureScaleFactor <= 0f) return current
 
         // ScaleGestureDetector reports incremental factors, often only 1–2% per event.
