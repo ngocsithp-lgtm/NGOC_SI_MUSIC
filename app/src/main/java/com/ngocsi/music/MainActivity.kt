@@ -6262,17 +6262,23 @@ class MainActivity : ComponentActivity() {
                 )
             }
 
+            val canPlayFilteredSongs = displayedSongs.isNotEmpty()
             Surface(
                 modifier = Modifier
                     .clip(RoundedCornerShape(12.dp))
-                    .clickable { playFilteredSongs(displayedSongs) },
+                    .clickable(enabled = canPlayFilteredSongs) {
+                        playFilteredSongs(displayedSongs)
+                    },
                 shape = RoundedCornerShape(12.dp),
-                color = Color(0xFF2A2045),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF4D3D70))
+                color = if (canPlayFilteredSongs) Color(0xFF2A2045) else Color(0xFF191C24),
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    if (canPlayFilteredSongs) Color(0xFF4D3D70) else Color(0xFF292E38)
+                )
             ) {
                 Text(
                     "▶ PHÁT",
-                    color = Color.White,
+                    color = if (canPlayFilteredSongs) Color.White else Color(0xFF737987),
                     fontSize = 9.sp,
                     fontWeight = FontWeight.Black,
                     modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp)
@@ -6302,6 +6308,9 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun YouTubeLibrarySongRow(song: Song, index: Int, selected: Boolean) {
         val shownDuration = if (selected && duration > 0L) duration else song.duration
+        // In a source-specific view the source is already clear from the active filter.
+        // Keep badges only for combined views where they distinguish mixed libraries.
+        val showSourceBadge = selectedLibrary == "Tất cả" || selectedLibrary == "Yêu thích"
         Row(
             Modifier.fillMaxWidth()
                 .clip(RoundedCornerShape(14.dp))
@@ -6342,8 +6351,10 @@ class MainActivity : ComponentActivity() {
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
                     )
-                    Spacer(Modifier.width(6.dp))
-                    SourceBadge(song.source)
+                    if (showSourceBadge) {
+                        Spacer(Modifier.width(6.dp))
+                        SourceBadge(song.source)
+                    }
                 }
                 if (selected) {
                     Text(
