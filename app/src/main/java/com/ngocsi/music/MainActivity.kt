@@ -12624,61 +12624,53 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 3.dp)
+                .padding(horizontal = 8.dp, vertical = 2.dp)
                 // Tapping the non-control area returns to the in-app YouTube screen.
-                // Nested previous/play-pause/next controls keep their own click actions.
                 .clickable {
                     selectedSection = "Online"
                     onlineHubTab = "YouTube"
                 },
-            shape = RoundedCornerShape(18.dp),
+            shape = RoundedCornerShape(15.dp),
             color = Color(0xFF11151D),
-            tonalElevation = 5.dp,
-            shadowElevation = 5.dp,
+            tonalElevation = 3.dp,
+            shadowElevation = 3.dp,
             border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF3A2630))
         ) {
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 5.dp),
+                Modifier.fillMaxWidth().padding(horizontal = 7.dp, vertical = 3.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 OnlineArtwork(
                     track.thumbnailUrl,
-                    Modifier.size(44.dp).clip(RoundedCornerShape(10.dp))
+                    Modifier.size(36.dp).clip(RoundedCornerShape(8.dp))
                 )
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(7.dp))
                 Column(
                     Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                    verticalArrangement = Arrangement.spacedBy(1.dp)
                 ) {
-                    Text(
-                        "ĐANG PHÁT • YOUTUBE",
-                        color = Color(0xFFFF7A86),
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Black,
-                        maxLines = 1
-                    )
                     Text(
                         track.title,
                         color = Color.White,
-                        fontSize = 13.sp,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        maxLines = 2,
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         track.channelTitle.ifBlank { "YouTube" },
                         color = Color(0xFFA0A7B7),
-                        fontSize = 11.sp,
+                        fontSize = 10.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                IconButton(onClick = { playStoredYouTubeOffset(-1) }, modifier = Modifier.size(40.dp)) {
-                    Text("⏮", color = Color(0xFFB8B3C7), fontSize = 16.sp)
+                IconButton(onClick = { playStoredYouTubeOffset(-1) }, modifier = Modifier.size(34.dp)) {
+                    Text("⏮", color = Color(0xFFB8B3C7), fontSize = 14.sp)
                 }
                 Surface(
                     modifier = Modifier
-                        .size(36.dp)
+                        .size(32.dp)
                         .clip(CircleShape)
                         .clickable {
                             playLastYouTube(if (youtubePlaybackIsPlaying) "pause" else "play")
@@ -12690,13 +12682,13 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         Text(
                             if (youtubePlaybackIsPlaying) "⏸" else "▶",
                             color = Color.White,
-                            fontSize = 16.sp,
+                            fontSize = 14.sp,
                             fontWeight = FontWeight.Black
                         )
                     }
                 }
-                IconButton(onClick = { playStoredYouTubeOffset(1) }, modifier = Modifier.size(40.dp)) {
-                    Text("⏭", color = Color(0xFFB8B3C7), fontSize = 16.sp)
+                IconButton(onClick = { playStoredYouTubeOffset(1) }, modifier = Modifier.size(34.dp)) {
+                    Text("⏭", color = Color(0xFFB8B3C7), fontSize = 14.sp)
                 }
             }
         }
@@ -12710,25 +12702,25 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 3.dp)
+                .padding(horizontal = 8.dp, vertical = 2.dp)
                 .clickable { showNowPlaying = true },
-            shape = RoundedCornerShape(18.dp),
+            shape = RoundedCornerShape(15.dp),
             color = Color(0xFF11151D),
-            tonalElevation = 5.dp,
-            shadowElevation = 5.dp,
+            tonalElevation = 3.dp,
+            shadowElevation = 3.dp,
             border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF242B38))
         ) {
             Column {
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 5.dp),
+                        .padding(horizontal = 7.dp, vertical = 3.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
                         Modifier
-                            .size(44.dp)
-                            .clip(RoundedCornerShape(10.dp))
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(8.dp))
                     ) {
                         SongArtwork(song, Modifier.fillMaxSize())
                         if (isPlaying) {
@@ -12741,31 +12733,23 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 Text(
                                     "●",
                                     color = Color(0xFF8DEBFF),
-                                    fontSize = 10.sp,
-                                    modifier = Modifier.padding(4.dp)
+                                    fontSize = 8.sp,
+                                    modifier = Modifier.padding(3.dp)
                                 )
                             }
                         }
                     }
 
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(7.dp))
 
                     Column(
                         Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                        verticalArrangement = Arrangement.spacedBy(1.dp)
                     ) {
-                        Text(
-                            "ĐANG PHÁT",
-                            color = Color(0xFF8DEBFF),
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Black,
-                            letterSpacing = 0.8.sp,
-                            maxLines = 1
-                        )
                         Text(
                             song.title,
                             color = Color.White,
-                            fontSize = 13.sp,
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -12774,27 +12758,27 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             Text(
                                 song.artist.ifBlank { "Không rõ nghệ sĩ" },
                                 color = Color(0xFFA0A7B7),
-                                fontSize = 10.sp,
+                                fontSize = 9.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f, fill = false)
                             )
-                            Spacer(Modifier.width(5.dp))
+                            Spacer(Modifier.width(4.dp))
                             SourceBadge(song.source)
                         }
                     }
 
                     IconButton(
                         onClick = ::previous,
-                        modifier = Modifier.size(40.dp),
+                        modifier = Modifier.size(34.dp),
                         enabled = queueSongs.size > 1
                     ) {
-                        Text("⏮", color = Color(0xFFB8B3C7), fontSize = 17.sp)
+                        Text("⏮", color = Color(0xFFB8B3C7), fontSize = 14.sp)
                     }
 
                     Surface(
                         modifier = Modifier
-                            .size(36.dp)
+                            .size(32.dp)
                             .clip(CircleShape)
                             .clickable(onClick = ::togglePlayPause),
                         shape = CircleShape,
@@ -12804,7 +12788,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             Text(
                                 if (isPlaying) "⏸" else "▶",
                                 color = Color.White,
-                                fontSize = 16.sp,
+                                fontSize = 14.sp,
                                 fontWeight = FontWeight.Black
                             )
                         }
@@ -12812,20 +12796,20 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
                     IconButton(
                         onClick = ::next,
-                        modifier = Modifier.size(40.dp),
+                        modifier = Modifier.size(34.dp),
                         enabled = queueSongs.size > 1
                     ) {
-                        Text("⏭", color = Color(0xFFB8B3C7), fontSize = 17.sp)
+                        Text("⏭", color = Color(0xFFB8B3C7), fontSize = 14.sp)
                     }
 
-                    IconButton(onClick = { showQueue = true }, modifier = Modifier.size(40.dp)) {
+                    IconButton(onClick = { showQueue = true }, modifier = Modifier.size(34.dp)) {
                         Box(contentAlignment = Alignment.Center) {
-                            Text("☷", color = Color(0xFF9EA5B4), fontSize = 18.sp)
+                            Text("☷", color = Color(0xFF9EA5B4), fontSize = 16.sp)
                             if (queueSongs.isNotEmpty()) {
                                 Surface(
                                     modifier = Modifier
                                         .align(Alignment.TopEnd)
-                                        .offset(x = 4.dp, y = (-2).dp),
+                                        .offset(x = 3.dp, y = (-2).dp),
                                     shape = CircleShape,
                                     color = Color(0xFF2B3342)
                                 ) {
@@ -12834,7 +12818,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         color = Color(0xFFD6D9E1),
                                         fontSize = 7.sp,
                                         fontWeight = FontWeight.Black,
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                        modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
                                     )
                                 }
                             }
