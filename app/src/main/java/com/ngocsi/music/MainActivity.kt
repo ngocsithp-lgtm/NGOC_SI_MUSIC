@@ -7990,11 +7990,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     )
                                 ) {
                                     Row(
-                                        Modifier.padding(11.dp),
+                                        Modifier.padding(9.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Box {
-                                            SongArtwork(currentSong, Modifier.size(68.dp))
+                                            SongArtwork(currentSong, Modifier.size(58.dp))
                                             Surface(
                                                 modifier = Modifier
                                                     .align(Alignment.BottomEnd)
@@ -8012,7 +8012,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                                 }
                                             }
                                         }
-                                        Spacer(Modifier.width(12.dp))
+                                        Spacer(Modifier.width(8.dp))
                                         Column(
                                             Modifier.weight(1f),
                                             verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -8020,8 +8020,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                             Text(
                                                 currentSong.title,
                                                 color = Color.White,
-                                                fontSize = 15.sp,
-                                                lineHeight = 20.sp,
+                                                fontSize = 14.sp,
+                                                lineHeight = 18.sp,
                                                 fontWeight = FontWeight.Black,
                                                 maxLines = 2,
                                                 overflow = TextOverflow.Ellipsis
@@ -8218,7 +8218,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                             Row(
                                                 Modifier
                                                     .fillMaxWidth()
-                                                    .padding(horizontal = 9.dp, vertical = 8.dp),
+                                                    .padding(horizontal = 8.dp, vertical = 6.dp),
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 Text(
@@ -8229,7 +8229,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                                     modifier = Modifier.width(24.dp)
                                                 )
 
-                                                SongArtwork(song, Modifier.size(56.dp))
+                                                SongArtwork(song, Modifier.size(50.dp))
 
                                                 Spacer(Modifier.width(10.dp))
 
@@ -8273,22 +8273,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                                         fontSize = 14.sp,
                                                         fontWeight = FontWeight.Bold
                                                     )
-                                                    Row(
-                                                        horizontalArrangement = Arrangement.spacedBy(2.dp)
-                                                    ) {
-                                                        QueueIconButton("↑", originalIndex > 0) {
-                                                            if (originalIndex > 0) {
-                                                                moveQueueItem(originalIndex, originalIndex - 1)
-                                                            }
-                                                        }
-                                                        QueueIconButton("↓", originalIndex < queueSongs.lastIndex) {
-                                                            if (originalIndex < queueSongs.lastIndex) {
-                                                                moveQueueItem(originalIndex, originalIndex + 1)
-                                                            }
-                                                        }
-                                                        QueueIconButton("×", true) {
-                                                            removeFromQueue(originalIndex)
-                                                        }
+                                                    QueueIconButton("×", true) {
+                                                        removeFromQueue(originalIndex)
                                                     }
                                                 }
                                             }
