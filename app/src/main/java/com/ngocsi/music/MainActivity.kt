@@ -6167,18 +6167,35 @@ class MainActivity : ComponentActivity() {
         OutlinedTextField(
             value = searchQuery,
             onValueChange = { searchQuery = it },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp).height(56.dp),
-            textStyle = LocalTextStyle.current.copy(fontSize = 13.sp, lineHeight = 19.sp),
+            // Keep a little extra vertical room for Vietnamese diacritics; a fixed
+            // 56dp field can clip descenders on some Android font-scale settings.
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp).heightIn(min = 60.dp),
+            textStyle = LocalTextStyle.current.copy(fontSize = 13.sp, lineHeight = 20.sp),
             singleLine = true,
             placeholder = {
                 Text(
                     "Tìm bài hát, nghệ sĩ, album...",
                     color = Color(0xFF777D8D),
                     fontSize = 12.sp,
-                    maxLines = 1
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             },
-            leadingIcon = { Text("⌕", color = Color(0xFFB18CFF), fontSize = 21.sp) },
+            leadingIcon = {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .clickable(enabled = searchQuery.isNotBlank()) { searchQuery = "" },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        if (searchQuery.isBlank()) "⌕" else "×",
+                        color = Color(0xFFB18CFF),
+                        fontSize = 21.sp
+                    )
+                }
+            },
             trailingIcon = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(enabled = !isVoiceSearching, onClick = ::startVoiceSearch) {
