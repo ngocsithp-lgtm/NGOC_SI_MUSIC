@@ -10281,6 +10281,28 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         // Keep a dedicated state for the landscape result/queue pane. Stable video IDs
         // let Compose preserve the visible scroll position when the active track changes.
         val youtubeLandscapeQueueState = rememberLazyListState()
+        var landscapePaneTab by remember { mutableStateOf("queue") }
+        val storedQueueTracks = remember(youtubeLastQueueJson) {
+            runCatching {
+                val savedQueue = JSONArray(youtubeLastQueueJson.orEmpty())
+                val parsedTracks = ArrayList<YouTubeTrack>(savedQueue.length())
+                for (queueIndex in 0 until savedQueue.length()) {
+                    val item = savedQueue.optJSONObject(queueIndex) ?: continue
+                    val videoId = item.optString("videoId").trim()
+                    if (videoId.isNotBlank()) {
+                        parsedTracks += YouTubeTrack(
+                            videoId = videoId,
+                            title = item.optString("title").ifBlank { "YouTube" },
+                            channelTitle = item.optString("channelTitle").ifBlank { "YouTube" },
+                            thumbnailUrl = item.optString("thumbnailUrl")
+                        )
+                    }
+                }
+                parsedTracks
+            }.getOrDefault(emptyList())
+        }
+        val showingStoredQueue = landscapePaneTab == "queue" && storedQueueTracks.isNotEmpty()
+        val landscapePaneTracks = if (showingStoredQueue) storedQueueTracks else youtubeTracks
         val youtubeConfiguration = androidx.compose.ui.platform.LocalConfiguration.current
         val inlineLandscape = !youtubeInlineFullscreen &&
             youtubeConfiguration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
@@ -10301,21 +10323,22 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 youtubeListState.animateScrollToItem(0)
             }
         }
-        // In landscape, reveal the active search result only when it is outside the
-        // visible window. If it is already visible, leave the user's scroll position
-        // untouched. Selecting a result therefore never jumps the queue back to row 0.
+        // Keep the active item visible in whichever pane is selected. The saved queue
+        // uses its exact playback snapshot; the results tab remains independently searchable.
         LaunchedEffect(
             inlineLandscape,
             youtubeInlineTrack?.videoId,
+            landscapePaneTab,
+            storedQueueTracks.map { it.videoId },
             youtubeTracks.map { it.videoId }
         ) {
             val activeVideoId = youtubeInlineTrack?.videoId
             if (!inlineLandscape || activeVideoId.isNullOrBlank()) return@LaunchedEffect
-            val activeIndex = youtubeTracks.indexOfFirst { it.videoId == activeVideoId }
+            val activeIndex = landscapePaneTracks.indexOfFirst { it.videoId == activeVideoId }
             if (activeIndex < 0) return@LaunchedEffect
-
+            val itemKey = "${if (showingStoredQueue) "queue" else "results"}:$activeVideoId:$activeIndex"
             val alreadyVisible = youtubeLandscapeQueueState.layoutInfo.visibleItemsInfo.any {
-                it.key == activeVideoId
+                it.key == itemKey
             }
             if (!alreadyVisible) {
                 youtubeLandscapeQueueState.animateScrollToItem(activeIndex)
@@ -10671,7 +10694,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 ) {
                                     Column(Modifier.weight(1f)) {
                                         Text(
-                                            if (youtubeInlineTrack != null) "HÀNG ĐỢI VIDEO" else "KẾT QUẢ TÌM KIẾM",
+                                            if (showingStoredQueue) "HÀNG ĐỢI VIDEO" else "KẾT QUẢ TÌM KIẾM",
                                             color = Color.White,
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Black,
@@ -10679,7 +10702,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                             overflow = TextOverflow.Ellipsis
                                         )
                                         Text(
-                                            if (youtubeInlineTrack != null) "Chạm video để chuyển bài" else "Chọn video để phát",
+                                            if (showingStoredQueue) "Chạm video trong hàng đợi để chuyển bài" else "Chọn kết quả để tạo hàng đợi",
                                             color = Color(0xFF9298A7),
                                             fontSize = 8.sp,
                                             maxLines = 1,
@@ -10687,25 +10710,76 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         )
                                     }
                                     Text(
-                                        youtubeTracks.size.toString(),
+                                        landscapePaneTracks.size.toString(),
                                         color = Color(0xFF9298A7),
                                         fontSize = 10.sp
                                     )
                                     Spacer(Modifier.width(4.dp))
                                     OutlinedButton(
                                         onClick = {
-                                            youtubeTracks.firstOrNull()?.let { playYouTube(it) }
+                                            if (showingStoredQueue) {
+                                                val rawQueue = youtubeLastQueueJson
+                                                storedQueueTracks.firstOrNull()?.let { firstTrack ->
+                                                    if (!rawQueue.isNullOrBlank()) {
+                                                        playYouTube(firstTrack, rawQueue, 0)
+                                                    } else {
+                                                        playYouTube(firstTrack)
+                                                    }
+                                                }
+                                            } else {
+                                                youtubeTracks.firstOrNull()?.let {
+                                                    playYouTube(it)
+                                                    landscapePaneTab = "queue"
+                                                }
+                                            }
                                         },
-                                        enabled = youtubeTracks.isNotEmpty() && !youtubeLoading,
+                                        enabled = landscapePaneTracks.isNotEmpty() && !youtubeLoading,
                                         shape = RoundedCornerShape(9.dp),
                                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
                                         modifier = Modifier.height(30.dp)
                                     ) {
                                         Text(
-                                            "▶ PHÁT TẤT CẢ",
+                                            if (showingStoredQueue) "▶ PHÁT TỪ ĐẦU" else "▶ PHÁT TẤT CẢ",
                                             fontSize = 8.sp,
                                             maxLines = 1
                                         )
+                                    }
+                                }
+                                if (storedQueueTracks.isNotEmpty()) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                    ) {
+                                        listOf("queue", "results").forEach { tab ->
+                                            val selected = landscapePaneTab == tab
+                                            val tabLabel = if (tab == "queue") {
+                                                "HÀNG ĐỢI ${storedQueueTracks.size}"
+                                            } else {
+                                                "KẾT QUẢ ${youtubeTracks.size}"
+                                            }
+                                            Surface(
+                                                modifier = Modifier.weight(1f).height(30.dp)
+                                                    .clip(RoundedCornerShape(9.dp))
+                                                    .clickable { landscapePaneTab = tab },
+                                                shape = RoundedCornerShape(9.dp),
+                                                color = if (selected) Color(0xFF39212A) else Color(0xFF191D26),
+                                                border = androidx.compose.foundation.BorderStroke(
+                                                    1.dp,
+                                                    if (selected) Color(0xFFFF7180) else Color(0xFF2B303D)
+                                                )
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Text(
+                                                        tabLabel,
+                                                        color = if (selected) Color.White else Color(0xFFA6ACBA),
+                                                        fontSize = 8.sp,
+                                                        fontWeight = if (selected) FontWeight.Black else FontWeight.Medium,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                                 OutlinedTextField(
@@ -10780,13 +10854,14 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         trackColor = Color(0xFF28232A)
                                     )
                                 }
-                                if (youtubeTracks.isEmpty()) {
+                                if (landscapePaneTracks.isEmpty()) {
                                     Box(
                                         modifier = Modifier.fillMaxWidth().weight(1f),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
                                             when {
+                                                showingStoredQueue -> "Hàng đợi YouTube chưa có video."
                                                 youtubeLoading -> "Đang tìm video..."
                                                 youtubeQuery.isBlank() -> "Nhập từ khóa để xem kết quả tìm kiếm"
                                                 errorMessage?.startsWith("YouTube:", ignoreCase = true) == true ->
@@ -10818,14 +10893,28 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         verticalArrangement = Arrangement.spacedBy(5.dp),
                                         contentPadding = PaddingValues(bottom = 6.dp)
                                     ) {
-                                        items(
-                                            items = youtubeTracks,
-                                            key = { it.videoId }
-                                        ) { track ->
+                                        itemsIndexed(
+                                            items = landscapePaneTracks,
+                                            key = { index, track ->
+                                                "${if (showingStoredQueue) "queue" else "results"}:${track.videoId}:$index"
+                                            }
+                                        ) { index, track ->
                                             val isCurrent = track.videoId == youtubeInlineTrack?.videoId
                                             Surface(
                                                 modifier = Modifier.fillMaxWidth()
-                                                    .clickable { playYouTube(track) },
+                                                    .clickable {
+                                                        if (showingStoredQueue) {
+                                                            val rawQueue = youtubeLastQueueJson
+                                                            if (!rawQueue.isNullOrBlank()) {
+                                                                playYouTube(track, rawQueue, index)
+                                                            } else {
+                                                                playYouTube(track)
+                                                            }
+                                                        } else {
+                                                            playYouTube(track)
+                                                            landscapePaneTab = "queue"
+                                                        }
+                                                    },
                                                 shape = RoundedCornerShape(10.dp),
                                                 color = if (isCurrent) Color(0xFF352027)
                                                     else Color(0xFF1A1D25),
@@ -10906,7 +10995,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                                 }
                                             }
                                         }
-                                        if (youtubeNextPageToken != null) {
+                                        if (!showingStoredQueue && youtubeNextPageToken != null) {
                                             item {
                                                 OutlinedButton(
                                                     onClick = { searchYouTube(loadMore = true) },
