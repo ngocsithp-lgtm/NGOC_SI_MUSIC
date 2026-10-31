@@ -40,6 +40,38 @@ class SleepTimerRulesTest {
         assertTrue(SleepTimerRules.isExpired(100L, 100L))
     }
     @Test
+    fun YouTubeWatchdogStopsOnlyAnExpiredSelectedYouTubeSource() {
+        assertTrue(
+            SleepTimerRules.shouldStopYouTubePlayback(
+                deadlineMillis = 60_000L,
+                nowMillis = 60_000L,
+                youtubeSelected = true
+            )
+        )
+        assertFalse(
+            SleepTimerRules.shouldStopYouTubePlayback(
+                deadlineMillis = 60_000L,
+                nowMillis = 60_000L,
+                youtubeSelected = false
+            )
+        )
+        assertFalse(
+            SleepTimerRules.shouldStopYouTubePlayback(
+                deadlineMillis = 60_001L,
+                nowMillis = 60_000L,
+                youtubeSelected = true
+            )
+        )
+        assertFalse(
+            SleepTimerRules.shouldStopYouTubePlayback(
+                deadlineMillis = 0L,
+                nowMillis = 60_000L,
+                youtubeSelected = true
+            )
+        )
+    }
+
+    @Test
     fun expirationNotificationHandlesServiceCleanupRace() {
         // The countdown can reach its deadline before the service clears SharedPreferences.
         assertTrue(SleepTimerRules.shouldNotifyExpiration(60_000L, 60_000L, 60_000L))
