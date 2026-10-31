@@ -6058,14 +6058,14 @@ class MainActivity : ComponentActivity() {
         OutlinedTextField(
             value = searchQuery,
             onValueChange = { searchQuery = it },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp).heightIn(min = 56.dp),
-            textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp).height(54.dp),
+            textStyle = LocalTextStyle.current.copy(fontSize = 13.sp, lineHeight = 19.sp),
             singleLine = true,
             placeholder = {
                 Text(
                     "Tìm bài hát, nghệ sĩ, album...",
                     color = Color(0xFF777D8D),
-                    fontSize = 13.sp,
+                    fontSize = 12.sp,
                     maxLines = 1
                 )
             },
@@ -6117,7 +6117,7 @@ class MainActivity : ComponentActivity() {
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 5.dp),
+                .padding(horizontal = 14.dp, vertical = 3.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(Modifier.weight(1f)) {
@@ -6149,14 +6149,14 @@ class MainActivity : ComponentActivity() {
                     color = Color.White,
                     fontSize = 9.sp,
                     fontWeight = FontWeight.Black,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp)
+                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp)
                 )
             }
 
             Spacer(Modifier.width(5.dp))
             Surface(
                 modifier = Modifier
-                    .size(34.dp)
+                    .size(32.dp)
                     .clip(CircleShape)
                     .clickable {
                         loadSongs()
@@ -6181,10 +6181,10 @@ class MainActivity : ComponentActivity() {
                 .clip(RoundedCornerShape(14.dp))
                 .background(if (selected) Color(0xFF211B31) else Color.Transparent)
                 .clickable { setYouTubeActiveSource(false); play(index) }
-                .padding(horizontal = 6.dp, vertical = 6.dp),
+                .padding(horizontal = 5.dp, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(Modifier.size(54.dp).clip(RoundedCornerShape(10.dp))) {
+            Box(Modifier.size(48.dp).clip(RoundedCornerShape(9.dp))) {
                 SongArtwork(song, Modifier.fillMaxSize())
                 if (selected) {
                     Box(Modifier.fillMaxSize().background(Color(0x99000000)), contentAlignment = Alignment.Center) {
@@ -6201,8 +6201,8 @@ class MainActivity : ComponentActivity() {
                 Text(
                     song.title,
                     color = if (selected) Color.White else Color(0xFFE7E8EF),
-                    fontSize = 14.sp,
-                    lineHeight = 18.sp,
+                    fontSize = 13.sp,
+                    lineHeight = 17.sp,
                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
@@ -6211,7 +6211,7 @@ class MainActivity : ComponentActivity() {
                     Text(
                         song.artist.ifBlank { "Không rõ nghệ sĩ" },
                         color = Color(0xFF9294A1),
-                        fontSize = 11.sp,
+                        fontSize = 10.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
@@ -6232,7 +6232,7 @@ class MainActivity : ComponentActivity() {
             }
             Spacer(Modifier.width(7.dp))
             Column(horizontalAlignment = Alignment.End) {
-                Text(formatTime(shownDuration), color = Color(0xFF9AA2B2), fontSize = 10.sp)
+                Text(formatTime(shownDuration), color = Color(0xFF9AA2B2), fontSize = 9.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                     SongActionButton("＋") { addToQueue(song) }
                     SongActionButton(
@@ -6314,13 +6314,13 @@ class MainActivity : ComponentActivity() {
                 .padding(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 2.dp)
         ) {
             Text(
-                "LỌC THEO NGUỒN",
+                "NGUỒN NHẠC",
                 color = Color(0xFF858B9A),
-                fontSize = 10.sp,
+                fontSize = 9.sp,
                 fontWeight = FontWeight.Bold,
-                letterSpacing = 0.8.sp
+                letterSpacing = 0.6.sp
             )
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(4.dp))
             LazyRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(7.dp),
@@ -6333,6 +6333,7 @@ class MainActivity : ComponentActivity() {
                         label = {
                             Text("Tất cả  $allCount", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                         },
+                        modifier = Modifier.height(34.dp),
                         shape = RoundedCornerShape(12.dp)
                     )
                 }
@@ -6347,6 +6348,7 @@ class MainActivity : ComponentActivity() {
                                 Text("Thiết bị  $deviceCount", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                             }
                         },
+                        modifier = Modifier.height(34.dp),
                         shape = RoundedCornerShape(12.dp)
                     )
                 }
@@ -6361,6 +6363,7 @@ class MainActivity : ComponentActivity() {
                                 Text("Yêu thích  $favoriteCount", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                             }
                         },
+                        modifier = Modifier.height(34.dp),
                         shape = RoundedCornerShape(12.dp)
                     )
                 }
@@ -6396,12 +6399,13 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
                         },
+                        modifier = Modifier.height(34.dp),
                         shape = RoundedCornerShape(12.dp)
                     )
                 }
             }
         }
-        Spacer(Modifier.height(5.dp))
+        Spacer(Modifier.height(3.dp))
     }
 
     @Composable
@@ -6420,7 +6424,7 @@ class MainActivity : ComponentActivity() {
                         .clip(RoundedCornerShape(9.dp))
                         .clickable { libraryView = tab }
                         .background(if (selected) Color(0xFF211B31) else Color.Transparent)
-                        .padding(horizontal = 2.dp, vertical = 8.dp),
+                        .padding(horizontal = 2.dp, vertical = 6.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
@@ -6431,7 +6435,7 @@ class MainActivity : ComponentActivity() {
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Spacer(Modifier.height(5.dp))
+                    Spacer(Modifier.height(3.dp))
                     Box(
                         Modifier
                             .width(if (selected) 24.dp else 0.dp)
@@ -12842,64 +12846,101 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
     private fun PlaylistManagerDialog() {
         Dialog(onDismissRequest = { showPlaylists = false }) {
             Surface(
-                shape = RoundedCornerShape(26.dp),
+                shape = RoundedCornerShape(22.dp),
                 color = Color(0xFF101117),
                 modifier = Modifier.fillMaxWidth(0.94f)
             ) {
-                Column(Modifier.padding(18.dp)) {
+                Column(Modifier.padding(14.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text("PLAYLIST", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
-                            Text(playlists.size.toString() + " danh sách • lưu trên thiết bị", color = Color(0xFF888894), fontSize = 12.sp)
+                            Text("PLAYLIST", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+                            Text(playlists.size.toString() + " danh sách • lưu trên thiết bị", color = Color(0xFF888894), fontSize = 11.sp)
                         }
                         TextButton(onClick = { showCreatePlaylist = true }) { Text("+ Tạo") }
                     }
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(6.dp))
                     if (playlists.isEmpty()) {
-                        Text("Chưa có playlist. Hãy tạo playlist rồi dùng nút ▣ cạnh bài hát để thêm nhạc.", color = Color(0xFF9A9AA5), fontSize = 13.sp)
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp),
+                            color = Color(0xFF181922)
+                        ) {
+                            Text(
+                                "Chưa có playlist. Tạo danh sách rồi thêm nhạc từ Thư viện.",
+                                color = Color(0xFF9A9AA5),
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(12.dp)
+                            )
+                        }
                     } else {
                         LazyColumn(
                             modifier = Modifier.heightIn(max = 520.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             items(playlists, key = { it.id }) { playlist ->
-                                Row(
-                                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
-                                        .background(Color(0xFF181922)).padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(13.dp),
+                                    color = Color(0xFF181922),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF252A35))
                                 ) {
-                                    Column(
-                                        Modifier
-                                            .weight(1f)
-                                            .clickable {
-                                                showPlaylists = false
-                                                playlistDetailId = playlist.id
-                                            }
+                                    Row(
+                                        Modifier.padding(start = 10.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Text(playlist.name, color = Color.White, fontWeight = FontWeight.SemiBold)
-                                        Text(playlist.songUris.size.toString() + " bài • chạm để xem", color = Color(0xFF888894), fontSize = 11.sp)
-                                    }
-                                    TextButton(onClick = { playPlaylist(playlist) }) { Text("▶") }
-                                    TextButton(
-                                        onClick = {
-                                            editingPlaylistId = playlist.id
-                                            newPlaylistName = playlist.name
-                                            showCreatePlaylist = true
+                                        Column(
+                                            Modifier
+                                                .weight(1f)
+                                                .clickable {
+                                                    showPlaylists = false
+                                                    playlistDetailId = playlist.id
+                                                }
+                                                .padding(vertical = 4.dp),
+                                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                                        ) {
+                                            Text(
+                                                playlist.name,
+                                                color = Color.White,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                playlist.songUris.size.toString() + " bài • chạm để xem",
+                                                color = Color(0xFF888894),
+                                                fontSize = 10.sp,
+                                                maxLines = 1
+                                            )
                                         }
-                                    ) { Text("SỬA", fontSize = 9.sp) }
-                                    if (queueSongs.isNotEmpty()) {
-                                        TextButton(
-                                            onClick = { addQueueToPlaylist(playlist) }
-                                        ) { Text("+Q", fontSize = 9.sp) }
+                                        IconButton(
+                                            onClick = { playPlaylist(playlist) },
+                                            modifier = Modifier.size(32.dp)
+                                        ) { Text("▶", color = Color(0xFFB99AFF), fontSize = 13.sp) }
+                                        IconButton(
+                                            onClick = {
+                                                editingPlaylistId = playlist.id
+                                                newPlaylistName = playlist.name
+                                                showCreatePlaylist = true
+                                            },
+                                            modifier = Modifier.size(32.dp)
+                                        ) { Text("✎", color = Color(0xFFB8C2D3), fontSize = 15.sp) }
+                                        if (queueSongs.isNotEmpty()) {
+                                            IconButton(
+                                                onClick = { addQueueToPlaylist(playlist) },
+                                                modifier = Modifier.size(32.dp)
+                                            ) { Text("+Q", color = Color(0xFF9CCBFF), fontSize = 9.sp, fontWeight = FontWeight.Bold) }
+                                        }
+                                        IconButton(
+                                            onClick = { playlistPendingDeleteId = playlist.id },
+                                            modifier = Modifier.size(32.dp)
+                                        ) { Text("×", color = Color(0xFFFF8A9A), fontSize = 17.sp) }
                                     }
-                                    TextButton(
-                                        onClick = { playlistPendingDeleteId = playlist.id }
-                                    ) { Text("×", color = Color(0xFFFF8A9A)) }
                                 }
                             }
                         }
                     }
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(6.dp))
                     TextButton(onClick = { showPlaylists = false }) { Text("Đóng") }
                 }
             }
