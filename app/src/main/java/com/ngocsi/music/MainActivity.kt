@@ -10500,8 +10500,18 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     onValueChange = ::updateYouTubeQuery,
                                     modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
                                     singleLine = true,
+                                    textStyle = androidx.compose.ui.text.TextStyle(
+                                        fontSize = 13.sp,
+                                        lineHeight = 18.sp
+                                    ),
                                     placeholder = {
-                                        Text("Tìm video...", color = Color(0xFF747A89), fontSize = 11.sp)
+                                        Text(
+                                            "Tìm video...",
+                                            color = Color(0xFF747A89),
+                                            fontSize = 12.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
                                     },
                                     leadingIcon = {
                                         Text("⌕", color = Color(0xFFFF7180), fontSize = 20.sp)
@@ -10785,12 +10795,19 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     OutlinedTextField(
                         value = youtubeQuery,
                         onValueChange = ::updateYouTubeQuery,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
                         singleLine = true,
+                        textStyle = androidx.compose.ui.text.TextStyle(
+                            fontSize = 14.sp,
+                            lineHeight = 20.sp
+                        ),
                         placeholder = {
                             Text(
                                 "Nhập tên bài hát hoặc nghệ sĩ...",
-                                color = Color(0xFF747A89)
+                                color = Color(0xFF747A89),
+                                fontSize = 13.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         },
                         leadingIcon = {
