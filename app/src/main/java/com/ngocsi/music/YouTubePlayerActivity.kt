@@ -3065,7 +3065,24 @@ class YouTubePlayerActivity : ComponentActivity() {
                               '.ytp-fullscreen-button,.ytp-size-button,ytm-player-fullscreen-button-renderer,' +
                               '.ytp-endscreen-content,.ytp-endscreen-previous,.ytp-endscreen-next,' +
                               '.ytp-ce-covering-overlay,.ytp-cards-teaser,.ytp-cards-button,.ytp-ce-element,' +
-                              '.ytp-show-cards-title,.ytp-suggestion-set {' +
+                              '.ytp-show-cards-title,.ytp-suggestion-set,' +
+                              // Mobile m.youtube.com player controls use player-controls-* rather
+                              // than the desktop .ytp-* classes. Hide the top title/channel/CC
+                              // strip and YouTube/next-video action chips, while preserving the
+                              // middle Play/Pause target and the bottom seek bar.
+                              'ytm-custom-control .player-controls-top,.player-controls-top,' +
+                              '.player-controls-top-left,.player-controls-top-right,' +
+                              'yt-closed-captions-toggle-button,.watch-on-youtube-button-wrapper,' +
+                              '.quick-actions-wrapper,.action-menu-engagement-buttons-wrapper,' +
+                              '.fullscreen-action-menu {' +
+                              'display:none!important;opacity:0!important;pointer-events:none!important;} ' +
+                              // The mobile player may recreate these controls after tap/rotation.
+                              'ytm-custom-control .player-controls-top,.player-controls-top,' +
+                              '.player-controls-top-left,.player-controls-top-right,' +
+                              'yt-closed-captions-toggle-button,.watch-on-youtube-button-wrapper,' +
+                              '.quick-actions-wrapper,.action-menu-engagement-buttons-wrapper,' +
+                              '.fullscreen-action-menu {' +
+                              'visibility:hidden!important;}';
                               'display:none!important;} ' +
                                // Keep inline geometry under YouTube's control. Only strip page chrome;
                                // forcing wrapper dimensions/position here caused edge bands on viewport changes.
