@@ -27,6 +27,21 @@ class YouTubeLandscapePaneRulesTest {
         assertEquals(0.56f, YouTubeLandscapePaneRules.leftPaneWeight(0), 0.001f)
     }
 
+
+    @Test
+    fun compactLandscapeUsesReadableQueueThumbnailsAndText() {
+        assertEquals(80, YouTubeLandscapePaneRules.thumbnailWidthDp(719))
+        assertEquals(45, YouTubeLandscapePaneRules.thumbnailHeightDp(719))
+        assertEquals(11, YouTubeLandscapePaneRules.titleFontSizeSp(719))
+    }
+
+    @Test
+    fun wideLandscapeUsesLargerQueueArtworkAndTypography() {
+        assertEquals(88, YouTubeLandscapePaneRules.thumbnailWidthDp(900))
+        assertEquals(50, YouTubeLandscapePaneRules.thumbnailHeightDp(900))
+        assertEquals(12, YouTubeLandscapePaneRules.titleFontSizeSp(900))
+    }
+
     @Test
     fun rightPaneAlwaysReceivesTheRemainingWidth() {
         listOf(360, 719, 720, 899, 900, 1440).forEach { width ->
