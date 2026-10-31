@@ -5711,20 +5711,20 @@ class MainActivity : ComponentActivity() {
 
         Column(modifier = modifier.fillMaxWidth()) {
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f)) {
                     Text(
                         "MY PLAYLISTS",
                         color = Color.White,
-                        fontSize = 17.sp,
+                        fontSize = 16.sp,
                         fontWeight = FontWeight.ExtraBold
                     )
                     Text(
                         "${playlists.size} danh sách • lưu trên thiết bị",
                         color = Color(0xFF888894),
-                        fontSize = 12.sp
+                        fontSize = 11.sp
                     )
                 }
                 Button(
@@ -5734,9 +5734,9 @@ class MainActivity : ComponentActivity() {
                         showCreatePlaylist = true
                     },
                     shape = RoundedCornerShape(13.dp),
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
                 ) {
-                    Text("+ Tạo playlist", fontSize = 12.sp)
+                    Text("+ Tạo", fontSize = 11.sp)
                 }
             }
 
@@ -5767,7 +5767,7 @@ class MainActivity : ComponentActivity() {
                 LazyColumn(
                     Modifier.weight(1f).fillMaxWidth(),
                     contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 18.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     items(playlists, key = { it.id }) { playlist ->
                         val coverSong = playlist.songUris.firstNotNullOfOrNull { uri ->
@@ -5775,17 +5775,17 @@ class MainActivity : ComponentActivity() {
                         }
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
+                            shape = RoundedCornerShape(14.dp),
                             color = Color(0xFF11151D),
                             border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF252A36))
                         ) {
                             Row(
-                                Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 7.dp),
+                                Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 5.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Surface(
-                                    modifier = Modifier.size(44.dp),
-                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.size(40.dp),
+                                    shape = RoundedCornerShape(10.dp),
                                     color = Color(0xFF20283A)
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
@@ -5796,7 +5796,7 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }
                                 }
-                                Spacer(Modifier.width(10.dp))
+                                Spacer(Modifier.width(8.dp))
                                 Column(
                                     Modifier.weight(1f).clickable {
                                         playlistDetailId = playlist.id
@@ -5805,7 +5805,7 @@ class MainActivity : ComponentActivity() {
                                     Text(
                                         playlist.name,
                                         color = Color.White,
-                                        fontSize = 14.sp,
+                                        fontSize = 13.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
@@ -5813,23 +5813,23 @@ class MainActivity : ComponentActivity() {
                                     Text(
                                         "${playlist.songUris.size} bài • chạm để mở",
                                         color = Color(0xFF888894),
-                                        fontSize = 11.sp
+                                        fontSize = 10.sp
                                     )
                                 }
-                                IconButton(onClick = { playPlaylist(playlist) }) {
-                                    Text("▶", color = NgocSiVisuals.Secondary)
+                                IconButton(onClick = { playPlaylist(playlist) }, modifier = Modifier.size(32.dp)) {
+                                    Text("▶", color = NgocSiVisuals.Secondary, fontSize = 13.sp)
                                 }
                                 IconButton(onClick = {
                                     editingPlaylistId = playlist.id
                                     newPlaylistName = playlist.name
                                     showCreatePlaylist = true
-                                }) {
-                                    Text("✎", color = Color(0xFFB5B9C8))
+                                }, modifier = Modifier.size(32.dp)) {
+                                    Text("✎", color = Color(0xFFB5B9C8), fontSize = 14.sp)
                                 }
                                 IconButton(onClick = {
                                     playlistPendingDeleteId = playlist.id
-                                }) {
-                                    Text("×", color = Color(0xFFFF8A9A), fontSize = 20.sp)
+                                }, modifier = Modifier.size(32.dp)) {
+                                    Text("×", color = Color(0xFFFF8A9A), fontSize = 17.sp)
                                 }
                             }
                         }
