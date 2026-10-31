@@ -26,6 +26,13 @@ internal object SleepTimerRules {
     fun isExpired(deadlineMillis: Long, nowMillis: Long): Boolean =
         deadlineMillis > 0L && nowMillis >= deadlineMillis
 
+    /** Only the selected YouTube source may be stopped by the YouTube watchdog. */
+    fun shouldStopYouTubePlayback(
+        deadlineMillis: Long,
+        nowMillis: Long,
+        youtubeSelected: Boolean
+    ): Boolean = youtubeSelected && isExpired(deadlineMillis, nowMillis)
+
     /**
      * An expired timer can outlive the MediaSession service if playback was idle.
      * Clear it only after a controller is connected and confirms there is no
