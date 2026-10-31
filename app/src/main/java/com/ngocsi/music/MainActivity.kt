@@ -362,10 +362,75 @@ class MainActivity : ComponentActivity() {
     private var inlineBackgroundServiceStarted = false
     private var inlineBackgroundReceiverRegistered = false
     private var inlineConfigurationVersion by mutableIntStateOf(0)
+    private var youtubeInlineFillZoom by mutableStateOf(false)
 
     private inner class InlineBackgroundAudioWebView(context: android.content.Context) : WebView(context) {
+        private var inlineZoomScale = InlineVideoZoomRules.MIN_SCALE
+        private var consumingPinchSequence = false
+
+        private val pinchScaleDetector = android.view.ScaleGestureDetector(
+            context,
+            object : android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                override fun onScaleBegin(detector: android.view.ScaleGestureDetector): Boolean {
+                    val isLandscape = resources.configuration.orientation ==
+                        android.content.res.Configuration.ORIENTATION_LANDSCAPE
+                    if (!isLandscape || youtubeInlineFullscreen || inlineFullscreenCustomViewVisible) {
+                        return false
+                    }
+                    // Once a pinch is recognized, consume the rest of that touch sequence so
+                    // the WebView does not interpret the same fingers as a page tap/scroll.
+                    consumingPinchSequence = true
+                    return true
+                }
+
+                override fun onScale(detector: android.view.ScaleGestureDetector): Boolean {
+                    val nextScale = InlineVideoZoomRules.updateScale(
+                        inlineZoomScale,
+                        detector.scaleFactor
+                    )
+                    if (nextScale != inlineZoomScale) {
+                        inlineZoomScale = nextScale
+                        pivotX = width / 2f
+                        pivotY = height / 2f
+                        scaleX = nextScale
+                        scaleY = nextScale
+                        youtubeInlineFillZoom = InlineVideoZoomRules.isFillActive(nextScale)
+                    }
+                    return true
+                }
+            }
+        )
+
+        override fun onTouchEvent(event: android.view.MotionEvent): Boolean {
+            val pinchWasActive = consumingPinchSequence
+            pinchScaleDetector.onTouchEvent(event)
+            if (pinchWasActive || consumingPinchSequence) {
+                if (event.actionMasked == android.view.MotionEvent.ACTION_UP ||
+                    event.actionMasked == android.view.MotionEvent.ACTION_CANCEL
+                ) {
+                    consumingPinchSequence = false
+                }
+                return true
+            }
+            return super.onTouchEvent(event)
+        }
+
+        fun resetInlineVideoZoom() {
+            inlineZoomScale = InlineVideoZoomRules.MIN_SCALE
+            consumingPinchSequence = false
+            pivotX = width / 2f
+            pivotY = height / 2f
+            scaleX = 1f
+            scaleY = 1f
+            youtubeInlineFillZoom = false
+        }
+
         override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
             super.onSizeChanged(w, h, oldw, oldh)
+            if (w > 0 && h > 0) {
+                pivotX = w / 2f
+                pivotY = h / 2f
+            }
             if (w <= 0 || h <= 0 || (w == oldw && h == oldh)) return
 
             // Android can resize this WebView during auto-rotation without Chromium
@@ -4885,6 +4950,10 @@ class MainActivity : ComponentActivity() {
         youtubeInlineWebView?.let { view ->
             view.requestLayout()
             view.invalidate()
+            // A zoomed landscape crop should never carry over into portrait playback.
+            if (newConfig.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT) {
+                view.resetInlineVideoZoom()
+            }
             if (inlineFullscreenCustomViewVisible) {
                 // Chromium owns the visible fullscreen surface now. Leave its media DOM alone
                 // while the underlying inline WebView receives a configuration change.
@@ -10340,6 +10409,9 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 update = { view ->
                                     youtubeInlineWebView = view
                                     if (view.tag != inlineTrack.videoId) {
+                                        // Each selected video starts in Fit mode; the user can
+                                        // opt into pinch-to-fill again on the landscape surface.
+                                        view.resetInlineVideoZoom()
                                         view.tag = inlineTrack.videoId
                                         loadInlineYouTubeStablePlayer(view, inlineTrack.videoId)
                                     }
@@ -10421,6 +10493,19 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
+                                if (inlineLandscape) {
+                                    Text(
+                                        if (youtubeInlineFillZoom) {
+                                            "ĐÃ PHÓNG ĐẦY • chụm 2 ngón để thu"
+                                        } else {
+                                            "Xòe 2 ngón để phóng đầy • chụm để thu"
+                                        },
+                                        color = Color(0xFF858B9A),
+                                        fontSize = 8.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
                             }
                         }
                         if (!youtubeInlineFullscreen && youtubeInlineTrack == null) {
