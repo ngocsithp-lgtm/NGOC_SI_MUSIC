@@ -22,8 +22,13 @@ class InlineVideoZoomRulesTest {
     }
 
     @Test
-    fun tinyGesturesDoNotCauseUnwantedZoom() {
-        assertEquals(1.0f, InlineVideoZoomRules.updateScale(1.0f, 1.02f), 0.001f)
+    fun smallGestureUpdatesAccumulateUntilTheFillThreshold() {
+        val firstUpdate = InlineVideoZoomRules.updateScale(1.0f, 1.02f)
+        val secondUpdate = InlineVideoZoomRules.updateScale(firstUpdate, 1.02f)
+        assertEquals(1.02f, firstUpdate, 0.001f)
+        assertEquals(1.0404f, secondUpdate, 0.001f)
+        assertFalse(InlineVideoZoomRules.isFillActive(firstUpdate))
+        assertTrue(InlineVideoZoomRules.isFillActive(secondUpdate))
     }
 
     @Test
