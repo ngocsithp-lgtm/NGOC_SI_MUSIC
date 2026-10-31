@@ -12,4 +12,13 @@ internal object YouTubeLandscapePaneRules {
         screenWidthDp < 900 -> 0.54f
         else -> 0.56f
     }
+
+    fun thumbnailWidthDp(screenWidthDp: Int): Int =
+        if (screenWidthDp >= 900) 88 else 80
+
+    fun thumbnailHeightDp(screenWidthDp: Int): Int =
+        if (screenWidthDp >= 900) 50 else 45
+
+    fun titleFontSizeSp(screenWidthDp: Int): Int =
+        if (screenWidthDp >= 900) 12 else 11
 }
