@@ -3029,7 +3029,10 @@ class YouTubePlayerActivity : ComponentActivity() {
                         """
                         (function() {
                           try {
-                            if (window.__ngocSiCleanPlayerInstalled) return 'already-installed';
+                            if (window.__ngocSiCleanPlayerInstalled) {
+                              if (window.__ngocSiReapplyOverlayClean) window.__ngocSiReapplyOverlayClean();
+                              return 'already-installed';
+                            }
                             window.__ngocSiCleanPlayerInstalled = true;
 
                             // Hide only page chrome outside the player. No width/height/transform/
@@ -3119,6 +3122,93 @@ class YouTubePlayerActivity : ComponentActivity() {
                               'object-fit:contain!important;object-position:center center!important;} ' +
                               'object-fit:contain!important;object-position:center center!important;}';
                             (document.head || document.documentElement).appendChild(style);
+
+                            // YouTube's video chrome can live inside a player iframe or an open
+                            // ShadowRoot. A style in the outer m.youtube.com page cannot affect
+                            // those separate DOM roots. Inject only the overlay rules into roots
+                            // that WebView is legally able to access (same-origin frames/open roots).
+                            var ngocsiOverlayCss =
+                              '.ytp-title,.ytp-title-text,.ytp-title-link,.ytp-title-expanded-overlay,' +
+                              '.ytp-title-channel,.ytp-watermark,.ytp-watermark-container,.ytp-branding,' +
+                              '.ytp-impression-link,.ytp-chrome-top,.ytp-gradient-top,.ytp-subtitles-button,' +
+                              '.ytp-caption-window-container,.ytp-upnext,.ytp-upnext-container,' +
+                              '.ytp-autonav-endscreen,.ytp-autonav-endscreen-upnext-container,' +
+                              '.ytp-videowall-still,.ytp-cards-button,.ytp-cards-teaser,' +
+                              '.ytp-show-cards-title,.ytp-suggestion-set {' +
+                              'display:none!important;}';
+                            var ngocsiStyledRoots = new WeakSet();
+                            function ngocsiScanOverlayRoots(root) {
+                              if (!root) return;
+                              var nodes = [];
+                              if (root.nodeType === 1) nodes.push(root);
+                              if (root.querySelectorAll) {
+                                try {
+                                  var found = root.querySelectorAll('*');
+                                  for (var i = 0; i < found.length; i++) nodes.push(found[i]);
+                                } catch (_) {}
+                              }
+                              for (var j = 0; j < nodes.length; j++) {
+                                var node = nodes[j];
+                                try {
+                                  if (node.shadowRoot) ngocsiInjectOverlayStyle(node.shadowRoot);
+                                } catch (_) {}
+                                if (node.tagName === 'IFRAME') {
+                                  (function(frame) {
+                                    function injectFrame() {
+                                      try {
+                                        var childDoc = frame.contentDocument;
+                                        if (childDoc && childDoc.documentElement) {
+                                          ngocsiInjectOverlayStyle(childDoc);
+                                        }
+                                      } catch (_) {
+                                        // Cross-origin YouTube frames are intentionally inaccessible.
+                                      }
+                                    }
+                                    if (!frame.__ngocsiOverlayLoadHook) {
+                                      frame.__ngocsiOverlayLoadHook = true;
+                                      frame.addEventListener('load', injectFrame);
+                                    }
+                                    injectFrame();
+                                  })(node);
+                                }
+                              }
+                            }
+                            function ngocsiInjectOverlayStyle(root) {
+                              if (!root || ngocsiStyledRoots.has(root)) {
+                                if (root) ngocsiScanOverlayRoots(root);
+                                return;
+                              }
+                              try {
+                                var doc = root.nodeType === 9 ? root : root.ownerDocument;
+                                if (!doc) return;
+                                var existing = root.querySelector &&
+                                  root.querySelector('#ngocsi-player-overlay-only-style');
+                                if (!existing) {
+                                  var frameStyle = doc.createElement('style');
+                                  frameStyle.id = 'ngocsi-player-overlay-only-style';
+                                  frameStyle.textContent = ngocsiOverlayCss;
+                                  (root.nodeType === 9 ? (root.head || root.documentElement) : root)
+                                    .appendChild(frameStyle);
+                                }
+                                ngocsiStyledRoots.add(root);
+                                var observer = new MutationObserver(function(records) {
+                                  for (var k = 0; k < records.length; k++) {
+                                    var added = records[k].addedNodes || [];
+                                    for (var n = 0; n < added.length; n++) {
+                                      ngocsiScanOverlayRoots(added[n]);
+                                    }
+                                  }
+                                });
+                                observer.observe(root, {childList:true, subtree:true});
+                                ngocsiScanOverlayRoots(root);
+                              } catch (_) {}
+                            }
+                            window.__ngocSiReapplyOverlayClean = function() {
+                              ngocsiInjectOverlayStyle(document);
+                              ngocsiScanOverlayRoots(document);
+                              return 'OVERLAY_STYLE_REAPPLIED';
+                            };
+                            window.__ngocSiReapplyOverlayClean();
 
                             // Reset stale sticky positioning at every wrapper level after
                             // viewport changes. A measured negative margin on only one ancestor
