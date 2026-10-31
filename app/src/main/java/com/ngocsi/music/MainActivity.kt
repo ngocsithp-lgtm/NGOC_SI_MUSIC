@@ -10308,6 +10308,12 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         // enough for its 16:9 frame on wider landscape displays.
         val landscapeLeftPaneWeight =
             YouTubeLandscapePaneRules.leftPaneWeight(youtubeConfiguration.screenWidthDp)
+        val landscapeQueueThumbnailWidth =
+            YouTubeLandscapePaneRules.thumbnailWidthDp(youtubeConfiguration.screenWidthDp).dp
+        val landscapeQueueThumbnailHeight =
+            YouTubeLandscapePaneRules.thumbnailHeightDp(youtubeConfiguration.screenWidthDp).dp
+        val landscapeQueueTitleFontSize =
+            YouTubeLandscapePaneRules.titleFontSizeSp(youtubeConfiguration.screenWidthDp).sp
         val inlineLandscape = !youtubeInlineFullscreen &&
             youtubeConfiguration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
         // Use the real height assigned to the YouTube content pane. Configuration.screenHeightDp
@@ -10934,7 +10940,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                                 ) {
                                                     OnlineArtwork(
                                                         track.thumbnailUrl,
-                                                        Modifier.size(76.dp, 44.dp)
+                                                        Modifier.size(landscapeQueueThumbnailWidth, landscapeQueueThumbnailHeight)
                                                             .clip(RoundedCornerShape(6.dp))
                                                     )
                                                     Spacer(Modifier.width(7.dp))
@@ -10953,8 +10959,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                                         Text(
                                                             track.title,
                                                             color = Color.White,
-                                                            fontSize = 10.sp,
-                                                            lineHeight = 13.sp,
+                                                            fontSize = landscapeQueueTitleFontSize,
+                                                            lineHeight = 14.sp,
                                                             fontWeight = if (isCurrent) FontWeight.Bold
                                                                 else FontWeight.Medium,
                                                             maxLines = 2,
