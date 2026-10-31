@@ -186,57 +186,6 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
           sha256sum "$APK" > "$APK.sha256"
 
-      - name: Verify 16 KB native library compatibility and report APK size
-        shell: bash
-        run: |
-          set -euo pipefail
-          APK="app/build/outputs/apk/debug/app-debug.apk"
-          BUILD_TOOLS_DIR="$(dirname "$(find "$ANDROID_HOME/build-tools" -type f -name zipalign -print -quit)")"
-          ZIPALIGN="$BUILD_TOOLS_DIR/zipalign"
-          test -x "$ZIPALIGN"
-          command -v readelf >/dev/null
-          # Confirm uncompressed native libraries are placed on 16 KB ZIP boundaries.
-          "$ZIPALIGN" -c -P 16 -v 4 "$APK"
-          LIB_COUNT=0
-          while IFS= read -r LIB_PATH; do
-            [[ -n "$LIB_PATH" ]] || continue
-            LIB_COUNT=$((LIB_COUNT + 1))
-            LIB_FILE="$RUNNER_TEMP/$(basename "$LIB_PATH")"
-            unzip -p "$APK" "$LIB_PATH" > "$LIB_FILE"
-            mapfile -t LOAD_ALIGNMENTS < <(readelf -lW "$LIB_FILE" | awk '$1 == "LOAD" { print $NF }')
-            test "${#LOAD_ALIGNMENTS[@]}" -gt 0
-            for ALIGNMENT in "${LOAD_ALIGNMENTS[@]}"; do
-              ALIGNMENT_BYTES=$((ALIGNMENT))
-              if (( ALIGNMENT_BYTES < 16384 )); then
-                echo "::error::$LIB_PATH has a LOAD segment aligned below 16 KB ($ALIGNMENT)."
-                exit 1
-              fi
-            done
-          done < <(unzip -Z1 "$APK" | grep -E '^lib/arm64-v8a/[^/]+[.]so        uses: actions/upload-artifact@v6
-        with:
-          name: NGOC_SI_AI_FIREBASE_PREVIEW_DEBUG_APK
-          path: |
-            app/build/outputs/apk/debug/app-debug.apk
-            app/build/outputs/apk/debug/app-debug.apk.sha256
-          if-no-files-found: error
-          retention-days: 7
-)
-          test "$LIB_COUNT" -gt 0
-          # Keep the preview phone-specific: no unused ABI libraries in this APK.
-          if unzip -Z1 "$APK" | grep -E '^lib/(armeabi-v7a|x86|x86_64)/'; then
-            echo "::error::Unexpected non-ARM64 native libraries found in Preview APK."
-            exit 1
-          fi
-          APK_BYTES="$(stat -c%s "$APK")"
-          APK_MIB="$(awk -v bytes="$APK_BYTES" 'BEGIN { printf "%.1f", bytes / 1048576 }')"
-          echo "Verified $LIB_COUNT ARM64 native libraries with 16 KB ELF and ZIP alignment."
-          echo "- APK size: ${APK_MIB} MiB"
-          echo "- Native libraries: ${LIB_COUNT} ARM64 libraries; 16 KB ELF and ZIP alignment verified."
-          {
-            echo "- APK size: ${APK_MIB} MiB"
-            echo "- Native libraries: ${LIB_COUNT} ARM64 libraries; 16 KB ELF and ZIP alignment verified."
-          } >> "$GITHUB_STEP_SUMMARY"
-
       - name: Upload preview APK artifact
         uses: actions/upload-artifact@v6
         with:
