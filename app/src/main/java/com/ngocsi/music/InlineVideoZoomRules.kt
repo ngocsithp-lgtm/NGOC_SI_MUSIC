@@ -6,8 +6,9 @@ package com.ngocsi.music
  */
 internal object InlineVideoZoomRules {
     const val MIN_SCALE = 1.0f
-    const val MAX_SCALE = 1.6f
+    // Stop at the landscape fill boundary. Never enlarge beyond the screen edges.
     const val FILL_THRESHOLD = 1.04f
+    const val MAX_SCALE = FILL_THRESHOLD
 
     fun updateScale(currentScale: Float, gestureScaleFactor: Float): Float {
         if (!currentScale.isFinite()) return MIN_SCALE
