@@ -403,10 +403,24 @@ class MainActivity : ComponentActivity() {
 
         override fun onTouchEvent(event: android.view.MotionEvent): Boolean {
             val action = event.actionMasked
-            // A Compose scrolling parent must not steal the second pointer after the
-            // user begins a pinch on the video surface.
-            if (action == android.view.MotionEvent.ACTION_POINTER_DOWN) {
+            val isLandscape = resources.configuration.orientation ==
+                android.content.res.Configuration.ORIENTATION_LANDSCAPE
+
+            // A second finger must take ownership immediately, not only after the scale
+            // detector crosses its movement threshold. Otherwise YouTube may keep the
+            // first finger's pending long-press and briefly switch playback to 2x.
+            if (action == android.view.MotionEvent.ACTION_POINTER_DOWN &&
+                InlineVideoZoomRules.shouldCapturePinchOnPointerDown(event.pointerCount, isLandscape) &&
+                !inlineFullscreenCustomViewVisible
+            ) {
                 parent?.requestDisallowInterceptTouchEvent(true)
+                if (!consumingPinchSequence) {
+                    consumingPinchSequence = true
+                    val cancelEvent = android.view.MotionEvent.obtain(event)
+                    cancelEvent.action = android.view.MotionEvent.ACTION_CANCEL
+                    super.onTouchEvent(cancelEvent)
+                    cancelEvent.recycle()
+                }
             }
 
             val pinchWasActive = consumingPinchSequence
@@ -9549,9 +9563,25 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
             override fun dispatchTouchEvent(event: android.view.MotionEvent): Boolean {
                 val action = event.actionMasked
-                if (action == android.view.MotionEvent.ACTION_POINTER_DOWN) {
+                val isLandscape = resources.configuration.orientation ==
+                    android.content.res.Configuration.ORIENTATION_LANDSCAPE
+
+                // Cancel the child's first-finger gesture as soon as the second finger
+                // lands. This prevents YouTube's hold-to-2x gesture from surviving while
+                // the parent handles pinch-to-zoom.
+                if (action == android.view.MotionEvent.ACTION_POINTER_DOWN &&
+                    InlineVideoZoomRules.shouldCapturePinchOnPointerDown(event.pointerCount, isLandscape)
+                ) {
                     parent?.requestDisallowInterceptTouchEvent(true)
+                    if (!fullscreenPinchActive) {
+                        fullscreenPinchActive = true
+                        val cancelEvent = android.view.MotionEvent.obtain(event)
+                        cancelEvent.action = android.view.MotionEvent.ACTION_CANCEL
+                        super.dispatchTouchEvent(cancelEvent)
+                        cancelEvent.recycle()
+                    }
                 }
+
                 val pinchWasActive = fullscreenPinchActive
                 fullscreenPinchDetector.onTouchEvent(event)
                 if (pinchWasActive || fullscreenPinchActive) {

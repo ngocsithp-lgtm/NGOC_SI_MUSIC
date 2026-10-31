@@ -21,4 +21,12 @@ internal object InlineVideoZoomRules {
 
     fun isFillActive(scale: Float): Boolean =
         scale.isFinite() && scale >= FILL_THRESHOLD
+
+    /**
+     * Take ownership as soon as a second pointer lands in landscape. Do not wait
+     * for span movement, because the embedded player may already be tracking a
+     * one-finger long-press gesture that can temporarily activate 2x playback.
+     */
+    fun shouldCapturePinchOnPointerDown(pointerCount: Int, isLandscape: Boolean): Boolean =
+        isLandscape && pointerCount >= 2
 }

@@ -43,4 +43,16 @@ class InlineVideoZoomRulesTest {
         assertFalse(InlineVideoZoomRules.isFillActive(1.03f))
         assertTrue(InlineVideoZoomRules.isFillActive(1.04f))
     }
+
+    @Test
+    fun secondPointerIsCapturedImmediatelyInLandscape() {
+        assertTrue(InlineVideoZoomRules.shouldCapturePinchOnPointerDown(2, true))
+        assertTrue(InlineVideoZoomRules.shouldCapturePinchOnPointerDown(3, true))
+    }
+
+    @Test
+    fun pinchCaptureDoesNotStartForSinglePointerOrPortrait() {
+        assertFalse(InlineVideoZoomRules.shouldCapturePinchOnPointerDown(1, true))
+        assertFalse(InlineVideoZoomRules.shouldCapturePinchOnPointerDown(2, false))
+    }
 }
