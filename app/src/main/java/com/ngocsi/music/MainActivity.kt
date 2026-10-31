@@ -7589,7 +7589,9 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                                     shape = RoundedCornerShape(10.dp),
                                                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 3.dp),
                                                     modifier = Modifier.height(34.dp)
-                                                ) { Text("PHÁT", fontSize = 10.sp)
+                                                ) {
+                                                    Text("PHÁT", fontSize = 10.sp)
+                                                }
                                             }
                                         } else {
                                             OutlinedButton(
@@ -7600,7 +7602,9 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                                 shape = RoundedCornerShape(10.dp),
                                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 3.dp),
                                                 modifier = Modifier.height(34.dp)
-                                            ) { Text("MỞ", fontSize = 10.sp)
+                                            ) {
+                                                Text("MỞ", fontSize = 10.sp)
+                                            }
                                         }
                                     }
                                 }
