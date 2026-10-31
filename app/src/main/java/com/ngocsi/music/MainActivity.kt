@@ -6174,10 +6174,10 @@ class MainActivity : ComponentActivity() {
                 .clip(RoundedCornerShape(14.dp))
                 .background(if (selected) Color(0xFF211B31) else Color.Transparent)
                 .clickable { setYouTubeActiveSource(false); play(index) }
-                .padding(horizontal = 6.dp, vertical = 8.dp),
+                .padding(horizontal = 6.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(Modifier.size(62.dp).clip(RoundedCornerShape(11.dp))) {
+            Box(Modifier.size(54.dp).clip(RoundedCornerShape(10.dp))) {
                 SongArtwork(song, Modifier.fillMaxSize())
                 if (selected) {
                     Box(Modifier.fillMaxSize().background(Color(0x99000000)), contentAlignment = Alignment.Center) {
@@ -6189,13 +6189,13 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(
                     song.title,
                     color = if (selected) Color.White else Color(0xFFE7E8EF),
-                    fontSize = 15.sp,
-                    lineHeight = 19.sp,
+                    fontSize = 14.sp,
+                    lineHeight = 18.sp,
                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
@@ -6216,9 +6216,9 @@ class MainActivity : ComponentActivity() {
                     Text(
                         "ĐANG PHÁT • " + formatTime(position) + " / " + formatTime(shownDuration),
                         color = Color(0xFF6BE7FF),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Black,
-                        letterSpacing = 0.4.sp,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.2.sp,
                         maxLines = 1
                     )
                 }
