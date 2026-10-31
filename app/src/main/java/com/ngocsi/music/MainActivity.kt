@@ -5770,6 +5770,9 @@ class MainActivity : ComponentActivity() {
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(playlists, key = { it.id }) { playlist ->
+                        val coverSong = playlist.songUris.firstNotNullOfOrNull { uri ->
+                            songs.firstOrNull { it.uri.toString() == uri }
+                        }
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(16.dp),
@@ -5786,7 +5789,11 @@ class MainActivity : ComponentActivity() {
                                     color = Color(0xFF20283A)
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
-                                        Text("♫", color = NgocSiVisuals.Secondary, fontSize = 22.sp)
+                                        if (coverSong != null) {
+                                            SongArtwork(coverSong, Modifier.fillMaxSize())
+                                        } else {
+                                            Text("♫", color = NgocSiVisuals.Secondary, fontSize = 22.sp)
+                                        }
                                     }
                                 }
                                 Spacer(Modifier.width(10.dp))
@@ -12988,12 +12995,35 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         .clip(RoundedCornerShape(14.dp))
                                         .background(Color(0xFF181922))
                                         .clickable { playPlaylistFromSong(playlist, index) }
-                                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                                        .padding(horizontal = 8.dp, vertical = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Column(Modifier.weight(1f)) {
-                                        Text(song.title, color = Color.White, softWrap = true, lineHeight = 18.sp)
-                                        Text(song.artist, color = Color(0xFF888894), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    SongArtwork(song, Modifier.size(42.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                        Text(
+                                            song.title,
+                                            color = Color.White,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Row(
+                                            Modifier.fillMaxWidth(),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                        ) {
+                                            Text(
+                                                song.artist.ifBlank { "Không rõ nghệ sĩ" },
+                                                color = Color(0xFF888894),
+                                                fontSize = 10.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.weight(1f, fill = false)
+                                            )
+                                            SourceBadge(song.source)
+                                        }
                                     }
                                     TextButton(onClick = { playPlaylistFromSong(playlist, index) }) { Text("▶") }
                                     TextButton(
