@@ -6083,7 +6083,7 @@ class MainActivity : ComponentActivity() {
         OutlinedTextField(
             value = searchQuery,
             onValueChange = { searchQuery = it },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp).height(54.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp).height(56.dp),
             textStyle = LocalTextStyle.current.copy(fontSize = 13.sp, lineHeight = 19.sp),
             singleLine = true,
             placeholder = {
@@ -7485,7 +7485,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     OutlinedTextField(
                         value = radioFilter,
                         onValueChange = { radioFilter = it },
-                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        modifier = Modifier.fillMaxWidth().height(56.dp),
                         singleLine = true,
                         textStyle = LocalTextStyle.current.copy(fontSize = 13.sp, lineHeight = 18.sp),
                         label = { Text("Tìm đài", fontSize = 12.sp) },
