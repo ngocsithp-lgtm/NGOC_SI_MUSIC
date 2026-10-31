@@ -3132,6 +3132,10 @@ class YouTubePlayerActivity : ComponentActivity() {
                             // that WebView is legally able to access (same-origin frames/open roots).
                             var ngocsiOverlayCss =
                               // Mobile player chrome and the desktop fallback watermark/title strip.
+                              '#masthead-container,ytm-mobile-topbar-renderer,ytm-pivot-bar-renderer,' +
+                              'ytm-app-header,ytm-slim-video-metadata-section-renderer,ytm-watch-metadata,' +
+                              'ytm-video-description-infocontainer-renderer,ytm-video-title,' +
+                              'ytm-video-title-renderer,ytm-comments-entry-point-header-renderer,' +
                               '.ytp-title,.ytp-title-text,.ytp-title-link,.ytp-title-expanded-overlay,' +
                               '.ytp-title-channel,.ytp-watermark,.ytp-watermark-container,.ytp-branding,' +
                               '.ytp-youtube-button,.ytp-impression-link,.ytp-chrome-top,.ytp-gradient-top,' +
