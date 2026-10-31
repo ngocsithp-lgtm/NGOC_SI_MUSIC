@@ -7455,10 +7455,18 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     OutlinedTextField(
                         value = radioFilter,
                         onValueChange = { radioFilter = it },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
                         singleLine = true,
-                        label = { Text("Tìm đài") },
-                        placeholder = { Text("Ví dụ: Hà Nội, VOV3, FM 96") },
+                        textStyle = LocalTextStyle.current.copy(fontSize = 14.sp, lineHeight = 20.sp),
+                        label = { Text("Tìm đài", fontSize = 12.sp) },
+                        placeholder = {
+                            Text(
+                                "Ví dụ: Hà Nội, VOV3, FM 96",
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        },
                         shape = RoundedCornerShape(14.dp)
                     )
                     Spacer(Modifier.height(6.dp))
@@ -7504,17 +7512,22 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         Modifier.fillMaxWidth().padding(10.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Column(Modifier.weight(1f)) {
+                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                             Text(
                                                 source.first,
                                                 color = Color.White,
-                                                fontWeight = if (isCurrentRadio) FontWeight.ExtraBold else FontWeight.SemiBold
+                                                fontSize = 13.sp,
+                                                fontWeight = if (isCurrentRadio) FontWeight.ExtraBold else FontWeight.SemiBold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
                                             )
-                                            Spacer(Modifier.height(2.dp))
                                             Text(
                                                 if (!streamUrls.isNullOrEmpty()) "${source.second} • HLS + tự động dùng luồng dự phòng" else source.second,
                                                 color = Color(0xFF8F8F9A),
-                                                fontSize = 11.sp
+                                                fontSize = 10.sp,
+                                                lineHeight = 14.sp,
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis
                                             )
                                             if (isCurrentRadio) {
                                                 Text(
