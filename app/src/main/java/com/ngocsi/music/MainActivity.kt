@@ -374,7 +374,7 @@ class MainActivity : ComponentActivity() {
                 override fun onScaleBegin(detector: android.view.ScaleGestureDetector): Boolean {
                     val isLandscape = resources.configuration.orientation ==
                         android.content.res.Configuration.ORIENTATION_LANDSCAPE
-                    if (!isLandscape || youtubeInlineFullscreen || inlineFullscreenCustomViewVisible) {
+                    if (!isLandscape || inlineFullscreenCustomViewVisible) {
                         return false
                     }
                     // Once a pinch is recognized, consume the rest of that touch sequence so
@@ -402,17 +402,32 @@ class MainActivity : ComponentActivity() {
         )
 
         override fun onTouchEvent(event: android.view.MotionEvent): Boolean {
+            val action = event.actionMasked
+            // A Compose scrolling parent must not steal the second pointer after the
+            // user begins a pinch on the video surface.
+            if (action == android.view.MotionEvent.ACTION_POINTER_DOWN) {
+                parent?.requestDisallowInterceptTouchEvent(true)
+            }
+
             val pinchWasActive = consumingPinchSequence
             pinchScaleDetector.onTouchEvent(event)
             if (pinchWasActive || consumingPinchSequence) {
-                if (event.actionMasked == android.view.MotionEvent.ACTION_UP ||
-                    event.actionMasked == android.view.MotionEvent.ACTION_CANCEL
+                if (action == android.view.MotionEvent.ACTION_UP ||
+                    action == android.view.MotionEvent.ACTION_CANCEL
                 ) {
                     consumingPinchSequence = false
+                    parent?.requestDisallowInterceptTouchEvent(false)
                 }
                 return true
             }
-            return super.onTouchEvent(event)
+
+            val handled = super.onTouchEvent(event)
+            if (action == android.view.MotionEvent.ACTION_UP ||
+                action == android.view.MotionEvent.ACTION_CANCEL
+            ) {
+                parent?.requestDisallowInterceptTouchEvent(false)
+            }
+            return handled
         }
 
         fun resetInlineVideoZoom() {
@@ -9457,10 +9472,83 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         // Put a persistent exit control ABOVE Chromium's custom fullscreen surface.
         // The supplied video view can cover all touch targets added behind it, so the
         // close button must be a sibling layered on top in the same FrameLayout.
-        val fullscreenLayer = android.widget.FrameLayout(this)
+        val fullscreenVideoContainer = android.widget.FrameLayout(this).apply {
+            setBackgroundColor(android.graphics.Color.BLACK)
+            clipChildren = true
+            clipToPadding = true
+            addView(
+                view,
+                android.widget.FrameLayout.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                )
+            )
+        }
+        val fullscreenLayer = object : android.widget.FrameLayout(this) {
+            private var fullscreenPinchScale = InlineVideoZoomRules.MIN_SCALE
+            private var fullscreenPinchActive = false
+
+            private val fullscreenPinchDetector = android.view.ScaleGestureDetector(
+                this@MainActivity,
+                object : android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                    override fun onScaleBegin(
+                        detector: android.view.ScaleGestureDetector
+                    ): Boolean {
+                        fullscreenPinchActive = true
+                        return true
+                    }
+
+                    override fun onScale(
+                        detector: android.view.ScaleGestureDetector
+                    ): Boolean {
+                        val nextScale = InlineVideoZoomRules.updateScale(
+                            fullscreenPinchScale,
+                            detector.scaleFactor
+                        )
+                        if (nextScale != fullscreenPinchScale) {
+                            fullscreenPinchScale = nextScale
+                            fullscreenVideoContainer.pivotX =
+                                fullscreenVideoContainer.width / 2f
+                            fullscreenVideoContainer.pivotY =
+                                fullscreenVideoContainer.height / 2f
+                            fullscreenVideoContainer.scaleX = nextScale
+                            fullscreenVideoContainer.scaleY = nextScale
+                        }
+                        return true
+                    }
+                }
+            )
+
+            override fun dispatchTouchEvent(event: android.view.MotionEvent): Boolean {
+                val action = event.actionMasked
+                if (action == android.view.MotionEvent.ACTION_POINTER_DOWN) {
+                    parent?.requestDisallowInterceptTouchEvent(true)
+                }
+                val pinchWasActive = fullscreenPinchActive
+                fullscreenPinchDetector.onTouchEvent(event)
+                if (pinchWasActive || fullscreenPinchActive) {
+                    if (action == android.view.MotionEvent.ACTION_UP ||
+                        action == android.view.MotionEvent.ACTION_CANCEL
+                    ) {
+                        fullscreenPinchActive = false
+                        parent?.requestDisallowInterceptTouchEvent(false)
+                    }
+                    return true
+                }
+                val handled = super.dispatchTouchEvent(event)
+                if (action == android.view.MotionEvent.ACTION_UP ||
+                    action == android.view.MotionEvent.ACTION_CANCEL
+                ) {
+                    parent?.requestDisallowInterceptTouchEvent(false)
+                }
+                return handled
+            }
+        }
         fullscreenLayer.setBackgroundColor(android.graphics.Color.BLACK)
+        fullscreenLayer.clipChildren = true
+        fullscreenLayer.clipToPadding = true
         fullscreenLayer.addView(
-            view,
+            fullscreenVideoContainer,
             android.widget.FrameLayout.LayoutParams(
                 android.view.ViewGroup.LayoutParams.MATCH_PARENT,
                 android.view.ViewGroup.LayoutParams.MATCH_PARENT
