@@ -17,8 +17,9 @@ internal object InlineVideoZoomRules {
         }
         if (!gestureScaleFactor.isFinite() || gestureScaleFactor <= 0f) return current
 
-        val scaled = (current * gestureScaleFactor).coerceIn(MIN_SCALE, MAX_SCALE)
-        return if (scaled < FILL_THRESHOLD) MIN_SCALE else scaled
+        // ScaleGestureDetector reports incremental factors, often only 1–2% per event.
+        // Preserve each valid increment so a slow pinch can accumulate smoothly.
+        return (current * gestureScaleFactor).coerceIn(MIN_SCALE, MAX_SCALE)
     }
 
     fun isFillActive(scale: Float): Boolean =
