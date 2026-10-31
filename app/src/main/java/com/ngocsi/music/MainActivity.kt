@@ -6051,27 +6051,35 @@ class MainActivity : ComponentActivity() {
         OutlinedTextField(
             value = searchQuery,
             onValueChange = { searchQuery = it },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp).heightIn(min = 50.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp).height(46.dp),
+            textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
             singleLine = true,
-            placeholder = { Text("Tìm bài hát, nghệ sĩ, album...", color = Color(0xFF777D8D)) },
-            leadingIcon = { Text("⌕", color = Color(0xFFB18CFF), fontSize = 25.sp) },
+            placeholder = {
+                Text(
+                    "Tìm bài hát, nghệ sĩ, album...",
+                    color = Color(0xFF777D8D),
+                    fontSize = 13.sp,
+                    maxLines = 1
+                )
+            },
+            leadingIcon = { Text("⌕", color = Color(0xFFB18CFF), fontSize = 21.sp) },
             trailingIcon = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(enabled = !isVoiceSearching, onClick = ::startVoiceSearch) {
                         Text(
                             if (isVoiceSearching) "…" else "🎙",
                             color = if (isVoiceSearching) Color(0xFF7DD3FC) else Color(0xFFB18CFF),
-                            fontSize = 18.sp
+                            fontSize = 16.sp
                         )
                     }
                     IconButton(onClick = runSearch) {
-                        Text("›", color = Color(0xFFB7B4C6), fontSize = 27.sp)
+                        Text("›", color = Color(0xFFB7B4C6), fontSize = 23.sp)
                     }
                 }
             },
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
             keyboardActions = KeyboardActions(onSearch = { runSearch() }),
-            shape = RoundedCornerShape(18.dp),
+            shape = RoundedCornerShape(15.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 unfocusedContainerColor = NgocSiVisuals.Surface,
                 focusedContainerColor = Color(0xFF151722),
