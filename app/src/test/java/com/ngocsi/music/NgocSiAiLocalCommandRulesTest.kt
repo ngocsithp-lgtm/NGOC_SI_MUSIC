@@ -1225,4 +1225,22 @@ class NgocSiAiLocalCommandRulesTest {
     }
 
 
+    @Test
+    fun genericCurrentTrackQueryFollowsTheActiveYouTubeSource() {
+        assertEquals(
+            "current_track",
+            ngocSiAiYouTubeActionForCommand(
+                NgocSiAiLocalCommand.CURRENT_TRACK,
+                youtubeActiveSource = true
+            )
+        )
+        assertNull(
+            ngocSiAiYouTubeActionForCommand(
+                NgocSiAiLocalCommand.CURRENT_TRACK,
+                youtubeActiveSource = false
+            )
+        )
+    }
+
+
 }
