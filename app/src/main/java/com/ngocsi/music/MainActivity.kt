@@ -9838,6 +9838,9 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 putExtra(YouTubePlayerActivity.EXTRA_START_FULLSCREEN, true)
                 if (!wasPlaying) {
                     putExtra(YouTubePlayerActivity.EXTRA_START_PAUSED, true)
+                    // The dedicated mobile-watch page has autoplay enabled. Send an
+                    // explicit Pause after its player becomes ready, before fullscreen.
+                    putExtra(YouTubePlayerActivity.EXTRA_AI_ACTION, "pause")
                 }
             }
 
