@@ -10726,6 +10726,24 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 },
                                 modifier = Modifier.fillMaxSize()
                             )
+                            // Small YouTube play-mark watermark in the video corner.
+                            // Keep it icon-only so it does not add title text or cover player controls.
+                            Surface(
+                                modifier = Modifier.align(Alignment.TopStart).padding(8.dp)
+                                    .size(width = 27.dp, height = 19.dp),
+                                shape = RoundedCornerShape(5.dp),
+                                color = Color(0xFFE62117),
+                                tonalElevation = 0.dp
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(
+                                        "▶",
+                                        color = Color.White,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Black
+                                    )
+                                }
+                            }
                             if (youtubeInlineFullscreen) {
                                 TextButton(
                                     onClick = { exitInlineYouTubeFullscreen() },
