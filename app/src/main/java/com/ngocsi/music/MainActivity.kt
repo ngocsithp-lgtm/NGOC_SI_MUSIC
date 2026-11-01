@@ -11050,6 +11050,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                             onDone = { searchYouTube() }
                                         )
                                     )
+                                    YouTubeGenreSuggestions(compact = true)
     
                                 }
                                 if (youtubeLoading) {
@@ -11395,6 +11396,9 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 }
                             )
                         )
+                        if (!showingPortraitQueue) {
+                            YouTubeGenreSuggestions(compact = true)
+                        }
                         if (youtubeLoading) {
                             LinearProgressIndicator(
                                 modifier = Modifier.fillMaxWidth().height(2.dp),
@@ -11619,58 +11623,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 }
             }
 
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    SectionTitle("GỢI Ý THỂ LOẠI", "12 thể loại")
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(7.dp)
-                    ) {
-                        listOf(
-                            "Bolero",
-                            "Nhạc vàng",
-                            "Trữ tình",
-                            "Nhạc quê hương",
-                            "Nhạc trẻ",
-                            "Nhạc remix",
-                            "Nhạc sống",
-                            "Dân ca",
-                            "Nhạc không lời",
-                            "Acoustic",
-                            "Rap Việt",
-                            "EDM"
-                        ).forEach { preset ->
-                            val selected = youtubeQuery.trim().equals(preset, ignoreCase = true)
-                            Surface(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(11.dp))
-                                    .clickable(enabled = !youtubeLoading) {
-                                        youtubeShelf = "Khám phá"
-                                        youtubeQuery = preset
-                                        searchYouTube()
-                                    },
-                                shape = RoundedCornerShape(11.dp),
-                                color = if (selected) Color(0xFF30202A) else Color(0xFF181A22),
-                                border = androidx.compose.foundation.BorderStroke(
-                                    1.dp,
-                                    if (selected) Color(0xFFFF7180) else Color(0xFF292D38)
-                                )
-                            ) {
-                                Text(
-                                    preset,
-                                    color = if (selected) Color(0xFFFFA0AA) else Color(0xFFD5D7E0),
-                                    fontSize = 10.sp,
-                                    fontWeight = if (selected) FontWeight.Black else FontWeight.SemiBold,
-                                    modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp),
-                                    maxLines = 1
-                                )
-                            }
-                        }
-                    }
-                }
-            }
+            item { YouTubeGenreSuggestions() }
 
             if (youtubeLoading) {
                 item {
@@ -12100,6 +12053,71 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     )
                 }
             }
+            }
+        }
+    }
+
+    @Composable
+    private fun YouTubeGenreSuggestions(compact: Boolean = false) {
+        val genres = listOf(
+            "Bolero",
+            "Nhạc vàng",
+            "Trữ tình",
+            "Nhạc quê hương",
+            "Nhạc trẻ",
+            "Nhạc remix",
+            "Nhạc sống",
+            "Dân ca",
+            "Nhạc không lời",
+            "Acoustic",
+            "Rap Việt",
+            "EDM"
+        )
+        Column(verticalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 6.dp)) {
+            Text(
+                if (compact) "GỢI Ý THỂ LOẠI" else "KHÁM PHÁ THEO THỂ LOẠI",
+                color = Color(0xFF858B9C),
+                fontSize = if (compact) 8.sp else 9.sp,
+                fontWeight = FontWeight.Black,
+                letterSpacing = 0.8.sp
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(if (compact) 5.dp else 7.dp)
+            ) {
+                genres.forEach { genre ->
+                    val selected = youtubeQuery.trim().equals(genre, ignoreCase = true)
+                    Surface(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable(enabled = !youtubeLoading) {
+                                youtubeShelf = "Khám phá"
+                                landscapePaneTab = "results"
+                                youtubeQuery = genre
+                                searchYouTube()
+                            },
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (selected) Color(0xFF30202A) else Color(0xFF181A22),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            if (selected) Color(0xFFFF7180) else Color(0xFF292D38)
+                        )
+                    ) {
+                        Text(
+                            genre,
+                            color = if (selected) Color(0xFFFFA0AA) else Color(0xFFD5D7E0),
+                            fontSize = if (compact) 9.sp else 10.sp,
+                            fontWeight = if (selected) FontWeight.Black else FontWeight.SemiBold,
+                            modifier = Modifier.padding(
+                                horizontal = if (compact) 9.dp else 11.dp,
+                                vertical = if (compact) 6.dp else 7.dp
+                            ),
+                            maxLines = 1
+                        )
+                    }
+                }
             }
         }
     }
