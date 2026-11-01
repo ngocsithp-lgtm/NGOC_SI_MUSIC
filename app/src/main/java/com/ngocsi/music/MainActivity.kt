@@ -690,7 +690,8 @@ class MainActivity : ComponentActivity() {
                             "Đã lưu ${track.title} vào Xem sau."
                         }
                     }
-                }                else -> {
+                }
+                else -> {
                     val dynamicSeekMs = parseNgocSiAiYouTubeSeekAction(
                         intent.getStringExtra(YouTubeBackgroundService.EXTRA_CONTROL).orEmpty()
                     )

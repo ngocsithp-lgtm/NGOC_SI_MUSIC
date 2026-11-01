@@ -1266,7 +1266,6 @@ class NgocSiWakeWordService : Service() {
                 "Đang tua video YouTube $direction $seconds giây."
             }
             action == "current_track" -> {
-            "current_track" -> {
                 val prefs = getSharedPreferences("ngoc_si_music", Context.MODE_PRIVATE)
                 val title = prefs.getString("youtube_last_played_title", null)
                     ?.takeIf { it.isNotBlank() } ?: "Chưa rõ tên video"

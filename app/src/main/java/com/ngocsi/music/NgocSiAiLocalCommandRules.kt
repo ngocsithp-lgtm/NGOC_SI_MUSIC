@@ -189,9 +189,9 @@ internal fun ngocSiAiYouTubeActionForCommand(
     NgocSiAiLocalCommand.YOUTUBE_SEEK_FORWARD_10 -> "seek_forward_10"
     NgocSiAiLocalCommand.YOUTUBE_SEEK_BACK_10 -> "seek_back_10"
     NgocSiAiLocalCommand.YOUTUBE_SEEK_FORWARD_CUSTOM ->
-        seekDeltaMs?.let(::buildNgocSiAiYouTubeSeekAction)?.takeIf { it.startsWith("seek_by_ms:") && seekDeltaMs > 0L }
+        seekDeltaMs?.takeIf { it > 0L }?.let(::buildNgocSiAiYouTubeSeekAction)
     NgocSiAiLocalCommand.YOUTUBE_SEEK_BACK_CUSTOM ->
-        seekDeltaMs?.let(::buildNgocSiAiYouTubeSeekAction)?.takeIf { it.startsWith("seek_by_ms:") && seekDeltaMs < 0L }
+        seekDeltaMs?.takeIf { it < 0L }?.let(::buildNgocSiAiYouTubeSeekAction)
     NgocSiAiLocalCommand.SEEK_FORWARD_10 -> if (youtubeActiveSource) "seek_forward_10" else null
     NgocSiAiLocalCommand.SEEK_BACK_10 -> if (youtubeActiveSource) "seek_back_10" else null
     NgocSiAiLocalCommand.SEEK_FORWARD_CUSTOM ->
