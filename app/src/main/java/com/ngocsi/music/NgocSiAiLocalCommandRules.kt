@@ -84,6 +84,39 @@ private val NGOC_SI_AI_PLAYER_CONNECTION_COMMANDS = setOf(
 internal fun ngocSiAiCommandRequiresPlayerConnection(command: NgocSiAiLocalCommand): Boolean =
     command in NGOC_SI_AI_PLAYER_CONNECTION_COMMANDS
 
+/**
+ * Maps transport commands to the YouTube player when YouTube is the selected
+ * playback source. Explicit YouTube commands always target YouTube; generic
+ * commands follow the currently selected source instead of a separate Media3 queue.
+ */
+internal fun ngocSiAiYouTubeActionForCommand(
+    command: NgocSiAiLocalCommand,
+    youtubeActiveSource: Boolean
+): String? = when (command) {
+    NgocSiAiLocalCommand.RESUME_YOUTUBE -> "play"
+    NgocSiAiLocalCommand.PAUSE_YOUTUBE -> "pause"
+    NgocSiAiLocalCommand.NEXT_YOUTUBE_VIDEO -> "next"
+    NgocSiAiLocalCommand.PREVIOUS_YOUTUBE_VIDEO -> "previous"
+    NgocSiAiLocalCommand.YOUTUBE_SHUFFLE_ON -> "shuffle_on"
+    NgocSiAiLocalCommand.YOUTUBE_SHUFFLE_OFF -> "shuffle_off"
+    NgocSiAiLocalCommand.YOUTUBE_REPEAT_OFF -> "repeat_off"
+    NgocSiAiLocalCommand.YOUTUBE_REPEAT_ALL -> "repeat_all"
+    NgocSiAiLocalCommand.YOUTUBE_REPEAT_ONE -> "repeat_one"
+    NgocSiAiLocalCommand.YOUTUBE_FAVORITE -> "favorite"
+    NgocSiAiLocalCommand.YOUTUBE_WATCH_LATER -> "watch_later"
+    NgocSiAiLocalCommand.PLAY -> if (youtubeActiveSource) "play" else null
+    NgocSiAiLocalCommand.PAUSE -> if (youtubeActiveSource) "pause" else null
+    NgocSiAiLocalCommand.STOP -> if (youtubeActiveSource) "stop" else null
+    NgocSiAiLocalCommand.NEXT -> if (youtubeActiveSource) "next" else null
+    NgocSiAiLocalCommand.PREVIOUS -> if (youtubeActiveSource) "previous" else null
+    NgocSiAiLocalCommand.SHUFFLE_ON -> if (youtubeActiveSource) "shuffle_on" else null
+    NgocSiAiLocalCommand.SHUFFLE_OFF -> if (youtubeActiveSource) "shuffle_off" else null
+    NgocSiAiLocalCommand.REPEAT_OFF -> if (youtubeActiveSource) "repeat_off" else null
+    NgocSiAiLocalCommand.REPEAT_ALL -> if (youtubeActiveSource) "repeat_all" else null
+    NgocSiAiLocalCommand.REPEAT_ONE -> if (youtubeActiveSource) "repeat_one" else null
+    else -> null
+}
+
 internal enum class NgocSiAiPlaybackTarget {
     PRODUCTION,
     PREVIEW

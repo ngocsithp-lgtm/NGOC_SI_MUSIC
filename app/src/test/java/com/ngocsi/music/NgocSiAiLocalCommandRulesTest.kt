@@ -336,6 +336,48 @@ class NgocSiAiLocalCommandRulesTest {
     }
 
     @Test
+    fun genericTransportCommandsFollowTheSelectedYouTubeSource() {
+        assertEquals("play", ngocSiAiYouTubeActionForCommand(NgocSiAiLocalCommand.PLAY, true))
+        assertEquals("pause", ngocSiAiYouTubeActionForCommand(NgocSiAiLocalCommand.PAUSE, true))
+        assertEquals("stop", ngocSiAiYouTubeActionForCommand(NgocSiAiLocalCommand.STOP, true))
+        assertEquals("next", ngocSiAiYouTubeActionForCommand(NgocSiAiLocalCommand.NEXT, true))
+        assertEquals("previous", ngocSiAiYouTubeActionForCommand(NgocSiAiLocalCommand.PREVIOUS, true))
+        assertEquals("shuffle_on", ngocSiAiYouTubeActionForCommand(NgocSiAiLocalCommand.SHUFFLE_ON, true))
+        assertEquals("shuffle_off", ngocSiAiYouTubeActionForCommand(NgocSiAiLocalCommand.SHUFFLE_OFF, true))
+        assertEquals("repeat_off", ngocSiAiYouTubeActionForCommand(NgocSiAiLocalCommand.REPEAT_OFF, true))
+        assertEquals("repeat_all", ngocSiAiYouTubeActionForCommand(NgocSiAiLocalCommand.REPEAT_ALL, true))
+        assertEquals("repeat_one", ngocSiAiYouTubeActionForCommand(NgocSiAiLocalCommand.REPEAT_ONE, true))
+    }
+
+    @Test
+    fun genericTransportCommandsRemainOnNativePlayerWhenYouTubeIsNotSelected() {
+        listOf(
+            NgocSiAiLocalCommand.PLAY,
+            NgocSiAiLocalCommand.PAUSE,
+            NgocSiAiLocalCommand.STOP,
+            NgocSiAiLocalCommand.NEXT,
+            NgocSiAiLocalCommand.PREVIOUS,
+            NgocSiAiLocalCommand.SHUFFLE_ON,
+            NgocSiAiLocalCommand.SHUFFLE_OFF,
+            NgocSiAiLocalCommand.REPEAT_OFF,
+            NgocSiAiLocalCommand.REPEAT_ALL,
+            NgocSiAiLocalCommand.REPEAT_ONE
+        ).forEach { command ->
+            assertNull(ngocSiAiYouTubeActionForCommand(command, false))
+        }
+    }
+
+    @Test
+    fun explicitYouTubeCommandsAlwaysTargetYouTube() {
+        assertEquals("play", ngocSiAiYouTubeActionForCommand(NgocSiAiLocalCommand.RESUME_YOUTUBE, false))
+        assertEquals("pause", ngocSiAiYouTubeActionForCommand(NgocSiAiLocalCommand.PAUSE_YOUTUBE, false))
+        assertEquals("next", ngocSiAiYouTubeActionForCommand(NgocSiAiLocalCommand.NEXT_YOUTUBE_VIDEO, false))
+        assertEquals("previous", ngocSiAiYouTubeActionForCommand(NgocSiAiLocalCommand.PREVIOUS_YOUTUBE_VIDEO, false))
+        assertEquals("favorite", ngocSiAiYouTubeActionForCommand(NgocSiAiLocalCommand.YOUTUBE_FAVORITE, false))
+        assertEquals("watch_later", ngocSiAiYouTubeActionForCommand(NgocSiAiLocalCommand.YOUTUBE_WATCH_LATER, false))
+    }
+
+    @Test
     fun recognizesNamedPlaylistCreateAndPlayCommandsWithAndWithoutAccents() {
         assertEquals(NgocSiAiLocalCommand.CREATE_PLAYLIST, classifyNgocSiAiLocalCommand("Tạo playlist Nhạc Trịnh"))
         assertEquals(NgocSiAiLocalCommand.PLAY_NAMED_PLAYLIST, classifyNgocSiAiWakePhrase("AI, phát playlist Nhạc Trịnh"))

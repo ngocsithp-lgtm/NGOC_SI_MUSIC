@@ -376,7 +376,14 @@ class NgocSiWakeWordService : Service() {
     ) {
         if (stopping) return
 
+        val youtubeControlAction = ngocSiAiYouTubeActionForCommand(
+            command,
+            youtubeActiveSource = getSharedPreferences("ngoc_si_music", Context.MODE_PRIVATE)
+                .getBoolean("youtube_active_source", false)
+        )
+
         if (
+            youtubeControlAction == null &&
             command == NgocSiAiLocalCommand.STOP &&
             productionMusicController == null &&
             attemptsRemaining > 0
@@ -392,6 +399,7 @@ class NgocSiWakeWordService : Service() {
         }
 
         if (
+            youtubeControlAction == null &&
             ngocSiAiCommandRequiresPlayerConnection(command) &&
             command != NgocSiAiLocalCommand.STOP &&
             productionMusicController == null &&
@@ -1234,6 +1242,47 @@ class NgocSiWakeWordService : Service() {
             "Chưa thể mở thư viện từ nền. Hãy mở NGỌC SĨ MUSIC rồi lặp lại lệnh."
         }
     }
+    private fun runYouTubeControl(action: String, hasSavedVideo: Boolean): String {
+        val response = when (action) {
+            "play" -> "Đang phát tiếp video YouTube."
+            "pause" -> "Đang tạm dừng video YouTube."
+            "stop" -> "Đang dừng video YouTube."
+            "next" -> "Đang chuyển sang video YouTube tiếp theo."
+            "previous" -> "Đang chuyển về video YouTube trước."
+            "shuffle_on" -> "Đang bật phát ngẫu nhiên YouTube."
+            "shuffle_off" -> "Đang tắt phát ngẫu nhiên YouTube."
+            "repeat_off" -> "Đang tắt chế độ lặp YouTube."
+            "repeat_all" -> "Đang bật lặp hàng đợi YouTube."
+            "repeat_one" -> "Đang bật lặp video YouTube."
+            "favorite" -> "Đang lưu video YouTube vào Yêu thích."
+            "watch_later" -> "Đang lưu video YouTube vào Xem sau."
+            else -> "Đã gửi lệnh điều khiển YouTube."
+        }
+        if (!hasSavedVideo) {
+            return launchMainAppRoute(
+                destination = "youtube",
+                response = "Chưa có video YouTube gần đây để điều khiển. Tôi đã mở YouTube; hãy tìm và phát video trước."
+            )
+        }
+
+        val prefs = getSharedPreferences("ngoc_si_music", Context.MODE_PRIVATE)
+        if (prefs.getBoolean("youtube_player_activity_active", false)) {
+            val sent = runCatching {
+                sendBroadcast(
+                    Intent(YouTubeBackgroundService.ACTION_CONTROL)
+                        .setPackage(packageName)
+                        .putExtra(YouTubeBackgroundService.EXTRA_CONTROL, action)
+                )
+            }.isSuccess
+            if (sent) return response
+        }
+        return launchMainAppRoute(
+            destination = "youtube_command",
+            response = response,
+            youtubeAction = action
+        )
+    }
+
     private fun runAppCommand(command: NgocSiAiLocalCommand, originalText: String): String {
         if (command == NgocSiAiLocalCommand.HELP) {
             return "Tôi có thể điều khiển nhạc điện thoại và YouTube riêng biệt; phát bài theo tên; tìm nhạc trên Jamendo, Audius và YouTube; mở thư viện, Drive, từng đài Radio, kênh TV; tạo/phát playlist; điều chỉnh phát ngẫu nhiên, lặp, hẹn giờ và lưu video yêu thích/xem sau."
@@ -1244,23 +1293,16 @@ class NgocSiWakeWordService : Service() {
             .getString("youtube_last_played_video_id", null)
             .isNullOrBlank()
 
-        // If the YouTube player is on screen, bare next/previous commands belong to
-        // its queue, not the native local/Drive Media3 queue.
-        if (youtubePrefs.getBoolean("youtube_player_foreground", false) && hasSavedYouTubeVideo) {
-            when (command) {
-                NgocSiAiLocalCommand.NEXT -> return launchMainAppRoute(
-                    destination = "youtube_command",
-                    response = "Đang chuyển video YouTube tiếp theo.",
-                    youtubeAction = "next"
-                )
-                NgocSiAiLocalCommand.PREVIOUS -> return launchMainAppRoute(
-                    destination = "youtube_command",
-                    response = "Đang chuyển video YouTube trước.",
-                    youtubeAction = "previous"
-                )
-                else -> Unit
-            }
+        // Route both explicit YouTube commands and generic transport commands to the
+        // selected YouTube source before asking Media3 to connect.
+        val selectedYouTubeAction = ngocSiAiYouTubeActionForCommand(
+            command,
+            youtubeActiveSource = youtubePrefs.getBoolean("youtube_active_source", false)
+        )
+        if (selectedYouTubeAction != null) {
+            return runYouTubeControl(selectedYouTubeAction, hasSavedYouTubeVideo)
         }
+
         val destination = when (command) {
             NgocSiAiLocalCommand.OPEN_HOME -> "home"
             NgocSiAiLocalCommand.OPEN_LIBRARY -> "library"

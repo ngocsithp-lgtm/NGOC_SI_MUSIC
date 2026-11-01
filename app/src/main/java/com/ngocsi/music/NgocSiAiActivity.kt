@@ -1211,33 +1211,58 @@ class NgocSiAiActivity : ComponentActivity() {
     }
 
     private fun runYouTubeControl(action: String, response: String): String {
-        val hasSavedVideo = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
-            .getString("youtube_last_played_video_id", null)
-            .isNullOrBlank()
-            .not()
+        val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+        val hasSavedVideo = !prefs.getString("youtube_last_played_video_id", null).isNullOrBlank()
         if (!hasSavedVideo) {
             return openAppDestination(
                 "youtube",
                 "Chưa có video YouTube gần đây để điều khiển. Tôi đã mở YouTube; hãy tìm và phát video trước."
             )
         }
+
+        // The dedicated fullscreen/background WebView registers this in-app broadcast
+        // receiver for its entire Activity lifetime, including while the AI screen is on top.
+        if (prefs.getBoolean("youtube_player_activity_active", false)) {
+            val sent = runCatching {
+                sendBroadcast(
+                    Intent(YouTubeBackgroundService.ACTION_CONTROL)
+                        .setPackage(packageName)
+                        .putExtra(YouTubeBackgroundService.EXTRA_CONTROL, action)
+                )
+            }.isSuccess
+            if (sent) return response
+        }
         return openAppDestination("youtube_command", response, youtubeAction = action)
     }
 
+    private fun youtubeControlResponse(action: String): String = when (action) {
+        "play" -> "Đang phát tiếp video YouTube."
+        "pause" -> "Đang tạm dừng video YouTube."
+        "stop" -> "Đang dừng video YouTube."
+        "next" -> "Đang chuyển sang video YouTube tiếp theo."
+        "previous" -> "Đang chuyển về video YouTube trước."
+        "shuffle_on" -> "Đang bật phát ngẫu nhiên YouTube."
+        "shuffle_off" -> "Đang tắt phát ngẫu nhiên YouTube."
+        "repeat_off" -> "Đang tắt chế độ lặp YouTube."
+        "repeat_all" -> "Đang bật lặp hàng đợi YouTube."
+        "repeat_one" -> "Đang bật lặp video YouTube."
+        "favorite" -> "Đang lưu video YouTube vào Yêu thích."
+        "watch_later" -> "Đang lưu video YouTube vào Xem sau."
+        else -> "Đã gửi lệnh điều khiển YouTube."
+    }
+
     private fun runLocalCommand(command: NgocSiAiLocalCommand, originalText: String = ""): String {
+        val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+        val youtubeAction = ngocSiAiYouTubeActionForCommand(
+            command,
+            youtubeActiveSource = prefs.getBoolean("youtube_active_source", false)
+        )
+        if (youtubeAction != null) {
+            return runYouTubeControl(youtubeAction, youtubeControlResponse(youtubeAction))
+        }
+
         when (command) {
             NgocSiAiLocalCommand.HELP -> return "Tôi có thể điều khiển nhạc trên điện thoại và YouTube riêng biệt; mở Thư viện, Yêu thích, Album, Thư mục, Drive, từng đài Radio và kênh TV; tìm nhạc trên Jamendo, Audius và YouTube; tạo/phát playlist theo tên; mở Hàng đợi, Trình phát, Cài đặt và hẹn giờ."
-            NgocSiAiLocalCommand.RESUME_YOUTUBE -> return runYouTubeControl("play", "Đang tiếp tục video YouTube.")
-            NgocSiAiLocalCommand.PAUSE_YOUTUBE -> return runYouTubeControl("pause", "Đang tạm dừng video YouTube.")
-            NgocSiAiLocalCommand.NEXT_YOUTUBE_VIDEO -> return runYouTubeControl("next", "Đang chuyển sang video YouTube tiếp theo.")
-            NgocSiAiLocalCommand.PREVIOUS_YOUTUBE_VIDEO -> return runYouTubeControl("previous", "Đang chuyển về video YouTube trước.")
-            NgocSiAiLocalCommand.YOUTUBE_SHUFFLE_ON -> return runYouTubeControl("shuffle_on", "Đang bật phát ngẫu nhiên YouTube.")
-            NgocSiAiLocalCommand.YOUTUBE_SHUFFLE_OFF -> return runYouTubeControl("shuffle_off", "Đang tắt phát ngẫu nhiên YouTube.")
-            NgocSiAiLocalCommand.YOUTUBE_REPEAT_OFF -> return runYouTubeControl("repeat_off", "Đang tắt chế độ lặp YouTube.")
-            NgocSiAiLocalCommand.YOUTUBE_REPEAT_ALL -> return runYouTubeControl("repeat_all", "Đang bật lặp hàng đợi YouTube.")
-            NgocSiAiLocalCommand.YOUTUBE_REPEAT_ONE -> return runYouTubeControl("repeat_one", "Đang bật lặp video YouTube.")
-            NgocSiAiLocalCommand.YOUTUBE_FAVORITE -> return runYouTubeControl("favorite", "Đang lưu video YouTube vào Yêu thích.")
-            NgocSiAiLocalCommand.YOUTUBE_WATCH_LATER -> return runYouTubeControl("watch_later", "Đang lưu video YouTube vào Xem sau.")
             NgocSiAiLocalCommand.OPEN_HOME -> return openAppDestination("home", "Đang mở trang chủ.")
             NgocSiAiLocalCommand.SEARCH_ONLINE_MUSIC -> {
                 val query = extractNgocSiAiOnlineQuery(originalText)

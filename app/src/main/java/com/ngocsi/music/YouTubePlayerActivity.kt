@@ -608,9 +608,16 @@ class YouTubePlayerActivity : ComponentActivity() {
             ) return
             when (intent.getStringExtra(YouTubeBackgroundService.EXTRA_CONTROL)) {
                 "play" -> requestYouTubePlayback()
-                "pause" -> pauseYouTubePlayback()
+                "pause", "stop" -> pauseYouTubePlayback()
                 "next" -> playNext()
                 "previous" -> playPrevious()
+                "shuffle_on" -> if (!youtubeShuffleEnabled) toggleYoutubeShuffle()
+                "shuffle_off" -> if (youtubeShuffleEnabled) toggleYoutubeShuffle()
+                "repeat_off" -> setYoutubeRepeatMode(0)
+                "repeat_all" -> setYoutubeRepeatMode(1)
+                "repeat_one" -> setYoutubeRepeatMode(2)
+                "favorite" -> if (!isFavorite()) toggleFavorite()
+                "watch_later" -> if (!isWatchLater()) toggleWatchLater()
             }
         }
     }
@@ -689,6 +696,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             finish()
             return
         }
+        prefs.edit().putBoolean("youtube_player_activity_active", true).apply()
 
         WindowCompat.setDecorFitsSystemWindows(window, true)
         buildUi()
@@ -5388,6 +5396,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             getSharedPreferences("ngoc_si_music", MODE_PRIVATE).edit()
                 .putBoolean("youtube_playback_is_playing", false)
                 .putBoolean("youtube_active_source", true)
+                .putBoolean("youtube_player_activity_active", false)
                 .apply()
         }
         if (customView != null) exitFullscreen(notifyCallback = false)
