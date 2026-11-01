@@ -88,9 +88,9 @@ class NgocSiAiHistoryRulesTest {
     }
 
     @Test
-    fun limitsHistoryToLatestFourMessages() {
+    fun limitsHistoryToLatestEightMessages() {
         val messages = buildList {
-            repeat(5) { index ->
+            repeat(9) { index ->
                 add(NgocSiAiMessage(role = "user", content = "câu hỏi $index"))
                 add(NgocSiAiMessage(role = "assistant", content = "trả lời $index"))
             }
@@ -99,8 +99,10 @@ class NgocSiAiHistoryRulesTest {
 
         val history = normalizeNgocSiAiHistory(messages)
 
+        assertEquals(7, history.size)
         assertTrue(history.size <= NGOC_SI_AI_MAX_HISTORY_MESSAGES)
         assertTrue(history.sumOf { it.content.length } <= NGOC_SI_AI_MAX_TOTAL_CHARS)
+        assertEquals("câu hỏi 6", history.first().content)
         assertEquals("câu hỏi cuối", history.last().content)
     }
 
