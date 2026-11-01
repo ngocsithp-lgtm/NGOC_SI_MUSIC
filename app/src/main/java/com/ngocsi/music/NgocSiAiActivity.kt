@@ -1212,6 +1212,7 @@ class NgocSiAiActivity : ComponentActivity() {
     }
 
     private fun runYouTubeControl(action: String, response: String): String {
+        if (action == "current_track") return response
         val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
         val hasSavedVideo = !prefs.getString("youtube_last_played_video_id", null).isNullOrBlank()
         if (!hasSavedVideo) {
@@ -1237,6 +1238,19 @@ class NgocSiAiActivity : ComponentActivity() {
     }
 
     private fun youtubeControlResponse(action: String): String = when (action) {
+        "current_track" -> {
+            val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+            val title = prefs.getString("youtube_last_played_title", null)
+                ?.takeIf { it.isNotBlank() } ?: "Chưa rõ tên video"
+            val channel = prefs.getString("youtube_last_played_channel", null)
+                ?.takeIf { it.isNotBlank() }
+            val status = if (prefs.getBoolean("youtube_playback_is_playing", false)) {
+                "Đang phát"
+            } else {
+                "Đang tạm dừng hoặc chưa phát"
+            }
+            if (channel.isNullOrBlank()) "$status: $title" else "$status: $title — $channel"
+        }
         "play" -> "Đang phát tiếp video YouTube."
         "pause" -> "Đang tạm dừng video YouTube."
         "stop" -> "Đang dừng video YouTube."
