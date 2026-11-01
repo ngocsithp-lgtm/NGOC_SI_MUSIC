@@ -9335,26 +9335,6 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 errorMessage = "Đang tua video YouTube lùi 10 giây."
                 return
             }
-            "seek_forward_10" -> {
-                if (youtubeInlineTrack?.videoId == track.videoId && youtubeInlineWebView != null) {
-                    seekInlineYouTubeBy(10_000L)
-                } else {
-                    pendingInlineYouTubeSeekDeltaMs = 10_000L
-                    playYouTube(track)
-                }
-                errorMessage = "Đang tua video YouTube tới 10 giây."
-                return
-            }
-            "seek_back_10" -> {
-                if (youtubeInlineTrack?.videoId == track.videoId && youtubeInlineWebView != null) {
-                    seekInlineYouTubeBy(-10_000L)
-                } else {
-                    pendingInlineYouTubeSeekDeltaMs = -10_000L
-                    playYouTube(track)
-                }
-                errorMessage = "Đang tua video YouTube lùi 10 giây."
-                return
-            }
             "favorite" -> {
                 val activeTrack = youtubeInlineTrack ?: track
                 val alreadyFavorite = youtubeFavoriteSet.contains(activeTrack.videoId)
@@ -9800,11 +9780,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
     }
 
     /**
-     * Controls the inline player whether it is an IFrame API player or the official
+     * Controls and seeks the inline player whether it is an IFrame API player or the official
      * mobile YouTube watch page used when an individual video disallows embedding.
-     */
-    /**
-     * Seek the current inline IFrame player without recreating its WebView.
      * When a video is still starting, retain one bounded seek request until onReady.
      */
     private fun seekInlineYouTubeBy(deltaMs: Long): Boolean {
