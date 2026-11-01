@@ -782,6 +782,7 @@ class MainActivity : ComponentActivity() {
     private var pendingAiAddCurrentSongPlaylistName: String? = null
     private var pendingAiLocalPlaybackRequested = false
     private var pendingAiTrackQuery: String? = null
+    private var pendingAiFavoriteCurrentTrack = false
     private var localLibraryLoaded = false
     // Artwork cache is album-first: one decoded cover is shared by every song
     // in the same local album. Drive falls back to a stable source/file key when
@@ -1169,22 +1170,11 @@ class MainActivity : ComponentActivity() {
                 libraryView = "Bài hát"
             }
             "favorite_current" -> {
-                val activeUri = controller?.currentMediaItem?.localConfiguration?.uri?.toString().orEmpty()
-                val activeSong = songs.firstOrNull { it.uri.toString() == activeUri }
-                    ?: queueSongs.firstOrNull { it.uri.toString() == activeUri }
-                if (activeSong == null) {
-                    errorMessage = "Chưa tìm thấy bài nhạc điện thoại đang phát để thêm vào Yêu thích."
+                if (controller == null) {
+                    pendingAiFavoriteCurrentTrack = true
+                    errorMessage = "Đang kết nối trình phát để lưu bài hiện tại vào Yêu thích."
                 } else {
-                    val alreadyFavorite = favorites[activeSong.id] == true
-                    if (!alreadyFavorite) toggleFavorite(activeSong)
-                    selectedSection = "Thư viện"
-                    selectedLibrary = "Yêu thích"
-                    libraryView = "Bài hát"
-                    errorMessage = if (alreadyFavorite) {
-                        "Bài ${activeSong.title} đã có trong Yêu thích."
-                    } else {
-                        "Đã thêm ${activeSong.title} vào Yêu thích."
-                    }
+                    favoriteCurrentTrackFromAi()
                 }
             }
             "albums" -> {
@@ -1470,6 +1460,26 @@ class MainActivity : ComponentActivity() {
         youtubeInlineOpenGeneration++
     }
 
+    private fun favoriteCurrentTrackFromAi() {
+        val activeUri = controller?.currentMediaItem?.localConfiguration?.uri?.toString().orEmpty()
+        val activeSong = songs.firstOrNull { it.uri.toString() == activeUri }
+            ?: queueSongs.firstOrNull { it.uri.toString() == activeUri }
+        if (activeSong == null) {
+            errorMessage = "Chưa tìm thấy bài nhạc điện thoại đang phát để thêm vào Yêu thích."
+            return
+        }
+        val alreadyFavorite = favorites[activeSong.id] == true
+        if (!alreadyFavorite) toggleFavorite(activeSong)
+        selectedSection = "Thư viện"
+        selectedLibrary = "Yêu thích"
+        libraryView = "Bài hát"
+        errorMessage = if (alreadyFavorite) {
+            "Bài ${activeSong.title} đã có trong Yêu thích."
+        } else {
+            "Đã thêm ${activeSong.title} vào Yêu thích."
+        }
+    }
+
     private fun connectController() {
         val token = SessionToken(this, ComponentName(this, MusicService::class.java))
         val future = MediaController.Builder(this, token).buildAsync()
@@ -1552,6 +1562,10 @@ class MainActivity : ComponentActivity() {
                     dispatchPendingAiPlaylistIfReady()
                     dispatchPendingAiAddCurrentSongToPlaylistIfReady()
                     dispatchPendingAiLocalPlaybackIfReady()
+                    if (pendingAiFavoriteCurrentTrack) {
+                        pendingAiFavoriteCurrentTrack = false
+                        favoriteCurrentTrackFromAi()
+                    }
                     pendingAiRadioStationTitle?.let { stationTitle ->
                         val station = RadioCatalog.find(stationTitle)
                         pendingAiRadioStationTitle = null
