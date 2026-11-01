@@ -939,4 +939,43 @@ class NgocSiAiLocalCommandRulesTest {
             classifyNgocSiAiActivatedCommand("Quay về trang chủ")
         )
     }
+
+    @Test
+    fun mapsOnlyAllowlistedGeminiActionsToExistingLocalCommands() {
+        assertEquals("phát nhạc", buildNgocSiAiToolCommandPhrase("play"))
+        assertEquals("tìm youtube nhạc Trịnh", buildNgocSiAiToolCommandPhrase("search_youtube", "nhạc Trịnh"))
+        assertEquals("phát radio VOV3", buildNgocSiAiToolCommandPhrase("play_radio_station", "VOV3"))
+        assertEquals("mở kênh VTV3", buildNgocSiAiToolCommandPhrase("open_tv_channel", "VTV3"))
+        assertEquals(
+            "thêm bài đang phát vào playlist Nhạc Trịnh",
+            buildNgocSiAiToolCommandPhrase("add_current_to_playlist", "Nhạc Trịnh")
+        )
+        assertEquals(null, buildNgocSiAiToolCommandPhrase("delete_all_library"))
+        assertEquals(null, buildNgocSiAiToolCommandPhrase("open_drive_and_clear"))
+        assertEquals(null, buildNgocSiAiToolCommandPhrase("search_youtube"))
+        assertEquals(null, buildNgocSiAiToolCommandPhrase("play_track", ""))
+    }
+
+    @Test
+    fun mappedGeminiActionsStillPassTheDeterministicLocalCommandClassifier() {
+        val cases = listOf(
+            "play" to "",
+            "play_track" to "Diễm xưa",
+            "search_youtube" to "nhạc Trịnh",
+            "play_radio_station" to "VOV3",
+            "open_tv_channel" to "VTV3",
+            "create_playlist" to "Nhạc Trịnh",
+            "play_playlist" to "Nhạc Trịnh",
+            "add_current_to_playlist" to "Nhạc Trịnh",
+            "add_queue_to_playlist" to "Nhạc Trịnh",
+            "sleep_timer_30" to ""
+        )
+        cases.forEach { (action, query) ->
+            val phrase = buildNgocSiAiToolCommandPhrase(action, query)
+            assertEquals("Mapped action $action should classify", true, phrase != null)
+            assertEquals("Mapped action $action should use a known command", true,
+                classifyNgocSiAiLocalCommand(phrase!!) != null)
+        }
+    }
+
 }
