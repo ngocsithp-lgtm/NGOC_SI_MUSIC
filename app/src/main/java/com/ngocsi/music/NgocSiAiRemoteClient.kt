@@ -352,6 +352,8 @@ internal class NgocSiAiRemoteClient(context: Context) {
             "youtube_pause",
             "youtube_next",
             "youtube_previous",
+            "youtube_seek_forward_10",
+            "youtube_seek_back_10",
             "youtube_shuffle_on",
             "youtube_shuffle_off",
             "youtube_repeat_off",
@@ -395,8 +397,9 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 shuffle_on, shuffle_off, repeat_off, repeat_all, repeat_one,
                 open_home, open_library, open_favorites, open_albums, open_folders, open_online,
                 search_online_music, open_youtube, search_youtube, youtube_play, youtube_pause,
-                youtube_next, youtube_previous, youtube_shuffle_on, youtube_shuffle_off,
-                youtube_repeat_off, youtube_repeat_all, youtube_repeat_one, youtube_favorite,
+                youtube_next, youtube_previous, youtube_seek_forward_10, youtube_seek_back_10,
+                youtube_shuffle_on, youtube_shuffle_off, youtube_repeat_off, youtube_repeat_all,
+                youtube_repeat_one, youtube_favorite,
                 youtube_watch_later, open_drive, open_radio, play_radio_station, open_tv,
                 open_tv_channel, create_playlist, play_playlist, add_current_to_playlist,
                 add_queue_to_playlist, open_playlists, open_queue, open_player, open_settings,
@@ -405,7 +408,8 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 query chứa tên bài hát, từ khóa tìm kiếm, tên đài, kênh hoặc playlist khi action cần dữ liệu đó.
                 Không tự đoán tên bài, đài, kênh hay playlist nếu người dùng chưa nêu; hãy hỏi lại.
                 Không có action xóa dữ liệu, xóa playlist, xóa thư viện, thay đổi quyền, đăng nhập tài khoản hoặc thanh toán.
-                set_playback_speed chỉ nhận query là 0.5, 0.75, 1.0, 1.25, 1.5, 1.75 hoặc 2.0; seek chỉ tua 10 giây; hai chức năng này áp dụng cho nhạc thiết bị, Drive và Radio qua Media3, không tự ý áp dụng lên YouTube.
+                set_playback_speed chỉ áp dụng cho nhạc thiết bị, Drive và Radio qua Media3; không tự ý áp dụng tốc độ Media3 lên YouTube.
+                seek_forward_10/seek_back_10 tua 10 giây theo nguồn đang phát. Nếu người dùng nói rõ YouTube, hãy dùng youtube_seek_forward_10 hoặc youtube_seek_back_10.
                 Các action shuffle_on/off và repeat_off/all/one điều khiển Media3; khi nguồn phát là YouTube phải dùng youtube_shuffle_on/off và youtube_repeat_off/all/one. favorite_current_track chỉ thêm bài hiện tại vào Yêu thích, không xóa khỏi danh sách.
                 Sau khi gọi, phải dựa vào app_feedback: nếu phản hồi chỉ nói đang mở/đang tìm/đã gửi lệnh thì không được khẳng định thao tác đã hoàn tất.
             """.trimIndent(),
