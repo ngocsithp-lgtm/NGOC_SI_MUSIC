@@ -8,6 +8,8 @@ import android.app.Service
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.ServiceInfo
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
 import android.os.Build
@@ -18,6 +20,10 @@ import android.os.PowerManager
 import android.content.BroadcastReceiver
 import android.content.IntentFilter
 import androidx.core.content.ContextCompat
+import java.io.ByteArrayOutputStream
+import java.net.HttpURLConnection
+import java.net.URL
+import java.util.concurrent.Executors
 
 /**
  * Keeps the currently user-started in-app YouTube WebView playback process at
@@ -62,6 +68,12 @@ class YouTubeBackgroundService : Service() {
     private var title = "YouTube"
     private var channel = "NGỌC SĨ MUSIC"
     private var thumbnailUrl = ""
+    private var thumbnailBitmap: Bitmap? = null
+    private var thumbnailRequestGeneration = 0L
+    private var serviceDestroyed = false
+    private val thumbnailExecutor = Executors.newSingleThreadExecutor { task ->
+        Thread(task, "NgocSiYouTubeArtwork").apply { isDaemon = true }
+    }
     private var queueJson = "[]"
     private var queueIndex = 0
     private var playerState = PlaybackState.STATE_NONE
@@ -176,8 +188,18 @@ class YouTubeBackgroundService : Service() {
             }.orEmpty().ifBlank { videoId }
             title = intent.getStringExtra(EXTRA_TITLE)?.take(300).orEmpty().ifBlank { title }
             channel = intent.getStringExtra(EXTRA_CHANNEL)?.take(200).orEmpty().ifBlank { channel }
-            thumbnailUrl = intent.getStringExtra(EXTRA_THUMBNAIL_URL).orEmpty().ifBlank {
+            val nextThumbnailUrl = intent.getStringExtra(EXTRA_THUMBNAIL_URL).orEmpty().ifBlank {
                 if (videoId.isNotBlank()) "https://i.ytimg.com/vi/$videoId/hqdefault.jpg" else thumbnailUrl
+            }
+            if (nextThumbnailUrl != thumbnailUrl) {
+                thumbnailUrl = nextThumbnailUrl
+                thumbnailBitmap = null
+                thumbnailRequestGeneration += 1L
+                requestYouTubeThumbnail(
+                    url = thumbnailUrl,
+                    expectedVideoId = videoId,
+                    generation = thumbnailRequestGeneration
+                )
             }
             queueJson = intent.getStringExtra(EXTRA_QUEUE_JSON)?.takeIf { it.isNotBlank() } ?: queueJson
             queueIndex = intent.getIntExtra(EXTRA_QUEUE_INDEX, queueIndex).coerceAtLeast(0)
@@ -191,6 +213,69 @@ class YouTubeBackgroundService : Service() {
 
         refreshSessionAndNotification()
         if (isPlaying) acquireWakeLock() else releaseWakeLock()
+    }
+
+    /**
+     * Load only YouTube-hosted thumbnails off the main thread. The generation and video ID
+     * checks prevent a slow response for the previous queue item replacing the current art.
+     */
+    private fun requestYouTubeThumbnail(
+        url: String,
+        expectedVideoId: String,
+        generation: Long
+    ) {
+        val parsedUrl = runCatching { URL(url) }.getOrNull() ?: return
+        val allowedHosts = setOf("i.ytimg.com", "img.youtube.com")
+        if (parsedUrl.protocol != "https" || parsedUrl.host.lowercase() !in allowedHosts) return
+
+        thumbnailExecutor.execute {
+            var connection: HttpURLConnection? = null
+            try {
+                connection = (parsedUrl.openConnection() as? HttpURLConnection) ?: return@execute
+                connection.connectTimeout = 4_000
+                connection.readTimeout = 4_000
+                connection.instanceFollowRedirects = false
+                connection.setRequestProperty("Accept", "image/*")
+                connection.setRequestProperty("User-Agent", "NGOC-SI-MUSIC-Android")
+                if (connection.responseCode != HttpURLConnection.HTTP_OK) return@execute
+                val contentType = connection.contentType.orEmpty()
+                    .substringBefore(';').trim().lowercase()
+                if (!contentType.startsWith("image/")) return@execute
+                if (connection.contentLengthLong > 2_500_000L) return@execute
+
+                val imageBytes = connection.inputStream.use { input ->
+                    val output = ByteArrayOutputStream()
+                    val buffer = ByteArray(8 * 1024)
+                    var total = 0
+                    while (true) {
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        total += count
+                        if (total > 2_500_000) return@use ByteArray(0)
+                        output.write(buffer, 0, count)
+                    }
+                    output.toByteArray()
+                }
+                if (imageBytes.isEmpty()) return@execute
+                val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+                    ?: return@execute
+                sleepTimerHandler.post {
+                    if (!serviceDestroyed &&
+                        generation == thumbnailRequestGeneration &&
+                        expectedVideoId == videoId
+                    ) {
+                        thumbnailBitmap = bitmap
+                        refreshSessionAndNotification()
+                    } else {
+                        bitmap.recycle()
+                    }
+                }
+            } catch (_: Exception) {
+                // Artwork is optional; playback and transport controls must remain available.
+            } finally {
+                connection?.disconnect()
+            }
+        }
     }
 
     private fun createMediaSession() {
@@ -238,6 +323,12 @@ class YouTubeBackgroundService : Service() {
                 .putString(android.media.MediaMetadata.METADATA_KEY_ARTIST, channel)
                 .putString(android.media.MediaMetadata.METADATA_KEY_ALBUM, "YouTube • NGỌC SĨ MUSIC")
                 .putString(android.media.MediaMetadata.METADATA_KEY_MEDIA_ID, videoId)
+                .apply {
+                    thumbnailBitmap?.let { bitmap ->
+                        putBitmap(android.media.MediaMetadata.METADATA_KEY_ART, bitmap)
+                        putBitmap(android.media.MediaMetadata.METADATA_KEY_ALBUM_ART, bitmap)
+                    }
+                }
                 .build()
             session.setMetadata(metadata)
 
@@ -314,6 +405,7 @@ class YouTubeBackgroundService : Service() {
             .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setOnlyAlertOnce(true)
             .setOngoing(true)
+            .apply { thumbnailBitmap?.let(::setLargeIcon) }
             .addAction(android.R.drawable.ic_media_previous, "Bài trước", previous)
             .addAction(
                 if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play,
@@ -407,6 +499,11 @@ class YouTubeBackgroundService : Service() {
     }
 
     override fun onDestroy() {
+        serviceDestroyed = true
+        thumbnailRequestGeneration += 1L
+        thumbnailExecutor.shutdownNow()
+        thumbnailBitmap?.recycle()
+        thumbnailBitmap = null
         prefs.unregisterOnSharedPreferenceChangeListener(sleepTimerPreferenceListener)
         sleepTimerHandler.removeCallbacks(sleepTimerWatchdog)
         releaseWakeLock()
