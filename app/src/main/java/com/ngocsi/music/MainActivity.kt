@@ -1786,6 +1786,8 @@ class MainActivity : ComponentActivity() {
             errorMessage = "Trình phát đang khởi động, thử lại sau."
             return
         }
+        // This path starts Media3 audio (device, Drive, or online library), not YouTube.
+        setYouTubeActiveSource(false)
 
         // Queue is source-scoped by design. Aggregate library filters such as
         // "Tất cả", "Online" or "Yêu thích" can contain multiple sources, so
@@ -4789,6 +4791,7 @@ class MainActivity : ComponentActivity() {
             errorMessage = "Trình phát đang khởi động, thử lại sau."
             return
         }
+        setYouTubeActiveSource(false)
         queueSongs.clear()
         queueSongs.addAll(sourceScopedSongs)
         queueSource = requestedSong.source
@@ -4902,6 +4905,7 @@ class MainActivity : ComponentActivity() {
             errorMessage = "Trình phát đang khởi động, thử lại sau."
             return
         }
+        setYouTubeActiveSource(false)
 
         cancelRadioRecovery()
         activeRadioTitle = null
@@ -9312,6 +9316,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 songs.lastIndex
             }
             syncControllerQueue()
+            setYouTubeActiveSource(false)
             play(index)
             return
         }
