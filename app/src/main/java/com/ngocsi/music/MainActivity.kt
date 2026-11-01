@@ -10638,7 +10638,12 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             ) {
                             AndroidView(
                                 factory = { context ->
-                                    InlineBackgroundAudioWebView(context).apply {
+                                    val playerFrame = android.widget.FrameLayout(context).apply {
+                                        setBackgroundColor(android.graphics.Color.BLACK)
+                                        clipChildren = true
+                                        clipToPadding = true
+                                    }
+                                    val playerWebView = InlineBackgroundAudioWebView(context).apply {
                                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                                             setRendererPriorityPolicy(
                                                 if (inlineBackgroundPlaybackEnabled) WebView.RENDERER_PRIORITY_IMPORTANT
@@ -10713,37 +10718,65 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         // inline host; do not open a separate player screen.
                                         loadInlineYouTubeStablePlayer(this, inlineTrack.videoId)
                                     }
+
+                                    // Put the badge in the same native view hierarchy as the WebView.
+                                    // Compose siblings can be drawn underneath an AndroidView on some
+                                    // Android versions, so a Compose overlay may never appear above video.
+                                    val density = context.resources.displayMetrics.density
+                                    playerFrame.addView(
+                                        playerWebView,
+                                        android.widget.FrameLayout.LayoutParams(
+                                            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                                            android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                                        )
+                                    )
+                                    val youtubeMark = android.widget.TextView(context).apply {
+                                        text = "▶"
+                                        gravity = android.view.Gravity.CENTER
+                                        setTextColor(android.graphics.Color.WHITE)
+                                        textSize = 10f
+                                        typeface = android.graphics.Typeface.create(
+                                            "sans-serif",
+                                            android.graphics.Typeface.BOLD
+                                        )
+                                        includeFontPadding = false
+                                        background = android.graphics.drawable.GradientDrawable().apply {
+                                            setColor(android.graphics.Color.rgb(230, 33, 23))
+                                            cornerRadius = 5f * density
+                                        }
+                                        elevation = 12f * density
+                                        isClickable = false
+                                        isFocusable = false
+                                        importantForAccessibility = android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                                    }
+                                    val markParams = android.widget.FrameLayout.LayoutParams(
+                                        (28f * density).toInt(),
+                                        (20f * density).toInt(),
+                                        android.view.Gravity.TOP or android.view.Gravity.START
+                                    ).apply {
+                                        topMargin = (8f * density).toInt()
+                                        marginStart = (8f * density).toInt()
+                                    }
+                                    playerFrame.addView(youtubeMark, markParams)
+                                    playerFrame.tag = inlineTrack.videoId
+                                    playerFrame
                                 },
-                                update = { view ->
-                                    youtubeInlineWebView = view
-                                    if (view.tag != inlineTrack.videoId) {
+                                update = { playerFrame ->
+                                    val view = playerFrame.getChildAt(0) as? InlineBackgroundAudioWebView
+                                    if (view != null) {
+                                        youtubeInlineWebView = view
+                                        if (playerFrame.tag != inlineTrack.videoId) {
                                         // Each selected video starts in Fit mode; the user can
                                         // opt into pinch-to-fill again on the landscape surface.
                                         view.resetInlineVideoZoom()
                                         view.tag = inlineTrack.videoId
-                                        loadInlineYouTubeStablePlayer(view, inlineTrack.videoId)
+                                            playerFrame.tag = inlineTrack.videoId
+                                            loadInlineYouTubeStablePlayer(view, inlineTrack.videoId)
+                                        }
                                     }
                                 },
                                 modifier = Modifier.fillMaxSize()
                             )
-                            // Small YouTube play-mark watermark in the video corner.
-                            // Keep it icon-only so it does not add title text or cover player controls.
-                            Surface(
-                                modifier = Modifier.align(Alignment.TopStart).padding(8.dp)
-                                    .size(width = 27.dp, height = 19.dp),
-                                shape = RoundedCornerShape(5.dp),
-                                color = Color(0xFFE62117),
-                                tonalElevation = 0.dp
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Text(
-                                        "▶",
-                                        color = Color.White,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Black
-                                    )
-                                }
-                            }
                             if (youtubeInlineFullscreen) {
                                 TextButton(
                                     onClick = { exitInlineYouTubeFullscreen() },
