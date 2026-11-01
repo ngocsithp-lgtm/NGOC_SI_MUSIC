@@ -124,6 +124,26 @@ internal fun ngocSiAiYouTubeActionForCommand(
     else -> null
 }
 
+internal enum class NgocSiAiYouTubeDispatchTarget {
+    OPEN_YOUTUBE,
+    MAIN_INLINE_PLAYER,
+    LIVE_PLAYER_ACTIVITY
+}
+
+/**
+ * Selects a real YouTube command destination from current runtime state.
+ * A persisted Activity flag is intentionally not accepted: Android can kill a
+ * background process without allowing its stale SharedPreferences marker to clear.
+ */
+internal fun selectNgocSiAiYouTubeDispatchTarget(
+    hasSavedVideo: Boolean,
+    livePlayerActivityAvailable: Boolean
+): NgocSiAiYouTubeDispatchTarget = when {
+    !hasSavedVideo -> NgocSiAiYouTubeDispatchTarget.OPEN_YOUTUBE
+    livePlayerActivityAvailable -> NgocSiAiYouTubeDispatchTarget.LIVE_PLAYER_ACTIVITY
+    else -> NgocSiAiYouTubeDispatchTarget.MAIN_INLINE_PLAYER
+}
+
 internal enum class NgocSiAiPlaybackTarget {
     PRODUCTION,
     PREVIEW
@@ -651,6 +671,8 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
 
         startsWithAny(
             "tiep theo", "bai tiep theo", "nhac tiep theo", "bai ke tiep", "nhac ke tiep",
+            "video tiep theo", "video ke tiep", "video sau", "chuyen video tiep theo",
+            "chuyen video ke tiep", "chuyen sang video tiep theo", "sang video tiep theo",
             "chuyen bai", "chuyen bai hat", "doi bai", "phat bai tiep theo",
             "chuyen sang bai tiep theo", "chuyen sang bai ke tiep", "sang bai tiep theo",
             "chuyen qua bai sau", "bai sau", "nhac tiep", "cho bai tiep theo",
@@ -665,7 +687,9 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
         isAnyOf("quay lai") -> NgocSiAiLocalCommand.PREVIOUS
 
         startsWithAny(
-            "bai truoc", "nhac truoc", "quay lai bai truoc", "tro ve bai truoc", "bai truoc do",
+            "bai truoc", "nhac truoc", "video truoc", "video truoc do",
+            "quay lai video truoc", "quay lai video vua roi",
+            "quay lai bai truoc", "tro ve bai truoc", "bai truoc do",
             "quay ve bai truoc", "lui lai bai truoc",
             "previous", "previous song", "previous track"
         ) -> NgocSiAiLocalCommand.PREVIOUS
