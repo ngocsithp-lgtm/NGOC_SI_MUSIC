@@ -9118,15 +9118,20 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     val safeTrackId = track.videoId
                         .filter { it.isLetterOrDigit() || it == '-' || it == '_' }
                         .take(32)
+                    val hasFullscreenResumeMarker =
+                        prefs.getBoolean("youtube_inline_resume_position_after_fullscreen", false)
                     val resumeFromFullscreen =
-                        prefs.getBoolean("youtube_inline_resume_position_after_fullscreen", false) &&
+                        hasFullscreenResumeMarker &&
                             prefs.getString("youtube_inline_resume_position_video_id", null) == safeTrackId
+                    if (hasFullscreenResumeMarker && !resumeFromFullscreen) {
+                        prefs.edit()
+                            .remove("youtube_inline_resume_position_after_fullscreen")
+                            .remove("youtube_inline_resume_position_video_id")
+                            .apply()
+                    }
                     if (resumeFromFullscreen) {
-                        val safeId = track.videoId
-                            .filter { it.isLetterOrDigit() || it == '-' || it == '_' }
-                            .take(32)
                         val positionMs = prefs.getLong(
-                            "youtube_inline_position_ms_" + safeId, 0L
+                            "youtube_inline_position_ms_" + safeTrackId, 0L
                         ).coerceIn(0L, 86_400_000L)
                         val seconds = positionMs / 1000.0
                         youtubeInlineWebView?.evaluateJavascript(
