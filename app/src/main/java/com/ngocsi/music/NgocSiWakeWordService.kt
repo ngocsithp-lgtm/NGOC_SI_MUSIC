@@ -1313,7 +1313,10 @@ class NgocSiWakeWordService : Service() {
                 routed = false,
                 feedback = "Thiếu tên bài, đài, kênh, playlist hoặc action không được hỗ trợ. Chưa thực hiện thao tác."
             )
-        val command = classifyNgocSiAiActivatedCommand(phrase)
+        // Gemini tool calls run inside an already-awake AI session. Add the explicit
+        // wake prefix for allowlist validation so sensitive seek/speed commands pass
+        // the same guard as direct voice commands; keep the original phrase for dispatch.
+        val command = classifyNgocSiAiActivatedCommand("AI, $phrase")
             ?: return NgocSiAiToolResult(
                 routed = false,
                 feedback = "Lệnh này không nằm trong danh sách được phép khi điều khiển rảnh tay. Chưa thực hiện thao tác."
