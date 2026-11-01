@@ -149,7 +149,8 @@ internal class NgocSiAiRemoteClient(context: Context) {
                                 "routed" to JsonPrimitive(result.routed),
                                 "app_feedback" to JsonPrimitive(result.feedback.take(MAX_TOOL_FEEDBACK_CHARS))
                             )
-                        )
+                        ),
+                        functionCall.id
                     )
                 }
 
@@ -319,6 +320,63 @@ internal class NgocSiAiRemoteClient(context: Context) {
         // Quota errors trigger a cooldown; there is no automatic paid-model fallback.
         private const val MODEL_NAME = "gemini-3.5-flash-lite"
         private const val MAX_OUTPUT_TOKENS = 256
+        private val SUPPORTED_APP_ACTIONS = listOf(
+            "play",
+            "play_second",
+            "play_track",
+            "pause",
+            "stop",
+            "next",
+            "previous",
+            "current_track",
+            "shuffle_on",
+            "shuffle_off",
+            "repeat_off",
+            "repeat_all",
+            "repeat_one",
+            "open_home",
+            "open_library",
+            "open_favorites",
+            "open_albums",
+            "open_folders",
+            "open_online",
+            "search_online_music",
+            "open_youtube",
+            "search_youtube",
+            "youtube_play",
+            "youtube_pause",
+            "youtube_next",
+            "youtube_previous",
+            "youtube_shuffle_on",
+            "youtube_shuffle_off",
+            "youtube_repeat_off",
+            "youtube_repeat_all",
+            "youtube_repeat_one",
+            "youtube_favorite",
+            "youtube_watch_later",
+            "open_drive",
+            "open_radio",
+            "play_radio_station",
+            "open_tv",
+            "open_tv_channel",
+            "create_playlist",
+            "play_playlist",
+            "add_current_to_playlist",
+            "add_queue_to_playlist",
+            "open_playlists",
+            "open_queue",
+            "open_player",
+            "open_settings",
+            "open_sleep_timer",
+            "sleep_timer_15",
+            "sleep_timer_30",
+            "sleep_timer_45",
+            "sleep_timer_60",
+            "sleep_timer_90",
+            "sleep_timer_120",
+            "cancel_sleep_timer",
+            "help"
+        )
         private const val MAX_TOOL_ROUNDS = 3
         private const val MAX_TOOL_FEEDBACK_CHARS = 900
         private val APP_COMMAND_TOOL = FunctionDeclaration(
@@ -344,8 +402,9 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 Sau khi gọi, phải dựa vào app_feedback: nếu phản hồi chỉ nói đang mở/đang tìm/đã gửi lệnh thì không được khẳng định thao tác đã hoàn tất.
             """.trimIndent(),
             parameters = mapOf(
-                "action" to Schema.string(
-                    "Mã hành động chính xác trong danh sách action của công cụ."
+                "action" to Schema.enumeration(
+                    values = SUPPORTED_APP_ACTIONS,
+                    description = "Mã hành động chính xác trong danh sách được phép."
                 ),
                 "query" to Schema.string(
                     "Tên bài hát, từ khóa tìm kiếm, tên đài, tên kênh hoặc playlist. Để trống nếu không cần."
