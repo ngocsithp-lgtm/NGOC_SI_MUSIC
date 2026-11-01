@@ -11189,6 +11189,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     OutlinedTextField(
                         value = youtubeQuery,
                         onValueChange = ::updateYouTubeQuery,
+                        // Keep a 56dp minimum so Vietnamese dấu and descenders are not clipped.
                         modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
                         singleLine = true,
                         textStyle = androidx.compose.ui.text.TextStyle(
@@ -11338,22 +11339,23 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 )
                             ) {
                                 Row(
-                                    Modifier.fillMaxWidth().padding(10.dp),
+                                    Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    OnlineArtwork(item.thumbnailUrl, Modifier.size(64.dp))
-                                    Spacer(Modifier.width(10.dp))
+                                    OnlineArtwork(item.thumbnailUrl, Modifier.size(48.dp))
+                                    Spacer(Modifier.width(8.dp))
                                     Column(Modifier.weight(1f)) {
                                         Text(
                                             if (youtubePlaybackIsPlaying) "ĐANG PHÁT" else "TIẾP TỤC NGHE",
                                             color = Color(0xFF8FD694),
-                                            fontSize = 9.sp,
+                                            fontSize = 8.sp,
                                             fontWeight = FontWeight.Black
                                         )
                                         Text(
                                             item.title,
                                             color = Color.White,
-                                            fontSize = 13.sp,
+                                            fontSize = 12.sp,
+                                            lineHeight = 16.sp,
                                             fontWeight = FontWeight.Bold,
                                             maxLines = 2,
                                             overflow = TextOverflow.Ellipsis
@@ -11361,24 +11363,25 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         Text(
                                             item.channelTitle + " • " + queuePosition + "/" + queueSize,
                                             color = Color(0xFF8C938D),
-                                            fontSize = 10.sp,
+                                            fontSize = 9.sp,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
                                     }
                                     IconButton(
                                         onClick = { playStoredYouTubeOffset(-1) },
+                                        modifier = Modifier.size(34.dp),
                                         enabled = queuePosition > 1
                                     ) {
                                         Text(
                                             "‹",
                                             color = if (queuePosition > 1) Color.White else Color(0xFF4B4B52),
-                                            fontSize = 24.sp
+                                            fontSize = 21.sp
                                         )
                                     }
                                     Surface(
                                         modifier = Modifier
-                                            .size(42.dp)
+                                            .size(36.dp)
                                             .clip(CircleShape)
                                             .clickable {
                                                 if (youtubePlaybackIsPlaying) {
@@ -11401,12 +11404,13 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     }
                                     IconButton(
                                         onClick = { playStoredYouTubeOffset(1) },
+                                        modifier = Modifier.size(34.dp),
                                         enabled = queuePosition < queueSize
                                     ) {
                                         Text(
                                             "›",
                                             color = if (queuePosition < queueSize) Color.White else Color(0xFF4B4B52),
-                                            fontSize = 24.sp
+                                            fontSize = 21.sp
                                         )
                                     }
                                 }
