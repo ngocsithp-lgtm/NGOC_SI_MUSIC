@@ -640,11 +640,12 @@ class MainActivity : ComponentActivity() {
                     if (track == null) {
                         errorMessage = "Chưa có video YouTube để lưu vào Yêu thích."
                     } else {
-                        toggleYouTubeFavorite(track)
-                        errorMessage = if (youtubeFavoriteSet.contains(track.videoId)) {
-                            "Đã cập nhật Yêu thích YouTube: ${track.title}."
+                        val alreadyFavorite = youtubeFavoriteSet.contains(track.videoId)
+                        if (!alreadyFavorite) toggleYouTubeFavorite(track)
+                        errorMessage = if (alreadyFavorite) {
+                            "Video ${track.title} đã có trong Yêu thích YouTube."
                         } else {
-                            "Đã cập nhật trạng thái Yêu thích YouTube."
+                            "Đã thêm ${track.title} vào Yêu thích YouTube."
                         }
                     }
                 }
@@ -653,8 +654,13 @@ class MainActivity : ComponentActivity() {
                     if (track == null) {
                         errorMessage = "Chưa có video YouTube để lưu Xem sau."
                     } else {
-                        toggleYouTubeWatchLater(track)
-                        errorMessage = "Đã cập nhật Xem sau YouTube: ${track.title}."
+                        val alreadySaved = youtubeWatchLater.any { it.videoId == track.videoId }
+                        if (!alreadySaved) toggleYouTubeWatchLater(track)
+                        errorMessage = if (alreadySaved) {
+                            "Video ${track.title} đã có trong Xem sau."
+                        } else {
+                            "Đã lưu ${track.title} vào Xem sau."
+                        }
                     }
                 }
             }
