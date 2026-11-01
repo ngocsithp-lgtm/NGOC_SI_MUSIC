@@ -1215,26 +1215,35 @@ class NgocSiAiActivity : ComponentActivity() {
         if (action == "current_track") return response
         val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
         val hasSavedVideo = !prefs.getString("youtube_last_played_video_id", null).isNullOrBlank()
-        if (!hasSavedVideo) {
-            return openAppDestination(
+        return when (
+            selectNgocSiAiYouTubeDispatchTarget(
+                hasSavedVideo = hasSavedVideo,
+                livePlayerActivityAvailable = YouTubePlayerActivity.hasLiveInstance()
+            )
+        ) {
+            NgocSiAiYouTubeDispatchTarget.OPEN_YOUTUBE -> openAppDestination(
                 "youtube",
                 "Chưa có video YouTube gần đây để điều khiển. Tôi đã mở YouTube; hãy tìm và phát video trước."
             )
-        }
 
-        // The dedicated fullscreen/background WebView registers this in-app broadcast
-        // receiver for its entire Activity lifetime, including while the AI screen is on top.
-        if (prefs.getBoolean("youtube_player_activity_active", false)) {
-            val sent = runCatching {
-                sendBroadcast(
-                    Intent(YouTubeBackgroundService.ACTION_CONTROL)
-                        .setPackage(packageName)
-                        .putExtra(YouTubeBackgroundService.EXTRA_CONTROL, action)
-                )
-            }.isSuccess
-            if (sent) return response
+            NgocSiAiYouTubeDispatchTarget.LIVE_PLAYER_ACTIVITY -> {
+                // Broadcast only when the Activity is known to exist in this process.
+                // A stale SharedPreferences flag is not proof that its receiver survived
+                // background process reclamation.
+                val sent = runCatching {
+                    sendBroadcast(
+                        Intent(YouTubeBackgroundService.ACTION_CONTROL)
+                            .setPackage(packageName)
+                            .putExtra(YouTubeBackgroundService.EXTRA_CONTROL, action)
+                    )
+                }.isSuccess
+                if (sent) response
+                else openAppDestination("youtube_command", response, youtubeAction = action)
+            }
+
+            NgocSiAiYouTubeDispatchTarget.MAIN_INLINE_PLAYER ->
+                openAppDestination("youtube_command", response, youtubeAction = action)
         }
-        return openAppDestination("youtube_command", response, youtubeAction = action)
     }
 
     private fun youtubeControlResponse(action: String): String = when (action) {
