@@ -1332,11 +1332,21 @@ class NgocSiWakeWordService : Service() {
         if (selectedYouTubeAction != null) {
             return runYouTubeControl(selectedYouTubeAction, hasSavedYouTubeVideo)
         }
+        if (youtubePrefs.getBoolean("youtube_active_source", false) &&
+            command in setOf(
+                NgocSiAiLocalCommand.SET_PLAYBACK_SPEED,
+                NgocSiAiLocalCommand.SEEK_FORWARD_10,
+                NgocSiAiLocalCommand.SEEK_BACK_10
+            )
+        ) {
+            return "Tua và đổi tốc độ từ AI hiện áp dụng cho nhạc điện thoại, Drive và Radio. Hãy dùng điều khiển riêng trong trình phát YouTube."
+        }
 
         val destination = when (command) {
             NgocSiAiLocalCommand.OPEN_HOME -> "home"
             NgocSiAiLocalCommand.OPEN_LIBRARY -> "library"
             NgocSiAiLocalCommand.OPEN_FAVORITES -> "favorites"
+            NgocSiAiLocalCommand.FAVORITE_CURRENT_TRACK -> "favorite_current"
             NgocSiAiLocalCommand.OPEN_ALBUMS -> "albums"
             NgocSiAiLocalCommand.OPEN_FOLDERS -> "folders"
             NgocSiAiLocalCommand.OPEN_ONLINE -> "online"
@@ -1577,7 +1587,10 @@ class NgocSiWakeWordService : Service() {
                 NgocSiAiLocalCommand.PLAY_SECOND,
                 NgocSiAiLocalCommand.NEXT,
                 NgocSiAiLocalCommand.PREVIOUS,
-                NgocSiAiLocalCommand.CURRENT_TRACK ->
+                NgocSiAiLocalCommand.CURRENT_TRACK,
+                NgocSiAiLocalCommand.SET_PLAYBACK_SPEED,
+                NgocSiAiLocalCommand.SEEK_FORWARD_10,
+                NgocSiAiLocalCommand.SEEK_BACK_10 ->
                     "Hàng đợi đang trống. Hãy mở Thư viện và chọn bài nhạc trước."
                 else -> "Chưa có bài nhạc trong hàng đợi để thực hiện lệnh này."
             }
@@ -1611,6 +1624,23 @@ class NgocSiWakeWordService : Service() {
                         player.seekToPreviousMediaItem()
                         "Đã quay lại bài trước"
                     } else "Không có bài trước"
+                }
+                NgocSiAiLocalCommand.SET_PLAYBACK_SPEED -> {
+                    val speed = extractNgocSiAiPlaybackSpeed(originalText)
+                        ?: return "Hãy chọn tốc độ 0.5x, 0.75x, 1.0x, 1.25x, 1.5x, 1.75x hoặc 2.0x."
+                    player.setPlaybackSpeed(speed)
+                    "Đã đặt tốc độ phát ${speed}x"
+                }
+                NgocSiAiLocalCommand.SEEK_FORWARD_10 -> {
+                    val duration = player.duration.takeIf { it > 0L }
+                    val target = (player.currentPosition + 10_000L).coerceAtLeast(0L)
+                        .let { if (duration == null) it else it.coerceAtMost(duration) }
+                    player.seekTo(target)
+                    "Đã tua tiến 10 giây"
+                }
+                NgocSiAiLocalCommand.SEEK_BACK_10 -> {
+                    player.seekTo((player.currentPosition - 10_000L).coerceAtLeast(0L))
+                    "Đã tua lùi 10 giây"
                 }
                 NgocSiAiLocalCommand.CURRENT_TRACK -> {
                     val title = player.currentMediaItem?.mediaMetadata?.title?.toString()
