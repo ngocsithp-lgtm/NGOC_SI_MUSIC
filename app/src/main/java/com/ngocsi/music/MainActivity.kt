@@ -11226,6 +11226,160 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 }
             }
 
+            // Portrait keeps the same saved YouTube queue directly below the inline player.
+            // Landscape already renders this queue in its dedicated right-hand pane.
+            if (!inlineLandscape && !youtubeInlineFullscreen && youtubeInlineTrack != null) {
+                val portraitQueueTracks = if (storedQueueTracks.isNotEmpty()) {
+                    storedQueueTracks
+                } else {
+                    listOfNotNull(youtubeInlineTrack)
+                }
+                item(key = "youtube-portrait-queue-header") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                "HÀNG ĐỢI VIDEO",
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 0.7.sp
+                            )
+                            Text(
+                                "${portraitQueueTracks.size} video • Chạm để chuyển bài",
+                                color = Color(0xFF9298A7),
+                                fontSize = 10.sp
+                            )
+                        }
+                        OutlinedButton(
+                            onClick = {
+                                val firstTrack = portraitQueueTracks.firstOrNull()
+                                if (firstTrack != null) {
+                                    val rawQueue = youtubeLastQueueJson
+                                    if (storedQueueTracks.isNotEmpty() && !rawQueue.isNullOrBlank()) {
+                                        playYouTube(firstTrack, rawQueue, 0)
+                                    } else {
+                                        playYouTube(firstTrack)
+                                    }
+                                }
+                            },
+                            enabled = portraitQueueTracks.isNotEmpty(),
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 5.dp)
+                        ) {
+                            Text("▶ PHÁT TỪ ĐẦU", fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+                itemsIndexed(
+                    items = portraitQueueTracks,
+                    key = { index, track -> "youtube-portrait-queue:${track.videoId}:$index" }
+                ) { index, track ->
+                    val isCurrent = track.videoId == youtubeInlineTrack?.videoId
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().clickable {
+                            val rawQueue = youtubeLastQueueJson
+                            if (storedQueueTracks.isNotEmpty() && !rawQueue.isNullOrBlank()) {
+                                playYouTube(track, rawQueue, index)
+                            } else {
+                                playYouTube(track)
+                            }
+                        },
+                        shape = RoundedCornerShape(13.dp),
+                        color = if (isCurrent) Color(0xFF352027) else Color(0xFF171B24),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            if (isCurrent) Color(0xFF8A3C4A) else Color(0xFF292E39)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OnlineArtwork(
+                                track.thumbnailUrl,
+                                Modifier.size(104.dp, 58.dp).clip(RoundedCornerShape(8.dp))
+                            )
+                            Spacer(Modifier.width(9.dp))
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
+                                if (isCurrent) {
+                                    Text(
+                                        if (youtubePlaybackIsPlaying) "▶ ĐANG PHÁT" else "Ⅱ ĐÃ TẠM DỪNG",
+                                        color = if (youtubePlaybackIsPlaying) Color(0xFFFF8390) else Color(0xFFB5BAC7),
+                                        fontSize = 8.sp,
+                                        fontWeight = FontWeight.Black
+                                    )
+                                } else {
+                                    Text(
+                                        "VIDEO ${index + 1}",
+                                        color = Color(0xFF858B99),
+                                        fontSize = 8.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Text(
+                                    track.title,
+                                    color = Color.White,
+                                    fontSize = 12.sp,
+                                    lineHeight = 16.sp,
+                                    fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    track.channelTitle,
+                                    color = Color(0xFF9298A7),
+                                    fontSize = 10.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            if (isCurrent) {
+                                IconButton(
+                                    onClick = {
+                                        val nextPlaying = !youtubePlaybackIsPlaying
+                                        youtubePlaybackIsPlaying = nextPlaying
+                                        prefs.edit()
+                                            .putBoolean("youtube_active_source", true)
+                                            .putBoolean("youtube_playback_is_playing", nextPlaying)
+                                            .apply()
+                                        if (nextPlaying) {
+                                            playInlineYouTubeWebView()
+                                        } else {
+                                            pauseInlineYouTubeWebView()
+                                        }
+                                        if (inlineBackgroundPlaybackEnabled) {
+                                            updateInlineYouTubeBackgroundService(track, isPlaying = nextPlaying)
+                                        }
+                                    },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Text(
+                                        if (youtubePlaybackIsPlaying) "Ⅱ" else "▶",
+                                        color = if (youtubePlaybackIsPlaying) Color(0xFFFF8390) else Color(0xFF8FD694),
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.Black
+                                    )
+                                }
+                            } else {
+                                Text(
+                                    (index + 1).toString(),
+                                    color = Color(0xFF737A89),
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 5.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             // In landscape with an active inline YouTube player, the sticky header already
             // owns the whole two-pane layout (player left, single result/queue list right).
             // Hide the portrait/discovery LazyColumn items below it to avoid a second
