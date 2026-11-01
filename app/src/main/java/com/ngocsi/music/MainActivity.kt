@@ -4952,6 +4952,25 @@ class MainActivity : ComponentActivity() {
             youtubePlaybackIsPlaying = prefs.getBoolean("youtube_playback_is_playing", false)
             loadYouTubeLibraryState()
             loadYouTubeWatchLater()
+            if (prefs.getBoolean("youtube_inline_fullscreen_handoff_pending", false)) {
+                val returnedVideoId = prefs.getString("youtube_last_played_video_id", null)
+                    .orEmpty()
+                    .filter { it.isLetterOrDigit() || it == '-' || it == '_' }
+                    .take(32)
+                if (returnedVideoId.isNotBlank()) {
+                    val returnedPosition = prefs.getLong("youtube_position_ms_" + returnedVideoId, 0L)
+                        .coerceIn(0L, 86_400_000L)
+                    prefs.edit()
+                        .putLong("youtube_inline_position_ms_" + returnedVideoId, returnedPosition)
+                        .putBoolean("youtube_inline_fullscreen_handoff_pending", false)
+                        .putBoolean("youtube_inline_resume_position_after_fullscreen", true)
+                        .apply()
+                } else {
+                    prefs.edit()
+                        .putBoolean("youtube_inline_fullscreen_handoff_pending", false)
+                        .apply()
+                }
+            }
         }
 
         // Re-synchronize the Activity with Media3 after returning from the
@@ -9093,13 +9112,52 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 // video, which can reset playback or briefly blank the video surface.
                 val inlineTrack = youtubeInlineTrack
                 if (youtubeInlineWebView != null && inlineTrack?.videoId == track.videoId) {
-                    playInlineYouTubeWebView()
+                    val resumeFromFullscreen = prefs.getBoolean(
+                        "youtube_inline_resume_position_after_fullscreen", false
+                    )
+                    if (resumeFromFullscreen) {
+                        val safeId = track.videoId
+                            .filter { it.isLetterOrDigit() || it == '-' || it == '_' }
+                            .take(32)
+                        val positionMs = prefs.getLong(
+                            "youtube_inline_position_ms_" + safeId, 0L
+                        ).coerceIn(0L, 86_400_000L)
+                        val seconds = positionMs / 1000.0
+                        youtubeInlineWebView?.evaluateJavascript(
+                            """
+                            (function() {
+                              try {
+                                var p = window.player;
+                                if (p && typeof p.playVideo === 'function') {
+                                  if (typeof p.seekTo === 'function') p.seekTo($seconds, true);
+                                  p.unMute();
+                                  p.setVolume(100);
+                                  p.playVideo();
+                                  return 'INLINE_RESUMED_FROM_FULLSCREEN';
+                                }
+                              } catch (_) {}
+                              return 'INLINE_PLAYER_NOT_READY';
+                            })();
+                            """.trimIndent(),
+                            null
+                        )
+                        prefs.edit()
+                            .remove("youtube_inline_resume_position_after_fullscreen")
+                            .apply()
+                    } else {
+                        playInlineYouTubeWebView()
+                    }
                     youtubePlaybackIsPlaying = true
                     prefs.edit()
                         .putBoolean("youtube_active_source", true)
                         .putBoolean("youtube_playback_is_playing", true)
                         .apply()
                     return
+                }
+                if (prefs.getBoolean("youtube_inline_resume_position_after_fullscreen", false)) {
+                    prefs.edit()
+                        .remove("youtube_inline_resume_position_after_fullscreen")
+                        .apply()
                 }
             }
             "pause", "tạm dừng", "dừng" -> {
@@ -9702,72 +9760,111 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         }
     }
 
+    /**
+     * The inline screen uses the IFrame Player API. Resizing that cross-origin iframe
+     * with a CSS-only 100vw/100vh fallback can leave the video renderer black on Android.
+     * Hand explicit fullscreen to the in-app mobile-watch WebView player instead; that
+     * Activity keeps its WebView attached and owns the tested native fullscreen lifecycle.
+     */
     private fun enterInlineYouTubeFullscreen() {
         val track = youtubeInlineTrack
-        val view = youtubeInlineWebView
-        if (track == null || view == null) {
+        if (track == null) {
             errorMessage = "Chưa có video YouTube đang mở trong khung phát."
             return
         }
-        if (youtubeInlineFullscreen || inlineFullscreenCustomViewVisible ||
-            inlineFullscreenRequestPending
-        ) return
+        val view = youtubeInlineWebView
+        if (view == null) {
+            errorMessage = "Trình phát YouTube chưa sẵn sàng."
+            return
+        }
 
-        // Request the official HTML5 fullscreen surface first. WebChromeClient will attach
-        // Chromium's real video surface over this same Activity, avoiding CSS-only video
-        // stretching that can leave sound playing while the picture turns black.
-        inlineFullscreenRequestPending = true
-        val generation = ++inlineFullscreenRequestGeneration
+        val safeId = track.videoId.filter { it.isLetterOrDigit() || it == '-' || it == '_' }.take(32)
+        if (safeId.isBlank()) {
+            errorMessage = "Mã video YouTube không hợp lệ."
+            return
+        }
+
+        val (queueJson, queueIndex) = if (
+            youtubeLastPlayed?.videoId == track.videoId &&
+            !youtubeLastQueueJson.isNullOrBlank()
+        ) {
+            youtubeLastQueueJson!! to youtubeLastQueueIndex
+        } else {
+            buildYouTubeQueueJson(track)
+        }
+        val fallbackPositionMs = prefs.getLong("youtube_inline_position_ms_" + safeId, 0L)
+            .coerceIn(0L, 86_400_000L)
+        val wasPlaying = youtubePlaybackIsPlaying ||
+            prefs.getBoolean("youtube_playback_is_playing", false)
+
+        // Read the exact IFrame clock and pause it before opening the second in-app
+        // WebView. This prevents two YouTube surfaces from producing audio together.
         view.evaluateJavascript(
             """
             (function() {
               try {
-                if (window.__ngocSiInlineIframeApi === true) return 'UNAVAILABLE';
-              } catch (_) {}
-              try {
-                var button = document.querySelector('.ytp-fullscreen-button') ||
-                             document.querySelector('[aria-label*="full screen" i]') ||
-                             document.querySelector('[aria-label*="toàn màn hình" i]');
-                if (button) {
-                  button.click();
-                  return 'BUTTON_CLICKED';
-                }
-              } catch (_) {}
-              try {
-                var video = document.querySelector('video.html5-main-video') ||
-                            document.querySelector('video');
-                if (video && typeof video.requestFullscreen === 'function') {
-                  var result = video.requestFullscreen();
-                  if (result && typeof result.catch === 'function') result.catch(function() {});
-                  return 'REQUESTED';
-                }
-              } catch (_) {}
-              return 'UNAVAILABLE';
+                var p = window.player;
+                var seconds = p && typeof p.getCurrentTime === 'function'
+                  ? Number(p.getCurrentTime()) : NaN;
+                if (p && typeof p.pauseVideo === 'function') p.pauseVideo();
+                return isFinite(seconds) && seconds >= 0
+                  ? Math.floor(seconds * 1000) : -1;
+              } catch (_) { return -1; }
             })();
             """.trimIndent()
-        ) { result ->
-            if (isFinishing || isDestroyed ||
-                generation != inlineFullscreenRequestGeneration ||
-                !inlineFullscreenRequestPending
-            ) return@evaluateJavascript
+        ) { rawPosition ->
+            if (isFinishing || isDestroyed || youtubeInlineTrack?.videoId != safeId) return@evaluateJavascript
+            val positionMs = rawPosition?.trim()?.trim('"')?.toLongOrNull()
+                ?.takeIf { it >= 0L }
+                ?.coerceAtMost(86_400_000L)
+                ?: fallbackPositionMs
 
-            if (result.orEmpty().contains("UNAVAILABLE")) {
-                inlineFullscreenRequestPending = false
-                enterInlineCssFullscreenFallback(view)
-            } else {
-                // requestFullscreen can be rejected asynchronously by some YouTube variants.
-                // If Chromium did not supply a CustomView, use the fitted 16:9 CSS fallback.
-                view.postDelayed({
-                    if (!isFinishing && !isDestroyed &&
-                        generation == inlineFullscreenRequestGeneration &&
-                        inlineFullscreenRequestPending &&
-                        !inlineFullscreenCustomViewVisible &&
-                        !youtubeInlineFullscreen
-                    ) {
-                        inlineFullscreenRequestPending = false
-                        enterInlineCssFullscreenFallback(view)
-                    }
-                }, 1200L)
+            prefs.edit()
+                .putLong("youtube_inline_position_ms_" + safeId, positionMs)
+                .putLong("youtube_position_ms_" + safeId, positionMs)
+                .putBoolean("youtube_inline_fullscreen_handoff_pending", true)
+                .putBoolean("youtube_inline_resume_position_after_fullscreen", false)
+                .putBoolean("youtube_active_source", true)
+                .putBoolean("youtube_playback_is_playing", false)
+                .apply()
+            youtubePlaybackIsPlaying = false
+
+            val fullscreenIntent = Intent(this, YouTubePlayerActivity::class.java).apply {
+                putExtra(YouTubePlayerActivity.EXTRA_VIDEO_ID, track.videoId)
+                putExtra(YouTubePlayerActivity.EXTRA_TITLE, track.title)
+                putExtra(YouTubePlayerActivity.EXTRA_CHANNEL, track.channelTitle)
+                putExtra(YouTubePlayerActivity.EXTRA_QUEUE_JSON, queueJson)
+                putExtra(YouTubePlayerActivity.EXTRA_QUEUE_INDEX, queueIndex)
+                putExtra(YouTubePlayerActivity.EXTRA_START_FULLSCREEN, true)
+                if (!wasPlaying) {
+                    putExtra(YouTubePlayerActivity.EXTRA_START_PAUSED, true)
+                }
+            }
+
+            runCatching {
+                startActivity(fullscreenIntent)
+            }.onFailure { error ->
+                prefs.edit()
+                    .putBoolean("youtube_inline_fullscreen_handoff_pending", false)
+                    .apply()
+                val seconds = positionMs / 1000.0
+                view.evaluateJavascript(
+                    """
+                    (function() {
+                      try {
+                        var p = window.player;
+                        if (!p) return;
+                        if (typeof p.seekTo === 'function') p.seekTo($seconds, true);
+                        if ($wasPlaying && typeof p.playVideo === 'function') p.playVideo();
+                      } catch (_) {}
+                    })();
+                    """.trimIndent(),
+                    null
+                )
+                youtubePlaybackIsPlaying = wasPlaying
+                prefs.edit().putBoolean("youtube_playback_is_playing", wasPlaying).apply()
+                errorMessage = "Không mở được trình phát toàn màn hình trong ứng dụng: " +
+                    (error.message ?: "lỗi không xác định")
             }
         }
     }
