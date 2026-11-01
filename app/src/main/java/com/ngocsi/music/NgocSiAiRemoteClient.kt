@@ -404,7 +404,8 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 query chứa tên bài hát, từ khóa tìm kiếm, tên đài, kênh hoặc playlist khi action cần dữ liệu đó.
                 Không tự đoán tên bài, đài, kênh hay playlist nếu người dùng chưa nêu; hãy hỏi lại.
                 Không có action xóa dữ liệu, xóa playlist, xóa thư viện, thay đổi quyền, đăng nhập tài khoản hoặc thanh toán.
-                set_playback_speed chỉ nhận query là 0.5, 0.75, 1.0, 1.25, 1.5, 1.75 hoặc 2.0; seek chỉ tua 10 giây; hai chức năng này áp dụng cho nhạc thiết bị, Drive và Radio qua Media3, không tự ý áp dụng lên YouTube. favorite_current_track chỉ thêm bài hiện tại vào Yêu thích, không xóa khỏi danh sách.
+                set_playback_speed chỉ nhận query là 0.5, 0.75, 1.0, 1.25, 1.5, 1.75 hoặc 2.0; seek chỉ tua 10 giây; hai chức năng này áp dụng cho nhạc thiết bị, Drive và Radio qua Media3, không tự ý áp dụng lên YouTube.
+                Các action shuffle_on/off và repeat_off/all/one điều khiển Media3; khi nguồn phát là YouTube phải dùng youtube_shuffle_on/off và youtube_repeat_off/all/one. favorite_current_track chỉ thêm bài hiện tại vào Yêu thích, không xóa khỏi danh sách.
                 Sau khi gọi, phải dựa vào app_feedback: nếu phản hồi chỉ nói đang mở/đang tìm/đã gửi lệnh thì không được khẳng định thao tác đã hoàn tất.
             """.trimIndent(),
             parameters = mapOf(
@@ -432,6 +433,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
             "Văn bản có thể đọc thành tiếng: dùng câu ngắn, dấu câu tự nhiên; tránh Markdown, dấu sao, lời dẫn thừa và lặp tên 'Ngọc Sĩ' ở mọi câu. " +
             "Hướng dẫn Android theo các bước dễ làm trên điện thoại. Khi người dùng yêu cầu thao tác trong NGỌC SĨ MUSIC mà câu nói chưa được bộ lệnh cục bộ nhận diện, hãy dùng execute_app_command với action trong danh sách cho phép. " +
             "Chỉ dùng công cụ cho yêu cầu hành động rõ ràng, không dùng cho câu hỏi, gợi ý hoặc trò chuyện thông thường. Hỏi lại khi thiếu tên bài, từ khóa, đài, kênh, playlist hoặc tốc độ phát cần thiết. " +
+            "Với YouTube, dùng các action youtube_shuffle/youtube_repeat; action shuffle/repeat không có tiền tố youtube chỉ dành cho Media3. Đổi tốc độ/tua chỉ áp dụng cho Media3, không áp dụng YouTube. " +
             "Sau khi công cụ trả về, xem app_feedback là phản hồi thật của ứng dụng; routed chỉ cho biết lệnh đã được chuyển tới bộ điều khiển, không đồng nghĩa nhạc đã phát hoặc thao tác đã hoàn tất. " +
             "Nếu phản hồi nói đang mở/đang tìm/đang tải/đã gửi lệnh, hãy diễn đạt đúng trạng thái đó; nếu báo không tìm thấy, không có, lỗi hoặc chưa kết nối thì phải nói rõ, tuyệt đối không giả nhận thành công. " +
             "Không được gọi action ngoài danh sách, không được yêu cầu ứng dụng xóa dữ liệu, xóa playlist, xóa thư viện, đổi quyền hoặc thanh toán. " +
