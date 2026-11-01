@@ -11050,7 +11050,9 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                             onDone = { searchYouTube() }
                                         )
                                     )
-                                    YouTubeGenreSuggestions(compact = true)
+                                    YouTubeGenreSuggestions(compact = true) {
+                                        landscapePaneTab = "results"
+                                    }
     
                                 }
                                 if (youtubeLoading) {
@@ -11397,7 +11399,9 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             )
                         )
                         if (!showingPortraitQueue) {
-                            YouTubeGenreSuggestions(compact = true)
+                            YouTubeGenreSuggestions(compact = true) {
+                                landscapePaneTab = "results"
+                            }
                         }
                         if (youtubeLoading) {
                             LinearProgressIndicator(
@@ -12058,7 +12062,10 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
     }
 
     @Composable
-    private fun YouTubeGenreSuggestions(compact: Boolean = false) {
+    private fun YouTubeGenreSuggestions(
+        compact: Boolean = false,
+        onGenreSelected: () -> Unit = {}
+    ) {
         val genres = listOf(
             "Bolero",
             "Nhạc vàng",
@@ -12094,7 +12101,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             .clip(RoundedCornerShape(10.dp))
                             .clickable(enabled = !youtubeLoading) {
                                 youtubeShelf = "Khám phá"
-                                landscapePaneTab = "results"
+                                onGenreSelected()
                                 youtubeQuery = genre
                                 searchYouTube()
                             },
