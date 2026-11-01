@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.ComponentName
 import android.media.AudioFormat
+import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.content.Context
@@ -1348,7 +1349,35 @@ class NgocSiWakeWordService : Service() {
 
     private fun runAppCommand(command: NgocSiAiLocalCommand, originalText: String): String {
         if (command == NgocSiAiLocalCommand.HELP) {
-            return "Tôi có thể điều khiển nhạc điện thoại và YouTube riêng biệt; phát bài theo tên; đổi tốc độ 0.5x–2.0x và tua 10 giây với nhạc điện thoại/Drive/Radio; tìm nhạc trên Jamendo, Audius và YouTube; mở thư viện, Drive, từng đài Radio, kênh TV; tạo/phát playlist; điều chỉnh phát ngẫu nhiên, lặp, hẹn giờ, lưu bài đang phát vào Yêu thích và lưu video YouTube xem sau."
+            return "Tôi có thể điều khiển phát nhạc, chuyển bài, tua, chỉnh tốc độ và âm lượng media; điều khiển YouTube; tìm nhạc; mở thư viện, Drive, Radio, TV; quản lý playlist, phát ngẫu nhiên, chế độ lặp và hẹn giờ."
+        }
+
+        val volumeDirection = when (command) {
+            NgocSiAiLocalCommand.VOLUME_UP -> AudioManager.ADJUST_RAISE
+            NgocSiAiLocalCommand.VOLUME_DOWN -> AudioManager.ADJUST_LOWER
+            NgocSiAiLocalCommand.MUTE -> AudioManager.ADJUST_MUTE
+            NgocSiAiLocalCommand.UNMUTE -> AudioManager.ADJUST_UNMUTE
+            else -> null
+        }
+        if (volumeDirection != null) {
+            return runCatching {
+                val audioManager = getSystemService(AudioManager::class.java)
+                    ?: return@runCatching "Không truy cập được điều khiển âm lượng của điện thoại."
+                audioManager.adjustStreamVolume(
+                    AudioManager.STREAM_MUSIC,
+                    volumeDirection,
+                    AudioManager.FLAG_SHOW_UI
+                )
+                when (command) {
+                    NgocSiAiLocalCommand.VOLUME_UP -> "Đã gửi lệnh tăng âm lượng media."
+                    NgocSiAiLocalCommand.VOLUME_DOWN -> "Đã gửi lệnh giảm âm lượng media."
+                    NgocSiAiLocalCommand.MUTE -> "Đã gửi lệnh tắt tiếng media."
+                    NgocSiAiLocalCommand.UNMUTE -> "Đã gửi lệnh bật tiếng media."
+                    else -> "Đã gửi lệnh điều chỉnh âm lượng."
+                }
+            }.getOrElse {
+                "Không thể điều chỉnh âm lượng media trên thiết bị này."
+            }
         }
 
         val youtubePrefs = getSharedPreferences("ngoc_si_music", Context.MODE_PRIVATE)

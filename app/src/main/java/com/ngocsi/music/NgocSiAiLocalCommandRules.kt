@@ -31,6 +31,10 @@ internal enum class NgocSiAiLocalCommand {
     NEXT,
     PREVIOUS,
     CURRENT_TRACK,
+    VOLUME_UP,
+    VOLUME_DOWN,
+    MUTE,
+    UNMUTE,
     SET_PLAYBACK_SPEED,
     SEEK_FORWARD_10,
     SEEK_BACK_10,
@@ -230,6 +234,10 @@ private val NGOC_SI_AI_WAKE_WORD_COMMANDS = setOf(
     NgocSiAiLocalCommand.YOUTUBE_FAVORITE,
     NgocSiAiLocalCommand.YOUTUBE_WATCH_LATER,
     NgocSiAiLocalCommand.CURRENT_TRACK,
+    NgocSiAiLocalCommand.VOLUME_UP,
+    NgocSiAiLocalCommand.VOLUME_DOWN,
+    NgocSiAiLocalCommand.MUTE,
+    NgocSiAiLocalCommand.UNMUTE,
     NgocSiAiLocalCommand.SET_PLAYBACK_SPEED,
     NgocSiAiLocalCommand.SEEK_FORWARD_10,
     NgocSiAiLocalCommand.SEEK_BACK_10,
@@ -560,6 +568,19 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
         """^(?:dat )?toc do phat (0 5|0 75|1 0|1 25|1 5|1 75|2 0)x?$"""
     ).matchEntire(phrase)
     if (speedMatch != null) return NgocSiAiLocalCommand.SET_PLAYBACK_SPEED
+
+    // Explicit system media-volume controls. Keep these phrases narrow so ordinary
+    // questions about sound or audio quality do not trigger device-wide changes.
+    when {
+        startsWithAny("tang am luong", "tang tieng", "mo to am luong", "volume up", "increase volume", "raise volume", "louder") ->
+            return NgocSiAiLocalCommand.VOLUME_UP
+        startsWithAny("giam am luong", "giam tieng", "nho tieng", "volume down", "decrease volume", "lower volume", "quieter") ->
+            return NgocSiAiLocalCommand.VOLUME_DOWN
+        startsWithAny("tat tieng", "tat am thanh", "mute", "mute audio", "turn sound off") ->
+            return NgocSiAiLocalCommand.MUTE
+        startsWithAny("bat tieng", "mo tieng", "bat am thanh", "unmute", "turn sound on") ->
+            return NgocSiAiLocalCommand.UNMUTE
+    }
 
     return when {
         startsWithAny(
@@ -1185,6 +1206,10 @@ internal fun buildNgocSiAiToolCommandPhrase(action: String, query: String = ""):
         "next" -> "chuyển bài"
         "previous" -> "bài trước"
         "current_track" -> "đang phát bài gì"
+        "volume_up" -> "tăng âm lượng"
+        "volume_down" -> "giảm âm lượng"
+        "mute" -> "tắt tiếng"
+        "unmute" -> "bật tiếng"
         "set_playback_speed" -> {
             val speed = safeQuery.trim().lowercase(Locale.ROOT).removeSuffix("x").replace(',', '.')
             if (speed !in setOf("0.5", "0.75", "1.0", "1.25", "1.5", "1.75", "2.0")) return null

@@ -330,6 +330,10 @@ internal class NgocSiAiRemoteClient(context: Context) {
             "next",
             "previous",
             "current_track",
+            "volume_up",
+            "volume_down",
+            "mute",
+            "unmute",
             "set_playback_speed",
             "seek_forward_10",
             "seek_back_10",
@@ -393,6 +397,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 Chỉ gọi khi người dùng thực sự muốn thực hiện thao tác, không gọi khi họ chỉ hỏi cách làm hoặc hỏi thông tin.
                 action phải là một trong các mã sau:
                 play, play_second, play_track, pause, stop, next, previous, current_track,
+                volume_up, volume_down, mute, unmute,
                 set_playback_speed, seek_forward_10, seek_back_10, favorite_current_track,
                 shuffle_on, shuffle_off, repeat_off, repeat_all, repeat_one,
                 open_home, open_library, open_favorites, open_albums, open_folders, open_online,
@@ -410,6 +415,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 Không có action xóa dữ liệu, xóa playlist, xóa thư viện, thay đổi quyền, đăng nhập tài khoản hoặc thanh toán.
                 set_playback_speed chỉ áp dụng cho nhạc thiết bị, Drive và Radio qua Media3; không tự ý áp dụng tốc độ Media3 lên YouTube.
                 seek_forward_10/seek_back_10 tua 10 giây theo nguồn đang phát. Nếu người dùng nói rõ YouTube, hãy dùng youtube_seek_forward_10 hoặc youtube_seek_back_10.
+                volume_up, volume_down, mute và unmute điều chỉnh âm lượng media của Android, áp dụng cho nguồn đang phát trên thiết bị; không cần hàng đợi Media3.
                 Các action shuffle_on/off và repeat_off/all/one điều khiển Media3; khi nguồn phát là YouTube phải dùng youtube_shuffle_on/off và youtube_repeat_off/all/one. favorite_current_track chỉ thêm bài hiện tại vào Yêu thích, không xóa khỏi danh sách.
                 Sau khi gọi, phải dựa vào app_feedback: nếu phản hồi chỉ nói đang mở/đang tìm/đã gửi lệnh thì không được khẳng định thao tác đã hoàn tất.
             """.trimIndent(),
@@ -440,6 +446,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
             "Văn bản có thể đọc thành tiếng: dùng câu ngắn, dấu câu tự nhiên; tránh Markdown, dấu sao, lời dẫn thừa và lặp tên 'Ngọc Sĩ' ở mọi câu. " +
             "Hướng dẫn Android theo các bước dễ làm trên điện thoại. Khi người dùng yêu cầu thao tác trong NGỌC SĨ MUSIC mà câu nói chưa được bộ lệnh cục bộ nhận diện, hãy dùng execute_app_command với action trong danh sách cho phép. " +
             "Chỉ dùng công cụ cho yêu cầu hành động rõ ràng, không dùng cho câu hỏi, gợi ý hoặc trò chuyện thông thường. Hỏi lại khi thiếu tên bài, từ khóa, đài, kênh, playlist hoặc tốc độ phát cần thiết. " +
+            "Khi người dùng muốn tăng/giảm âm lượng hoặc tắt/bật tiếng, dùng volume_up, volume_down, mute hoặc unmute; đây là âm lượng media hệ thống Android và dùng chung cho YouTube, nhạc máy, Drive và Radio. " +
             "Khi người dùng nhắc YouTube hoặc video YouTube, hãy dùng youtube_play, youtube_pause, youtube_next, youtube_previous, youtube_seek_forward_10 hoặc youtube_seek_back_10 tương ứng; không dùng action chung cho yêu cầu đã nêu rõ YouTube. Nếu người dùng nói 'tiếp theo', 'chuyển bài' hoặc 'bài trước' và ngữ cảnh gần nhất đang phát YouTube, phải giữ nguồn YouTube; không biến lệnh chuyển video đang phát thành lệnh tìm kiếm. " +
             "Với YouTube, dùng các action youtube_shuffle/youtube_repeat; action shuffle/repeat không có tiền tố youtube chỉ dành cho Media3. Đổi tốc độ chỉ áp dụng cho Media3; tua 10 giây trên YouTube dùng action youtube_seek riêng. " +
             "Sau khi công cụ trả về, xem app_feedback là phản hồi thật của ứng dụng; routed chỉ cho biết lệnh đã được chuyển tới bộ điều khiển, không đồng nghĩa nhạc đã phát hoặc thao tác đã hoàn tất. " +

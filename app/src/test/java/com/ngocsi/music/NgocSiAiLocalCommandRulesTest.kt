@@ -7,6 +7,33 @@ import org.junit.Test
 class NgocSiAiLocalCommandRulesTest {
 
     @Test
+    fun recognizesSafeMediaVolumeCommandsInWakeWordSessions() {
+        assertEquals(NgocSiAiLocalCommand.VOLUME_UP, classifyNgocSiAiLocalCommand("Tăng âm lượng"))
+        assertEquals(NgocSiAiLocalCommand.VOLUME_UP, classifyNgocSiAiWakePhrase("AI, tăng tiếng lên"))
+        assertEquals(NgocSiAiLocalCommand.VOLUME_DOWN, classifyNgocSiAiWakePhrase("AI, giảm âm lượng"))
+        assertEquals(NgocSiAiLocalCommand.MUTE, classifyNgocSiAiWakePhrase("AI, tắt tiếng"))
+        assertEquals(NgocSiAiLocalCommand.UNMUTE, classifyNgocSiAiActivatedCommand("AI, bật tiếng"))
+        assertNull(classifyNgocSiAiWakePhrase("Tăng âm lượng"))
+        assertEquals(false, ngocSiAiCommandRequiresPlayerConnection(NgocSiAiLocalCommand.VOLUME_UP))
+        assertEquals(false, ngocSiAiCommandRequiresPlayerConnection(NgocSiAiLocalCommand.MUTE))
+    }
+
+    @Test
+    fun geminiVolumeActionsMapToTheSameAllowlistedLocalCommands() {
+        val actions = listOf(
+            "volume_up" to NgocSiAiLocalCommand.VOLUME_UP,
+            "volume_down" to NgocSiAiLocalCommand.VOLUME_DOWN,
+            "mute" to NgocSiAiLocalCommand.MUTE,
+            "unmute" to NgocSiAiLocalCommand.UNMUTE
+        )
+        actions.forEach { (action, expected) ->
+            val phrase = buildNgocSiAiToolCommandPhrase(action)
+            assertEquals(expected, classifyNgocSiAiActivatedCommand("AI, $phrase"))
+        }
+        assertNull(buildNgocSiAiToolCommandPhrase("volume_set"))
+    }
+
+    @Test
     fun waitsForTheLivePlayerOnlyForDirectPlaybackControls() {
         assertEquals(
             true,
