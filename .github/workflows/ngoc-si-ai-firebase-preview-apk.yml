@@ -145,6 +145,54 @@ jobs:
       - name: Build debug preview APK only
         run: gradle :app:assembleDebug --no-daemon
 
+      - name: Verify native ELF and APK 16 KB alignment
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          ZIPALIGN="$(find "$ANDROID_HOME/build-tools" -type f -name zipalign -print -quit)"
+          test -n "$ZIPALIGN"
+          "$ZIPALIGN" -c -P 16 -v 4 "$APK"
+          python3 - "$APK" <<'PY'
+          import pathlib
+          import struct
+          import sys
+          import zipfile
+
+          apk = pathlib.Path(sys.argv[1])
+          checked = 0
+          with zipfile.ZipFile(apk) as archive:
+              native_libs = [name for name in archive.namelist()
+                             if name.startswith("lib/") and name.endswith(".so")]
+              if not native_libs:
+                  raise SystemExit("No native shared libraries were found to verify.")
+              for name in native_libs:
+                  data = archive.read(name)
+                  if len(data) < 64 or data[:4] != b"\\x7fELF":
+                      raise SystemExit(f"{name}: invalid ELF file")
+                  if data[4] != 2 or data[5] != 1:
+                      raise SystemExit(f"{name}: expected ELF64 little-endian Android library")
+                  phoff = struct.unpack_from("<Q", data, 32)[0]
+                  phentsize = struct.unpack_from("<H", data, 54)[0]
+                  phnum = struct.unpack_from("<H", data, 56)[0]
+                  if phentsize < 56 or phoff + phentsize * phnum > len(data):
+                      raise SystemExit(f"{name}: invalid ELF program-header table")
+                  loads = []
+                  for index in range(phnum):
+                      header = struct.unpack_from("<IIQQQQQQ", data, phoff + index * phentsize)
+                      if header[0] == 1:  # PT_LOAD
+                          loads.append(header[7])
+                  if not loads:
+                      raise SystemExit(f"{name}: no PT_LOAD segments")
+                  if any(alignment < 16384 for alignment in loads):
+                      raise SystemExit(
+                          f"{name}: incompatible PT_LOAD alignment(s): {loads}"
+                      )
+                  print(f"16 KB ELF PASS: {name} ({len(loads)} LOAD segments)")
+                  checked += 1
+          print(f"Verified {checked} native libraries for 16 KB ELF alignment.")
+          PY
+
       - name: Verify package and version are isolated from production
         shell: bash
         run: |
