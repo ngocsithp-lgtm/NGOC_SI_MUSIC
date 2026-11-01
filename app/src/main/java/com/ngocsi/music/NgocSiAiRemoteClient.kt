@@ -8,6 +8,14 @@ import com.google.firebase.ai.type.GenerativeBackend
 import com.google.firebase.ai.type.ThinkingLevel
 import com.google.firebase.ai.type.content
 import com.google.firebase.ai.type.generationConfig
+import com.google.firebase.ai.type.FunctionDeclaration
+import com.google.firebase.ai.type.FunctionResponsePart
+import com.google.firebase.ai.type.Schema
+import com.google.firebase.ai.type.Tool
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonPrimitive
 import com.google.firebase.ai.type.thinkingConfig
 import com.google.firebase.appcheck.FirebaseAppCheck
 import com.google.firebase.appcheck.debug.DebugAppCheckProviderFactory
@@ -28,6 +36,19 @@ internal data class NgocSiAiReply(
     val remainingGlobalToday: Int? = null,
     val usedFallbackModel: Boolean = false
 )
+ 
+internal data class NgocSiAiToolResult(
+    /** True means the app's allowlisted command router accepted and dispatched this action. */
+    val routed: Boolean,
+    /** Exact feedback returned by the app command handler; it is not a playback-state guarantee. */
+    val feedback: String
+)
+
+internal typealias NgocSiAiToolExecutor =
+    suspend (action: String, query: String) -> NgocSiAiToolResult
+
+internal typealias NgocSiAiRequest =
+    suspend (messages: List<NgocSiAiMessage>, executeTool: NgocSiAiToolExecutor) -> NgocSiAiReply
 
 /**
  * Optional Firebase AI Logic client for the isolated NGỌC SĨ AI preview.
@@ -47,10 +68,17 @@ internal class NgocSiAiRemoteClient(context: Context) {
 
     // Chat UI and hands-free voice can create separate clients. Serialize all calls so
     // a second request re-checks the persisted cooldown after the first request fails.
-    suspend fun send(messages: List<NgocSiAiMessage>): NgocSiAiReply =
-        REMOTE_REQUEST_MUTEX.withLock { sendSerialized(messages) }
+    suspend fun send(
+        messages: List<NgocSiAiMessage>,
+        executeTool: NgocSiAiToolExecutor
+    ): NgocSiAiReply = REMOTE_REQUEST_MUTEX.withLock {
+        sendSerialized(messages, executeTool)
+    }
 
-    private suspend fun sendSerialized(messages: List<NgocSiAiMessage>): NgocSiAiReply {
+    private suspend fun sendSerialized(
+        messages: List<NgocSiAiMessage>,
+        executeTool: NgocSiAiToolExecutor
+    ): NgocSiAiReply {
         val app = firebaseApp
             ?: throw NgocSiAiRemoteException("Firebase AI Logic chưa được cấu hình cho bản thử này.")
 
@@ -83,12 +111,59 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 GenerativeBackend.googleAI(),
                 /* useLimitedUseAppCheckTokens = */ true
             )
-            val response = firebaseAi.generativeModel(
+            val model = firebaseAi.generativeModel(
                 modelName = MODEL_NAME,
                 generationConfig = RESPONSE_GENERATION_CONFIG,
-                systemInstruction = content { text(SYSTEM_INSTRUCTIONS) }
-            ).startChat(history = previousTurns).sendMessage(newestUserMessage.content)
+                systemInstruction = content { text(SYSTEM_INSTRUCTIONS) },
+                tools = listOf(Tool.functionDeclarations(listOf(APP_COMMAND_TOOL)))
+            )
+            val chat = model.startChat(history = previousTurns)
+            var response = chat.sendMessage(newestUserMessage.content)
 
+            // Gemini only proposes structured actions. The app validates and executes
+            // each action through its own allowlisted router, then returns the exact app
+            // feedback so the model can phrase a truthful response for the user.
+            var toolRound = 0
+            while (response.functionCalls.isNotEmpty() && toolRound < MAX_TOOL_ROUNDS) {
+                val functionResponses = mutableListOf<FunctionResponsePart>()
+                for (functionCall in response.functionCalls) {
+                    val action = functionCall.args["action"]?.jsonPrimitive?.contentOrNull.orEmpty()
+                    val query = functionCall.args["query"]?.jsonPrimitive?.contentOrNull.orEmpty()
+                    val result = if (functionCall.name == APP_COMMAND_TOOL.name && action.isNotBlank()) {
+                        runCatching { executeTool(action, query) }.getOrElse {
+                            NgocSiAiToolResult(
+                                routed = false,
+                                feedback = "Ứng dụng chưa thực hiện được lệnh này. Vui lòng thử lại."
+                            )
+                        }
+                    } else {
+                        NgocSiAiToolResult(
+                            routed = false,
+                            feedback = "Lệnh không nằm trong danh sách chức năng AI được phép điều khiển."
+                        )
+                    }
+                    functionResponses += FunctionResponsePart(
+                        functionCall.name,
+                        JsonObject(
+                            mapOf(
+                                "routed" to JsonPrimitive(result.routed),
+                                "app_feedback" to JsonPrimitive(result.feedback.take(MAX_TOOL_FEEDBACK_CHARS))
+                            )
+                        )
+                    )
+                }
+
+                response = chat.sendMessage(content("user") {
+                    functionResponses.forEach { functionResponse -> part(functionResponse) }
+                })
+                toolRound++
+            }
+
+            if (response.functionCalls.isNotEmpty()) {
+                throw NgocSiAiRemoteException(
+                    "AI đã nhận yêu cầu nhưng chưa hoàn tất chuỗi thao tác. Hãy mô tả lại thành một yêu cầu ngắn hơn."
+                )
+            }
             val answer = response.text?.trim()
             if (answer.isNullOrBlank()) {
                 throw NgocSiAiRemoteException("Firebase AI Logic chưa trả về câu trả lời. Vui lòng thử lại.")
@@ -244,6 +319,40 @@ internal class NgocSiAiRemoteClient(context: Context) {
         // Quota errors trigger a cooldown; there is no automatic paid-model fallback.
         private const val MODEL_NAME = "gemini-3.5-flash-lite"
         private const val MAX_OUTPUT_TOKENS = 256
+        private const val MAX_TOOL_ROUNDS = 3
+        private const val MAX_TOOL_FEEDBACK_CHARS = 900
+        private val APP_COMMAND_TOOL = FunctionDeclaration(
+            name = "execute_app_command",
+            description = """
+                Điều khiển các chức năng được phép của ứng dụng NGỌC SĨ MUSIC theo yêu cầu rõ ràng của người dùng.
+                Chỉ gọi khi người dùng thực sự muốn thực hiện thao tác, không gọi khi họ chỉ hỏi cách làm hoặc hỏi thông tin.
+                action phải là một trong các mã sau:
+                play, play_second, play_track, pause, stop, next, previous, current_track,
+                shuffle_on, shuffle_off, repeat_off, repeat_all, repeat_one,
+                open_home, open_library, open_favorites, open_albums, open_folders, open_online,
+                search_online_music, open_youtube, search_youtube, youtube_play, youtube_pause,
+                youtube_next, youtube_previous, youtube_shuffle_on, youtube_shuffle_off,
+                youtube_repeat_off, youtube_repeat_all, youtube_repeat_one, youtube_favorite,
+                youtube_watch_later, open_drive, open_radio, play_radio_station, open_tv,
+                open_tv_channel, create_playlist, play_playlist, add_current_to_playlist,
+                add_queue_to_playlist, open_playlists, open_queue, open_player, open_settings,
+                open_sleep_timer, sleep_timer_15, sleep_timer_30, sleep_timer_45,
+                sleep_timer_60, sleep_timer_90, sleep_timer_120, cancel_sleep_timer, help.
+                query chứa tên bài hát, từ khóa tìm kiếm, tên đài, kênh hoặc playlist khi action cần dữ liệu đó.
+                Không tự đoán tên bài, đài, kênh hay playlist nếu người dùng chưa nêu; hãy hỏi lại.
+                Không có action xóa dữ liệu, xóa playlist, xóa thư viện, thay đổi quyền, đăng nhập tài khoản hoặc thanh toán.
+                Sau khi gọi, phải dựa vào app_feedback: nếu phản hồi chỉ nói đang mở/đang tìm/đã gửi lệnh thì không được khẳng định thao tác đã hoàn tất.
+            """.trimIndent(),
+            parameters = mapOf(
+                "action" to Schema.string(
+                    "Mã hành động chính xác trong danh sách action của công cụ."
+                ),
+                "query" to Schema.string(
+                    "Tên bài hát, từ khóa tìm kiếm, tên đài, tên kênh hoặc playlist. Để trống nếu không cần."
+                )
+            ),
+            optionalParameters = listOf("query")
+        )
         private val RESPONSE_GENERATION_CONFIG = generationConfig {
             maxOutputTokens = MAX_OUTPUT_TOKENS
             thinkingConfig = thinkingConfig {
@@ -256,7 +365,11 @@ internal class NgocSiAiRemoteClient(context: Context) {
             "Trả lời tự nhiên, chân thành, thường 1–4 câu ngắn. Khi người dùng chia sẻ cảm xúc, hãy lắng nghe trước, không phán xét hoặc vội đưa lời khuyên. " +
             "Với việc phức tạp, suy luận cẩn thận, nêu kết luận, lý do và phương án thực tế; nói rõ điểm chưa chắc, không bịa thông tin hay giả nhận đã hành động. " +
             "Văn bản có thể đọc thành tiếng: dùng câu ngắn, dấu câu tự nhiên; tránh Markdown, dấu sao, lời dẫn thừa và lặp tên 'Ngọc Sĩ' ở mọi câu. " +
-            "Hướng dẫn Android theo các bước dễ làm trên điện thoại. Lệnh nhạc được hỗ trợ phải xử lý cục bộ; chỉ nói đã thực hiện khi có xác nhận thật. Nếu lệnh không hỗ trợ hoặc thất bại, nói rõ. " +
+            "Hướng dẫn Android theo các bước dễ làm trên điện thoại. Khi người dùng yêu cầu thao tác trong NGỌC SĨ MUSIC mà câu nói chưa được bộ lệnh cục bộ nhận diện, hãy dùng execute_app_command với action trong danh sách cho phép. " +
+            "Chỉ dùng công cụ cho yêu cầu hành động rõ ràng, không dùng cho câu hỏi, gợi ý hoặc trò chuyện thông thường. Hỏi lại khi thiếu tên bài, từ khóa, đài, kênh hoặc playlist cần thiết. " +
+            "Sau khi công cụ trả về, xem app_feedback là phản hồi thật của ứng dụng; routed chỉ cho biết lệnh đã được chuyển tới bộ điều khiển, không đồng nghĩa nhạc đã phát hoặc thao tác đã hoàn tất. " +
+            "Nếu phản hồi nói đang mở/đang tìm/đang tải/đã gửi lệnh, hãy diễn đạt đúng trạng thái đó; nếu báo không tìm thấy, không có, lỗi hoặc chưa kết nối thì phải nói rõ, tuyệt đối không giả nhận thành công. " +
+            "Không được gọi action ngoài danh sách, không được yêu cầu ứng dụng xóa dữ liệu, xóa playlist, xóa thư viện, đổi quyền hoặc thanh toán. " +
             "Không đề nghị bật thanh toán, tạo chi phí hoặc nhúng khóa bí mật nếu người dùng chưa đồng ý."
     }
 }
