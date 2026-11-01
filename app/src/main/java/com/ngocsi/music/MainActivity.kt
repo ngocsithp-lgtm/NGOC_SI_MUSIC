@@ -4963,11 +4963,13 @@ class MainActivity : ComponentActivity() {
                         .coerceIn(0L, 86_400_000L)
                     prefs.edit()
                         .putLong("youtube_inline_position_ms_" + returnedVideoId, returnedPosition)
+                        .putString("youtube_inline_resume_position_video_id", returnedVideoId)
                         .putBoolean("youtube_inline_fullscreen_handoff_pending", false)
                         .putBoolean("youtube_inline_resume_position_after_fullscreen", true)
                         .apply()
                 } else {
                     prefs.edit()
+                        .remove("youtube_inline_resume_position_video_id")
                         .putBoolean("youtube_inline_fullscreen_handoff_pending", false)
                         .apply()
                 }
@@ -9113,9 +9115,12 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 // video, which can reset playback or briefly blank the video surface.
                 val inlineTrack = youtubeInlineTrack
                 if (youtubeInlineWebView != null && inlineTrack?.videoId == track.videoId) {
-                    val resumeFromFullscreen = prefs.getBoolean(
-                        "youtube_inline_resume_position_after_fullscreen", false
-                    )
+                    val safeTrackId = track.videoId
+                        .filter { it.isLetterOrDigit() || it == '-' || it == '_' }
+                        .take(32)
+                    val resumeFromFullscreen =
+                        prefs.getBoolean("youtube_inline_resume_position_after_fullscreen", false) &&
+                            prefs.getString("youtube_inline_resume_position_video_id", null) == safeTrackId
                     if (resumeFromFullscreen) {
                         val safeId = track.videoId
                             .filter { it.isLetterOrDigit() || it == '-' || it == '_' }
@@ -9144,6 +9149,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         )
                         prefs.edit()
                             .remove("youtube_inline_resume_position_after_fullscreen")
+                            .remove("youtube_inline_resume_position_video_id")
                             .apply()
                     } else {
                         playInlineYouTubeWebView()
@@ -9158,6 +9164,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 if (prefs.getBoolean("youtube_inline_resume_position_after_fullscreen", false)) {
                     prefs.edit()
                         .remove("youtube_inline_resume_position_after_fullscreen")
+                        .remove("youtube_inline_resume_position_video_id")
                         .apply()
                 }
             }
