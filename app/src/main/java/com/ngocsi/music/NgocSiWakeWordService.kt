@@ -1315,7 +1315,7 @@ class NgocSiWakeWordService : Service() {
 
     private fun runAppCommand(command: NgocSiAiLocalCommand, originalText: String): String {
         if (command == NgocSiAiLocalCommand.HELP) {
-            return "Tôi có thể điều khiển nhạc điện thoại và YouTube riêng biệt; phát bài theo tên; tìm nhạc trên Jamendo, Audius và YouTube; mở thư viện, Drive, từng đài Radio, kênh TV; tạo/phát playlist; điều chỉnh phát ngẫu nhiên, lặp, hẹn giờ và lưu video yêu thích/xem sau."
+            return "Tôi có thể điều khiển nhạc điện thoại và YouTube riêng biệt; phát bài theo tên; đổi tốc độ 0.5x–2.0x và tua 10 giây với nhạc điện thoại/Drive/Radio; tìm nhạc trên Jamendo, Audius và YouTube; mở thư viện, Drive, từng đài Radio, kênh TV; tạo/phát playlist; điều chỉnh phát ngẫu nhiên, lặp, hẹn giờ, lưu bài đang phát vào Yêu thích và lưu video YouTube xem sau."
         }
 
         val youtubePrefs = getSharedPreferences("ngoc_si_music", Context.MODE_PRIVATE)
