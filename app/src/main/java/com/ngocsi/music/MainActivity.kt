@@ -9771,7 +9771,6 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         if (inlineFullscreenRequestPending || youtubeInlineFullscreen ||
             inlineFullscreenCustomViewVisible
         ) return
-        inlineFullscreenRequestPending = true
 
         val track = youtubeInlineTrack
         if (track == null) {
@@ -9789,6 +9788,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             errorMessage = "Mã video YouTube không hợp lệ."
             return
         }
+        inlineFullscreenRequestPending = true
 
         val (queueJson, queueIndex) = if (
             youtubeLastPlayed?.videoId == track.videoId &&
