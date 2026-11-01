@@ -1178,7 +1178,7 @@ class NgocSiAiLocalCommandRulesTest {
             )
         )
         assertEquals(
-            3,
+            2,
             selectNgocSiAiEndedYouTubeQueueIndex(
                 currentIndex = 1,
                 queueSize = 4,

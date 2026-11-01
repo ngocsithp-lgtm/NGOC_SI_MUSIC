@@ -444,8 +444,30 @@ internal fun classifyNgocSiAiWakePhrase(input: String): NgocSiAiLocalCommand? {
  * playback-control allowlist. Navigation, account and timer actions stay out of
  * always-listening mode.
  */
-internal fun classifyNgocSiAiActivatedCommand(input: String): NgocSiAiLocalCommand? =
-    classifyNgocSiAiLocalCommand(input)?.takeIf { it in NGOC_SI_AI_WAKE_WORD_COMMANDS }
+internal fun classifyNgocSiAiActivatedCommand(input: String): NgocSiAiLocalCommand? {
+    val command = classifyNgocSiAiLocalCommand(input) ?: return null
+    if (command !in NGOC_SI_AI_WAKE_WORD_COMMANDS) return null
+
+    // Sensitive transport settings require an explicit assistant address so
+    // ambient conversation cannot unexpectedly change speed, seek or favorites.
+    val requiresExplicitAddress = command in setOf(
+        NgocSiAiLocalCommand.SET_PLAYBACK_SPEED,
+        NgocSiAiLocalCommand.SEEK_FORWARD_10,
+        NgocSiAiLocalCommand.SEEK_BACK_10,
+        NgocSiAiLocalCommand.FAVORITE_CURRENT_TRACK
+    )
+    if (!requiresExplicitAddress) return command
+
+    val normalized = normalizeNgocSiAiVoicePhrase(input)
+    val explicitlyAddressed = normalized.startsWith("ai ") ||
+        normalized.startsWith("hey ai ") ||
+        normalized.startsWith("ok ai ") ||
+        normalized.startsWith("alo ai ") ||
+        normalized.startsWith("ai oi ") ||
+        normalized.startsWith("ngoc si ") ||
+        normalized.startsWith("ngoc si oi ")
+    return command.takeIf { explicitlyAddressed }
+}
 
 internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? {
     var phrase = Normalizer.normalize(input.trim().lowercase(Locale.ROOT), Normalizer.Form.NFD)
@@ -1060,7 +1082,8 @@ internal fun selectNgocSiAiEndedYouTubeQueueIndex(
 internal fun buildNgocSiAiToolCommandPhrase(action: String, query: String = ""): String? {
     val normalizedAction = action.trim().lowercase(Locale.ROOT)
     val safeQuery = query.trim()
-        .replace(Regex("[\\\\r\\\\n]+"), " ")
+        .replace('\r', ' ')
+        .replace('\n', ' ')
         .replace(Regex("\\s+"), " ")
         .take(180)
     val needsQuery = setOf(
