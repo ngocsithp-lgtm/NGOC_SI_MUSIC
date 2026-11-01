@@ -129,7 +129,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 for (functionCall in response.functionCalls) {
                     val action = functionCall.args["action"]?.jsonPrimitive?.contentOrNull.orEmpty()
                     val query = functionCall.args["query"]?.jsonPrimitive?.contentOrNull.orEmpty()
-                    val result = if (functionCall.name == APP_COMMAND_TOOL.name && action.isNotBlank()) {
+                    val result = if (functionCall.name == APP_COMMAND_TOOL_NAME && action.isNotBlank()) {
                         runCatching { executeTool(action, query) }.getOrElse {
                             NgocSiAiToolResult(
                                 routed = false,
@@ -320,6 +320,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
         // Quota errors trigger a cooldown; there is no automatic paid-model fallback.
         private const val MODEL_NAME = "gemini-3.5-flash-lite"
         private const val MAX_OUTPUT_TOKENS = 256
+        private const val APP_COMMAND_TOOL_NAME = "execute_app_command"
         private val SUPPORTED_APP_ACTIONS = listOf(
             "play",
             "play_second",
