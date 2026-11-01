@@ -9335,6 +9335,26 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 errorMessage = "Đang tua video YouTube lùi 10 giây."
                 return
             }
+            "seek_forward_10" -> {
+                if (youtubeInlineTrack?.videoId == track.videoId && youtubeInlineWebView != null) {
+                    seekInlineYouTubeBy(10_000L)
+                } else {
+                    pendingInlineYouTubeSeekDeltaMs = 10_000L
+                    playYouTube(track)
+                }
+                errorMessage = "Đang tua video YouTube tới 10 giây."
+                return
+            }
+            "seek_back_10" -> {
+                if (youtubeInlineTrack?.videoId == track.videoId && youtubeInlineWebView != null) {
+                    seekInlineYouTubeBy(-10_000L)
+                } else {
+                    pendingInlineYouTubeSeekDeltaMs = -10_000L
+                    playYouTube(track)
+                }
+                errorMessage = "Đang tua video YouTube lùi 10 giây."
+                return
+            }
             "favorite" -> {
                 val activeTrack = youtubeInlineTrack ?: track
                 val alreadyFavorite = youtubeFavoriteSet.contains(activeTrack.videoId)
