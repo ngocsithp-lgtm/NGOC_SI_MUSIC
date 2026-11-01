@@ -9379,14 +9379,18 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             val count = array.length()
             if (count == 0) return@runCatching
             val currentIndex = youtubeLastQueueIndex.coerceIn(0, count - 1)
-            val targetIndex = when {
-                offset > 0 && youtubeShuffleEnabled && count > 1 ->
-                    (0 until count).filter { it != currentIndex }.random()
-                youtubeRepeatMode == 1 ->
-                    (currentIndex + offset).mod(count)
-                else -> currentIndex + offset
-            }
-            if (targetIndex !in 0 until count) {
+            val randomTarget = if (offset > 0 && youtubeShuffleEnabled && count > 1) {
+                (0 until count).filter { it != currentIndex }.random()
+            } else null
+            val targetIndex = selectNgocSiAiManualYouTubeQueueIndex(
+                currentIndex = currentIndex,
+                queueSize = count,
+                offset = offset,
+                shuffleEnabled = youtubeShuffleEnabled,
+                repeatMode = youtubeRepeatMode,
+                shuffleTargetIndex = randomTarget
+            )
+            if (targetIndex == null) {
                 errorMessage = if (offset > 0) {
                     "Đã tới video cuối hàng đợi YouTube."
                 } else {
@@ -9429,16 +9433,18 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 return@runCatching
             }
             val currentIndex = youtubeLastQueueIndex.coerceIn(0, count - 1)
-            val nextIndex = when {
-                youtubeRepeatMode == 2 -> currentIndex
-                youtubeShuffleEnabled && count > 1 ->
-                    (0 until count).filter { it != currentIndex }.random()
-                youtubeRepeatMode == 1 -> (currentIndex + 1) % count
-                currentIndex + 1 < count -> currentIndex + 1
-                else -> {
-                    finishInlineYouTubeQueue()
-                    return@runCatching
-                }
+            val randomTarget = if (youtubeShuffleEnabled && count > 1) {
+                (0 until count).filter { it != currentIndex }.random()
+            } else null
+            val nextIndex = selectNgocSiAiEndedYouTubeQueueIndex(
+                currentIndex = currentIndex,
+                queueSize = count,
+                shuffleEnabled = youtubeShuffleEnabled,
+                repeatMode = youtubeRepeatMode,
+                shuffleTargetIndex = randomTarget
+            ) ?: run {
+                finishInlineYouTubeQueue()
+                return@runCatching
             }
             val item = array.optJSONObject(nextIndex) ?: run {
                 finishInlineYouTubeQueue()
