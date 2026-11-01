@@ -11538,51 +11538,6 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             // search/results list appearing under the player when the user scrolls.
             if (youtubeInlineTrack == null || youtubeInlineFullscreen) {
             item {
-                Column {
-                    SectionTitle("KHÁM PHÁ THEO THỂ LOẠI", "5 gợi ý")
-                    Spacer(Modifier.height(7.dp))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(7.dp)
-                    ) {
-                        listOf(
-                            "Nhạc Việt",
-                            "Bolero",
-                            "Trữ tình",
-                            "Nhạc trẻ",
-                            "Nhạc xưa"
-                        ).forEach { preset ->
-                            val selected = youtubeQuery.trim().equals(preset, ignoreCase = true)
-                            Surface(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .clickable {
-                                        youtubeQuery = preset
-                                        searchYouTube()
-                                    },
-                                shape = RoundedCornerShape(12.dp),
-                                color = if (selected) Color(0xFF30202A) else Color(0xFF181A22),
-                                border = androidx.compose.foundation.BorderStroke(
-                                    1.dp,
-                                    if (selected) Color(0xFFFF7180) else Color(0xFF292D38)
-                                )
-                            ) {
-                                Text(
-                                    preset,
-                                    color = if (selected) Color(0xFFFFA0AA) else Color(0xFFD5D7E0),
-                                    fontSize = 11.sp,
-                                    fontWeight = if (selected) FontWeight.Black else FontWeight.SemiBold,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            item {
                 Text(
                     "TÌM BÀI HÁT, NGHỆ SĨ HOẶC VIDEO",
                     color = Color(0xFF858B9C),
@@ -11661,6 +11616,59 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             onDone = { searchYouTube() }
                         )
                     )
+                }
+            }
+
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    SectionTitle("GỢI Ý THỂ LOẠI", "12 thể loại")
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(7.dp)
+                    ) {
+                        listOf(
+                            "Bolero",
+                            "Nhạc vàng",
+                            "Trữ tình",
+                            "Nhạc quê hương",
+                            "Nhạc trẻ",
+                            "Nhạc remix",
+                            "Nhạc sống",
+                            "Dân ca",
+                            "Nhạc không lời",
+                            "Acoustic",
+                            "Rap Việt",
+                            "EDM"
+                        ).forEach { preset ->
+                            val selected = youtubeQuery.trim().equals(preset, ignoreCase = true)
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(11.dp))
+                                    .clickable(enabled = !youtubeLoading) {
+                                        youtubeShelf = "Khám phá"
+                                        youtubeQuery = preset
+                                        searchYouTube()
+                                    },
+                                shape = RoundedCornerShape(11.dp),
+                                color = if (selected) Color(0xFF30202A) else Color(0xFF181A22),
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp,
+                                    if (selected) Color(0xFFFF7180) else Color(0xFF292D38)
+                                )
+                            ) {
+                                Text(
+                                    preset,
+                                    color = if (selected) Color(0xFFFFA0AA) else Color(0xFFD5D7E0),
+                                    fontSize = 10.sp,
+                                    fontWeight = if (selected) FontWeight.Black else FontWeight.SemiBold,
+                                    modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp),
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
