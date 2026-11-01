@@ -55,6 +55,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         const val EXTRA_QUEUE_INDEX = "youtube_queue_index"
         const val EXTRA_AI_ACTION = "youtube_ai_action"
         const val EXTRA_START_FULLSCREEN = "youtube_start_fullscreen"
+        const val EXTRA_START_PAUSED = "youtube_start_paused"
     }
 
     private lateinit var root: FrameLayout
@@ -274,6 +275,7 @@ class YouTubePlayerActivity : ComponentActivity() {
     // Requested only by the inline-frame fullscreen button; launch fullscreen after the
     // YouTube page has a real media node, without competing with its autoplay startup.
     private var startFullscreenWhenReady = false
+    private var allowFullscreenWhilePausedOnLaunch = false
     // Keep a forced landscape request until the handset is physically landscape; otherwise
     // switching to FULL_SENSOR immediately after Android's forced rotation snaps back to portrait.
     private var fullscreenOrientationListener: android.view.OrientationEventListener? = null
@@ -319,8 +321,10 @@ class YouTubePlayerActivity : ComponentActivity() {
                     startFullscreenWhenReady = false
                     playbackPositionHandler.postDelayed({
                         if (!isFinishing && !isDestroyed && webView != null &&
-                            youtubePlayerReady && !explicitUserPause
+                            youtubePlayerReady &&
+                            (!explicitUserPause || allowFullscreenWhilePausedOnLaunch)
                         ) {
+                            allowFullscreenWhilePausedOnLaunch = false
                             requestYoutubeFullscreen()
                         }
                     }, 850L)
@@ -672,6 +676,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         startFullscreenWhenReady = savedInstanceState?.getBoolean(
             EXTRA_START_FULLSCREEN, intent.getBooleanExtra(EXTRA_START_FULLSCREEN, false)
         ) ?: intent.getBooleanExtra(EXTRA_START_FULLSCREEN, false)
+        allowFullscreenWhilePausedOnLaunch = intent.getBooleanExtra(EXTRA_START_PAUSED, false)
         if (queue.isNotEmpty()) {
             queueIndex = queueIndex.coerceIn(0, queue.lastIndex)
             val selected = queue[queueIndex]
