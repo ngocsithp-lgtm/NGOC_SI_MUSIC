@@ -342,11 +342,11 @@ class NgocSiAiLocalCommandRulesTest {
         assertEquals("stop", ngocSiAiYouTubeActionForCommand(NgocSiAiLocalCommand.STOP, true))
         assertEquals("next", ngocSiAiYouTubeActionForCommand(NgocSiAiLocalCommand.NEXT, true))
         assertEquals("previous", ngocSiAiYouTubeActionForCommand(NgocSiAiLocalCommand.PREVIOUS, true))
-        assertEquals("shuffle_on", ngocSiAiYouTubeActionForCommand(NgocSiAiLocalCommand.SHUFFLE_ON, true))
-        assertEquals("shuffle_off", ngocSiAiYouTubeActionForCommand(NgocSiAiLocalCommand.SHUFFLE_OFF, true))
-        assertEquals("repeat_off", ngocSiAiYouTubeActionForCommand(NgocSiAiLocalCommand.REPEAT_OFF, true))
-        assertEquals("repeat_all", ngocSiAiYouTubeActionForCommand(NgocSiAiLocalCommand.REPEAT_ALL, true))
-        assertEquals("repeat_one", ngocSiAiYouTubeActionForCommand(NgocSiAiLocalCommand.REPEAT_ONE, true))
+        assertNull(ngocSiAiYouTubeActionForCommand(NgocSiAiLocalCommand.SHUFFLE_ON, true))
+        assertNull(ngocSiAiYouTubeActionForCommand(NgocSiAiLocalCommand.SHUFFLE_OFF, true))
+        assertNull(ngocSiAiYouTubeActionForCommand(NgocSiAiLocalCommand.REPEAT_OFF, true))
+        assertNull(ngocSiAiYouTubeActionForCommand(NgocSiAiLocalCommand.REPEAT_ALL, true))
+        assertNull(ngocSiAiYouTubeActionForCommand(NgocSiAiLocalCommand.REPEAT_ONE, true))
     }
 
     @Test

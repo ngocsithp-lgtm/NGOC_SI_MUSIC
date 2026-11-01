@@ -109,11 +109,9 @@ internal fun ngocSiAiYouTubeActionForCommand(
     NgocSiAiLocalCommand.STOP -> if (youtubeActiveSource) "stop" else null
     NgocSiAiLocalCommand.NEXT -> if (youtubeActiveSource) "next" else null
     NgocSiAiLocalCommand.PREVIOUS -> if (youtubeActiveSource) "previous" else null
-    NgocSiAiLocalCommand.SHUFFLE_ON -> if (youtubeActiveSource) "shuffle_on" else null
-    NgocSiAiLocalCommand.SHUFFLE_OFF -> if (youtubeActiveSource) "shuffle_off" else null
-    NgocSiAiLocalCommand.REPEAT_OFF -> if (youtubeActiveSource) "repeat_off" else null
-    NgocSiAiLocalCommand.REPEAT_ALL -> if (youtubeActiveSource) "repeat_all" else null
-    NgocSiAiLocalCommand.REPEAT_ONE -> if (youtubeActiveSource) "repeat_one" else null
+    // Generic shuffle/repeat remain bound to Media3. Inline YouTube gets these
+    // controls only through explicit YouTube commands; its dedicated player has
+    // a separate queue-mode implementation.
     else -> null
 }
 
