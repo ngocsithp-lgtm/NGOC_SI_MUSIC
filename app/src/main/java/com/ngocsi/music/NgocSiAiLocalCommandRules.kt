@@ -559,12 +559,30 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
         // "phát YouTube" resume command (for example, "Phát YouTube nhạc Trịnh").
         extractNgocSiAiYoutubeQuery(input) != null -> NgocSiAiLocalCommand.SEARCH_YOUTUBE
 
-        startsWithAny("phat youtube", "tiep tuc youtube", "tiep tuc video youtube", "phat tiep youtube", "resume youtube", "play youtube") ->
-            NgocSiAiLocalCommand.RESUME_YOUTUBE
-        startsWithAny("video youtube tiep theo", "youtube tiep theo", "video tiep theo tren youtube", "next youtube video") ->
-            NgocSiAiLocalCommand.NEXT_YOUTUBE_VIDEO
-        startsWithAny("video youtube truoc", "youtube truoc", "video truoc tren youtube", "previous youtube video") ->
-            NgocSiAiLocalCommand.PREVIOUS_YOUTUBE_VIDEO
+        startsWithAny(
+            "phat youtube", "tiep tuc youtube", "tiep tuc video youtube",
+            "phat tiep youtube", "resume youtube", "play youtube",
+            "phat lai youtube", "phat lai video youtube",
+            "tiep tuc phat youtube", "tiep tuc phat video youtube",
+            "play video youtube", "resume video youtube"
+        ) -> NgocSiAiLocalCommand.RESUME_YOUTUBE
+        startsWithAny(
+            "video youtube tiep theo", "youtube tiep theo",
+            "video tiep theo tren youtube", "next youtube video",
+            "chuyen bai youtube", "chuyen bai tren youtube",
+            "chuyen video youtube", "chuyen video tren youtube",
+            "bai tiep theo youtube", "bai tiep theo tren youtube",
+            "bai youtube tiep theo", "ke tiep youtube",
+            "bo qua video youtube", "skip youtube", "skip video youtube",
+            "next video youtube", "youtube next"
+        ) -> NgocSiAiLocalCommand.NEXT_YOUTUBE_VIDEO
+        startsWithAny(
+            "video youtube truoc", "youtube truoc",
+            "video truoc tren youtube", "previous youtube video",
+            "bai truoc youtube", "bai truoc tren youtube",
+            "bai youtube truoc", "quay lai video youtube",
+            "lui video youtube", "previous video youtube", "youtube previous"
+        ) -> NgocSiAiLocalCommand.PREVIOUS_YOUTUBE_VIDEO
         startsWithAny("bat ngau nhien youtube", "youtube shuffle on", "bat phat ngau nhien youtube") ->
             NgocSiAiLocalCommand.YOUTUBE_SHUFFLE_ON
         startsWithAny("tat ngau nhien youtube", "youtube shuffle off", "tat phat ngau nhien youtube") ->
