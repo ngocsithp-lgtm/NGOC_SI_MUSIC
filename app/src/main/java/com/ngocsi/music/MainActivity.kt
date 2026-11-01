@@ -537,6 +537,7 @@ class MainActivity : ComponentActivity() {
                 if (reportedId.isNotBlank() && reportedId != track.videoId) return@runOnUiThread
 
                 val isPlaying = state == 1 || state == 3
+                if (state == 1) lastHandledInlineYouTubeEndedId = null
                 youtubePlaybackIsPlaying = isPlaying
                 youtubeIsActiveSource = true
                 prefs.edit()
@@ -544,11 +545,16 @@ class MainActivity : ComponentActivity() {
                     .putBoolean("youtube_playback_is_playing", isPlaying)
                     .apply()
                 if (state == 0) {
-                    // Do not resume a completed video at its last saved position.
+                    // ENDED should advance or repeat according to the inline YouTube queue mode.
                     prefs.edit().remove("youtube_inline_position_ms_" + track.videoId).apply()
+                    advanceInlineYouTubeAfterEnded(track)
                 }
                 if (inlineBackgroundPlaybackEnabled) {
-                    updateInlineYouTubeBackgroundService(track, isPlaying)
+                    val activeTrack = youtubeInlineTrack ?: track
+                    updateInlineYouTubeBackgroundService(
+                        activeTrack,
+                        isPlaying = youtubePlaybackIsPlaying
+                    )
                 }
             }
         }
@@ -635,6 +641,11 @@ class MainActivity : ComponentActivity() {
                 }
                 "next", "tiếp", "bài tiếp" -> playStoredYouTubeOffset(1)
                 "previous", "prev", "bài trước" -> playStoredYouTubeOffset(-1)
+                "shuffle_on" -> setInlineYouTubeShuffle(true)
+                "shuffle_off" -> setInlineYouTubeShuffle(false)
+                "repeat_off" -> setInlineYouTubeRepeat(0)
+                "repeat_all" -> setInlineYouTubeRepeat(1)
+                "repeat_one" -> setInlineYouTubeRepeat(2)
                 "favorite" -> {
                     val track = youtubeInlineTrack ?: youtubeLastPlayed
                     if (track == null) {
@@ -666,6 +677,26 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+    private fun setInlineYouTubeShuffle(enabled: Boolean) {
+        youtubeShuffleEnabled = enabled
+        prefs.edit().putBoolean("youtube_shuffle_enabled", enabled).apply()
+        errorMessage = if (enabled) {
+            "Đã bật phát ngẫu nhiên cho hàng đợi YouTube."
+        } else {
+            "Đã tắt phát ngẫu nhiên YouTube."
+        }
+    }
+
+    private fun setInlineYouTubeRepeat(mode: Int) {
+        youtubeRepeatMode = mode.coerceIn(0, 2)
+        prefs.edit().putInt("youtube_repeat_mode", youtubeRepeatMode).apply()
+        errorMessage = when (youtubeRepeatMode) {
+            1 -> "Đã bật lặp toàn bộ hàng đợi YouTube."
+            2 -> "Đã bật lặp video YouTube hiện tại."
+            else -> "Đã tắt chế độ lặp YouTube."
+        }
+    }
+
     private var youtubeLastQueueJson by mutableStateOf<String?>(null)
     private var youtubeLastQueueIndex by mutableIntStateOf(0)
     // Inline YouTube has its own queue policy; it must not reuse the separate Media3 flags.
@@ -673,8 +704,6 @@ class MainActivity : ComponentActivity() {
     private var youtubeShuffleEnabled by mutableStateOf(false)
     private var youtubeRepeatMode by mutableIntStateOf(0)
     private var lastHandledInlineYouTubeEndedId: String? = null
-    private var youtubeLastQueueJson by mutableStateOf<String?>(null)
-    private var youtubeLastQueueIndex by mutableIntStateOf(0)
     private var onlineUrl by mutableStateOf("")
     private var driveSharedLink by mutableStateOf("")
     private var driveSharedLoading by mutableStateOf(false)
@@ -9243,6 +9272,33 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 prefs.edit().putBoolean("youtube_playback_is_playing", false).apply()
                 return
             }
+            "favorite" -> {
+                val activeTrack = youtubeInlineTrack ?: track
+                val alreadyFavorite = youtubeFavoriteSet.contains(activeTrack.videoId)
+                if (!alreadyFavorite) toggleYouTubeFavorite(activeTrack)
+                errorMessage = if (alreadyFavorite) {
+                    "Video ${activeTrack.title} đã có trong Yêu thích YouTube."
+                } else {
+                    "Đã thêm ${activeTrack.title} vào Yêu thích YouTube."
+                }
+                return
+            }
+            "watch_later" -> {
+                val activeTrack = youtubeInlineTrack ?: track
+                val alreadySaved = youtubeWatchLater.any { it.videoId == activeTrack.videoId }
+                if (!alreadySaved) toggleYouTubeWatchLater(activeTrack)
+                errorMessage = if (alreadySaved) {
+                    "Video ${activeTrack.title} đã có trong Xem sau."
+                } else {
+                    "Đã lưu ${activeTrack.title} vào Xem sau."
+                }
+                return
+            }
+            "shuffle_on" -> { setInlineYouTubeShuffle(true); return }
+            "shuffle_off" -> { setInlineYouTubeShuffle(false); return }
+            "repeat_off" -> { setInlineYouTubeRepeat(0); return }
+            "repeat_all" -> { setInlineYouTubeRepeat(1); return }
+            "repeat_one" -> { setInlineYouTubeRepeat(2); return }
         }
         playYouTube(track)
     }
@@ -9320,13 +9376,21 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         val rawQueue = youtubeLastQueueJson ?: return
         runCatching {
             val array = JSONArray(rawQueue)
-            if (array.length() == 0) return@runCatching
-            val targetIndex = youtubeLastQueueIndex + offset
-            if (targetIndex !in 0 until array.length()) {
+            val count = array.length()
+            if (count == 0) return@runCatching
+            val currentIndex = youtubeLastQueueIndex.coerceIn(0, count - 1)
+            val targetIndex = when {
+                offset > 0 && youtubeShuffleEnabled && count > 1 ->
+                    (0 until count).filter { it != currentIndex }.random()
+                youtubeRepeatMode == 1 ->
+                    (currentIndex + offset).mod(count)
+                else -> currentIndex + offset
+            }
+            if (targetIndex !in 0 until count) {
                 errorMessage = if (offset > 0) {
-                    "Đã tới video cuối hàng đợi."
+                    "Đã tới video cuối hàng đợi YouTube."
                 } else {
-                    "Đã tới video đầu hàng đợi."
+                    "Đã tới video đầu hàng đợi YouTube."
                 }
                 return@runCatching
             }
@@ -9338,6 +9402,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 thumbnailUrl = item.optString("thumbnailUrl")
             )
             if (targetTrack.videoId.isBlank()) return@runCatching
+            lastHandledInlineYouTubeEndedId = null
 
             // Prefer an in-place IFrame queue switch for notification, lock-screen,
             // voice, and in-app transport controls. Rebuild the WebView only as fallback.
@@ -9346,6 +9411,65 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             }
         }.onFailure {
             errorMessage = "Không chuyển được video trong hàng đợi YouTube."
+        }
+    }
+
+    private fun advanceInlineYouTubeAfterEnded(endedTrack: YouTubeTrack) {
+        if (lastHandledInlineYouTubeEndedId == endedTrack.videoId) return
+        lastHandledInlineYouTubeEndedId = endedTrack.videoId
+
+        val queueSnapshot = youtubeLastQueueJson
+            ?.takeIf { it.isNotBlank() }
+            ?: buildYouTubeQueueJson(endedTrack).first
+        runCatching {
+            val array = JSONArray(queueSnapshot)
+            val count = array.length()
+            if (count == 0) {
+                finishInlineYouTubeQueue()
+                return@runCatching
+            }
+            val currentIndex = youtubeLastQueueIndex.coerceIn(0, count - 1)
+            val nextIndex = when {
+                youtubeRepeatMode == 2 -> currentIndex
+                youtubeShuffleEnabled && count > 1 ->
+                    (0 until count).filter { it != currentIndex }.random()
+                youtubeRepeatMode == 1 -> (currentIndex + 1) % count
+                currentIndex + 1 < count -> currentIndex + 1
+                else -> {
+                    finishInlineYouTubeQueue()
+                    return@runCatching
+                }
+            }
+            val item = array.optJSONObject(nextIndex) ?: run {
+                finishInlineYouTubeQueue()
+                return@runCatching
+            }
+            val nextTrack = YouTubeTrack(
+                videoId = item.optString("videoId"),
+                title = item.optString("title").ifBlank { "YouTube" },
+                channelTitle = item.optString("channelTitle").ifBlank { "YouTube" },
+                thumbnailUrl = item.optString("thumbnailUrl")
+            )
+            if (nextTrack.videoId.isBlank()) {
+                finishInlineYouTubeQueue()
+                return@runCatching
+            }
+            if (!playInlineYouTubeQueueItemWithoutReload(nextTrack, queueSnapshot, nextIndex)) {
+                playYouTube(nextTrack, queueSnapshot, nextIndex)
+            }
+        }.onFailure {
+            youtubePlaybackIsPlaying = false
+            prefs.edit().putBoolean("youtube_playback_is_playing", false).apply()
+            errorMessage = "Không thể tự chuyển video trong hàng đợi YouTube."
+        }
+    }
+
+    private fun finishInlineYouTubeQueue() {
+        youtubePlaybackIsPlaying = false
+        prefs.edit().putBoolean("youtube_playback_is_playing", false).apply()
+        val track = youtubeInlineTrack ?: youtubeLastPlayed ?: return
+        if (inlineBackgroundPlaybackEnabled) {
+            updateInlineYouTubeBackgroundService(track, isPlaying = false)
         }
     }
 
