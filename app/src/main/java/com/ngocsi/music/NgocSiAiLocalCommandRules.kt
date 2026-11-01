@@ -703,6 +703,8 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
             "mo trinh phat nhac", "phat nhac tiep di", "phat nhac tiep",
             "phat tiep", "phat tiep bai dang nghe",
             "tiep tuc phat bai", "tiep tuc phat bai hat", "cho nhac phat lai",
+            "nghe tiep bai dang phat", "nghe tiep bai nay", "phat tiep bai nay",
+            "tiep tuc bai dang phat", "cho bai dang phat phat tiep",
             "play", "play music", "resume", "resume music",
             "mo nhac", "mo nhac di", "mo nhac len"
         ) -> NgocSiAiLocalCommand.PLAY
@@ -720,6 +722,8 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
         isAnyOf(
             "tam dung", "tam dung nhac", "tam dung lai", "tam dung bai hat",
             "tam dung phat nhac", "tam dung phat nhac di", "dung tam thoi",
+            "tam ngung nhac", "tam ngung phat nhac", "ngung phat nhac tam thoi",
+            "dung phat nhac mot chut",
             "dung mot chut", "nghi mot chut", "ngung lai", "ngung nhac",
             "ngung bai hat", "ngung phat", "ngung phat nhac",
             "dung", "dung lai", "dung lai di", "dung nhac", "dung nhac lai",
@@ -736,6 +740,7 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
             "chuyen video ke tiep", "chuyen sang video tiep theo", "sang video tiep theo",
             "chuyen bai", "chuyen bai hat", "doi bai", "phat bai tiep theo",
             "chuyen sang bai tiep theo", "chuyen sang bai ke tiep", "sang bai tiep theo",
+            "chuyen sang bai ke", "chuyen qua bai ke", "bai ke", "ke tiep bai hat",
             "chuyen qua bai sau", "bai sau", "nhac tiep", "cho bai tiep theo",
             "chuyen sang bai khac", "sang bai khac", "doi sang bai khac", "doi bai khac",
             "qua bai", "bo bai nay", "bo qua bai nay", "bo qua bai dang phat",
@@ -752,6 +757,7 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
             "quay lai video truoc", "quay lai video vua roi",
             "quay lai bai truoc", "tro ve bai truoc", "bai truoc do",
             "quay ve bai truoc", "lui lai bai truoc",
+            "quay ve bai vua roi", "tro lai bai vua roi", "phat lai bai truoc do",
             "previous", "previous song", "previous track"
         ) -> NgocSiAiLocalCommand.PREVIOUS
 

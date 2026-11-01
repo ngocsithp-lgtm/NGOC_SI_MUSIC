@@ -7,6 +7,18 @@ import org.junit.Test
 class NgocSiAiLocalCommandRulesTest {
 
     @Test
+    fun recognizesNaturalVietnamesePlaybackFollowUps() {
+        assertEquals(NgocSiAiLocalCommand.PLAY, classifyNgocSiAiLocalCommand("Nghe tiếp bài đang phát"))
+        assertEquals(NgocSiAiLocalCommand.PLAY, classifyNgocSiAiLocalCommand("Cho bài đang phát phát tiếp"))
+        assertEquals(NgocSiAiLocalCommand.PAUSE, classifyNgocSiAiLocalCommand("Tạm ngưng nhạc"))
+        assertEquals(NgocSiAiLocalCommand.PAUSE, classifyNgocSiAiLocalCommand("Ngưng phát nhạc tạm thời"))
+        assertEquals(NgocSiAiLocalCommand.NEXT, classifyNgocSiAiLocalCommand("Chuyển sang bài kế"))
+        assertEquals(NgocSiAiLocalCommand.NEXT, classifyNgocSiAiLocalCommand("Kế tiếp bài hát"))
+        assertEquals(NgocSiAiLocalCommand.PREVIOUS, classifyNgocSiAiLocalCommand("Quay về bài vừa rồi"))
+        assertEquals(NgocSiAiLocalCommand.PREVIOUS, classifyNgocSiAiLocalCommand("Trở lại bài vừa rồi"))
+    }
+
+    @Test
     fun recognizesSafeMediaVolumeCommandsInWakeWordSessions() {
         assertEquals(NgocSiAiLocalCommand.VOLUME_UP, classifyNgocSiAiLocalCommand("Tăng âm lượng"))
         assertEquals(NgocSiAiLocalCommand.VOLUME_UP, classifyNgocSiAiWakePhrase("AI, tăng tiếng lên"))
