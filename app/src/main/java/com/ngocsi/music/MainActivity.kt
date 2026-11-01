@@ -10289,15 +10289,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 autoplay: 0,
                                 start: $resumeStartSeconds,
                                 rel: 0,
-                                // Use the official IFrame API option to hide YouTube's own
-                                // title/CC/settings/seek/next overlay. App-native controls stay active.
-                                controls: 0,
+                                // Restore YouTube's own labels and transport controls.
+                                // The previous controls:0 experiment hid the on-video UI
+                                // and introduced a separate fullscreen overlay.
+                                controls: 1,
                                 fs: 1,
-                                cc_load_policy: 0,
-                                iv_load_policy: 3,
-                                modestbranding: 1,
-                                showinfo: 0,
-                                autohide: 1,
                                 hl: 'vi',
                                 cc_lang_pref: 'vi',
                                 origin: '$appIdentityUrl',
@@ -10730,20 +10726,6 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 },
                                 modifier = Modifier.fillMaxSize()
                             )
-                            // YouTube controls are disabled in the iframe; retain a single
-                            // small native fullscreen action in the same video frame.
-                            if (!youtubeInlineFullscreen && !inlineFullscreenCustomViewVisible) {
-                                IconButton(
-                                    onClick = { enterInlineYouTubeFullscreen() },
-                                    modifier = Modifier
-                                        .align(Alignment.BottomEnd)
-                                        .padding(8.dp)
-                                        .size(40.dp)
-                                        .background(Color(0xA6000000), CircleShape)
-                                ) {
-                                    Text("⛶", color = Color.White, fontSize = 22.sp)
-                                }
-                            }
                             if (youtubeInlineFullscreen) {
                                 TextButton(
                                     onClick = { exitInlineYouTubeFullscreen() },
