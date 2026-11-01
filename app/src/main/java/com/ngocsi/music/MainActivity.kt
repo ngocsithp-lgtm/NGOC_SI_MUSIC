@@ -690,7 +690,18 @@ class MainActivity : ComponentActivity() {
                             "Đã lưu ${track.title} vào Xem sau."
                         }
                     }
+                }                else -> {
+                    val dynamicSeekMs = parseNgocSiAiYouTubeSeekAction(
+                        intent.getStringExtra(YouTubeBackgroundService.EXTRA_CONTROL).orEmpty()
+                    )
+                    if (dynamicSeekMs != null && !YouTubePlayerActivity.hasLiveInstance()) {
+                        seekInlineYouTubeBy(dynamicSeekMs)
+                        val seconds = kotlin.math.abs(dynamicSeekMs) / 1_000L
+                        val direction = if (dynamicSeekMs > 0L) "tới" else "lùi"
+                        errorMessage = "Đang tua video YouTube $direction $seconds giây."
+                    }
                 }
+
             }
         }
     }
@@ -9363,6 +9374,19 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             "repeat_all" -> { setInlineYouTubeRepeat(1); return }
             "repeat_one" -> { setInlineYouTubeRepeat(2); return }
         }
+        val dynamicSeekMs = aiAction?.let(::parseNgocSiAiYouTubeSeekAction)
+        if (dynamicSeekMs != null) {
+            if (youtubeInlineTrack?.videoId == track.videoId && youtubeInlineWebView != null) {
+                seekInlineYouTubeBy(dynamicSeekMs)
+            } else {
+                pendingInlineYouTubeSeekDeltaMs = dynamicSeekMs.coerceIn(-120_000L, 120_000L)
+                playYouTube(track)
+            }
+            val seconds = kotlin.math.abs(dynamicSeekMs) / 1_000L
+            val direction = if (dynamicSeekMs > 0L) "tới" else "lùi"
+            errorMessage = "Đang tua video YouTube $direction $seconds giây."
+            return
+        }
         playYouTube(track)
     }
 
@@ -9785,7 +9809,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
      * When a video is still starting, retain one bounded seek request until onReady.
      */
     private fun seekInlineYouTubeBy(deltaMs: Long): Boolean {
-        val safeDelta = deltaMs.coerceIn(-10_000L, 10_000L)
+        val safeDelta = deltaMs.coerceIn(-120_000L, 120_000L)
         if (safeDelta == 0L) return false
         val view = youtubeInlineWebView
         if (view == null || !youtubeInlinePlayerReady) {

@@ -19,6 +19,8 @@ internal enum class NgocSiAiLocalCommand {
     PREVIOUS_YOUTUBE_VIDEO,
     YOUTUBE_SEEK_FORWARD_10,
     YOUTUBE_SEEK_BACK_10,
+    YOUTUBE_SEEK_FORWARD_CUSTOM,
+    YOUTUBE_SEEK_BACK_CUSTOM,
     YOUTUBE_SHUFFLE_ON,
     YOUTUBE_SHUFFLE_OFF,
     YOUTUBE_REPEAT_OFF,
@@ -38,6 +40,8 @@ internal enum class NgocSiAiLocalCommand {
     SET_PLAYBACK_SPEED,
     SEEK_FORWARD_10,
     SEEK_BACK_10,
+    SEEK_FORWARD_CUSTOM,
+    SEEK_BACK_CUSTOM,
     FAVORITE_CURRENT_TRACK,
     SHUFFLE_ON,
     SHUFFLE_OFF,
@@ -87,6 +91,8 @@ private val NGOC_SI_AI_PLAYER_CONNECTION_COMMANDS = setOf(
     NgocSiAiLocalCommand.SET_PLAYBACK_SPEED,
     NgocSiAiLocalCommand.SEEK_FORWARD_10,
     NgocSiAiLocalCommand.SEEK_BACK_10,
+    NgocSiAiLocalCommand.SEEK_FORWARD_CUSTOM,
+    NgocSiAiLocalCommand.SEEK_BACK_CUSTOM,
     NgocSiAiLocalCommand.SHUFFLE_ON,
     NgocSiAiLocalCommand.SHUFFLE_OFF,
     NgocSiAiLocalCommand.REPEAT_OFF,
@@ -97,6 +103,75 @@ private val NGOC_SI_AI_PLAYER_CONNECTION_COMMANDS = setOf(
 internal fun ngocSiAiCommandRequiresPlayerConnection(command: NgocSiAiLocalCommand): Boolean =
     command in NGOC_SI_AI_PLAYER_CONNECTION_COMMANDS
 
+internal data class NgocSiAiSeekRequest(
+    val deltaMs: Long,
+    val youtubeExplicit: Boolean
+)
+
+private val NGOC_SI_AI_SPOKEN_SEEK_AMOUNTS = mapOf(
+    "mot" to 1, "hai" to 2, "ba" to 3, "bon" to 4, "tu" to 4,
+    "nam" to 5, "sau" to 6, "bay" to 7, "tam" to 8, "chin" to 9,
+    "muoi" to 10, "muoi lam" to 15, "hai muoi" to 20,
+    "ba muoi" to 30, "bon muoi" to 40, "nam muoi" to 50,
+    "sau muoi" to 60, "mot tram" to 100, "mot tram hai muoi" to 120
+)
+
+/**
+ * Parses an explicit bounded seek request. The maximum is two minutes; free-form
+ * time expressions and ambiguous requests are rejected rather than guessed.
+ */
+internal fun extractNgocSiAiSeekRequest(input: String): NgocSiAiSeekRequest? {
+    var phrase = normalizeNgocSiAiVoicePhrase(input)
+    val wakePrefixes = listOf("hey ai ", "ok ai ", "alo ai ", "ai oi ", "ai ",
+        "hey ngoc si ", "ok ngoc si ", "alo ngoc si ", "ngoc si oi ", "ngoc si ")
+    wakePrefixes.firstOrNull { phrase.startsWith(it) }?.let { phrase = phrase.removePrefix(it).trim() }
+    val youtubeExplicit = phrase.contains("youtube")
+    phrase = phrase.removeSuffix(" tren youtube").trim()
+
+    val forwardPrefixes = listOf(
+        "tua youtube tien toi ", "tua youtube toi ", "tua tien toi ",
+        "tua toi ", "tien toi ", "nhay toi ", "forward ", "seek forward "
+    )
+    val backPrefixes = listOf(
+        "tua youtube ve truoc ", "tua youtube lui ", "tua lui ",
+        "quay lai ", "tro lai ", "lui lai ", "lui ve ", "lui ",
+        "back ", "seek back "
+    )
+    val direction = when {
+        forwardPrefixes.any { phrase.startsWith(it) } -> 1
+        backPrefixes.any { phrase.startsWith(it) } -> -1
+        else -> return null
+    }
+    val prefix = (if (direction > 0) forwardPrefixes else backPrefixes)
+        .first { phrase.startsWith(it) }
+    val remainder = phrase.removePrefix(prefix).trim()
+    val unit = when {
+        remainder.endsWith(" giay") -> "giay"
+        remainder.endsWith(" phut") -> "phut"
+        else -> return null
+    }
+    val amountText = remainder.removeSuffix(" $unit").trim()
+    val amount = amountText.toIntOrNull() ?: NGOC_SI_AI_SPOKEN_SEEK_AMOUNTS[amountText] ?: return null
+    if (amount !in 1..120) return null
+    val seconds = if (unit == "phut") amount * 60 else amount
+    if (seconds !in 1..120) return null
+    val deltaMs = direction.toLong() * seconds * 1_000L
+    return NgocSiAiSeekRequest(deltaMs = deltaMs, youtubeExplicit = youtubeExplicit)
+}
+
+internal fun buildNgocSiAiYouTubeSeekAction(deltaMs: Long): String? {
+    if (deltaMs == 0L || kotlin.math.abs(deltaMs) > 120_000L || deltaMs % 1_000L != 0L) return null
+    return "seek_by_ms:$deltaMs"
+}
+
+internal fun parseNgocSiAiYouTubeSeekAction(action: String): Long? {
+    if (!action.startsWith("seek_by_ms:")) return null
+    val deltaMs = action.removePrefix("seek_by_ms:").toLongOrNull() ?: return null
+    return deltaMs.takeIf {
+        it != 0L && kotlin.math.abs(it) <= 120_000L && it % 1_000L == 0L
+    }
+}
+
 /**
  * Maps transport commands to the YouTube player when YouTube is the selected
  * playback source. Explicit YouTube commands always target YouTube; generic
@@ -104,7 +179,8 @@ internal fun ngocSiAiCommandRequiresPlayerConnection(command: NgocSiAiLocalComma
  */
 internal fun ngocSiAiYouTubeActionForCommand(
     command: NgocSiAiLocalCommand,
-    youtubeActiveSource: Boolean
+    youtubeActiveSource: Boolean,
+    seekDeltaMs: Long? = null
 ): String? = when (command) {
     NgocSiAiLocalCommand.RESUME_YOUTUBE -> "play"
     NgocSiAiLocalCommand.PAUSE_YOUTUBE -> "pause"
@@ -112,8 +188,16 @@ internal fun ngocSiAiYouTubeActionForCommand(
     NgocSiAiLocalCommand.PREVIOUS_YOUTUBE_VIDEO -> "previous"
     NgocSiAiLocalCommand.YOUTUBE_SEEK_FORWARD_10 -> "seek_forward_10"
     NgocSiAiLocalCommand.YOUTUBE_SEEK_BACK_10 -> "seek_back_10"
+    NgocSiAiLocalCommand.YOUTUBE_SEEK_FORWARD_CUSTOM ->
+        seekDeltaMs?.let(::buildNgocSiAiYouTubeSeekAction)?.takeIf { it.startsWith("seek_by_ms:") && seekDeltaMs > 0L }
+    NgocSiAiLocalCommand.YOUTUBE_SEEK_BACK_CUSTOM ->
+        seekDeltaMs?.let(::buildNgocSiAiYouTubeSeekAction)?.takeIf { it.startsWith("seek_by_ms:") && seekDeltaMs < 0L }
     NgocSiAiLocalCommand.SEEK_FORWARD_10 -> if (youtubeActiveSource) "seek_forward_10" else null
     NgocSiAiLocalCommand.SEEK_BACK_10 -> if (youtubeActiveSource) "seek_back_10" else null
+    NgocSiAiLocalCommand.SEEK_FORWARD_CUSTOM ->
+        if (youtubeActiveSource) seekDeltaMs?.takeIf { it > 0L }?.let(::buildNgocSiAiYouTubeSeekAction) else null
+    NgocSiAiLocalCommand.SEEK_BACK_CUSTOM ->
+        if (youtubeActiveSource) seekDeltaMs?.takeIf { it < 0L }?.let(::buildNgocSiAiYouTubeSeekAction) else null
     NgocSiAiLocalCommand.YOUTUBE_SHUFFLE_ON -> "shuffle_on"
     NgocSiAiLocalCommand.YOUTUBE_SHUFFLE_OFF -> "shuffle_off"
     NgocSiAiLocalCommand.YOUTUBE_REPEAT_OFF -> "repeat_off"
@@ -226,6 +310,8 @@ private val NGOC_SI_AI_WAKE_WORD_COMMANDS = setOf(
     NgocSiAiLocalCommand.PREVIOUS_YOUTUBE_VIDEO,
     NgocSiAiLocalCommand.YOUTUBE_SEEK_FORWARD_10,
     NgocSiAiLocalCommand.YOUTUBE_SEEK_BACK_10,
+    NgocSiAiLocalCommand.YOUTUBE_SEEK_FORWARD_CUSTOM,
+    NgocSiAiLocalCommand.YOUTUBE_SEEK_BACK_CUSTOM,
     NgocSiAiLocalCommand.YOUTUBE_SHUFFLE_ON,
     NgocSiAiLocalCommand.YOUTUBE_SHUFFLE_OFF,
     NgocSiAiLocalCommand.YOUTUBE_REPEAT_OFF,
@@ -241,6 +327,10 @@ private val NGOC_SI_AI_WAKE_WORD_COMMANDS = setOf(
     NgocSiAiLocalCommand.SET_PLAYBACK_SPEED,
     NgocSiAiLocalCommand.SEEK_FORWARD_10,
     NgocSiAiLocalCommand.SEEK_BACK_10,
+    NgocSiAiLocalCommand.SEEK_FORWARD_CUSTOM,
+    NgocSiAiLocalCommand.SEEK_BACK_CUSTOM,
+    NgocSiAiLocalCommand.YOUTUBE_SEEK_FORWARD_CUSTOM,
+    NgocSiAiLocalCommand.YOUTUBE_SEEK_BACK_CUSTOM,
     NgocSiAiLocalCommand.FAVORITE_CURRENT_TRACK,
     NgocSiAiLocalCommand.SHUFFLE_ON,
     NgocSiAiLocalCommand.SHUFFLE_OFF,
@@ -571,6 +661,23 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
 
     // Explicit system media-volume controls. Keep these phrases narrow so ordinary
     // questions about sound or audio quality do not trigger device-wide changes.
+    extractNgocSiAiSeekRequest(phrase)?.let { request ->
+        if (kotlin.math.abs(request.deltaMs) == 10_000L) {
+            return when {
+                request.youtubeExplicit && request.deltaMs > 0L -> NgocSiAiLocalCommand.YOUTUBE_SEEK_FORWARD_10
+                request.youtubeExplicit && request.deltaMs < 0L -> NgocSiAiLocalCommand.YOUTUBE_SEEK_BACK_10
+                request.deltaMs > 0L -> NgocSiAiLocalCommand.SEEK_FORWARD_10
+                else -> NgocSiAiLocalCommand.SEEK_BACK_10
+            }
+        }
+        return when {
+            request.youtubeExplicit && request.deltaMs > 0L -> NgocSiAiLocalCommand.YOUTUBE_SEEK_FORWARD_CUSTOM
+            request.youtubeExplicit && request.deltaMs < 0L -> NgocSiAiLocalCommand.YOUTUBE_SEEK_BACK_CUSTOM
+            request.deltaMs > 0L -> NgocSiAiLocalCommand.SEEK_FORWARD_CUSTOM
+            else -> NgocSiAiLocalCommand.SEEK_BACK_CUSTOM
+        }
+    }
+
     when {
         startsWithAny("tang am luong", "tang tieng", "mo to am luong", "volume up", "increase volume", "raise volume", "louder") ->
             return NgocSiAiLocalCommand.VOLUME_UP
@@ -1199,7 +1306,7 @@ internal fun buildNgocSiAiToolCommandPhrase(action: String, query: String = ""):
         "play_track", "play_radio_station", "open_tv_channel",
         "create_playlist", "play_playlist", "add_current_to_playlist",
         "add_queue_to_playlist", "search_youtube", "search_online_music",
-        "set_playback_speed"
+        "set_playback_speed", "seek_by_seconds", "youtube_seek_by_seconds"
     )
     if (normalizedAction in needsQuery && safeQuery.isBlank()) return null
 
@@ -1223,6 +1330,19 @@ internal fun buildNgocSiAiToolCommandPhrase(action: String, query: String = ""):
         }
         "seek_forward_10" -> "tua tới 10 giây"
         "seek_back_10" -> "lùi 10 giây"
+        "seek_by_seconds", "youtube_seek_by_seconds" -> {
+            val seconds = safeQuery.trim().toIntOrNull() ?: return null
+            if (seconds == 0 || kotlin.math.abs(seconds) > 120) return null
+            val forward = seconds > 0
+            val duration = kotlin.math.abs(seconds)
+            val youtube = normalizedAction == "youtube_seek_by_seconds"
+            when {
+                youtube && forward -> "tua youtube tới $duration giây"
+                youtube -> "tua youtube lùi $duration giây"
+                forward -> "tua tới $duration giây"
+                else -> "lùi $duration giây"
+            }
+        }
         "favorite_current_track" -> "thêm bài đang phát vào yêu thích"
         "shuffle_on" -> "bật phát ngẫu nhiên"
         "shuffle_off" -> "tắt phát ngẫu nhiên"

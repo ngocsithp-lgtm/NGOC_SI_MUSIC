@@ -615,13 +615,14 @@ class YouTubePlayerActivity : ComponentActivity() {
             if (intent?.action != YouTubeBackgroundService.ACTION_CONTROL ||
                 isFinishing || isDestroyed
             ) return
-            val action = intent.getStringExtra(YouTubeBackgroundService.EXTRA_CONTROL)
-                ?.takeIf { it in setOf(
+            val action = intent.getStringExtra(YouTubeBackgroundService.EXTRA_CONTROL) ?: return
+            if (action !in setOf(
                     "play", "pause", "stop", "next", "previous",
                     "seek_forward_10", "seek_back_10",
                     "shuffle_on", "shuffle_off", "repeat_off", "repeat_all",
                     "repeat_one", "favorite", "watch_later"
-                ) } ?: return
+                ) && parseNgocSiAiYouTubeSeekAction(action) == null
+            ) return
 
             // Keep the latest AI/media-button request until the embedded page is ready.
             // This avoids silently dropping a voice command during WebView startup/buffering.
@@ -2863,6 +2864,11 @@ class YouTubePlayerActivity : ComponentActivity() {
         // Prevent a one-shot voice action from running again after a configuration change.
         intent.removeExtra(EXTRA_AI_ACTION)
 
+        parseNgocSiAiYouTubeSeekAction(action)?.let { deltaMs ->
+            seekYouTubeBy((deltaMs / 1_000L).toInt())
+            return
+        }
+
         when (action) {
             // Reopening the compact YouTube player destroys/recreates the WebView
             // after Back, so the mobile site's video element may exist before it
@@ -2903,7 +2909,7 @@ class YouTubePlayerActivity : ComponentActivity() {
      */
     private fun seekYouTubeBy(deltaSeconds: Int) {
         val playerView = webView ?: return
-        val delta = deltaSeconds.coerceIn(-10, 10)
+        val delta = deltaSeconds.coerceIn(-120, 120)
         if (delta == 0) return
         val script = """
             (function() {

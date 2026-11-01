@@ -1142,6 +1142,95 @@ class NgocSiAiLocalCommandRulesTest {
     }
 
     @Test
+    fun recognizesVariableSeekDurationsForLocalAndYouTubePlayback() {
+        assertEquals(
+            NgocSiAiSeekRequest(30_000L, false),
+            extractNgocSiAiSeekRequest("AI, tua tới 30 giây")
+        )
+        assertEquals(
+            NgocSiAiSeekRequest(-15_000L, false),
+            extractNgocSiAiSeekRequest("AI, lùi 15 giây")
+        )
+        assertEquals(
+            NgocSiAiSeekRequest(60_000L, true),
+            extractNgocSiAiSeekRequest("AI, tua YouTube tới một phút")
+        )
+        assertEquals(
+            NgocSiAiSeekRequest(-120_000L, true),
+            extractNgocSiAiSeekRequest("AI, tua YouTube lùi 2 phút")
+        )
+        assertNull(extractNgocSiAiSeekRequest("AI, tua tới 3 phút"))
+        assertNull(extractNgocSiAiSeekRequest("AI, tua tới 0 giây"))
+        assertNull(extractNgocSiAiSeekRequest("AI, tua tới 30"))
+
+        assertEquals(
+            NgocSiAiLocalCommand.SEEK_FORWARD_CUSTOM,
+            classifyNgocSiAiWakePhrase("AI, tua tới 30 giây")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.SEEK_BACK_CUSTOM,
+            classifyNgocSiAiWakePhrase("AI, lùi 15 giây")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.YOUTUBE_SEEK_FORWARD_CUSTOM,
+            classifyNgocSiAiWakePhrase("AI, tua YouTube tới 30 giây")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.YOUTUBE_SEEK_BACK_CUSTOM,
+            classifyNgocSiAiWakePhrase("AI, tua YouTube lùi một phút")
+        )
+        assertNull(classifyNgocSiAiActivatedCommand("tua tới 30 giây"))
+    }
+
+    @Test
+    fun variableSeekToolActionsAreBoundedAndRouteToTheExpectedPlayer() {
+        assertEquals(
+            "tua tới 30 giây",
+            buildNgocSiAiToolCommandPhrase("seek_by_seconds", "30")
+        )
+        assertEquals(
+            "lùi 15 giây",
+            buildNgocSiAiToolCommandPhrase("seek_by_seconds", "-15")
+        )
+        assertEquals(
+            "tua youtube tới 60 giây",
+            buildNgocSiAiToolCommandPhrase("youtube_seek_by_seconds", "60")
+        )
+        assertNull(buildNgocSiAiToolCommandPhrase("seek_by_seconds", "0"))
+        assertNull(buildNgocSiAiToolCommandPhrase("seek_by_seconds", "121"))
+        assertNull(buildNgocSiAiToolCommandPhrase("youtube_seek_by_seconds", "-999"))
+
+        assertEquals("seek_by_ms:30000", buildNgocSiAiYouTubeSeekAction(30_000L))
+        assertEquals(-30_000L, parseNgocSiAiYouTubeSeekAction("seek_by_ms:-30000"))
+        assertNull(parseNgocSiAiYouTubeSeekAction("seek_by_ms:999999"))
+        assertNull(parseNgocSiAiYouTubeSeekAction("seek_by_ms:30001"))
+
+        assertEquals(
+            "seek_by_ms:30000",
+            ngocSiAiYouTubeActionForCommand(
+                NgocSiAiLocalCommand.YOUTUBE_SEEK_FORWARD_CUSTOM,
+                youtubeActiveSource = false,
+                seekDeltaMs = 30_000L
+            )
+        )
+        assertEquals(
+            "seek_by_ms:-15000",
+            ngocSiAiYouTubeActionForCommand(
+                NgocSiAiLocalCommand.SEEK_BACK_CUSTOM,
+                youtubeActiveSource = true,
+                seekDeltaMs = -15_000L
+            )
+        )
+        assertNull(
+            ngocSiAiYouTubeActionForCommand(
+                NgocSiAiLocalCommand.SEEK_FORWARD_CUSTOM,
+                youtubeActiveSource = false,
+                seekDeltaMs = 30_000L
+            )
+        )
+    }
+
+    @Test
     fun inlineYouTubeManualQueueRespectsShuffleAndRepeatBoundaries() {
         assertEquals(
             2,

@@ -337,6 +337,8 @@ internal class NgocSiAiRemoteClient(context: Context) {
             "set_playback_speed",
             "seek_forward_10",
             "seek_back_10",
+            "seek_by_seconds",
+            "youtube_seek_by_seconds",
             "favorite_current_track",
             "shuffle_on",
             "shuffle_off",
@@ -398,7 +400,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 action phải là một trong các mã sau:
                 play, play_second, play_track, pause, stop, next, previous, current_track,
                 volume_up, volume_down, mute, unmute,
-                set_playback_speed, seek_forward_10, seek_back_10, favorite_current_track,
+                set_playback_speed, seek_forward_10, seek_back_10, seek_by_seconds, youtube_seek_by_seconds, favorite_current_track,
                 shuffle_on, shuffle_off, repeat_off, repeat_all, repeat_one,
                 open_home, open_library, open_favorites, open_albums, open_folders, open_online,
                 search_online_music, open_youtube, search_youtube, youtube_play, youtube_pause,
@@ -414,7 +416,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 Không tự đoán tên bài, đài, kênh hay playlist nếu người dùng chưa nêu; hãy hỏi lại.
                 Không có action xóa dữ liệu, xóa playlist, xóa thư viện, thay đổi quyền, đăng nhập tài khoản hoặc thanh toán.
                 set_playback_speed chỉ áp dụng cho nhạc thiết bị, Drive và Radio qua Media3; không tự ý áp dụng tốc độ Media3 lên YouTube.
-                seek_forward_10/seek_back_10 tua 10 giây theo nguồn đang phát. Nếu người dùng nói rõ YouTube, hãy dùng youtube_seek_forward_10 hoặc youtube_seek_back_10.
+                seek_forward_10/seek_back_10 tua 10 giây theo nguồn đang phát. seek_by_seconds nhận query là số giây có dấu (ví dụ 30 hoặc -15), giới hạn 1–120 giây. youtube_seek_by_seconds dùng cùng quy tắc nhưng chỉ cho YouTube. Với yêu cầu 10 giây, có thể dùng action cố định cũ.
                 volume_up, volume_down, mute và unmute điều chỉnh âm lượng media của Android, áp dụng cho nguồn đang phát trên thiết bị; không cần hàng đợi Media3.
                 Các action shuffle_on/off và repeat_off/all/one điều khiển Media3; khi nguồn phát là YouTube phải dùng youtube_shuffle_on/off và youtube_repeat_off/all/one. favorite_current_track chỉ thêm bài hiện tại vào Yêu thích, không xóa khỏi danh sách.
                 Sau khi gọi, phải dựa vào app_feedback: nếu phản hồi chỉ nói đang mở/đang tìm/đã gửi lệnh thì không được khẳng định thao tác đã hoàn tất.

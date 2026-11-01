@@ -1258,7 +1258,14 @@ class NgocSiWakeWordService : Service() {
         }
     }
     private fun runYouTubeControl(action: String, hasSavedVideo: Boolean): String {
-        val response = when (action) {
+        val dynamicSeekMs = parseNgocSiAiYouTubeSeekAction(action)
+        val response = when {
+            dynamicSeekMs != null -> {
+                val seconds = kotlin.math.abs(dynamicSeekMs) / 1_000L
+                val direction = if (dynamicSeekMs > 0L) "tới" else "lùi"
+                "Đang tua video YouTube $direction $seconds giây."
+            }
+            action == "current_track" -> {
             "current_track" -> {
                 val prefs = getSharedPreferences("ngoc_si_music", Context.MODE_PRIVATE)
                 val title = prefs.getString("youtube_last_played_title", null)
@@ -1272,20 +1279,20 @@ class NgocSiWakeWordService : Service() {
                 }
                 if (channel.isNullOrBlank()) "$status: $title" else "$status: $title — $channel"
             }
-            "play" -> "Đang phát tiếp video YouTube."
-            "pause" -> "Đang tạm dừng video YouTube."
-            "stop" -> "Đang dừng video YouTube."
-            "next" -> "Đang chuyển sang video YouTube tiếp theo."
-            "previous" -> "Đang chuyển về video YouTube trước."
-            "seek_forward_10" -> "Đang tua video YouTube tới 10 giây."
-            "seek_back_10" -> "Đang tua video YouTube lùi 10 giây."
-            "shuffle_on" -> "Đang bật phát ngẫu nhiên YouTube."
-            "shuffle_off" -> "Đang tắt phát ngẫu nhiên YouTube."
-            "repeat_off" -> "Đang tắt chế độ lặp YouTube."
-            "repeat_all" -> "Đang bật lặp hàng đợi YouTube."
-            "repeat_one" -> "Đang bật lặp video YouTube."
-            "favorite" -> "Đang lưu video YouTube vào Yêu thích."
-            "watch_later" -> "Đang lưu video YouTube vào Xem sau."
+            action == "play" -> "Đang phát tiếp video YouTube."
+            action == "pause" -> "Đang tạm dừng video YouTube."
+            action == "stop" -> "Đang dừng video YouTube."
+            action == "next" -> "Đang chuyển sang video YouTube tiếp theo."
+            action == "previous" -> "Đang chuyển về video YouTube trước."
+            action == "seek_forward_10" -> "Đang tua video YouTube tới 10 giây."
+            action == "seek_back_10" -> "Đang tua video YouTube lùi 10 giây."
+            action == "shuffle_on" -> "Đang bật phát ngẫu nhiên YouTube."
+            action == "shuffle_off" -> "Đang tắt phát ngẫu nhiên YouTube."
+            action == "repeat_off" -> "Đang tắt chế độ lặp YouTube."
+            action == "repeat_all" -> "Đang bật lặp hàng đợi YouTube."
+            action == "repeat_one" -> "Đang bật lặp video YouTube."
+            action == "favorite" -> "Đang lưu video YouTube vào Yêu thích."
+            action == "watch_later" -> "Đang lưu video YouTube vào Xem sau."
             else -> "Đã gửi lệnh điều khiển YouTube."
         }
         if (action == "current_track" && hasSavedVideo) return response
@@ -1387,9 +1394,11 @@ class NgocSiWakeWordService : Service() {
 
         // Route both explicit YouTube commands and generic transport commands to the
         // selected YouTube source before asking Media3 to connect.
+        val seekRequest = extractNgocSiAiSeekRequest(originalText)
         val selectedYouTubeAction = ngocSiAiYouTubeActionForCommand(
             command,
-            youtubeActiveSource = youtubePrefs.getBoolean("youtube_active_source", false)
+            youtubeActiveSource = youtubePrefs.getBoolean("youtube_active_source", false),
+            seekDeltaMs = seekRequest?.deltaMs
         )
         if (selectedYouTubeAction != null) {
             return runYouTubeControl(selectedYouTubeAction, hasSavedYouTubeVideo)
@@ -1398,7 +1407,9 @@ class NgocSiWakeWordService : Service() {
             command in setOf(
                 NgocSiAiLocalCommand.SET_PLAYBACK_SPEED,
                 NgocSiAiLocalCommand.SEEK_FORWARD_10,
-                NgocSiAiLocalCommand.SEEK_BACK_10
+                NgocSiAiLocalCommand.SEEK_BACK_10,
+                NgocSiAiLocalCommand.SEEK_FORWARD_CUSTOM,
+                NgocSiAiLocalCommand.SEEK_BACK_CUSTOM
             )
         ) {
             return "Tua và đổi tốc độ từ AI hiện áp dụng cho nhạc điện thoại, Drive và Radio. Hãy dùng điều khiển riêng trong trình phát YouTube."
@@ -1652,7 +1663,9 @@ class NgocSiWakeWordService : Service() {
                 NgocSiAiLocalCommand.CURRENT_TRACK,
                 NgocSiAiLocalCommand.SET_PLAYBACK_SPEED,
                 NgocSiAiLocalCommand.SEEK_FORWARD_10,
-                NgocSiAiLocalCommand.SEEK_BACK_10 ->
+                NgocSiAiLocalCommand.SEEK_BACK_10,
+                NgocSiAiLocalCommand.SEEK_FORWARD_CUSTOM,
+                NgocSiAiLocalCommand.SEEK_BACK_CUSTOM ->
                     "Hàng đợi đang trống. Hãy mở Thư viện và chọn bài nhạc trước."
                 else -> "Chưa có bài nhạc trong hàng đợi để thực hiện lệnh này."
             }
@@ -1703,6 +1716,20 @@ class NgocSiWakeWordService : Service() {
                 NgocSiAiLocalCommand.SEEK_BACK_10 -> {
                     player.seekTo((player.currentPosition - 10_000L).coerceAtLeast(0L))
                     "Đã tua lùi 10 giây"
+                }
+                NgocSiAiLocalCommand.SEEK_FORWARD_CUSTOM,
+                NgocSiAiLocalCommand.SEEK_BACK_CUSTOM,
+                NgocSiAiLocalCommand.YOUTUBE_SEEK_FORWARD_CUSTOM,
+                NgocSiAiLocalCommand.YOUTUBE_SEEK_BACK_CUSTOM -> {
+                    val request = extractNgocSiAiSeekRequest(originalText)
+                        ?: return "Hãy nói rõ thời lượng tua từ 1 đến 120 giây hoặc 1 đến 2 phút."
+                    val duration = player.duration.takeIf { it > 0L }
+                    val target = (player.currentPosition + request.deltaMs).coerceAtLeast(0L)
+                        .let { if (duration == null) it else it.coerceAtMost(duration) }
+                    player.seekTo(target)
+                    val seconds = kotlin.math.abs(request.deltaMs) / 1_000L
+                    val direction = if (request.deltaMs > 0L) "tiến" else "lùi"
+                    "Đã tua $direction $seconds giây."
                 }
                 NgocSiAiLocalCommand.CURRENT_TRACK -> {
                     val title = player.currentMediaItem?.mediaMetadata?.title?.toString()
