@@ -29,6 +29,10 @@ internal enum class NgocSiAiLocalCommand {
     NEXT,
     PREVIOUS,
     CURRENT_TRACK,
+    SET_PLAYBACK_SPEED,
+    SEEK_FORWARD_10,
+    SEEK_BACK_10,
+    FAVORITE_CURRENT_TRACK,
     SHUFFLE_ON,
     SHUFFLE_OFF,
     REPEAT_OFF,
@@ -74,6 +78,9 @@ private val NGOC_SI_AI_PLAYER_CONNECTION_COMMANDS = setOf(
     NgocSiAiLocalCommand.PREVIOUS,
     NgocSiAiLocalCommand.PLAY_SECOND,
     NgocSiAiLocalCommand.CURRENT_TRACK,
+    NgocSiAiLocalCommand.SET_PLAYBACK_SPEED,
+    NgocSiAiLocalCommand.SEEK_FORWARD_10,
+    NgocSiAiLocalCommand.SEEK_BACK_10,
     NgocSiAiLocalCommand.SHUFFLE_ON,
     NgocSiAiLocalCommand.SHUFFLE_OFF,
     NgocSiAiLocalCommand.REPEAT_OFF,
@@ -109,6 +116,7 @@ internal fun ngocSiAiYouTubeActionForCommand(
     NgocSiAiLocalCommand.STOP -> if (youtubeActiveSource) "stop" else null
     NgocSiAiLocalCommand.NEXT -> if (youtubeActiveSource) "next" else null
     NgocSiAiLocalCommand.PREVIOUS -> if (youtubeActiveSource) "previous" else null
+    NgocSiAiLocalCommand.FAVORITE_CURRENT_TRACK -> if (youtubeActiveSource) "favorite" else null
     // Generic shuffle/repeat remain bound to Media3. Inline YouTube gets these
     // controls only through explicit YouTube commands; its dedicated player has
     // a separate queue-mode implementation.
@@ -193,6 +201,10 @@ private val NGOC_SI_AI_WAKE_WORD_COMMANDS = setOf(
     NgocSiAiLocalCommand.YOUTUBE_FAVORITE,
     NgocSiAiLocalCommand.YOUTUBE_WATCH_LATER,
     NgocSiAiLocalCommand.CURRENT_TRACK,
+    NgocSiAiLocalCommand.SET_PLAYBACK_SPEED,
+    NgocSiAiLocalCommand.SEEK_FORWARD_10,
+    NgocSiAiLocalCommand.SEEK_BACK_10,
+    NgocSiAiLocalCommand.FAVORITE_CURRENT_TRACK,
     NgocSiAiLocalCommand.SHUFFLE_ON,
     NgocSiAiLocalCommand.SHUFFLE_OFF,
     NgocSiAiLocalCommand.REPEAT_OFF,
@@ -488,6 +500,11 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
     fun isAnyOf(vararg options: String) = phrase in options.toSet()
     fun startsWithAny(vararg options: String) = options.any { phrase == it || phrase.startsWith("$it ") }
 
+    val speedMatch = Regex(
+        """^(?:dat )?toc do phat (0 5|0 75|1 0|1 25|1 5|1 75|2 0)x?$"""
+    ).matchEntire(phrase)
+    if (speedMatch != null) return NgocSiAiLocalCommand.SET_PLAYBACK_SPEED
+
     return when {
         startsWithAny(
             "hat bai thu hai trong danh sach", "phat bai thu hai trong danh sach",
@@ -495,6 +512,21 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
             "bai thu hai trong danh sach", "bai so hai trong danh sach",
             "cho phat bai thu hai", "phat bai thu hai trong hang doi"
         ) -> NgocSiAiLocalCommand.PLAY_SECOND
+
+        startsWithAny(
+            "tua toi 10 giay", "tien toi 10 giay", "nhay toi 10 giay",
+            "forward 10 seconds", "seek forward 10 seconds"
+        ) -> NgocSiAiLocalCommand.SEEK_FORWARD_10
+
+        startsWithAny(
+            "lui 10 giay", "tua lui 10 giay", "quay lai 10 giay", "tro lai 10 giay",
+            "back 10 seconds", "seek back 10 seconds"
+        ) -> NgocSiAiLocalCommand.SEEK_BACK_10
+
+        startsWithAny(
+            "them bai dang phat vao yeu thich", "luu bai dang phat vao yeu thich",
+            "yeu thich bai dang phat", "favorite current song"
+        ) -> NgocSiAiLocalCommand.FAVORITE_CURRENT_TRACK
 
         // Explicit YouTube controls must not be mistaken for local music controls.
         startsWithAny("tam dung youtube", "tam dung video youtube", "pause youtube", "pause video") ->
@@ -965,6 +997,19 @@ internal fun extractNgocSiAiYoutubeQuery(input: String): String? {
     return query.take(120).takeIf { it.length >= 2 }
 }
 
+
+/**
+ * Reads a supported playback speed from an explicit AI command.
+ * Only speeds already exposed by the app's Settings screen are accepted.
+ */
+internal fun extractNgocSiAiPlaybackSpeed(input: String): Float? {
+    val phrase = normalizeNgocSiAiVoicePhrase(input)
+    val match = Regex(
+        """^(?:dat )?toc do phat (0 5|0 75|1 0|1 25|1 5|1 75|2 0)x?$"""
+    ).matchEntire(phrase) ?: return null
+    return match.groupValues[1].replace(" ", ".").toFloatOrNull()
+}
+
 /**
  * Converts the model's constrained app-action name into the same explicit phrases
  * already understood by the deterministic local command router. Unknown actions are
@@ -979,7 +1024,8 @@ internal fun buildNgocSiAiToolCommandPhrase(action: String, query: String = ""):
     val needsQuery = setOf(
         "play_track", "play_radio_station", "open_tv_channel",
         "create_playlist", "play_playlist", "add_current_to_playlist",
-        "add_queue_to_playlist", "search_youtube", "search_online_music"
+        "add_queue_to_playlist", "search_youtube", "search_online_music",
+        "set_playback_speed"
     )
     if (normalizedAction in needsQuery && safeQuery.isBlank()) return null
 
@@ -992,6 +1038,14 @@ internal fun buildNgocSiAiToolCommandPhrase(action: String, query: String = ""):
         "next" -> "chuyển bài"
         "previous" -> "bài trước"
         "current_track" -> "đang phát bài gì"
+        "set_playback_speed" -> {
+            val speed = safeQuery.trim().lowercase(Locale.ROOT).removeSuffix("x").replace(',', '.')
+            if (speed !in setOf("0.5", "0.75", "1.0", "1.25", "1.5", "1.75", "2.0")) return null
+            "đặt tốc độ phát ${speed}x"
+        }
+        "seek_forward_10" -> "tua tới 10 giây"
+        "seek_back_10" -> "lùi 10 giây"
+        "favorite_current_track" -> "thêm bài đang phát vào yêu thích"
         "shuffle_on" -> "bật phát ngẫu nhiên"
         "shuffle_off" -> "tắt phát ngẫu nhiên"
         "repeat_off" -> "tắt lặp"
