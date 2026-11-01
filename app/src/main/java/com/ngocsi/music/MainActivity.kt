@@ -668,6 +668,13 @@ class MainActivity : ComponentActivity() {
     }
     private var youtubeLastQueueJson by mutableStateOf<String?>(null)
     private var youtubeLastQueueIndex by mutableIntStateOf(0)
+    // Inline YouTube has its own queue policy; it must not reuse the separate Media3 flags.
+    // Repeat mode: 0=off, 1=all, 2=one.
+    private var youtubeShuffleEnabled by mutableStateOf(false)
+    private var youtubeRepeatMode by mutableIntStateOf(0)
+    private var lastHandledInlineYouTubeEndedId: String? = null
+    private var youtubeLastQueueJson by mutableStateOf<String?>(null)
+    private var youtubeLastQueueIndex by mutableIntStateOf(0)
     private var onlineUrl by mutableStateOf("")
     private var driveSharedLink by mutableStateOf("")
     private var driveSharedLoading by mutableStateOf(false)
@@ -1008,6 +1015,8 @@ class MainActivity : ComponentActivity() {
         // The UI is attached early so startup never appears as a blank window while
         // library/Drive state is being restored in the background.
         prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+        youtubeShuffleEnabled = prefs.getBoolean("youtube_shuffle_enabled", false)
+        youtubeRepeatMode = prefs.getInt("youtube_repeat_mode", 0).coerceIn(0, 2)
         inlineBackgroundPlaybackEnabled =
             prefs.getBoolean("youtube_background_playback_enabled", false)
         ContextCompat.registerReceiver(
