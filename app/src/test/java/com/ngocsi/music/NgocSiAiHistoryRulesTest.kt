@@ -111,8 +111,8 @@ class NgocSiAiHistoryRulesTest {
     fun boundsPriorContextButPreservesNewestQuestion() {
         val history = normalizeNgocSiAiHistory(
             listOf(
-                NgocSiAiMessage(role = "user", content = "u".repeat(1_100)),
-                NgocSiAiMessage(role = "assistant", content = "a".repeat(1_100)),
+                NgocSiAiMessage(role = "user", content = "u".repeat(1_500)),
+                NgocSiAiMessage(role = "assistant", content = "a".repeat(1_500)),
                 NgocSiAiMessage(role = "user", content = "q".repeat(500))
             )
         )
