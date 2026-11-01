@@ -1256,4 +1256,49 @@ class NgocSiAiLocalCommandRulesTest {
     }
 
 
+
+    @Test
+    fun youtubeAiDispatchUsesLiveRuntimeActivityAndFallsBackAfterProcessDeath() {
+        assertEquals(
+            NgocSiAiYouTubeDispatchTarget.OPEN_YOUTUBE,
+            selectNgocSiAiYouTubeDispatchTarget(
+                hasSavedVideo = false,
+                livePlayerActivityAvailable = false
+            )
+        )
+        assertEquals(
+            NgocSiAiYouTubeDispatchTarget.LIVE_PLAYER_ACTIVITY,
+            selectNgocSiAiYouTubeDispatchTarget(
+                hasSavedVideo = true,
+                livePlayerActivityAvailable = true
+            )
+        )
+        // A saved video with no live Activity must use MainActivity's inline player;
+        // an old persisted "Activity active" flag is deliberately not part of this policy.
+        assertEquals(
+            NgocSiAiYouTubeDispatchTarget.MAIN_INLINE_PLAYER,
+            selectNgocSiAiYouTubeDispatchTarget(
+                hasSavedVideo = true,
+                livePlayerActivityAvailable = false
+            )
+        )
+    }
+
+    @Test
+    fun recognizesShortVideoNavigationPhrasesAndKeepsTheYouTubeSource() {
+        assertEquals(NgocSiAiLocalCommand.NEXT, classifyNgocSiAiWakePhrase("AI, video tiếp theo"))
+        assertEquals(NgocSiAiLocalCommand.NEXT, classifyNgocSiAiWakePhrase("AI, chuyển video kế tiếp"))
+        assertEquals(NgocSiAiLocalCommand.PREVIOUS, classifyNgocSiAiWakePhrase("AI, video trước đó"))
+        assertEquals(
+            "next",
+            ngocSiAiYouTubeActionForCommand(NgocSiAiLocalCommand.NEXT, youtubeActiveSource = true)
+        )
+        assertEquals(
+            "previous",
+            ngocSiAiYouTubeActionForCommand(NgocSiAiLocalCommand.PREVIOUS, youtubeActiveSource = true)
+        )
+        assertNull(
+            ngocSiAiYouTubeActionForCommand(NgocSiAiLocalCommand.NEXT, youtubeActiveSource = false)
+        )
+    }
 }
