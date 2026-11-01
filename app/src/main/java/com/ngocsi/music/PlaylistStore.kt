@@ -108,6 +108,32 @@ class PlaylistStore(context: Context) {
         return updated.firstOrNull { it.id == playlistId }
     }
 
+    fun moveSong(
+        playlistId: String,
+        movingUri: String,
+        targetUri: String,
+        placeAfterTarget: Boolean
+    ): MusicPlaylist? {
+        val updated = load().map { playlist ->
+            if (playlist.id != playlistId) playlist
+            else {
+                val reordered = PlaylistRules.moveSong(
+                    playlist.songUris,
+                    movingUri,
+                    targetUri,
+                    placeAfterTarget
+                )
+                if (reordered == playlist.songUris) playlist
+                else playlist.copy(
+                    songUris = reordered,
+                    updatedAt = System.currentTimeMillis()
+                )
+            }
+        }
+        save(updated)
+        return updated.firstOrNull { it.id == playlistId }
+    }
+
     private fun save(playlists: List<MusicPlaylist>) {
         val array = JSONArray()
         playlists.forEach { playlist ->

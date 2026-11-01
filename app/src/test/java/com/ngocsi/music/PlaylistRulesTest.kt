@@ -29,6 +29,40 @@ class PlaylistRulesTest {
     }
 
     @Test
+    fun moveSong_placesAnItemBeforeOrAfterTheSelectedTarget() {
+        val original = listOf("a", "b", "c", "d")
+        assertEquals(
+            listOf("b", "a", "c", "d"),
+            PlaylistRules.moveSong(original, "b", "a", placeAfterTarget = false)
+        )
+        assertEquals(
+            listOf("a", "c", "b", "d"),
+            PlaylistRules.moveSong(original, "b", "c", placeAfterTarget = true)
+        )
+        assertEquals(
+            listOf("a", "d", "b", "c"),
+            PlaylistRules.moveSong(original, "d", "b", placeAfterTarget = false)
+        )
+    }
+
+    @Test
+    fun moveSongKeepsOriginalOrderWhenAnItemOrTargetIsMissing() {
+        val original = listOf("a", "b", "c")
+        assertEquals(
+            original,
+            PlaylistRules.moveSong(original, "missing", "a", placeAfterTarget = false)
+        )
+        assertEquals(
+            original,
+            PlaylistRules.moveSong(original, "a", "missing", placeAfterTarget = true)
+        )
+        assertEquals(
+            original,
+            PlaylistRules.moveSong(original, "a", "a", placeAfterTarget = false)
+        )
+    }
+
+    @Test
     fun removeSong_removesAllMatchingEntries() {
         assertEquals(
             listOf("content://a"),

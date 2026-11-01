@@ -13893,6 +13893,42 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                             SourceBadge(song.source)
                                         }
                                     }
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        IconButton(
+                                            onClick = {
+                                                playlistSongs.getOrNull(index - 1)?.let { target ->
+                                                    playlistStore.moveSong(
+                                                        playlist.id,
+                                                        song.uri.toString(),
+                                                        target.uri.toString(),
+                                                        placeAfterTarget = false
+                                                    )
+                                                    refreshPlaylists()
+                                                }
+                                            },
+                                            enabled = index > 0,
+                                            modifier = Modifier.size(26.dp)
+                                        ) {
+                                            Text("↑", color = if (index > 0) Color(0xFFB9A7FF) else Color(0xFF444956), fontSize = 14.sp)
+                                        }
+                                        IconButton(
+                                            onClick = {
+                                                playlistSongs.getOrNull(index + 1)?.let { target ->
+                                                    playlistStore.moveSong(
+                                                        playlist.id,
+                                                        song.uri.toString(),
+                                                        target.uri.toString(),
+                                                        placeAfterTarget = true
+                                                    )
+                                                    refreshPlaylists()
+                                                }
+                                            },
+                                            enabled = index < playlistSongs.lastIndex,
+                                            modifier = Modifier.size(26.dp)
+                                        ) {
+                                            Text("↓", color = if (index < playlistSongs.lastIndex) Color(0xFFB9A7FF) else Color(0xFF444956), fontSize = 14.sp)
+                                        }
+                                    }
                                     TextButton(onClick = { playPlaylistFromSong(playlist, index) }) { Text("▶") }
                                     TextButton(
                                         onClick = {
