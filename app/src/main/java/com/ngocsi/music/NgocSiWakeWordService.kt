@@ -1264,6 +1264,8 @@ class NgocSiWakeWordService : Service() {
             "stop" -> "Đang dừng video YouTube."
             "next" -> "Đang chuyển sang video YouTube tiếp theo."
             "previous" -> "Đang chuyển về video YouTube trước."
+            "seek_forward_10" -> "Đang tua video YouTube tới 10 giây."
+            "seek_back_10" -> "Đang tua video YouTube lùi 10 giây."
             "shuffle_on" -> "Đang bật phát ngẫu nhiên YouTube."
             "shuffle_off" -> "Đang tắt phát ngẫu nhiên YouTube."
             "repeat_off" -> "Đang tắt chế độ lặp YouTube."
@@ -1282,7 +1284,9 @@ class NgocSiWakeWordService : Service() {
         }
 
         val prefs = getSharedPreferences("ngoc_si_music", Context.MODE_PRIVATE)
-        if (prefs.getBoolean("youtube_player_activity_active", false)) {
+        // A persisted Activity flag may remain true if Android reclaims the process.
+        // Only broadcast directly when the dedicated player is verified alive in this process.
+        if (YouTubePlayerActivity.hasLiveInstance()) {
             val sent = runCatching {
                 sendBroadcast(
                     Intent(YouTubeBackgroundService.ACTION_CONTROL)
