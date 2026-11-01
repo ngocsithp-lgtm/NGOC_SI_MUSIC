@@ -949,6 +949,8 @@ class NgocSiAiLocalCommandRulesTest {
     fun mapsOnlyAllowlistedGeminiActionsToExistingLocalCommands() {
         assertEquals("phát nhạc", buildNgocSiAiToolCommandPhrase("play"))
         assertEquals("tìm youtube nhạc Trịnh", buildNgocSiAiToolCommandPhrase("search_youtube", "nhạc Trịnh"))
+        assertEquals("tua youtube tới 10 giây", buildNgocSiAiToolCommandPhrase("youtube_seek_forward_10"))
+        assertEquals("tua youtube lùi 10 giây", buildNgocSiAiToolCommandPhrase("youtube_seek_back_10"))
         assertEquals("phát radio VOV3", buildNgocSiAiToolCommandPhrase("play_radio_station", "VOV3"))
         assertEquals("mở kênh VTV3", buildNgocSiAiToolCommandPhrase("open_tv_channel", "VTV3"))
         assertEquals(
@@ -994,6 +996,8 @@ class NgocSiAiLocalCommandRulesTest {
             "youtube_pause" to "",
             "youtube_next" to "",
             "youtube_previous" to "",
+            "youtube_seek_forward_10" to "",
+            "youtube_seek_back_10" to "",
             "youtube_shuffle_on" to "",
             "youtube_shuffle_off" to "",
             "youtube_repeat_off" to "",
@@ -1280,6 +1284,53 @@ class NgocSiAiLocalCommandRulesTest {
             selectNgocSiAiYouTubeDispatchTarget(
                 hasSavedVideo = true,
                 livePlayerActivityAvailable = false
+            )
+        )
+    }
+
+    @Test
+    fun youtubeSeekActionsFollowTheSelectedSourceAndAcceptExplicitVideoPhrases() {
+        assertEquals(
+            NgocSiAiLocalCommand.YOUTUBE_SEEK_FORWARD_10,
+            classifyNgocSiAiLocalCommand("Tua YouTube tới 10 giây")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.YOUTUBE_SEEK_BACK_10,
+            classifyNgocSiAiLocalCommand("Tua YouTube lùi 10 giây")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.YOUTUBE_SEEK_FORWARD_10,
+            classifyNgocSiAiActivatedCommand("AI, tua YouTube tới 10 giây")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.YOUTUBE_SEEK_BACK_10,
+            classifyNgocSiAiActivatedCommand("AI, tua YouTube lùi 10 giây")
+        )
+        assertEquals(
+            "seek_forward_10",
+            ngocSiAiYouTubeActionForCommand(
+                NgocSiAiLocalCommand.YOUTUBE_SEEK_FORWARD_10,
+                youtubeActiveSource = false
+            )
+        )
+        assertEquals(
+            "seek_back_10",
+            ngocSiAiYouTubeActionForCommand(
+                NgocSiAiLocalCommand.YOUTUBE_SEEK_BACK_10,
+                youtubeActiveSource = false
+            )
+        )
+        assertEquals(
+            "seek_forward_10",
+            ngocSiAiYouTubeActionForCommand(
+                NgocSiAiLocalCommand.SEEK_FORWARD_10,
+                youtubeActiveSource = true
+            )
+        )
+        assertNull(
+            ngocSiAiYouTubeActionForCommand(
+                NgocSiAiLocalCommand.SEEK_FORWARD_10,
+                youtubeActiveSource = false
             )
         )
     }
