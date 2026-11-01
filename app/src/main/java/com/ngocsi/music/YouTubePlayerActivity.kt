@@ -604,21 +604,19 @@ class YouTubePlayerActivity : ComponentActivity() {
     private val youtubeBackgroundControlReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: android.content.Context?, intent: Intent?) {
             if (intent?.action != YouTubeBackgroundService.ACTION_CONTROL ||
-                !youtubePlayerReady || webView == null || isFinishing || isDestroyed
+                isFinishing || isDestroyed
             ) return
-            when (intent.getStringExtra(YouTubeBackgroundService.EXTRA_CONTROL)) {
-                "play" -> requestYouTubePlayback()
-                "pause", "stop" -> pauseYouTubePlayback()
-                "next" -> playNext()
-                "previous" -> playPrevious()
-                "shuffle_on" -> if (!youtubeShuffleEnabled) toggleYoutubeShuffle()
-                "shuffle_off" -> if (youtubeShuffleEnabled) toggleYoutubeShuffle()
-                "repeat_off" -> setYoutubeRepeatMode(0)
-                "repeat_all" -> setYoutubeRepeatMode(1)
-                "repeat_one" -> setYoutubeRepeatMode(2)
-                "favorite" -> if (!isFavorite()) toggleFavorite()
-                "watch_later" -> if (!isWatchLater()) toggleWatchLater()
-            }
+            val action = intent.getStringExtra(YouTubeBackgroundService.EXTRA_CONTROL)
+                ?.takeIf { it in setOf(
+                    "play", "pause", "stop", "next", "previous",
+                    "shuffle_on", "shuffle_off", "repeat_off", "repeat_all",
+                    "repeat_one", "favorite", "watch_later"
+                ) } ?: return
+
+            // Keep the latest AI/media-button request until the embedded page is ready.
+            // This avoids silently dropping a voice command during WebView startup/buffering.
+            pendingAiAction = action
+            executePendingAiAction()
         }
     }
     private var youtubeBackgroundServiceStarted = false
@@ -2858,7 +2856,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             // is ready to accept play(). Retry instead of swallowing the first
             // rejected play() promise and leaving the play button ineffective.
             "play" -> requestYouTubePlayback()
-            "pause" -> pauseYouTubePlayback()
+            "pause", "stop" -> pauseYouTubePlayback()
             "queue" -> showQueueDialog()
             "next" -> {
                 if (queue.size > 1) {
