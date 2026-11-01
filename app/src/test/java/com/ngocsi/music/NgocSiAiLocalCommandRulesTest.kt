@@ -967,6 +967,10 @@ class NgocSiAiLocalCommandRulesTest {
             "next" to "",
             "previous" to "",
             "current_track" to "",
+            "set_playback_speed" to "1.5",
+            "seek_forward_10" to "",
+            "seek_back_10" to "",
+            "favorite_current_track" to "",
             "shuffle_on" to "",
             "shuffle_off" to "",
             "repeat_off" to "",
@@ -1021,6 +1025,64 @@ class NgocSiAiLocalCommandRulesTest {
             assertEquals("Mapped action $action should use a known command", true,
                 classifyNgocSiAiLocalCommand(phrase!!) != null)
         }
+    }
+
+
+    @Test
+    fun mapsPlaybackSpeedSeekAndCurrentFavoriteActionsSafely() {
+        assertEquals(
+            "đặt tốc độ phát 1.5x",
+            buildNgocSiAiToolCommandPhrase("set_playback_speed", "1.5")
+        )
+        assertEquals("tua tới 10 giây", buildNgocSiAiToolCommandPhrase("seek_forward_10"))
+        assertEquals("lùi 10 giây", buildNgocSiAiToolCommandPhrase("seek_back_10"))
+        assertEquals(
+            "thêm bài đang phát vào yêu thích",
+            buildNgocSiAiToolCommandPhrase("favorite_current_track")
+        )
+        assertEquals(null, buildNgocSiAiToolCommandPhrase("set_playback_speed", "3.0"))
+        assertEquals(null, buildNgocSiAiToolCommandPhrase("set_playback_speed", ""))
+
+        assertEquals(1.5f, extractNgocSiAiPlaybackSpeed("Đặt tốc độ phát 1.5x"), 0.001f)
+        assertEquals(0.75f, extractNgocSiAiPlaybackSpeed("Tốc độ phát 0.75x"), 0.001f)
+        assertEquals(null, extractNgocSiAiPlaybackSpeed("Đặt tốc độ phát 3.0x"))
+        assertEquals(
+            NgocSiAiLocalCommand.SET_PLAYBACK_SPEED,
+            classifyNgocSiAiLocalCommand("Đặt tốc độ phát 1.5x")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.SEEK_FORWARD_10,
+            classifyNgocSiAiLocalCommand("Tua tới 10 giây")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.SEEK_BACK_10,
+            classifyNgocSiAiLocalCommand("Lùi 10 giây")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.FAVORITE_CURRENT_TRACK,
+            classifyNgocSiAiLocalCommand("Thêm bài đang phát vào yêu thích")
+        )
+    }
+
+    @Test
+    fun wakeWordAllowsOnlyExplicitPlaybackSpeedSeekAndFavoriteCommands() {
+        assertEquals(
+            NgocSiAiLocalCommand.SET_PLAYBACK_SPEED,
+            classifyNgocSiAiActivatedCommand("AI, đặt tốc độ phát 1.5x")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.SEEK_FORWARD_10,
+            classifyNgocSiAiActivatedCommand("AI, tua tới 10 giây")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.SEEK_BACK_10,
+            classifyNgocSiAiActivatedCommand("AI, lùi 10 giây")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.FAVORITE_CURRENT_TRACK,
+            classifyNgocSiAiActivatedCommand("AI, thêm bài đang phát vào yêu thích")
+        )
+        assertNull(classifyNgocSiAiActivatedCommand("đặt tốc độ phát 1.5x"))
     }
 
 }
