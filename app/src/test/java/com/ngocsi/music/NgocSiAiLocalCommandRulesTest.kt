@@ -1043,8 +1043,16 @@ class NgocSiAiLocalCommandRulesTest {
         assertEquals(null, buildNgocSiAiToolCommandPhrase("set_playback_speed", "3.0"))
         assertEquals(null, buildNgocSiAiToolCommandPhrase("set_playback_speed", ""))
 
-        assertEquals(1.5f, extractNgocSiAiPlaybackSpeed("Đặt tốc độ phát 1.5x"), 0.001f)
-        assertEquals(0.75f, extractNgocSiAiPlaybackSpeed("Tốc độ phát 0.75x"), 0.001f)
+        assertEquals(
+            1.5f,
+            extractNgocSiAiPlaybackSpeed("Đặt tốc độ phát 1.5x") ?: Float.NaN,
+            0.001f
+        )
+        assertEquals(
+            0.75f,
+            extractNgocSiAiPlaybackSpeed("Tốc độ phát 0.75x") ?: Float.NaN,
+            0.001f
+        )
         assertEquals(null, extractNgocSiAiPlaybackSpeed("Đặt tốc độ phát 3.0x"))
         assertEquals(
             NgocSiAiLocalCommand.SET_PLAYBACK_SPEED,
