@@ -168,7 +168,7 @@ jobs:
                   raise SystemExit("No native shared libraries were found to verify.")
               for name in native_libs:
                   data = archive.read(name)
-                  if len(data) < 64 or data[:4] != b"\\x7fELF":
+                  if len(data) < 64 or data[:4] != b"\x7fELF":
                       raise SystemExit(f"{name}: invalid ELF file")
                   if data[4] != 2 or data[5] != 1:
                       raise SystemExit(f"{name}: expected ELF64 little-endian Android library")
