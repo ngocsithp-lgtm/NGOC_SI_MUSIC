@@ -1291,7 +1291,7 @@ class NgocSiAiActivity : ComponentActivity() {
         }
 
         when (command) {
-            NgocSiAiLocalCommand.HELP -> return "Tôi có thể điều khiển nhạc trên điện thoại và YouTube riêng biệt; mở Thư viện, Yêu thích, Album, Thư mục, Drive, từng đài Radio và kênh TV; tìm nhạc trên Jamendo, Audius và YouTube; tạo/phát playlist theo tên; mở Hàng đợi, Trình phát, Cài đặt và hẹn giờ."
+            NgocSiAiLocalCommand.HELP -> return "Tôi có thể phát/tạm dừng/chuyển bài, tìm bài theo tên, bật ngẫu nhiên/lặp, đổi tốc độ 0.5x–2.0x và tua 10 giây với nhạc điện thoại, Drive, Radio; điều khiển YouTube riêng; mở Thư viện, Yêu thích, Album, Thư mục, Drive, từng đài Radio/kênh TV; tìm nhạc, tạo/phát playlist, lưu bài hiện tại vào Yêu thích, mở Hàng đợi, Trình phát, Cài đặt và hẹn giờ."
             NgocSiAiLocalCommand.OPEN_HOME -> return openAppDestination("home", "Đang mở trang chủ.")
             NgocSiAiLocalCommand.SEARCH_ONLINE_MUSIC -> {
                 val query = extractNgocSiAiOnlineQuery(originalText)
