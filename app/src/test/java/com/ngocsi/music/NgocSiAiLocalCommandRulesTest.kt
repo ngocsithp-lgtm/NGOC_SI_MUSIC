@@ -1148,6 +1148,10 @@ class NgocSiAiLocalCommandRulesTest {
             extractNgocSiAiSeekRequest("AI, tua tới 30 giây")
         )
         assertEquals(
+            NgocSiAiSeekRequest(30_000L, false),
+            extractNgocSiAiSeekRequest("AI, tua tới 30 giây nhé")
+        )
+        assertEquals(
             NgocSiAiSeekRequest(-15_000L, false),
             extractNgocSiAiSeekRequest("AI, lùi 15 giây")
         )

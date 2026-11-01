@@ -125,6 +125,7 @@ internal fun extractNgocSiAiSeekRequest(input: String): NgocSiAiSeekRequest? {
     val wakePrefixes = listOf("hey ai ", "ok ai ", "alo ai ", "ai oi ", "ai ",
         "hey ngoc si ", "ok ngoc si ", "alo ngoc si ", "ngoc si oi ", "ngoc si ")
     wakePrefixes.firstOrNull { phrase.startsWith(it) }?.let { phrase = phrase.removePrefix(it).trim() }
+    phrase = trimNgocSiAiNormalizedCommandFillers(phrase)
     val youtubeExplicit = phrase.contains("youtube")
     phrase = phrase.removeSuffix(" tren youtube").trim()
 
@@ -585,6 +586,10 @@ internal fun classifyNgocSiAiActivatedCommand(input: String): NgocSiAiLocalComma
         NgocSiAiLocalCommand.SEEK_BACK_10,
         NgocSiAiLocalCommand.YOUTUBE_SEEK_FORWARD_10,
         NgocSiAiLocalCommand.YOUTUBE_SEEK_BACK_10,
+        NgocSiAiLocalCommand.SEEK_FORWARD_CUSTOM,
+        NgocSiAiLocalCommand.SEEK_BACK_CUSTOM,
+        NgocSiAiLocalCommand.YOUTUBE_SEEK_FORWARD_CUSTOM,
+        NgocSiAiLocalCommand.YOUTUBE_SEEK_BACK_CUSTOM,
         NgocSiAiLocalCommand.FAVORITE_CURRENT_TRACK
     )
     if (!requiresExplicitAddress) return command
