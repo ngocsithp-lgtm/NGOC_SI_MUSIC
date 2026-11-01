@@ -42,6 +42,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.media3.common.util.UnstableApi
 import java.net.HttpURLConnection
 import java.net.URL
+import java.lang.ref.WeakReference
 import java.util.concurrent.Executors
 
 @UnstableApi
@@ -56,6 +57,14 @@ class YouTubePlayerActivity : ComponentActivity() {
         const val EXTRA_AI_ACTION = "youtube_ai_action"
         const val EXTRA_START_FULLSCREEN = "youtube_start_fullscreen"
         const val EXTRA_START_PAUSED = "youtube_start_paused"
+
+        @Volatile
+        private var livePlayerActivity: WeakReference<YouTubePlayerActivity>? = null
+
+        internal fun hasLiveInstance(): Boolean {
+            val activity = livePlayerActivity?.get() ?: return false
+            return !activity.isFinishing && !activity.isDestroyed
+        }
     }
 
     private lateinit var root: FrameLayout
@@ -639,6 +648,9 @@ class YouTubePlayerActivity : ComponentActivity() {
             androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
         )
         youtubeBackgroundControlReceiverRegistered = true
+        // Track the actual in-process Activity, not only a persisted flag that can
+        // survive Android process reclamation and point to a receiver that no longer exists.
+        livePlayerActivity = WeakReference(this)
 
         val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
         inAppBackgroundPlaybackEnabled = prefs.getBoolean(
@@ -5381,6 +5393,9 @@ class YouTubePlayerActivity : ComponentActivity() {
         (value * resources.displayMetrics.density).toInt()
 
     override fun onDestroy() {
+        if (livePlayerActivity?.get() === this) {
+            livePlayerActivity = null
+        }
         clearFullscreenOrientationListener()
         if (isFinishing) {
             stopService(
