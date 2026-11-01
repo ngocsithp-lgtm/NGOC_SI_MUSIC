@@ -618,6 +618,7 @@ class YouTubePlayerActivity : ComponentActivity() {
             val action = intent.getStringExtra(YouTubeBackgroundService.EXTRA_CONTROL)
                 ?.takeIf { it in setOf(
                     "play", "pause", "stop", "next", "previous",
+                    "seek_forward_10", "seek_back_10",
                     "shuffle_on", "shuffle_off", "repeat_off", "repeat_all",
                     "repeat_one", "favorite", "watch_later"
                 ) } ?: return
@@ -2869,6 +2870,8 @@ class YouTubePlayerActivity : ComponentActivity() {
             // rejected play() promise and leaving the play button ineffective.
             "play" -> requestYouTubePlayback()
             "pause", "stop" -> pauseYouTubePlayback()
+            "seek_forward_10" -> seekYouTubeBy(10)
+            "seek_back_10" -> seekYouTubeBy(-10)
             "queue" -> showQueueDialog()
             "next" -> {
                 if (queue.size > 1) {
@@ -2891,6 +2894,57 @@ class YouTubePlayerActivity : ComponentActivity() {
             "repeat_one" -> setYoutubeRepeatMode(2)
             "favorite" -> if (!isFavorite()) toggleFavorite()
             "watch_later" -> if (!isWatchLater()) toggleWatchLater()
+        }
+    }
+
+    /**
+     * Seek the active embedded YouTube media element without reloading its page.
+     * Prefer the IFrame API, then fall back to the page's HTML5 video element.
+     */
+    private fun seekYouTubeBy(deltaSeconds: Int) {
+        val playerView = webView ?: return
+        val delta = deltaSeconds.coerceIn(-10, 10)
+        if (delta == 0) return
+        val script = """
+            (function() {
+              try {
+                var p = window.player;
+                if (p && typeof p.getCurrentTime === 'function' &&
+                    typeof p.seekTo === 'function') {
+                  var current = Number(p.getCurrentTime());
+                  if (!isFinite(current)) current = 0;
+                  var target = Math.max(0, current + ($delta));
+                  var duration = typeof p.getDuration === 'function' ? Number(p.getDuration()) : 0;
+                  if (isFinite(duration) && duration > 0) target = Math.min(target, duration);
+                  p.seekTo(target, true);
+                  return 'SEEK_REQUESTED';
+                }
+              } catch (_) {}
+              try {
+                var video = document.querySelector('video.html5-main-video') ||
+                            document.querySelector('video');
+                if (video) {
+                  var currentTime = Number(video.currentTime || 0);
+                  var targetTime = Math.max(0, currentTime + ($delta));
+                  if (isFinite(video.duration) && video.duration > 0)
+                    targetTime = Math.min(targetTime, video.duration);
+                  video.currentTime = targetTime;
+                  return 'SEEK_REQUESTED';
+                }
+              } catch (_) {}
+              return 'NOT_READY';
+            })();
+        """.trimIndent()
+        playerView.evaluateJavascript(script) { result ->
+            if (result.orEmpty().contains("NOT_READY") &&
+                !isFinishing && !isDestroyed
+            ) {
+                Toast.makeText(
+                    this,
+                    "Trình phát YouTube chưa sẵn sàng để tua. Hãy thử lại.",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
         }
     }
 
