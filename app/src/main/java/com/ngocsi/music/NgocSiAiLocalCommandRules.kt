@@ -17,6 +17,8 @@ internal enum class NgocSiAiLocalCommand {
     PAUSE_YOUTUBE,
     NEXT_YOUTUBE_VIDEO,
     PREVIOUS_YOUTUBE_VIDEO,
+    YOUTUBE_SEEK_FORWARD_10,
+    YOUTUBE_SEEK_BACK_10,
     YOUTUBE_SHUFFLE_ON,
     YOUTUBE_SHUFFLE_OFF,
     YOUTUBE_REPEAT_OFF,
@@ -104,6 +106,10 @@ internal fun ngocSiAiYouTubeActionForCommand(
     NgocSiAiLocalCommand.PAUSE_YOUTUBE -> "pause"
     NgocSiAiLocalCommand.NEXT_YOUTUBE_VIDEO -> "next"
     NgocSiAiLocalCommand.PREVIOUS_YOUTUBE_VIDEO -> "previous"
+    NgocSiAiLocalCommand.YOUTUBE_SEEK_FORWARD_10 -> "seek_forward_10"
+    NgocSiAiLocalCommand.YOUTUBE_SEEK_BACK_10 -> "seek_back_10"
+    NgocSiAiLocalCommand.SEEK_FORWARD_10 -> if (youtubeActiveSource) "seek_forward_10" else null
+    NgocSiAiLocalCommand.SEEK_BACK_10 -> if (youtubeActiveSource) "seek_back_10" else null
     NgocSiAiLocalCommand.YOUTUBE_SHUFFLE_ON -> "shuffle_on"
     NgocSiAiLocalCommand.YOUTUBE_SHUFFLE_OFF -> "shuffle_off"
     NgocSiAiLocalCommand.YOUTUBE_REPEAT_OFF -> "repeat_off"
@@ -214,6 +220,8 @@ private val NGOC_SI_AI_WAKE_WORD_COMMANDS = setOf(
     NgocSiAiLocalCommand.PAUSE_YOUTUBE,
     NgocSiAiLocalCommand.NEXT_YOUTUBE_VIDEO,
     NgocSiAiLocalCommand.PREVIOUS_YOUTUBE_VIDEO,
+    NgocSiAiLocalCommand.YOUTUBE_SEEK_FORWARD_10,
+    NgocSiAiLocalCommand.YOUTUBE_SEEK_BACK_10,
     NgocSiAiLocalCommand.YOUTUBE_SHUFFLE_ON,
     NgocSiAiLocalCommand.YOUTUBE_SHUFFLE_OFF,
     NgocSiAiLocalCommand.YOUTUBE_REPEAT_OFF,
@@ -474,6 +482,8 @@ internal fun classifyNgocSiAiActivatedCommand(input: String): NgocSiAiLocalComma
         NgocSiAiLocalCommand.SET_PLAYBACK_SPEED,
         NgocSiAiLocalCommand.SEEK_FORWARD_10,
         NgocSiAiLocalCommand.SEEK_BACK_10,
+        NgocSiAiLocalCommand.YOUTUBE_SEEK_FORWARD_10,
+        NgocSiAiLocalCommand.YOUTUBE_SEEK_BACK_10,
         NgocSiAiLocalCommand.FAVORITE_CURRENT_TRACK
     )
     if (!requiresExplicitAddress) return command
@@ -555,6 +565,19 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
             "bai thu hai trong danh sach", "bai so hai trong danh sach",
             "cho phat bai thu hai", "phat bai thu hai trong hang doi"
         ) -> NgocSiAiLocalCommand.PLAY_SECOND
+
+        // Explicit YouTube seek phrases must be classified before generic 10-second seek.
+        startsWithAny(
+            "tua youtube toi 10 giay", "tua youtube tien toi 10 giay",
+            "tua toi 10 giay tren youtube", "tien toi 10 giay tren youtube",
+            "nhay toi 10 giay tren youtube", "seek youtube forward 10 seconds"
+        ) -> NgocSiAiLocalCommand.YOUTUBE_SEEK_FORWARD_10
+
+        startsWithAny(
+            "tua youtube lui 10 giay", "tua youtube ve truoc 10 giay",
+            "tua lui 10 giay tren youtube", "quay lai 10 giay tren youtube",
+            "tro lai 10 giay tren youtube", "seek youtube back 10 seconds"
+        ) -> NgocSiAiLocalCommand.YOUTUBE_SEEK_BACK_10
 
         startsWithAny(
             "tua toi 10 giay", "tien toi 10 giay", "nhay toi 10 giay",
@@ -1171,6 +1194,8 @@ internal fun buildNgocSiAiToolCommandPhrase(action: String, query: String = ""):
         "youtube_pause" -> "tạm dừng youtube"
         "youtube_next" -> "youtube tiếp theo"
         "youtube_previous" -> "youtube trước"
+        "youtube_seek_forward_10" -> "tua youtube tới 10 giây"
+        "youtube_seek_back_10" -> "tua youtube lùi 10 giây"
         "youtube_shuffle_on" -> "bật ngẫu nhiên youtube"
         "youtube_shuffle_off" -> "tắt ngẫu nhiên youtube"
         "youtube_repeat_off" -> "tắt lặp youtube"
