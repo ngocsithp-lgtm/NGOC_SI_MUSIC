@@ -464,7 +464,10 @@ internal fun classifyNgocSiAiWakePhrase(input: String): NgocSiAiLocalCommand? {
         return NgocSiAiLocalCommand.OPEN_HOME
     }
 
-    return classifyNgocSiAiActivatedCommand(commandPhrase)
+    // Keep the original utterance so sensitive actions can verify that the user
+    // explicitly said the wake word. Passing commandPhrase here dropped "AI" and
+    // incorrectly rejected seek commands after removing the wake prefix above.
+    return classifyNgocSiAiActivatedCommand(input)
 }
 
 /**
@@ -568,24 +571,38 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
 
         // Explicit YouTube seek phrases must be classified before generic 10-second seek.
         startsWithAny(
-            "tua youtube toi 10 giay", "tua youtube tien toi 10 giay",
-            "tua toi 10 giay tren youtube", "tien toi 10 giay tren youtube",
-            "nhay toi 10 giay tren youtube", "seek youtube forward 10 seconds"
+            "tua youtube toi 10 giay", "tua youtube toi muoi giay",
+            "tua youtube tien toi 10 giay", "tua youtube tien toi muoi giay",
+            "tua toi 10 giay tren youtube", "tua toi muoi giay tren youtube",
+            "tien toi 10 giay tren youtube", "tien toi muoi giay tren youtube",
+            "nhay toi 10 giay tren youtube", "nhay toi muoi giay tren youtube",
+            "seek youtube forward 10 seconds"
         ) -> NgocSiAiLocalCommand.YOUTUBE_SEEK_FORWARD_10
 
         startsWithAny(
-            "tua youtube lui 10 giay", "tua youtube ve truoc 10 giay",
-            "tua lui 10 giay tren youtube", "quay lai 10 giay tren youtube",
-            "tro lai 10 giay tren youtube", "seek youtube back 10 seconds"
+            "tua youtube lui 10 giay", "tua youtube lui muoi giay",
+            "tua youtube ve truoc 10 giay", "tua youtube ve truoc muoi giay",
+            "tua lui 10 giay tren youtube", "tua lui muoi giay tren youtube",
+            "quay lai 10 giay tren youtube", "quay lai muoi giay tren youtube",
+            "tro lai 10 giay tren youtube", "tro lai muoi giay tren youtube",
+            "seek youtube back 10 seconds"
         ) -> NgocSiAiLocalCommand.YOUTUBE_SEEK_BACK_10
 
         startsWithAny(
-            "tua toi 10 giay", "tien toi 10 giay", "nhay toi 10 giay",
+            "tua toi 10 giay", "tua toi muoi giay",
+            "tua tien toi 10 giay", "tua tien toi muoi giay",
+            "tien toi 10 giay", "tien toi muoi giay",
+            "nhay toi 10 giay", "nhay toi muoi giay",
             "forward 10 seconds", "seek forward 10 seconds"
         ) -> NgocSiAiLocalCommand.SEEK_FORWARD_10
 
         startsWithAny(
-            "lui 10 giay", "tua lui 10 giay", "quay lai 10 giay", "tro lai 10 giay",
+            "lui 10 giay", "lui muoi giay",
+            "tua lui 10 giay", "tua lui muoi giay",
+            "lui lai 10 giay", "lui lai muoi giay",
+            "lui ve 10 giay", "lui ve muoi giay",
+            "quay lai 10 giay", "quay lai muoi giay",
+            "tro lai 10 giay", "tro lai muoi giay",
             "back 10 seconds", "seek back 10 seconds"
         ) -> NgocSiAiLocalCommand.SEEK_BACK_10
 
