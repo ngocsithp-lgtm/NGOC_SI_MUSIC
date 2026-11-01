@@ -116,6 +116,7 @@ internal fun ngocSiAiYouTubeActionForCommand(
     NgocSiAiLocalCommand.STOP -> if (youtubeActiveSource) "stop" else null
     NgocSiAiLocalCommand.NEXT -> if (youtubeActiveSource) "next" else null
     NgocSiAiLocalCommand.PREVIOUS -> if (youtubeActiveSource) "previous" else null
+    NgocSiAiLocalCommand.CURRENT_TRACK -> if (youtubeActiveSource) "current_track" else null
     NgocSiAiLocalCommand.FAVORITE_CURRENT_TRACK -> if (youtubeActiveSource) "favorite" else null
     // Generic shuffle/repeat remain bound to Media3. Inline YouTube gets these
     // controls only through explicit YouTube commands; its dedicated player has
