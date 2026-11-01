@@ -4953,6 +4953,7 @@ class MainActivity : ComponentActivity() {
             loadYouTubeLibraryState()
             loadYouTubeWatchLater()
             if (prefs.getBoolean("youtube_inline_fullscreen_handoff_pending", false)) {
+                inlineFullscreenRequestPending = false
                 val returnedVideoId = prefs.getString("youtube_last_played_video_id", null)
                     .orEmpty()
                     .filter { it.isLetterOrDigit() || it == '-' || it == '_' }
@@ -9767,6 +9768,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
      * Activity keeps its WebView attached and owns the tested native fullscreen lifecycle.
      */
     private fun enterInlineYouTubeFullscreen() {
+        if (inlineFullscreenRequestPending || youtubeInlineFullscreen ||
+            inlineFullscreenCustomViewVisible
+        ) return
+        inlineFullscreenRequestPending = true
+
         val track = youtubeInlineTrack
         if (track == null) {
             errorMessage = "Chưa có video YouTube đang mở trong khung phát."
@@ -9847,6 +9853,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             runCatching {
                 startActivity(fullscreenIntent)
             }.onFailure { error ->
+                inlineFullscreenRequestPending = false
                 prefs.edit()
                     .putBoolean("youtube_inline_fullscreen_handoff_pending", false)
                     .apply()
