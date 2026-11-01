@@ -899,7 +899,8 @@ class NgocSiAiActivity : ComponentActivity() {
             NgocSiAiPreviewScreen(
                 isOnlineConfigured = aiClient.isConfigured,
                 chatPreferences = aiChatPreferences,
-                onSendOnline = { history -> aiClient.send(history) },
+                onSendOnline = { history, executeTool -> aiClient.send(history, executeTool) },
+                onExecuteAppCommand = { action, query -> executeAiAppCommand(action, query) },
                 onLocalCommand = { command, phrase -> runLocalCommand(command, phrase) },
                 onVoiceReply = { message -> speakVoiceReply(message) },
                 onSpeakMessage = { message -> speakVoiceReply(message, force = true) },
@@ -1249,6 +1250,34 @@ class NgocSiAiActivity : ComponentActivity() {
         "favorite" -> "Đang lưu video YouTube vào Yêu thích."
         "watch_later" -> "Đang lưu video YouTube vào Xem sau."
         else -> "Đã gửi lệnh điều khiển YouTube."
+    }
+
+    /**
+     * Executes only actions converted by the shared allowlist mapper. The model cannot
+     * call arbitrary Activity methods, launch arbitrary Intents, or mutate app data directly.
+     */
+    private fun executeAiAppCommand(action: String, query: String): NgocSiAiToolResult {
+        val phrase = buildNgocSiAiToolCommandPhrase(action, query)
+            ?: return NgocSiAiToolResult(
+                routed = false,
+                feedback = "Thiếu thông tin hoặc action không nằm trong danh sách điều khiển được phép. Chưa thực hiện thao tác."
+            )
+        val command = classifyNgocSiAiLocalCommand(phrase)
+            ?: return NgocSiAiToolResult(
+                routed = false,
+                feedback = "Ứng dụng chưa nhận diện được thao tác này. Chưa thực hiện thao tác."
+            )
+        return runCatching {
+            NgocSiAiToolResult(
+                routed = true,
+                feedback = runLocalCommand(command, phrase)
+            )
+        }.getOrElse {
+            NgocSiAiToolResult(
+                routed = false,
+                feedback = "Ứng dụng gặp lỗi khi nhận lệnh. Chưa xác nhận thao tác hoàn tất."
+            )
+        }
     }
 
     private fun runLocalCommand(command: NgocSiAiLocalCommand, originalText: String = ""): String {
@@ -1958,7 +1987,8 @@ class NgocSiAiActivity : ComponentActivity() {
 private fun NgocSiAiPreviewScreen(
     isOnlineConfigured: Boolean,
     chatPreferences: SharedPreferences,
-    onSendOnline: suspend (List<NgocSiAiMessage>) -> NgocSiAiReply,
+    onSendOnline: NgocSiAiRequest,
+    onExecuteAppCommand: NgocSiAiToolExecutor,
     onLocalCommand: (NgocSiAiLocalCommand, String) -> String,
     onVoiceReply: (String) -> Unit,
     onSpeakMessage: (String) -> Unit,
@@ -2181,7 +2211,7 @@ private fun NgocSiAiPreviewScreen(
         coroutineScope.launch {
             try {
                 val reply = kotlinx.coroutines.withTimeoutOrNull(25_000L) {
-                    onSendOnline(history.toList())
+                    onSendOnline(history.toList(), onExecuteAppCommand)
                 } ?: throw NgocSiAiRemoteException(
                     "AI trực tuyến phản hồi quá chậm. Câu hỏi đã được giữ lại trong cuộc trò chuyện; hãy thử lại sau."
                 )
