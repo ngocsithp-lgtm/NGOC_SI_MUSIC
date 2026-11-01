@@ -346,6 +346,8 @@ class MainActivity : ComponentActivity() {
     private var youtubeInlineTrack by mutableStateOf<YouTubeTrack?>(null)
     private var youtubeInlineOpenGeneration by mutableIntStateOf(0)
     private var youtubeInlineWebView: WebView? = null
+    private var youtubeInlinePlayerReady = false
+    private var pendingInlineYouTubeSeekDeltaMs: Long? = null
     // Fullscreen/background stay attached to this WebView, not a second player screen.
     // CSS-managed fullscreen is only the compatibility fallback. Prefer WebView's native
     // HTML5 fullscreen surface so Chromium does not leave audio playing over a black frame.
@@ -522,7 +524,12 @@ class MainActivity : ComponentActivity() {
             runOnUiThread {
                 if (isFinishing || isDestroyed || youtubeInlineWebView == null) return@runOnUiThread
                 youtubeIsActiveSource = true
+                youtubeInlinePlayerReady = true
                 prefs.edit().putBoolean("youtube_active_source", true).apply()
+                pendingInlineYouTubeSeekDeltaMs?.let { delta ->
+                    pendingInlineYouTubeSeekDeltaMs = null
+                    seekInlineYouTubeBy(delta)
+                }
             }
         }
 
@@ -641,6 +648,16 @@ class MainActivity : ComponentActivity() {
                 }
                 "next", "tiếp", "bài tiếp" -> playStoredYouTubeOffset(1)
                 "previous", "prev", "bài trước" -> playStoredYouTubeOffset(-1)
+                "seek_forward_10" -> {
+                    if (YouTubePlayerActivity.hasLiveInstance()) return
+                    seekInlineYouTubeBy(10_000L)
+                    errorMessage = "Đang tua video YouTube tới 10 giây."
+                }
+                "seek_back_10" -> {
+                    if (YouTubePlayerActivity.hasLiveInstance()) return
+                    seekInlineYouTubeBy(-10_000L)
+                    errorMessage = "Đang tua video YouTube lùi 10 giây."
+                }
                 "shuffle_on" -> setInlineYouTubeShuffle(true)
                 "shuffle_off" -> setInlineYouTubeShuffle(false)
                 "repeat_off" -> setInlineYouTubeRepeat(0)
@@ -9298,6 +9315,26 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 prefs.edit().putBoolean("youtube_playback_is_playing", false).apply()
                 return
             }
+            "seek_forward_10" -> {
+                if (youtubeInlineTrack?.videoId == track.videoId && youtubeInlineWebView != null) {
+                    seekInlineYouTubeBy(10_000L)
+                } else {
+                    pendingInlineYouTubeSeekDeltaMs = 10_000L
+                    playYouTube(track)
+                }
+                errorMessage = "Đang tua video YouTube tới 10 giây."
+                return
+            }
+            "seek_back_10" -> {
+                if (youtubeInlineTrack?.videoId == track.videoId && youtubeInlineWebView != null) {
+                    seekInlineYouTubeBy(-10_000L)
+                } else {
+                    pendingInlineYouTubeSeekDeltaMs = -10_000L
+                    playYouTube(track)
+                }
+                errorMessage = "Đang tua video YouTube lùi 10 giây."
+                return
+            }
             "favorite" -> {
                 val activeTrack = youtubeInlineTrack ?: track
                 val alreadyFavorite = youtubeFavoriteSet.contains(activeTrack.videoId)
@@ -9746,6 +9783,57 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
      * Controls the inline player whether it is an IFrame API player or the official
      * mobile YouTube watch page used when an individual video disallows embedding.
      */
+    /**
+     * Seek the current inline IFrame player without recreating its WebView.
+     * When a video is still starting, retain one bounded seek request until onReady.
+     */
+    private fun seekInlineYouTubeBy(deltaMs: Long): Boolean {
+        val safeDelta = deltaMs.coerceIn(-10_000L, 10_000L)
+        if (safeDelta == 0L) return false
+        val view = youtubeInlineWebView
+        if (view == null || !youtubeInlinePlayerReady) {
+            pendingInlineYouTubeSeekDeltaMs = safeDelta
+            return true
+        }
+        val deltaSeconds = safeDelta / 1000.0
+        val script = """
+            (function() {
+              try {
+                var p = window.player;
+                if (p && typeof p.getCurrentTime === 'function' &&
+                    typeof p.seekTo === 'function') {
+                  var current = Number(p.getCurrentTime());
+                  if (!isFinite(current)) current = 0;
+                  var target = Math.max(0, current + ($deltaSeconds));
+                  var duration = typeof p.getDuration === 'function' ? Number(p.getDuration()) : 0;
+                  if (isFinite(duration) && duration > 0) target = Math.min(target, duration);
+                  p.seekTo(target, true);
+                  return 'SEEK_REQUESTED';
+                }
+              } catch (_) {}
+              try {
+                var video = document.querySelector('video.html5-main-video') ||
+                            document.querySelector('video');
+                if (video) {
+                  var currentTime = Number(video.currentTime || 0);
+                  var targetTime = Math.max(0, currentTime + ($deltaSeconds));
+                  if (isFinite(video.duration) && video.duration > 0)
+                    targetTime = Math.min(targetTime, video.duration);
+                  video.currentTime = targetTime;
+                  return 'SEEK_REQUESTED';
+                }
+              } catch (_) {}
+              return 'NOT_READY';
+            })();
+        """.trimIndent()
+        view.evaluateJavascript(script) { result ->
+            if (result.orEmpty().contains("NOT_READY") && !isFinishing && !isDestroyed) {
+                errorMessage = "Trình phát YouTube chưa sẵn sàng để tua. Hãy thử lại."
+            }
+        }
+        return true
+    }
+
     private fun playInlineYouTubeWebView() {
         youtubeInlineWebView?.evaluateJavascript(
             """
@@ -11021,6 +11109,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         )
                                         tag = inlineTrack.videoId
                                         youtubeInlineWebView = this
+                                        youtubeInlinePlayerReady = false
                                         // Restore the stable IFrame API renderer inside this same
                                         // inline host; do not open a separate player screen.
                                         loadInlineYouTubeStablePlayer(this, inlineTrack.videoId)
@@ -11033,6 +11122,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         // opt into pinch-to-fill again on the landscape surface.
                                         view.resetInlineVideoZoom()
                                         view.tag = inlineTrack.videoId
+                                        youtubeInlinePlayerReady = false
                                         loadInlineYouTubeStablePlayer(view, inlineTrack.videoId)
                                     }
                                 },
