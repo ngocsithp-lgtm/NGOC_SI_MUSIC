@@ -1246,6 +1246,19 @@ class NgocSiWakeWordService : Service() {
     }
     private fun runYouTubeControl(action: String, hasSavedVideo: Boolean): String {
         val response = when (action) {
+            "current_track" -> {
+                val prefs = getSharedPreferences("ngoc_si_music", Context.MODE_PRIVATE)
+                val title = prefs.getString("youtube_last_played_title", null)
+                    ?.takeIf { it.isNotBlank() } ?: "Chưa rõ tên video"
+                val channel = prefs.getString("youtube_last_played_channel", null)
+                    ?.takeIf { it.isNotBlank() }
+                val status = if (prefs.getBoolean("youtube_playback_is_playing", false)) {
+                    "Đang phát"
+                } else {
+                    "Đang tạm dừng hoặc chưa phát"
+                }
+                if (channel.isNullOrBlank()) "$status: $title" else "$status: $title — $channel"
+            }
             "play" -> "Đang phát tiếp video YouTube."
             "pause" -> "Đang tạm dừng video YouTube."
             "stop" -> "Đang dừng video YouTube."
@@ -1260,6 +1273,7 @@ class NgocSiWakeWordService : Service() {
             "watch_later" -> "Đang lưu video YouTube vào Xem sau."
             else -> "Đã gửi lệnh điều khiển YouTube."
         }
+        if (action == "current_track" && hasSavedVideo) return response
         if (!hasSavedVideo) {
             return launchMainAppRoute(
                 destination = "youtube",
