@@ -964,3 +964,81 @@ internal fun extractNgocSiAiYoutubeQuery(input: String): String? {
     if (normalizedQuery in setOf("len", "nhe", "di", "luon", "len nhe", "di nhe")) return null
     return query.take(120).takeIf { it.length >= 2 }
 }
+
+/**
+ * Converts the model's constrained app-action name into the same explicit phrases
+ * already understood by the deterministic local command router. Unknown actions are
+ * rejected; Gemini never receives an unrestricted Android Intent or method name.
+ */
+internal fun buildNgocSiAiToolCommandPhrase(action: String, query: String = ""): String? {
+    val safeQuery = query.trim()
+        .replace(Regex("[\\\\r\\\\n]+"), " ")
+        .replace(Regex("\\s+"), " ")
+        .take(180)
+    val needsQuery = setOf(
+        "play_track", "play_radio_station", "open_tv_channel",
+        "create_playlist", "play_playlist", "add_current_to_playlist",
+        "add_queue_to_playlist", "search_youtube", "search_online_music"
+    )
+    if (action in needsQuery && safeQuery.isBlank()) return null
+
+    return when (action.trim().lowercase(Locale.ROOT)) {
+        "play" -> "phát nhạc"
+        "play_second" -> "phát bài thứ hai"
+        "play_track" -> "phát bài hát $safeQuery"
+        "pause" -> "tạm dừng nhạc"
+        "stop" -> "dừng hẳn nhạc"
+        "next" -> "chuyển bài"
+        "previous" -> "bài trước"
+        "current_track" -> "đang phát bài gì"
+        "shuffle_on" -> "bật phát ngẫu nhiên"
+        "shuffle_off" -> "tắt phát ngẫu nhiên"
+        "repeat_off" -> "tắt lặp"
+        "repeat_all" -> "lặp hàng đợi"
+        "repeat_one" -> "lặp bài"
+        "open_home" -> "về trang chủ"
+        "open_library" -> "mở thư viện"
+        "open_favorites" -> "mở yêu thích"
+        "open_albums" -> "mở album"
+        "open_folders" -> "mở thư mục"
+        "open_online" -> "mở online"
+        "search_online_music" -> "tìm nhạc $safeQuery"
+        "open_youtube" -> "mở youtube"
+        "search_youtube" -> "tìm youtube $safeQuery"
+        "youtube_play" -> "phát youtube"
+        "youtube_pause" -> "tạm dừng youtube"
+        "youtube_next" -> "youtube tiếp theo"
+        "youtube_previous" -> "youtube trước"
+        "youtube_shuffle_on" -> "bật ngẫu nhiên youtube"
+        "youtube_shuffle_off" -> "tắt ngẫu nhiên youtube"
+        "youtube_repeat_off" -> "tắt lặp youtube"
+        "youtube_repeat_all" -> "lặp hàng đợi youtube"
+        "youtube_repeat_one" -> "lặp video youtube"
+        "youtube_favorite" -> "thích video youtube"
+        "youtube_watch_later" -> "lưu video youtube xem sau"
+        "open_drive" -> "mở google drive"
+        "open_radio" -> "mở radio"
+        "play_radio_station" -> "phát radio $safeQuery"
+        "open_tv" -> "mở tv"
+        "open_tv_channel" -> "mở kênh $safeQuery"
+        "create_playlist" -> "tạo playlist $safeQuery"
+        "play_playlist" -> "phát playlist $safeQuery"
+        "add_current_to_playlist" -> "thêm bài đang phát vào playlist $safeQuery"
+        "add_queue_to_playlist" -> "thêm hàng đợi vào playlist $safeQuery"
+        "open_playlists" -> "mở danh sách phát"
+        "open_queue" -> "mở hàng đợi"
+        "open_player" -> "mở trình phát"
+        "open_settings" -> "mở cài đặt"
+        "open_sleep_timer" -> "mở hẹn giờ"
+        "sleep_timer_15" -> "hẹn giờ tắt nhạc sau 15 phút"
+        "sleep_timer_30" -> "hẹn giờ tắt nhạc sau 30 phút"
+        "sleep_timer_45" -> "hẹn giờ tắt nhạc sau 45 phút"
+        "sleep_timer_60" -> "hẹn giờ tắt nhạc sau 60 phút"
+        "sleep_timer_90" -> "hẹn giờ tắt nhạc sau 90 phút"
+        "sleep_timer_120" -> "hẹn giờ tắt nhạc sau 120 phút"
+        "cancel_sleep_timer" -> "hủy hẹn giờ"
+        "help" -> "trợ giúp"
+        else -> null
+    }
+}
+
