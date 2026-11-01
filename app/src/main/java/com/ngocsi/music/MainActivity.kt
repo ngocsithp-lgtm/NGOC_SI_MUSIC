@@ -9831,7 +9831,14 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             })();
             """.trimIndent()
         ) { rawPosition ->
-            if (isFinishing || isDestroyed || youtubeInlineTrack?.videoId != safeId) return@evaluateJavascript
+            if (isFinishing || isDestroyed) {
+                inlineFullscreenRequestPending = false
+                return@evaluateJavascript
+            }
+            if (youtubeInlineTrack?.videoId != safeId) {
+                inlineFullscreenRequestPending = false
+                return@evaluateJavascript
+            }
             val positionMs = rawPosition?.trim()?.trim('"')?.toLongOrNull()
                 ?.takeIf { it >= 0L }
                 ?.coerceAtMost(86_400_000L)
