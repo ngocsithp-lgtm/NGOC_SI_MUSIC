@@ -2,6 +2,7 @@ package com.ngocsi.music
 
 import android.app.PendingIntent
 import android.content.Intent
+import android.content.SharedPreferences
 import android.os.Handler
 import android.os.Looper
 import androidx.media3.common.AudioAttributes
@@ -92,9 +93,23 @@ class MusicService : MediaSessionService() {
             } else {
                 5_000L
             }
+            // A preference change can re-arm this runnable while the current
+            // pass is executing. Remove that queued copy before scheduling the
+            // single next check, so the service never accumulates duplicate loops.
+            widgetHandler.removeCallbacks(this)
             widgetHandler.postDelayed(this, nextCheckMs)
         }
     }
+
+    // Wake the watchdog as soon as the UI creates, replaces, or cancels a timer.
+    // Without this listener, the idle 5-second poll could delay a newly set timer.
+    private val sleepTimerPreferenceListener =
+        SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == "sleep_timer_end_at") {
+                widgetHandler.removeCallbacks(sleepTimerRunnable)
+                widgetHandler.post(sleepTimerRunnable)
+            }
+        }
 
     private val mediaSessionCallback = object : MediaSession.Callback {
         override fun onPlaybackResumption(
@@ -291,6 +306,7 @@ class MusicService : MediaSessionService() {
         player.setHandleAudioBecomingNoisy(true)
 
         player.addListener(playerListener)
+        prefs.registerOnSharedPreferenceChangeListener(sleepTimerPreferenceListener)
         broadcastWidget()
         widgetHandler.post(sleepTimerRunnable)
 
@@ -521,6 +537,7 @@ class MusicService : MediaSessionService() {
         serviceDestroyed = true
         // Persist once more before releasing Media3 resources.
         savePlaybackState()
+        prefs.unregisterOnSharedPreferenceChangeListener(sleepTimerPreferenceListener)
         widgetHandler.removeCallbacks(widgetTicker)
         widgetHandler.removeCallbacks(sleepTimerRunnable)
         // Drive token recovery runs on a dedicated IO scope. Cancel it before
