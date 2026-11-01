@@ -329,6 +329,10 @@ internal class NgocSiAiRemoteClient(context: Context) {
             "next",
             "previous",
             "current_track",
+            "set_playback_speed",
+            "seek_forward_10",
+            "seek_back_10",
+            "favorite_current_track",
             "shuffle_on",
             "shuffle_off",
             "repeat_off",
@@ -386,6 +390,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 Chỉ gọi khi người dùng thực sự muốn thực hiện thao tác, không gọi khi họ chỉ hỏi cách làm hoặc hỏi thông tin.
                 action phải là một trong các mã sau:
                 play, play_second, play_track, pause, stop, next, previous, current_track,
+                set_playback_speed, seek_forward_10, seek_back_10, favorite_current_track,
                 shuffle_on, shuffle_off, repeat_off, repeat_all, repeat_one,
                 open_home, open_library, open_favorites, open_albums, open_folders, open_online,
                 search_online_music, open_youtube, search_youtube, youtube_play, youtube_pause,
@@ -399,6 +404,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 query chứa tên bài hát, từ khóa tìm kiếm, tên đài, kênh hoặc playlist khi action cần dữ liệu đó.
                 Không tự đoán tên bài, đài, kênh hay playlist nếu người dùng chưa nêu; hãy hỏi lại.
                 Không có action xóa dữ liệu, xóa playlist, xóa thư viện, thay đổi quyền, đăng nhập tài khoản hoặc thanh toán.
+                set_playback_speed chỉ nhận query là 0.5, 0.75, 1.0, 1.25, 1.5, 1.75 hoặc 2.0; seek chỉ tua 10 giây; favorite_current_track chỉ thêm bài hiện tại vào Yêu thích, không xóa khỏi danh sách.
                 Sau khi gọi, phải dựa vào app_feedback: nếu phản hồi chỉ nói đang mở/đang tìm/đã gửi lệnh thì không được khẳng định thao tác đã hoàn tất.
             """.trimIndent(),
             parameters = mapOf(
