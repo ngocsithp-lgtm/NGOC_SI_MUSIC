@@ -635,6 +635,28 @@ class MainActivity : ComponentActivity() {
                 }
                 "next", "tiếp", "bài tiếp" -> playStoredYouTubeOffset(1)
                 "previous", "prev", "bài trước" -> playStoredYouTubeOffset(-1)
+                "favorite" -> {
+                    val track = youtubeInlineTrack ?: youtubeLastPlayed
+                    if (track == null) {
+                        errorMessage = "Chưa có video YouTube để lưu vào Yêu thích."
+                    } else {
+                        toggleYouTubeFavorite(track)
+                        errorMessage = if (youtubeFavoriteSet.contains(track.videoId)) {
+                            "Đã cập nhật Yêu thích YouTube: ${track.title}."
+                        } else {
+                            "Đã cập nhật trạng thái Yêu thích YouTube."
+                        }
+                    }
+                }
+                "watch_later" -> {
+                    val track = youtubeInlineTrack ?: youtubeLastPlayed
+                    if (track == null) {
+                        errorMessage = "Chưa có video YouTube để lưu Xem sau."
+                    } else {
+                        toggleYouTubeWatchLater(track)
+                        errorMessage = "Đã cập nhật Xem sau YouTube: ${track.title}."
+                    }
+                }
             }
         }
     }
