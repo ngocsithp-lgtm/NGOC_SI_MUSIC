@@ -1289,6 +1289,35 @@ class NgocSiAiLocalCommandRulesTest {
     }
 
     @Test
+    fun wakeWordSeekCommandsPreserveExplicitAddressAndAcceptSpokenNumberForms() {
+        assertEquals(
+            NgocSiAiLocalCommand.SEEK_FORWARD_10,
+            classifyNgocSiAiWakePhrase("AI, tua tới 10 giây")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.SEEK_BACK_10,
+            classifyNgocSiAiWakePhrase("AI, tua lùi 10 giây")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.SEEK_FORWARD_10,
+            classifyNgocSiAiWakePhrase("AI, tua tới mười giây")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.SEEK_BACK_10,
+            classifyNgocSiAiWakePhrase("AI, tua lùi mười giây")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.YOUTUBE_SEEK_FORWARD_10,
+            classifyNgocSiAiWakePhrase("AI, tua YouTube tới mười giây")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.YOUTUBE_SEEK_BACK_10,
+            classifyNgocSiAiWakePhrase("AI, tua YouTube lùi mười giây")
+        )
+        assertNull(classifyNgocSiAiWakePhrase("tua tới 10 giây"))
+    }
+
+    @Test
     fun youtubeSeekActionsFollowTheSelectedSourceAndAcceptExplicitVideoPhrases() {
         assertEquals(
             NgocSiAiLocalCommand.YOUTUBE_SEEK_FORWARD_10,
