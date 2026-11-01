@@ -1365,6 +1365,37 @@ class NgocSiAiLocalCommandRulesTest {
     }
 
     @Test
+    fun geminiSeekToolCommandsPassAllowlistInsideAnActiveAiSession() {
+        assertEquals(
+            NgocSiAiLocalCommand.SEEK_FORWARD_10,
+            classifyNgocSiAiActivatedCommand(
+                "AI, ${buildNgocSiAiToolCommandPhrase("seek_forward_10")}"
+            )
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.SEEK_BACK_10,
+            classifyNgocSiAiActivatedCommand(
+                "AI, ${buildNgocSiAiToolCommandPhrase("seek_back_10")}"
+            )
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.YOUTUBE_SEEK_FORWARD_10,
+            classifyNgocSiAiActivatedCommand(
+                "AI, ${buildNgocSiAiToolCommandPhrase("youtube_seek_forward_10")}"
+            )
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.YOUTUBE_SEEK_BACK_10,
+            classifyNgocSiAiActivatedCommand(
+                "AI, ${buildNgocSiAiToolCommandPhrase("youtube_seek_back_10")}"
+            )
+        )
+        // The explicit-address guard must remain active outside the AI session.
+        assertNull(classifyNgocSiAiActivatedCommand("tua tới 10 giây"))
+        assertNull(classifyNgocSiAiActivatedCommand("tua YouTube lùi 10 giây"))
+    }
+
+    @Test
     fun recognizesShortVideoNavigationPhrasesAndKeepsTheYouTubeSource() {
         assertEquals(NgocSiAiLocalCommand.NEXT, classifyNgocSiAiWakePhrase("AI, video tiếp theo"))
         assertEquals(NgocSiAiLocalCommand.NEXT, classifyNgocSiAiWakePhrase("AI, chuyển video kế tiếp"))
