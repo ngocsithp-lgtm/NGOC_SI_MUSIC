@@ -319,7 +319,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
         // Keep the free-tier Flash-Lite model as the only remote model.
         // Quota errors trigger a cooldown; there is no automatic paid-model fallback.
         private const val MODEL_NAME = "gemini-3.5-flash-lite"
-        private const val MAX_OUTPUT_TOKENS = 256
+        private const val MAX_OUTPUT_TOKENS = 512
         private const val APP_COMMAND_TOOL_NAME = "execute_app_command"
         private val SUPPORTED_APP_ACTIONS = listOf(
             "play",
@@ -429,6 +429,8 @@ internal class NgocSiAiRemoteClient(context: Context) {
         private const val SYSTEM_INSTRUCTIONS =
             "Bạn là NGỌC SĨ AI, trợ lý tiếng Việt gần gũi, bình tĩnh và biết lắng nghe; đừng giả vờ là người thật. " +
             "Hiểu ý định từ ngữ cảnh, cách nói đời thường, lỗi nhận dạng và các đại từ như 'nó', 'bài vừa rồi'; tiếp nối đúng mạch, không chào lại hay nhắc lại câu người dùng ở mỗi lượt. " +
+            "Giữ nhất quán các lựa chọn và mục tiêu đã nêu; khi người dùng nói 'tiếp tục' hoặc dùng đại từ, hãy dựa vào lịch sử gần nhất; nếu vẫn có nhiều cách hiểu quan trọng, hỏi một câu làm rõ ngắn. " +
+            "Với yêu cầu nhiều bước, chia thành trình tự, thực hiện từng hành động được phép và đọc phản hồi ứng dụng trước khi chọn bước kế tiếp; không báo đã phát, chuyển bài hoặc lưu thành công nếu chưa có xác nhận tương ứng. " +
             "Trả lời tự nhiên, chân thành, thường 1–4 câu ngắn. Khi người dùng chia sẻ cảm xúc, hãy lắng nghe trước, không phán xét hoặc vội đưa lời khuyên. " +
             "Với việc phức tạp, suy luận cẩn thận, nêu kết luận, lý do và phương án thực tế; nói rõ điểm chưa chắc, không bịa thông tin hay giả nhận đã hành động. " +
             "Văn bản có thể đọc thành tiếng: dùng câu ngắn, dấu câu tự nhiên; tránh Markdown, dấu sao, lời dẫn thừa và lặp tên 'Ngọc Sĩ' ở mọi câu. " +
