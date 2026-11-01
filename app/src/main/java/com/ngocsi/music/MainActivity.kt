@@ -10697,11 +10697,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                             }
 
                                             override fun onHideCustomView() {
-                                                // Chromium has already reported that fullscreen ended.
-                                                // Remove the custom view without calling the same callback
-                                                // a second time; callback notification is only for app-
-                                                // initiated exits (Back / close button).
-                                                hideInlineYouTubeCustomView(notifyCallback = false)
+                                                hideInlineYouTubeCustomView(notifyCallback = true)
                                             }
                                         }
                                         CookieManager.getInstance().setAcceptCookie(true)
