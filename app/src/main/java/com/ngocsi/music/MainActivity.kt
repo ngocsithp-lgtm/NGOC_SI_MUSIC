@@ -1170,9 +1170,10 @@ class MainActivity : ComponentActivity() {
                 libraryView = "Bài hát"
             }
             "favorite_current" -> {
-                if (controller == null) {
+                if (controller == null || !localLibraryLoaded) {
                     pendingAiFavoriteCurrentTrack = true
-                    errorMessage = "Đang kết nối trình phát để lưu bài hiện tại vào Yêu thích."
+                    errorMessage = "Đang kết nối trình phát và nạp thư viện để lưu bài hiện tại vào Yêu thích."
+                    dispatchPendingAiFavoriteCurrentTrackIfReady()
                 } else {
                     favoriteCurrentTrackFromAi()
                 }
@@ -1480,6 +1481,19 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun dispatchPendingAiFavoriteCurrentTrackIfReady() {
+        if (!pendingAiFavoriteCurrentTrack || controller == null || !localLibraryLoaded) return
+        val activeUri = controller?.currentMediaItem?.localConfiguration?.uri?.toString().orEmpty()
+        val activeSong = songs.firstOrNull { it.uri.toString() == activeUri }
+            ?: queueSongs.firstOrNull { it.uri.toString() == activeUri }
+        pendingAiFavoriteCurrentTrack = false
+        if (activeSong == null) {
+            errorMessage = "Không tìm thấy bài nhạc điện thoại đang phát trong thư viện để thêm vào Yêu thích."
+            return
+        }
+        favoriteCurrentTrackFromAi()
+    }
+
     private fun connectController() {
         val token = SessionToken(this, ComponentName(this, MusicService::class.java))
         val future = MediaController.Builder(this, token).buildAsync()
@@ -1562,10 +1576,7 @@ class MainActivity : ComponentActivity() {
                     dispatchPendingAiPlaylistIfReady()
                     dispatchPendingAiAddCurrentSongToPlaylistIfReady()
                     dispatchPendingAiLocalPlaybackIfReady()
-                    if (pendingAiFavoriteCurrentTrack) {
-                        pendingAiFavoriteCurrentTrack = false
-                        favoriteCurrentTrackFromAi()
-                    }
+                    dispatchPendingAiFavoriteCurrentTrackIfReady()
                     pendingAiRadioStationTitle?.let { stationTitle ->
                         val station = RadioCatalog.find(stationTitle)
                         pendingAiRadioStationTitle = null
@@ -1856,6 +1867,7 @@ class MainActivity : ComponentActivity() {
                 dispatchPendingAiPlaylistIfReady()
                 dispatchPendingAiAddCurrentSongToPlaylistIfReady()
                 dispatchPendingAiLocalPlaybackIfReady()
+                dispatchPendingAiFavoriteCurrentTrackIfReady()
             } catch (e: java.util.concurrent.CancellationException) {
                 throw e
             } catch (e: Exception) {
