@@ -9191,6 +9191,75 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         playYouTube(track)
     }
 
+    /**
+     * Switch queue entries through the existing IFrame player whenever it is alive.
+     * Recreating the WebView for every Next/Previous request can leave a hidden
+     * renderer waiting until the Activity returns to the foreground before audio starts.
+     */
+    private fun playInlineYouTubeQueueItemWithoutReload(
+        track: YouTubeTrack,
+        queueJson: String,
+        targetIndex: Int
+    ): Boolean {
+        val view = youtubeInlineWebView ?: return false
+        if (isFinishing || isDestroyed) return false
+
+        val safeId = track.videoId
+            .filter { it.isLetterOrDigit() || it == '-' || it == '_' }
+            .take(32)
+        if (safeId.isBlank()) return false
+
+        // Save the new selection before updating Compose. Setting the WebView tag first
+        // prevents AndroidView.update from reloading the HTML page for the new video.
+        saveYouTubeLastPlayed(track, queueJson, targetIndex)
+        view.tag = safeId
+        view.onResume()
+        view.resumeTimers()
+
+        selectedSection = "Online"
+        onlineHubTab = "YouTube"
+        controller?.pause()
+        setYouTubeActiveSource(true)
+        youtubeSelectedVideoId = safeId
+        youtubeQuery = youtubeQuery.ifBlank { track.title }
+        rememberYouTubeHistory(track.title)
+        youtubePlaybackIsPlaying = true
+        prefs.edit()
+            .putBoolean("youtube_active_source", true)
+            .putBoolean("youtube_playback_is_playing", true)
+            .apply()
+        youtubeInlineTrack = track
+        youtubeInlineOpenGeneration++
+
+        // loadVideoById() is an explicit play request and keeps the current WebView/IFrame
+        // session alive. If the IFrame is temporarily not ready, its page stores the pending
+        // video ID and applies it from onReady instead of losing the background command.
+        view.evaluateJavascript(
+            """
+            (function() {
+              try {
+                var id = "$safeId";
+                window.__ngocSiPendingVideoId = id;
+                if (typeof window.loadVideoById === 'function') {
+                  var result = window.loadVideoById(id, 0);
+                  if (result === 'LOADING') window.__ngocSiPendingVideoId = '';
+                  return result || 'PENDING';
+                }
+                return 'PENDING';
+              } catch (_) {
+                return 'FAILED';
+              }
+            })();
+            """.trimIndent(),
+            null
+        )
+
+        if (inlineBackgroundPlaybackEnabled) {
+            updateInlineYouTubeBackgroundService(track, isPlaying = true)
+        }
+        return true
+    }
+
     private fun playStoredYouTubeOffset(offset: Int) {
         val rawQueue = youtubeLastQueueJson ?: return
         runCatching {
@@ -9213,7 +9282,12 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 thumbnailUrl = item.optString("thumbnailUrl")
             )
             if (targetTrack.videoId.isBlank()) return@runCatching
-            playYouTube(targetTrack, rawQueue, targetIndex)
+
+            // Prefer an in-place IFrame queue switch for notification, lock-screen,
+            // voice, and in-app transport controls. Rebuild the WebView only as fallback.
+            if (!playInlineYouTubeQueueItemWithoutReload(targetTrack, rawQueue, targetIndex)) {
+                playYouTube(targetTrack, rawQueue, targetIndex)
+            }
         }.onFailure {
             errorMessage = "Không chuyển được video trong hàng đợi YouTube."
         }
@@ -10308,9 +10382,15 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     setTimeout(resizeVideoSurface, 120);
                                     setTimeout(resizeVideoSurface, 420);
                                     try {
-                                        player.unMute();
-                                        player.setVolume(100);
-                                        player.playVideo();
+                                        var pendingVideoId = String(window.__ngocSiPendingVideoId || '');
+                                        if (pendingVideoId) {
+                                            window.__ngocSiPendingVideoId = '';
+                                            loadVideoById(pendingVideoId, 0);
+                                        } else {
+                                            player.unMute();
+                                            player.setVolume(100);
+                                            player.playVideo();
+                                        }
                                     } catch (_) {}
                                     try { AndroidBridge.onReady(); } catch (_) {}
                                 },
@@ -10395,13 +10475,30 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     };
 
                     function loadVideoById(id, startSeconds) {
-                        if (!player || typeof player.loadVideoById !== 'function') return;
-                        var options = {videoId: id};
+                        var safeId = String(id || '').replace(/[^A-Za-z0-9_-]/g, '').substring(0, 32);
+                        if (!safeId) return 'INVALID';
+                        if (!player || typeof player.loadVideoById !== 'function') {
+                            window.__ngocSiPendingVideoId = safeId;
+                            return 'PENDING';
+                        }
+                        var options = {videoId: safeId};
                         var start = Number(startSeconds);
                         if (isFinite(start) && start > 0) options.startSeconds = start;
-                        try { player.loadVideoById(options); }
-                        catch (_) { try { player.loadVideoById(id); } catch (_) {} }
+                        try {
+                            player.unMute();
+                            player.setVolume(100);
+                            player.loadVideoById(options);
+                            return 'LOADING';
+                        } catch (_) {
+                            try {
+                                player.loadVideoById(safeId);
+                                return 'LOADING';
+                            } catch (_) {
+                                return 'FAILED';
+                            }
+                        }
                     }
+                    window.loadVideoById = loadVideoById;
                 </script>
                 <script src="https://www.youtube.com/iframe_api"></script>
             </body>
