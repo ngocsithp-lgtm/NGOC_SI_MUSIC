@@ -638,8 +638,20 @@ class NgocSiWakeWordService : Service() {
         } else {
             selectNgocSiAiWakePhraseCandidate(phrases)
         }).orEmpty()
+        // If the user already activated the continuous AI session with the wake word,
+        // subsequent utterances are authorized commands even when they omit "AI".
+        // Preserve the original text for dispatch; add the wake prefix only for the
+        // allowlist's explicit-address safety check.
         val command = classifyNgocSiAiWakePhrase(recognized)
-            ?: if (wasAwaitingCommand) classifyNgocSiAiActivatedCommand(recognized) else null
+            ?: if (wasAwaitingCommand) {
+                classifyNgocSiAiActivatedCommand(
+                    if (normalizeNgocSiAiVoicePhrase(recognized).startsWith("ai ")) {
+                        recognized
+                    } else {
+                        "AI, $recognized"
+                    }
+                )
+            } else null
 
         if (command != null) {
             awaitingCommand = false
