@@ -1085,4 +1085,145 @@ class NgocSiAiLocalCommandRulesTest {
         assertNull(classifyNgocSiAiActivatedCommand("đặt tốc độ phát 1.5x"))
     }
 
+    @Test
+    fun inlineYouTubeManualQueueRespectsShuffleAndRepeatBoundaries() {
+        assertEquals(
+            2,
+            selectNgocSiAiManualYouTubeQueueIndex(
+                currentIndex = 1,
+                queueSize = 4,
+                offset = 1,
+                shuffleEnabled = false,
+                repeatMode = 0
+            )
+        )
+        assertNull(
+            selectNgocSiAiManualYouTubeQueueIndex(
+                currentIndex = 3,
+                queueSize = 4,
+                offset = 1,
+                shuffleEnabled = false,
+                repeatMode = 0
+            )
+        )
+        assertEquals(
+            0,
+            selectNgocSiAiManualYouTubeQueueIndex(
+                currentIndex = 3,
+                queueSize = 4,
+                offset = 1,
+                shuffleEnabled = false,
+                repeatMode = 1
+            )
+        )
+        assertEquals(
+            3,
+            selectNgocSiAiManualYouTubeQueueIndex(
+                currentIndex = 0,
+                queueSize = 4,
+                offset = -1,
+                shuffleEnabled = false,
+                repeatMode = 1
+            )
+        )
+        assertEquals(
+            2,
+            selectNgocSiAiManualYouTubeQueueIndex(
+                currentIndex = 0,
+                queueSize = 4,
+                offset = 1,
+                shuffleEnabled = true,
+                repeatMode = 0,
+                shuffleTargetIndex = 2
+            )
+        )
+        assertNull(
+            selectNgocSiAiManualYouTubeQueueIndex(
+                currentIndex = 0,
+                queueSize = 4,
+                offset = 1,
+                shuffleEnabled = true,
+                repeatMode = 0,
+                shuffleTargetIndex = 0
+            )
+        )
+        assertEquals(
+            3,
+            selectNgocSiAiManualYouTubeQueueIndex(
+                currentIndex = 0,
+                queueSize = 4,
+                offset = -1,
+                shuffleEnabled = true,
+                repeatMode = 0
+            )
+        )
+    }
+
+    @Test
+    fun inlineYouTubeEndedQueueRespectsRepeatOneShuffleAndRepeatAll() {
+        assertEquals(
+            1,
+            selectNgocSiAiEndedYouTubeQueueIndex(
+                currentIndex = 1,
+                queueSize = 4,
+                shuffleEnabled = false,
+                repeatMode = 2
+            )
+        )
+        assertEquals(
+            3,
+            selectNgocSiAiEndedYouTubeQueueIndex(
+                currentIndex = 1,
+                queueSize = 4,
+                shuffleEnabled = false,
+                repeatMode = 0
+            )
+        )
+        assertNull(
+            selectNgocSiAiEndedYouTubeQueueIndex(
+                currentIndex = 3,
+                queueSize = 4,
+                shuffleEnabled = false,
+                repeatMode = 0
+            )
+        )
+        assertEquals(
+            0,
+            selectNgocSiAiEndedYouTubeQueueIndex(
+                currentIndex = 3,
+                queueSize = 4,
+                shuffleEnabled = false,
+                repeatMode = 1
+            )
+        )
+        assertEquals(
+            2,
+            selectNgocSiAiEndedYouTubeQueueIndex(
+                currentIndex = 1,
+                queueSize = 4,
+                shuffleEnabled = true,
+                repeatMode = 0,
+                shuffleTargetIndex = 2
+            )
+        )
+        assertEquals(
+            0,
+            selectNgocSiAiEndedYouTubeQueueIndex(
+                currentIndex = 0,
+                queueSize = 1,
+                shuffleEnabled = true,
+                repeatMode = 1
+            )
+        )
+        assertNull(
+            selectNgocSiAiEndedYouTubeQueueIndex(
+                currentIndex = 0,
+                queueSize = 0,
+                shuffleEnabled = false,
+                repeatMode = 0
+            )
+        )
+    }
+
+
 }
