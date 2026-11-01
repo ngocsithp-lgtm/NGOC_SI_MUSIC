@@ -722,8 +722,10 @@ class NgocSiWakeWordService : Service() {
                             "Tôi nghe được câu hỏi, nhưng chat trực tuyến chưa được cấu hình trong bản Preview này. Các lệnh ứng dụng được hỗ trợ vẫn có thể chạy trên điện thoại."
                     } else {
                         try {
-                            remoteAnswer = withTimeoutOrNull(20_000L) {
-                                client.send(requestHistory).answer
+                            remoteAnswer = withTimeoutOrNull(25_000L) {
+                                client.send(requestHistory) { action, query ->
+                                    executeAiAppCommand(action, query)
+                                }.answer
                             }
                             if (remoteAnswer.isNullOrBlank()) {
                                 remoteError =
@@ -1281,6 +1283,34 @@ class NgocSiWakeWordService : Service() {
             response = response,
             youtubeAction = action
         )
+    }
+
+    /**
+     * Hands-free Gemini tool calls still pass the wake-word allowlist before execution.
+     * This prevents a conversational model response from bypassing the active AI session.
+     */
+    private fun executeAiAppCommand(action: String, query: String): NgocSiAiToolResult {
+        val phrase = buildNgocSiAiToolCommandPhrase(action, query)
+            ?: return NgocSiAiToolResult(
+                routed = false,
+                feedback = "Thiếu tên bài, đài, kênh, playlist hoặc action không được hỗ trợ. Chưa thực hiện thao tác."
+            )
+        val command = classifyNgocSiAiActivatedCommand(phrase)
+            ?: return NgocSiAiToolResult(
+                routed = false,
+                feedback = "Lệnh này không nằm trong danh sách được phép khi điều khiển rảnh tay. Chưa thực hiện thao tác."
+            )
+        return runCatching {
+            NgocSiAiToolResult(
+                routed = true,
+                feedback = runAppCommand(command, phrase)
+            )
+        }.getOrElse {
+            NgocSiAiToolResult(
+                routed = false,
+                feedback = "Dịch vụ điều khiển giọng nói gặp lỗi. Chưa xác nhận thao tác hoàn tất."
+            )
+        }
     }
 
     private fun runAppCommand(command: NgocSiAiLocalCommand, originalText: String): String {
