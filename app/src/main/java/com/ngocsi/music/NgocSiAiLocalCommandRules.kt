@@ -971,6 +971,7 @@ internal fun extractNgocSiAiYoutubeQuery(input: String): String? {
  * rejected; Gemini never receives an unrestricted Android Intent or method name.
  */
 internal fun buildNgocSiAiToolCommandPhrase(action: String, query: String = ""): String? {
+    val normalizedAction = action.trim().lowercase(Locale.ROOT)
     val safeQuery = query.trim()
         .replace(Regex("[\\\\r\\\\n]+"), " ")
         .replace(Regex("\\s+"), " ")
@@ -980,9 +981,9 @@ internal fun buildNgocSiAiToolCommandPhrase(action: String, query: String = ""):
         "create_playlist", "play_playlist", "add_current_to_playlist",
         "add_queue_to_playlist", "search_youtube", "search_online_music"
     )
-    if (action in needsQuery && safeQuery.isBlank()) return null
+    if (normalizedAction in needsQuery && safeQuery.isBlank()) return null
 
-    return when (action.trim().lowercase(Locale.ROOT)) {
+    return when (normalizedAction) {
         "play" -> "phát nhạc"
         "play_second" -> "phát bài thứ hai"
         "play_track" -> "phát bài hát $safeQuery"
