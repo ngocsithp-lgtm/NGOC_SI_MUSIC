@@ -1011,6 +1011,47 @@ internal fun extractNgocSiAiPlaybackSpeed(input: String): Float? {
 }
 
 /**
+ * Pure queue-index policy used by the inline YouTube player.
+ * repeatMode: 0=off, 1=all, 2=one. A shuffle target is supplied by the caller so this
+ * rule can be tested deterministically without invoking randomness.
+ */
+internal fun selectNgocSiAiManualYouTubeQueueIndex(
+    currentIndex: Int,
+    queueSize: Int,
+    offset: Int,
+    shuffleEnabled: Boolean,
+    repeatMode: Int,
+    shuffleTargetIndex: Int? = null
+): Int? {
+    if (queueSize <= 0 || currentIndex !in 0 until queueSize || offset !in setOf(-1, 1)) return null
+    if (offset > 0 && shuffleEnabled && queueSize > 1) {
+        return shuffleTargetIndex?.takeIf {
+            it in 0 until queueSize && it != currentIndex
+        }
+    }
+    if (repeatMode == 1) return (currentIndex + offset).mod(queueSize)
+    return (currentIndex + offset).takeIf { it in 0 until queueSize }
+}
+
+internal fun selectNgocSiAiEndedYouTubeQueueIndex(
+    currentIndex: Int,
+    queueSize: Int,
+    shuffleEnabled: Boolean,
+    repeatMode: Int,
+    shuffleTargetIndex: Int? = null
+): Int? {
+    if (queueSize <= 0 || currentIndex !in 0 until queueSize) return null
+    return when {
+        repeatMode == 2 -> currentIndex
+        shuffleEnabled && queueSize > 1 ->
+            shuffleTargetIndex?.takeIf { it in 0 until queueSize && it != currentIndex }
+        repeatMode == 1 -> (currentIndex + 1).mod(queueSize)
+        currentIndex + 1 < queueSize -> currentIndex + 1
+        else -> null
+    }
+}
+
+/**
  * Converts the model's constrained app-action name into the same explicit phrases
  * already understood by the deterministic local command router. Unknown actions are
  * rejected; Gemini never receives an unrestricted Android Intent or method name.
