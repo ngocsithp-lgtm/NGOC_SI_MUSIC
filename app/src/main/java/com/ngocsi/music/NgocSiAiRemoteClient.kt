@@ -318,8 +318,8 @@ internal class NgocSiAiRemoteClient(context: Context) {
         private const val EXPECTED_FIREBASE_PROJECT_ID = "ngoc-si-music-ai"
         // Keep the free-tier Flash-Lite model as the only remote model.
         // Quota errors trigger a cooldown; there is no automatic paid-model fallback.
-        private const val MODEL_NAME = "gemini-3.5-flash-lite"
-        private const val MAX_OUTPUT_TOKENS = 512
+        private const val MODEL_NAME = "gemini-3.8-flash"
+        private const val MAX_OUTPUT_TOKENS = 2048
         private const val APP_COMMAND_TOOL_NAME = "execute_app_command"
         private val SUPPORTED_APP_ACTIONS = listOf(
             "play",
@@ -435,7 +435,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
         private val RESPONSE_GENERATION_CONFIG = generationConfig {
             maxOutputTokens = MAX_OUTPUT_TOKENS
             thinkingConfig = thinkingConfig {
-                thinkingLevel = ThinkingLevel.LOW
+                thinkingLevel = ThinkingLevel.MEDIUM
             }
         }
         private const val SYSTEM_INSTRUCTIONS =
