@@ -5809,16 +5809,14 @@ class MainActivity : ComponentActivity() {
 
             item {
                 Text(
-                    "TRUY CẬP NHANH",
+                    "TIỆN ÍCH",
                     color = Color(0xFF9CA8BC),
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Black,
                     letterSpacing = 1.2.sp
                 )
                 Spacer(Modifier.height(7.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ProHomeUtilityTile("☁", "Drive", onOpenDrive, Modifier.weight(1f))
-                    ProHomeUtilityTile("♬", "Playlist", onOpenPlaylists, Modifier.weight(1f))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     ProHomeUtilityTile(
                         "⏱",
                         if (sleepMinutes > 0) "Hẹn ${sleepMinutes}p" else "Hẹn giờ",
