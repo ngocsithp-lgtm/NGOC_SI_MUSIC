@@ -1147,8 +1147,7 @@ class NgocSiAiLocalCommandRulesTest {
                 shuffleTargetIndex = 0
             )
         )
-        assertEquals(
-            3,
+        assertNull(
             selectNgocSiAiManualYouTubeQueueIndex(
                 currentIndex = 0,
                 queueSize = 4,
