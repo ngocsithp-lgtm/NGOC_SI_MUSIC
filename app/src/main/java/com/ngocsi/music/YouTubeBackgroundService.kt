@@ -347,12 +347,23 @@ class YouTubeBackgroundService : Service() {
                 .setPackage(packageName)
                 .putExtra(EXTRA_CONTROL, control)
         )
-        if (control == "play") {
-            isPlaying = true
-            acquireWakeLock()
-        } else if (control == "pause") {
-            isPlaying = false
-            releaseWakeLock()
+        when (control) {
+            "play" -> {
+                isPlaying = true
+                playerState = PlaybackState.STATE_PLAYING
+                // Persist service-originated media-button actions even when MainActivity
+                // is not alive to receive the broadcast and mirror the WebView state.
+                prefs.edit().putBoolean("youtube_playback_is_playing", true).apply()
+                acquireWakeLock()
+            }
+            "pause" -> {
+                isPlaying = false
+                playerState = PlaybackState.STATE_PAUSED
+                // Keep the persisted UI/source state correct when the notification,
+                // lock-screen control or sleep timer pauses playback in the background.
+                prefs.edit().putBoolean("youtube_playback_is_playing", false).apply()
+                releaseWakeLock()
+            }
         }
     }
 
