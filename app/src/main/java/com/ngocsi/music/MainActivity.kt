@@ -1102,6 +1102,27 @@ class MainActivity : ComponentActivity() {
                 selectedLibrary = "Yêu thích"
                 libraryView = "Bài hát"
             }
+            "favorite_current" -> {
+                val activeUri = controller?.currentMediaItem?.localConfiguration?.uri?.toString().orEmpty()
+                val activeSong = songs.firstOrNull { it.uri.toString() == activeUri }
+                    ?: queueSongs.firstOrNull { it.uri.toString() == activeUri }
+                    ?: songs.getOrNull(currentIndex)
+                    ?: queueSongs.getOrNull(currentIndex)
+                if (activeSong == null) {
+                    errorMessage = "Chưa tìm thấy bài nhạc điện thoại đang phát để thêm vào Yêu thích."
+                } else {
+                    val alreadyFavorite = favorites[activeSong.id] == true
+                    if (!alreadyFavorite) toggleFavorite(activeSong)
+                    selectedSection = "Thư viện"
+                    selectedLibrary = "Yêu thích"
+                    libraryView = "Bài hát"
+                    errorMessage = if (alreadyFavorite) {
+                        "Bài ${activeSong.title} đã có trong Yêu thích."
+                    } else {
+                        "Đã thêm ${activeSong.title} vào Yêu thích."
+                    }
+                }
+            }
             "albums" -> {
                 selectedSection = "Thư viện"
                 selectedLibrary = "Tất cả"
