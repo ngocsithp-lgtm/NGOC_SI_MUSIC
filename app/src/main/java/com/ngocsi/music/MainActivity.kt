@@ -1106,8 +1106,6 @@ class MainActivity : ComponentActivity() {
                 val activeUri = controller?.currentMediaItem?.localConfiguration?.uri?.toString().orEmpty()
                 val activeSong = songs.firstOrNull { it.uri.toString() == activeUri }
                     ?: queueSongs.firstOrNull { it.uri.toString() == activeUri }
-                    ?: songs.getOrNull(currentIndex)
-                    ?: queueSongs.getOrNull(currentIndex)
                 if (activeSong == null) {
                     errorMessage = "Chưa tìm thấy bài nhạc điện thoại đang phát để thêm vào Yêu thích."
                 } else {
