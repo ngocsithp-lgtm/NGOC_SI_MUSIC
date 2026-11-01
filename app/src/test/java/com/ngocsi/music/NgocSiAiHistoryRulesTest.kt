@@ -118,8 +118,8 @@ class NgocSiAiHistoryRulesTest {
         )
 
         assertEquals(3, history.size)
-        assertEquals(1_000, history[0].content.length)
-        assertEquals(1_000, history[1].content.length)
+        assertEquals(NGOC_SI_AI_MAX_CONTEXT_MESSAGE_CHARS, history[0].content.length)
+        assertEquals(NGOC_SI_AI_MAX_CONTEXT_MESSAGE_CHARS, history[1].content.length)
         assertEquals(500, history.last().content.length)
         assertTrue(history.sumOf { it.content.length } <= NGOC_SI_AI_MAX_TOTAL_CHARS)
         assertEquals("user", history.last().role)
