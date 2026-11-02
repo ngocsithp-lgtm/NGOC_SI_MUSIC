@@ -38,7 +38,7 @@ internal fun selectNgocSiAiThinkingLevel(
     val needsMediumReasoning =
         normalized.length >= 180 ||
             historyMessageCount >= 8 ||
-            mediumIntentMarkers.any(normalized::contains)
+            mediumIntentMarkers.any { marker -> normalized.contains(marker) }
 
     return if (needsMediumReasoning) ThinkingLevel.MEDIUM else ThinkingLevel.LOW
 }
