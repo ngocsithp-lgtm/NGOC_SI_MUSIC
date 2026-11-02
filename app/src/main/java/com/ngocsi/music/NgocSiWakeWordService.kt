@@ -72,6 +72,9 @@ class NgocSiWakeWordService : Service() {
     private var textToSpeech: TextToSpeech? = null
     private var ttsReady = false
     private var pendingVoiceReply: String? = null
+    // Track only utterances still queued in Android TTS so the mic does not restart
+    // between streamed sentence chunks.
+    private val pendingSpeechUtteranceIds = mutableSetOf<String>()
     private var speaking = false
     private var stopVoiceControlAfterReply = false
     private var verifyingOwnerVoice = false
@@ -114,13 +117,17 @@ class NgocSiWakeWordService : Service() {
                     }
                     override fun onDone(utteranceId: String?) {
                         mainHandler.post {
-                            speaking = false
+                            utteranceId?.let { pendingSpeechUtteranceIds.remove(it) }
+                            speaking = pendingSpeechUtteranceIds.isNotEmpty()
                             enrollmentPromptPending = false
-                            if (stopVoiceControlAfterReply) {
+                            if (stopVoiceControlAfterReply && pendingSpeechUtteranceIds.isEmpty()) {
                                 stopVoiceControlAfterReply = false
                                 stopListeningService()
                                 return@post
                             }
+                            // Do not reopen the microphone while Gemini is still streaming
+                            // or while another queued TTS sentence is waiting to be spoken.
+                            if (answeringQuestion || pendingSpeechUtteranceIds.isNotEmpty()) return@post
                             if (awaitingCommand) {
                                 // Keep the original short wake-prompt window for backwards compatibility.
                                 awaitingCommandUntilMillis = System.currentTimeMillis() + COMMAND_WINDOW_MILLIS
@@ -132,13 +139,15 @@ class NgocSiWakeWordService : Service() {
                     @Deprecated("Deprecated in Java")
                     override fun onError(utteranceId: String?) {
                         mainHandler.post {
-                            speaking = false
+                            utteranceId?.let { pendingSpeechUtteranceIds.remove(it) }
+                            speaking = pendingSpeechUtteranceIds.isNotEmpty()
                             enrollmentPromptPending = false
-                            if (stopVoiceControlAfterReply) {
+                            if (stopVoiceControlAfterReply && pendingSpeechUtteranceIds.isEmpty()) {
                                 stopVoiceControlAfterReply = false
                                 stopListeningService()
                                 return@post
                             }
+                            if (answeringQuestion || pendingSpeechUtteranceIds.isNotEmpty()) return@post
                             if (awaitingCommand) {
                                 awaitingCommandUntilMillis = System.currentTimeMillis() + COMMAND_WINDOW_MILLIS
                             }
@@ -729,6 +738,33 @@ class NgocSiWakeWordService : Service() {
 
                 var remoteAnswer: String? = null
                 var remoteError: String? = null
+                val speechStreamLock = Any()
+                var spokenSpeechCharacterOffset = 0
+                var hasQueuedStreamingSpeech = false
+
+                fun queueSpeechStreamChunks(cumulativeText: String, flushRemainder: Boolean) {
+                    val queued = synchronized(speechStreamLock) {
+                        val extracted = extractNgocSiAiSpeechStreamChunks(
+                            cumulativeText = cumulativeText,
+                            alreadySpokenCharacters = spokenSpeechCharacterOffset,
+                            flushRemainder = flushRemainder
+                        )
+                        spokenSpeechCharacterOffset = extracted.nextCharacterOffset
+                        extracted.chunks.map { chunk ->
+                            val queueMode = if (hasQueuedStreamingSpeech) {
+                                TextToSpeech.QUEUE_ADD
+                            } else {
+                                TextToSpeech.QUEUE_FLUSH
+                            }
+                            hasQueuedStreamingSpeech = true
+                            chunk to queueMode
+                        }
+                    }
+                    queued.forEach { (chunk, queueMode) ->
+                        mainHandler.post { speakReply(chunk, queueMode) }
+                    }
+                }
+
                 if (localFallback == null) {
                     if (!client.isConfigured) {
                         remoteError =
@@ -740,8 +776,10 @@ class NgocSiWakeWordService : Service() {
                                     requestHistory,
                                     { action, query -> executeAiAppCommand(action, query) }
                                 ) { partialResponse ->
-                                    // Signal that voice generation has started; speak only the final answer.
+                                    // Begin speaking each complete sentence while the next one is
+                                    // still generating; subsequent chunks are queued in order.
                                     if (!stopping && partialResponse.isNotBlank()) {
+                                        queueSpeechStreamChunks(partialResponse, flushRemainder = false)
                                         updateNotification("NGỌC SĨ AI đang trả lời: ${partialResponse.take(80)}")
                                     }
                                 }.answer
@@ -795,7 +833,13 @@ class NgocSiWakeWordService : Service() {
                     "Câu trả lời"
                 }
                 updateNotification("$replySource: ${answer.take(100)}")
-                speakReply(answer)
+                if (!remoteAnswer.isNullOrBlank()) {
+                    // Flush only the final unfinished phrase; previously streamed sentences
+                    // have already been sent to TTS and must not be spoken twice.
+                    queueSpeechStreamChunks(remoteAnswer, flushRemainder = true)
+                } else {
+                    mainHandler.post { speakReply(answer) }
+                }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
@@ -804,7 +848,7 @@ class NgocSiWakeWordService : Service() {
                         "Mình đã nghe câu hỏi nhưng chưa xử lý xong. Bạn thử nói lại một câu ngắn gọn nhé."
                     publishConversationUpdate(cleanQuestion, safeAnswer, conversationTurnId)
                     updateNotification(safeAnswer)
-                    speakReply(safeAnswer)
+                    mainHandler.post { speakReply(safeAnswer) }
                 }
             } finally {
                 answeringQuestion = false
@@ -1210,28 +1254,42 @@ class NgocSiWakeWordService : Service() {
         return runCatching { tts.setVoice(voice) == TextToSpeech.SUCCESS }.getOrDefault(false)
     }
 
-    private fun speakReply(message: String) {
+    private fun speakReply(
+        message: String,
+        queueMode: Int = TextToSpeech.QUEUE_FLUSH
+    ) {
         val cleanMessage = NgocSiAiSpeechTextRules.cleanForSpeech(message)
         if (stopping || cleanMessage.isBlank()) return
         val tts = textToSpeech
         if (!ttsReady || tts == null) {
-            // Keep the cleaned result until asynchronous TextToSpeech initialization finishes.
-            pendingVoiceReply = cleanMessage
+            // Preserve chunk order if Gemini finishes before Android TTS initialization.
+            pendingVoiceReply = if (queueMode == TextToSpeech.QUEUE_ADD) {
+                listOfNotNull(pendingVoiceReply, cleanMessage).joinToString(" ")
+            } else {
+                cleanMessage
+            }
             updateNotification("$cleanMessage · đang chuẩn bị giọng đọc")
             return
         }
+
+        if (queueMode == TextToSpeech.QUEUE_FLUSH) pendingSpeechUtteranceIds.clear()
+        val utteranceId = "ngoc_si_reply_" + System.currentTimeMillis() + "_" + pendingSpeechUtteranceIds.size
+        pendingSpeechUtteranceIds += utteranceId
         speaking = true
         val result = runCatching {
-            tts.speak(cleanMessage, TextToSpeech.QUEUE_FLUSH, null, "ngoc_si_reply_" + System.currentTimeMillis())
+            tts.speak(cleanMessage, queueMode, null, utteranceId)
         }.getOrDefault(TextToSpeech.ERROR)
         if (result == TextToSpeech.ERROR) {
-            speaking = false
-            if (awaitingCommand) {
-                awaitingCommandUntilMillis = System.currentTimeMillis() + COMMAND_WINDOW_MILLIS
+            pendingSpeechUtteranceIds.remove(utteranceId)
+            speaking = pendingSpeechUtteranceIds.isNotEmpty()
+            if (!answeringQuestion && pendingSpeechUtteranceIds.isEmpty()) {
+                if (awaitingCommand) {
+                    awaitingCommandUntilMillis = System.currentTimeMillis() + COMMAND_WINDOW_MILLIS
+                }
+                if (conversationActive) scheduleConversationTimeout()
+                scheduleListenRetry(650L)
             }
-            if (conversationActive) scheduleConversationTimeout()
             updateNotification("$cleanMessage · không phát được giọng nói")
-            scheduleListenRetry(650L)
         }
     }
 
@@ -1879,6 +1937,7 @@ class NgocSiWakeWordService : Service() {
         textToSpeech = null
         ttsReady = false
         pendingVoiceReply = null
+        pendingSpeechUtteranceIds.clear()
         getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit().putBoolean(KEY_ENABLED, false).apply()
         super.onDestroy()
