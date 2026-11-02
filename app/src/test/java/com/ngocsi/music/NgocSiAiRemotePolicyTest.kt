@@ -216,5 +216,16 @@ class NgocSiAiRemotePolicyTest {
         assertTrue(feedback.contains("phản hồi"))
         assertFalse(feedback.contains("đã thực hiện thành công"))
     }
+
+    @Test
+    fun agentContinuesOnlyWhenAppFeedbackDoesNotReportFailure() {
+        assertTrue(shouldContinueNgocSiAiAgentSequence(true, "Đang mở YouTube."))
+        assertTrue(shouldContinueNgocSiAiAgentSequence(true, "Đang tìm nhạc theo từ khóa."))
+        assertFalse(shouldContinueNgocSiAiAgentSequence(false, "Đã gửi lệnh mở YouTube."))
+        assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Không tìm thấy bài hát."))
+        assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Bạn cần đăng nhập Google Drive."))
+        assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Ứng dụng gặp lỗi khi nhận lệnh."))
+        assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Thiếu thông tin; chưa thực hiện thao tác."))
+    }
 }
 
