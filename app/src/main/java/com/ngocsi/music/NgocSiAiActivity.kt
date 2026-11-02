@@ -110,7 +110,19 @@ internal fun localConversationFallback(
         .replace(Regex("\\s+"), " ")
         .trim()
 
-    // Answer a small allowlisted set of stable facts on-device, even while Gemini quota is exhausted.
+    // Keep a small set of common, time-stable facts available without a cloud request.
+    // This is intentionally narrow: uncertain or time-sensitive questions still go to Gemini.
+    val asksVietnamCapital = normalized in setOf(
+        "thu do viet nam la gi",
+        "thu do cua viet nam la gi",
+        "thu do nuoc viet nam la gi",
+        "viet nam co thu do la gi",
+        "thu do viet nam o dau",
+        "thu do nuoc ta la gi"
+    )
+    if (asksVietnamCapital) return "Thủ đô của Việt Nam là Hà Nội."
+
+    // Answer the remaining allowlisted stable facts on-device, even while Gemini quota is exhausted.
     localNgocSiAiKnowledgeFallback(userText)?.let { return it }
 
     fun matchesAny(vararg phrases: String): Boolean =
