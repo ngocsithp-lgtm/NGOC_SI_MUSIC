@@ -230,6 +230,8 @@ class NgocSiAiRemotePolicyTest {
         assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Đã yêu cầu hủy hẹn giờ."))
         assertFalse(shouldContinueNgocSiAiAgentSequence(false, "Đã gửi lệnh mở YouTube."))
         assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Không tìm thấy bài hát."))
+        assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Hàng đợi hiện tại chưa có bài thứ hai."))
+        assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Chưa có video YouTube gần đây để điều khiển."))
         assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Bạn cần đăng nhập Google Drive."))
         assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Ứng dụng gặp lỗi khi nhận lệnh."))
         assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Thiếu thông tin; chưa thực hiện thao tác."))

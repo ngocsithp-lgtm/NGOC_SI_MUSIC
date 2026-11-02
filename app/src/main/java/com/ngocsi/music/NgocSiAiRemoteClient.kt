@@ -563,8 +563,8 @@ internal fun shouldContinueNgocSiAiAgentSequence(
     if (!routed) return false
     val normalized = normalizeNgocSiAiVoicePhrase(feedback)
     val failureMarkers = listOf(
-        "chua thuc hien", "khong tim thay", "khong co bai", "khong co kenh",
-        "khong co dai", "gap loi", "that bai", "khong the", "chua ket noi",
+        "chua thuc hien", "khong tim thay", "khong co bai", "chua co ",
+        "khong co kenh", "khong co dai", "gap loi", "that bai", "khong the", "chua ket noi",
         "chua dang nhap", "can dang nhap", "chua cap quyen", "chua co quyen",
         "khong ho tro", "khong hop le", "thieu thong tin", "hay noi ro",
         "hay noi ten", "chua mo duoc", "khong ap dung", "hay dung dieu khien rieng",
