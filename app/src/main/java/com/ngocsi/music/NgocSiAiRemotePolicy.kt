@@ -38,6 +38,14 @@ internal fun selectNgocSiAiMaxOutputTokens(prompt: String): Int =
  */
 internal fun shouldOfferNgocSiAiAppCommandTool(prompt: String): Boolean {
     val normalized = normalizeNgocSiAiVoicePhrase(prompt)
+    // Questions asking for an explanation should not be routed as commands, even if they
+    // contain words such as "YouTube phát nhạc" or "âm lượng".
+    val informationalPrefixes = listOf(
+        "vi sao ", "tai sao ", "lam sao ", "lam the nao ",
+        "cach nao ", "ke cho toi nghe ", "cho toi biet ", "la gi "
+    )
+    if (informationalPrefixes.any { prefix -> normalized.startsWith(prefix) }) return false
+
     val explicitActionMarkers = listOf(
         "mo youtube", "mo radio", "mo drive", "mo thu vien", "mo tv", "mo muc",
         "vao youtube", "vao radio", "vao drive", "vao thu vien", "vao tv",
@@ -52,7 +60,8 @@ internal fun shouldOfferNgocSiAiAppCommandTool(prompt: String): Boolean {
         "tang tieng", "giam tieng", "to hon", "nho hon", "am luong",
         "tim bai hat", "tim kiem bai hat", "tim youtube", "tim tren youtube",
         "dat hen gio", "hen gio tat", "huy hen gio", "them vao yeu thich",
-        "luu vao yeu thich", "luu bai", "luu video", "phat radio", "mo kenh",
+        "luu vao yeu thich", "them bai dang phat vao yeu thich",
+        "them bai vao yeu thich", "luu bai", "luu video", "phat radio", "mo kenh",
         "mo playlist", "phat playlist", "mo hang doi", "xem hang doi",
         "chon bai", "chon playlist", "youtube play", "youtube pause", "youtube next",
         "youtube previous", "play ", "pause", "stop ", "skip ", "seek ",
@@ -64,12 +73,12 @@ internal fun shouldOfferNgocSiAiAppCommandTool(prompt: String): Boolean {
     // "chuyển qua Radio", "bấm mở mục Drive", "đi đến thư viện", "điều khiển video".
     val actionVerbs = listOf(
         "mo ", "vao ", "chuyen ", "bam ", "bat ", "tat ", "phat ", "choi ",
-        "nghe ", "tim ", "chon ", "tang ", "giam ", "them vao", "luu ",
+        "nghe ", "tim ", "chon ", "tang ", "giam ", "them vao", "them bai", "luu ",
         "hen gio", "dieu khien", "kiem soat", "di den", "dua toi", "truy cap"
     )
     val appTargets = listOf(
         "youtube", "video", "drive", "radio", "tv", "thu vien", "playlist",
-        "hang doi", "nhac", "bai hat", "trinh phat", "kenh", "am luong", "tieng"
+        "hang doi", "nhac", "bai hat", "trinh phat", "kenh", "am luong", "tieng", "yeu thich"
     )
     return actionVerbs.any { verb -> normalized.contains(verb) } &&
         appTargets.any { target -> normalized.contains(target) }

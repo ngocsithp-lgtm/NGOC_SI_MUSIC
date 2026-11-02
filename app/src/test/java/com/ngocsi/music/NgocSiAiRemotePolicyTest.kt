@@ -89,10 +89,18 @@ class NgocSiAiRemotePolicyTest {
         listOf(
             "Vì sao YouTube có thể phát nhạc nền?",
             "Kể cho tôi nghe về lịch sử của Radio.",
-            "Tại sao âm lượng điện thoại đôi khi nhỏ?"
+            "Tại sao âm lượng điện thoại đôi khi nhỏ?",
+            "Làm thế nào để mở Drive?"
         ).forEach { phrase ->
             assertFalse("$phrase should remain a normal chat question", shouldOfferNgocSiAiAppCommandTool(phrase))
         }
+    }
+
+    @Test
+    fun directCapabilityQuestionsCanStillRequestAnAppAction() {
+        assertTrue(
+            shouldOfferNgocSiAiAppCommandTool("AI, bạn có thể mở YouTube không?")
+        )
     }
 }
 
