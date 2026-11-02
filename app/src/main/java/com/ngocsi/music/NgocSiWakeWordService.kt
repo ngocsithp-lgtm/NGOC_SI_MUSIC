@@ -738,7 +738,7 @@ class NgocSiWakeWordService : Service() {
                             remoteAnswer = withTimeoutOrNull(NGOC_SI_AI_REMOTE_CONVERSATION_TIMEOUT_MILLIS) {
                                 client.send(
                                     requestHistory,
-                                    executeAiAppCommand
+                                    ::executeAiAppCommand
                                 ) { partialResponse ->
                                     // Signal that voice generation has started; speak only the final answer.
                                     if (!stopping && partialResponse.isNotBlank()) {
