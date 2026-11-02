@@ -65,6 +65,9 @@ internal typealias NgocSiAiRequest =
 internal class NgocSiAiRemoteClient(context: Context) {
     private val appContext = context.applicationContext
     private val quotaPreferences = appContext.getSharedPreferences(QUOTA_PREFERENCES, Context.MODE_PRIVATE)
+    // Preserve a sanitized initialization failure so the UI can distinguish a missing
+    // Firebase setup from an App Check/provider initialization problem.
+    private var firebaseInitializationError: String? = null
     private val firebaseApp: FirebaseApp? = createFirebaseApp(appContext)
 
     val isConfigured: Boolean
@@ -95,7 +98,10 @@ internal class NgocSiAiRemoteClient(context: Context) {
         onPartialResponse: (String) -> Unit
     ): NgocSiAiReply {
         val app = firebaseApp
-            ?: throw NgocSiAiRemoteException("Firebase AI Logic chưa được cấu hình cho bản thử này.")
+            ?: throw NgocSiAiRemoteException(
+                firebaseInitializationError
+                    ?: "Firebase AI Logic chưa được cấu hình cho bản thử này. Mã chẩn đoán: FIREBASE_CONFIG."
+            )
 
         activeQuotaCooldownMessage()?.let { throw NgocSiAiRemoteException(it) }
 
@@ -287,6 +293,12 @@ internal class NgocSiAiRemoteClient(context: Context) {
                     appCheckProviderInstalled = true
                 }
                 app
+            }.onFailure { error ->
+                // Do not silently discard Firebase/App Check initialization errors.
+                // toSafeMessage strips raw server details, tokens and configuration values.
+                firebaseInitializationError = toSafeMessage(
+                    error as? Exception ?: Exception(error.javaClass.simpleName)
+                )
             }.getOrNull()
         }
     }
