@@ -80,7 +80,9 @@ internal fun isNgocSiAiContextualActionConfirmation(
         "cach nao ", "ke cho toi nghe ", "cho toi biet ", "la gi "
     )
     if (informationalPrefixes.any { prefix -> normalized.startsWith(prefix) }) return false
-    if (hasDirectNgocSiAiAppActionIntent(normalized)) return false
+    // The confirmation allowlist below is deliberately exact. Do not run the broad
+    // direct-intent matcher first: generic confirmations such as "tiếp tục" overlap
+    // command markers but are safe only when the prior assistant explicitly asked.
     return isConfirmedNgocSiAiContextualAction(normalized, previousMessages)
 }
 
