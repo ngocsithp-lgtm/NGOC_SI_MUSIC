@@ -1443,18 +1443,18 @@ class NgocSiAiActivity : ComponentActivity() {
                 "Đang thêm bài hiện tại vào Yêu thích."
             )
             NgocSiAiLocalCommand.OPEN_SLEEP_TIMER -> return openAppDestination("sleep_timer", "Đang mở hẹn giờ tắt nhạc.")
-            NgocSiAiLocalCommand.SLEEP_TIMER_15 -> return openAppDestination("sleep_timer_15", "Đã đặt hẹn giờ tắt nhạc sau 15 phút.")
-            NgocSiAiLocalCommand.SLEEP_TIMER_30 -> return openAppDestination("sleep_timer_30", "Đã đặt hẹn giờ tắt nhạc sau 30 phút.")
-            NgocSiAiLocalCommand.SLEEP_TIMER_45 -> return openAppDestination("sleep_timer_45", "Đã đặt hẹn giờ tắt nhạc sau 45 phút.")
-            NgocSiAiLocalCommand.SLEEP_TIMER_60 -> return openAppDestination("sleep_timer_60", "Đã đặt hẹn giờ tắt nhạc sau 60 phút.")
-            NgocSiAiLocalCommand.SLEEP_TIMER_90 -> return openAppDestination("sleep_timer_90", "Đã đặt hẹn giờ tắt nhạc sau 90 phút.")
-            NgocSiAiLocalCommand.SLEEP_TIMER_120 -> return openAppDestination("sleep_timer_120", "Đã đặt hẹn giờ tắt nhạc sau 120 phút.")
+            NgocSiAiLocalCommand.SLEEP_TIMER_15 -> return openAppDestination("sleep_timer_15", "Đang đặt hẹn giờ tắt nhạc sau 15 phút.")
+            NgocSiAiLocalCommand.SLEEP_TIMER_30 -> return openAppDestination("sleep_timer_30", "Đang đặt hẹn giờ tắt nhạc sau 30 phút.")
+            NgocSiAiLocalCommand.SLEEP_TIMER_45 -> return openAppDestination("sleep_timer_45", "Đang đặt hẹn giờ tắt nhạc sau 45 phút.")
+            NgocSiAiLocalCommand.SLEEP_TIMER_60 -> return openAppDestination("sleep_timer_60", "Đang đặt hẹn giờ tắt nhạc sau 60 phút.")
+            NgocSiAiLocalCommand.SLEEP_TIMER_90 -> return openAppDestination("sleep_timer_90", "Đang đặt hẹn giờ tắt nhạc sau 90 phút.")
+            NgocSiAiLocalCommand.SLEEP_TIMER_120 -> return openAppDestination("sleep_timer_120", "Đang đặt hẹn giờ tắt nhạc sau 120 phút.")
             NgocSiAiLocalCommand.SLEEP_TIMER_CUSTOM -> {
                 val minutes = extractNgocSiAiSleepTimerMinutes(originalText)
                     ?: return "Hãy nói thời lượng từ 1 phút đến 24 giờ, ví dụ: “AI, hẹn giờ 5 phút”."
                 return openAppDestination(
                     "sleep_timer_custom",
-                    "Đã đặt hẹn giờ tắt nhạc sau $minutes phút.",
+                    "Đang đặt hẹn giờ tắt nhạc sau $minutes phút.",
                     sleepTimerMinutes = minutes
                 )
             }

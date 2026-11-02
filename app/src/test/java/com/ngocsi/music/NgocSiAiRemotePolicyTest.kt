@@ -220,12 +220,13 @@ class NgocSiAiRemotePolicyTest {
     @Test
     fun agentContinuesOnlyAfterCompletedAppFeedback() {
         assertTrue(shouldContinueNgocSiAiAgentSequence(true, "Đã bật phát ngẫu nhiên cho hàng đợi hiện tại."))
-        assertTrue(shouldContinueNgocSiAiAgentSequence(true, "Đã đặt hẹn giờ tắt nhạc sau 30 phút."))
+        assertTrue(shouldContinueNgocSiAiAgentSequence(true, "Đã tua tiến 10 giây."))
         assertTrue(shouldContinueNgocSiAiAgentSequence(true, "Đã dừng hẳn nhạc."))
         assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Đang mở YouTube."))
         assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Đang tìm nhạc theo từ khóa."))
         assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Đang phát bài Diễm xưa."))
         assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Đang nạp thư viện nhạc."))
+        assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Đang đặt hẹn giờ tắt nhạc sau 30 phút."))
         assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Đã gửi lệnh mở YouTube."))
         assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Đã yêu cầu hủy hẹn giờ."))
         assertFalse(shouldContinueNgocSiAiAgentSequence(false, "Đã gửi lệnh mở YouTube."))
