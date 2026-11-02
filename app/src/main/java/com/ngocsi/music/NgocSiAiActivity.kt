@@ -265,7 +265,7 @@ internal fun localConversationFallbackAfterRemoteError(
 private fun defaultAiGreeting(isOnlineConfigured: Boolean) = AiPreviewMessage(
     false,
     if (isOnlineConfigured) {
-        "Chào bạn, mình là Ngọc Sĩ AI. Cứ nói chuyện tự nhiên với mình nhé."
+        "Chào bạn, mình là Ngọc Sĩ AI. Cấu hình Gemini đã có; mình sẽ thử kết nối khi bạn gửi câu hỏi. Nếu máy chủ không phản hồi, mình sẽ báo rõ."
     } else {
         "Chào bạn, mình là Ngọc Sĩ AI. Mình vẫn nhận lệnh điều khiển ứng dụng; trò chuyện tự do cần kết nối AI."
     }
@@ -2762,7 +2762,7 @@ private fun NgocSiAiPreviewScreen(
                 Spacer(Modifier.width(8.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
-                        if (isOnlineConfigured) "NGỌC SĨ AI • TRỰC TUYẾN" else "NGỌC SĨ AI • BẢN XEM TRƯỚC",
+                        if (isOnlineConfigured) "NGỌC SĨ AI • ĐÃ CẤU HÌNH GEMINI" else "NGỌC SĨ AI • CHẾ ĐỘ CỤC BỘ",
                         color = NgocSiVisuals.Text,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold
@@ -2770,7 +2770,7 @@ private fun NgocSiAiPreviewScreen(
                     Text(
                         when {
                             quotaNote.isNotBlank() -> quotaNote
-                            isOnlineConfigured -> "Câu hỏi tự do có thể chịu giới hạn theo hạn mức Gemini."
+                            isOnlineConfigured -> "Đã nạp cấu hình Gemini; chưa xác nhận kết nối. Trạng thái trực tuyến chỉ được xác nhận sau khi Gemini trả lời thành công."
                             else -> "Lệnh nhạc cơ bản chạy tại máy; chat tự do đang tắt."
                         },
                         color = NgocSiVisuals.TextSecondary,
