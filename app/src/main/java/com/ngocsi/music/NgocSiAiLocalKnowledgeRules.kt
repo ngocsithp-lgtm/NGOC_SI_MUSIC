@@ -7,9 +7,15 @@ package com.ngocsi.music
  * when available rather than being guessed by the offline fallback.
  */
 internal fun localNgocSiAiKnowledgeFallback(userText: String): String? {
-    val normalized = normalizeNgocSiAiVoicePhrase(userText)
-        .removePrefix("ai ")
-        .trim()
+    var normalized = normalizeNgocSiAiVoicePhrase(userText)
+    val wakePrefixes = listOf(
+        "hey ai oi ", "ok ai oi ", "alo ai oi ", "ai oi ",
+        "hey ai ", "ok ai ", "alo ai ", "ai ",
+        "hey ngoc si ", "ok ngoc si ", "alo ngoc si ", "ngoc si oi ", "ngoc si "
+    )
+    wakePrefixes.firstOrNull { normalized.startsWith(it) }?.let {
+        normalized = normalized.removePrefix(it).trim()
+    }
 
     val mentionsVietnamOrOurCountry =
         normalized.contains("viet nam") || normalized.contains("nuoc ta")
