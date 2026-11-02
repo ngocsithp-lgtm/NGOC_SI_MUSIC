@@ -544,10 +544,14 @@ internal fun isNgocSiAiWakeWordOnly(input: String): Boolean =
 /** Accepts a command only when wake phrase and command occur in the same utterance. */
 internal fun classifyNgocSiAiWakePhrase(input: String): NgocSiAiLocalCommand? {
     val normalized = normalizeNgocSiAiVoicePhrase(input)
-    if (!normalized.startsWith("ai ")) return null
-    var commandPhrase = normalized.removePrefix("ai ").trim()
-    // “AI” is the trigger; “ơi” remains an optional conversational filler.
-    if (commandPhrase.startsWith("oi ")) commandPhrase = commandPhrase.removePrefix("oi ").trim()
+    // Accept the same natural wake-word variants the microphone UI recognizes.
+    // Check the longer prefixes first so "AI ơi" is stripped as one greeting.
+    val wakePrefixes = listOf(
+        "hey ai oi ", "ok ai oi ", "alo ai oi ",
+        "ai oi ", "hey ai ", "ok ai ", "alo ai ", "ai "
+    )
+    val wakePrefix = wakePrefixes.firstOrNull { normalized.startsWith(it) } ?: return null
+    var commandPhrase = normalized.removePrefix(wakePrefix).trim()
     if (commandPhrase.isBlank()) return null
 
     // Keep these common home aliases explicit in wake-word mode too; speech
@@ -563,10 +567,9 @@ internal fun classifyNgocSiAiWakePhrase(input: String): NgocSiAiLocalCommand? {
         return NgocSiAiLocalCommand.OPEN_HOME
     }
 
-    // Keep the original utterance so sensitive actions can verify that the user
-    // explicitly said the wake word. Passing commandPhrase here dropped "AI" and
-    // incorrectly rejected seek commands after removing the wake prefix above.
-    return classifyNgocSiAiActivatedCommand(input)
+    // Rebuild a canonical explicit wake phrase after accepting "Hey AI"/"Alo AI".
+    // This keeps the safety guard for seek, speed and favorite commands active.
+    return classifyNgocSiAiActivatedCommand("AI, $commandPhrase")
 }
 
 /**
