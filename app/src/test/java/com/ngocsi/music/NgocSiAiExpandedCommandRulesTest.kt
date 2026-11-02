@@ -155,4 +155,91 @@ class NgocSiAiExpandedCommandRulesTest {
             )
         }
     }
+
+    @Test
+    fun everyPublishedGeminiActionMapsToItsExactLocalCommand() {
+        val actionExpectations = listOf(
+            Triple("play", "", NgocSiAiLocalCommand.PLAY),
+            Triple("play_second", "", NgocSiAiLocalCommand.PLAY_SECOND),
+            Triple("play_track", "Diễm xưa", NgocSiAiLocalCommand.PLAY_TRACK),
+            Triple("add_track_to_queue", "Diễm xưa", NgocSiAiLocalCommand.ADD_TRACK_TO_QUEUE),
+            Triple("pause", "", NgocSiAiLocalCommand.PAUSE),
+            Triple("stop", "", NgocSiAiLocalCommand.STOP),
+            Triple("next", "", NgocSiAiLocalCommand.NEXT),
+            Triple("previous", "", NgocSiAiLocalCommand.PREVIOUS),
+            Triple("current_track", "", NgocSiAiLocalCommand.CURRENT_TRACK),
+            Triple("volume_up", "", NgocSiAiLocalCommand.VOLUME_UP),
+            Triple("volume_down", "", NgocSiAiLocalCommand.VOLUME_DOWN),
+            Triple("mute", "", NgocSiAiLocalCommand.MUTE),
+            Triple("unmute", "", NgocSiAiLocalCommand.UNMUTE),
+            Triple("set_playback_speed", "1.25", NgocSiAiLocalCommand.SET_PLAYBACK_SPEED),
+            Triple("seek_forward_10", "", NgocSiAiLocalCommand.SEEK_FORWARD_10),
+            Triple("seek_back_10", "", NgocSiAiLocalCommand.SEEK_BACK_10),
+            Triple("seek_by_seconds", "10", NgocSiAiLocalCommand.SEEK_FORWARD_10),
+            Triple("youtube_seek_by_seconds", "-10", NgocSiAiLocalCommand.YOUTUBE_SEEK_BACK_10),
+            Triple("favorite_current_track", "", NgocSiAiLocalCommand.FAVORITE_CURRENT_TRACK),
+            Triple("shuffle_on", "", NgocSiAiLocalCommand.SHUFFLE_ON),
+            Triple("shuffle_off", "", NgocSiAiLocalCommand.SHUFFLE_OFF),
+            Triple("repeat_off", "", NgocSiAiLocalCommand.REPEAT_OFF),
+            Triple("repeat_all", "", NgocSiAiLocalCommand.REPEAT_ALL),
+            Triple("repeat_one", "", NgocSiAiLocalCommand.REPEAT_ONE),
+            Triple("open_home", "", NgocSiAiLocalCommand.OPEN_HOME),
+            Triple("open_library", "", NgocSiAiLocalCommand.OPEN_LIBRARY),
+            Triple("open_favorites", "", NgocSiAiLocalCommand.OPEN_FAVORITES),
+            Triple("open_albums", "", NgocSiAiLocalCommand.OPEN_ALBUMS),
+            Triple("open_folders", "", NgocSiAiLocalCommand.OPEN_FOLDERS),
+            Triple("open_online", "", NgocSiAiLocalCommand.OPEN_ONLINE),
+            Triple("search_online_music", "Bolero", NgocSiAiLocalCommand.SEARCH_ONLINE_MUSIC),
+            Triple("search_drive", "Bolero", NgocSiAiLocalCommand.SEARCH_DRIVE),
+            Triple("open_youtube", "", NgocSiAiLocalCommand.OPEN_YOUTUBE),
+            Triple("search_youtube", "Trịnh Công Sơn", NgocSiAiLocalCommand.SEARCH_YOUTUBE),
+            Triple("youtube_play", "", NgocSiAiLocalCommand.RESUME_YOUTUBE),
+            Triple("youtube_pause", "", NgocSiAiLocalCommand.PAUSE_YOUTUBE),
+            Triple("youtube_next", "", NgocSiAiLocalCommand.NEXT_YOUTUBE_VIDEO),
+            Triple("youtube_previous", "", NgocSiAiLocalCommand.PREVIOUS_YOUTUBE_VIDEO),
+            Triple("youtube_seek_forward_10", "", NgocSiAiLocalCommand.YOUTUBE_SEEK_FORWARD_10),
+            Triple("youtube_seek_back_10", "", NgocSiAiLocalCommand.YOUTUBE_SEEK_BACK_10),
+            Triple("youtube_shuffle_on", "", NgocSiAiLocalCommand.YOUTUBE_SHUFFLE_ON),
+            Triple("youtube_shuffle_off", "", NgocSiAiLocalCommand.YOUTUBE_SHUFFLE_OFF),
+            Triple("youtube_repeat_off", "", NgocSiAiLocalCommand.YOUTUBE_REPEAT_OFF),
+            Triple("youtube_repeat_all", "", NgocSiAiLocalCommand.YOUTUBE_REPEAT_ALL),
+            Triple("youtube_repeat_one", "", NgocSiAiLocalCommand.YOUTUBE_REPEAT_ONE),
+            Triple("youtube_favorite", "", NgocSiAiLocalCommand.YOUTUBE_FAVORITE),
+            Triple("youtube_watch_later", "", NgocSiAiLocalCommand.YOUTUBE_WATCH_LATER),
+            Triple("open_drive", "", NgocSiAiLocalCommand.OPEN_DRIVE),
+            Triple("open_radio", "", NgocSiAiLocalCommand.OPEN_RADIO),
+            Triple("play_radio_station", "VOV3", NgocSiAiLocalCommand.PLAY_RADIO_STATION),
+            Triple("open_tv", "", NgocSiAiLocalCommand.OPEN_TV),
+            Triple("open_tv_channel", "VTV3", NgocSiAiLocalCommand.OPEN_TV_CHANNEL),
+            Triple("create_playlist", "Nhạc Trịnh", NgocSiAiLocalCommand.CREATE_PLAYLIST),
+            Triple("play_playlist", "Nhạc Trịnh", NgocSiAiLocalCommand.PLAY_NAMED_PLAYLIST),
+            Triple("add_current_to_playlist", "Nhạc Trịnh", NgocSiAiLocalCommand.ADD_CURRENT_TRACK_TO_PLAYLIST),
+            Triple("add_queue_to_playlist", "Nhạc Trịnh", NgocSiAiLocalCommand.ADD_QUEUE_TO_PLAYLIST),
+            Triple("open_playlists", "", NgocSiAiLocalCommand.OPEN_PLAYLISTS),
+            Triple("open_queue", "", NgocSiAiLocalCommand.OPEN_QUEUE),
+            Triple("open_player", "", NgocSiAiLocalCommand.OPEN_PLAYER),
+            Triple("open_settings", "", NgocSiAiLocalCommand.OPEN_SETTINGS),
+            Triple("open_sleep_timer", "", NgocSiAiLocalCommand.OPEN_SLEEP_TIMER),
+            Triple("sleep_timer_15", "", NgocSiAiLocalCommand.SLEEP_TIMER_15),
+            Triple("sleep_timer_30", "", NgocSiAiLocalCommand.SLEEP_TIMER_30),
+            Triple("sleep_timer_45", "", NgocSiAiLocalCommand.SLEEP_TIMER_45),
+            Triple("sleep_timer_60", "", NgocSiAiLocalCommand.SLEEP_TIMER_60),
+            Triple("sleep_timer_90", "", NgocSiAiLocalCommand.SLEEP_TIMER_90),
+            Triple("sleep_timer_120", "", NgocSiAiLocalCommand.SLEEP_TIMER_120),
+            Triple("sleep_timer_custom", "5", NgocSiAiLocalCommand.SLEEP_TIMER_CUSTOM),
+            Triple("cancel_sleep_timer", "", NgocSiAiLocalCommand.CANCEL_SLEEP_TIMER),
+            Triple("help", "", NgocSiAiLocalCommand.HELP)
+        )
+
+        assertEquals(70, actionExpectations.size)
+        actionExpectations.forEach { (action, query, expectedCommand) ->
+            val phrase = buildNgocSiAiToolCommandPhrase(action, query)
+            assertTrue("$action must map to a local phrase", phrase != null)
+            assertEquals(
+                "$action must map to $expectedCommand; phrase=$phrase",
+                expectedCommand,
+                classifyNgocSiAiActivatedCommand("AI, $phrase")
+            )
+        }
+    }
 }
