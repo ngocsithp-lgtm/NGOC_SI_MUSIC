@@ -101,6 +101,8 @@ internal fun localConversationFallback(
     userText: String,
     previousAssistantReply: String? = null
 ): String? {
+    localNgocSiAiAppHelpFallback(userText)?.let { return it }
+
     val normalized = Normalizer.normalize(userText.lowercase(Locale.ROOT), Normalizer.Form.NFD)
         .replace("\\p{Mn}+".toRegex(), "")
         .replace('đ', 'd')
