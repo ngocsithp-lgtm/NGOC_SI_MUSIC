@@ -218,9 +218,16 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
-    fun agentContinuesOnlyWhenAppFeedbackDoesNotReportFailure() {
-        assertTrue(shouldContinueNgocSiAiAgentSequence(true, "Đang mở YouTube."))
-        assertTrue(shouldContinueNgocSiAiAgentSequence(true, "Đang tìm nhạc theo từ khóa."))
+    fun agentContinuesOnlyAfterCompletedAppFeedback() {
+        assertTrue(shouldContinueNgocSiAiAgentSequence(true, "Đã bật phát ngẫu nhiên cho hàng đợi hiện tại."))
+        assertTrue(shouldContinueNgocSiAiAgentSequence(true, "Đã đặt hẹn giờ tắt nhạc sau 30 phút."))
+        assertTrue(shouldContinueNgocSiAiAgentSequence(true, "Đã dừng hẳn nhạc."))
+        assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Đang mở YouTube."))
+        assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Đang tìm nhạc theo từ khóa."))
+        assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Đang phát bài Diễm xưa."))
+        assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Đang nạp thư viện nhạc."))
+        assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Đã gửi lệnh mở YouTube."))
+        assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Đã yêu cầu hủy hẹn giờ."))
         assertFalse(shouldContinueNgocSiAiAgentSequence(false, "Đã gửi lệnh mở YouTube."))
         assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Không tìm thấy bài hát."))
         assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Bạn cần đăng nhập Google Drive."))
