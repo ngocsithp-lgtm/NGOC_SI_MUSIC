@@ -46,4 +46,53 @@ class NgocSiAiRemotePolicyTest {
     fun ordinaryKnowledgeQuestionsSkipTheAppCommandTool() {
         assertFalse(shouldOfferNgocSiAiAppCommandTool("Vì sao bầu trời có màu xanh?"))
     }
+
+    @Test
+    fun naturalVietnameseNavigationPhrasesKeepTheAppCommandToolAvailable() {
+        listOf(
+            "AI, chuyển qua Radio giúp tôi.",
+            "AI, vào thư mục Drive.",
+            "AI, bấm mở mục YouTube.",
+            "AI, đi đến thư viện nhạc."
+        ).forEach { phrase ->
+            assertTrue("$phrase should expose app command tools", shouldOfferNgocSiAiAppCommandTool(phrase))
+        }
+    }
+
+    @Test
+    fun naturalPlaybackAndSeekPhrasesKeepTheAppCommandToolAvailable() {
+        listOf(
+            "AI, bấm phát video tiếp theo.",
+            "AI, tiếp đi.",
+            "AI, lùi 10 giây.",
+            "AI, tua lùi 15 giây trên YouTube.",
+            "AI, giảm âm lượng xuống.",
+            "AI, tắt tiếng."
+        ).forEach { phrase ->
+            assertTrue("$phrase should expose app command tools", shouldOfferNgocSiAiAppCommandTool(phrase))
+        }
+    }
+
+    @Test
+    fun timerAndPlaylistRequestsKeepTheAppCommandToolAvailable() {
+        listOf(
+            "AI, đặt hẹn giờ tắt nhạc sau 30 phút.",
+            "AI, mở playlist Nhạc Trịnh.",
+            "AI, thêm bài đang phát vào yêu thích."
+        ).forEach { phrase ->
+            assertTrue("$phrase should expose app command tools", shouldOfferNgocSiAiAppCommandTool(phrase))
+        }
+    }
+
+    @Test
+    fun informationalQuestionsDoNotBecomeAppActions() {
+        listOf(
+            "Vì sao YouTube có thể phát nhạc nền?",
+            "Kể cho tôi nghe về lịch sử của Radio.",
+            "Tại sao âm lượng điện thoại đôi khi nhỏ?"
+        ).forEach { phrase ->
+            assertFalse("$phrase should remain a normal chat question", shouldOfferNgocSiAiAppCommandTool(phrase))
+        }
+    }
 }
+

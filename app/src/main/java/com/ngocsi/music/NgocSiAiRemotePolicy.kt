@@ -38,15 +38,39 @@ internal fun selectNgocSiAiMaxOutputTokens(prompt: String): Int =
  */
 internal fun shouldOfferNgocSiAiAppCommandTool(prompt: String): Boolean {
     val normalized = normalizeNgocSiAiVoicePhrase(prompt)
-    val actionMarkers = listOf(
+    val explicitActionMarkers = listOf(
         "mo youtube", "mo radio", "mo drive", "mo thu vien", "mo tv", "mo muc",
-        "bat radio", "bat nhac", "phat nhac", "phat bai", "cho phat", "muon nghe",
-        "nghe bai", "nghe nhac", "tam dung", "dung nhac", "tiep theo", "chuyen bai",
-        "bai tiep", "bai truoc", "tua ", "tang am luong", "giam am luong",
+        "vao youtube", "vao radio", "vao drive", "vao thu vien", "vao tv",
+        "chuyen sang youtube", "chuyen sang radio", "chuyen sang drive",
+        "chuyen sang tv", "chuyen qua youtube", "chuyen qua radio",
+        "bat radio", "bat nhac", "bat video", "bat tieng", "tat tieng",
+        "phat nhac", "phat bai", "phat video", "cho phat", "choi nhac", "choi bai",
+        "muon nghe", "nghe bai", "nghe nhac", "nghe radio", "nghe youtube",
+        "tam dung", "dung nhac", "tiep theo", "tiep di", "tiep nhe", "tiep tuc",
+        "chuyen bai", "qua bai", "bai tiep", "bai truoc", "tua ", "tua lui",
+        "lui ", "quay lai", "nhay toi", "tang am luong", "giam am luong",
+        "tang tieng", "giam tieng", "to hon", "nho hon", "am luong",
         "tim bai hat", "tim kiem bai hat", "tim youtube", "tim tren youtube",
-        "dat hen gio", "hen gio tat", "them vao yeu thich", "luu vao yeu thich",
-        "phat radio", "mo kenh", "youtube play", "youtube pause", "youtube next",
-        "youtube previous", "play ", "pause", "stop ", "skip "
+        "dat hen gio", "hen gio tat", "huy hen gio", "them vao yeu thich",
+        "luu vao yeu thich", "luu bai", "luu video", "phat radio", "mo kenh",
+        "mo playlist", "phat playlist", "mo hang doi", "xem hang doi",
+        "chon bai", "chon playlist", "youtube play", "youtube pause", "youtube next",
+        "youtube previous", "play ", "pause", "stop ", "skip ", "seek ",
+        "next", "previous", "resume", "volume", "mute", "unmute", "shuffle", "repeat"
     )
-    return actionMarkers.any { marker -> normalized.contains(marker) }
+    if (explicitActionMarkers.any { marker -> normalized.contains(marker) }) return true
+
+    // Natural Vietnamese commands often put the verb and target in different positions:
+    // "chuyển qua Radio", "bấm mở mục Drive", "đi đến thư viện", "điều khiển video".
+    val actionVerbs = listOf(
+        "mo ", "vao ", "chuyen ", "bam ", "bat ", "tat ", "phat ", "choi ",
+        "nghe ", "tim ", "chon ", "tang ", "giam ", "them vao", "luu ",
+        "hen gio", "dieu khien", "kiem soat", "di den", "dua toi", "truy cap"
+    )
+    val appTargets = listOf(
+        "youtube", "video", "drive", "radio", "tv", "thu vien", "playlist",
+        "hang doi", "nhac", "bai hat", "trinh phat", "kenh", "am luong", "tieng"
+    )
+    return actionVerbs.any { verb -> normalized.contains(verb) } &&
+        appTargets.any { target -> normalized.contains(target) }
 }
