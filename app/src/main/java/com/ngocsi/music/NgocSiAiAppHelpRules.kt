@@ -34,7 +34,7 @@ internal fun localNgocSiAiAppHelpFallback(userText: String): String? {
 
     return when {
         asksForVoiceControl ->
-            "Cách điều khiển bằng giọng nói: bật chế độ nghe từ khóa trong NGỌC SĨ AI, nói “AI”, chờ thông báo đã nghe rồi đọc lệnh. Trong phiên trò chuyện liên tục, bạn có thể nói các lệnh tiếp theo mà không cần gọi lại “AI” mỗi lần. Ví dụ: “mở YouTube”, “tìm nhạc Trịnh Công Sơn”, “tạm dừng”, “chuyển video tiếp theo”, “tua tới 10 giây”, “tăng âm lượng”, “thêm bài đang phát vào yêu thích” hoặc “hẹn giờ 15 phút”. Nói “AI, tạm dừng AI” để tắt nghe từ khóa; thao tác này không dừng nhạc. Các lệnh chỉ tác động đến chức năng đã được ứng dụng hỗ trợ."
+            "Cách điều khiển bằng giọng nói: bật chế độ nghe từ khóa trong NGỌC SĨ AI, nói “AI”, chờ thông báo đã nghe rồi đọc lệnh. Trong phiên trò chuyện liên tục, bạn có thể nói các lệnh tiếp theo mà không cần gọi lại “AI” mỗi lần. Ví dụ: “mở YouTube”, “tìm nhạc Trịnh Công Sơn”, “tạm dừng”, “chuyển video tiếp theo”, “tua tới 10 giây”, “tăng âm lượng”, “thêm bài đang phát vào yêu thích” hoặc “hẹn giờ 15 phút”. Nói “AI, tạm dừng AI” để tắt nghe từ khóa; nhạc vẫn tiếp tục phát. Các lệnh chỉ tác động đến chức năng đã được ứng dụng hỗ trợ."
 
         normalized.contains("youtube") ->
             "Cách dùng YouTube: mở mục YouTube trong ứng dụng, nhập tên bài hát hoặc video vào ô tìm kiếm, rồi chọn kết quả để phát. Khi YouTube là nguồn phát, AI hỗ trợ phát tiếp, tạm dừng, chuyển video, quay lại video trước, tua tiến/lùi, bật/tắt phát ngẫu nhiên, chọn chế độ lặp, thêm vào Yêu thích và lưu Xem sau. Ví dụ: “AI, mở YouTube”, “AI, tìm nhạc Trịnh Công Sơn”, “AI, tua tới 10 giây”, “AI, lặp video YouTube” hoặc “AI, lưu video xem sau”. Cần có kết nối Internet."
