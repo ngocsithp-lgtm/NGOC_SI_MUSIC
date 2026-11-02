@@ -622,6 +622,20 @@ class NgocSiAiLocalCommandRulesTest {
         assertEquals(NgocSiAiLocalCommand.SLEEP_TIMER_60, classifyNgocSiAiLocalCommand("Tắt nhạc sau 60 phút"))
         assertEquals(NgocSiAiLocalCommand.SLEEP_TIMER_90, classifyNgocSiAiLocalCommand("Hẹn giờ sau 90 phút"))
         assertEquals(NgocSiAiLocalCommand.SLEEP_TIMER_120, classifyNgocSiAiLocalCommand("Hẹn giờ 120 phút"))
+
+        // Spoken numbers and hour units must resolve to the same preset timers.
+        assertEquals(NgocSiAiLocalCommand.SLEEP_TIMER_15, classifyNgocSiAiLocalCommand("AI, hẹn giờ mười lăm phút"))
+        assertEquals(NgocSiAiLocalCommand.SLEEP_TIMER_15, classifyNgocSiAiLocalCommand("AI, tắt nhạc sau mười lăm phút"))
+        assertEquals(NgocSiAiLocalCommand.SLEEP_TIMER_60, classifyNgocSiAiLocalCommand("AI, hẹn giờ một giờ"))
+        assertEquals(NgocSiAiLocalCommand.SLEEP_TIMER_120, classifyNgocSiAiLocalCommand("AI, hẹn giờ hai tiếng"))
+        assertEquals(NgocSiAiLocalCommand.SLEEP_TIMER_60, classifyNgocSiAiActivatedCommand("AI, hẹn giờ một giờ"))
+
+        // Durations without a preset remain available through the custom timer route.
+        assertEquals(NgocSiAiLocalCommand.SLEEP_TIMER_CUSTOM, classifyNgocSiAiLocalCommand("AI, hẹn giờ 7 phút"))
+        assertEquals(7, extractNgocSiAiSleepTimerMinutes("AI, hẹn giờ 7 phút"))
+        assertEquals(60, extractNgocSiAiSleepTimerMinutes("AI, hẹn giờ một giờ"))
+        assertEquals(120, extractNgocSiAiSleepTimerMinutes("AI, hẹn giờ hai tiếng"))
+
         assertEquals(NgocSiAiLocalCommand.CANCEL_SLEEP_TIMER, classifyNgocSiAiLocalCommand("Hủy hẹn giờ"))
         assertEquals(NgocSiAiLocalCommand.OPEN_SLEEP_TIMER, classifyNgocSiAiLocalCommand("Mở hẹn giờ"))
     }
