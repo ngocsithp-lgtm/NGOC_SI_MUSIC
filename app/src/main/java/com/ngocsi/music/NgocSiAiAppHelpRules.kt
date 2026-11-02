@@ -11,19 +11,30 @@ internal fun localNgocSiAiAppHelpFallback(userText: String): String? {
 
     val guideMarkers = listOf(
         "huong dan", "cach su dung", "cach dung", "su dung nhu the nao",
-        "giai thich", "chuc nang", "gioi thieu", "lam duoc gi",
+        "giai thich", "chuc nang", "gioi thieu", "lam duoc gi", "lam sao",
+        "cach dieu khien", "dieu khien bang giong noi", "lenh giong noi",
+        "tu khoa ai", "danh thuc", "ra lenh",
         "co nhung gi", "ho tro nhung gi", "dung app", "dung ung dung"
     )
     val hasAppReference = listOf(
-        "app", "ung dung", "ngoc si", "nhac", "thu vien", "youtube",
-        "drive", "radio", "tv", "hen gio", "playlist", "hang doi"
+        "app", "ung dung", "ngoc si", "ai", "nhac", "thu vien", "youtube",
+        "drive", "radio", "tv", "hen gio", "playlist", "hang doi", "giong noi", "tu khoa"
     ).any { normalized.contains(it) }
     val asksForGuide = guideMarkers.any { normalized.contains(it) }
     if (!asksForGuide || !hasAppReference) return null
 
+    val asksForVoiceControl = normalized.contains("giong noi") ||
+        normalized.contains("tu khoa") || normalized.contains("danh thuc") ||
+        normalized.contains("wake word") || normalized.contains("wakeword") ||
+        normalized.contains("ra lenh") ||
+        (normalized.contains("ai") && normalized.contains("dieu khien"))
+
     return when {
+        asksForVoiceControl ->
+            "Cách điều khiển bằng giọng nói: bật chế độ nghe từ khóa trong NGỌC SĨ AI, nói “AI”, chờ thông báo đã nghe rồi đọc lệnh. Trong phiên trò chuyện liên tục, bạn có thể nói các lệnh tiếp theo mà không cần gọi lại “AI” mỗi lần. Ví dụ: “mở YouTube”, “tìm nhạc Trịnh Công Sơn”, “tạm dừng”, “chuyển video tiếp theo”, “tua tới 10 giây”, “tăng âm lượng”, “thêm bài đang phát vào yêu thích” hoặc “hẹn giờ 15 phút”. Nói “AI, tạm dừng AI” để tắt nghe từ khóa; thao tác này không dừng nhạc. Các lệnh chỉ tác động đến chức năng đã được ứng dụng hỗ trợ."
+
         normalized.contains("youtube") ->
-            "Cách dùng YouTube: mở mục YouTube trong ứng dụng, nhập tên bài hát hoặc video vào ô tìm kiếm, rồi chọn kết quả để phát. Khi YouTube đang là nguồn phát, bạn có thể yêu cầu AI tạm dừng, phát tiếp, chuyển video, quay lại video trước hoặc tua tiến/lùi. Ví dụ: “AI, mở YouTube”, “AI, tìm nhạc Trịnh Công Sơn”, “AI, tua tới 10 giây”. Cần có kết nối Internet."
+            "Cách dùng YouTube: mở mục YouTube trong ứng dụng, nhập tên bài hát hoặc video vào ô tìm kiếm, rồi chọn kết quả để phát. Khi YouTube là nguồn phát, AI hỗ trợ phát tiếp, tạm dừng, chuyển video, quay lại video trước, tua tiến/lùi, bật/tắt phát ngẫu nhiên, chọn chế độ lặp, thêm vào Yêu thích và lưu Xem sau. Ví dụ: “AI, mở YouTube”, “AI, tìm nhạc Trịnh Công Sơn”, “AI, tua tới 10 giây”, “AI, lặp video YouTube” hoặc “AI, lưu video xem sau”. Cần có kết nối Internet."
 
         normalized.contains("google drive") || normalized.contains("drive") ->
             "Cách dùng Google Drive: mở mục Drive, đăng nhập tài khoản Google và cấp quyền truy cập được yêu cầu. Chọn thư mục, mở thư mục chứa nhạc, rồi chọn bài để phát hoặc đưa vào hàng đợi. Nếu chưa đăng nhập hoặc chưa cấp quyền, hãy hoàn tất bước đó trước. Việc duyệt và phát tệp trên đám mây cần Internet."
@@ -54,6 +65,6 @@ internal fun localNgocSiAiAppHelpFallback(userText: String): String? {
                 "5. Hàng đợi, Playlist và Yêu thích: sắp xếp nội dung muốn nghe.\n" +
                 "6. Hẹn giờ: đặt thời gian dừng phát.\n" +
                 "7. NGỌC SĨ AI: hỏi đáp, nhận lệnh giọng nói và điều khiển các thao tác ứng dụng đã hỗ trợ.\n\n" +
-                "Cách bắt đầu: chọn nguồn nhạc (Thư viện, YouTube, Drive hoặc Radio), tìm nội dung, chọn bài để phát; sau đó dùng trình phát và hàng đợi để điều khiển. Với AI, đánh thức bằng từ “AI”, chờ AI xác nhận đang nghe rồi nói yêu cầu; có thể nói liên tục mà không cần lặp lại từ đánh thức. Ví dụ: “AI, mở YouTube”, “AI, phát nhạc”, “AI, tạm dừng”, “AI, mở Radio” hoặc “AI, hẹn giờ 30 phút”. Nói “AI, tạm dừng AI” để ngừng nghe từ khóa. YouTube, Drive, Radio và TV cần Internet; Drive cần đăng nhập. Hỏi đáp Gemini trực tuyến có thể bị giới hạn hạn mức, nhưng hướng dẫn ứng dụng này và các lệnh cục bộ được hỗ trợ vẫn hoạt động trên máy."
+                "Cách bắt đầu: chọn nguồn nhạc (Thư viện, YouTube, Drive hoặc Radio), tìm nội dung, chọn bài để phát; sau đó dùng trình phát và hàng đợi để điều khiển. Với AI, đánh thức bằng từ “AI”, chờ AI xác nhận đang nghe rồi nói yêu cầu; có thể nói liên tục mà không cần lặp lại từ đánh thức. Ví dụ: “AI, mở YouTube”, “AI, phát nhạc”, “AI, tạm dừng”, “AI, chuyển bài”, “AI, tua lùi 10 giây”, “AI, tăng âm lượng”, “AI, mở Radio” hoặc “AI, hẹn giờ 30 phút”. Bạn cũng có thể yêu cầu bật/tắt phát ngẫu nhiên, lặp bài, lưu yêu thích hoặc mở hàng đợi khi nguồn phát hỗ trợ. Nói “AI, tạm dừng AI” để ngừng nghe từ khóa; nhạc vẫn tiếp tục phát. YouTube, Drive, Radio và TV cần Internet; Drive cần đăng nhập. Hỏi đáp Gemini trực tuyến có thể bị giới hạn hạn mức, nhưng hướng dẫn ứng dụng này và các lệnh cục bộ được hỗ trợ vẫn hoạt động trên máy."
     }
 }

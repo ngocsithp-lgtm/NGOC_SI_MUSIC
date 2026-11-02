@@ -24,9 +24,26 @@ class NgocSiAiAppHelpRulesTest {
     @Test
     fun featureSpecificGuidesAreReturnedWithoutCallingOnlineModel() {
         assertTrue(localNgocSiAiAppHelpFallback("Hướng dẫn tôi sử dụng YouTube")!!.contains("ô tìm kiếm"))
+        val youtubeGuide = localNgocSiAiAppHelpFallback("Giải thích cách dùng YouTube")!!
+        assertTrue(youtubeGuide.contains("phát ngẫu nhiên"))
+        assertTrue(youtubeGuide.contains("Xem sau"))
         assertTrue(localNgocSiAiAppHelpFallback("Giải thích cách dùng Google Drive")!!.contains("đăng nhập"))
         assertTrue(localNgocSiAiAppHelpFallback("Hướng dẫn nghe Radio")!!.contains("chọn đài"))
         assertTrue(localNgocSiAiAppHelpFallback("Cách sử dụng hẹn giờ")!!.contains("đếm ngược"))
+    }
+
+    @Test
+    fun explainsTheWakeWordAndContinuousVoiceControlOffline() {
+        val byVoice = localNgocSiAiAppHelpFallback(
+            "Làm sao để AI điều khiển YouTube bằng giọng nói?"
+        )!!
+        assertTrue(byVoice.contains("nói “AI”"))
+        assertTrue(byVoice.contains("không cần gọi lại"))
+        assertTrue(byVoice.contains("tạm dừng AI"))
+
+        val wakeWordGuide = localNgocSiAiAppHelpFallback("Hướng dẫn sử dụng từ khóa AI")!!
+        assertTrue(wakeWordGuide.contains("bật chế độ nghe từ khóa"))
+        assertTrue(wakeWordGuide.contains("nhạc vẫn tiếp tục phát"))
     }
 
     @Test
