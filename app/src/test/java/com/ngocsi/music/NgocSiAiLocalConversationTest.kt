@@ -24,6 +24,16 @@ class NgocSiAiLocalConversationTest {
     }
 
     @Test
+    fun slowAiQuestionGetsImmediateLocalExplanationWithoutGemini() {
+        val answer = localConversationFallback("Tại sao AI trả lời chậm?")
+        assertNotNull(answer)
+        assertTrue(answer!!.contains("Gemini trực tuyến"))
+        assertTrue(answer.contains("25 giây"))
+        assertTrue(answer.contains("40 giây"))
+        assertTrue(answer.contains("lệnh điều khiển nhạc"))
+    }
+
+    @Test
     fun quotaQuestionGetsHonestLocalExplanation() {
         val answer = localConversationFallback("Tại sao AI hết hạn mức?")
         assertNotNull(answer)

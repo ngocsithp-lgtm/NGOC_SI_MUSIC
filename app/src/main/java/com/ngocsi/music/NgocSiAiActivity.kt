@@ -140,7 +140,7 @@ internal fun localConversationFallback(
             "ban lam duoc gi", "ban co the lam gi", "ai lam duoc gi",
             "ngoc si ai lam duoc gi", "ban ho tro duoc gi"
         ) ->
-            return "Mình có thể xử lý các lệnh được hỗ trợ như phát, tạm dừng hoặc dừng hẳn nhạc, chuyển bài, mở YouTube, Radio, TV và Google Drive. Mình cũng có thể trò chuyện, giải thích và cùng bạn nghĩ ý tưởng khi AI trực tuyến còn hạn mức."
+            return "Mình có thể xử lý các lệnh đã tích hợp như phát, tạm dừng hoặc dừng nhạc, chuyển bài, tua, chỉnh âm lượng; mở, tìm và điều khiển YouTube; mở Radio, Google Drive và TV; quản lý hàng đợi, playlist, Yêu thích và hẹn giờ. Câu hỏi kiến thức rộng cần Gemini trực tuyến."
 
         normalized in setOf("ban ten gi", "ten ban la gi", "ban la ai", "ban la ai vay") ->
             return "Mình là NGỌC SĨ AI, trợ lý tích hợp trong NGỌC SĨ MUSIC."
@@ -181,6 +181,13 @@ internal fun localConversationFallback(
 
         matchesAny("ban co the suy luan", "ban co biet suy luan", "ban co thong minh") ->
             return "Khi Gemini trực tuyến còn hoạt động, mình có thể phân tích ngữ cảnh, so sánh các khả năng và đề xuất cách làm. Khi hết hạn mức, chế độ cục bộ chỉ xử lý lệnh và một số hội thoại quen thuộc; mình sẽ không giả vờ đã phân tích được câu hỏi phức tạp."
+
+        matchesAny(
+            "tai sao ai tra loi cham", "vi sao ai tra loi cham",
+            "ai tra loi cham", "ai phan hoi cham", "gemini tra loi cham",
+            "ai khong tra loi duoc", "sao ai khong tra loi"
+        ) ->
+            return "Câu hỏi tự do cần Gemini trực tuyến. Mạng yếu, máy chủ quá tải hoặc hạn mức miễn phí có thể làm câu trả lời chậm hay không đến. Bản cập nhật giới hạn chờ 25 giây cho câu hỏi thường và 40 giây cho yêu cầu phân tích; lệnh điều khiển nhạc trên điện thoại vẫn chạy trực tiếp."
 
         matchesAny("tai sao ai het han muc", "sao ai het han muc", "tai sao bi loi 429", "sao chat bi 429") ||
             (normalized.contains("han muc") && (normalized.contains("gemini") || normalized.contains("ai"))) ->
@@ -2401,9 +2408,10 @@ private fun NgocSiAiPreviewScreen(
                     previousAssistantReply = messages.dropLast(1).lastOrNull { !it.isUser }?.text,
                     remoteError = errorReply
                 )
-                val visibleReply = fallbackReply ?: latestPartialReply.trim()
+                val visibleReply = latestPartialReply.trim()
                     .takeIf { it.isNotBlank() }
                     ?.let { partial -> "$partial\n\n$errorReply" }
+                    ?: fallbackReply
                     ?: errorReply
                 quotaNote = ngocSiAiQuotaUiNotice(
                     errorReply,
