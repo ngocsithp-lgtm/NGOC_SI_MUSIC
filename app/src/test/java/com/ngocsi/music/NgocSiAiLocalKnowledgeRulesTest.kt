@@ -19,6 +19,18 @@ class NgocSiAiLocalKnowledgeRulesTest {
             "Thủ đô của Việt Nam là Hà Nội.",
             localNgocSiAiKnowledgeFallback("Thủ đô Việt Nam")
         )
+        assertEquals(
+            "Thủ đô của Việt Nam là Hà Nội.",
+            localNgocSiAiKnowledgeFallback("Thủ đô nước ta là gì?")
+        )
+        assertEquals(
+            "Thủ đô của Việt Nam là Hà Nội.",
+            localNgocSiAiKnowledgeFallback("Thủ đô nước Việt Nam là thành phố nào?")
+        )
+        assertEquals(
+            "Thủ đô của Việt Nam là Hà Nội.",
+            localNgocSiAiKnowledgeFallback("Thủ đô Việt Nam ở thành phố nào?")
+        )
     }
 
     @Test
