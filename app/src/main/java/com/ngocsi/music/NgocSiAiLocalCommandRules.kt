@@ -751,6 +751,8 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
             return NgocSiAiLocalCommand.UNMUTE
     }
 
+    val sleepTimerMinutes = extractNgocSiAiSleepTimerMinutes(input)
+
     return when {
         startsWithAny(
             "hat bai thu hai trong danh sach", "phat bai thu hai trong danh sach",
@@ -954,32 +956,20 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
         startsWithAny("lap bai", "lap mot bai", "lap mot bai hat", "repeat one", "loop current song") ->
             NgocSiAiLocalCommand.REPEAT_ONE
 
-        // Timer phrases require an explicit duration; vague mentions only open the timer dialog.
+        // Parse the duration once so spoken-number and hour variants map to the same
+        // timer presets as numeric minute phrases. Vague timer mentions remain navigation.
         startsWithAny("huy hen gio", "bo hen gio", "tat hen gio", "xoa hen gio", "cancel sleep timer") ->
             NgocSiAiLocalCommand.CANCEL_SLEEP_TIMER
 
-        phrase.contains("hen gio") && phrase.contains("15 phut") ||
-            startsWithAny("tat nhac sau 15 phut", "dung nhac sau 15 phut") ->
-            NgocSiAiLocalCommand.SLEEP_TIMER_15
-        phrase.contains("hen gio") && phrase.contains("30 phut") ||
-            startsWithAny("tat nhac sau 30 phut", "dung nhac sau 30 phut") ->
-            NgocSiAiLocalCommand.SLEEP_TIMER_30
-        phrase.contains("hen gio") && phrase.contains("45 phut") ||
-            startsWithAny("tat nhac sau 45 phut", "dung nhac sau 45 phut") ->
-            NgocSiAiLocalCommand.SLEEP_TIMER_45
-        phrase.contains("hen gio") && phrase.contains("60 phut") ||
-            startsWithAny("tat nhac sau 60 phut", "dung nhac sau 60 phut") ->
-            NgocSiAiLocalCommand.SLEEP_TIMER_60
-        phrase.contains("hen gio") && phrase.contains("90 phut") ||
-            startsWithAny("tat nhac sau 90 phut", "dung nhac sau 90 phut") ->
-            NgocSiAiLocalCommand.SLEEP_TIMER_90
-        phrase.contains("hen gio") && phrase.contains("120 phut") ||
-            startsWithAny("tat nhac sau 120 phut", "dung nhac sau 120 phut") ->
-            NgocSiAiLocalCommand.SLEEP_TIMER_120
-
-        extractNgocSiAiSleepTimerMinutes(input)?.let { minutes ->
-            minutes !in setOf(15, 30, 45, 60, 90, 120)
-        } == true -> NgocSiAiLocalCommand.SLEEP_TIMER_CUSTOM
+        sleepTimerMinutes != null -> when (sleepTimerMinutes) {
+            15 -> NgocSiAiLocalCommand.SLEEP_TIMER_15
+            30 -> NgocSiAiLocalCommand.SLEEP_TIMER_30
+            45 -> NgocSiAiLocalCommand.SLEEP_TIMER_45
+            60 -> NgocSiAiLocalCommand.SLEEP_TIMER_60
+            90 -> NgocSiAiLocalCommand.SLEEP_TIMER_90
+            120 -> NgocSiAiLocalCommand.SLEEP_TIMER_120
+            else -> NgocSiAiLocalCommand.SLEEP_TIMER_CUSTOM
+        }
 
         isAnyOf(
             "ban lam duoc gi", "ban lam duoc gi vay",
