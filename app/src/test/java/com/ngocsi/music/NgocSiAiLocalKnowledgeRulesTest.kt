@@ -67,4 +67,25 @@ class NgocSiAiLocalKnowledgeRulesTest {
         assertNull(localNgocSiAiKnowledgeFallback("Tình hình kinh tế Việt Nam năm nay thế nào?"))
         assertNull(localNgocSiAiKnowledgeFallback("Ai là người giàu nhất Việt Nam hiện nay?"))
     }
+
+    @Test
+    fun understandsCommonVietnamCapitalSpeechRecognitionVariants() {
+        val expected = "Thủ đô của Việt Nam là Hà Nội."
+        assertEquals(expected, localNgocSiAiKnowledgeFallback("Thủ đô VN là gì?"))
+        assertEquals(expected, localNgocSiAiKnowledgeFallback("Thủ đô nước mình ở đâu?"))
+        assertEquals(expected, localNgocSiAiKnowledgeFallback("Thủ đô nước mình là gì?"))
+        assertEquals(expected, localNgocSiAiKnowledgeFallback("Al, thủ đô Việt Nam là gì?"))
+        assertEquals(
+            "Đúng, Hà Nội là thủ đô của Việt Nam.",
+            localNgocSiAiKnowledgeFallback("Hà Nội có phải là thủ đô Việt Nam không?")
+        )
+    }
+
+    @Test
+    fun answersCapitalThroughTheSameOfflineFallbackUsedByChat() {
+        val expected = "Thủ đô của Việt Nam là Hà Nội."
+        assertEquals(expected, localConversationFallback("AI, thủ đô Việt Nam là gì?"))
+        assertEquals(expected, localConversationFallback("Al, thủ đô Việt Nam là gì?"))
+        assertEquals(expected, localConversationFallback("Thủ đô nước mình ở đâu?"))
+    }
 }

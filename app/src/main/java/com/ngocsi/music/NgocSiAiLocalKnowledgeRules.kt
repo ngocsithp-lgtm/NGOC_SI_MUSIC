@@ -18,13 +18,20 @@ internal fun localNgocSiAiKnowledgeFallback(userText: String): String? {
     }
 
     val mentionsVietnamOrOurCountry =
-        normalized.contains("viet nam") || normalized.contains("nuoc ta")
+        normalized.contains("viet nam") ||
+            normalized.contains("nuoc ta") ||
+            normalized.contains("nuoc minh") ||
+            normalized.split(' ').any { it == "vn" }
     val asksWhereOrWhichCity = listOf(
         "la gi",
         "o dau",
         "la thanh pho nao",
         "o thanh pho nao"
     ).any { normalized.endsWith(it) }
+    val asksWhetherHanoiIsTheCapital =
+        normalized.contains("ha noi") &&
+            normalized.contains("phai") &&
+            normalized.endsWith("khong")
 
     val asksVietnamCapital =
         normalized.contains("thu do") &&
@@ -32,10 +39,16 @@ internal fun localNgocSiAiKnowledgeFallback(userText: String): String? {
             (asksWhereOrWhichCity ||
                 normalized == "thu do viet nam" ||
                 normalized == "thu do cua viet nam" ||
-                normalized == "thu do nuoc ta")
+                normalized == "thu do nuoc ta" ||
+                normalized == "thu do nuoc minh" ||
+                asksWhetherHanoiIsTheCapital)
 
     if (asksVietnamCapital) {
-        return "Thủ đô của Việt Nam là Hà Nội."
+        return if (asksWhetherHanoiIsTheCapital) {
+            "Đúng, Hà Nội là thủ đô của Việt Nam."
+        } else {
+            "Thủ đô của Việt Nam là Hà Nội."
+        }
     }
 
     val asksVietnamCurrency =
