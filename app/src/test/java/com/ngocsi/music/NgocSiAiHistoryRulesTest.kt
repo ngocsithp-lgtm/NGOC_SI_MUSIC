@@ -153,4 +153,56 @@ class NgocSiAiHistoryRulesTest {
         }
         assertTrue(error.message!!.contains("câu hỏi mới"))
     }
+
+    @Test
+    fun appendsCompletedWakeWordTurnAfterCurrentCompletedTurn() {
+        val updated = appendCompletedNgocSiAiTurn(
+            listOf(
+                NgocSiAiMessage("user", "Câu hỏi trên màn hình"),
+                NgocSiAiMessage("assistant", "Câu trả lời trên màn hình")
+            ),
+            "Câu hỏi bằng giọng nói",
+            "Câu trả lời bằng giọng nói"
+        )
+
+        assertEquals(
+            listOf(
+                NgocSiAiMessage("user", "Câu hỏi trên màn hình"),
+                NgocSiAiMessage("assistant", "Câu trả lời trên màn hình"),
+                NgocSiAiMessage("user", "Câu hỏi bằng giọng nói"),
+                NgocSiAiMessage("assistant", "Câu trả lời bằng giọng nói")
+            ),
+            updated
+        )
+    }
+
+    @Test
+    fun refusesToInterleaveWakeWordTurnAfterAnUnfinishedScreenQuestion() {
+        val error = org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+            appendCompletedNgocSiAiTurn(
+                listOf(NgocSiAiMessage("user", "Câu hỏi đang chờ Gemini")),
+                "Câu hỏi bằng giọng nói",
+                "Câu trả lời bằng giọng nói"
+            )
+        }
+        assertTrue(error.message!!.contains("chưa có câu trả lời"))
+    }
+
+    @Test
+    fun appendingWakeWordTurnKeepsOnlyEightMostRecentCompleteTurns() {
+        val history = buildList {
+            repeat(8) { index ->
+                add(NgocSiAiMessage("user", "Câu hỏi $index"))
+                add(NgocSiAiMessage("assistant", "Câu trả lời $index"))
+            }
+        }
+        val updated = appendCompletedNgocSiAiTurn(
+            history, "Câu hỏi mới", "Câu trả lời mới"
+        )
+
+        assertEquals(NGOC_SI_AI_MAX_HISTORY_MESSAGES, updated.size)
+        assertEquals("Câu hỏi 1", updated.first().content)
+        assertEquals("Câu hỏi mới", updated[updated.lastIndex - 1].content)
+        assertEquals("assistant", updated.last().role)
+    }
 }

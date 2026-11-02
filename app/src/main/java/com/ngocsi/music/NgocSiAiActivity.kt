@@ -88,6 +88,12 @@ import androidx.compose.ui.unit.sp
 
 private data class AiPreviewMessage(val isUser: Boolean, val text: String)
 
+private data class PendingWakeWordContextTurn(
+    val turnId: Long,
+    val question: String,
+    val answer: String
+)
+
 private const val AI_CHAT_PREFS_NAME = "ngoc_si_ai_chat_history"
 private const val AI_CHAT_MESSAGES_KEY = "chat_messages_v1"
 private const val AI_CHAT_CONVERSATION_KEY = "api_conversation_v1"
@@ -2161,6 +2167,9 @@ private fun NgocSiAiPreviewScreen(
             addAll(loadAiApiConversation(chatPreferences))
         }
     }
+    val pendingWakeWordContextTurns = remember {
+        mutableStateListOf<PendingWakeWordContextTurn>()
+    }
     val coroutineScope = rememberCoroutineScope()
     var isSending by remember { mutableStateOf(false) }
     var quotaNote by remember { mutableStateOf("") }
@@ -2170,6 +2179,45 @@ private fun NgocSiAiPreviewScreen(
 
     fun persistChatState() {
         saveAiPreviewMessages(chatPreferences, messages)
+        saveAiApiConversation(chatPreferences, conversation)
+    }
+
+    fun appendWakeWordContextTurn(turn: PendingWakeWordContextTurn) {
+        val storedTurnId = chatPreferences.getLong(AI_WAKEWORD_LAST_CONTEXT_TURN_KEY, 0L)
+        if (turn.turnId <= storedTurnId) return
+        if (isSending) {
+            // Do not insert a voice turn after an unfinished screen-chat user message.
+            // It is merged only after that request has completed or rolled back.
+            pendingWakeWordContextTurns.removeAll { it.turnId == turn.turnId }
+            pendingWakeWordContextTurns.add(turn)
+            return
+        }
+        val updated = appendCompletedNgocSiAiTurn(
+            conversation.toList(), turn.question, turn.answer
+        )
+        conversation.clear()
+        conversation.addAll(updated)
+        chatPreferences.edit().putLong(AI_WAKEWORD_LAST_CONTEXT_TURN_KEY, turn.turnId).apply()
+        saveAiApiConversation(chatPreferences, conversation)
+    }
+
+    fun flushPendingWakeWordContextTurns() {
+        if (pendingWakeWordContextTurns.isEmpty()) return
+        var latestStoredTurnId = chatPreferences.getLong(AI_WAKEWORD_LAST_CONTEXT_TURN_KEY, 0L)
+        pendingWakeWordContextTurns.sortedBy { it.turnId }.forEach { turn ->
+            if (turn.turnId > latestStoredTurnId) {
+                val updated = appendCompletedNgocSiAiTurn(
+                    conversation.toList(), turn.question, turn.answer
+                )
+                conversation.clear()
+                conversation.addAll(updated)
+                latestStoredTurnId = turn.turnId
+            }
+        }
+        pendingWakeWordContextTurns.clear()
+        chatPreferences.edit()
+            .putLong(AI_WAKEWORD_LAST_CONTEXT_TURN_KEY, latestStoredTurnId)
+            .apply()
         saveAiApiConversation(chatPreferences, conversation)
     }
 
@@ -2210,15 +2258,14 @@ private fun NgocSiAiPreviewScreen(
             answer != NgocSiWakeWordService.CONVERSATION_PENDING_REPLY &&
             turnId > contextTurnId
         ) {
-            conversation.add(NgocSiAiMessage(role = "user", content = question))
-            conversation.add(NgocSiAiMessage(role = "assistant", content = answer))
-            while (conversation.size > NGOC_SI_AI_MAX_HISTORY_MESSAGES) {
-                conversation.removeAt(0)
-                if (conversation.firstOrNull()?.role == "assistant") conversation.removeAt(0)
-            }
-            chatPreferences.edit().putLong(AI_WAKEWORD_LAST_CONTEXT_TURN_KEY, turnId).apply()
+            appendWakeWordContextTurn(
+                PendingWakeWordContextTurn(turnId, question, answer)
+            )
         }
-        persistChatState()
+        // Persist the visible transcript immediately, but never overwrite completed API
+        // history with an unfinished screen-chat turn while a Gemini request is in flight.
+        saveAiPreviewMessages(chatPreferences, messages)
+        if (!isSending) saveAiApiConversation(chatPreferences, conversation)
     }
 
     LaunchedEffect(messages.size, isSending) {
@@ -2439,6 +2486,7 @@ private fun NgocSiAiPreviewScreen(
                 onVoiceReply(errorReply)
             } finally {
                 isSending = false
+                flushPendingWakeWordContextTurns()
             }
         }
     }

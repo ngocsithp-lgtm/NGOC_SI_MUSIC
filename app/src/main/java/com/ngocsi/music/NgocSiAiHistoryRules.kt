@@ -6,6 +6,37 @@ internal const val NGOC_SI_AI_MAX_TOTAL_CHARS = 6_000
 internal const val NGOC_SI_AI_MAX_CONTEXT_MESSAGE_CHARS = 1_200
 
 /**
+ * Appends a completed hands-free turn only after the current history ends in an
+ * assistant answer. This prevents a second input source from splitting a pending
+ * user/assistant pair and corrupting the next Gemini request.
+ */
+internal fun appendCompletedNgocSiAiTurn(
+    history: List<NgocSiAiMessage>,
+    userText: String,
+    assistantText: String
+): List<NgocSiAiMessage> {
+    val user = userText.trim()
+    val assistant = assistantText.trim()
+    require(user.isNotBlank() && assistant.isNotBlank()) {
+        "Một lượt hội thoại hoàn chỉnh cần cả câu hỏi và câu trả lời."
+    }
+    require(history.none { it.role != "user" && it.role != "assistant" || it.content.isBlank() }) {
+        "Lịch sử hội thoại hiện tại không hợp lệ."
+    }
+    require(
+        history.isEmpty() ||
+            (history.first().role == "user" &&
+                history.last().role == "assistant" &&
+                history.zipWithNext().all { (first, second) -> first.role != second.role })
+    ) {
+        "Không thể chèn lượt hội thoại khi câu hỏi trước chưa có câu trả lời."
+    }
+
+    val merged = history + NgocSiAiMessage("user", user) + NgocSiAiMessage("assistant", assistant)
+    return merged.takeLast(NGOC_SI_AI_MAX_HISTORY_MESSAGES)
+}
+
+/**
  * Restores only completed user/assistant turns from persisted chat context.
  * A trailing user message means a request was interrupted before its answer was saved.
  */
