@@ -430,6 +430,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
             "sleep_timer_60",
             "sleep_timer_90",
             "sleep_timer_120",
+            "sleep_timer_custom",
             "cancel_sleep_timer",
             "help"
         )
@@ -454,8 +455,10 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 open_tv_channel, create_playlist, play_playlist, add_current_to_playlist,
                 add_queue_to_playlist, open_playlists, open_queue, open_player, open_settings,
                 open_sleep_timer, sleep_timer_15, sleep_timer_30, sleep_timer_45,
-                sleep_timer_60, sleep_timer_90, sleep_timer_120, cancel_sleep_timer, help.
-                query chứa tên bài hát, từ khóa tìm kiếm, tên đài, kênh hoặc playlist khi action cần dữ liệu đó.
+                sleep_timer_60, sleep_timer_90, sleep_timer_120, sleep_timer_custom,
+                cancel_sleep_timer, help.
+                Với sleep_timer_custom, query là số phút từ 1 đến 1440 (24 giờ).
+                Query cũng chứa tên bài hát, từ khóa tìm kiếm, tên đài, kênh hoặc playlist khi action cần dữ liệu đó.
                 Không tự đoán tên bài, đài, kênh hay playlist nếu người dùng chưa nêu; hãy hỏi lại.
                 Không có action xóa dữ liệu, xóa playlist, xóa thư viện, thay đổi quyền, đăng nhập tài khoản hoặc thanh toán.
                 set_playback_speed chỉ áp dụng cho nhạc thiết bị, Drive và Radio qua Media3; không tự ý áp dụng tốc độ Media3 lên YouTube.

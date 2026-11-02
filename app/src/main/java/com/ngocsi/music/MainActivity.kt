@@ -1119,7 +1119,8 @@ class MainActivity : ComponentActivity() {
             intent.getStringExtra("ai_youtube_action"),
             intent.getStringExtra("ai_track_query"),
             intent.getStringExtra("ai_online_query"),
-            intent.getStringExtra("ai_drive_query")
+            intent.getStringExtra("ai_drive_query"),
+            intent.getIntExtra("ai_sleep_timer_minutes", -1).takeIf { it in 1..1_440 }
         )
         // Background notification taps must land on the inline player in this Activity,
         // including cold starts after Android has reclaimed the previous process.
@@ -1168,7 +1169,8 @@ class MainActivity : ComponentActivity() {
         youtubeAction: String? = null,
         trackQuery: String? = null,
         onlineSearchQuery: String? = null,
-        driveSearchQuery: String? = null
+        driveSearchQuery: String? = null,
+        sleepTimerMinutes: Int? = null
     ) {
         if (destination != null) dismissAiNavigationOverlays()
         when (destination) {
@@ -1403,6 +1405,14 @@ class MainActivity : ComponentActivity() {
             "sleep_timer_60" -> startSleepTimer(60)
             "sleep_timer_90" -> startSleepTimer(90)
             "sleep_timer_120" -> startSleepTimer(120)
+            "sleep_timer_custom" -> {
+                val minutes = sleepTimerMinutes?.takeIf { it in 1..1_440 }
+                if (minutes == null) {
+                    errorMessage = "Thời lượng hẹn giờ không hợp lệ. Hãy chọn từ 1 phút đến 24 giờ."
+                } else {
+                    startSleepTimer(minutes)
+                }
+            }
             "sleep_timer_off" -> startSleepTimer(0)
         }
     }
@@ -1419,7 +1429,8 @@ class MainActivity : ComponentActivity() {
             intent.getStringExtra("ai_youtube_action"),
             intent.getStringExtra("ai_track_query"),
             intent.getStringExtra("ai_online_query"),
-            intent.getStringExtra("ai_drive_query")
+            intent.getStringExtra("ai_drive_query"),
+            intent.getIntExtra("ai_sleep_timer_minutes", -1).takeIf { it in 1..1_440 }
         )
         handleInlineYouTubeResumeIntent(intent)
     }

@@ -38,12 +38,35 @@ class NgocSiAiExpandedCommandRulesTest {
     }
 
     @Test
+    fun customSleepTimerAcceptsNumericAndSpokenMinutesAndHours() {
+        assertEquals(1, extractNgocSiAiSleepTimerMinutes("AI, hẹn giờ tắt nhạc sau một phút"))
+        assertEquals(7, extractNgocSiAiSleepTimerMinutes("AI, đặt hẹn giờ 7 phút"))
+        assertEquals(120, extractNgocSiAiSleepTimerMinutes("AI ơi, hẹn giờ sau hai giờ"))
+        assertEquals(180, extractNgocSiAiSleepTimerMinutes("Đặt hẹn giờ 3 tiếng"))
+
+        assertEquals(
+            NgocSiAiLocalCommand.SLEEP_TIMER_CUSTOM,
+            classifyNgocSiAiWakePhrase("AI, hẹn giờ 1 phút")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.SLEEP_TIMER_CUSTOM,
+            classifyNgocSiAiActivatedCommand("AI, hẹn giờ 5 phút")
+        )
+        assertNull(extractNgocSiAiSleepTimerMinutes("AI, hẹn giờ 0 phút"))
+        assertNull(extractNgocSiAiSleepTimerMinutes("AI, hẹn giờ 25 giờ"))
+        assertNull(extractNgocSiAiSleepTimerMinutes("Tôi nghe podcast dài một tiếng"))
+    }
+
+    @Test
     fun modelActionsUseTheSameAllowlistedLocalRouter() {
         val add = buildNgocSiAiToolCommandPhrase("add_track_to_queue", "Diễm xưa")
         val search = buildNgocSiAiToolCommandPhrase("search_drive", "Bolero")
+        val timer = buildNgocSiAiToolCommandPhrase("sleep_timer_custom", "5")
         assertEquals(NgocSiAiLocalCommand.ADD_TRACK_TO_QUEUE, classifyNgocSiAiActivatedCommand("AI, $add"))
         assertEquals(NgocSiAiLocalCommand.SEARCH_DRIVE, classifyNgocSiAiActivatedCommand("AI, $search"))
+        assertEquals(NgocSiAiLocalCommand.SLEEP_TIMER_CUSTOM, classifyNgocSiAiActivatedCommand("AI, $timer"))
         assertNull(buildNgocSiAiToolCommandPhrase("add_track_to_queue", ""))
         assertNull(buildNgocSiAiToolCommandPhrase("search_drive", ""))
+        assertNull(buildNgocSiAiToolCommandPhrase("sleep_timer_custom", "1441"))
     }
 }

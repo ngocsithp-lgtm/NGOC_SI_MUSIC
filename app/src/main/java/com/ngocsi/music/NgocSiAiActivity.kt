@@ -1432,7 +1432,16 @@ class NgocSiAiActivity : ComponentActivity() {
             NgocSiAiLocalCommand.SLEEP_TIMER_60 -> return openAppDestination("sleep_timer_60", "Đã đặt hẹn giờ tắt nhạc sau 60 phút.")
             NgocSiAiLocalCommand.SLEEP_TIMER_90 -> return openAppDestination("sleep_timer_90", "Đã đặt hẹn giờ tắt nhạc sau 90 phút.")
             NgocSiAiLocalCommand.SLEEP_TIMER_120 -> return openAppDestination("sleep_timer_120", "Đã đặt hẹn giờ tắt nhạc sau 120 phút.")
-            NgocSiAiLocalCommand.CANCEL_SLEEP_TIMER -> return openAppDestination("sleep_timer_off", "Đã yêu cầu tắt hẹn giờ.")
+            NgocSiAiLocalCommand.SLEEP_TIMER_CUSTOM -> {
+                val minutes = extractNgocSiAiSleepTimerMinutes(originalText)
+                    ?: return "Hãy nói thời lượng từ 1 phút đến 24 giờ, ví dụ: “AI, hẹn giờ 5 phút”."
+                return openAppDestination(
+                    "sleep_timer_custom",
+                    "Đã đặt hẹn giờ tắt nhạc sau $minutes phút.",
+                    sleepTimerMinutes = minutes
+                )
+            }
+            NgocSiAiLocalCommand.CANCEL_SLEEP_TIMER -> return openAppDestination("sleep_timer_off", "Đã yêu cầu hủy hẹn giờ.")
             else -> Unit
         }
 
@@ -1652,7 +1661,8 @@ class NgocSiAiActivity : ComponentActivity() {
         youtubeAction: String? = null,
         onlineSearchQuery: String? = null,
         trackQuery: String? = null,
-        driveSearchQuery: String? = null
+        driveSearchQuery: String? = null,
+        sleepTimerMinutes: Int? = null
     ): String {
         return runCatching {
             startActivity(
@@ -1666,6 +1676,7 @@ class NgocSiAiActivity : ComponentActivity() {
                     onlineSearchQuery?.let { putExtra("ai_online_query", it) }
                     trackQuery?.let { putExtra("ai_track_query", it) }
                     driveSearchQuery?.let { putExtra("ai_drive_query", it) }
+                    sleepTimerMinutes?.let { putExtra("ai_sleep_timer_minutes", it) }
                     // Bring the existing main app to the front and deliver its navigation event.
                     addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                 }

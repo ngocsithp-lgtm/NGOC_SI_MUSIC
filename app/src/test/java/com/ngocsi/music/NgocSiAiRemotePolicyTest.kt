@@ -97,6 +97,12 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
+    fun customSleepTimerRequestsExposeTheConstrainedAppTool() {
+        assertTrue(shouldOfferNgocSiAiAppCommandTool("AI, đặt hẹn giờ tắt nhạc sau 5 phút"))
+        assertFalse(shouldOfferNgocSiAiAppCommandTool("Hẹn giờ của ứng dụng hoạt động như thế nào?"))
+    }
+
+    @Test
     fun directCapabilityQuestionsCanStillRequestAnAppAction() {
         assertTrue(
             shouldOfferNgocSiAiAppCommandTool("AI, bạn có thể mở YouTube không?")

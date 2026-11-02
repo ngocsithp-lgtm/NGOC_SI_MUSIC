@@ -1478,6 +1478,11 @@ class NgocSiWakeWordService : Service() {
             return "Tua và đổi tốc độ từ AI hiện áp dụng cho nhạc điện thoại, Drive và Radio. Hãy dùng điều khiển riêng trong trình phát YouTube."
         }
 
+        val sleepTimerMinutes = if (command == NgocSiAiLocalCommand.SLEEP_TIMER_CUSTOM) {
+            extractNgocSiAiSleepTimerMinutes(originalText)
+                ?: return "Hãy nói thời lượng từ 1 phút đến 24 giờ, ví dụ: “AI, hẹn giờ 5 phút”."
+        } else null
+
         val destination = when (command) {
             NgocSiAiLocalCommand.OPEN_HOME -> "home"
             NgocSiAiLocalCommand.OPEN_LIBRARY -> "library"
@@ -1523,6 +1528,7 @@ class NgocSiWakeWordService : Service() {
             NgocSiAiLocalCommand.SLEEP_TIMER_60 -> "sleep_timer_60"
             NgocSiAiLocalCommand.SLEEP_TIMER_90 -> "sleep_timer_90"
             NgocSiAiLocalCommand.SLEEP_TIMER_120 -> "sleep_timer_120"
+            NgocSiAiLocalCommand.SLEEP_TIMER_CUSTOM -> "sleep_timer_custom"
             NgocSiAiLocalCommand.CANCEL_SLEEP_TIMER -> "sleep_timer_off"
             else -> null
         }
@@ -1637,6 +1643,7 @@ class NgocSiWakeWordService : Service() {
                 NgocSiAiLocalCommand.SLEEP_TIMER_60 -> "Đã gửi lệnh hẹn giờ tắt nhạc sau 60 phút."
                 NgocSiAiLocalCommand.SLEEP_TIMER_90 -> "Đã gửi lệnh hẹn giờ tắt nhạc sau 90 phút."
                 NgocSiAiLocalCommand.SLEEP_TIMER_120 -> "Đã gửi lệnh hẹn giờ tắt nhạc sau 120 phút."
+                NgocSiAiLocalCommand.SLEEP_TIMER_CUSTOM -> "Đã gửi lệnh hẹn giờ tắt nhạc sau $sleepTimerMinutes phút."
                 NgocSiAiLocalCommand.CANCEL_SLEEP_TIMER -> "Đã gửi lệnh hủy hẹn giờ."
                 else -> "Đã gửi lệnh điều hướng."
             }
@@ -1651,6 +1658,7 @@ class NgocSiWakeWordService : Service() {
                     tvQuery?.let { putExtra("ai_tv_channel", it) }
                     playlistQuery?.let { putExtra("ai_playlist_query", it) }
                     youtubeAction?.let { putExtra("ai_youtube_action", it) }
+                    sleepTimerMinutes?.let { putExtra("ai_sleep_timer_minutes", it) }
                     addFlags(
                         Intent.FLAG_ACTIVITY_NEW_TASK or
                             Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or

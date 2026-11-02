@@ -73,6 +73,7 @@ internal enum class NgocSiAiLocalCommand {
     SLEEP_TIMER_60,
     SLEEP_TIMER_90,
     SLEEP_TIMER_120,
+    SLEEP_TIMER_CUSTOM,
     CANCEL_SLEEP_TIMER,
     HELP
 }
@@ -366,6 +367,7 @@ private val NGOC_SI_AI_WAKE_WORD_COMMANDS = setOf(
     NgocSiAiLocalCommand.SLEEP_TIMER_60,
     NgocSiAiLocalCommand.SLEEP_TIMER_90,
     NgocSiAiLocalCommand.SLEEP_TIMER_120,
+    NgocSiAiLocalCommand.SLEEP_TIMER_CUSTOM,
     NgocSiAiLocalCommand.CANCEL_SLEEP_TIMER,
     NgocSiAiLocalCommand.HELP
 )
@@ -611,6 +613,53 @@ internal fun classifyNgocSiAiActivatedCommand(input: String): NgocSiAiLocalComma
         normalized.startsWith("ngoc si ") ||
         normalized.startsWith("ngoc si oi ")
     return command.takeIf { explicitlyAddressed }
+}
+
+/**
+ * Extract a requested sleep duration from an explicit timer command.
+ * Supports numeric and common spoken Vietnamese values, minute/hour units,
+ * and a strict 1–1440 minute (24-hour) safety bound.
+ */
+internal fun extractNgocSiAiSleepTimerMinutes(input: String): Int? {
+    var phrase = normalizeNgocSiAiVoicePhrase(input)
+    val wakePrefixes = listOf(
+        "hey ai oi ", "ok ai oi ", "alo ai oi ", "ai oi ",
+        "hey ai ", "ok ai ", "alo ai ", "ai ",
+        "hey ngoc si ", "ok ngoc si ", "alo ngoc si ", "ngoc si oi ", "ngoc si "
+    )
+    wakePrefixes.firstOrNull { phrase.startsWith(it) }?.let {
+        phrase = phrase.removePrefix(it).trim()
+    }
+    phrase = trimNgocSiAiNormalizedCommandFillers(phrase)
+    val match = Regex(
+        """(?:hen gio|sleep timer|tat nhac|dung nhac)\s+(?:(?:tat nhac)\s+)?(?:(?:sau|trong|after|for)\s+)?([a-z0-9 ]+?)\s+(phut|gio|tieng|minutes?|hours?)$"""
+    ).find(phrase) ?: return null
+    val amountText = match.groupValues[1].trim()
+    val amount = amountText.toIntOrNull() ?: when (amountText) {
+        "mot" -> 1
+        "hai" -> 2
+        "ba" -> 3
+        "bon", "tu" -> 4
+        "nam" -> 5
+        "sau" -> 6
+        "bay" -> 7
+        "tam" -> 8
+        "chin" -> 9
+        "muoi" -> 10
+        "muoi lam" -> 15
+        "hai muoi" -> 20
+        "hai muoi bon" -> 24
+        "ba muoi" -> 30
+        "bon muoi" -> 40
+        "nam muoi" -> 50
+        "sau muoi" -> 60
+        "mot tram" -> 100
+        "mot tram hai muoi" -> 120
+        else -> return null
+    }
+    if (amount !in 1..1_440) return null
+    val minutes = if (match.groupValues[2] in setOf("gio", "tieng", "hour", "hours")) amount * 60 else amount
+    return minutes.takeIf { it in 1..1_440 }
 }
 
 internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? {
@@ -927,6 +976,10 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
         phrase.contains("hen gio") && phrase.contains("120 phut") ||
             startsWithAny("tat nhac sau 120 phut", "dung nhac sau 120 phut") ->
             NgocSiAiLocalCommand.SLEEP_TIMER_120
+
+        extractNgocSiAiSleepTimerMinutes(input)?.let { minutes ->
+            minutes !in setOf(15, 30, 45, 60, 90, 120)
+        } == true -> NgocSiAiLocalCommand.SLEEP_TIMER_CUSTOM
 
         isAnyOf(
             "ban lam duoc gi", "ban lam duoc gi vay",
@@ -1365,7 +1418,8 @@ internal fun buildNgocSiAiToolCommandPhrase(action: String, query: String = ""):
         "play_track", "add_track_to_queue", "play_radio_station", "open_tv_channel",
         "create_playlist", "play_playlist", "add_current_to_playlist",
         "add_queue_to_playlist", "search_youtube", "search_online_music", "search_drive",
-        "set_playback_speed", "seek_by_seconds", "youtube_seek_by_seconds"
+        "set_playback_speed", "seek_by_seconds", "youtube_seek_by_seconds",
+        "sleep_timer_custom"
     )
     if (normalizedAction in needsQuery && safeQuery.isBlank()) return null
 
@@ -1452,6 +1506,10 @@ internal fun buildNgocSiAiToolCommandPhrase(action: String, query: String = ""):
         "sleep_timer_60" -> "hẹn giờ tắt nhạc sau 60 phút"
         "sleep_timer_90" -> "hẹn giờ tắt nhạc sau 90 phút"
         "sleep_timer_120" -> "hẹn giờ tắt nhạc sau 120 phút"
+        "sleep_timer_custom" -> {
+            val minutes = safeQuery.toIntOrNull()?.takeIf { it in 1..1_440 } ?: return null
+            "hẹn giờ tắt nhạc sau $minutes phút"
+        }
         "cancel_sleep_timer" -> "hủy hẹn giờ"
         "help" -> "trợ giúp"
         else -> null
