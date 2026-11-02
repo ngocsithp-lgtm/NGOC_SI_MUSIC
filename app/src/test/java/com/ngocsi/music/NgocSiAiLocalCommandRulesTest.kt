@@ -1544,4 +1544,26 @@ class NgocSiAiLocalCommandRulesTest {
             ngocSiAiYouTubeActionForCommand(NgocSiAiLocalCommand.NEXT, youtubeActiveSource = false)
         )
     }
+    @Test
+    fun acceptsNaturalWakeWordVariantsWithoutAllowingCommandsWithoutWakeWord() {
+        assertEquals(
+            NgocSiAiLocalCommand.OPEN_RADIO,
+            classifyNgocSiAiWakePhrase("Hey AI, mở Radio")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.OPEN_TV,
+            classifyNgocSiAiWakePhrase("OK AI, mở truyền hình")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.SEEK_FORWARD_10,
+            classifyNgocSiAiWakePhrase("Alo AI, tua tới 10 giây")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.YOUTUBE_SEEK_BACK_CUSTOM,
+            classifyNgocSiAiWakePhrase("AI ơi, tua YouTube lùi 15 giây")
+        )
+        assertNull(classifyNgocSiAiWakePhrase("mở Radio"))
+        assertNull(classifyNgocSiAiWakePhrase("tua tới 10 giây"))
+    }
+
 }
