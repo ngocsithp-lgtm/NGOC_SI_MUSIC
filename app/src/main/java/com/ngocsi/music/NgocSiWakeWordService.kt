@@ -735,14 +735,14 @@ class NgocSiWakeWordService : Service() {
                             "Tôi nghe được câu hỏi, nhưng chat trực tuyến chưa được cấu hình trong bản Preview này. Các lệnh ứng dụng được hỗ trợ vẫn có thể chạy trên điện thoại."
                     } else {
                         try {
-                            remoteAnswer = withTimeoutOrNull(25_000L) {
+                            remoteAnswer = withTimeoutOrNull(NGOC_SI_AI_REMOTE_CONVERSATION_TIMEOUT_MILLIS) {
                                 client.send(requestHistory) { action, query ->
                                     executeAiAppCommand(action, query)
                                 }.answer
                             }
                             if (remoteAnswer.isNullOrBlank()) {
                                 remoteError =
-                                    "Tôi đã nghe câu hỏi nhưng máy chủ AI phản hồi quá chậm. Hãy thử lại sau; các lệnh nhạc vẫn hoạt động."
+                                    "Yêu cầu AI trực tuyến chưa hoàn tất trong 90 giây. Hãy kiểm tra kết nối Internet hoặc thử lại sau; các lệnh nhạc tại máy vẫn hoạt động."
                             }
                         } catch (cancelled: CancellationException) {
                             throw cancelled

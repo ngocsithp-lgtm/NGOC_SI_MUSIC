@@ -111,9 +111,20 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 GenerativeBackend.googleAI(),
                 /* useLimitedUseAppCheckTokens = */ true
             )
+            val responseConfig = generationConfig {
+                maxOutputTokens = MAX_OUTPUT_TOKENS
+                thinkingConfig = thinkingConfig {
+                    // Use less reasoning for short everyday requests; preserve MEDIUM
+                    // for complex questions and long-running contextual conversations.
+                    thinkingLevel = selectNgocSiAiThinkingLevel(
+                        newestUserMessage.content,
+                        previousTurns.size
+                    )
+                }
+            }
             val model = firebaseAi.generativeModel(
                 modelName = MODEL_NAME,
-                generationConfig = RESPONSE_GENERATION_CONFIG,
+                generationConfig = responseConfig,
                 systemInstruction = content { text(SYSTEM_INSTRUCTIONS) },
                 tools = listOf(Tool.functionDeclarations(listOf(APP_COMMAND_TOOL)))
             )
@@ -432,12 +443,6 @@ internal class NgocSiAiRemoteClient(context: Context) {
             ),
             optionalParameters = listOf("query")
         )
-        private val RESPONSE_GENERATION_CONFIG = generationConfig {
-            maxOutputTokens = MAX_OUTPUT_TOKENS
-            thinkingConfig = thinkingConfig {
-                thinkingLevel = ThinkingLevel.MEDIUM
-            }
-        }
         private const val SYSTEM_INSTRUCTIONS =
             "Bạn là NGỌC SĨ AI, trợ lý tiếng Việt gần gũi, bình tĩnh và biết lắng nghe; đừng giả vờ là người thật. " +
             "Hiểu ý định từ ngữ cảnh, cách nói đời thường, lỗi nhận dạng và các đại từ như 'nó', 'bài vừa rồi'; tiếp nối đúng mạch, không chào lại hay nhắc lại câu người dùng ở mỗi lượt. " +
