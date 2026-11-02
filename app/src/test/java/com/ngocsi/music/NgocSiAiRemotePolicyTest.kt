@@ -40,6 +40,20 @@ class NgocSiAiRemotePolicyTest {
         assertEquals(NGOC_SI_AI_COMPLEX_REPLY_MAX_OUTPUT_TOKENS, selectNgocSiAiMaxOutputTokens(prompt))
     }
 
+
+    @Test
+    fun compoundAppRequestsUsePlanningReasoningButSingleActionsStayFast() {
+        assertEquals(ThinkingLevel.LOW, selectNgocSiAiThinkingLevel("AI, mở YouTube."))
+        assertEquals(
+            ThinkingLevel.MEDIUM,
+            selectNgocSiAiThinkingLevel("AI, tìm bài bolero trên YouTube rồi phát và hẹn giờ 30 phút.")
+        )
+        assertEquals(
+            ThinkingLevel.MEDIUM,
+            selectNgocSiAiThinkingLevel("Mở Radio rồi phát đài VOV và hẹn giờ 20 phút.")
+        )
+    }
+
     @Test
     fun everydayQuestionsUseSmallerAnswerBudget() {
         assertEquals(

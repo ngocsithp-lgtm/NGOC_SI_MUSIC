@@ -32,9 +32,22 @@ internal fun selectNgocSiAiThinkingLevel(prompt: String): ThinkingLevel {
         "kiem tra ky", "tim nguyen nhan", "sua loi", "nang cap", "de xuat",
         "toi uu", "huong dan tung buoc", "bao cao", "tong hop", "phan tich sau"
     )
+    // Multi-action requests need planning, even when the sentence is short.
+    // Count distinct app-action categories so a single command such as "mở YouTube"
+    // keeps the fast path while "tìm bài rồi phát và hẹn giờ" gets deeper reasoning.
+    val appActionCategories = listOf(
+        listOf("mo youtube", "mo radio", "mo drive", "mo thu vien", "mo tv", "mo playlist", "mo hang doi"),
+        listOf("tim bai", "tim kiem", "tim youtube", "tim drive", "tim trong drive"),
+        listOf("phat nhac", "phat bai", "phat video", "tam dung", "tiep theo", "chuyen bai", "tua "),
+        listOf("hen gio", "dat hen gio", "huy hen gio")
+    )
+    val distinctAppActionCount = appActionCategories.count { category ->
+        category.any { marker -> normalized.contains(marker) }
+    }
     val needsMediumReasoning =
         normalized.length >= 180 ||
-            mediumIntentMarkers.any { marker -> normalized.contains(marker) }
+            mediumIntentMarkers.any { marker -> normalized.contains(marker) } ||
+            distinctAppActionCount >= 2
     return if (needsMediumReasoning) ThinkingLevel.MEDIUM else ThinkingLevel.LOW
 }
 
