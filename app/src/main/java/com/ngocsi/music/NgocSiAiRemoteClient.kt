@@ -549,4 +549,19 @@ internal fun ngocSiAiDeferredToolCallFeedback(): String =
     "Đã hoãn bước này để kiểm tra phản hồi của thao tác trước. " +
         "Hãy chọn bước tiếp theo dựa trên kết quả vừa nhận."
 
+internal fun shouldContinueNgocSiAiAgentSequence(
+    routed: Boolean,
+    feedback: String
+): Boolean {
+    if (!routed) return false
+    val normalized = normalizeNgocSiAiVoicePhrase(feedback)
+    val failureMarkers = listOf(
+        "chua thuc hien", "khong tim thay", "khong co bai", "khong co kenh",
+        "khong co dai", "gap loi", "that bai", "khong the", "chua ket noi",
+        "chua dang nhap", "can dang nhap", "chua cap quyen", "khong ho tro",
+        "khong hop le", "thieu thong tin", "khong nhan dien duoc"
+    )
+    return failureMarkers.none { marker -> normalized.contains(marker) }
+}
+
 internal class NgocSiAiRemoteException(message: String) : Exception(message)
