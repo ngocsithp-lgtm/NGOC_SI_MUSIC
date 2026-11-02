@@ -525,4 +525,28 @@ internal class NgocSiAiRemoteClient(context: Context) {
     }
 }
 
+/**
+ * A remote agent may propose several app-tool calls in one model response.
+ * Execute only the first valid call, then return feedback for every call so the
+ * model can choose dependent next steps using the actual app response.
+ */
+internal data class NgocSiAiAgentToolCall(
+    val name: String,
+    val action: String
+)
+
+internal fun selectNgocSiAiAgentToolCallIndex(
+    calls: List<NgocSiAiAgentToolCall>,
+    expectedToolName: String
+): Int? {
+    if (expectedToolName.isBlank()) return null
+    return calls.indexOfFirst { call ->
+        call.name == expectedToolName && call.action.isNotBlank()
+    }.takeIf { it >= 0 }
+}
+
+internal fun ngocSiAiDeferredToolCallFeedback(): String =
+    "Đã hoãn bước này để kiểm tra phản hồi của thao tác trước. " +
+        "Hãy chọn bước tiếp theo dựa trên kết quả vừa nhận."
+
 internal class NgocSiAiRemoteException(message: String) : Exception(message)
