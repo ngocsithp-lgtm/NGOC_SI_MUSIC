@@ -11,16 +11,22 @@ internal fun localNgocSiAiKnowledgeFallback(userText: String): String? {
         .removePrefix("ai ")
         .trim()
 
+    val mentionsVietnamOrOurCountry =
+        normalized.contains("viet nam") || normalized.contains("nuoc ta")
+    val asksWhereOrWhichCity = listOf(
+        "la gi",
+        "o dau",
+        "la thanh pho nao",
+        "o thanh pho nao"
+    ).any { normalized.endsWith(it) }
+
     val asksVietnamCapital =
         normalized.contains("thu do") &&
-            normalized.contains("viet nam") &&
-            (
-                normalized.endsWith("la gi") ||
-                    normalized.endsWith("o dau") ||
-                    normalized.endsWith("la thanh pho nao") ||
-                    normalized == "thu do viet nam" ||
-                    normalized == "thu do cua viet nam"
-                )
+            mentionsVietnamOrOurCountry &&
+            (asksWhereOrWhichCity ||
+                normalized == "thu do viet nam" ||
+                normalized == "thu do cua viet nam" ||
+                normalized == "thu do nuoc ta")
 
     if (asksVietnamCapital) {
         return "Thủ đô của Việt Nam là Hà Nội."
