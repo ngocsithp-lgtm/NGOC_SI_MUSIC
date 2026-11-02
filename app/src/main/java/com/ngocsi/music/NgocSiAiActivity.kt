@@ -110,19 +110,8 @@ internal fun localConversationFallback(
         .replace(Regex("\\s+"), " ")
         .trim()
 
-    // Keep a small set of common, time-stable facts available without a cloud request.
-    // This is intentionally narrow: uncertain or time-sensitive questions still go to Gemini.
-    val asksVietnamCapital = normalized in setOf(
-        "thu do viet nam la gi",
-        "thu do cua viet nam la gi",
-        "thu do nuoc viet nam la gi",
-        "viet nam co thu do la gi",
-        "thu do viet nam o dau",
-        "thu do nuoc ta la gi"
-    )
-    if (asksVietnamCapital) return "Thủ đô của Việt Nam là Hà Nội."
-
-    // Answer the remaining allowlisted stable facts on-device, even while Gemini quota is exhausted.
+    // Stable factual answers are centralized in one deterministic offline knowledge rule set.
+    // Uncertain or time-sensitive questions continue to Gemini when online service is available.
     localNgocSiAiKnowledgeFallback(userText)?.let { return it }
 
     fun matchesAny(vararg phrases: String): Boolean =
