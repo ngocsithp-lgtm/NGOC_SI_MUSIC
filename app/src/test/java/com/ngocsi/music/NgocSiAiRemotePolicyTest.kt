@@ -164,5 +164,42 @@ class NgocSiAiRemotePolicyTest {
         assertFalse(isNgocSiAiContextualActionConfirmation("Tạm dừng nhạc", offeredAction))
         assertFalse(isNgocSiAiContextualActionConfirmation("Làm thế nào để mở YouTube?", offeredAction))
     }
+
+    @Test
+    fun agentRunsOnlyTheFirstValidToolCallBeforeReadingFeedback() {
+        val calls = listOf(
+            NgocSiAiAgentToolCall("unexpected_tool", "open_youtube"),
+            NgocSiAiAgentToolCall("execute_app_command", "open_youtube"),
+            NgocSiAiAgentToolCall("execute_app_command", "sleep_timer_30")
+        )
+        assertEquals(1, selectNgocSiAiAgentToolCallIndex(calls, "execute_app_command"))
+    }
+
+    @Test
+    fun agentRejectsEmptyOrUnknownToolCalls() {
+        assertNull(
+            selectNgocSiAiAgentToolCallIndex(
+                listOf(
+                    NgocSiAiAgentToolCall("unexpected_tool", "open_youtube"),
+                    NgocSiAiAgentToolCall("execute_app_command", "")
+                ),
+                "execute_app_command"
+            )
+        )
+        assertNull(
+            selectNgocSiAiAgentToolCallIndex(
+                listOf(NgocSiAiAgentToolCall("execute_app_command", "open_youtube")),
+                ""
+            )
+        )
+    }
+
+    @Test
+    fun agentDefersAdditionalStepsUntilPreviousActionFeedbackIsAvailable() {
+        val feedback = ngocSiAiDeferredToolCallFeedback()
+        assertTrue(feedback.contains("hoãn bước này"))
+        assertTrue(feedback.contains("phản hồi"))
+        assertFalse(feedback.contains("đã thực hiện thành công"))
+    }
 }
 
