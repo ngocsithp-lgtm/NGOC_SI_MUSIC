@@ -565,8 +565,10 @@ internal fun shouldContinueNgocSiAiAgentSequence(
     val failureMarkers = listOf(
         "chua thuc hien", "khong tim thay", "khong co bai", "khong co kenh",
         "khong co dai", "gap loi", "that bai", "khong the", "chua ket noi",
-        "chua dang nhap", "can dang nhap", "chua cap quyen", "khong ho tro",
-        "khong hop le", "thieu thong tin", "khong nhan dien duoc"
+        "chua dang nhap", "can dang nhap", "chua cap quyen", "chua co quyen",
+        "khong ho tro", "khong hop le", "thieu thong tin", "hay noi ro",
+        "hay noi ten", "chua mo duoc", "khong ap dung", "hay dung dieu khien rieng",
+        "khong nhan dien duoc"
     )
     return failureMarkers.none { marker -> normalized.contains(marker) }
 }
