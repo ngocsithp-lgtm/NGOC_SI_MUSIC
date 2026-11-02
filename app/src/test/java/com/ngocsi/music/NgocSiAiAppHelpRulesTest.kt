@@ -50,5 +50,7 @@ class NgocSiAiAppHelpRulesTest {
     fun unrelatedKnowledgeQuestionsAreNotAnsweredByTheAppGuide() {
         assertNull(localNgocSiAiAppHelpFallback("Thủ đô của Pháp là gì?"))
         assertNull(localNgocSiAiAppHelpFallback("Hôm nay tôi muốn nghe nhạc"))
+        // The letters "ai" inside "bài" must not be treated as the assistant name.
+        assertNull(localNgocSiAiAppHelpFallback("Làm sao điều khiển bài hát?"))
     }
 }

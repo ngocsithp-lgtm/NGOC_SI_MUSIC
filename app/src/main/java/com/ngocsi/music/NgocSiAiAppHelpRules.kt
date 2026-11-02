@@ -16,10 +16,13 @@ internal fun localNgocSiAiAppHelpFallback(userText: String): String? {
         "tu khoa ai", "danh thuc", "ra lenh",
         "co nhung gi", "ho tro nhung gi", "dung app", "dung ung dung"
     )
+    val words = normalized.split(' ').filter { it.isNotBlank() }.toSet()
     val hasAppReference = listOf(
         "app", "ung dung", "ngoc si", "ai", "nhac", "thu vien", "youtube",
         "drive", "radio", "tv", "hen gio", "playlist", "hang doi", "giong noi", "tu khoa"
-    ).any { normalized.contains(it) }
+    ).any { reference ->
+        if (reference.contains(' ')) normalized.contains(reference) else reference in words
+    }
     val asksForGuide = guideMarkers.any { normalized.contains(it) }
     if (!asksForGuide || !hasAppReference) return null
 
@@ -27,7 +30,7 @@ internal fun localNgocSiAiAppHelpFallback(userText: String): String? {
         normalized.contains("tu khoa") || normalized.contains("danh thuc") ||
         normalized.contains("wake word") || normalized.contains("wakeword") ||
         normalized.contains("ra lenh") ||
-        (normalized.contains("ai") && normalized.contains("dieu khien"))
+        (("ai" in words || normalized.contains("ngoc si")) && normalized.contains("dieu khien"))
 
     return when {
         asksForVoiceControl ->
