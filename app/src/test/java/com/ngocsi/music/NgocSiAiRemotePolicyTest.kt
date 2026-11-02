@@ -226,6 +226,10 @@ class NgocSiAiRemotePolicyTest {
         assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Bạn cần đăng nhập Google Drive."))
         assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Ứng dụng gặp lỗi khi nhận lệnh."))
         assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Thiếu thông tin; chưa thực hiện thao tác."))
+        assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Hãy nói rõ tên playlist muốn phát."))
+        assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Chưa có quyền đọc nhạc trên điện thoại."))
+        assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Chưa mở được chức năng trong ứng dụng."))
+        assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Tua YouTube không áp dụng; hãy dùng điều khiển riêng trong trình phát."))
     }
 }
 
