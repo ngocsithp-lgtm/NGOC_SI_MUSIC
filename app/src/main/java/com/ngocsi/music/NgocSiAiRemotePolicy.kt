@@ -66,6 +66,24 @@ internal fun shouldOfferNgocSiAiAppCommandTool(
     return isConfirmedNgocSiAiContextualAction(normalized, previousMessages)
 }
 
+/**
+ * Identifies a short confirmation for an immediately preceding, explicit app-action offer.
+ * The UI uses this before local small-talk fallbacks so consent is not swallowed offline.
+ */
+internal fun isNgocSiAiContextualActionConfirmation(
+    prompt: String,
+    previousMessages: List<NgocSiAiMessage>
+): Boolean {
+    val normalized = normalizeNgocSiAiVoicePhrase(prompt)
+    val informationalPrefixes = listOf(
+        "vi sao ", "tai sao ", "lam sao ", "lam the nao ",
+        "cach nao ", "ke cho toi nghe ", "cho toi biet ", "la gi "
+    )
+    if (informationalPrefixes.any { prefix -> normalized.startsWith(prefix) }) return false
+    if (hasDirectNgocSiAiAppActionIntent(normalized)) return false
+    return isConfirmedNgocSiAiContextualAction(normalized, previousMessages)
+}
+
 /** Deterministic intent gate for explicit app actions; does not use fuzzy matching. */
 private fun hasDirectNgocSiAiAppActionIntent(normalized: String): Boolean {
     val explicitActionMarkers = listOf(

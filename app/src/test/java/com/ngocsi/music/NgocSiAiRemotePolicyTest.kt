@@ -149,5 +149,20 @@ class NgocSiAiRemotePolicyTest {
             NgocSiAiMessage("assistant", "Mình có thể mở YouTube cho bạn.")
         )))
     }
+
+    @Test
+    fun contextualActionConfirmationBypassesLocalSmallTalkAndResumeFallbacks() {
+        val offeredAction = listOf(
+            NgocSiAiMessage("user", "Tôi muốn mở YouTube."),
+            NgocSiAiMessage("assistant", "Bạn muốn mình mở YouTube ngay bây giờ không?")
+        )
+        assertTrue(isNgocSiAiContextualActionConfirmation("Được", offeredAction))
+        assertTrue(isNgocSiAiContextualActionConfirmation("Tiếp tục", listOf(
+            NgocSiAiMessage("assistant", "Bạn muốn mình mở Radio không?")
+        )))
+        assertFalse(isNgocSiAiContextualActionConfirmation("Được", emptyList()))
+        assertFalse(isNgocSiAiContextualActionConfirmation("Tạm dừng nhạc", offeredAction))
+        assertFalse(isNgocSiAiContextualActionConfirmation("Làm thế nào để mở YouTube?", offeredAction))
+    }
 }
 

@@ -2261,13 +2261,20 @@ private fun NgocSiAiPreviewScreen(
 
         // All allowlisted on-device commands and short local replies stay responsive
         // while an unrelated Gemini request is still in flight.
+        val contextualActionConfirmation =
+            isNgocSiAiContextualActionConfirmation(clean, conversation)
         val explicitStop = isNgocSiAiExplicitStopPhrase(clean)
-        val localCommand = if (explicitStop) {
+        // A direct playback command remains local and immediate. A short confirmation of
+        // the previous assistant's explicit app-action offer must reach Gemini instead of
+        // being consumed by the generic "được/ok" small-talk fallback or resume classifier.
+        val localCommand = if (contextualActionConfirmation) {
+            null
+        } else if (explicitStop) {
             NgocSiAiLocalCommand.STOP
         } else {
             classifyNgocSiAiLocalCommand(clean)
         }
-        val localReply = if (localCommand == null) {
+        val localReply = if (localCommand == null && !contextualActionConfirmation) {
             localConversationFallback(clean, messages.lastOrNull { !it.isUser }?.text)
         } else null
         if (isSending && localCommand == null && localReply == null) return
