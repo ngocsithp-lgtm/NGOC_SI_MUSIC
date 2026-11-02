@@ -21,8 +21,8 @@ import com.google.firebase.appcheck.FirebaseAppCheck
 import com.google.firebase.appcheck.debug.DebugAppCheckProviderFactory
 import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import java.util.Locale
 
 internal data class NgocSiAiMessage(
@@ -48,7 +48,11 @@ internal typealias NgocSiAiToolExecutor =
     suspend (action: String, query: String) -> NgocSiAiToolResult
 
 internal typealias NgocSiAiRequest =
-    suspend (messages: List<NgocSiAiMessage>, executeTool: NgocSiAiToolExecutor) -> NgocSiAiReply
+    suspend (
+        messages: List<NgocSiAiMessage>,
+        executeTool: NgocSiAiToolExecutor,
+        onPartialResponse: (String) -> Unit
+    ) -> NgocSiAiReply
 
 /**
  * Optional Firebase AI Logic client for the isolated NGỌC SĨ AI preview.
@@ -66,18 +70,29 @@ internal class NgocSiAiRemoteClient(context: Context) {
     val isConfigured: Boolean
         get() = firebaseApp != null
 
-    // Chat UI and hands-free voice can create separate clients. Serialize all calls so
-    // a second request re-checks the persisted cooldown after the first request fails.
+    // Chat UI and hands-free voice can create separate clients. Do not queue a second
+    // cloud request behind a slow one; return a clear busy message instead of adding latency.
     suspend fun send(
         messages: List<NgocSiAiMessage>,
-        executeTool: NgocSiAiToolExecutor
-    ): NgocSiAiReply = REMOTE_REQUEST_MUTEX.withLock {
-        sendSerialized(messages, executeTool)
+        executeTool: NgocSiAiToolExecutor,
+        onPartialResponse: (String) -> Unit = {}
+    ): NgocSiAiReply {
+        if (!REMOTE_REQUEST_MUTEX.tryLock()) {
+            throw NgocSiAiRemoteException(
+                "NGỌC SĨ AI đang xử lý câu hỏi trước. Hãy đợi câu trả lời hiện tại rồi hỏi tiếp."
+            )
+        }
+        return try {
+            sendSerialized(messages, executeTool, onPartialResponse)
+        } finally {
+            REMOTE_REQUEST_MUTEX.unlock()
+        }
     }
 
     private suspend fun sendSerialized(
         messages: List<NgocSiAiMessage>,
-        executeTool: NgocSiAiToolExecutor
+        executeTool: NgocSiAiToolExecutor,
+        onPartialResponse: (String) -> Unit
     ): NgocSiAiReply {
         val app = firebaseApp
             ?: throw NgocSiAiRemoteException("Firebase AI Logic chưa được cấu hình cho bản thử này.")
@@ -106,77 +121,87 @@ internal class NgocSiAiRemoteClient(context: Context) {
         return try {
             // Use only the explicitly configured free-tier primary model. Never silently
             // switch to a potentially billable model when quota is reached.
-            val firebaseAi = FirebaseAI.getInstance(
-                app,
-                GenerativeBackend.googleAI(),
-                /* useLimitedUseAppCheckTokens = */ true
-            )
+            val offersAppCommandTool =
+                shouldOfferNgocSiAiAppCommandTool(newestUserMessage.content)
             val responseConfig = generationConfig {
-                maxOutputTokens = MAX_OUTPUT_TOKENS
+                maxOutputTokens = selectNgocSiAiMaxOutputTokens(newestUserMessage.content)
                 thinkingConfig = thinkingConfig {
-                    // Use less reasoning for short everyday requests; preserve MEDIUM
-                    // for complex questions and long-running contextual conversations.
-                    thinkingLevel = selectNgocSiAiThinkingLevel(
-                        newestUserMessage.content,
-                        previousTurns.size
-                    )
+                    // Reasoning depth follows the current question, not accumulated chat length.
+                    thinkingLevel = selectNgocSiAiThinkingLevel(newestUserMessage.content)
                 }
             }
             val model = firebaseAi.generativeModel(
                 modelName = MODEL_NAME,
                 generationConfig = responseConfig,
                 systemInstruction = content { text(SYSTEM_INSTRUCTIONS) },
-                tools = listOf(Tool.functionDeclarations(listOf(APP_COMMAND_TOOL)))
+                tools = if (offersAppCommandTool) {
+                    listOf(Tool.functionDeclarations(listOf(APP_COMMAND_TOOL)))
+                } else {
+                    emptyList()
+                }
             )
             val chat = model.startChat(history = previousTurns)
-            var response = chat.sendMessage(newestUserMessage.content)
+            val answer: String?
 
-            // Gemini only proposes structured actions. The app validates and executes
-            // each action through its own allowlisted router, then returns the exact app
-            // feedback so the model can phrase a truthful response for the user.
-            var toolRound = 0
-            while (response.functionCalls.isNotEmpty() && toolRound < MAX_TOOL_ROUNDS) {
-                val functionResponses = mutableListOf<FunctionResponsePart>()
-                for (functionCall in response.functionCalls) {
-                    val action = functionCall.args["action"]?.jsonPrimitive?.contentOrNull.orEmpty()
-                    val query = functionCall.args["query"]?.jsonPrimitive?.contentOrNull.orEmpty()
-                    val result = if (functionCall.name == APP_COMMAND_TOOL_NAME && action.isNotBlank()) {
-                        runCatching { executeTool(action, query) }.getOrElse {
+            if (offersAppCommandTool) {
+                // Explicit app actions retain structured tool calling and allowlist validation.
+                var response = chat.sendMessage(newestUserMessage.content)
+                var toolRound = 0
+                while (response.functionCalls.isNotEmpty() && toolRound < MAX_TOOL_ROUNDS) {
+                    val functionResponses = mutableListOf<FunctionResponsePart>()
+                    for (functionCall in response.functionCalls) {
+                        val action = functionCall.args["action"]?.jsonPrimitive?.contentOrNull.orEmpty()
+                        val query = functionCall.args["query"]?.jsonPrimitive?.contentOrNull.orEmpty()
+                        val result = if (functionCall.name == APP_COMMAND_TOOL_NAME && action.isNotBlank()) {
+                            runCatching { executeTool(action, query) }.getOrElse {
+                                NgocSiAiToolResult(
+                                    routed = false,
+                                    feedback = "Ứng dụng chưa thực hiện được lệnh này. Vui lòng thử lại."
+                                )
+                            }
+                        } else {
                             NgocSiAiToolResult(
                                 routed = false,
-                                feedback = "Ứng dụng chưa thực hiện được lệnh này. Vui lòng thử lại."
+                                feedback = "Lệnh không nằm trong danh sách chức năng AI được phép điều khiển."
                             )
                         }
-                    } else {
-                        NgocSiAiToolResult(
-                            routed = false,
-                            feedback = "Lệnh không nằm trong danh sách chức năng AI được phép điều khiển."
+                        functionResponses += FunctionResponsePart(
+                            functionCall.name,
+                            JsonObject(
+                                mapOf(
+                                    "routed" to JsonPrimitive(result.routed),
+                                    "app_feedback" to JsonPrimitive(result.feedback.take(MAX_TOOL_FEEDBACK_CHARS))
+                                )
+                            ),
+                            functionCall.id
                         )
                     }
-                    functionResponses += FunctionResponsePart(
-                        functionCall.name,
-                        JsonObject(
-                            mapOf(
-                                "routed" to JsonPrimitive(result.routed),
-                                "app_feedback" to JsonPrimitive(result.feedback.take(MAX_TOOL_FEEDBACK_CHARS))
-                            )
-                        ),
-                        functionCall.id
-                    )
+
+                    response = chat.sendMessage(content("user") {
+                        functionResponses.forEach { functionResponse -> part(functionResponse) }
+                    })
+                    toolRound++
                 }
 
-                response = chat.sendMessage(content("user") {
-                    functionResponses.forEach { functionResponse -> part(functionResponse) }
-                })
-                toolRound++
+                if (response.functionCalls.isNotEmpty()) {
+                    throw NgocSiAiRemoteException(
+                        "AI đã nhận yêu cầu nhưng chưa hoàn tất chuỗi thao tác. Hãy mô tả lại thành một yêu cầu ngắn hơn."
+                    )
+                }
+                answer = response.text?.trim()
+            } else {
+                // Stream ordinary chat answers so the UI can display the first words early.
+                val streamedAnswer = StringBuilder()
+                chat.sendMessageStream(newestUserMessage.content).collect { chunk ->
+                    val textChunk = chunk.text.orEmpty()
+                    if (textChunk.isNotEmpty()) {
+                        streamedAnswer.append(textChunk)
+                        onPartialResponse(streamedAnswer.toString())
+                    }
+                }
+                answer = streamedAnswer.toString().trim()
             }
 
-            if (response.functionCalls.isNotEmpty()) {
-                throw NgocSiAiRemoteException(
-                    "AI đã nhận yêu cầu nhưng chưa hoàn tất chuỗi thao tác. Hãy mô tả lại thành một yêu cầu ngắn hơn."
-                )
-            }
-            val answer = response.text?.trim()
             if (answer.isNullOrBlank()) {
                 throw NgocSiAiRemoteException("Firebase AI Logic chưa trả về câu trả lời. Vui lòng thử lại.")
             }

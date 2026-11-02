@@ -899,7 +899,9 @@ class NgocSiAiActivity : ComponentActivity() {
             NgocSiAiPreviewScreen(
                 isOnlineConfigured = aiClient.isConfigured,
                 chatPreferences = aiChatPreferences,
-                onSendOnline = { history, executeTool -> aiClient.send(history, executeTool) },
+                onSendOnline = { history, executeTool, onPartialResponse ->
+                    aiClient.send(history, executeTool, onPartialResponse)
+                },
                 onExecuteAppCommand = { action, query -> executeAiAppCommand(action, query) },
                 onLocalCommand = { command, phrase -> runLocalCommand(command, phrase) },
                 onVoiceReply = { message -> speakVoiceReply(message) },
@@ -2267,15 +2269,48 @@ private fun NgocSiAiPreviewScreen(
         if (history.firstOrNull()?.role == "assistant") history = history.drop(1)
         isSending = true
         coroutineScope.launch {
+            var partialReplyIndex = -1
+            var latestPartialReply = ""
+
+            fun finishRemoteReply(replyText: String) {
+                if (
+                    partialReplyIndex in messages.indices &&
+                    !messages[partialReplyIndex].isUser &&
+                    messages[partialReplyIndex].text == latestPartialReply
+                ) {
+                    messages[partialReplyIndex] = AiPreviewMessage(false, replyText)
+                } else {
+                    messages.add(AiPreviewMessage(false, replyText))
+                }
+                while (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
+                partialReplyIndex = -1
+                latestPartialReply = ""
+            }
+
             try {
-                val reply = kotlinx.coroutines.withTimeoutOrNull(25_000L) {
-                    onSendOnline(history.toList(), onExecuteAppCommand)
+                val reply = kotlinx.coroutines.withTimeoutOrNull(
+                    NGOC_SI_AI_REMOTE_CONVERSATION_TIMEOUT_MILLIS
+                ) {
+                    onSendOnline(history.toList(), onExecuteAppCommand) { partial ->
+                        if (partial.isNotBlank()) {
+                            if (
+                                partialReplyIndex in messages.indices &&
+                                !messages[partialReplyIndex].isUser &&
+                                messages[partialReplyIndex].text == latestPartialReply
+                            ) {
+                                messages[partialReplyIndex] = AiPreviewMessage(false, partial)
+                            } else {
+                                messages.add(AiPreviewMessage(false, partial))
+                                partialReplyIndex = messages.lastIndex
+                            }
+                            latestPartialReply = partial
+                        }
+                    }
                 } ?: throw NgocSiAiRemoteException(
-                    "AI trực tuyến phản hồi quá chậm. Câu hỏi đã được giữ lại trong cuộc trò chuyện; hãy thử lại sau."
+                    "AI trực tuyến chưa hoàn tất trong 90 giây. Câu hỏi được giữ trong cuộc trò chuyện; hãy kiểm tra Internet rồi thử lại."
                 )
                 conversation.add(NgocSiAiMessage(role = "assistant", content = reply.answer))
-                messages.add(AiPreviewMessage(false, reply.answer))
-                if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
+                finishRemoteReply(reply.answer)
                 persistChatState()
                 onVoiceReply(reply.answer)
                 val userRemaining = reply.remainingToday?.let { "Còn $it lượt/tài khoản hôm nay" }
@@ -2283,6 +2318,13 @@ private fun NgocSiAiPreviewScreen(
                 quotaNote = listOfNotNull(userRemaining, globalRemaining).joinToString(" • ")
             } catch (cancelled: CancellationException) {
                 if (conversation.lastOrNull() == userTurn) conversation.removeAt(conversation.lastIndex)
+                if (
+                    partialReplyIndex in messages.indices &&
+                    !messages[partialReplyIndex].isUser &&
+                    messages[partialReplyIndex].text == latestPartialReply
+                ) {
+                    messages.removeAt(partialReplyIndex)
+                }
                 persistChatState()
                 throw cancelled
             } catch (error: NgocSiAiRemoteException) {
@@ -2298,15 +2340,13 @@ private fun NgocSiAiPreviewScreen(
                     errorReply,
                     localFallbackUsed = fallbackReply != null
                 )
-                messages.add(AiPreviewMessage(false, visibleReply))
-                if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
+                finishRemoteReply(visibleReply)
                 persistChatState()
                 onVoiceReply(visibleReply)
             } catch (_: Exception) {
                 if (conversation.lastOrNull() == userTurn) conversation.removeAt(conversation.lastIndex)
                 val errorReply = "Có lỗi khi gửi yêu cầu AI. Hãy kiểm tra kết nối và cấu hình Firebase."
-                messages.add(AiPreviewMessage(false, errorReply))
-                if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
+                finishRemoteReply(errorReply)
                 persistChatState()
                 onVoiceReply(errorReply)
             } finally {

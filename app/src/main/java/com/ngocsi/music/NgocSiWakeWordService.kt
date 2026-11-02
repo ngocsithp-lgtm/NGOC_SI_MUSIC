@@ -736,8 +736,14 @@ class NgocSiWakeWordService : Service() {
                     } else {
                         try {
                             remoteAnswer = withTimeoutOrNull(NGOC_SI_AI_REMOTE_CONVERSATION_TIMEOUT_MILLIS) {
-                                client.send(requestHistory) { action, query ->
-                                    executeAiAppCommand(action, query)
+                                client.send(
+                                    requestHistory,
+                                    executeAiAppCommand
+                                ) { partialResponse ->
+                                    // Signal that voice generation has started; speak only the final answer.
+                                    if (!stopping && partialResponse.isNotBlank()) {
+                                        updateNotification("NGỌC SĨ AI đang trả lời: ${partialResponse.take(80)}")
+                                    }
                                 }.answer
                             }
                             if (remoteAnswer.isNullOrBlank()) {
