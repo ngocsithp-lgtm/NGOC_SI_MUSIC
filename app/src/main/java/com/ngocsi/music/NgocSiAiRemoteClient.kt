@@ -133,7 +133,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 /* useLimitedUseAppCheckTokens = */ true
             )
             val offersAppCommandTool =
-                shouldOfferNgocSiAiAppCommandTool(newestUserMessage.content)
+                shouldOfferNgocSiAiAppCommandTool(newestUserMessage.content, normalized.dropLast(1))
             val responseConfig = generationConfig {
                 maxOutputTokens = selectNgocSiAiMaxOutputTokens(newestUserMessage.content)
                 thinkingConfig = thinkingConfig {

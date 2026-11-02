@@ -118,5 +118,36 @@ class NgocSiAiRemotePolicyTest {
             shouldOfferNgocSiAiAppCommandTool("AI, bạn có thể mở YouTube không?")
         )
     }
+
+    @Test
+    fun shortConfirmationCanContinueAnExplicitAppActionOffer() {
+        val history = listOf(
+            NgocSiAiMessage("user", "Tôi muốn mở YouTube."),
+            NgocSiAiMessage("assistant", "Bạn muốn mình mở YouTube ngay bây giờ không?")
+        )
+        assertTrue(shouldOfferNgocSiAiAppCommandTool("Được, làm đi.", history))
+        assertTrue(shouldOfferNgocSiAiAppCommandTool("AI, tiến hành đi.", listOf(
+            NgocSiAiMessage("user", "Đặt hẹn giờ tắt nhạc sau 15 phút."),
+            NgocSiAiMessage("assistant", "Mình có thể đặt hẹn giờ 15 phút cho bạn. Bạn muốn mình thực hiện không?")
+        )))
+        assertTrue(shouldOfferNgocSiAiAppCommandTool("Tiếp tục", listOf(
+            NgocSiAiMessage("assistant", "Bạn muốn mình mở Radio không?")
+        )))
+    }
+
+    @Test
+    fun contextualConfirmationDoesNotTriggerWithoutAnImmediateActionOffer() {
+        assertFalse(shouldOfferNgocSiAiAppCommandTool("Được"))
+        assertFalse(shouldOfferNgocSiAiAppCommandTool("Làm đi", listOf(
+            NgocSiAiMessage("user", "Vì sao YouTube phát nhạc nền được?"),
+            NgocSiAiMessage("assistant", "YouTube có thể phát nền tùy ứng dụng và thiết bị.")
+        )))
+        assertFalse(shouldOfferNgocSiAiAppCommandTool("Đồng ý", listOf(
+            NgocSiAiMessage("assistant", "Bạn muốn mình hướng dẫn cách mở YouTube không?")
+        )))
+        assertFalse(shouldOfferNgocSiAiAppCommandTool("Được", listOf(
+            NgocSiAiMessage("assistant", "Mình có thể mở YouTube cho bạn.")
+        )))
+    }
 }
 

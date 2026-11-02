@@ -50,16 +50,24 @@ internal fun selectNgocSiAiMaxOutputTokens(prompt: String): Int =
  * Attach the large app-command tool schema only when the newest message appears to request
  * an app action. Ordinary knowledge questions can use streamed text generation directly.
  */
-internal fun shouldOfferNgocSiAiAppCommandTool(prompt: String): Boolean {
+internal fun shouldOfferNgocSiAiAppCommandTool(
+    prompt: String,
+    previousMessages: List<NgocSiAiMessage> = emptyList()
+): Boolean {
     val normalized = normalizeNgocSiAiVoicePhrase(prompt)
-    // Questions asking for an explanation should not be routed as commands, even if they
-    // contain words such as "YouTube phát nhạc" or "âm lượng".
+    // Questions asking for an explanation should never become app actions.
     val informationalPrefixes = listOf(
         "vi sao ", "tai sao ", "lam sao ", "lam the nao ",
         "cach nao ", "ke cho toi nghe ", "cho toi biet ", "la gi "
     )
     if (informationalPrefixes.any { prefix -> normalized.startsWith(prefix) }) return false
 
+    if (hasDirectNgocSiAiAppActionIntent(normalized)) return true
+    return isConfirmedNgocSiAiContextualAction(normalized, previousMessages)
+}
+
+/** Deterministic intent gate for explicit app actions; does not use fuzzy matching. */
+private fun hasDirectNgocSiAiAppActionIntent(normalized: String): Boolean {
     val explicitActionMarkers = listOf(
         "mo youtube", "mo radio", "mo drive", "mo thu vien", "mo tv", "mo muc",
         "vao youtube", "vao radio", "vao drive", "vao thu vien", "vao tv",
@@ -85,8 +93,7 @@ internal fun shouldOfferNgocSiAiAppCommandTool(prompt: String): Boolean {
     )
     if (explicitActionMarkers.any { marker -> normalized.contains(marker) }) return true
 
-    // Natural Vietnamese commands often put the verb and target in different positions:
-    // "chuyển qua Radio", "bấm mở mục Drive", "đi đến thư viện", "điều khiển video".
+    // Natural Vietnamese commands often put the verb and target in different positions.
     val actionVerbs = listOf(
         "mo ", "vao ", "chuyen ", "bam ", "bat ", "tat ", "phat ", "choi ",
         "nghe ", "tim ", "chon ", "tang ", "giam ", "them vao", "them bai", "luu ",
@@ -98,4 +105,62 @@ internal fun shouldOfferNgocSiAiAppCommandTool(prompt: String): Boolean {
     )
     return actionVerbs.any { verb -> normalized.contains(verb) } &&
         appTargets.any { target -> normalized.contains(target) }
+}
+
+/**
+ * Allows a short confirmation to continue only the immediately preceding, explicit
+ * yes/no offer to perform an app action. General acknowledgements remain ordinary chat.
+ */
+private fun isConfirmedNgocSiAiContextualAction(
+    normalizedPrompt: String,
+    previousMessages: List<NgocSiAiMessage>
+): Boolean {
+    val wakePrefixes = listOf(
+        "hey ngoc si ", "ok ngoc si ", "alo ngoc si ", "ngoc si oi ", "ngoc si ",
+        "hey ai ", "ok ai ", "alo ai ", "ai oi ", "ai "
+    )
+    var confirmation = normalizedPrompt
+    val wakePrefix = wakePrefixes.firstOrNull { confirmation.startsWith(it) }
+    if (wakePrefix != null) confirmation = confirmation.removePrefix(wakePrefix).trim()
+
+    val confirmations = setOf(
+        "lam di", "lam luon di", "thuc hien di", "tien hanh di",
+        "dong y", "ok", "oke", "duoc", "duoc roi", "vang", "uh", "u",
+        "dung vay", "chinh xac", "tiep tuc",
+        "ok lam di", "duoc lam di", "dong y lam di",
+        "duoc tien hanh di", "ok tien hanh di"
+    )
+    if (confirmation !in confirmations) return false
+
+    val previousAssistant = previousMessages.lastOrNull()
+        ?.takeIf { it.role == "assistant" }
+        ?: return false
+    val assistantText = previousAssistant.content
+    val assistantNormalized = normalizeNgocSiAiVoicePhrase(assistantText)
+    val isQuestion = assistantText.contains("?") ||
+        assistantNormalized.endsWith(" khong") ||
+        assistantNormalized.endsWith(" chu") ||
+        assistantNormalized.endsWith(" nhe")
+    if (!isQuestion) return false
+
+    val asksForConfirmation = listOf(
+        "ban muon minh", "ban co muon minh", "minh co the",
+        "hay de minh", "ban xac nhan", "ban dong y"
+    ).any { assistantNormalized.contains(it) }
+    if (!asksForConfirmation) return false
+
+    // Do not treat consent to receive an explanation as consent to change app state.
+    val explanationOfferMarkers = listOf(
+        "huong dan", "giai thich", "chi cach", "noi ro", "cach mo",
+        "cach bat", "cach dung", "cach tim"
+    )
+    if (explanationOfferMarkers.any { marker -> assistantNormalized.contains(marker) }) return false
+
+    val assistantOffersAction = hasDirectNgocSiAiAppActionIntent(assistantNormalized)
+    val previousUserRequestedAction = previousMessages.dropLast(1)
+        .lastOrNull { it.role == "user" }
+        ?.content
+        ?.let { hasDirectNgocSiAiAppActionIntent(normalizeNgocSiAiVoicePhrase(it)) }
+        ?: false
+    return assistantOffersAction || previousUserRequestedAction
 }
