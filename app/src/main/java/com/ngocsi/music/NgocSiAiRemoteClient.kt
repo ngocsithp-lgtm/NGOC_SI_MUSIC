@@ -121,6 +121,11 @@ internal class NgocSiAiRemoteClient(context: Context) {
         return try {
             // Use only the explicitly configured free-tier primary model. Never silently
             // switch to a potentially billable model when quota is reached.
+            val firebaseAi = FirebaseAI.getInstance(
+                app,
+                GenerativeBackend.googleAI(),
+                /* useLimitedUseAppCheckTokens = */ true
+            )
             val offersAppCommandTool =
                 shouldOfferNgocSiAiAppCommandTool(newestUserMessage.content)
             val responseConfig = generationConfig {
