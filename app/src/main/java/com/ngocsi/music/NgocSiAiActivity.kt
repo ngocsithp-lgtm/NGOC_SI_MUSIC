@@ -2355,8 +2355,9 @@ private fun NgocSiAiPreviewScreen(
             }
 
             try {
+                val requestTimeoutMillis = selectNgocSiAiRemoteTimeoutMillis(clean)
                 val reply = kotlinx.coroutines.withTimeoutOrNull(
-                    NGOC_SI_AI_REMOTE_CONVERSATION_TIMEOUT_MILLIS
+                    requestTimeoutMillis
                 ) {
                     onSendOnline(history.toList(), onExecuteAppCommand) { partial ->
                         if (partial.isNotBlank()) {
@@ -2373,9 +2374,7 @@ private fun NgocSiAiPreviewScreen(
                             latestPartialReply = partial
                         }
                     }
-                } ?: throw NgocSiAiRemoteException(
-                    "AI trực tuyến chưa hoàn tất trong 90 giây. Câu hỏi được giữ trong cuộc trò chuyện; hãy kiểm tra Internet rồi thử lại."
-                )
+                } ?: throw NgocSiAiRemoteException(ngocSiAiRemoteTimeoutMessage(clean))
                 conversation.add(NgocSiAiMessage(role = "assistant", content = reply.answer))
                 finishRemoteReply(reply.answer)
                 persistChatState()
@@ -2402,7 +2401,10 @@ private fun NgocSiAiPreviewScreen(
                     previousAssistantReply = messages.dropLast(1).lastOrNull { !it.isUser }?.text,
                     remoteError = errorReply
                 )
-                val visibleReply = fallbackReply ?: errorReply
+                val visibleReply = fallbackReply ?: latestPartialReply.trim()
+                    .takeIf { it.isNotBlank() }
+                    ?.let { partial -> "$partial\n\n$errorReply" }
+                    ?: errorReply
                 quotaNote = ngocSiAiQuotaUiNotice(
                     errorReply,
                     localFallbackUsed = fallbackReply != null

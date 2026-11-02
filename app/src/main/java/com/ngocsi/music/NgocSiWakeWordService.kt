@@ -738,6 +738,7 @@ class NgocSiWakeWordService : Service() {
 
                 var remoteAnswer: String? = null
                 var remoteError: String? = null
+                var latestPartialRemoteAnswer = ""
                 val speechStreamLock = Any()
                 var spokenSpeechCharacterOffset = 0
                 var hasQueuedStreamingSpeech = false
@@ -771,7 +772,7 @@ class NgocSiWakeWordService : Service() {
                             "Tôi nghe được câu hỏi, nhưng chat trực tuyến chưa được cấu hình trong bản Preview này. Các lệnh ứng dụng được hỗ trợ vẫn có thể chạy trên điện thoại."
                     } else {
                         try {
-                            remoteAnswer = withTimeoutOrNull(NGOC_SI_AI_REMOTE_CONVERSATION_TIMEOUT_MILLIS) {
+                            remoteAnswer = withTimeoutOrNull(selectNgocSiAiRemoteTimeoutMillis(cleanQuestion)) {
                                 client.send(
                                     requestHistory,
                                     { action, query -> executeAiAppCommand(action, query) }
@@ -779,14 +780,14 @@ class NgocSiWakeWordService : Service() {
                                     // Begin speaking each complete sentence while the next one is
                                     // still generating; subsequent chunks are queued in order.
                                     if (!stopping && partialResponse.isNotBlank()) {
+                                        latestPartialRemoteAnswer = partialResponse
                                         queueSpeechStreamChunks(partialResponse, flushRemainder = false)
                                         updateNotification("NGỌC SĨ AI đang trả lời: ${partialResponse.take(80)}")
                                     }
                                 }.answer
                             }
                             if (remoteAnswer.isNullOrBlank()) {
-                                remoteError =
-                                    "Yêu cầu AI trực tuyến chưa hoàn tất trong 90 giây. Hãy kiểm tra kết nối Internet hoặc thử lại sau; các lệnh nhạc tại máy vẫn hoạt động."
+                                remoteError = ngocSiAiRemoteTimeoutMessage(cleanQuestion)
                             }
                         } catch (cancelled: CancellationException) {
                             throw cancelled
@@ -795,6 +796,17 @@ class NgocSiWakeWordService : Service() {
                                 ?: "Tôi đã nghe câu hỏi nhưng hiện chưa lấy được câu trả lời. Hãy thử lại sau."
                         }
                     }
+                }
+                if (
+                    remoteAnswer.isNullOrBlank() &&
+                    latestPartialRemoteAnswer.isNotBlank() &&
+                    remoteError != null
+                ) {
+                    // Keep useful streamed text when the provider stalls after starting a reply.
+                    // The speech chunker tracks the spoken offset, so only the new notice is read.
+                    remoteAnswer = latestPartialRemoteAnswer.trim() +
+                        " Phản hồi chưa hoàn tất: $remoteError"
+                    remoteError = null
                 }
                 if (stopping) return@launch
 

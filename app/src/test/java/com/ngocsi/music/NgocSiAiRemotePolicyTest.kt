@@ -8,8 +8,18 @@ import org.junit.Test
 
 class NgocSiAiRemotePolicyTest {
     @Test
-    fun remoteConversationTimeoutIsSharedByVoiceAndChat() {
-        assertEquals(90_000L, NGOC_SI_AI_REMOTE_CONVERSATION_TIMEOUT_MILLIS)
+    fun ordinaryQuestionsUseAResponsiveSharedDeadline() {
+        assertEquals(25_000L, NGOC_SI_AI_REMOTE_CONVERSATION_TIMEOUT_MILLIS)
+        assertEquals(25_000L, selectNgocSiAiRemoteTimeoutMillis("Bạn có khỏe không?"))
+        assertTrue(ngocSiAiRemoteTimeoutMessage("Bạn có khỏe không?").contains("25 giây"))
+    }
+
+    @Test
+    fun complexQuestionsGetASeparateBoundedDeadline() {
+        val prompt = "Hãy phân tích kỹ, tìm nguyên nhân và lập kế hoạch nâng cấp AI từng bước."
+        assertEquals(40_000L, NGOC_SI_AI_COMPLEX_REMOTE_CONVERSATION_TIMEOUT_MILLIS)
+        assertEquals(40_000L, selectNgocSiAiRemoteTimeoutMillis(prompt))
+        assertTrue(ngocSiAiRemoteTimeoutMessage(prompt).contains("40 giây"))
     }
 
     @Test

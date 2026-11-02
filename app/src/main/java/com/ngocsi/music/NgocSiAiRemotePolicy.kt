@@ -2,10 +2,24 @@ package com.ngocsi.music
 
 import com.google.firebase.ai.type.ThinkingLevel
 
-/** Shared deadline for voice and screen chat. Streaming surfaces partial text before this deadline. */
-internal const val NGOC_SI_AI_REMOTE_CONVERSATION_TIMEOUT_MILLIS = 90_000L
-internal const val NGOC_SI_AI_SHORT_REPLY_MAX_OUTPUT_TOKENS = 1_024
+/** Ordinary questions should fail fast; longer reasoning receives a separate bounded window. */
+internal const val NGOC_SI_AI_REMOTE_CONVERSATION_TIMEOUT_MILLIS = 25_000L
+internal const val NGOC_SI_AI_COMPLEX_REMOTE_CONVERSATION_TIMEOUT_MILLIS = 40_000L
+internal const val NGOC_SI_AI_SHORT_REPLY_MAX_OUTPUT_TOKENS = 768
 internal const val NGOC_SI_AI_COMPLEX_REPLY_MAX_OUTPUT_TOKENS = 2_048
+
+internal fun selectNgocSiAiRemoteTimeoutMillis(prompt: String): Long =
+    if (selectNgocSiAiThinkingLevel(prompt) == ThinkingLevel.MEDIUM) {
+        NGOC_SI_AI_COMPLEX_REMOTE_CONVERSATION_TIMEOUT_MILLIS
+    } else {
+        NGOC_SI_AI_REMOTE_CONVERSATION_TIMEOUT_MILLIS
+    }
+
+internal fun ngocSiAiRemoteTimeoutMessage(prompt: String): String {
+    val seconds = selectNgocSiAiRemoteTimeoutMillis(prompt) / 1_000L
+    return "Máy chủ Gemini chưa hoàn tất câu trả lời sau $seconds giây. " +
+        "Hãy thử câu hỏi ngắn hơn hoặc kiểm tra Internet; các lệnh điều khiển trên điện thoại vẫn hoạt động."
+}
 
 /**
  * Keep ordinary follow-up turns at LOW thinking even when history is long.

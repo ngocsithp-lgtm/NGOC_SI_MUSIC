@@ -119,8 +119,8 @@ internal class NgocSiAiRemoteClient(context: Context) {
         }
 
         return try {
-            // Use only the explicitly configured free-tier primary model. Never silently
-            // switch to a potentially billable model when quota is reached.
+            // Use only the explicitly configured Gemini model. Never silently switch
+            // to a different or potentially billable model when quota is reached.
             val firebaseAi = FirebaseAI.getInstance(
                 app,
                 GenerativeBackend.googleAI(),
@@ -357,7 +357,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
         private const val KEY_QUOTA_COOLDOWN_UNTIL = "cooldown_until_millis"
         private const val KEY_QUOTA_COOLDOWN_KIND = "cooldown_kind"
         private const val EXPECTED_FIREBASE_PROJECT_ID = "ngoc-si-music-ai"
-        // Keep the free-tier Flash-Lite model as the only remote model.
+        // Keep Gemini 3.8 Flash as the single Google AI backend model.
         // Quota errors trigger a cooldown; there is no automatic paid-model fallback.
         private const val MODEL_NAME = "gemini-3.8-flash"
         private const val MAX_OUTPUT_TOKENS = 2048
