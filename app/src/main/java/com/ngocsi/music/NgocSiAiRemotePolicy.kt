@@ -59,6 +59,8 @@ internal fun shouldOfferNgocSiAiAppCommandTool(prompt: String): Boolean {
         "lui ", "quay lai", "nhay toi", "tang am luong", "giam am luong",
         "tang tieng", "giam tieng", "to hon", "nho hon", "am luong",
         "tim bai hat", "tim kiem bai hat", "tim youtube", "tim tren youtube",
+        "tim drive", "tim google drive", "tim trong drive", "search drive",
+        "them bai hat", "them bai", "vao hang doi",
         "dat hen gio", "hen gio tat", "huy hen gio", "them vao yeu thich",
         "luu vao yeu thich", "them bai dang phat vao yeu thich",
         "them bai vao yeu thich", "luu bai", "luu video", "phat radio", "mo kenh",

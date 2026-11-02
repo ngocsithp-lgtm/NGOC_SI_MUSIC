@@ -1320,7 +1320,7 @@ class NgocSiAiActivity : ComponentActivity() {
         }
 
         when (command) {
-            NgocSiAiLocalCommand.HELP -> return "Tôi có thể phát/tạm dừng/chuyển bài, tìm bài theo tên, bật ngẫu nhiên/lặp, đổi tốc độ 0.5x–2.0x và tua 10 giây với nhạc điện thoại, Drive, Radio; điều khiển YouTube riêng; mở Thư viện, Yêu thích, Album, Thư mục, Drive, từng đài Radio/kênh TV; tìm nhạc, tạo/phát playlist, lưu bài hiện tại vào Yêu thích, mở Hàng đợi, Trình phát, Cài đặt và hẹn giờ."
+            NgocSiAiLocalCommand.HELP -> return "Tôi có thể điều khiển nhạc trên điện thoại, Drive, Radio và YouTube: phát/tạm dừng/dừng, chuyển bài, phát bài theo tên, thêm bài vào hàng đợi, tua, chỉnh tốc độ và âm lượng; bật ngẫu nhiên/lặp; tìm nội dung YouTube, Online và Drive; mở Thư viện, Yêu thích, Album, Thư mục, Radio, TV và Drive; mở/phát playlist, thêm bài hoặc hàng đợi vào playlist; lưu bài hiện tại vào Yêu thích; mở Hàng đợi, Trình phát, Cài đặt và hẹn giờ. Một số thao tác phụ thuộc đăng nhập Drive, quyền Android và kết nối nguồn trực tuyến."
             NgocSiAiLocalCommand.OPEN_HOME -> return openAppDestination("home", "Đang mở trang chủ.")
             NgocSiAiLocalCommand.SEARCH_ONLINE_MUSIC -> {
                 val query = extractNgocSiAiOnlineQuery(originalText)
@@ -1390,6 +1390,24 @@ class NgocSiAiActivity : ComponentActivity() {
                     playlistQuery = query
                 )
             }
+            NgocSiAiLocalCommand.SEARCH_DRIVE -> {
+                val query = extractNgocSiAiDriveQuery(originalText)
+                    ?: return "Hãy nói nội dung cần tìm, ví dụ: “Tìm bài hát Diễm xưa trong Drive”."
+                return openAppDestination(
+                    "drive_search",
+                    "Đang mở Drive và tìm “$query” trong danh sách hiện tại.",
+                    driveSearchQuery = query
+                )
+            }
+            NgocSiAiLocalCommand.ADD_TRACK_TO_QUEUE -> {
+                val query = extractNgocSiAiQueueTrackQuery(originalText)
+                    ?: return "Hãy nói rõ tên bài muốn thêm, ví dụ: “Thêm bài hát Diễm xưa vào hàng đợi”."
+                return openAppDestination(
+                    "queue_track",
+                    "Đang tìm “$query” trong thư viện để thêm vào hàng đợi.",
+                    trackQuery = query
+                )
+            }
             NgocSiAiLocalCommand.OPEN_LIBRARY -> return openAppDestination("library", "Đang mở Thư viện nhạc.")
             NgocSiAiLocalCommand.OPEN_FAVORITES -> return openAppDestination("favorites", "Đang mở nhạc Yêu thích.")
             NgocSiAiLocalCommand.OPEN_ALBUMS -> return openAppDestination("albums", "Đang mở danh sách Album.")
@@ -1429,7 +1447,39 @@ class NgocSiAiActivity : ComponentActivity() {
             return "Tua và đổi tốc độ từ AI hiện áp dụng cho nhạc điện thoại, Drive và Radio. Hãy dùng điều khiển riêng trong trình phát YouTube."
         }
 
-        val player = preferredPlaybackController()
+        val availablePlayer = preferredPlaybackController()
+        if (command == NgocSiAiLocalCommand.PLAY_TRACK) {
+            val query = extractNgocSiAiTrackQuery(originalText)
+                ?: return "Hãy nói tên bài, ví dụ: “Phát bài hát Diễm xưa”."
+            val normalizedQuery = normalizeNgocSiAiVoicePhrase(query)
+            val matchIndex = availablePlayer?.let { currentPlayer ->
+                val exact = (0 until currentPlayer.mediaItemCount).firstOrNull { index ->
+                    normalizeNgocSiAiVoicePhrase(
+                        currentPlayer.getMediaItemAt(index).mediaMetadata.title?.toString().orEmpty()
+                    ) == normalizedQuery
+                }
+                exact ?: (0 until currentPlayer.mediaItemCount).firstOrNull { index ->
+                    val item = currentPlayer.getMediaItemAt(index)
+                    normalizeNgocSiAiVoicePhrase(item.mediaMetadata.title?.toString().orEmpty())
+                        .contains(normalizedQuery) ||
+                        normalizeNgocSiAiVoicePhrase(item.mediaMetadata.artist?.toString().orEmpty())
+                            .contains(normalizedQuery)
+                }
+            }
+            if (matchIndex != null && availablePlayer != null) {
+                availablePlayer.seekTo(matchIndex, 0L)
+                availablePlayer.play()
+                val title = availablePlayer.getMediaItemAt(matchIndex).mediaMetadata.title?.toString()
+                    ?.takeIf { it.isNotBlank() } ?: query
+                return "Đang phát $title."
+            }
+            return openAppDestination(
+                "play_track",
+                "Đang tìm bài “$query” trong toàn bộ thư viện.",
+                trackQuery = query
+            )
+        }
+        val player = availablePlayer
             ?: return "Trình phát đang khởi động hoặc chưa kết nối. Hãy thử lại sau một lát."
         if (command != NgocSiAiLocalCommand.STOP &&
             (player.mediaItemCount == 0 || player.currentMediaItem == null)
@@ -1600,7 +1650,9 @@ class NgocSiAiActivity : ComponentActivity() {
         tvChannelQuery: String? = null,
         playlistQuery: String? = null,
         youtubeAction: String? = null,
-        onlineSearchQuery: String? = null
+        onlineSearchQuery: String? = null,
+        trackQuery: String? = null,
+        driveSearchQuery: String? = null
     ): String {
         return runCatching {
             startActivity(
@@ -1612,6 +1664,8 @@ class NgocSiAiActivity : ComponentActivity() {
                     playlistQuery?.let { putExtra("ai_playlist_query", it) }
                     youtubeAction?.let { putExtra("ai_youtube_action", it) }
                     onlineSearchQuery?.let { putExtra("ai_online_query", it) }
+                    trackQuery?.let { putExtra("ai_track_query", it) }
+                    driveSearchQuery?.let { putExtra("ai_drive_query", it) }
                     // Bring the existing main app to the front and deliver its navigation event.
                     addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                 }

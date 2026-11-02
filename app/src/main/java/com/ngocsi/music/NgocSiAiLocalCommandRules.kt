@@ -7,6 +7,7 @@ internal enum class NgocSiAiLocalCommand {
     PLAY,
     PLAY_SECOND,
     PLAY_TRACK,
+    ADD_TRACK_TO_QUEUE,
     PLAY_RADIO_STATION,
     OPEN_TV_CHANNEL,
     CREATE_PLAYLIST,
@@ -55,6 +56,7 @@ internal enum class NgocSiAiLocalCommand {
     OPEN_FOLDERS,
     OPEN_ONLINE,
     SEARCH_ONLINE_MUSIC,
+    SEARCH_DRIVE,
     SEARCH_YOUTUBE,
     OPEN_YOUTUBE,
     OPEN_DRIVE,
@@ -299,6 +301,7 @@ private val NGOC_SI_AI_WAKE_WORD_COMMANDS = setOf(
     NgocSiAiLocalCommand.PREVIOUS,
     NgocSiAiLocalCommand.PLAY_SECOND,
     NgocSiAiLocalCommand.PLAY_TRACK,
+    NgocSiAiLocalCommand.ADD_TRACK_TO_QUEUE,
     NgocSiAiLocalCommand.PLAY_RADIO_STATION,
     NgocSiAiLocalCommand.OPEN_TV_CHANNEL,
     NgocSiAiLocalCommand.CREATE_PLAYLIST,
@@ -346,6 +349,7 @@ private val NGOC_SI_AI_WAKE_WORD_COMMANDS = setOf(
     NgocSiAiLocalCommand.OPEN_FOLDERS,
     NgocSiAiLocalCommand.OPEN_ONLINE,
     NgocSiAiLocalCommand.SEARCH_ONLINE_MUSIC,
+    NgocSiAiLocalCommand.SEARCH_DRIVE,
     NgocSiAiLocalCommand.SEARCH_YOUTUBE,
     NgocSiAiLocalCommand.OPEN_YOUTUBE,
     NgocSiAiLocalCommand.OPEN_DRIVE,
@@ -803,6 +807,8 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
         extractNgocSiAiAddToPlaylistQuery(input) != null -> NgocSiAiLocalCommand.ADD_CURRENT_TRACK_TO_PLAYLIST
         extractNgocSiAiQueueToPlaylistQuery(input) != null -> NgocSiAiLocalCommand.ADD_QUEUE_TO_PLAYLIST
 
+        extractNgocSiAiQueueTrackQuery(input) != null -> NgocSiAiLocalCommand.ADD_TRACK_TO_QUEUE
+
         // Match named-song commands before generic play/pause phrases.
         extractNgocSiAiTrackQuery(input) != null -> NgocSiAiLocalCommand.PLAY_TRACK
 
@@ -976,10 +982,13 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
             "mo nhac tren dien thoai", "mo nhac local"
         ) -> NgocSiAiLocalCommand.OPEN_LIBRARY
 
+        extractNgocSiAiDriveQuery(input) != null -> NgocSiAiLocalCommand.SEARCH_DRIVE
+
         ((phrase.startsWith("tim nhac ") || phrase.startsWith("tim bai hat ") ||
             phrase.startsWith("tim ca khuc ") || phrase.startsWith("kiem nhac ") ||
             phrase.startsWith("kiem bai hat ")) &&
-            !phrase.contains("youtube") && !phrase.contains("audius") && !phrase.contains("jamendo")) ->
+            !phrase.contains("youtube") && !phrase.contains("audius") &&
+            !phrase.contains("jamendo") && !phrase.contains("drive")) ->
             NgocSiAiLocalCommand.SEARCH_ONLINE_MUSIC
 
         (phrase == "tim youtube" || phrase.startsWith("tim youtube ") ||
@@ -1174,6 +1183,47 @@ internal fun extractNgocSiAiTvChannelQuery(input: String): String? {
     return query.take(60).takeIf { channelPattern.matches(normalized) }
 }
 /**
+ * Extracts a song title for the non-destructive "add to queue" action.
+ * Requires an explicit destination so ordinary requests mentioning a song
+ * cannot silently change the queue.
+ */
+internal fun extractNgocSiAiQueueTrackQuery(input: String): String? {
+    val raw = input.trim()
+    val pattern = Regex(
+        """^(?:(?:ai)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:thêm|them|đưa|dua)\s+(?:bài hát|bai hat|bài|bai|ca khúc|ca khuc)\s+(.+?)\s+(?:vào|vao)\s+(?:hàng đợi|hang doi|queue)\s*[?!.,]*$""",
+        RegexOption.IGNORE_CASE
+    )
+    val match = pattern.matchEntire(raw) ?: return null
+    val query = trimNgocSiAiExtractedQuery(match.groupValues[1])
+    val normalized = normalizeNgocSiAiVoicePhrase(query)
+    if (normalized.length < 2 || normalized in setOf("nhe", "di", "luon", "giup toi")) return null
+    return query.take(100)
+}
+
+/**
+ * Extracts a phrase for filtering the currently opened Drive root/folder list.
+ * Search is constrained to the app's existing Drive browser; it does not edit cloud data.
+ */
+internal fun extractNgocSiAiDriveQuery(input: String): String? {
+    val raw = input.trim()
+    val patterns = listOf(
+        Regex(
+            """^(?:(?:ai)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:tìm|tim|kiếm|kiem)\s+(?:bài hát|bai hat|nhạc|nhac|file|tệp|tep)\s+(.+?)\s+(?:trên|tren|trong)\s+(?:google\s+)?drive\s*[?!.,]*$""",
+            RegexOption.IGNORE_CASE
+        ),
+        Regex(
+            """^(?:(?:ai)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:tìm|tim|kiếm|kiem)\s+(?:(?:trên|tren|trong)\s+)?(?:google\s+)?drive\s*[:,\-]?\s*(.+)$""",
+            RegexOption.IGNORE_CASE
+        )
+    )
+    val match = patterns.firstNotNullOfOrNull { it.matchEntire(raw) } ?: return null
+    val query = trimNgocSiAiExtractedQuery(match.groupValues[1])
+    val normalized = normalizeNgocSiAiVoicePhrase(query)
+    if (normalized.isBlank() || normalized in setOf("nhac", "bai hat", "file", "tep", "cua toi")) return null
+    return query.take(120)
+}
+
+/**
  * Extract a named song from an explicit play/open/listen command.
  * Short filler words are rejected so "Mở bài hát lên" remains a generic Play command.
  */
@@ -1312,9 +1362,9 @@ internal fun buildNgocSiAiToolCommandPhrase(action: String, query: String = ""):
         .replace(Regex("\\s+"), " ")
         .take(180)
     val needsQuery = setOf(
-        "play_track", "play_radio_station", "open_tv_channel",
+        "play_track", "add_track_to_queue", "play_radio_station", "open_tv_channel",
         "create_playlist", "play_playlist", "add_current_to_playlist",
-        "add_queue_to_playlist", "search_youtube", "search_online_music",
+        "add_queue_to_playlist", "search_youtube", "search_online_music", "search_drive",
         "set_playback_speed", "seek_by_seconds", "youtube_seek_by_seconds"
     )
     if (normalizedAction in needsQuery && safeQuery.isBlank()) return null
@@ -1323,6 +1373,8 @@ internal fun buildNgocSiAiToolCommandPhrase(action: String, query: String = ""):
         "play" -> "phát nhạc"
         "play_second" -> "phát bài thứ hai"
         "play_track" -> "phát bài hát $safeQuery"
+        "add_track_to_queue" -> "thêm bài hát $safeQuery vào hàng đợi"
+        "search_drive" -> "tìm Drive $safeQuery"
         "pause" -> "tạm dừng nhạc"
         "stop" -> "dừng hẳn nhạc"
         "next" -> "chuyển bài"

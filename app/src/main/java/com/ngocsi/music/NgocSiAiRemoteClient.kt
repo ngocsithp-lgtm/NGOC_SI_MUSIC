@@ -366,6 +366,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
             "play",
             "play_second",
             "play_track",
+            "add_track_to_queue",
             "pause",
             "stop",
             "next",
@@ -393,6 +394,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
             "open_folders",
             "open_online",
             "search_online_music",
+            "search_drive",
             "open_youtube",
             "search_youtube",
             "youtube_play",
@@ -439,12 +441,12 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 Điều khiển các chức năng được phép của ứng dụng NGỌC SĨ MUSIC theo yêu cầu rõ ràng của người dùng.
                 Chỉ gọi khi người dùng thực sự muốn thực hiện thao tác, không gọi khi họ chỉ hỏi cách làm hoặc hỏi thông tin.
                 action phải là một trong các mã sau:
-                play, play_second, play_track, pause, stop, next, previous, current_track,
+                play, play_second, play_track, add_track_to_queue, pause, stop, next, previous, current_track,
                 volume_up, volume_down, mute, unmute,
                 set_playback_speed, seek_forward_10, seek_back_10, seek_by_seconds, youtube_seek_by_seconds, favorite_current_track,
                 shuffle_on, shuffle_off, repeat_off, repeat_all, repeat_one,
                 open_home, open_library, open_favorites, open_albums, open_folders, open_online,
-                search_online_music, open_youtube, search_youtube, youtube_play, youtube_pause,
+                search_online_music, search_drive, open_youtube, search_youtube, youtube_play, youtube_pause,
                 youtube_next, youtube_previous, youtube_seek_forward_10, youtube_seek_back_10,
                 youtube_shuffle_on, youtube_shuffle_off, youtube_repeat_off, youtube_repeat_all,
                 youtube_repeat_one, youtube_favorite,
@@ -483,6 +485,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
             "Văn bản có thể đọc thành tiếng: dùng câu ngắn, dấu câu tự nhiên; tránh Markdown, dấu sao, lời dẫn thừa và lặp tên 'Ngọc Sĩ' ở mọi câu. " +
             "Hướng dẫn Android theo các bước dễ làm trên điện thoại. Khi người dùng yêu cầu thao tác trong NGỌC SĨ MUSIC mà câu nói chưa được bộ lệnh cục bộ nhận diện, hãy dùng execute_app_command với action trong danh sách cho phép. " +
             "Chỉ dùng công cụ cho yêu cầu hành động rõ ràng, không dùng cho câu hỏi, gợi ý hoặc trò chuyện thông thường. Hỏi lại khi thiếu tên bài, từ khóa, đài, kênh, playlist hoặc tốc độ phát cần thiết. " +
+            "Với thao tác thêm bài vào hàng đợi, dùng add_track_to_queue và query là tên bài; với tìm kiếm Drive, dùng search_drive và query là từ khóa. " +
             "Khi người dùng muốn tăng/giảm âm lượng hoặc tắt/bật tiếng, dùng volume_up, volume_down, mute hoặc unmute; đây là âm lượng media hệ thống Android và dùng chung cho YouTube, nhạc máy, Drive và Radio. " +
             "Khi người dùng nhắc YouTube hoặc video YouTube, hãy dùng youtube_play, youtube_pause, youtube_next, youtube_previous, youtube_seek_forward_10 hoặc youtube_seek_back_10 tương ứng; không dùng action chung cho yêu cầu đã nêu rõ YouTube. Nếu người dùng nói 'tiếp theo', 'chuyển bài' hoặc 'bài trước' và ngữ cảnh gần nhất đang phát YouTube, phải giữ nguồn YouTube; không biến lệnh chuyển video đang phát thành lệnh tìm kiếm. " +
             "Với YouTube, dùng các action youtube_shuffle/youtube_repeat; action shuffle/repeat không có tiền tố youtube chỉ dành cho Media3. Đổi tốc độ chỉ áp dụng cho Media3; tua 10 giây trên YouTube dùng action youtube_seek riêng. " +

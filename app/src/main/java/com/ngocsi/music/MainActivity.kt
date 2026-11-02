@@ -811,6 +811,7 @@ class MainActivity : ComponentActivity() {
     private var pendingAiAddCurrentSongPlaylistName: String? = null
     private var pendingAiLocalPlaybackRequested = false
     private var pendingAiTrackQuery: String? = null
+    private var pendingVoiceQueueSongName: String? = null
     private var pendingAiFavoriteCurrentTrack = false
     private var localLibraryLoaded = false
     // Artwork cache is album-first: one decoded cover is shared by every song
@@ -1117,7 +1118,8 @@ class MainActivity : ComponentActivity() {
             intent.getStringExtra("ai_playlist_query"),
             intent.getStringExtra("ai_youtube_action"),
             intent.getStringExtra("ai_track_query"),
-            intent.getStringExtra("ai_online_query")
+            intent.getStringExtra("ai_online_query"),
+            intent.getStringExtra("ai_drive_query")
         )
         // Background notification taps must land on the inline player in this Activity,
         // including cold starts after Android has reclaimed the previous process.
@@ -1165,7 +1167,8 @@ class MainActivity : ComponentActivity() {
         playlistQuery: String? = null,
         youtubeAction: String? = null,
         trackQuery: String? = null,
-        onlineSearchQuery: String? = null
+        onlineSearchQuery: String? = null,
+        driveSearchQuery: String? = null
     ) {
         if (destination != null) dismissAiNavigationOverlays()
         when (destination) {
@@ -1191,6 +1194,13 @@ class MainActivity : ComponentActivity() {
                 libraryView = "Bài hát"
                 pendingAiTrackQuery = trackQuery
                 pendingAiLocalPlaybackRequested = true
+                dispatchPendingAiLocalPlaybackIfReady()
+            }
+            "queue_track" -> {
+                selectedSection = "Thư viện"
+                selectedLibrary = "Tất cả"
+                libraryView = "Bài hát"
+                pendingVoiceQueueSongName = trackQuery
                 dispatchPendingAiLocalPlaybackIfReady()
             }
             "favorites" -> {
@@ -1259,6 +1269,13 @@ class MainActivity : ComponentActivity() {
             "drive" -> {
                 selectedSection = "Online"
                 onlineHubTab = "Drive"
+            }
+            "drive_search" -> {
+                selectedSection = "Online"
+                onlineHubTab = "Drive"
+                driveBrowserQuery = driveSearchQuery.orEmpty()
+                if (driveOAuthManager.hasDriveScope()) loadDriveRoot()
+                else signInGoogleDrive { loadDriveRoot() }
             }
             "radio" -> {
                 selectedSection = "Radio"
@@ -1401,7 +1418,8 @@ class MainActivity : ComponentActivity() {
             intent.getStringExtra("ai_playlist_query"),
             intent.getStringExtra("ai_youtube_action"),
             intent.getStringExtra("ai_track_query"),
-            intent.getStringExtra("ai_online_query")
+            intent.getStringExtra("ai_online_query"),
+            intent.getStringExtra("ai_drive_query")
         )
         handleInlineYouTubeResumeIntent(intent)
     }
@@ -4967,8 +4985,25 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun dispatchPendingAiLocalPlaybackIfReady() {
-        if (!pendingAiLocalPlaybackRequested || !localLibraryLoaded || controller == null) return
+        if (!localLibraryLoaded || controller == null) return
 
+        val queuedSongName = pendingVoiceQueueSongName?.trim().orEmpty()
+        if (queuedSongName.isNotBlank()) {
+            pendingVoiceQueueSongName = null
+            val normalizedName = normalizeNgocSiAiVoicePhrase(queuedSongName)
+            val queuedSong = songs.firstOrNull { normalizeNgocSiAiVoicePhrase(it.title) == normalizedName }
+                ?: songs.firstOrNull {
+                    normalizeNgocSiAiVoicePhrase(it.title).contains(normalizedName) ||
+                        normalizeNgocSiAiVoicePhrase(it.artist).contains(normalizedName)
+                }
+            if (queuedSong == null) {
+                errorMessage = "Không tìm thấy bài trong thư viện."
+            } else {
+                addToQueue(queuedSong)
+            }
+            return
+        }
+        if (!pendingAiLocalPlaybackRequested) return
         val requestedQuery = pendingAiTrackQuery?.trim().orEmpty()
         pendingAiLocalPlaybackRequested = false
         pendingAiTrackQuery = null

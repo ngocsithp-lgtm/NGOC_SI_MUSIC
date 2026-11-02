@@ -1419,7 +1419,7 @@ class NgocSiWakeWordService : Service() {
 
     private fun runAppCommand(command: NgocSiAiLocalCommand, originalText: String): String {
         if (command == NgocSiAiLocalCommand.HELP) {
-            return "Tôi có thể điều khiển phát nhạc, chuyển bài, tua, chỉnh tốc độ và âm lượng media; điều khiển YouTube; tìm nhạc; mở thư viện, Drive, Radio, TV; quản lý playlist, phát ngẫu nhiên, chế độ lặp và hẹn giờ."
+            return "Tôi có thể điều khiển nhạc điện thoại, YouTube, Drive và Radio; tìm bài, phát hoặc tạm dừng, chuyển bài, tua, chỉnh âm lượng và tốc độ; mở Thư viện, Album, Thư mục, Yêu thích, TV, Hàng đợi, Playlist, Trình phát, Cài đặt; tạo và phát playlist, thêm bài vào hàng đợi hoặc playlist, lưu bài yêu thích và đặt hoặc hủy hẹn giờ. Một số thao tác cần Internet, đăng nhập hoặc quyền Android."
         }
 
         val volumeDirection = when (command) {
@@ -1487,6 +1487,8 @@ class NgocSiWakeWordService : Service() {
             NgocSiAiLocalCommand.OPEN_FOLDERS -> "folders"
             NgocSiAiLocalCommand.OPEN_ONLINE -> "online"
             NgocSiAiLocalCommand.SEARCH_ONLINE_MUSIC -> "search_online"
+            NgocSiAiLocalCommand.SEARCH_DRIVE -> "drive_search"
+            NgocSiAiLocalCommand.ADD_TRACK_TO_QUEUE -> "queue_track"
             NgocSiAiLocalCommand.OPEN_YOUTUBE,
             NgocSiAiLocalCommand.SEARCH_YOUTUBE -> "youtube"
             NgocSiAiLocalCommand.OPEN_DRIVE -> "drive"
@@ -1534,6 +1536,8 @@ class NgocSiWakeWordService : Service() {
                 extractNgocSiAiOnlineQuery(originalText)
                     ?: return "Hãy nói nội dung cần tìm, ví dụ: AI, tìm nhạc Trịnh Công Sơn."
             } else null
+            val driveQuery = if (command == NgocSiAiLocalCommand.SEARCH_DRIVE) extractNgocSiAiDriveQuery(originalText) else null
+            val trackQuery = if (command == NgocSiAiLocalCommand.ADD_TRACK_TO_QUEUE) extractNgocSiAiQueueTrackQuery(originalText) else null
             val radioQuery = if (command == NgocSiAiLocalCommand.PLAY_RADIO_STATION) {
                 extractNgocSiAiRadioStationQuery(originalText)
                     ?: return "Hãy nói tên đài, ví dụ: AI, phát Radio VOV3."
@@ -1589,6 +1593,8 @@ class NgocSiWakeWordService : Service() {
             } else when (command) {
                 NgocSiAiLocalCommand.SEARCH_YOUTUBE -> "Đang tìm trên YouTube: $query."
                 NgocSiAiLocalCommand.SEARCH_ONLINE_MUSIC -> "Đang tìm $onlineQuery trên các nguồn nhạc trực tuyến."
+                NgocSiAiLocalCommand.SEARCH_DRIVE -> "Đã mở Google Drive."
+                NgocSiAiLocalCommand.ADD_TRACK_TO_QUEUE -> "Đã nhận lệnh thêm bài vào hàng đợi."
                 NgocSiAiLocalCommand.OPEN_HOME -> "Đã gửi lệnh mở Trang chủ."
                 NgocSiAiLocalCommand.OPEN_LIBRARY -> "Đã gửi lệnh mở Thư viện."
                 NgocSiAiLocalCommand.OPEN_FAVORITES -> "Đã gửi lệnh mở nhạc Yêu thích."
@@ -1639,6 +1645,8 @@ class NgocSiWakeWordService : Service() {
                     putExtra("pro_destination", destination)
                     query?.let { putExtra("ai_youtube_query", it) }
                     onlineQuery?.let { putExtra("ai_online_query", it) }
+                    driveQuery?.let { putExtra("ai_drive_query", it) }
+                    trackQuery?.let { putExtra("ai_track_query", it) }
                     radioQuery?.let { putExtra("ai_radio_station", it) }
                     tvQuery?.let { putExtra("ai_tv_channel", it) }
                     playlistQuery?.let { putExtra("ai_playlist_query", it) }
