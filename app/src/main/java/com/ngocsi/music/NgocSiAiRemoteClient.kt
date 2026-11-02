@@ -168,6 +168,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
                         )
                     }
                     val selectedCallIndex = selectNgocSiAiAgentToolCallIndex(calls, APP_COMMAND_TOOL_NAME)
+                    var stopSequenceAfterFeedback = false
                     val functionResponses = mutableListOf<FunctionResponsePart>()
                     response.functionCalls.forEachIndexed { index, functionCall ->
                         val action = functionCall.args["action"]?.jsonPrimitive?.contentOrNull.orEmpty()
@@ -190,6 +191,11 @@ internal class NgocSiAiRemoteClient(context: Context) {
                                 )
                             }
                         }
+                        if (index == selectedCallIndex &&
+                            !shouldContinueNgocSiAiAgentSequence(result.routed, result.feedback)
+                        ) {
+                            stopSequenceAfterFeedback = true
+                        }
                         functionResponses += FunctionResponsePart(
                             functionCall.name,
                             JsonObject(
@@ -206,11 +212,12 @@ internal class NgocSiAiRemoteClient(context: Context) {
                         functionResponses.forEach { functionResponse -> part(functionResponse) }
                     })
                     toolRound++
+                    if (stopSequenceAfterFeedback) break
                 }
 
                 if (response.functionCalls.isNotEmpty()) {
                     throw NgocSiAiRemoteException(
-                        "AI đã nhận yêu cầu nhưng chưa hoàn tất chuỗi thao tác. Hãy mô tả lại thành một yêu cầu ngắn hơn."
+                        "Ứng dụng chưa xác nhận bước vừa rồi thành công; NGỌC SĨ AI đã dừng các bước phụ thuộc để tránh thao tác sai."
                     )
                 }
                 answer = response.text?.trim()
