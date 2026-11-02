@@ -159,22 +159,36 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 var response = chat.sendMessage(newestUserMessage.content)
                 var toolRound = 0
                 while (response.functionCalls.isNotEmpty() && toolRound < MAX_TOOL_ROUNDS) {
+                    // Select one valid action for this round. Other proposed actions are
+                    // deferred until the model has read the result of the selected action.
+                    val calls = response.functionCalls.map { functionCall ->
+                        NgocSiAiAgentToolCall(
+                            name = functionCall.name,
+                            action = functionCall.args["action"]?.jsonPrimitive?.contentOrNull.orEmpty()
+                        )
+                    }
+                    val selectedCallIndex = selectNgocSiAiAgentToolCallIndex(calls, APP_COMMAND_TOOL_NAME)
                     val functionResponses = mutableListOf<FunctionResponsePart>()
-                    for (functionCall in response.functionCalls) {
+                    response.functionCalls.forEachIndexed { index, functionCall ->
                         val action = functionCall.args["action"]?.jsonPrimitive?.contentOrNull.orEmpty()
                         val query = functionCall.args["query"]?.jsonPrimitive?.contentOrNull.orEmpty()
-                        val result = if (functionCall.name == APP_COMMAND_TOOL_NAME && action.isNotBlank()) {
-                            runCatching { executeTool(action, query) }.getOrElse {
+                        val result = when {
+                            functionCall.name != APP_COMMAND_TOOL_NAME || action.isBlank() ->
+                                NgocSiAiToolResult(
+                                    routed = false,
+                                    feedback = "Lệnh không nằm trong danh sách chức năng AI được phép điều khiển."
+                                )
+                            index != selectedCallIndex ->
+                                NgocSiAiToolResult(
+                                    routed = false,
+                                    feedback = ngocSiAiDeferredToolCallFeedback()
+                                )
+                            else -> runCatching { executeTool(action, query) }.getOrElse {
                                 NgocSiAiToolResult(
                                     routed = false,
                                     feedback = "Ứng dụng chưa thực hiện được lệnh này. Vui lòng thử lại."
                                 )
                             }
-                        } else {
-                            NgocSiAiToolResult(
-                                routed = false,
-                                feedback = "Lệnh không nằm trong danh sách chức năng AI được phép điều khiển."
-                            )
                         }
                         functionResponses += FunctionResponsePart(
                             functionCall.name,
@@ -494,7 +508,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
             "Bạn là NGỌC SĨ AI, trợ lý tiếng Việt gần gũi, bình tĩnh và biết lắng nghe; đừng giả vờ là người thật. " +
             "Hiểu ý định từ ngữ cảnh, cách nói đời thường, lỗi nhận dạng và các đại từ như 'nó', 'bài vừa rồi'; tiếp nối đúng mạch, không chào lại hay nhắc lại câu người dùng ở mỗi lượt. " +
             "Giữ nhất quán các lựa chọn và mục tiêu đã nêu; khi người dùng nói 'tiếp tục' hoặc dùng đại từ, hãy dựa vào lịch sử gần nhất; nếu vẫn có nhiều cách hiểu quan trọng, hỏi một câu làm rõ ngắn. " +
-            "Với yêu cầu nhiều bước, chia thành trình tự, thực hiện từng hành động được phép và đọc phản hồi ứng dụng trước khi chọn bước kế tiếp; không báo đã phát, chuyển bài hoặc lưu thành công nếu chưa có xác nhận tương ứng. " +
+            "Với yêu cầu nhiều bước, chia thành trình tự tối đa 4 bước; mỗi lượt chỉ thực hiện một hành động được phép, chờ app_feedback rồi mới chọn bước kế tiếp. Không gửi nhiều hành động phụ thuộc nhau cùng lúc; nếu kết quả bước trước không đạt, dừng hoặc hỏi lại thay vì đoán. Không báo đã phát, chuyển bài hoặc lưu thành công nếu chưa có xác nhận tương ứng. " +
             "Trả lời tự nhiên, chân thành, thường 1–4 câu ngắn. Khi người dùng chia sẻ cảm xúc, hãy lắng nghe trước, không phán xét hoặc vội đưa lời khuyên. " +
             "Với việc phức tạp, suy luận cẩn thận, nêu kết luận, lý do và phương án thực tế; nói rõ điểm chưa chắc, không bịa thông tin hay giả nhận đã hành động. " +
             "Văn bản có thể đọc thành tiếng: dùng câu ngắn, dấu câu tự nhiên; tránh Markdown, dấu sao, lời dẫn thừa và lặp tên 'Ngọc Sĩ' ở mọi câu. " +
