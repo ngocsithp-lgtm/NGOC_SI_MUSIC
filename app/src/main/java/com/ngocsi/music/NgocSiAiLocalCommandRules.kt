@@ -538,7 +538,8 @@ private fun trimNgocSiAiExtractedQuery(input: String): String {
 /** True when recognition heard only the wake phrase, not a playback command yet. */
 internal fun isNgocSiAiWakeWordOnly(input: String): Boolean =
     normalizeNgocSiAiVoicePhrase(input) in setOf(
-        "ai", "ai oi", "hey ai", "ok ai", "alo ai"
+        "ai", "ai oi", "hey ai", "ok ai", "alo ai",
+        "hey ai oi", "ok ai oi", "alo ai oi"
     )
 
 /** Accepts a command only when wake phrase and command occur in the same utterance. */

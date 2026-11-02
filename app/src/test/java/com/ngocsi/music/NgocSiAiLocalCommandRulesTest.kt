@@ -1546,6 +1546,10 @@ class NgocSiAiLocalCommandRulesTest {
     }
     @Test
     fun acceptsNaturalWakeWordVariantsWithoutAllowingCommandsWithoutWakeWord() {
+        assertEquals(true, isNgocSiAiWakeWordOnly("Hey AI ơi"))
+        assertEquals(true, isNgocSiAiWakeWordOnly("OK AI ơi"))
+        assertEquals(true, isNgocSiAiWakeWordOnly("Alo AI ơi"))
+        assertEquals(false, isNgocSiAiWakeWordOnly("mở Radio"))
         assertEquals(
             NgocSiAiLocalCommand.OPEN_RADIO,
             classifyNgocSiAiWakePhrase("Hey AI, mở Radio")
