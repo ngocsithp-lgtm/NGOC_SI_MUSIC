@@ -446,7 +446,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
             "cancel_sleep_timer",
             "help"
         )
-        private const val MAX_TOOL_ROUNDS = 3
+        private const val MAX_TOOL_ROUNDS = 4
         private const val MAX_TOOL_FEEDBACK_CHARS = 900
         private val APP_COMMAND_TOOL = FunctionDeclaration(
             name = "execute_app_command",
