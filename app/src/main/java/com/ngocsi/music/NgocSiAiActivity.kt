@@ -110,6 +110,9 @@ internal fun localConversationFallback(
         .replace(Regex("\\s+"), " ")
         .trim()
 
+    // Answer a small allowlisted set of stable facts on-device, even while Gemini quota is exhausted.
+    localNgocSiAiKnowledgeFallback(userText)?.let { return it }
+
     fun matchesAny(vararg phrases: String): Boolean =
         phrases.any { normalized == it || normalized.startsWith("$it ") }
 
