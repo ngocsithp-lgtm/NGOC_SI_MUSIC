@@ -29,9 +29,25 @@ internal data class NgocSiAiMemoryResult(
 )
 
 private val NGOC_SI_AI_MEMORY_WAKE_PREFIX = Regex(
-    """^(?:(?:hey|ok|alo)\s+)?(?:(?:ngoc\s+si|ngọc\s+sĩ)\s+)?(?:ai|a\s*i|al)(?:\s*[,.:]\s*|\s+)""",
+    """^(?:(?:hey|ok|alo|ờ|o|ừ|u|ừm|um)\s+)?(?:(?:ngoc\s+si|ngọc\s+sĩ)\s+)?(?:ai|a\s*i|al|a\s*l)(?:\s*[,.:]\s*|\s+)""",
     RegexOption.IGNORE_CASE
 )
+
+private val NGOC_SI_AI_MEMORY_NORMALIZED_WAKE_PREFIX = Regex(
+    """^(?:(?:hey|ok|alo|o|u|um)\s+)?(?:(?:ngoc\s+si)\s+)?(?:ai|a\s*i|al|a\s*l)(?:\s+|$)""",
+    RegexOption.IGNORE_CASE
+)
+
+private fun stripNgocSiAiMemoryWakePrefix(input: String): String {
+    val trimmed = input.trim()
+    val directlyStripped = NGOC_SI_AI_MEMORY_WAKE_PREFIX.replaceFirst(trimmed, "").trim()
+    if (directlyStripped != trimmed) return directlyStripped
+
+    // Android ASR may spell the wake word as two tokens ("A L") or prepend
+    // a hesitation/filler. Match a normalized copy as a safe fallback.
+    val normalized = normalizeNgocSiAiVoicePhrase(trimmed)
+    return NGOC_SI_AI_MEMORY_NORMALIZED_WAKE_PREFIX.replaceFirst(normalized, "").trim()
+}
 
 private val NGOC_SI_AI_MEMORY_REMEMBER_PREFIX = Regex(
     """^(?:hãy\s+|hay\s+)?(?:ghi\s+nhớ|ghi\s+nho|nhớ\s+rằng|nho\s+rang|nhớ|nho)\s+(?:là\s+|la\s+)?(.+)$""",
@@ -89,6 +105,10 @@ private fun isSafeNgocSiAiMemoryNote(note: String): Boolean {
 internal fun parseNgocSiAiMemoryCommand(input: String): NgocSiAiMemoryCommand? {
     val raw = stripNgocSiAiMemoryWakePrefix(input)
     if (raw.isBlank()) return null
+
+    // Classify against the same accent/punctuation-insensitive representation used
+    // by the rest of voice control. Preserve the original note text whenever the
+    // raw Vietnamese pattern is available, so saved preferences retain accents.
     val normalized = normalizeNgocSiAiVoicePhrase(raw)
 
     if (normalized in setOf(
@@ -111,27 +131,35 @@ internal fun parseNgocSiAiMemoryCommand(input: String): NgocSiAiMemoryCommand? {
         return NgocSiAiMemoryCommand(NgocSiAiMemoryCommandType.CLEAR)
     }
 
-    NGOC_SI_AI_MEMORY_DELETE_PREFIX.matchEntire(raw)?.let { match ->
-        return NgocSiAiMemoryCommand(
-            type = NgocSiAiMemoryCommandType.DELETE,
-            index = match.groupValues[1].toIntOrNull()
-        )
-    }
+    Regex("""^(?:xoa|bo)\s+(?:ghi\s+nho|nho)\s+(?:so\s+|thu\s+)?(\d{1,2})$""")
+        .matchEntire(normalized)?.let { match ->
+            return NgocSiAiMemoryCommand(
+                type = NgocSiAiMemoryCommandType.DELETE,
+                index = match.groupValues[1].toIntOrNull()
+            )
+        }
 
-    NGOC_SI_AI_MEMORY_UPDATE_PREFIX.matchEntire(raw)?.let { match ->
-        val note = match.groupValues[2]
+    val normalizedUpdate = Regex(
+        """^(?:sua|cap\s+nhat|doi)\s+(?:ghi\s+nho|nho)\s+(?:so\s+|thu\s+)?(\d{1,2})\s+(?:thanh|la)\s+(.+)$"""
+    ).matchEntire(normalized)
+    if (normalizedUpdate != null) {
+        val rawUpdate = NGOC_SI_AI_MEMORY_UPDATE_PREFIX.matchEntire(raw)
+        val note = (rawUpdate?.groupValues?.get(2) ?: normalizedUpdate.groupValues[2])
             .trim()
             .trimEnd('.', '!', '?', ';', ',')
             .replace(Regex("""\s+"""), " ")
         return NgocSiAiMemoryCommand(
             type = NgocSiAiMemoryCommandType.UPDATE,
             note = note,
-            index = match.groupValues[1].toIntOrNull()
+            index = normalizedUpdate.groupValues[1].toIntOrNull()
         )
     }
 
-    val match = NGOC_SI_AI_MEMORY_REMEMBER_PREFIX.matchEntire(raw) ?: return null
-    val note = match.groupValues[1]
+    val normalizedRemember = Regex(
+        """^(?:(?:hay|lam\s+on|vui\s+long)\s+)?(?:ghi\s+nho(?:\s+rang)?|nho\s+rang|nho)\s+(?:la\s+)?(.+)$"""
+    ).matchEntire(normalized) ?: return null
+    val rawRemember = NGOC_SI_AI_MEMORY_REMEMBER_PREFIX.matchEntire(raw)
+    val note = (rawRemember?.groupValues?.get(1) ?: normalizedRemember.groupValues[1])
         .trim()
         .trimEnd('.', '!', '?', ';', ',')
         .replace(Regex("""\s+"""), " ")
