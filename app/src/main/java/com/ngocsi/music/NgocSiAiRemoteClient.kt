@@ -55,6 +55,26 @@ internal typealias NgocSiAiRequest =
     ) -> NgocSiAiReply
 
 /**
+ * Executes one allowlisted app action without swallowing coroutine cancellation.
+ * Ordinary action failures are returned as safe, non-routed feedback so the agent
+ * stops dependent steps; cancellation must escape to the caller unchanged.
+ */
+internal suspend fun executeNgocSiAiToolSafely(
+    executeTool: NgocSiAiToolExecutor,
+    action: String,
+    query: String
+): NgocSiAiToolResult = try {
+    executeTool(action, query)
+} catch (cancelled: CancellationException) {
+    throw cancelled
+} catch (_: Exception) {
+    NgocSiAiToolResult(
+        routed = false,
+        feedback = "Ứng dụng chưa thực hiện được lệnh này. Vui lòng thử lại."
+    )
+}
+
+/**
  * Optional Firebase AI Logic client for the isolated NGỌC SĨ AI preview.
  *
  * Firebase client settings are provided through build-time environment values.
@@ -192,12 +212,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
                                     routed = false,
                                     feedback = ngocSiAiDeferredToolCallFeedback()
                                 )
-                            else -> runCatching { executeTool(action, query) }.getOrElse {
-                                NgocSiAiToolResult(
-                                    routed = false,
-                                    feedback = "Ứng dụng chưa thực hiện được lệnh này. Vui lòng thử lại."
-                                )
-                            }
+                            else -> executeNgocSiAiToolSafely(executeTool, action, query)
                         }
                         if (index == selectedCallIndex &&
                             !shouldContinueNgocSiAiAgentSequence(result.routed, result.feedback, action)
