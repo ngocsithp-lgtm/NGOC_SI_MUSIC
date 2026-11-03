@@ -741,9 +741,20 @@ class NgocSiWakeWordService : Service() {
 
                 // Explicit memory commands are handled and stored locally before any
                 // Gemini request. Screen chat uses the same private preference store.
+                val chatPreferences = getSharedPreferences(
+                    NGOC_SI_AI_CHAT_PREFERENCES_NAME,
+                    MODE_PRIVATE
+                )
                 val memoryReply = handleNgocSiAiMemoryCommand(
                     cleanQuestion,
-                    getSharedPreferences(NGOC_SI_AI_CHAT_PREFERENCES_NAME, MODE_PRIVATE)
+                    chatPreferences
+                )
+                val onDeviceMemories = decodeNgocSiAiMemory(
+                    chatPreferences.getString(NGOC_SI_AI_LONG_TERM_MEMORY_KEY, null)
+                )
+                val preferLocalModel = chatPreferences.getBoolean(
+                    NGOC_SI_AI_PREFER_LOCAL_MODEL_KEY,
+                    false
                 )
                 // Handle common turns on-device first; this avoids spending the free
                 // Gemini allowance for greetings, quick help and known local responses.
@@ -758,6 +769,7 @@ class NgocSiWakeWordService : Service() {
 
                 var remoteAnswer: String? = null
                 var remoteError: String? = null
+                var usedOnDeviceModel = false
                 var latestPartialRemoteAnswer = ""
                 val speechStreamLock = Any()
                 var spokenSpeechCharacterOffset = 0
@@ -786,9 +798,27 @@ class NgocSiWakeWordService : Service() {
                     }
                 }
 
-                if (localFallback == null) {
-                    // Initialize Firebase AI only for turns that truly need the remote model.
-                    // Local memory, commands, and deterministic offline replies skip Firebase setup.
+                if (
+                    localFallback == null &&
+                    preferLocalModel &&
+                    NgocSiAiOnDeviceModel.isInstalled(applicationContext)
+                ) {
+                    try {
+                        remoteAnswer = NgocSiAiOnDeviceModel.generate(
+                            applicationContext,
+                            cleanQuestion,
+                            onDeviceMemories
+                        )
+                        usedOnDeviceModel = true
+                    } catch (error: Exception) {
+                        remoteError = "AI tại máy chưa xử lý được câu hỏi này: " +
+                            (error.message ?: "Hãy thử câu hỏi ngắn hơn.")
+                    }
+                }
+
+                if (localFallback == null && remoteAnswer.isNullOrBlank() && remoteError == null) {
+                    // Initialize Firebase AI only for turns that truly need Gemini.
+                    // Local memory, local-first chat, and deterministic offline replies skip Firebase setup.
                     val client = NgocSiAiRemoteClient(applicationContext)
                     if (!client.isConfigured) {
                         remoteError =
@@ -818,6 +848,30 @@ class NgocSiWakeWordService : Service() {
                             remoteError = error.message?.takeIf { it.isNotBlank() }
                                 ?: "Tôi đã nghe câu hỏi nhưng hiện chưa lấy được câu trả lời. Hãy thử lại sau."
                         }
+                    }
+                }
+
+                // If Gemini is unavailable or quota-limited, continue locally when the
+                // user has installed the model. This never sends a second cloud request.
+                if (
+                    localFallback == null &&
+                    remoteAnswer.isNullOrBlank() &&
+                    latestPartialRemoteAnswer.isBlank() &&
+                    remoteError != null &&
+                    !preferLocalModel &&
+                    NgocSiAiOnDeviceModel.isInstalled(applicationContext)
+                ) {
+                    try {
+                        remoteAnswer = NgocSiAiOnDeviceModel.generate(
+                            applicationContext,
+                            cleanQuestion,
+                            onDeviceMemories
+                        )
+                        usedOnDeviceModel = true
+                        remoteError = null
+                    } catch (error: Exception) {
+                        remoteError = remoteError + " AI tại máy cũng chưa xử lý được: " +
+                            (error.message ?: "Hãy thử câu hỏi ngắn hơn.")
                     }
                 }
                 if (
@@ -862,7 +916,7 @@ class NgocSiWakeWordService : Service() {
                 }
 
                 publishConversationUpdate(cleanQuestion, answer, conversationTurnId)
-                val replySource = if (localFallback != null) {
+                val replySource = if (localFallback != null || usedOnDeviceModel) {
                     "Trả lời tại máy · không dùng hạn mức Gemini"
                 } else {
                     "Câu trả lời"
