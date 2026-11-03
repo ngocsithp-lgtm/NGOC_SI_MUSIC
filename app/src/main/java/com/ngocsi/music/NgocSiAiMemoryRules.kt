@@ -90,6 +90,16 @@ private val NGOC_SI_AI_MEMORY_BLOCKED_TOPICS = listOf(
     "chinh tri", "ton giao", "dan toc", "gioi tinh", "doi song tinh duc"
 )
 
+private val NGOC_SI_AI_MEMORY_GENRE_INTENT_PHRASES = listOf(
+    "the loai", "dong nhac", "gu nhac", "gu am nhac", "so thich nhac",
+    "hay nghe nhac gi", "thich nghe nhac gi", "nghe nhac gi", "nhac nao"
+)
+
+private val NGOC_SI_AI_MEMORY_GENRE_MARKERS = listOf(
+    "bolero", "trinh", "nhac vang", "nhac xua", "cai luong",
+    "jazz", "rock", "pop", "nhac song"
+)
+
 private val NGOC_SI_AI_MEMORY_UNTRUSTED_MARKERS = listOf(
     "bo qua huong dan", "bo qua tat ca huong dan", "ignore previous", "ignore all",
     "system prompt", "developer instruction", "prompt injection", "goi cong cu",
@@ -369,13 +379,18 @@ internal fun selectNgocSiAiRelevantMemories(
     val queryTokens = query.split(" ")
         .filter { it.length >= 3 && it !in ignoredTokens }
         .toSet()
+    // Resolve natural questions about musical taste to saved genre preferences,
+    // even when the question shares no literal word with the saved genre name.
+    val asksAboutMusicGenre = NGOC_SI_AI_MEMORY_GENRE_INTENT_PHRASES.any(query::contains)
 
     val ranked = safeMemories.mapIndexed { index, memory ->
         val normalized = normalizeNgocSiAiVoicePhrase(memory)
         val memoryTokens = normalized.split(" ").filter { it.length >= 3 }.toSet()
         val overlap = queryTokens.intersect(memoryTokens).size
         val phraseMatch = query.isNotBlank() && normalized.contains(query)
-        Triple(index, memory, overlap + if (phraseMatch) 4 else 0)
+        val genreMatch = asksAboutMusicGenre && NGOC_SI_AI_MEMORY_GENRE_MARKERS.any(normalized::contains)
+        val relevanceScore = overlap + if (phraseMatch) 4 else 0 + if (genreMatch) 6 else 0
+        Triple(index, memory, relevanceScore)
     }
     val matching = ranked.filter { it.third > 0 }
     val selected = if (matching.isEmpty()) {

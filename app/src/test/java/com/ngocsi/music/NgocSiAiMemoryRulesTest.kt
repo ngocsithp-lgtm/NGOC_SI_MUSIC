@@ -250,6 +250,23 @@ class NgocSiAiMemoryRulesTest {
     }
 
     @Test
+    fun recallsOlderMusicGenrePreferenceFromNaturalTasteQuestions() {
+        val memories = buildList {
+            add("tôi thích nghe nhạc Bolero")
+            repeat(12) { index ->
+                add("tôi muốn playlist nhạc số $index")
+            }
+        }
+
+        assertEquals(listOf("tôi thích nghe nhạc Bolero"),
+            selectNgocSiAiRelevantMemories(memories, "Tôi thích thể loại nhạc nào?"))
+        assertEquals(listOf("tôi thích nghe nhạc Bolero"),
+            selectNgocSiAiRelevantMemories(memories, "Gu âm nhạc của tôi là gì?"))
+        assertTrue(buildNgocSiAiMemorySystemInstruction(memories, "Tôi thích thể loại nhạc nào?")
+            .contains("Bolero"))
+    }
+
+    @Test
     fun acceptsMemoryNotesUpToTheExpandedCharacterLimit() {
         val note = "tôi thích nghe nhạc Bolero " + "x".repeat(210)
         assertTrue(note.length <= NGOC_SI_AI_MAX_MEMORY_ITEM_CHARS)
