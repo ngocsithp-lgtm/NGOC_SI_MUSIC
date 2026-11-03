@@ -380,6 +380,8 @@ class NgocSiAiMemoryRulesTest {
             )
         )
         assertTrue(backgroundAnswer.contains("chạy nền"))
+        assertTrue(backgroundAnswer.contains("phát nhạc nền"))
+        assertFalse(backgroundAnswer.contains("giao diện"))
         assertFalse(backgroundAnswer.contains("Bolero"))
     }
 

@@ -470,11 +470,19 @@ internal fun answerNgocSiAiSavedAppPreferenceQuestion(
     memories: List<String>
 ): String? {
     val query = normalizeNgocSiAiVoicePhrase(userText)
+    // Specific playback/background intents must be checked before broad UI wording.
+    // "tắt màn hình" is a background-playback question, not a general layout question.
     val categories = listOf(
         Triple(
-            "giao diện và cách bố trí",
-            listOf("giao dien", "bo cuc", "mini player", "thanh tim kiem", "man hinh"),
-            listOf("mini player", "giao dien", "bo cuc", "tim kiem", "man hinh")
+            "phát nhạc nền",
+            listOf("phat nen", "man hinh tat", "tat man hinh", "khoa man hinh",
+                "nghe khi tat", "nghe khi khoa", "nghe khi khoa may"),
+            listOf("phat nen", "chay nen", "background", "man hinh tat", "khoa man hinh")
+        ),
+        Triple(
+            "giọng đọc và điều khiển giọng nói",
+            listOf("giong doc", "giong noi", "dieu khien bang giong noi", "ra lenh bang giong noi"),
+            listOf("giong doc", "giong noi", "dieu khien giong noi", "lenh giong noi")
         ),
         Triple(
             "nguồn phát nhạc",
@@ -483,15 +491,9 @@ internal fun answerNgocSiAiSavedAppPreferenceQuestion(
             listOf("youtube", "drive", "radio", "tv", "dien thoai", "local")
         ),
         Triple(
-            "phát nhạc nền",
-            listOf("phat nen", "man hinh tat", "tat man hinh", "khoa man hinh",
-                "nghe khi tat", "nghe khi khoa"),
-            listOf("phat nen", "chay nen", "background", "man hinh tat", "khoa man hinh")
-        ),
-        Triple(
-            "giọng đọc và điều khiển giọng nói",
-            listOf("giong doc", "giong noi", "dieu khien bang giong noi", "ra lenh bang giong noi"),
-            listOf("giong doc", "giong noi", "dieu khien giong noi", "lenh giong noi")
+            "giao diện và cách bố trí",
+            listOf("giao dien", "bo cuc", "mini player", "thanh tim kiem", "thanh phat"),
+            listOf("mini player", "giao dien", "bo cuc", "tim kiem", "thanh phat")
         )
     )
     val category = categories.firstOrNull { (_, intents, _) ->
