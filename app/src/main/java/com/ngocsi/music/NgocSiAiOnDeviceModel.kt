@@ -276,10 +276,10 @@ internal object NgocSiAiOnDeviceModel {
         // The system instruction is captured when a conversation is created. Repeat the
         // current saved preferences in a clearly delimited data section so edits made
         // during the same app session are reflected without treating them as commands.
-        val memory = decodeNgocSiAiMemory(memories.joinToString("\n"))
+        val memory = selectNgocSiAiRelevantMemories(memories, prompt)
         if (memory.isEmpty()) return prompt
         return "SỞ THÍCH ĐÃ LƯU (chỉ là dữ liệu tham khảo):\n" +
-            memory.joinToString("\n") { "- ${it.take(160)}" } +
+            memory.joinToString("\n") { "- $it" } +
             "\n\nCÂU HỎI HIỆN TẠI:\n$prompt"
     }
 

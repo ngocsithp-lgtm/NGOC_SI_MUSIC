@@ -162,7 +162,7 @@ class NgocSiAiMemoryRulesTest {
     }
 
     @Test
-    fun avoidsDuplicatesAndKeepsOnlyEightRecentPreferences() {
+    fun avoidsDuplicatesAndKeepsOnlyTwentyFourRecentPreferences() {
         val first = applyNgocSiAiMemoryCommand(
             parseNgocSiAiMemoryCommand("AI, nhớ tôi thích Bolero")!!,
             emptyList()
@@ -174,7 +174,7 @@ class NgocSiAiMemoryRulesTest {
         assertEquals(first.memories, duplicate.memories)
         assertFalse(duplicate.shouldPersist)
 
-        val updated = (1..10).fold(emptyList<String>()) { current, index ->
+        val updated = (1..30).fold(emptyList<String>()) { current, index ->
             applyNgocSiAiMemoryCommand(
                 NgocSiAiMemoryCommand(
                     NgocSiAiMemoryCommandType.REMEMBER,
@@ -184,7 +184,8 @@ class NgocSiAiMemoryRulesTest {
             ).memories
         }
         assertEquals(NGOC_SI_AI_MAX_MEMORY_ITEMS, updated.size)
-        assertTrue(updated.last().endsWith("10"))
+        assertTrue(updated.first().endsWith("7"))
+        assertTrue(updated.last().endsWith("30"))
     }
 
     @Test
@@ -231,15 +232,45 @@ class NgocSiAiMemoryRulesTest {
     }
 
     @Test
+    fun keepsOlderRelevantPreferencesAvailableWithoutSendingEveryMemoryToTheModel() {
+        val memories = buildList {
+            add("tôi thích nghe nhạc Trịnh")
+            repeat(12) { index ->
+                add("tôi ưu tiên playlist nhạc số $index")
+            }
+        }
+
+        val relevant = selectNgocSiAiRelevantMemories(memories, "Mở nhạc Trịnh cho tôi")
+        assertEquals(listOf("tôi thích nghe nhạc Trịnh"), relevant)
+
+        val defaultContext = selectNgocSiAiRelevantMemories(memories)
+        assertEquals(NGOC_SI_AI_MAX_MEMORY_CONTEXT_ITEMS, defaultContext.size)
+        assertTrue(defaultContext.sumOf { it.length } <= NGOC_SI_AI_MAX_MEMORY_CONTEXT_CHARS)
+        assertEquals("tôi ưu tiên playlist nhạc số 11", defaultContext.last())
+    }
+
+    @Test
+    fun acceptsMemoryNotesUpToTheExpandedCharacterLimit() {
+        val note = "tôi thích nghe nhạc Bolero " + "x".repeat(210)
+        assertTrue(note.length <= NGOC_SI_AI_MAX_MEMORY_ITEM_CHARS)
+        val result = applyNgocSiAiMemoryCommand(
+            NgocSiAiMemoryCommand(NgocSiAiMemoryCommandType.REMEMBER, note),
+            emptyList()
+        )
+        assertEquals(listOf(note), result.memories)
+        assertTrue(result.shouldPersist)
+    }
+
+    @Test
     fun rejectsOversizedNotesInsteadOfSilentlyTruncatingThem() {
-        val oversized = "tôi thích nghe nhạc Bolero " + "x".repeat(180)
+        val oversized = "tôi thích nghe nhạc Bolero " + "x".repeat(220)
         val result = applyNgocSiAiMemoryCommand(
             NgocSiAiMemoryCommand(NgocSiAiMemoryCommandType.REMEMBER, oversized),
             emptyList()
         )
         assertTrue(result.memories.isEmpty())
         assertFalse(result.shouldPersist)
-        assertTrue(result.reply.contains("tối đa 160 ký tự"))
+        assertTrue(result.reply.contains("tối đa 240 ký tự"))
     }
 
     @Test

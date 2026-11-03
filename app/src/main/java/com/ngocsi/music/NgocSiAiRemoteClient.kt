@@ -151,7 +151,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
                             Context.MODE_PRIVATE
                         ).getString(NGOC_SI_AI_LONG_TERM_MEMORY_KEY, null)
                     )
-                    text(SYSTEM_INSTRUCTIONS + buildNgocSiAiMemorySystemInstruction(savedMemories))
+                    text(SYSTEM_INSTRUCTIONS + buildNgocSiAiMemorySystemInstruction(savedMemories, newestUserMessage.content))
                 },
                 tools = if (offersAppCommandTool) {
                     listOf(Tool.functionDeclarations(listOf(APP_COMMAND_TOOL)))
