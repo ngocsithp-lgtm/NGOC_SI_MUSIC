@@ -314,4 +314,38 @@ class NgocSiAiMemoryRulesTest {
         assertFalse(rejectedDuplicate.shouldPersist)
     }
 
+
+    @Test
+    fun ignoresNumberedReadAloudLabelsBeforeTheAiWakeWord() {
+        assertEquals(
+            NgocSiAiMemoryCommand(
+                NgocSiAiMemoryCommandType.REMEMBER,
+                "tôi thích nghe nhạc Bolero"
+            ),
+            parseNgocSiAiMemoryCommand("8 Đọc AI, hãy nhớ tôi thích nghe nhạc Bolero")
+        )
+        assertEquals(
+            NgocSiAiMemoryCommand(
+                NgocSiAiMemoryCommandType.UPDATE,
+                note = "tôi thích nghe nhạc Trịnh",
+                index = 1
+            ),
+            parseNgocSiAiMemoryCommand(
+                "8 ĐỌC Al, sửa ghi nhớ số 1 thành tôi thích nghe nhạc Trịnh"
+            )
+        )
+        assertTrue(
+            isNgocSiAiExplicitMemoryCommand(
+                "8 Đọc Al, hãy nhớ tôi thích nghe nhạc Bolero"
+            )
+        )
+        assertEquals(
+            "8 Đọc Al, sửa ghi nhớ số 1 thành tôi thích nghe nhạc Trịnh",
+            selectNgocSiAiMemoryCommandCandidate(
+                listOf("8 Đọc Al, sửa ghi nhớ số 1 thành tôi thích nghe nhạc Trịnh"),
+                allowSessionWithoutWakeWord = false
+            )
+        )
+    }
+
 }
