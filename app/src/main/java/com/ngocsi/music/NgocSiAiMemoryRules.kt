@@ -496,7 +496,13 @@ internal fun answerNgocSiAiSavedAppPreferenceQuestion(
     val safeMemories = decodeNgocSiAiMemory(memories.joinToString("\n"))
     val matching = safeMemories.filter { note ->
         val normalizedNote = normalizeNgocSiAiVoicePhrase(note)
-        category.third.any(normalizedNote::contains)
+        val matchesCategory = category.third.any(normalizedNote::contains)
+        val isBackgroundPreference = listOf(
+            "phat nen", "chay nen", "background", "man hinh tat", "khoa man hinh"
+        ).any(normalizedNote::contains)
+        // A source preference mentioning YouTube as a background player is not
+        // presented as a general source preference for a different question.
+        matchesCategory && !(category.first == "nguồn phát nhạc" && isBackgroundPreference)
     }
     if (matching.isEmpty()) {
         return "Mình chưa tìm thấy ghi nhớ về " + category.first +
