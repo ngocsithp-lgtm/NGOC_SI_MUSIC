@@ -906,7 +906,11 @@ class NgocSiAiActivity : ComponentActivity() {
                 }
             }
         }
-        val aiClient = NgocSiAiRemoteClient(applicationContext)
+        val aiClient by lazy(LazyThreadSafetyMode.NONE) { NgocSiAiRemoteClient(applicationContext) }
+        val remoteConfigured = BuildConfig.FIREBASE_API_KEY.isNotBlank() &&
+            BuildConfig.FIREBASE_PROJECT_ID.isNotBlank() &&
+            BuildConfig.FIREBASE_SENDER_ID.isNotBlank() &&
+            BuildConfig.FIREBASE_APP_ID.isNotBlank()
         val aiChatPreferences = getSharedPreferences(AI_CHAT_PREFS_NAME, MODE_PRIVATE)
         wakeWordListening = getSharedPreferences(NgocSiWakeWordService.PREFS_NAME, MODE_PRIVATE)
             .getBoolean(NgocSiWakeWordService.KEY_ENABLED, false)
@@ -916,8 +920,22 @@ class NgocSiAiActivity : ComponentActivity() {
         connectProductionMusicController()
         setContent {
             NgocSiAiPreviewScreen(
-                isOnlineConfigured = aiClient.isConfigured,
+                isOnlineConfigured = remoteConfigured,
                 chatPreferences = aiChatPreferences,
+                onIsLocalModelInstalled = {
+                    NgocSiAiOnDeviceModel.isInstalled(applicationContext)
+                },
+                onDownloadLocalModel = { onProgress ->
+                    NgocSiAiOnDeviceModel.download(applicationContext) { progress ->
+                        onProgress(progress.downloadedBytes, progress.totalBytes)
+                    }
+                },
+                onGenerateLocalModel = { prompt ->
+                    val memories = decodeNgocSiAiMemory(
+                        aiChatPreferences.getString(NGOC_SI_AI_LONG_TERM_MEMORY_KEY, null)
+                    )
+                    NgocSiAiOnDeviceModel.generate(applicationContext, prompt, memories)
+                },
                 onSendOnline = { history, executeTool, onPartialResponse ->
                     aiClient.send(history, executeTool, onPartialResponse)
                 },
@@ -2131,6 +2149,9 @@ class NgocSiAiActivity : ComponentActivity() {
 private fun NgocSiAiPreviewScreen(
     isOnlineConfigured: Boolean,
     chatPreferences: SharedPreferences,
+    onIsLocalModelInstalled: () -> Boolean,
+    onDownloadLocalModel: suspend (onProgress: (Long, Long) -> Unit) -> Unit,
+    onGenerateLocalModel: suspend (String) -> String,
     onSendOnline: NgocSiAiRequest,
     onExecuteAppCommand: NgocSiAiToolExecutor,
     onLocalCommand: (NgocSiAiLocalCommand, String) -> String,
@@ -2175,6 +2196,14 @@ private fun NgocSiAiPreviewScreen(
     var quotaNote by remember { mutableStateOf("") }
     var showClearConfirm by remember { mutableStateOf(false) }
     var showVoicePicker by remember { mutableStateOf(false) }
+    var localModelInstalled by remember { mutableStateOf(onIsLocalModelInstalled()) }
+    var localModelDownloading by remember { mutableStateOf(false) }
+    var localModelDownloadedBytes by remember { mutableStateOf(0L) }
+    var localModelDownloadTotalBytes by remember { mutableStateOf(NgocSiAiOnDeviceModel.MODEL_SIZE_BYTES) }
+    var localModelDownloadError by remember { mutableStateOf("") }
+    var preferLocalModel by remember {
+        mutableStateOf(chatPreferences.getBoolean(NGOC_SI_AI_PREFER_LOCAL_MODEL_KEY, false))
+    }
     val messageListState = androidx.compose.foundation.lazy.rememberLazyListState()
 
     fun persistChatState() {
@@ -2381,9 +2410,44 @@ private fun NgocSiAiPreviewScreen(
             return
         }
 
+        if (localModelInstalled && (preferLocalModel || !isOnlineConfigured)) {
+            val userTurn = NgocSiAiMessage(role = "user", content = clean)
+            conversation.add(userTurn)
+            while (conversation.size > NGOC_SI_AI_MAX_HISTORY_MESSAGES) {
+                conversation.removeAt(0)
+                if (conversation.firstOrNull()?.role == "assistant") conversation.removeAt(0)
+            }
+            saveAiPreviewMessages(chatPreferences, messages)
+            isSending = true
+            coroutineScope.launch {
+                try {
+                    val localAnswer = onGenerateLocalModel(clean)
+                    conversation.add(NgocSiAiMessage(role = "assistant", content = localAnswer))
+                    saveAiApiConversation(chatPreferences, conversation)
+                    messages.add(AiPreviewMessage(false, localAnswer))
+                    while (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
+                    quotaNote = "Trả lời tại máy · không gửi câu hỏi lên Gemini"
+                    persistChatState()
+                    onVoiceReply(localAnswer)
+                } catch (error: Exception) {
+                    if (conversation.lastOrNull() == userTurn) conversation.removeAt(conversation.lastIndex)
+                    val errorReply = "AI ngoại tuyến chưa xử lý được câu hỏi này: " +
+                        (error.message ?: "Hãy thử câu hỏi ngắn hơn.")
+                    messages.add(AiPreviewMessage(false, errorReply))
+                    while (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
+                    persistChatState()
+                    onVoiceReply(errorReply)
+                } finally {
+                    isSending = false
+                    flushPendingWakeWordContextTurns()
+                }
+            }
+            return
+        }
+
         if (!isOnlineConfigured) {
             val offlineReply =
-                "Tôi đã nhận tin nhắn. Khi chưa kết nối máy chủ AI, tôi vẫn có thể điều khiển nhạc, mở các mục chính của ứng dụng và đặt hẹn giờ bằng lệnh được hỗ trợ. Chatbot trả lời tự do chưa bật; tin nhắn này không được gửi ra ngoài và không phát sinh phí AI."
+                "Tôi đã nhận tin nhắn. Lệnh điều khiển ứng dụng vẫn xử lý tại máy; để trò chuyện tự do ngoại tuyến, hãy tải mô hình Qwen3-0.6B trong phần NGỌC SĨ AI. Tin nhắn này chưa được gửi ra ngoài và không phát sinh phí AI."
             messages.add(AiPreviewMessage(false, offlineReply))
             if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
             persistChatState()
@@ -2469,15 +2533,27 @@ private fun NgocSiAiPreviewScreen(
                     previousAssistantReply = messages.dropLast(1).lastOrNull { !it.isUser }?.text,
                     remoteError = errorReply
                 )
+                val localModelReply = if (localModelInstalled && latestPartialReply.isBlank()) {
+                    runCatching { onGenerateLocalModel(clean) }.getOrNull()
+                } else null
+                if (localModelReply != null) {
+                    conversation.add(userTurn)
+                    conversation.add(NgocSiAiMessage(role = "assistant", content = localModelReply))
+                }
                 val visibleReply = latestPartialReply.trim()
                     .takeIf { it.isNotBlank() }
                     ?.let { partial -> "$partial\n\n$errorReply" }
+                    ?: localModelReply
                     ?: fallbackReply
                     ?: errorReply
-                quotaNote = ngocSiAiQuotaUiNotice(
-                    errorReply,
-                    localFallbackUsed = fallbackReply != null
-                )
+                quotaNote = if (localModelReply != null) {
+                    "Gemini đang bị giới hạn · đã trả lời bằng AI tại máy"
+                } else {
+                    ngocSiAiQuotaUiNotice(
+                        errorReply,
+                        localFallbackUsed = fallbackReply != null
+                    )
+                }
                 finishRemoteReply(visibleReply)
                 persistChatState()
                 onVoiceReply(visibleReply)
@@ -2843,6 +2919,95 @@ private fun NgocSiAiPreviewScreen(
                     )
                 }
             }
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 3.dp),
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(enabled = !localModelDownloading && !localModelInstalled) {
+                        localModelDownloading = true
+                        localModelDownloadedBytes = 0L
+                        localModelDownloadError = ""
+                        coroutineScope.launch {
+                            try {
+                                onDownloadLocalModel { downloaded, total ->
+                                    coroutineScope.launch(Dispatchers.Main.immediate) {
+                                        localModelDownloadedBytes = downloaded
+                                        localModelDownloadTotalBytes = total
+                                    }
+                                }
+                                localModelInstalled = onIsLocalModelInstalled()
+                                localModelDownloadedBytes = localModelDownloadTotalBytes
+                            } catch (error: Exception) {
+                                localModelDownloadError = error.message
+                                    ?: "Không tải được mô hình AI ngoại tuyến."
+                            } finally {
+                                localModelDownloading = false
+                            }
+                        }
+                    },
+                shape = RoundedCornerShape(12.dp),
+                color = if (localModelInstalled) Color(0xFF123329) else NgocSiVisuals.SurfaceRaised,
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    if (localModelInstalled) Color(0xFF286653) else NgocSiVisuals.Border
+                )
+            ) {
+                Text(
+                    when {
+                        localModelDownloading -> "ĐANG TẢI AI NGOẠI TUYẾN · " +
+                            "${if (localModelDownloadTotalBytes > 0L) (localModelDownloadedBytes * 100L / localModelDownloadTotalBytes).toInt() else 0}%"
+                        localModelInstalled -> "AI TẠI MÁY ĐÃ SẴN SÀNG"
+                        else -> "TẢI AI NGOẠI TUYẾN · ${NgocSiAiOnDeviceModel.MODEL_SIZE_LABEL}"
+                    },
+                    color = if (localModelInstalled) Color(0xFF71E6B2) else NgocSiVisuals.Text,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp)
+                )
+            }
+            if (localModelInstalled) {
+                Surface(
+                    modifier = Modifier.clickable {
+                        preferLocalModel = !preferLocalModel
+                        chatPreferences.edit()
+                            .putBoolean(NGOC_SI_AI_PREFER_LOCAL_MODEL_KEY, preferLocalModel)
+                            .apply()
+                    },
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (preferLocalModel) Color(0xFF28213D) else NgocSiVisuals.SurfaceRaised,
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        if (preferLocalModel) NgocSiVisuals.Primary else NgocSiVisuals.Border
+                    )
+                ) {
+                    Text(
+                        if (preferLocalModel) "ƯU TIÊN AI TẠI MÁY" else "GEMINI · DỰ PHÒNG MÁY",
+                        color = if (preferLocalModel) NgocSiVisuals.Primary else NgocSiVisuals.TextSecondary,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 10.dp)
+                    )
+                }
+            }
+        }
+        if (localModelDownloadError.isNotBlank()) {
+            Text(
+                localModelDownloadError,
+                color = Color(0xFFFFB0B0),
+                fontSize = 10.sp,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 2.dp)
+            )
         }
 
         LazyColumn(
