@@ -579,37 +579,58 @@ internal fun ngocSiAiDeferredToolCallFeedback(): String =
     "Đã hoãn bước này để kiểm tra phản hồi của thao tác trước. " +
         "Hãy chọn bước tiếp theo dựa trên kết quả vừa nhận."
 
-internal fun shouldContinueNgocSiAiAgentSequence(
+internal enum class NgocSiAiAgentFeedbackState {
+    FAILED,
+    PENDING,
+    COMPLETED
+}
+
+/**
+ * Classifies the app's real feedback before the agent is allowed to execute
+ * dependent tool calls. A recognized command is not automatically a success.
+ */
+internal fun classifyNgocSiAiAgentFeedback(
     routed: Boolean,
     feedback: String,
     action: String? = null
-): Boolean {
-    if (!routed) return false
+): NgocSiAiAgentFeedbackState {
+    if (!routed) return NgocSiAiAgentFeedbackState.FAILED
     val normalized = normalizeNgocSiAiVoicePhrase(feedback)
     val failureMarkers = listOf(
-        "chua thuc hien", "khong tim thay", "khong co bai", "chua co ",
-        "khong co kenh", "khong co dai", "gap loi", "that bai", "khong the", "chua ket noi",
+        "chua thuc hien", "khong tim thay", "khong tim duoc",
+        "khong co bai", "chua co ", "khong co kenh", "khong co dai",
+        "khong co quyen", "gap loi", "that bai", "khong the", "chua ket noi",
         "chua dang nhap", "can dang nhap", "chua cap quyen", "chua co quyen",
-        "khong ho tro", "khong hop le", "thieu thong tin", "hay noi ro",
-        "hay noi ten", "chua mo duoc", "khong ap dung", "hay dung dieu khien rieng",
-        "khong nhan dien duoc"
+        "khong ho tro", "khong hop le", "thieu thong tin", "hay noi",
+        "hay chon", "chua mo duoc", "khong mo duoc", "khong phat duoc",
+        "khong gui duoc", "khong ap dung", "hay dung dieu khien rieng",
+        "khong nhan dien duoc", "khong hoat dong"
     )
-    if (failureMarkers.any { marker -> normalized.contains(marker) }) return false
+    if (failureMarkers.any(normalized::contains)) {
+        return NgocSiAiAgentFeedbackState.FAILED
+    }
 
-    // current_track is a read-only status query. Its answer naturally begins with
-    // "Đang phát" or "Đang tạm dừng", which must not be mistaken for a pending action.
-    if (action == "current_track") return true
+    // current_track is read-only. Its "Đang phát" status is a completed lookup.
+    if (action == "current_track") return NgocSiAiAgentFeedbackState.COMPLETED
 
-    // These replies acknowledge dispatch or ongoing work, not completion.
-    // MainActivity navigation and YouTube/background controls can finish asynchronously;
-    // sending a dependent action now could overtake or replace the first request.
+    // Dispatch/ongoing messages are pending, not completion acknowledgements.
     val pendingMarkers = listOf(
         "dang mo ", "dang tim ", "dang nap ", "dang tai ", "dang chuyen ",
         "dang phat ", "dang them ", "dang luu ", "dang tua ", "dang tam dung ",
         "dang kiem tra ", "dang ket noi ", "dang xu ly ", "dang dat ",
         "da gui lenh", "da yeu cau"
     )
-    return pendingMarkers.none { marker -> normalized.contains(marker) }
+    if (pendingMarkers.any(normalized::contains)) {
+        return NgocSiAiAgentFeedbackState.PENDING
+    }
+    return NgocSiAiAgentFeedbackState.COMPLETED
 }
+
+internal fun shouldContinueNgocSiAiAgentSequence(
+    routed: Boolean,
+    feedback: String,
+    action: String? = null
+): Boolean = classifyNgocSiAiAgentFeedback(routed, feedback, action) ==
+    NgocSiAiAgentFeedbackState.COMPLETED
 
 internal class NgocSiAiRemoteException(message: String) : Exception(message)

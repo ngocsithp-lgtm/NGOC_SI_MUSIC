@@ -279,6 +279,46 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
+    fun toolFeedbackIsClassifiedAsFailedPendingOrCompleted() {
+        assertEquals(
+            NgocSiAiAgentFeedbackState.FAILED,
+            classifyNgocSiAiAgentFeedback(false, "Đã mở YouTube.")
+        )
+        assertEquals(
+            NgocSiAiAgentFeedbackState.FAILED,
+            classifyNgocSiAiAgentFeedback(true, "Hãy nói tên bài, ví dụ: Phát bài Diễm xưa.")
+        )
+        assertEquals(
+            NgocSiAiAgentFeedbackState.FAILED,
+            classifyNgocSiAiAgentFeedback(true, "Hãy chọn tốc độ 1.25x.")
+        )
+        assertEquals(
+            NgocSiAiAgentFeedbackState.FAILED,
+            classifyNgocSiAiAgentFeedback(true, "Không mở được chức năng trong ứng dụng.")
+        )
+        assertEquals(
+            NgocSiAiAgentFeedbackState.FAILED,
+            classifyNgocSiAiAgentFeedback(true, "Không gửi được lệnh điều khiển.")
+        )
+        assertEquals(
+            NgocSiAiAgentFeedbackState.PENDING,
+            classifyNgocSiAiAgentFeedback(true, "Đang chuyển sang video YouTube tiếp theo.")
+        )
+        assertEquals(
+            NgocSiAiAgentFeedbackState.PENDING,
+            classifyNgocSiAiAgentFeedback(true, "Đã gửi lệnh mở YouTube.")
+        )
+        assertEquals(
+            NgocSiAiAgentFeedbackState.COMPLETED,
+            classifyNgocSiAiAgentFeedback(true, "Đã tua tiến 10 giây.")
+        )
+        assertEquals(
+            NgocSiAiAgentFeedbackState.COMPLETED,
+            classifyNgocSiAiAgentFeedback(true, "Đang phát: Diễm xưa", "current_track")
+        )
+    }
+
+    @Test
     fun agentContinuesOnlyAfterCompletedAppFeedback() {
         assertTrue(shouldContinueNgocSiAiAgentSequence(true, "Đã bật phát ngẫu nhiên cho hàng đợi hiện tại."))
         assertTrue(shouldContinueNgocSiAiAgentSequence(true, "Đã tua tiến 10 giây."))
