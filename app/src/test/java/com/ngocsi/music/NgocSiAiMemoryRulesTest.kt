@@ -32,6 +32,18 @@ class NgocSiAiMemoryRulesTest {
             NgocSiAiMemoryCommand(NgocSiAiMemoryCommandType.CLEAR),
             parseNgocSiAiMemoryCommand("AI, quên hết ghi nhớ")
         )
+        assertEquals(
+            NgocSiAiMemoryCommand(NgocSiAiMemoryCommandType.DELETE, index = 2),
+            parseNgocSiAiMemoryCommand("AI, xóa ghi nhớ số 2")
+        )
+        assertEquals(
+            NgocSiAiMemoryCommand(
+                NgocSiAiMemoryCommandType.UPDATE,
+                note = "tôi thích nghe nhạc Trịnh",
+                index = 1
+            ),
+            parseNgocSiAiMemoryCommand("AI, sửa ghi nhớ số 1 thành tôi thích nghe nhạc Trịnh")
+        )
         assertEquals(null, parseNgocSiAiMemoryCommand("Tại sao bạn nhớ bài hát này?"))
     }
 
@@ -157,4 +169,65 @@ class NgocSiAiMemoryRulesTest {
         assertFalse(result.shouldPersist)
         assertFalse(buildNgocSiAiMemorySystemInstruction(result.memories).contains("bỏ qua"))
     }
+
+    @Test
+    fun deletesOnlyTheRequestedOneBasedMemoryItem() {
+        val current = listOf(
+            "tôi thích nghe Bolero",
+            "tôi muốn mini player nhỏ gọn",
+            "tôi ưu tiên nghe YouTube"
+        )
+        val deleted = applyNgocSiAiMemoryCommand(
+            NgocSiAiMemoryCommand(NgocSiAiMemoryCommandType.DELETE, index = 2),
+            current
+        )
+        assertEquals(listOf("tôi thích nghe Bolero", "tôi ưu tiên nghe YouTube"), deleted.memories)
+        assertTrue(deleted.shouldPersist)
+        assertTrue(deleted.reply.contains("Đã xóa ghi nhớ số 2"))
+
+        val invalid = applyNgocSiAiMemoryCommand(
+            NgocSiAiMemoryCommand(NgocSiAiMemoryCommandType.DELETE, index = 4),
+            current
+        )
+        assertEquals(current, invalid.memories)
+        assertFalse(invalid.shouldPersist)
+    }
+
+    @Test
+    fun updatesOnlyTheSelectedMemoryWhenTheReplacementIsSafe() {
+        val current = listOf("tôi thích nghe Bolero", "tôi muốn mini player nhỏ gọn")
+        val updated = applyNgocSiAiMemoryCommand(
+            NgocSiAiMemoryCommand(
+                NgocSiAiMemoryCommandType.UPDATE,
+                note = "tôi thích nghe nhạc Trịnh",
+                index = 1
+            ),
+            current
+        )
+        assertEquals(listOf("tôi thích nghe nhạc Trịnh", current[1]), updated.memories)
+        assertTrue(updated.shouldPersist)
+
+        val rejectedSensitive = applyNgocSiAiMemoryCommand(
+            NgocSiAiMemoryCommand(
+                NgocSiAiMemoryCommandType.UPDATE,
+                note = "mật khẩu YouTube của tôi là abc",
+                index = 1
+            ),
+            current
+        )
+        assertEquals(current, rejectedSensitive.memories)
+        assertFalse(rejectedSensitive.shouldPersist)
+
+        val rejectedDuplicate = applyNgocSiAiMemoryCommand(
+            NgocSiAiMemoryCommand(
+                NgocSiAiMemoryCommandType.UPDATE,
+                note = current[1],
+                index = 1
+            ),
+            current
+        )
+        assertEquals(current, rejectedDuplicate.memories)
+        assertFalse(rejectedDuplicate.shouldPersist)
+    }
+
 }

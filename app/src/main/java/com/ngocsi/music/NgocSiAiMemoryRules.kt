@@ -10,12 +10,16 @@ internal const val NGOC_SI_AI_MAX_MEMORY_ITEM_CHARS = 160
 internal enum class NgocSiAiMemoryCommandType {
     REMEMBER,
     LIST,
+    DELETE,
+    UPDATE,
     CLEAR
 }
 
 internal data class NgocSiAiMemoryCommand(
     val type: NgocSiAiMemoryCommandType,
-    val note: String = ""
+    val note: String = "",
+    /** One-based item number from the user's numbered memory list. */
+    val index: Int? = null
 )
 
 internal data class NgocSiAiMemoryResult(
@@ -31,6 +35,16 @@ private val NGOC_SI_AI_MEMORY_WAKE_PREFIX = Regex(
 
 private val NGOC_SI_AI_MEMORY_REMEMBER_PREFIX = Regex(
     """^(?:hãy\s+|hay\s+)?(?:ghi\s+nhớ|ghi\s+nho|nhớ\s+rằng|nho\s+rang|nhớ|nho)\s+(?:là\s+|la\s+)?(.+)$""",
+    RegexOption.IGNORE_CASE
+)
+
+private val NGOC_SI_AI_MEMORY_DELETE_PREFIX = Regex(
+    """^(?:xóa|xoa|bỏ|bo)\s+ghi\s+nhớ\s+(?:số\s+|so\s+|thứ\s+|thu\s+)?(\d{1,2})$""",
+    RegexOption.IGNORE_CASE
+)
+
+private val NGOC_SI_AI_MEMORY_UPDATE_PREFIX = Regex(
+    """^(?:sửa|sua|cập\s+nhật|cap\s+nhat|đổi|doi)\s+ghi\s+nhớ\s+(?:số\s+|so\s+|thứ\s+|thu\s+)?(\d{1,2})\s+(?:thành|thanh)\s+(.+)$""",
     RegexOption.IGNORE_CASE
 )
 
@@ -95,6 +109,25 @@ internal fun parseNgocSiAiMemoryCommand(input: String): NgocSiAiMemoryCommand? {
         return NgocSiAiMemoryCommand(NgocSiAiMemoryCommandType.CLEAR)
     }
 
+    NGOC_SI_AI_MEMORY_DELETE_PREFIX.matchEntire(raw)?.let { match ->
+        return NgocSiAiMemoryCommand(
+            type = NgocSiAiMemoryCommandType.DELETE,
+            index = match.groupValues[1].toIntOrNull()
+        )
+    }
+
+    NGOC_SI_AI_MEMORY_UPDATE_PREFIX.matchEntire(raw)?.let { match ->
+        val note = match.groupValues[2]
+            .trim()
+            .trimEnd('.', '!', '?', ';', ',')
+            .replace(Regex("""\\s+"""), " ")
+        return NgocSiAiMemoryCommand(
+            type = NgocSiAiMemoryCommandType.UPDATE,
+            note = note,
+            index = match.groupValues[1].toIntOrNull()
+        )
+    }
+
     val match = NGOC_SI_AI_MEMORY_REMEMBER_PREFIX.matchEntire(raw) ?: return null
     val note = match.groupValues[1]
         .trim()
@@ -129,9 +162,79 @@ internal fun applyNgocSiAiMemoryCommand(
                     (index + 1).toString() + ". " + item
                 }.joinToString("; ")
                 "Mình đang lưu " + memories.size + " ghi nhớ trên thiết bị: " +
-                    numberedMemories + ". Bạn có thể nói “AI, quên hết ghi nhớ” để xóa."
+                    numberedMemories + ". Bạn có thể nói “AI, xóa ghi nhớ số 2” để xóa một mục, " +
+                    "hoặc “AI, sửa ghi nhớ số 1 thành tôi thích nghe nhạc Trịnh” để cập nhật."
             }
             NgocSiAiMemoryResult(memories, reply, shouldPersist = false)
+        }
+
+        NgocSiAiMemoryCommandType.DELETE -> {
+            val index = command.index
+            if (index == null || index !in 1..memories.size) {
+                NgocSiAiMemoryResult(
+                    memories,
+                    "Số thứ tự ghi nhớ không hợp lệ. Hãy nói “AI nhớ gì về tôi?” để xem danh sách.",
+                    shouldPersist = false
+                )
+            } else {
+                val updated = memories.toMutableList().apply { removeAt(index - 1) }
+                NgocSiAiMemoryResult(
+                    updated,
+                    "Đã xóa ghi nhớ số $index trên thiết bị. Còn lại ${updated.size} ghi nhớ.",
+                    shouldPersist = true
+                )
+            }
+        }
+
+        NgocSiAiMemoryCommandType.UPDATE -> {
+            val index = command.index
+            val note = command.note.trim()
+            when {
+                index == null || index !in 1..memories.size ->
+                    NgocSiAiMemoryResult(
+                        memories,
+                        "Số thứ tự ghi nhớ không hợp lệ. Hãy nói “AI nhớ gì về tôi?” để xem danh sách.",
+                        shouldPersist = false
+                    )
+                note.length > NGOC_SI_AI_MAX_MEMORY_ITEM_CHARS ->
+                    NgocSiAiMemoryResult(
+                        memories,
+                        "Ghi nhớ quá dài. Mỗi ghi chú chỉ được tối đa " +
+                            NGOC_SI_AI_MAX_MEMORY_ITEM_CHARS + " ký tự; nội dung cũ được giữ nguyên.",
+                        shouldPersist = false
+                    )
+                !isSafeNgocSiAiMemoryNote(note) ->
+                    NgocSiAiMemoryResult(
+                        memories,
+                        "Mình chỉ cập nhật ghi nhớ liên quan đến nhạc và cách sử dụng NGỌC SĨ MUSIC; " +
+                            "nội dung cũ được giữ nguyên.",
+                        shouldPersist = false
+                    )
+                memories.withIndex().any { (itemIndex, item) ->
+                    itemIndex != index - 1 &&
+                        normalizeNgocSiAiVoicePhrase(item) == normalizeNgocSiAiVoicePhrase(note)
+                } ->
+                    NgocSiAiMemoryResult(
+                        memories,
+                        "Ghi nhớ này đã tồn tại ở mục khác; nội dung cũ được giữ nguyên.",
+                        shouldPersist = false
+                    )
+                normalizeNgocSiAiVoicePhrase(memories[index - 1]) ==
+                    normalizeNgocSiAiVoicePhrase(note) ->
+                    NgocSiAiMemoryResult(
+                        memories,
+                        "Ghi nhớ số $index đã có nội dung này rồi.",
+                        shouldPersist = false
+                    )
+                else -> {
+                    val updated = memories.toMutableList().apply { set(index - 1, note) }
+                    NgocSiAiMemoryResult(
+                        updated,
+                        "Đã cập nhật ghi nhớ số $index trên thiết bị: “$note”.",
+                        shouldPersist = true
+                    )
+                }
+            }
         }
 
         NgocSiAiMemoryCommandType.CLEAR ->
@@ -170,8 +273,8 @@ internal fun applyNgocSiAiMemoryCommand(
                     "Mình đã có ghi nhớ này rồi: “$note”."
                 } else {
                     "Đã ghi nhớ trên thiết bị: “$note”. Ghi chú này sẽ được dùng làm ngữ cảnh " +
-                        "khi bạn trò chuyện trực tuyến với Gemini. Nói “AI nhớ gì về tôi?” để xem " +
-                        "hoặc “AI, quên hết ghi nhớ” để xóa."
+                        "khi bạn trò chuyện trực tuyến với Gemini. Nói “AI nhớ gì về tôi?” để xem, " +
+                        "“AI, sửa ghi nhớ số 1 thành …” để cập nhật hoặc “AI, xóa ghi nhớ số 1” để xóa."
                 }
                 NgocSiAiMemoryResult(updated, reply, shouldPersist = !exists)
             }
