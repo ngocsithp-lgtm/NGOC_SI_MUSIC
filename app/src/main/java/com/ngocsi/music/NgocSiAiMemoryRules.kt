@@ -28,6 +28,14 @@ internal data class NgocSiAiMemoryResult(
     val shouldPersist: Boolean
 )
 
+private val NGOC_SI_AI_MEMORY_SPEECH_LABEL_PREFIX = Regex(
+    """^(?:(?:\d{1,2}[.)]?\s+)?(?:đọc|doc)\s*[,.:;-]?\s*)(?=(?:(?:ngoc\s+si|ngọc\s+sĩ)\s+)?(?:ai|a\s*i|al|a\s*l)(?:\s|[,.:]|$))""",
+    RegexOption.IGNORE_CASE
+)
+
+private fun stripNgocSiAiMemorySpeechLabel(input: String): String =
+    NGOC_SI_AI_MEMORY_SPEECH_LABEL_PREFIX.replaceFirst(input.trim(), "").trim()
+
 private val NGOC_SI_AI_MEMORY_WAKE_PREFIX = Regex(
     """^(?:(?:hey|ok|alo|ờ|o|ừ|u|ừm|um)\s+)?(?:(?:ngoc\s+si|ngọc\s+sĩ)\s+)?(?:ai|a\s*i|al|a\s*l)(?:\s*(?:ơi|oi))?(?:\s*[,.:]\s*|\s+)""",
     RegexOption.IGNORE_CASE
@@ -39,7 +47,8 @@ private val NGOC_SI_AI_MEMORY_NORMALIZED_WAKE_PREFIX = Regex(
 )
 
 private fun stripNgocSiAiMemoryWakePrefix(input: String): String {
-    val trimmed = input.trim()
+    // Voice transcription may prepend a numbered "Đọc" label before the wake word.
+    val trimmed = stripNgocSiAiMemorySpeechLabel(input)
     val directlyStripped = NGOC_SI_AI_MEMORY_WAKE_PREFIX.replaceFirst(trimmed, "").trim()
     if (directlyStripped != trimmed) return directlyStripped
 
@@ -171,7 +180,7 @@ internal fun isNgocSiAiExplicitMemoryCommand(input: String): Boolean {
     // Compare the normalized phrase with the anchored wake-prefix regex. Comparing the
     // stripped result to the original text is unsafe because normalization removes accents.
     return NGOC_SI_AI_MEMORY_NORMALIZED_WAKE_PREFIX.containsMatchIn(
-        normalizeNgocSiAiVoicePhrase(trimmed)
+        normalizeNgocSiAiVoicePhrase(stripNgocSiAiMemorySpeechLabel(trimmed))
     )
 }
 
