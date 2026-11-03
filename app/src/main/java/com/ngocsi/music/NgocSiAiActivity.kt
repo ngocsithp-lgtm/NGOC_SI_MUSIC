@@ -2197,6 +2197,7 @@ private fun NgocSiAiPreviewScreen(
     }
     val coroutineScope = rememberCoroutineScope()
     var isSending by remember { mutableStateOf(false) }
+    var isSendingLocalModel by remember { mutableStateOf(false) }
     var quotaNote by remember { mutableStateOf("") }
     var showClearConfirm by remember { mutableStateOf(false) }
     var showVoicePicker by remember { mutableStateOf(false) }
@@ -2445,6 +2446,7 @@ private fun NgocSiAiPreviewScreen(
                 if (conversation.firstOrNull()?.role == "assistant") conversation.removeAt(0)
             }
             saveAiPreviewMessages(chatPreferences, messages)
+            isSendingLocalModel = true
             isSending = true
             coroutineScope.launch {
                 try {
@@ -2466,6 +2468,7 @@ private fun NgocSiAiPreviewScreen(
                     onVoiceReply(errorReply)
                 } finally {
                     isSending = false
+                    isSendingLocalModel = false
                     flushPendingWakeWordContextTurns()
                 }
             }
@@ -2493,6 +2496,7 @@ private fun NgocSiAiPreviewScreen(
         saveAiPreviewMessages(chatPreferences, messages)
         var history = conversation.takeLast(NGOC_SI_AI_MAX_HISTORY_MESSAGES)
         if (history.firstOrNull()?.role == "assistant") history = history.drop(1)
+        isSendingLocalModel = false
         isSending = true
         coroutineScope.launch {
             var partialReplyIndex = -1
@@ -2565,6 +2569,7 @@ private fun NgocSiAiPreviewScreen(
                     latestPartialReply.isBlank() &&
                     !localModelNeedsAppTools
                 ) {
+                    isSendingLocalModel = true
                     runCatching { onGenerateLocalModel(clean) }.getOrNull()
                 } else null
                 if (localModelReply != null) {
@@ -2601,6 +2606,7 @@ private fun NgocSiAiPreviewScreen(
                 onVoiceReply(errorReply)
             } finally {
                 isSending = false
+                isSendingLocalModel = false
                 flushPendingWakeWordContextTurns()
             }
         }
@@ -2936,7 +2942,12 @@ private fun NgocSiAiPreviewScreen(
                 Spacer(Modifier.width(8.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
-                        if (isOnlineConfigured) "NGỌC SĨ AI • ĐÃ CẤU HÌNH GEMINI" else "NGỌC SĨ AI • CHẾ ĐỘ CỤC BỘ",
+                        when {
+                            localModelInstalled && preferLocalModel -> "NGỌC SĨ AI • CHẾ ĐỘ TẠI MÁY"
+                            localModelInstalled && isOnlineConfigured -> "NGỌC SĨ AI • GEMINI + QWEN3 DỰ PHÒNG"
+                            isOnlineConfigured -> "NGỌC SĨ AI • ĐÃ CẤU HÌNH GEMINI"
+                            else -> "NGỌC SĨ AI • CHẾ ĐỘ CỤC BỘ"
+                        },
                         color = NgocSiVisuals.Text,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold
@@ -3322,7 +3333,8 @@ private fun NgocSiAiPreviewScreen(
             Spacer(Modifier.height(5.dp))
             Text(
                 when {
-                    isSending -> "Đang gửi yêu cầu đến máy chủ NGỌC SĨ AI…"
+                    isSending && isSendingLocalModel -> "Đang xử lý ngay trên điện thoại · không gửi lên Gemini…"
+                    isSending -> "Đang chờ phản hồi từ Gemini…"
                     isOnlineConfigured -> quotaNote.ifBlank { "Nhấn GỬI để hỏi, hoặc dùng micro để gửi câu hỏi tự động sau khi nhận dạng." }
                     else -> "Bản xem trước chạy cục bộ; lịch sử được lưu trên điện thoại."
                 },
