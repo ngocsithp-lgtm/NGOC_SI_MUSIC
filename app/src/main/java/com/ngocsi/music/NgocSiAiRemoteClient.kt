@@ -144,7 +144,15 @@ internal class NgocSiAiRemoteClient(context: Context) {
             val model = firebaseAi.generativeModel(
                 modelName = MODEL_NAME,
                 generationConfig = responseConfig,
-                systemInstruction = content { text(SYSTEM_INSTRUCTIONS) },
+                systemInstruction = content {
+                    val savedMemories = decodeNgocSiAiMemory(
+                        appContext.getSharedPreferences(
+                            NGOC_SI_AI_CHAT_PREFERENCES_NAME,
+                            Context.MODE_PRIVATE
+                        ).getString(NGOC_SI_AI_LONG_TERM_MEMORY_KEY, null)
+                    )
+                    text(SYSTEM_INSTRUCTIONS + buildNgocSiAiMemorySystemInstruction(savedMemories))
+                },
                 tools = if (offersAppCommandTool) {
                     listOf(Tool.functionDeclarations(listOf(APP_COMMAND_TOOL)))
                 } else {

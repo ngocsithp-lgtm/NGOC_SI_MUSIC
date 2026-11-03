@@ -94,7 +94,7 @@ private data class PendingWakeWordContextTurn(
     val answer: String
 )
 
-private const val AI_CHAT_PREFS_NAME = "ngoc_si_ai_chat_history"
+private const val AI_CHAT_PREFS_NAME = NGOC_SI_AI_CHAT_PREFERENCES_NAME
 private const val AI_CHAT_MESSAGES_KEY = "chat_messages_v1"
 private const val AI_CHAT_CONVERSATION_KEY = "api_conversation_v1"
 private const val AI_VOICE_REPLY_KEY = "voice_replies_enabled_v1"
@@ -2321,7 +2321,8 @@ private fun NgocSiAiPreviewScreen(
         } else {
             classifyNgocSiAiLocalCommand(clean)
         }
-        val localReply = if (localCommand == null && !contextualActionConfirmation) {
+        val localMemoryReply = handleNgocSiAiMemoryCommand(clean, chatPreferences)
+        val localReply = localMemoryReply ?: if (localCommand == null && !contextualActionConfirmation) {
             localConversationFallback(clean, messages.lastOrNull { !it.isUser }?.text)
         } else null
         if (isSending && localCommand == null && localReply == null) return

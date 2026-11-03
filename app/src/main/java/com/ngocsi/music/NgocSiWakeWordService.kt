@@ -726,9 +726,16 @@ class NgocSiWakeWordService : Service() {
                 val previousAssistantReply = lastAssistantReplyForFallback
                     ?: conversationHistory.lastOrNull { it.role == "assistant" }?.content
 
+                // Explicit memory commands are handled and stored locally before any
+                // Gemini request. Screen chat uses the same private preference store.
+                val memoryReply = handleNgocSiAiMemoryCommand(
+                    cleanQuestion,
+                    getSharedPreferences(NGOC_SI_AI_CHAT_PREFERENCES_NAME, MODE_PRIVATE)
+                )
                 // Handle common turns on-device first; this avoids spending the free
                 // Gemini allowance for greetings, quick help and known local responses.
-                val localFallback = localConversationFallback(cleanQuestion, previousAssistantReply)
+                val localFallback = memoryReply
+                    ?: localConversationFallback(cleanQuestion, previousAssistantReply)
                 val userMessage = NgocSiAiMessage(role = "user", content = cleanQuestion)
                 val requestHistory = conversationHistory.toMutableList()
                 while (requestHistory.size > MAX_CONVERSATION_MESSAGES - 2) {
