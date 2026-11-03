@@ -736,7 +736,6 @@ class NgocSiWakeWordService : Service() {
 
         aiScope.launch {
             try {
-                val client = NgocSiAiRemoteClient(applicationContext)
                 val previousAssistantReply = lastAssistantReplyForFallback
                     ?: conversationHistory.lastOrNull { it.role == "assistant" }?.content
 
@@ -788,6 +787,9 @@ class NgocSiWakeWordService : Service() {
                 }
 
                 if (localFallback == null) {
+                    // Initialize Firebase AI only for turns that truly need the remote model.
+                    // Local memory, commands, and deterministic offline replies skip Firebase setup.
+                    val client = NgocSiAiRemoteClient(applicationContext)
                     if (!client.isConfigured) {
                         remoteError =
                             "Tôi nghe được câu hỏi, nhưng chat trực tuyến chưa được cấu hình trong bản Preview này. Các lệnh ứng dụng được hỗ trợ vẫn có thể chạy trên điện thoại."
