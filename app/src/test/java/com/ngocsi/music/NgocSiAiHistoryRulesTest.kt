@@ -206,6 +206,24 @@ class NgocSiAiHistoryRulesTest {
     }
 
     @Test
+    fun restoresVoiceContextAcrossServiceRestartsAndKeepsOnlyCompletedTurns() {
+        val stored = buildList {
+            repeat(8) { index ->
+                add(NgocSiAiMessage("user", "Câu hỏi $index"))
+                add(NgocSiAiMessage("assistant", "Câu trả lời $index"))
+            }
+            add(NgocSiAiMessage("user", "Lượt bị ngắt"))
+        }
+
+        val restored = restoreCompletedNgocSiAiConversation(stored)
+
+        assertEquals(NGOC_SI_AI_MAX_HISTORY_MESSAGES, restored.size)
+        assertEquals("Câu hỏi 3", restored.first().content)
+        assertEquals("Câu trả lời 7", restored.last().content)
+        assertEquals("assistant", restored.last().role)
+    }
+
+    @Test
     fun appendingWakeWordTurnKeepsOnlySixMostRecentCompleteTurns() {
         val history = buildList {
             repeat(8) { index ->
