@@ -930,11 +930,16 @@ class NgocSiAiActivity : ComponentActivity() {
                         onProgress(progress.downloadedBytes, progress.totalBytes)
                     }
                 },
-                onGenerateLocalModel = { prompt ->
+                onGenerateLocalModel = { prompt, priorMessages ->
                     val memories = decodeNgocSiAiMemory(
                         aiChatPreferences.getString(NGOC_SI_AI_LONG_TERM_MEMORY_KEY, null)
                     )
-                    NgocSiAiOnDeviceModel.generate(applicationContext, prompt, memories)
+                    NgocSiAiOnDeviceModel.generate(
+                        applicationContext,
+                        prompt,
+                        memories,
+                        priorMessages
+                    )
                 },
                 onReleaseLocalModel = {
                     NgocSiAiOnDeviceModel.release()
@@ -2150,7 +2155,7 @@ private fun NgocSiAiPreviewScreen(
     chatPreferences: SharedPreferences,
     onIsLocalModelInstalled: () -> Boolean,
     onDownloadLocalModel: suspend (onProgress: (Long, Long) -> Unit) -> Unit,
-    onGenerateLocalModel: suspend (String) -> String,
+    onGenerateLocalModel: suspend (String, List<NgocSiAiMessage>) -> String,
     onReleaseLocalModel: suspend () -> Unit,
     onSendOnline: NgocSiAiRequest,
     onExecuteAppCommand: NgocSiAiToolExecutor,
@@ -2451,11 +2456,12 @@ private fun NgocSiAiPreviewScreen(
                 if (conversation.firstOrNull()?.role == "assistant") conversation.removeAt(0)
             }
             saveAiPreviewMessages(chatPreferences, messages)
+            val priorLocalContext = conversation.dropLast(1).toList()
             isSendingLocalModel = true
             isSending = true
             coroutineScope.launch {
                 try {
-                    val localAnswer = onGenerateLocalModel(clean)
+                    val localAnswer = onGenerateLocalModel(clean, priorLocalContext)
                     conversation.add(NgocSiAiMessage(role = "assistant", content = localAnswer))
                     saveAiApiConversation(chatPreferences, conversation)
                     messages.add(AiPreviewMessage(false, localAnswer))
@@ -2575,7 +2581,7 @@ private fun NgocSiAiPreviewScreen(
                     !localModelNeedsAppTools
                 ) {
                     isSendingLocalModel = true
-                    runCatching { onGenerateLocalModel(clean) }.getOrNull()
+                    runCatching { onGenerateLocalModel(clean, conversation.toList()) }.getOrNull()
                 } else null
                 if (localModelReply != null) {
                     conversation.add(userTurn)

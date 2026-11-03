@@ -831,7 +831,8 @@ class NgocSiWakeWordService : Service() {
                         remoteAnswer = NgocSiAiOnDeviceModel.generate(
                             applicationContext,
                             cleanQuestion,
-                            onDeviceMemories
+                            onDeviceMemories,
+                            requestHistory.dropLast(1)
                         )
                         usedOnDeviceModel = true
                     } catch (error: Exception) {
@@ -890,7 +891,8 @@ class NgocSiWakeWordService : Service() {
                         remoteAnswer = NgocSiAiOnDeviceModel.generate(
                             applicationContext,
                             cleanQuestion,
-                            onDeviceMemories
+                            onDeviceMemories,
+                            requestHistory.dropLast(1)
                         )
                         usedOnDeviceModel = true
                         remoteError = null
