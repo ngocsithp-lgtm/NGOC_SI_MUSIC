@@ -481,7 +481,7 @@ internal fun answerNgocSiAiSavedAppPreferenceQuestion(
             "phát nhạc nền",
             listOf("phat nen", "man hinh tat", "tat man hinh", "khoa man hinh",
                 "nghe khi tat", "nghe khi khoa"),
-            listOf("phat nen", "background", "man hinh tat", "khoa man hinh")
+            listOf("phat nen", "chay nen", "background", "man hinh tat", "khoa man hinh")
         ),
         Triple(
             "giọng đọc và điều khiển giọng nói",
