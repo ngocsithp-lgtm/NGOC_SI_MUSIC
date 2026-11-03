@@ -186,6 +186,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 // Explicit app actions retain structured tool calling and allowlist validation.
                 var response = chat.sendMessage(newestUserMessage.content)
                 var toolRound = 0
+                var stopSequenceFeedback: String? = null
                 while (response.functionCalls.isNotEmpty() && toolRound < MAX_TOOL_ROUNDS) {
                     // Select one valid action for this round. Other proposed actions are
                     // deferred until the model has read the result of the selected action.
@@ -197,7 +198,6 @@ internal class NgocSiAiRemoteClient(context: Context) {
                     }
                     val selectedCallIndex = selectNgocSiAiAgentToolCallIndex(calls, APP_COMMAND_TOOL_NAME)
                     var stopSequenceAfterFeedback = false
-                    var stopSequenceFeedback: String? = null
                     val functionResponses = mutableListOf<FunctionResponsePart>()
                     response.functionCalls.forEachIndexed { index, functionCall ->
                         val action = functionCall.args["action"]?.jsonPrimitive?.contentOrNull.orEmpty()
@@ -642,7 +642,7 @@ internal fun ngocSiAiAgentStopFeedback(
     state: NgocSiAiAgentFeedbackState,
     feedback: String
 ): String? {
-    val safeFeedback = feedback.take(MAX_TOOL_FEEDBACK_CHARS).ifBlank {
+    val safeFeedback = feedback.take(900).ifBlank {
         "Ứng dụng chưa cung cấp trạng thái thao tác."
     }
     return when (state) {
