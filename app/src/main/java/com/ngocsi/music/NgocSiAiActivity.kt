@@ -1334,17 +1334,13 @@ class NgocSiAiActivity : ComponentActivity() {
                 routed = false,
                 feedback = "Ứng dụng chưa nhận diện được thao tác này. Chưa thực hiện thao tác."
             )
-        return runCatching {
-            NgocSiAiToolResult(
-                routed = true,
-                feedback = runLocalCommand(command, phrase)
-            )
-        }.getOrElse {
-            NgocSiAiToolResult(
-                routed = false,
-                feedback = "Ứng dụng gặp lỗi khi nhận lệnh. Chưa xác nhận thao tác hoàn tất."
-            )
-        }
+        // Let exceptions propagate to executeNgocSiAiToolSafely in the remote
+        // agent. That single boundary preserves CancellationException and converts
+        // ordinary failures into safe feedback without swallowing coroutine cancellation.
+        return NgocSiAiToolResult(
+            routed = true,
+            feedback = runLocalCommand(command, phrase)
+        )
     }
 
     private fun runLocalCommand(command: NgocSiAiLocalCommand, originalText: String = ""): String {
