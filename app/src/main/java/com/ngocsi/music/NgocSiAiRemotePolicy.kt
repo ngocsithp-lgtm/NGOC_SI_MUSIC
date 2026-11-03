@@ -5,8 +5,8 @@ import com.google.firebase.ai.type.ThinkingLevel
 /** Ordinary questions should fail fast; longer reasoning receives a separate bounded window. */
 internal const val NGOC_SI_AI_REMOTE_CONVERSATION_TIMEOUT_MILLIS = 25_000L
 internal const val NGOC_SI_AI_COMPLEX_REMOTE_CONVERSATION_TIMEOUT_MILLIS = 40_000L
-internal const val NGOC_SI_AI_SHORT_REPLY_MAX_OUTPUT_TOKENS = 768
-internal const val NGOC_SI_AI_COMPLEX_REPLY_MAX_OUTPUT_TOKENS = 2_048
+internal const val NGOC_SI_AI_SHORT_REPLY_MAX_OUTPUT_TOKENS = 384
+internal const val NGOC_SI_AI_COMPLEX_REPLY_MAX_OUTPUT_TOKENS = 1_024
 
 internal fun selectNgocSiAiRemoteTimeoutMillis(prompt: String): Long =
     if (selectNgocSiAiThinkingLevel(prompt) == ThinkingLevel.MEDIUM) {
