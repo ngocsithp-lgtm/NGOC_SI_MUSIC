@@ -343,6 +343,38 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
+    fun completedPauseAndPreviousTrackActionsAllowTheNextDependentStep() {
+        assertTrue(
+            shouldContinueNgocSiAiAgentSequence(
+                true,
+                "Đã tạm dừng nhạc.",
+                "pause"
+            )
+        )
+        assertTrue(
+            shouldContinueNgocSiAiAgentSequence(
+                true,
+                "Đã quay lại bài trước.",
+                "previous"
+            )
+        )
+        assertFalse(
+            shouldContinueNgocSiAiAgentSequence(
+                true,
+                "Đang tạm dừng nhạc.",
+                "pause"
+            )
+        )
+        assertFalse(
+            shouldContinueNgocSiAiAgentSequence(
+                true,
+                "Đang quay lại bài trước.",
+                "previous"
+            )
+        )
+    }
+
+    @Test
     fun agentContinuesOnlyAfterCompletedAppFeedback() {
         assertTrue(shouldContinueNgocSiAiAgentSequence(true, "Đã bật phát ngẫu nhiên cho hàng đợi hiện tại."))
         assertTrue(shouldContinueNgocSiAiAgentSequence(true, "Đã tua tiến 10 giây."))
