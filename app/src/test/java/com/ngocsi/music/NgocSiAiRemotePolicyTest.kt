@@ -319,6 +319,30 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
+    fun agentStopFeedbackPreservesPendingAndFailedAppState() {
+        val pending = ngocSiAiAgentStopFeedback(
+            NgocSiAiAgentFeedbackState.PENDING,
+            "Đang mở YouTube."
+        )
+        assertTrue(requireNotNull(pending).contains("chưa xác nhận"))
+        assertTrue(pending.contains("Đang mở YouTube."))
+
+        val failed = ngocSiAiAgentStopFeedback(
+            NgocSiAiAgentFeedbackState.FAILED,
+            "Không tìm thấy bài hát."
+        )
+        assertTrue(requireNotNull(failed).contains("chưa thành công"))
+        assertTrue(failed.contains("Không tìm thấy bài hát."))
+
+        assertNull(
+            ngocSiAiAgentStopFeedback(
+                NgocSiAiAgentFeedbackState.COMPLETED,
+                "Đã tua tiến 10 giây."
+            )
+        )
+    }
+
+    @Test
     fun agentContinuesOnlyAfterCompletedAppFeedback() {
         assertTrue(shouldContinueNgocSiAiAgentSequence(true, "Đã bật phát ngẫu nhiên cho hàng đợi hiện tại."))
         assertTrue(shouldContinueNgocSiAiAgentSequence(true, "Đã tua tiến 10 giây."))

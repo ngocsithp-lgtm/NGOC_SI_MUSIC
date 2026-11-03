@@ -197,6 +197,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
                     }
                     val selectedCallIndex = selectNgocSiAiAgentToolCallIndex(calls, APP_COMMAND_TOOL_NAME)
                     var stopSequenceAfterFeedback = false
+                    var stopSequenceFeedback: String? = null
                     val functionResponses = mutableListOf<FunctionResponsePart>()
                     response.functionCalls.forEachIndexed { index, functionCall ->
                         val action = functionCall.args["action"]?.jsonPrimitive?.contentOrNull.orEmpty()
@@ -214,10 +215,17 @@ internal class NgocSiAiRemoteClient(context: Context) {
                                 )
                             else -> executeNgocSiAiToolSafely(executeTool, action, query)
                         }
-                        if (index == selectedCallIndex &&
-                            !shouldContinueNgocSiAiAgentSequence(result.routed, result.feedback, action)
-                        ) {
-                            stopSequenceAfterFeedback = true
+                        if (index == selectedCallIndex) {
+                            val feedbackState = classifyNgocSiAiAgentFeedback(
+                                result.routed,
+                                result.feedback,
+                                action
+                            )
+                            stopSequenceFeedback = ngocSiAiAgentStopFeedback(
+                                feedbackState,
+                                result.feedback
+                            )
+                            stopSequenceAfterFeedback = stopSequenceFeedback != null
                         }
                         functionResponses += FunctionResponsePart(
                             functionCall.name,
@@ -238,6 +246,10 @@ internal class NgocSiAiRemoteClient(context: Context) {
                     if (stopSequenceAfterFeedback) break
                 }
 
+                stopSequenceFeedback?.let { safeStopMessage ->
+                    // Never trust a generated follow-up to turn pending/failed app feedback into success.
+                    throw NgocSiAiRemoteException(safeStopMessage)
+                }
                 if (response.functionCalls.isNotEmpty()) {
                     throw NgocSiAiRemoteException(
                         "Ứng dụng chưa xác nhận bước vừa rồi thành công; NGỌC SĨ AI đã dừng các bước phụ thuộc để tránh thao tác sai."
@@ -624,6 +636,22 @@ internal fun classifyNgocSiAiAgentFeedback(
         return NgocSiAiAgentFeedbackState.PENDING
     }
     return NgocSiAiAgentFeedbackState.COMPLETED
+}
+
+internal fun ngocSiAiAgentStopFeedback(
+    state: NgocSiAiAgentFeedbackState,
+    feedback: String
+): String? {
+    val safeFeedback = feedback.take(MAX_TOOL_FEEDBACK_CHARS).ifBlank {
+        "Ứng dụng chưa cung cấp trạng thái thao tác."
+    }
+    return when (state) {
+        NgocSiAiAgentFeedbackState.FAILED ->
+            "Không thể tiếp tục chuỗi lệnh vì thao tác chưa thành công: $safeFeedback"
+        NgocSiAiAgentFeedbackState.PENDING ->
+            "Ứng dụng chưa xác nhận bước vừa rồi hoàn tất; tôi đã dừng các bước phụ thuộc. Trạng thái hiện tại: $safeFeedback"
+        NgocSiAiAgentFeedbackState.COMPLETED -> null
+    }
 }
 
 internal fun shouldContinueNgocSiAiAgentSequence(
