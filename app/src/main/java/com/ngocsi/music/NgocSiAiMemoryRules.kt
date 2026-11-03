@@ -29,12 +29,12 @@ internal data class NgocSiAiMemoryResult(
 )
 
 private val NGOC_SI_AI_MEMORY_WAKE_PREFIX = Regex(
-    """^(?:(?:hey|ok|alo|ờ|o|ừ|u|ừm|um)\s+)?(?:(?:ngoc\s+si|ngọc\s+sĩ)\s+)?(?:ai|a\s*i|al|a\s*l)(?:\s*[,.:]\s*|\s+)""",
+    """^(?:(?:hey|ok|alo|ờ|o|ừ|u|ừm|um)\s+)?(?:(?:ngoc\s+si|ngọc\sĩ)\s+)?(?:ai|a\s*i|al|a\s*l)(?:\s*(?:ơi|oi))?(?:\s*[,.:]\s*|\s+)""",
     RegexOption.IGNORE_CASE
 )
 
 private val NGOC_SI_AI_MEMORY_NORMALIZED_WAKE_PREFIX = Regex(
-    """^(?:(?:hey|ok|alo|o|u|um)\s+)?(?:(?:ngoc\s+si)\s+)?(?:ai|a\s*i|al|a\s*l)(?:\s+|$)""",
+    """^(?:(?:hey|ok|alo|o|u|um)\s+)?(?:(?:ngoc\s+si)\s+)?(?:ai|a\s*i|al|a\s*l)(?:\s+oi)?(?:\s+|$)""",
     RegexOption.IGNORE_CASE
 )
 
