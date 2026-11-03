@@ -267,6 +267,43 @@ class NgocSiAiMemoryRulesTest {
     }
 
     @Test
+    fun answersNaturalMusicTasteQuestionsFromLocalMemoryWithoutGemini() {
+        val memories = buildList {
+            add("tôi thích nghe nhạc Bolero")
+            repeat(12) { index ->
+                add("tôi muốn playlist nhạc số $index")
+            }
+        }
+
+        val answer = requireNotNull(
+            answerNgocSiAiMusicTasteQuestion(
+                userText = "AI, tôi thích thế loại nhạc nào?",
+                memories = memories
+            )
+        )
+
+        assertTrue(answer.contains("Bolero"))
+        assertTrue(answer.contains("không cần Firebase"))
+    }
+
+    @Test
+    fun musicTasteQuestionHonestlySaysWhenNoGenrePreferenceWasSaved() {
+        val answer = requireNotNull(
+            answerNgocSiAiMusicTasteQuestion(
+                userText = "Tôi thích thể loại nhạc nào?",
+                memories = listOf("tôi muốn mini player nhỏ gọn", "tôi ưu tiên nghe YouTube")
+            )
+        )
+
+        assertTrue(answer.contains("chưa tìm thấy ghi nhớ"))
+        assertTrue(answer.contains("AI, hãy nhớ tôi thích nghe nhạc Bolero"))
+        assertEquals(null, answerNgocSiAiMusicTasteQuestion(
+            userText = "Thủ đô Việt Nam là gì?",
+            memories = listOf("tôi thích nghe nhạc Bolero")
+        ))
+    }
+
+    @Test
     fun acceptsMemoryNotesUpToTheExpandedCharacterLimit() {
         val note = "tôi thích nghe nhạc Bolero " + "x".repeat(210)
         assertTrue(note.length <= NGOC_SI_AI_MAX_MEMORY_ITEM_CHARS)

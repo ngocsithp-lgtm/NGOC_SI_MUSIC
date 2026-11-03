@@ -413,6 +413,49 @@ internal fun selectNgocSiAiRelevantMemories(
     }
 }
 
+/**
+ * Answers explicit questions about the user's own music taste from private on-device
+ * memories. These stable personal-preference lookups must not depend on Firebase.
+ */
+internal fun answerNgocSiAiMusicTasteQuestion(
+    userText: String,
+    memories: List<String>
+): String? {
+    val query = normalizeNgocSiAiVoicePhrase(userText)
+    val asksAboutOwnTaste = listOf(
+        "toi thich the loai nhac nao",
+        "toi thich nghe nhac gi",
+        "toi hay nghe nhac gi",
+        "gu am nhac cua toi",
+        "gu nhac cua toi",
+        "so thich nhac cua toi",
+        "the loai nhac toi thich",
+        "dong nhac toi thich",
+        "minh thich the loai nhac nao",
+        "minh hay nghe nhac gi",
+        "gu am nhac cua minh"
+    ).any(query::contains) || (
+        (query.contains("the loai") || query.contains("dong nhac") || query.contains("gu am nhac")) &&
+            (query.contains("cua toi") || query.contains("cua minh") ||
+                query.startsWith("toi thich") || query.startsWith("minh thich"))
+        )
+    if (!asksAboutOwnTaste) return null
+
+    val savedGenreNotes = selectNgocSiAiRelevantMemories(memories, userText)
+        .filter { note ->
+            val normalizedNote = normalizeNgocSiAiVoicePhrase(note)
+            NGOC_SI_AI_MEMORY_GENRE_MARKERS.any(normalizedNote::contains)
+        }
+    if (savedGenreNotes.isEmpty()) {
+        return "Mình chưa tìm thấy ghi nhớ về thể loại nhạc bạn yêu thích trên thiết bị. " +
+            "Bạn có thể nói “AI, hãy nhớ tôi thích nghe nhạc Bolero” (hoặc thể loại bạn thích). " +
+            "Sau khi lưu thành công, mình sẽ trả lời câu hỏi này trực tiếp từ bộ nhớ, không cần kết nối Firebase."
+    }
+
+    return "Theo ghi nhớ đã lưu trên thiết bị, sở thích nhạc của bạn là: " +
+        savedGenreNotes.joinToString("; ") + ". Mình lấy câu trả lời từ ghi nhớ cục bộ, không cần Firebase."
+}
+
 /** Formats only user-approved music/app preferences for a bounded model context. */
 internal fun buildNgocSiAiMemorySystemInstruction(
     memories: List<String>,

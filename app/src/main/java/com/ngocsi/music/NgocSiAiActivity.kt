@@ -2351,16 +2351,26 @@ private fun NgocSiAiPreviewScreen(
         // Explicit memory commands take priority over the app command router so
         // they are always handled locally and never become playback/navigation actions.
         val localMemoryReply = handleNgocSiAiMemoryCommand(clean, chatPreferences)
-        val localCommand = if (localMemoryReply != null || contextualActionConfirmation) {
+        val localMemoryQuestionReply = answerNgocSiAiMusicTasteQuestion(
+            userText = clean,
+            memories = decodeNgocSiAiMemory(
+                chatPreferences.getString(NGOC_SI_AI_LONG_TERM_MEMORY_KEY, null)
+            )
+        )
+        val localCommand = if (
+            localMemoryReply != null || localMemoryQuestionReply != null || contextualActionConfirmation
+        ) {
             null
         } else if (explicitStop) {
             NgocSiAiLocalCommand.STOP
         } else {
             classifyNgocSiAiLocalCommand(clean)
         }
-        val localReply = localMemoryReply ?: if (localCommand == null && !contextualActionConfirmation) {
-            localConversationFallback(clean, messages.lastOrNull { !it.isUser }?.text)
-        } else null
+        val localReply = localMemoryReply
+            ?: localMemoryQuestionReply
+            ?: if (localCommand == null && !contextualActionConfirmation) {
+                localConversationFallback(clean, messages.lastOrNull { !it.isUser }?.text)
+            } else null
         if (isSending && localCommand == null && localReply == null) return
 
         messages.add(AiPreviewMessage(true, clean))
