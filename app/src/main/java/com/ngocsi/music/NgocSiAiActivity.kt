@@ -2314,14 +2314,16 @@ private fun NgocSiAiPreviewScreen(
         // A direct playback command remains local and immediate. A short confirmation of
         // the previous assistant's explicit app-action offer must reach Gemini instead of
         // being consumed by the generic "được/ok" small-talk fallback or resume classifier.
-        val localCommand = if (contextualActionConfirmation) {
+        // Explicit memory commands take priority over the app command router so
+        // they are always handled locally and never become playback/navigation actions.
+        val localMemoryReply = handleNgocSiAiMemoryCommand(clean, chatPreferences)
+        val localCommand = if (localMemoryReply != null || contextualActionConfirmation) {
             null
         } else if (explicitStop) {
             NgocSiAiLocalCommand.STOP
         } else {
             classifyNgocSiAiLocalCommand(clean)
         }
-        val localMemoryReply = handleNgocSiAiMemoryCommand(clean, chatPreferences)
         val localReply = localMemoryReply ?: if (localCommand == null && !contextualActionConfirmation) {
             localConversationFallback(clean, messages.lastOrNull { !it.isUser }?.text)
         } else null
