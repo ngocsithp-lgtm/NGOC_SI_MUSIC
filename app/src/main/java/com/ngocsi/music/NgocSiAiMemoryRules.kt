@@ -120,7 +120,7 @@ internal fun parseNgocSiAiMemoryCommand(input: String): NgocSiAiMemoryCommand? {
         val note = match.groupValues[2]
             .trim()
             .trimEnd('.', '!', '?', ';', ',')
-            .replace(Regex("""\\s+"""), " ")
+            .replace(Regex("""\s+"""), " ")
         return NgocSiAiMemoryCommand(
             type = NgocSiAiMemoryCommandType.UPDATE,
             note = note,

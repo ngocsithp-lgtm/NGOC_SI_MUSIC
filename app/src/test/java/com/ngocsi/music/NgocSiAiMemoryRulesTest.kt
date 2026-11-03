@@ -44,6 +44,14 @@ class NgocSiAiMemoryRulesTest {
             ),
             parseNgocSiAiMemoryCommand("AI, sửa ghi nhớ số 1 thành tôi thích nghe nhạc Trịnh")
         )
+        assertEquals(
+            NgocSiAiMemoryCommand(
+                NgocSiAiMemoryCommandType.UPDATE,
+                note = "tôi thích nghe nhạc Trịnh",
+                index = 1
+            ),
+            parseNgocSiAiMemoryCommand("AI, sửa ghi nhớ số 1 thành tôi   thích   nghe nhạc Trịnh")
+        )
         assertEquals(null, parseNgocSiAiMemoryCommand("Tại sao bạn nhớ bài hát này?"))
     }
 
