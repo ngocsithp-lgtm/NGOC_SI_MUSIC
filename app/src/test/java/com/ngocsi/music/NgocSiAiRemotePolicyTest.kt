@@ -56,6 +56,8 @@ class NgocSiAiRemotePolicyTest {
 
     @Test
     fun everydayQuestionsUseSmallerAnswerBudget() {
+        assertEquals(384, NGOC_SI_AI_SHORT_REPLY_MAX_OUTPUT_TOKENS)
+        assertEquals(1_024, NGOC_SI_AI_COMPLEX_REPLY_MAX_OUTPUT_TOKENS)
         assertEquals(
             NGOC_SI_AI_SHORT_REPLY_MAX_OUTPUT_TOKENS,
             selectNgocSiAiMaxOutputTokens("Thời tiết có ảnh hưởng đến pin điện thoại không?")
