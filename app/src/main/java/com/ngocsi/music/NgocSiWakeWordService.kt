@@ -639,29 +639,42 @@ class NgocSiWakeWordService : Service() {
             awaitingCommandUntilMillis = 0L
         }
         val wasAwaitingCommand = awaitingCommand || conversationActive
-        // Once awake, prefer an implemented command across all recognition candidates.
+        // Memory intents must outrank playback classification: “hãy nhớ tôi thích nghe
+        // nhạc Bolero” contains words that can otherwise look like a request to play a track.
+        // A fresh session still requires an explicit AI wake phrase; an active session does not.
+        val memoryCommandCandidate = selectNgocSiAiMemoryCommandCandidate(
+            phrases,
+            allowSessionWithoutWakeWord = wasAwaitingCommand
+        )
+        // Once awake, prefer an implemented command across all remaining recognition candidates.
         // Otherwise preserve the best natural-language candidate for conversation.
-        val recognized = (if (wasAwaitingCommand) {
+        val recognized = memoryCommandCandidate ?: (if (wasAwaitingCommand) {
             selectNgocSiAiActivatedCommandCandidate(phrases)
                 ?: phrases.firstOrNull { it.isNotBlank() }?.trim()
                 ?: selectNgocSiAiWakePhraseCandidate(phrases)
         } else {
             selectNgocSiAiWakePhraseCandidate(phrases)
         }).orEmpty()
+        val memoryCommandAuthorized = parseNgocSiAiMemoryCommand(recognized) != null &&
+            (wasAwaitingCommand || isNgocSiAiExplicitMemoryCommand(recognized))
         // If the user already activated the continuous AI session with the wake word,
         // subsequent utterances are authorized commands even when they omit "AI".
         // Preserve the original text for dispatch; add the wake prefix only for the
         // allowlist's explicit-address safety check.
-        val command = classifyNgocSiAiWakePhrase(recognized)
-            ?: if (wasAwaitingCommand) {
-                classifyNgocSiAiActivatedCommand(
-                    if (normalizeNgocSiAiVoicePhrase(recognized).startsWith("ai ")) {
-                        recognized
-                    } else {
-                        "AI, $recognized"
-                    }
-                )
-            } else null
+        val command = if (memoryCommandAuthorized) {
+            null
+        } else {
+            classifyNgocSiAiWakePhrase(recognized)
+                ?: if (wasAwaitingCommand) {
+                    classifyNgocSiAiActivatedCommand(
+                        if (normalizeNgocSiAiVoicePhrase(recognized).startsWith("ai ")) {
+                            recognized
+                        } else {
+                            "AI, $recognized"
+                        }
+                    )
+                } else null
+        }
 
         if (command != null) {
             awaitingCommand = false
@@ -688,8 +701,9 @@ class NgocSiWakeWordService : Service() {
         } else if (recognized.isNotBlank()) {
             awaitingCommand = false
             awaitingCommandUntilMillis = 0L
-            if (wasAwaitingCommand) {
-                // Ordinary questions go to the same local-first conversation path as chat.
+            if (wasAwaitingCommand || memoryCommandAuthorized) {
+                // Memory commands with an explicit wake phrase can start and complete locally
+                // even when the continuous conversation session was not already open.
                 answerConversationalQuestion(recognized)
                 return
             } else {

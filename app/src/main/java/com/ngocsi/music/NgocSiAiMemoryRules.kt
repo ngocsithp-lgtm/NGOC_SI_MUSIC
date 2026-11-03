@@ -163,6 +163,29 @@ internal fun parseNgocSiAiMemoryCommand(input: String): NgocSiAiMemoryCommand? {
     return NgocSiAiMemoryCommand(NgocSiAiMemoryCommandType.REMEMBER, note)
 }
 
+/** True only when a memory command explicitly includes the AI wake phrase. */
+internal fun isNgocSiAiExplicitMemoryCommand(input: String): Boolean {
+    val trimmed = input.trim()
+    return trimmed.isNotBlank() &&
+        parseNgocSiAiMemoryCommand(trimmed) != null &&
+        stripNgocSiAiMemoryWakePrefix(trimmed) != trimmed
+}
+
+/**
+ * Gives explicit memory intents priority over playback intent in ASR alternatives.
+ * Without an active conversation, a wake phrase is still required.
+ */
+internal fun selectNgocSiAiMemoryCommandCandidate(
+    candidates: List<String>,
+    allowSessionWithoutWakeWord: Boolean
+): String? = candidates.asSequence()
+    .map { it.trim() }
+    .filter { it.isNotBlank() }
+    .firstOrNull { candidate ->
+        parseNgocSiAiMemoryCommand(candidate) != null &&
+            (allowSessionWithoutWakeWord || isNgocSiAiExplicitMemoryCommand(candidate))
+    }
+
 internal fun decodeNgocSiAiMemory(raw: String?): List<String> =
     raw.orEmpty()
         .split('\n')

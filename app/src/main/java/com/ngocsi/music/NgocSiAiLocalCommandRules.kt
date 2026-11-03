@@ -663,6 +663,10 @@ internal fun extractNgocSiAiSleepTimerMinutes(input: String): Int? {
 }
 
 internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? {
+    // A sentence asking the assistant to remember a music preference can also contain
+    // words such as “nghe nhạc”; never reinterpret that sentence as a playback request.
+    if (parseNgocSiAiMemoryCommand(input) != null) return null
+
     var phrase = Normalizer.normalize(input.trim().lowercase(Locale.ROOT), Normalizer.Form.NFD)
         .replace("\\p{Mn}+".toRegex(), "")
         .replace('đ', 'd')

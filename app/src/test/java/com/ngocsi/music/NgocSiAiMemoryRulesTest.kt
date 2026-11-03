@@ -23,6 +23,38 @@ class NgocSiAiMemoryRulesTest {
     }
 
     @Test
+    fun memoryIntentsOutrankPlaybackPhrasesAndRespectWakeAuthorization() {
+        val explicit = "AI, hãy nhớ tôi thích nghe nhạc Bolero"
+        val followUp = "hãy nhớ tôi thích nghe nhạc Bolero"
+
+        assertTrue(isNgocSiAiExplicitMemoryCommand(explicit))
+        assertFalse(isNgocSiAiExplicitMemoryCommand(followUp))
+        assertEquals(
+            explicit,
+            selectNgocSiAiMemoryCommandCandidate(
+                listOf("nghe nhạc Bolero", explicit),
+                allowSessionWithoutWakeWord = false
+            )
+        )
+        assertEquals(
+            null,
+            selectNgocSiAiMemoryCommandCandidate(
+                listOf(followUp),
+                allowSessionWithoutWakeWord = false
+            )
+        )
+        assertEquals(
+            followUp,
+            selectNgocSiAiMemoryCommandCandidate(
+                listOf(followUp),
+                allowSessionWithoutWakeWord = true
+            )
+        )
+        assertEquals(null, classifyNgocSiAiLocalCommand(explicit))
+        assertEquals(null, classifyNgocSiAiLocalCommand(followUp))
+    }
+
+    @Test
     fun parsesListAndClearCommandsButDoesNotCaptureOrdinaryQuestions() {
         assertEquals(
             NgocSiAiMemoryCommand(NgocSiAiMemoryCommandType.LIST),
