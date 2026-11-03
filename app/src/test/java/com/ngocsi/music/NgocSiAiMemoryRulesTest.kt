@@ -71,6 +71,14 @@ class NgocSiAiMemoryRulesTest {
             ),
             parseNgocSiAiMemoryCommand("A l, hãy nhớ tôi thích nghe nhạc Bolero.")
         )
+
+        assertEquals(
+            NgocSiAiMemoryCommand(
+                NgocSiAiMemoryCommandType.REMEMBER,
+                "tôi thích nghe nhạc Bolero"
+            ),
+            parseNgocSiAiMemoryCommand("Al ơi, hãy nhớ tôi thích nghe nhạc Bolero.")
+        )
         assertEquals(
             NgocSiAiMemoryCommand(
                 NgocSiAiMemoryCommandType.REMEMBER,
