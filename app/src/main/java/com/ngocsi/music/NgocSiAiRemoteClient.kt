@@ -197,6 +197,10 @@ internal class NgocSiAiRemoteClient(context: Context) {
                         )
                     }
                     val selectedCallIndex = selectNgocSiAiAgentToolCallIndex(calls, APP_COMMAND_TOOL_NAME)
+                        ?: throw NgocSiAiRemoteException(
+                            "Mô hình đề xuất thao tác không hợp lệ hoặc không có lệnh được phép. " +
+                                "Ứng dụng chưa thực hiện thao tác nào."
+                        )
                     var stopSequenceAfterFeedback = false
                     val functionResponses = mutableListOf<FunctionResponsePart>()
                     response.functionCalls.forEachIndexed { index, functionCall ->
