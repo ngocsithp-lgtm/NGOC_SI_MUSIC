@@ -88,7 +88,7 @@ class NgocSiAiHistoryRulesTest {
     }
 
     @Test
-    fun retainsFourRecentCompleteTurnsWithinMessageAndCharacterBudgets() {
+    fun retainsRecentCompleteTurnsWithinMessageAndCharacterBudgets() {
         val messages = buildList {
             repeat(9) { index ->
                 add(NgocSiAiMessage(role = "user", content = "câu hỏi $index"))
@@ -99,10 +99,10 @@ class NgocSiAiHistoryRulesTest {
 
         val history = normalizeNgocSiAiHistory(messages)
 
-        assertEquals(7, history.size)
+        assertEquals(11, history.size)
         assertTrue(history.size <= NGOC_SI_AI_MAX_HISTORY_MESSAGES)
         assertTrue(history.sumOf { it.content.length } <= NGOC_SI_AI_MAX_TOTAL_CHARS)
-        assertEquals("câu hỏi 6", history.first().content)
+        assertEquals("câu hỏi 4", history.first().content)
         assertEquals("câu hỏi cuối", history.last().content)
     }
 
@@ -189,7 +189,24 @@ class NgocSiAiHistoryRulesTest {
     }
 
     @Test
-    fun appendingWakeWordTurnKeepsOnlyFourMostRecentCompleteTurns() {
+    fun restoresSixMostRecentCompletedTurnsAfterTheActivityIsRecreated() {
+        val messages = buildList {
+            repeat(9) { index ->
+                add(NgocSiAiMessage("user", "Câu hỏi $index"))
+                add(NgocSiAiMessage("assistant", "Câu trả lời $index"))
+            }
+        }
+
+        val restored = restoreCompletedNgocSiAiConversation(messages)
+
+        assertEquals(NGOC_SI_AI_MAX_HISTORY_MESSAGES, restored.size)
+        assertEquals("Câu hỏi 3", restored.first().content)
+        assertEquals("Câu trả lời 8", restored.last().content)
+        assertEquals("assistant", restored.last().role)
+    }
+
+    @Test
+    fun appendingWakeWordTurnKeepsOnlySixMostRecentCompleteTurns() {
         val history = buildList {
             repeat(8) { index ->
                 add(NgocSiAiMessage("user", "Câu hỏi $index"))
@@ -201,7 +218,7 @@ class NgocSiAiHistoryRulesTest {
         )
 
         assertEquals(NGOC_SI_AI_MAX_HISTORY_MESSAGES, updated.size)
-        assertEquals("Câu hỏi 5", updated.first().content)
+        assertEquals("Câu hỏi 3", updated.first().content)
         assertEquals("Câu hỏi mới", updated[updated.lastIndex - 1].content)
         assertEquals("assistant", updated.last().role)
     }

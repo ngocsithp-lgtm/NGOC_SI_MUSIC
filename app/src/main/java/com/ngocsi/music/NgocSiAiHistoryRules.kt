@@ -1,6 +1,6 @@
 package com.ngocsi.music
 
-internal const val NGOC_SI_AI_MAX_HISTORY_MESSAGES = 8
+internal const val NGOC_SI_AI_MAX_HISTORY_MESSAGES = 12
 internal const val NGOC_SI_AI_MAX_MESSAGE_CHARS = 2_000
 internal const val NGOC_SI_AI_MAX_TOTAL_CHARS = 3_200
 internal const val NGOC_SI_AI_MAX_CONTEXT_MESSAGE_CHARS = 700
