@@ -760,6 +760,8 @@ class NgocSiWakeWordService : Service() {
                 // Gemini allowance for greetings, quick help and known local responses.
                 val localFallback = memoryReply
                     ?: localConversationFallback(cleanQuestion, previousAssistantReply)
+                val localModelNeedsAppTools =
+                    shouldOfferNgocSiAiAppCommandTool(cleanQuestion, conversationHistory)
                 val userMessage = NgocSiAiMessage(role = "user", content = cleanQuestion)
                 val requestHistory = conversationHistory.toMutableList()
                 while (requestHistory.size > MAX_CONVERSATION_MESSAGES - 2) {
@@ -801,6 +803,17 @@ class NgocSiWakeWordService : Service() {
                 if (
                     localFallback == null &&
                     preferLocalModel &&
+                    localModelNeedsAppTools
+                ) {
+                    remoteError =
+                        "Chế độ ưu tiên AI tại máy chưa thực hiện lệnh nhiều bước này. " +
+                            "Hãy tắt chế độ AI tại máy để Gemini xử lý, hoặc nói từng lệnh đơn."
+                }
+
+                if (
+                    localFallback == null &&
+                    preferLocalModel &&
+                    !localModelNeedsAppTools &&
                     NgocSiAiOnDeviceModel.isInstalled(applicationContext)
                 ) {
                     try {
@@ -859,6 +872,7 @@ class NgocSiWakeWordService : Service() {
                     latestPartialRemoteAnswer.isBlank() &&
                     remoteError != null &&
                     !preferLocalModel &&
+                    !localModelNeedsAppTools &&
                     NgocSiAiOnDeviceModel.isInstalled(applicationContext)
                 ) {
                     try {
