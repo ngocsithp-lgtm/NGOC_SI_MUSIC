@@ -2410,7 +2410,30 @@ private fun NgocSiAiPreviewScreen(
             return
         }
 
-        if (localModelInstalled && (preferLocalModel || !isOnlineConfigured)) {
+        val localModelNeedsAppTools =
+            shouldOfferNgocSiAiAppCommandTool(clean, conversation.toList())
+        if (preferLocalModel && localModelNeedsAppTools) {
+            val safeReply =
+                "Chế độ ưu tiên AI tại máy chỉ trò chuyện và không tự gọi công cụ điều khiển nhiều bước. " +
+                    "Ứng dụng chưa thực hiện lệnh này. Hãy tắt “Ưu tiên AI tại máy” để Gemini xử lý, " +
+                    "hoặc chia yêu cầu thành từng lệnh đơn đã được hỗ trợ."
+            messages.add(AiPreviewMessage(false, safeReply))
+            if (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
+            conversation.add(NgocSiAiMessage(role = "user", content = clean))
+            conversation.add(NgocSiAiMessage(role = "assistant", content = safeReply))
+            while (conversation.size > NGOC_SI_AI_MAX_HISTORY_MESSAGES) {
+                conversation.removeAt(0)
+                if (conversation.firstOrNull()?.role == "assistant") conversation.removeAt(0)
+            }
+            persistChatState()
+            onVoiceReply(safeReply)
+            return
+        }
+
+        if (localModelInstalled &&
+            !localModelNeedsAppTools &&
+            (preferLocalModel || !isOnlineConfigured)
+        ) {
             val userTurn = NgocSiAiMessage(role = "user", content = clean)
             conversation.add(userTurn)
             while (conversation.size > NGOC_SI_AI_MAX_HISTORY_MESSAGES) {
@@ -2533,7 +2556,11 @@ private fun NgocSiAiPreviewScreen(
                     previousAssistantReply = messages.dropLast(1).lastOrNull { !it.isUser }?.text,
                     remoteError = errorReply
                 )
-                val localModelReply = if (localModelInstalled && latestPartialReply.isBlank()) {
+                val localModelReply = if (
+                    localModelInstalled &&
+                    latestPartialReply.isBlank() &&
+                    !localModelNeedsAppTools
+                ) {
                     runCatching { onGenerateLocalModel(clean) }.getOrNull()
                 } else null
                 if (localModelReply != null) {
@@ -2544,7 +2571,12 @@ private fun NgocSiAiPreviewScreen(
                     .takeIf { it.isNotBlank() }
                     ?.let { partial -> "$partial\n\n$errorReply" }
                     ?: localModelReply
-                    ?: fallbackReply
+                    ?: if (localModelNeedsAppTools) {
+                        "Gemini đang bị giới hạn. Ứng dụng chưa thực hiện lệnh nhiều bước này; " +
+                            "hãy chia thành từng lệnh đơn hoặc thử lại khi Gemini hoạt động."
+                    } else {
+                        fallbackReply
+                    }
                     ?: errorReply
                 quotaNote = if (localModelReply != null) {
                     "Gemini đang bị giới hạn · đã trả lời bằng AI tại máy"
@@ -2983,7 +3015,7 @@ private fun NgocSiAiPreviewScreen(
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp)
                 )
             }
-            if (localModelInstalled) {
+            if (localModelInstalled || preferLocalModel) {
                 Surface(
                     modifier = Modifier.clickable {
                         preferLocalModel = !preferLocalModel
