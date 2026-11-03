@@ -456,6 +456,58 @@ internal fun answerNgocSiAiMusicTasteQuestion(
         savedGenreNotes.joinToString("; ") + ". Mình lấy câu trả lời từ ghi nhớ cục bộ, không cần Firebase."
 }
 
+/**
+ * Answers known app-use preference questions from local memories. Each intent is
+ * paired with explicit memory markers to avoid guessing across unrelated settings.
+ */
+internal fun answerNgocSiAiSavedAppPreferenceQuestion(
+    userText: String,
+    memories: List<String>
+): String? {
+    val query = normalizeNgocSiAiVoicePhrase(userText)
+    val categories = listOf(
+        Triple(
+            "giao diện và cách bố trí",
+            listOf("giao dien", "bo cuc", "mini player", "thanh tim kiem", "man hinh"),
+            listOf("mini player", "giao dien", "bo cuc", "tim kiem", "man hinh")
+        ),
+        Triple(
+            "nguồn phát nhạc",
+            listOf("nguon nhac", "uu tien nghe", "nghe nhac tu dau", "thuong nghe nhac o dau",
+                "nghe nhac o dau", "nghe bang gi"),
+            listOf("youtube", "drive", "radio", "tv", "dien thoai", "local")
+        ),
+        Triple(
+            "phát nhạc nền",
+            listOf("phat nen", "man hinh tat", "tat man hinh", "khoa man hinh",
+                "nghe khi tat", "nghe khi khoa"),
+            listOf("phat nen", "background", "man hinh tat", "khoa man hinh")
+        ),
+        Triple(
+            "giọng đọc và điều khiển giọng nói",
+            listOf("giong doc", "giong noi", "dieu khien bang giong noi", "ra lenh bang giong noi"),
+            listOf("giong doc", "giong noi", "dieu khien giong noi", "lenh giong noi")
+        )
+    )
+    val category = categories.firstOrNull { (_, intents, _) ->
+        intents.any(query::contains)
+    } ?: return null
+
+    val safeMemories = decodeNgocSiAiMemory(memories.joinToString("\n"))
+    val matching = safeMemories.filter { note ->
+        val normalizedNote = normalizeNgocSiAiVoicePhrase(note)
+        category.third.any(normalizedNote::contains)
+    }
+    if (matching.isEmpty()) {
+        return "Mình chưa tìm thấy ghi nhớ về " + category.first +
+            " trong bộ nhớ trên thiết bị. Bạn có thể nói “AI, hãy nhớ tôi muốn mini player nhỏ gọn” " +
+            "hoặc nêu rõ sở thích cần lưu. Mình sẽ không tự đoán thay bạn."
+    }
+
+    return "Theo ghi nhớ đã lưu trên thiết bị về " + category.first + ": " +
+        matching.joinToString("; ") + ". Đây là dữ liệu cục bộ, không cần Firebase."
+}
+
 /** Formats only user-approved music/app preferences for a bounded model context. */
 internal fun buildNgocSiAiMemorySystemInstruction(
     memories: List<String>,

@@ -304,6 +304,70 @@ class NgocSiAiMemoryRulesTest {
     }
 
     @Test
+    fun answersAppInterfacePreferenceQuestionsFromLocalMemory() {
+        val memories = buildList {
+            add("tôi muốn mini player nhỏ gọn")
+            repeat(12) { index ->
+                add("tôi muốn playlist nhạc số $index")
+            }
+        }
+
+        val answer = requireNotNull(
+            answerNgocSiAiSavedAppPreferenceQuestion(
+                "AI, tôi muốn giao diện ứng dụng như thế nào?",
+                memories
+            )
+        )
+
+        assertTrue(answer.contains("mini player nhỏ gọn"))
+        assertTrue(answer.contains("không cần Firebase"))
+    }
+
+    @Test
+    fun answersPlaybackSourceAndBackgroundQuestionsOnlyFromMatchingMemories() {
+        val memories = listOf(
+            "tôi ưu tiên nghe YouTube",
+            "tôi muốn YouTube chạy nền khi tắt màn hình",
+            "tôi thích nghe nhạc Bolero"
+        )
+
+        val sourceAnswer = requireNotNull(
+            answerNgocSiAiSavedAppPreferenceQuestion(
+                "Tôi thường nghe nhạc ở đâu?",
+                memories
+            )
+        )
+        assertTrue(sourceAnswer.contains("YouTube"))
+        assertFalse(sourceAnswer.contains("chạy nền"))
+
+        val backgroundAnswer = requireNotNull(
+            answerNgocSiAiSavedAppPreferenceQuestion(
+                "Tôi có muốn nghe nhạc khi tắt màn hình không?",
+                memories
+            )
+        )
+        assertTrue(backgroundAnswer.contains("chạy nền"))
+        assertFalse(backgroundAnswer.contains("Bolero"))
+    }
+
+    @Test
+    fun appPreferenceQuestionDoesNotInventAnAnswerWhenNoMatchingMemoryExists() {
+        val answer = requireNotNull(
+            answerNgocSiAiSavedAppPreferenceQuestion(
+                "Tôi muốn giao diện ứng dụng như thế nào?",
+                listOf("tôi thích nghe nhạc Bolero", "tôi ưu tiên nghe YouTube")
+            )
+        )
+
+        assertTrue(answer.contains("chưa tìm thấy ghi nhớ"))
+        assertTrue(answer.contains("không tự đoán"))
+        assertEquals(null, answerNgocSiAiSavedAppPreferenceQuestion(
+            "Thủ đô Việt Nam là gì?",
+            listOf("tôi muốn mini player nhỏ gọn")
+        ))
+    }
+
+    @Test
     fun acceptsMemoryNotesUpToTheExpandedCharacterLimit() {
         val note = "tôi thích nghe nhạc Bolero " + "x".repeat(210)
         assertTrue(note.length <= NGOC_SI_AI_MAX_MEMORY_ITEM_CHARS)
