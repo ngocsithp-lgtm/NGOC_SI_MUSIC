@@ -201,7 +201,7 @@ class NgocSiAiHistoryRulesTest {
         )
 
         assertEquals(NGOC_SI_AI_MAX_HISTORY_MESSAGES, updated.size)
-        assertEquals("Câu hỏi 4", updated.first().content)
+        assertEquals("Câu hỏi 5", updated.first().content)
         assertEquals("Câu hỏi mới", updated[updated.lastIndex - 1].content)
         assertEquals("assistant", updated.last().role)
     }
