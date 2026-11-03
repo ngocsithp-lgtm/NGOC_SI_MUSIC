@@ -1,9 +1,9 @@
 package com.ngocsi.music
 
-internal const val NGOC_SI_AI_MAX_HISTORY_MESSAGES = 16
+internal const val NGOC_SI_AI_MAX_HISTORY_MESSAGES = 8
 internal const val NGOC_SI_AI_MAX_MESSAGE_CHARS = 2_000
-internal const val NGOC_SI_AI_MAX_TOTAL_CHARS = 6_000
-internal const val NGOC_SI_AI_MAX_CONTEXT_MESSAGE_CHARS = 1_200
+internal const val NGOC_SI_AI_MAX_TOTAL_CHARS = 3_200
+internal const val NGOC_SI_AI_MAX_CONTEXT_MESSAGE_CHARS = 700
 
 /**
  * Appends a completed hands-free turn only after the current history ends in an
@@ -63,7 +63,7 @@ internal fun restoreCompletedNgocSiAiConversation(
 
 /**
  * Validates the messages for a Gemini request and trims the oldest complete turns
- * until the payload fits the server's total-character budget.
+ * until the payload fits the smaller cloud-context budget.
  *
  * The newest user message is always retained. Older context is dropped in pairs so
  * trimming does not normally leave an assistant message at the start of the history.
@@ -88,7 +88,7 @@ internal fun normalizeNgocSiAiHistory(
             throw IllegalArgumentException("Mỗi tin nhắn phải có tối đa 2.000 ký tự.")
         }
         // Earlier assistant answers can be longer than the server's input limit.
-        // Clip historical context, never the newest user message.
+        // Clip historical context, never the newest user message. Long-term preferences are supplied separately from on-device memory.
         message.copy(
             content = content.take(
                 if (index == selected.lastIndex) NGOC_SI_AI_MAX_MESSAGE_CHARS
