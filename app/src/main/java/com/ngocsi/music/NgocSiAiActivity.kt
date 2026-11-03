@@ -2908,8 +2908,16 @@ private fun NgocSiAiPreviewScreen(
                     Text(
                         when {
                             quotaNote.isNotBlank() -> quotaNote
-                            isOnlineConfigured -> "Đã nạp cấu hình Gemini; chưa xác nhận kết nối. Trạng thái trực tuyến chỉ được xác nhận sau khi Gemini trả lời thành công."
-                            else -> "Lệnh nhạc cơ bản chạy tại máy; chat tự do đang tắt."
+                            localModelInstalled && preferLocalModel ->
+                                "Ưu tiên mô hình AI chạy trên điện thoại; câu hỏi tự do không gửi lên Gemini."
+                            localModelInstalled && isOnlineConfigured ->
+                                "Gemini là chế độ chính; Qwen3 tại máy sẽ dự phòng khi Gemini hết hạn mức."
+                            localModelInstalled ->
+                                "Mô hình Qwen3 đã sẵn sàng; chat có thể chạy ngoại tuyến."
+                            isOnlineConfigured ->
+                                "Đã nạp cấu hình Gemini; trạng thái trực tuyến chỉ được xác nhận sau khi Gemini trả lời thành công."
+                            else ->
+                                "Lệnh nhạc cơ bản chạy tại máy; tải mô hình để bật chat ngoại tuyến."
                         },
                         color = NgocSiVisuals.TextSecondary,
                         fontSize = 10.sp,
