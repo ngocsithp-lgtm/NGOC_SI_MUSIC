@@ -320,6 +320,47 @@ class NgocSiAiMemoryRulesTest {
     }
 
     @Test
+    fun recognizesMoreNaturalFirstPersonMusicTasteQuestionsFromLocalMemory() {
+        val memories = listOf(
+            "tôi thích nghe nhạc Bolero",
+            "tôi thích nghe nhạc Trịnh"
+        )
+        val questions = listOf(
+            "Gu nghe nhạc của tôi là gì?",
+            "Sở thích âm nhạc của tôi là gì?",
+            "Tôi thường nghe dòng nhạc nào?",
+            "Những thể loại nhạc tôi yêu thích là gì?",
+            "Thể loại nhạc tôi hay nghe là gì?"
+        )
+
+        questions.forEach { question ->
+            val answer = requireNotNull(
+                answerNgocSiAiSavedPreferenceQuestion(question, memories)
+            ) { "Expected local taste lookup for: $question" }
+            assertTrue("Bolero should be recalled for: $question", answer.contains("Bolero"))
+            assertTrue("Trịnh should be recalled for: $question", answer.contains("Trịnh"))
+        }
+    }
+
+    @Test
+    fun doesNotMistakeTheWordTrinhInTrinhPhatForTheMusicGenreTrinh() {
+        val memories = listOf(
+            "tôi muốn trình phát nhạc nhỏ gọn",
+            "tôi thích nghe nhạc Trịnh"
+        )
+
+        val answer = requireNotNull(
+            answerNgocSiAiMusicTasteQuestion(
+                "Tôi thích thể loại nhạc nào?",
+                memories
+            )
+        )
+
+        assertTrue(answer.contains("tôi thích nghe nhạc Trịnh"))
+        assertFalse(answer.contains("trình phát nhạc nhỏ gọn"))
+    }
+
+    @Test
     fun musicTasteQuestionHonestlySaysWhenNoGenrePreferenceWasSaved() {
         val answer = requireNotNull(
             answerNgocSiAiMusicTasteQuestion(

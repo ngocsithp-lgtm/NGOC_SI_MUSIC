@@ -76,7 +76,7 @@ private val NGOC_SI_AI_MEMORY_UPDATE_PREFIX = Regex(
 )
 
 private val NGOC_SI_AI_MEMORY_ALLOWED_TOPICS = listOf(
-    "nhac", "bolero", "trinh", "nhac vang", "nhac song", "nhac xua",
+    "nhac", "bolero", "nhac trinh", "nhac vang", "nhac song", "nhac xua",
     "tru tinh", "dan ca", "que huong", "tien chien", "nhac tre",
     "cai luong", "jazz", "rock", "pop", "rap", "edm", "lofi", "acoustic",
     "nhac khong loi", "hoa tau", "nhac hoa tau", "country", "classical",
@@ -94,16 +94,26 @@ private val NGOC_SI_AI_MEMORY_BLOCKED_TOPICS = listOf(
 )
 
 private val NGOC_SI_AI_MEMORY_GENRE_INTENT_PHRASES = listOf(
-    "the loai", "dong nhac", "gu nhac", "gu am nhac", "so thich nhac",
-    "hay nghe nhac gi", "thich nghe nhac gi", "nghe nhac gi", "nhac nao"
+    "the loai", "dong nhac", "gu nhac", "gu am nhac", "gu nghe nhac",
+    "so thich nhac", "so thich am nhac", "nhac yeu thich",
+    "hay nghe nhac gi", "thuong nghe nhac", "thich nghe nhac gi",
+    "nghe nhac gi", "nhac nao"
 )
 
 private val NGOC_SI_AI_MEMORY_GENRE_MARKERS = listOf(
-    "bolero", "trinh", "nhac vang", "nhac xua", "tru tinh", "dan ca",
+    "bolero", "nhac trinh", "nhac vang", "nhac xua", "tru tinh", "dan ca",
     "que huong", "tien chien", "nhac tre", "cai luong", "jazz", "rock",
     "pop", "rap", "edm", "lofi", "acoustic", "nhac khong loi", "hoa tau",
     "country", "classical", "instrumental", "remix", "nhac song"
 )
+
+/** Match complete normalized genre phrases, not incidental substrings such as "trình" in "trình phát". */
+private fun containsNgocSiAiMusicGenre(normalizedText: String): Boolean {
+    val paddedText = " ${normalizeNgocSiAiVoicePhrase(normalizedText)} "
+    return NGOC_SI_AI_MEMORY_GENRE_MARKERS.any { marker ->
+        paddedText.contains(" $marker ")
+    }
+}
 
 private val NGOC_SI_AI_MEMORY_UNTRUSTED_MARKERS = listOf(
     "bo qua huong dan", "bo qua tat ca huong dan", "ignore previous", "ignore all",
@@ -393,7 +403,7 @@ internal fun selectNgocSiAiRelevantMemories(
         val memoryTokens = normalized.split(" ").filter { it.length >= 3 }.toSet()
         val overlap = queryTokens.intersect(memoryTokens).size
         val phraseMatch = query.isNotBlank() && normalized.contains(query)
-        val genreMatch = asksAboutMusicGenre && NGOC_SI_AI_MEMORY_GENRE_MARKERS.any(normalized::contains)
+        val genreMatch = asksAboutMusicGenre && containsNgocSiAiMusicGenre(normalized)
         val relevanceScore = overlap + (if (phraseMatch) 4 else 0) + (if (genreMatch) 6 else 0)
         Triple(index, memory, relevanceScore)
     }
@@ -427,29 +437,40 @@ internal fun answerNgocSiAiMusicTasteQuestion(
     memories: List<String>
 ): String? {
     val query = normalizeNgocSiAiVoicePhrase(userText)
+    val hasOwnReference = query.startsWith("toi ") ||
+        query.startsWith("minh ") ||
+        query.contains(" cua toi") ||
+        query.contains(" cua minh") ||
+        " $query ".contains(" toi ") ||
+        " $query ".contains(" minh ")
+    val expressesPreference = listOf(
+        "thich", "yeu thich", "hay nghe", "thuong nghe", "gu", "so thich"
+    ).any(query::contains)
     val asksAboutOwnTaste = listOf(
         "toi thich the loai nhac nao",
         "toi thich nghe nhac gi",
         "toi hay nghe nhac gi",
+        "toi thuong nghe nhac gi",
         "gu am nhac cua toi",
+        "gu nghe nhac cua toi",
         "gu nhac cua toi",
         "so thich nhac cua toi",
+        "so thich am nhac cua toi",
         "the loai nhac toi thich",
         "dong nhac toi thich",
         "minh thich the loai nhac nao",
         "minh hay nghe nhac gi",
         "gu am nhac cua minh"
     ).any(query::contains) || (
-        (query.contains("the loai") || query.contains("dong nhac") || query.contains("gu am nhac")) &&
-            (query.contains("cua toi") || query.contains("cua minh") ||
-                query.startsWith("toi thich") || query.startsWith("minh thich"))
+        NGOC_SI_AI_MEMORY_GENRE_INTENT_PHRASES.any(query::contains) &&
+            hasOwnReference && expressesPreference
         )
     if (!asksAboutOwnTaste) return null
 
     val savedGenreNotes = selectNgocSiAiRelevantMemories(memories, userText)
         .filter { note ->
             val normalizedNote = normalizeNgocSiAiVoicePhrase(note)
-            NGOC_SI_AI_MEMORY_GENRE_MARKERS.any(normalizedNote::contains)
+            containsNgocSiAiMusicGenre(normalizedNote)
         }
     if (savedGenreNotes.isEmpty()) {
         return "Mình chưa tìm thấy ghi nhớ về thể loại nhạc bạn yêu thích trên thiết bị. " +
