@@ -158,6 +158,26 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
+    fun wakePrefixedHowToQuestionsNeverExposeTheAppActionTool() {
+        listOf(
+            "AI, làm thế nào để mở YouTube?",
+            "Al, chỉ tôi cách mở YouTube.",
+            "Ngọc Sĩ AI, hướng dẫn cách tìm nhạc trong Drive.",
+            "AI, tôi muốn biết cách mở YouTube.",
+            "AI, mở YouTube như thế nào?",
+            "AI, tìm Drive bằng cách nào?"
+        ).forEach { phrase ->
+            assertFalse(
+                "$phrase is a how-to question, not permission to execute an action",
+                shouldOfferNgocSiAiAppCommandTool(phrase)
+            )
+        }
+
+        assertTrue(shouldOfferNgocSiAiAppCommandTool("AI, mở YouTube."))
+        assertTrue(shouldOfferNgocSiAiAppCommandTool("AI, bạn có thể mở YouTube không?"))
+    }
+
+    @Test
     fun customSleepTimerRequestsExposeTheConstrainedAppTool() {
         assertTrue(shouldOfferNgocSiAiAppCommandTool("AI, đặt hẹn giờ tắt nhạc sau 5 phút"))
         assertFalse(shouldOfferNgocSiAiAppCommandTool("Hẹn giờ của ứng dụng hoạt động như thế nào?"))

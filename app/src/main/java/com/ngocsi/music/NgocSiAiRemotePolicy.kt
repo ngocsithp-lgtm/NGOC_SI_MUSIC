@@ -95,11 +95,17 @@ internal fun shouldOfferNgocSiAiAppCommandTool(
     // Questions asking for an explanation should never become app actions.
     val informationalPrefixes = listOf(
         "vi sao ", "tai sao ", "lam sao ", "lam the nao ",
-        "cach nao ", "ke cho toi nghe ", "cho toi biet ", "la gi "
+        "cach nao ", "ke cho toi nghe ", "cho toi biet ", "la gi ",
+        "huong dan ", "chi toi cach ", "noi cho toi cach ",
+        "giai thich cach ", "toi muon biet cach ", "cach de "
     )
-    if (informationalPrefixes.any { prefix -> normalized.startsWith(prefix) }) return false
+    // Check the wake-word-stripped phrase. Using the original text here allowed
+    // "AI, làm thế nào để mở YouTube?" to expose the action tool accidentally.
+    if (informationalPrefixes.any(intentText::startsWith)) return false
+    val howToQuestionMarkers = listOf(" nhu the nao", " bang cach nao")
+    if (howToQuestionMarkers.any(intentText::contains)) return false
 
-    if (hasDirectNgocSiAiAppActionIntent(normalized)) return true
+    if (hasDirectNgocSiAiAppActionIntent(intentText)) return true
     return isConfirmedNgocSiAiContextualAction(normalized, previousMessages)
 }
 
