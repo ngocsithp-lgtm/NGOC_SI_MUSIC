@@ -88,7 +88,7 @@ class NgocSiAiHistoryRulesTest {
     }
 
     @Test
-    fun retainsEightRecentCompleteTurnsWithinMessageAndCharacterBudgets() {
+    fun retainsFourRecentCompleteTurnsWithinMessageAndCharacterBudgets() {
         val messages = buildList {
             repeat(9) { index ->
                 add(NgocSiAiMessage(role = "user", content = "câu hỏi $index"))
@@ -99,10 +99,10 @@ class NgocSiAiHistoryRulesTest {
 
         val history = normalizeNgocSiAiHistory(messages)
 
-        assertEquals(15, history.size)
+        assertEquals(7, history.size)
         assertTrue(history.size <= NGOC_SI_AI_MAX_HISTORY_MESSAGES)
         assertTrue(history.sumOf { it.content.length } <= NGOC_SI_AI_MAX_TOTAL_CHARS)
-        assertEquals("câu hỏi 2", history.first().content)
+        assertEquals("câu hỏi 6", history.first().content)
         assertEquals("câu hỏi cuối", history.last().content)
     }
 
@@ -189,7 +189,7 @@ class NgocSiAiHistoryRulesTest {
     }
 
     @Test
-    fun appendingWakeWordTurnKeepsOnlyEightMostRecentCompleteTurns() {
+    fun appendingWakeWordTurnKeepsOnlyFourMostRecentCompleteTurns() {
         val history = buildList {
             repeat(8) { index ->
                 add(NgocSiAiMessage("user", "Câu hỏi $index"))
@@ -201,7 +201,7 @@ class NgocSiAiHistoryRulesTest {
         )
 
         assertEquals(NGOC_SI_AI_MAX_HISTORY_MESSAGES, updated.size)
-        assertEquals("Câu hỏi 1", updated.first().content)
+        assertEquals("Câu hỏi 4", updated.first().content)
         assertEquals("Câu hỏi mới", updated[updated.lastIndex - 1].content)
         assertEquals("assistant", updated.last().role)
     }
