@@ -389,7 +389,7 @@ internal fun selectNgocSiAiRelevantMemories(
         val overlap = queryTokens.intersect(memoryTokens).size
         val phraseMatch = query.isNotBlank() && normalized.contains(query)
         val genreMatch = asksAboutMusicGenre && NGOC_SI_AI_MEMORY_GENRE_MARKERS.any(normalized::contains)
-        val relevanceScore = overlap + if (phraseMatch) 4 else 0 + if (genreMatch) 6 else 0
+        val relevanceScore = overlap + (if (phraseMatch) 4 else 0) + (if (genreMatch) 6 else 0)
         Triple(index, memory, relevanceScore)
     }
     val matching = ranked.filter { it.third > 0 }
