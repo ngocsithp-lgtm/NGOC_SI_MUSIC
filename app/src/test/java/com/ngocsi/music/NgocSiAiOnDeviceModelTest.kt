@@ -25,6 +25,7 @@ class NgocSiAiOnDeviceModelTest {
 
     @Test
     fun localModelUsesASeparateLargeFileOutsideTheApk() {
+        assertEquals(613_722_264L, NgocSiAiOnDeviceModel.MODEL_SIZE_BYTES)
         assertTrue(NgocSiAiOnDeviceModel.MODEL_SIZE_BYTES > 500L * 1024L * 1024L)
         assertEquals("586 MiB", NgocSiAiOnDeviceModel.MODEL_SIZE_LABEL)
     }

@@ -48,7 +48,7 @@ internal data class NgocSiAiLocalModelDownloadProgress(
  * One dedicated executor owns Engine and Conversation for their entire lifetime.
  */
 internal object NgocSiAiOnDeviceModel {
-    const val MODEL_SIZE_BYTES = 614_465_536L // 586 MiB
+    const val MODEL_SIZE_BYTES = 613_722_264L // exact file size from the Hugging Face LFS pointer; 586 MiB
     const val MODEL_SIZE_LABEL = "586 MiB"
     private const val MODEL_FILE_NAME = "Qwen3-0.6B.litertlm"
     private const val MODEL_URL =
