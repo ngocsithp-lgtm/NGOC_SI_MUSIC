@@ -229,7 +229,8 @@ internal object NgocSiAiOnDeviceModel {
     suspend fun generate(
         context: Context,
         prompt: String,
-        onDeviceMemories: List<String> = emptyList()
+        onDeviceMemories: List<String> = emptyList(),
+        priorMessages: List<NgocSiAiMessage> = emptyList()
     ): String = withContext(engineDispatcher) {
         val cleanPrompt = prompt.trim().take(MAX_LOCAL_PROMPT_CHARS)
         require(cleanPrompt.isNotBlank()) { "Câu hỏi không được để trống." }
