@@ -112,6 +112,40 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
+    fun musicTasteAndListeningStatementsDoNotOpenTheAppActionTool() {
+        listOf(
+            "Tôi thích nghe nhạc Bolero.",
+            "AI, tôi thích nghe nhạc Bolero.",
+            "Ngọc Sĩ AI, tôi thường nghe YouTube buổi tối.",
+            "Tôi đang nghe Radio.",
+            "Tôi nghe nhạc Trịnh mỗi ngày."
+        ).forEach { phrase ->
+            assertFalse("$phrase is a statement, not an app command", shouldOfferNgocSiAiAppCommandTool(phrase))
+        }
+    }
+
+    @Test
+    fun negativeListeningAndNavigationStatementsDoNotAuthorizeAppActions() {
+        listOf(
+            "Tôi không muốn nghe nhạc nữa.",
+            "AI, tôi không muốn mở YouTube.",
+            "Tôi không cần mở Drive.",
+            "Tôi không thích nghe nhạc trên Radio.",
+            "Tôi không nghe YouTube."
+        ).forEach { phrase ->
+            assertFalse("$phrase must not authorize an app action", shouldOfferNgocSiAiAppCommandTool(phrase))
+        }
+    }
+
+    @Test
+    fun explicitRequestsAndIndependentActionsStillExposeTheTool() {
+        assertTrue(shouldOfferNgocSiAiAppCommandTool("Tôi muốn nghe nhạc Bolero."))
+        assertTrue(shouldOfferNgocSiAiAppCommandTool("AI, mở YouTube."))
+        assertTrue(shouldOfferNgocSiAiAppCommandTool("Tôi thích nghe Bolero, hãy tìm bài trên YouTube rồi phát."))
+        assertTrue(shouldOfferNgocSiAiAppCommandTool("AI, đừng phát nhạc nữa."))
+    }
+
+    @Test
     fun informationalQuestionsDoNotBecomeAppActions() {
         listOf(
             "Vì sao YouTube có thể phát nhạc nền?",

@@ -68,6 +68,30 @@ internal fun shouldOfferNgocSiAiAppCommandTool(
     previousMessages: List<NgocSiAiMessage> = emptyList()
 ): Boolean {
     val normalized = normalizeNgocSiAiVoicePhrase(prompt)
+    val intentText = stripNgocSiAiDirectIntentWakePrefix(normalized)
+
+    // Negative preferences are not consent to control the player or navigate.
+    val negativeStatementPrefixes = listOf(
+        "toi khong muon ", "minh khong muon ", "khong muon ",
+        "toi khong can ", "minh khong can ", "khong can ",
+        "toi khong thich ", "minh khong thich ",
+        "toi khong nghe ", "minh khong nghe "
+    )
+    if (negativeStatementPrefixes.any(intentText::startsWith)) return false
+
+    // Declarative listening preferences are not app commands. A separate imperative
+    // clause ("... rồi tìm bài ...") still exposes the tool for that explicit action.
+    val preferenceStatementPrefixes = listOf(
+        "toi thich ", "minh thich ", "toi rat thich ", "minh rat thich ",
+        "toi hay nghe ", "minh hay nghe ", "toi thuong nghe ", "minh thuong nghe ",
+        "toi dang nghe ", "minh dang nghe ", "toi nghe ", "minh nghe "
+    )
+    if (preferenceStatementPrefixes.any(intentText::startsWith)) {
+        val actionClauses = intentText.split(
+            Regex("""\s+(?:va|roi|sau do|nhung|hay|then|and)\s+|[,;]\s*""")
+        ).drop(1)
+        return actionClauses.any(::hasDirectNgocSiAiAppActionIntent)
+    }
     // Questions asking for an explanation should never become app actions.
     val informationalPrefixes = listOf(
         "vi sao ", "tai sao ", "lam sao ", "lam the nao ",
@@ -97,6 +121,18 @@ internal fun isNgocSiAiContextualActionConfirmation(
     // direct-intent matcher first: generic confirmations such as "tiếp tục" overlap
     // command markers but are safe only when the prior assistant explicitly asked.
     return isConfirmedNgocSiAiContextualAction(normalized, previousMessages)
+}
+
+/**
+ * Removes a leading wake word before distinguishing a spoken preference from a command.
+ */
+private fun stripNgocSiAiDirectIntentWakePrefix(normalized: String): String {
+    val prefixes = listOf(
+        "hey ngoc si ai ", "hey ai ", "ok ai ", "alo ai ",
+        "ngoc si ai ", "ngoc si al ", "ai oi ", "ai ", "al ", "a l "
+    )
+    val prefix = prefixes.firstOrNull(normalized::startsWith) ?: return normalized
+    return normalized.removePrefix(prefix).trim()
 }
 
 /** Deterministic intent gate for explicit app actions; does not use fuzzy matching. */
