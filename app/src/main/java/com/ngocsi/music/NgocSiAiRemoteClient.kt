@@ -192,7 +192,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
                             }
                         }
                         if (index == selectedCallIndex &&
-                            !shouldContinueNgocSiAiAgentSequence(result.routed, result.feedback)
+                            !shouldContinueNgocSiAiAgentSequence(result.routed, result.feedback, action)
                         ) {
                             stopSequenceAfterFeedback = true
                         }
@@ -558,7 +558,8 @@ internal fun ngocSiAiDeferredToolCallFeedback(): String =
 
 internal fun shouldContinueNgocSiAiAgentSequence(
     routed: Boolean,
-    feedback: String
+    feedback: String,
+    action: String? = null
 ): Boolean {
     if (!routed) return false
     val normalized = normalizeNgocSiAiVoicePhrase(feedback)
@@ -571,6 +572,10 @@ internal fun shouldContinueNgocSiAiAgentSequence(
         "khong nhan dien duoc"
     )
     if (failureMarkers.any { marker -> normalized.contains(marker) }) return false
+
+    // current_track is a read-only status query. Its answer naturally begins with
+    // "Đang phát" or "Đang tạm dừng", which must not be mistaken for a pending action.
+    if (action == "current_track") return true
 
     // These replies acknowledge dispatch or ongoing work, not completion.
     // MainActivity navigation and YouTube/background controls can finish asynchronously;

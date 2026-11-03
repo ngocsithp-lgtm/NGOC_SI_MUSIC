@@ -218,6 +218,31 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
+    fun readOnlyCurrentTrackFeedbackDoesNotLookLikeAnUnfinishedPlaybackAction() {
+        assertTrue(
+            shouldContinueNgocSiAiAgentSequence(
+                true,
+                "Đang phát: Diễm xưa — Khánh Ly",
+                "current_track"
+            )
+        )
+        assertTrue(
+            shouldContinueNgocSiAiAgentSequence(
+                true,
+                "Đang tạm dừng: Diễm xưa",
+                "current_track"
+            )
+        )
+        assertFalse(
+            shouldContinueNgocSiAiAgentSequence(
+                true,
+                "Đang phát video YouTube tiếp theo.",
+                "youtube_next"
+            )
+        )
+    }
+
+    @Test
     fun agentContinuesOnlyAfterCompletedAppFeedback() {
         assertTrue(shouldContinueNgocSiAiAgentSequence(true, "Đã bật phát ngẫu nhiên cho hàng đợi hiện tại."))
         assertTrue(shouldContinueNgocSiAiAgentSequence(true, "Đã tua tiến 10 giây."))
