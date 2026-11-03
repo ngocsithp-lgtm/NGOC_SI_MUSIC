@@ -936,6 +936,9 @@ class NgocSiAiActivity : ComponentActivity() {
                     )
                     NgocSiAiOnDeviceModel.generate(applicationContext, prompt, memories)
                 },
+                onReleaseLocalModel = {
+                    NgocSiAiOnDeviceModel.release()
+                },
                 onSendOnline = { history, executeTool, onPartialResponse ->
                     aiClient.send(history, executeTool, onPartialResponse)
                 },
@@ -2152,6 +2155,7 @@ private fun NgocSiAiPreviewScreen(
     onIsLocalModelInstalled: () -> Boolean,
     onDownloadLocalModel: suspend (onProgress: (Long, Long) -> Unit) -> Unit,
     onGenerateLocalModel: suspend (String) -> String,
+    onReleaseLocalModel: suspend () -> Unit,
     onSendOnline: NgocSiAiRequest,
     onExecuteAppCommand: NgocSiAiToolExecutor,
     onLocalCommand: (NgocSiAiLocalCommand, String) -> String,
@@ -3018,10 +3022,20 @@ private fun NgocSiAiPreviewScreen(
             if (localModelInstalled || preferLocalModel) {
                 Surface(
                     modifier = Modifier.clickable {
-                        preferLocalModel = !preferLocalModel
+                        val nextPreferLocal = !preferLocalModel
+                        preferLocalModel = nextPreferLocal
                         chatPreferences.edit()
-                            .putBoolean(NGOC_SI_AI_PREFER_LOCAL_MODEL_KEY, preferLocalModel)
+                            .putBoolean(NGOC_SI_AI_PREFER_LOCAL_MODEL_KEY, nextPreferLocal)
                             .apply()
+                        if (!nextPreferLocal) {
+                            coroutineScope.launch {
+                                runCatching { onReleaseLocalModel() }
+                                    .onFailure { error ->
+                                        quotaNote = "Đã chuyển sang Gemini; chưa giải phóng được bộ nhớ AI tại máy: " +
+                                            (error.message ?: "lỗi không xác định")
+                                    }
+                            }
+                        }
                     },
                     shape = RoundedCornerShape(12.dp),
                     color = if (preferLocalModel) Color(0xFF28213D) else NgocSiVisuals.SurfaceRaised,

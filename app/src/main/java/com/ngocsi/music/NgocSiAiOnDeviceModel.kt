@@ -289,6 +289,20 @@ internal object NgocSiAiOnDeviceModel {
         turnsInCurrentConversation = 0
     }
 
+    /** Releases native model memory when the user switches back to Gemini. */
+    suspend fun release() = withContext(engineDispatcher) {
+        operationMutex.withLock {
+            resetConversation()
+            engine?.let { loadedEngine ->
+                if (loadedEngine.isInitialized()) {
+                    loadedEngine.close()
+                }
+            }
+            engine = null
+            loadedModelPath = null
+        }
+    }
+
     private const val LOCAL_MODEL_SYSTEM_INSTRUCTION =
         "Bạn là NGỌC SĨ AI, trợ lý tiếng Việt chạy hoàn toàn trên điện thoại. " +
             "Trả lời tiếng Việt tự nhiên, rõ ràng, vừa đủ và bám sát câu hỏi. " +
