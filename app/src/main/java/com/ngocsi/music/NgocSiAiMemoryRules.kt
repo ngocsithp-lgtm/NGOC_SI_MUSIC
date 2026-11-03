@@ -166,9 +166,13 @@ internal fun parseNgocSiAiMemoryCommand(input: String): NgocSiAiMemoryCommand? {
 /** True only when a memory command explicitly includes the AI wake phrase. */
 internal fun isNgocSiAiExplicitMemoryCommand(input: String): Boolean {
     val trimmed = input.trim()
-    return trimmed.isNotBlank() &&
-        parseNgocSiAiMemoryCommand(trimmed) != null &&
-        stripNgocSiAiMemoryWakePrefix(trimmed) != trimmed
+    if (trimmed.isBlank() || parseNgocSiAiMemoryCommand(trimmed) == null) return false
+
+    // Compare the normalized phrase with the anchored wake-prefix regex. Comparing the
+    // stripped result to the original text is unsafe because normalization removes accents.
+    return NGOC_SI_AI_MEMORY_NORMALIZED_WAKE_PREFIX.containsMatchIn(
+        normalizeNgocSiAiVoicePhrase(trimmed)
+    )
 }
 
 /**

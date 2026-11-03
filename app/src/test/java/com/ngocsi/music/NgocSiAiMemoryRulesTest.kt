@@ -28,7 +28,9 @@ class NgocSiAiMemoryRulesTest {
         val followUp = "hãy nhớ tôi thích nghe nhạc Bolero"
 
         assertTrue(isNgocSiAiExplicitMemoryCommand(explicit))
+        assertTrue(isNgocSiAiExplicitMemoryCommand("Al ơi, hãy nhớ tôi thích nghe nhạc Bolero"))
         assertFalse(isNgocSiAiExplicitMemoryCommand(followUp))
+        assertFalse(isNgocSiAiExplicitMemoryCommand("Hãy nhớ tôi thích nghe nhạc Bolero"))
         assertEquals(
             explicit,
             selectNgocSiAiMemoryCommandCandidate(
