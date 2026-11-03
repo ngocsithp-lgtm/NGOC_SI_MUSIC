@@ -23,6 +23,14 @@ import java.security.MessageDigest
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
+internal const val NGOC_SI_AI_PREFER_LOCAL_MODEL_KEY = "prefer_on_device_ai_v1"
+
+internal fun stripNgocSiAiOnDeviceThinkingContent(text: String): String =
+    text.replace(Regex("<think>.*?</think>", setOf(RegexOption.DOT_MATCHES_ALL)), "")
+        .replace("</think>", "")
+        .replace("<think>", "")
+        .trim()
+
 internal data class NgocSiAiLocalModelDownloadProgress(
     val downloadedBytes: Long,
     val totalBytes: Long
@@ -216,7 +224,7 @@ internal object NgocSiAiOnDeviceModel {
                 throw cancelled
             }
 
-            val cleanReply = stripQwen3ThinkingContent(reply.toString())
+            val cleanReply = stripNgocSiAiOnDeviceThinkingContent(reply.toString())
             check(cleanReply.isNotBlank()) {
                 "Mô hình ngoại tuyến chưa tạo được câu trả lời. Hãy thử câu hỏi ngắn hơn."
             }
@@ -280,12 +288,6 @@ internal object NgocSiAiOnDeviceModel {
         conversation = null
         turnsInCurrentConversation = 0
     }
-
-    private fun stripQwen3ThinkingContent(text: String): String =
-        text.replace(Regex("<think>.*?</think>", setOf(RegexOption.DOT_MATCHES_ALL)), "")
-            .replace("</think>", "")
-            .replace("<think>", "")
-            .trim()
 
     private const val LOCAL_MODEL_SYSTEM_INSTRUCTION =
         "Bạn là NGỌC SĨ AI, trợ lý tiếng Việt chạy hoàn toàn trên điện thoại. " +
