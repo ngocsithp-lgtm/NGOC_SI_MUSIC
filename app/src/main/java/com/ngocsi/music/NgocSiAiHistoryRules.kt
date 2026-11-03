@@ -43,9 +43,15 @@ internal fun appendCompletedNgocSiAiTurn(
 internal fun restoreCompletedNgocSiAiConversation(
     messages: List<NgocSiAiMessage>
 ): List<NgocSiAiMessage> {
-    var bounded = messages.takeLast(NGOC_SI_AI_MAX_HISTORY_MESSAGES)
+    // Remove an interrupted newest user turn before applying the size limit. Doing
+    // this in the opposite order can discard one extra complete turn at the front.
+    val completed = if (messages.lastOrNull()?.role == "user") {
+        messages.dropLast(1)
+    } else {
+        messages
+    }
+    val bounded = completed.takeLast(NGOC_SI_AI_MAX_HISTORY_MESSAGES)
         .dropWhile { it.role == "assistant" }
-    if (bounded.lastOrNull()?.role == "user") bounded = bounded.dropLast(1)
 
     val rolesAlternate = bounded.zipWithNext().all { (first, second) ->
         first.role != second.role

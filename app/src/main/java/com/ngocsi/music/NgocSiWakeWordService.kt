@@ -31,8 +31,6 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import java.util.Locale
-import org.json.JSONArray
-import org.json.JSONObject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -94,7 +92,6 @@ class NgocSiWakeWordService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        restoreWakeConversationHistory()
         textToSpeech = TextToSpeech(this) { status ->
             if (status == TextToSpeech.SUCCESS) {
                 val tts = textToSpeech
@@ -690,9 +687,8 @@ class NgocSiWakeWordService : Service() {
         } else if (isNgocSiAiWakeWordOnly(recognized)) {
             // Keep the hands-free session active until idle; later turns don't need the wake word.
             if (!conversationActive) {
-                // Restore completed context each time a new hands-free session begins.
-                // This survives Android service restarts without adding unfinished turns.
-                restoreWakeConversationHistory()
+                conversationHistory.clear()
+                lastAssistantReplyForFallback = null
             }
             conversationActive = true
             conversationSpeechStarted = false
@@ -928,7 +924,6 @@ class NgocSiWakeWordService : Service() {
                 // Preserve conversational context even when an error reply is intentionally
                 // excluded from Gemini history, so follow-ups like “Tại sao?” stay on topic.
                 lastAssistantReplyForFallback = answer
-                persistWakeFallbackReply(answer)
 
                 val keepTurnInHistory =
                     localFallback != null || !remoteAnswer.isNullOrBlank() || errorFallback != null
@@ -939,7 +934,6 @@ class NgocSiWakeWordService : Service() {
                     while (conversationHistory.size > MAX_CONVERSATION_MESSAGES) {
                         conversationHistory.removeAt(0)
                     }
-                    persistWakeConversationHistory()
                 }
 
                 publishConversationUpdate(cleanQuestion, answer, conversationTurnId)
@@ -970,62 +964,6 @@ class NgocSiWakeWordService : Service() {
                 answeringQuestion = false
             }
         }
-    }
-
-    /**
-     * Restores only completed voice turns from private app storage. A trailing user
-     * message is discarded so a process death cannot corrupt the next model request.
-     */
-    private fun restoreWakeConversationHistory() {
-        val preferences = getSharedPreferences(NGOC_SI_AI_CHAT_PREFERENCES_NAME, Context.MODE_PRIVATE)
-        val stored = preferences.getString(KEY_WAKE_API_CONVERSATION, null)
-        val decoded = runCatching {
-            val array = JSONArray(stored)
-            buildList {
-                for (index in 0 until array.length()) {
-                    val item = array.optJSONObject(index) ?: continue
-                    val role = item.optString("role")
-                    val content = item.optString("content").trim().take(MAX_WAKE_HISTORY_MESSAGE_CHARS)
-                    if ((role == "user" || role == "assistant") && content.isNotBlank()) {
-                        add(NgocSiAiMessage(role, content))
-                    }
-                }
-            }
-        }.getOrDefault(emptyList())
-        val restored = restoreCompletedNgocSiAiConversation(decoded)
-        conversationHistory.clear()
-        conversationHistory.addAll(restored)
-        lastAssistantReplyForFallback = preferences
-            .getString(KEY_WAKE_LAST_FALLBACK_REPLY, null)
-            ?.takeIf { it.isNotBlank() }
-            ?.take(MAX_WAKE_HISTORY_MESSAGE_CHARS)
-            ?: restored.lastOrNull { it.role == "assistant" }?.content
-    }
-
-    /** Saves only a bounded, structurally valid sequence of completed turns. */
-    private fun persistWakeConversationHistory() {
-        val validHistory = restoreCompletedNgocSiAiConversation(conversationHistory)
-            .takeLast(MAX_CONVERSATION_MESSAGES)
-        val array = JSONArray()
-        validHistory.forEach { message ->
-            array.put(
-                JSONObject()
-                    .put("role", message.role)
-                    .put("content", message.content.take(MAX_WAKE_HISTORY_MESSAGE_CHARS))
-            )
-        }
-        getSharedPreferences(NGOC_SI_AI_CHAT_PREFERENCES_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putString(KEY_WAKE_API_CONVERSATION, array.toString())
-            .apply()
-    }
-
-    /** Error/fallback replies guide short follow-ups but are not sent as model history. */
-    private fun persistWakeFallbackReply(answer: String) {
-        getSharedPreferences(NGOC_SI_AI_CHAT_PREFERENCES_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putString(KEY_WAKE_LAST_FALLBACK_REPLY, answer.take(MAX_WAKE_HISTORY_MESSAGE_CHARS))
-            .apply()
     }
 
     private fun nextConversationTurnId(): Long {
@@ -1130,7 +1068,8 @@ class NgocSiWakeWordService : Service() {
             conversationSpeechStarted = false
             awaitingCommand = false
             awaitingCommandUntilMillis = 0L
-            // Keep the bounded local transcript for the next wake phrase.
+            conversationHistory.clear()
+            lastAssistantReplyForFallback = null
             updateNotification("Phiên trò chuyện đã kết thúc do im lặng · nói “AI” để gọi lại")
         }
     }
@@ -2160,9 +2099,6 @@ class NgocSiWakeWordService : Service() {
         private const val CONVERSATION_TIMEOUT_RECHECK_MILLIS = 1_000L
         private const val VOICE_CONTROL_STOP_REPLY_TIMEOUT_MILLIS = 3_500L
         private const val MAX_CONVERSATION_MESSAGES = 12
-        private const val MAX_WAKE_HISTORY_MESSAGE_CHARS = 4_000
-        private const val KEY_WAKE_API_CONVERSATION = "wake_api_conversation_v1"
-        private const val KEY_WAKE_LAST_FALLBACK_REPLY = "wake_last_fallback_reply_v1"
 
         fun start(context: Context) {
             val intent = Intent(context, NgocSiWakeWordService::class.java).setAction(ACTION_START)

@@ -218,7 +218,7 @@ class NgocSiAiHistoryRulesTest {
         val restored = restoreCompletedNgocSiAiConversation(stored)
 
         assertEquals(NGOC_SI_AI_MAX_HISTORY_MESSAGES, restored.size)
-        assertEquals("Câu hỏi 3", restored.first().content)
+        assertEquals("Câu hỏi 2", restored.first().content)
         assertEquals("Câu trả lời 7", restored.last().content)
         assertEquals("assistant", restored.last().role)
     }
