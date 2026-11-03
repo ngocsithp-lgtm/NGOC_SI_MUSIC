@@ -85,9 +85,6 @@ private val NGOC_SI_AI_MEMORY_UNTRUSTED_MARKERS = listOf(
     "tool call", "thuc hien lenh", "gui du lieu", "tro ly phai", "ai phai"
 )
 
-private fun stripNgocSiAiMemoryWakePrefix(input: String): String =
-    NGOC_SI_AI_MEMORY_WAKE_PREFIX.replaceFirst(input.trim(), "").trim()
-
 private fun isSafeNgocSiAiMemoryNote(note: String): Boolean {
     val normalized = normalizeNgocSiAiVoicePhrase(note)
     if (normalized.isBlank() || normalized.length < 4 ||
