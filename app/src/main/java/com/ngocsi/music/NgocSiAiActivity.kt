@@ -2351,8 +2351,7 @@ private fun NgocSiAiPreviewScreen(
             chatPreferences.getString(NGOC_SI_AI_LONG_TERM_MEMORY_KEY, null)
         )
         val localMemoryQuestionReply =
-            answerNgocSiAiMusicTasteQuestion(clean, localMemories)
-                ?: answerNgocSiAiSavedAppPreferenceQuestion(clean, localMemories)
+            answerNgocSiAiSavedPreferenceQuestion(clean, localMemories)
         val localCommand = if (
             localMemoryReply != null || localMemoryQuestionReply != null || contextualActionConfirmation
         ) {

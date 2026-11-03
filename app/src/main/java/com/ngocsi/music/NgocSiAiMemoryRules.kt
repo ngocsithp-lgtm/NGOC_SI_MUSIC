@@ -521,6 +521,17 @@ internal fun answerNgocSiAiSavedAppPreferenceQuestion(
         matching.joinToString("; ") + ". Đây là dữ liệu cục bộ, không cần Firebase."
 }
 
+/**
+ * Shared local lookup used by both the chat screen and hands-free voice conversation.
+ * Stable questions about saved preferences never need a Firebase request.
+ */
+internal fun answerNgocSiAiSavedPreferenceQuestion(
+    userText: String,
+    memories: List<String>
+): String? =
+    answerNgocSiAiMusicTasteQuestion(userText, memories)
+        ?: answerNgocSiAiSavedAppPreferenceQuestion(userText, memories)
+
 /** Formats only user-approved music/app preferences for a bounded model context. */
 internal fun buildNgocSiAiMemorySystemInstruction(
     memories: List<String>,

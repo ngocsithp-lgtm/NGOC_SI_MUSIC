@@ -756,9 +756,16 @@ class NgocSiWakeWordService : Service() {
                     NGOC_SI_AI_PREFER_LOCAL_MODEL_KEY,
                     false
                 )
+                // Match screen chat: saved music/app preferences are answered from the
+                // same private on-device memory before considering Gemini.
+                val localPreferenceReply = answerNgocSiAiSavedPreferenceQuestion(
+                    cleanQuestion,
+                    onDeviceMemories
+                )
                 // Handle common turns on-device first; this avoids spending the free
                 // Gemini allowance for greetings, quick help and known local responses.
                 val localFallback = memoryReply
+                    ?: localPreferenceReply
                     ?: localConversationFallback(cleanQuestion, previousAssistantReply)
                 val localModelNeedsAppTools =
                     shouldOfferNgocSiAiAppCommandTool(cleanQuestion, conversationHistory)

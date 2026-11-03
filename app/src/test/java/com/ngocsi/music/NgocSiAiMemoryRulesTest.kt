@@ -403,6 +403,31 @@ class NgocSiAiMemoryRulesTest {
     }
 
     @Test
+    fun sharedSavedPreferenceLookupAnswersVoiceTasteQuestionsWithoutGemini() {
+        val memories = listOf(
+            "tôi thích nghe nhạc Bolero",
+            "tôi muốn mini player nhỏ gọn"
+        )
+
+        val spokenAnswer = requireNotNull(
+            answerNgocSiAiSavedPreferenceQuestion(
+                "8 Đọc Al, tôi thích thế loại nhạc nào?",
+                memories
+            )
+        )
+        assertTrue(spokenAnswer.contains("Bolero"))
+        assertTrue(spokenAnswer.contains("không cần Firebase"))
+
+        val screenAnswer = requireNotNull(
+            answerNgocSiAiSavedPreferenceQuestion(
+                "Tôi muốn giao diện ứng dụng như thế nào?",
+                memories
+            )
+        )
+        assertTrue(screenAnswer.contains("mini player nhỏ gọn"))
+    }
+
+    @Test
     fun acceptsMemoryNotesUpToTheExpandedCharacterLimit() {
         val note = "tôi thích nghe nhạc Bolero " + "x".repeat(210)
         assertTrue(note.length <= NGOC_SI_AI_MAX_MEMORY_ITEM_CHARS)
