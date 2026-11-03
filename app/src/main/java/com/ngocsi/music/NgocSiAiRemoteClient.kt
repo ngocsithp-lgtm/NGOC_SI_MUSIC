@@ -635,7 +635,20 @@ internal fun classifyNgocSiAiAgentFeedback(
     if (pendingMarkers.any(normalized::contains)) {
         return NgocSiAiAgentFeedbackState.PENDING
     }
-    return NgocSiAiAgentFeedbackState.COMPLETED
+
+    // Only explicit completion language may authorize a dependent tool call.
+    // Unknown feedback fails closed as pending rather than being assumed successful.
+    val completionMarkers = listOf(
+        "da bat ", "da tat ", "da tua ", "da dung ", "da dat ",
+        "da tang ", "da giam ", "da doi ", "da chuyen ", "da xoa ",
+        "da them ", "da luu ", "da huy ", "da cap nhat ", "da chon ",
+        "da phat ngau nhien", "da bat lap", "da phat lai"
+    )
+    return if (completionMarkers.any(normalized::contains)) {
+        NgocSiAiAgentFeedbackState.COMPLETED
+    } else {
+        NgocSiAiAgentFeedbackState.PENDING
+    }
 }
 
 internal fun ngocSiAiAgentStopFeedback(

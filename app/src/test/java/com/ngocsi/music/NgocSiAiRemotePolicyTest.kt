@@ -365,6 +365,11 @@ class NgocSiAiRemotePolicyTest {
         assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Chưa có quyền đọc nhạc trên điện thoại."))
         assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Chưa mở được chức năng trong ứng dụng."))
         assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Tua YouTube không áp dụng; hãy dùng điều khiển riêng trong trình phát."))
+        assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Thao tác đã được tiếp nhận."))
+        assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Lệnh đã được ghi nhận."))
+        assertTrue(shouldContinueNgocSiAiAgentSequence(true, "Đã đặt tốc độ phát 1.25x."))
+        assertTrue(shouldContinueNgocSiAiAgentSequence(true, "Đã tăng âm lượng lên 70%."))
+        assertTrue(shouldContinueNgocSiAiAgentSequence(true, "Đã chuyển sang bài tiếp theo."))
     }
 }
 
