@@ -267,6 +267,39 @@ class NgocSiAiMemoryRulesTest {
     }
 
     @Test
+    fun recognizesAdditionalVietnameseAndInternationalMusicGenres() {
+        val genres = listOf(
+            "tôi thích nghe nhạc trữ tình",
+            "tôi thích nghe dân ca",
+            "tôi thích nhạc quê hương",
+            "tôi thích nhạc tiền chiến",
+            "tôi thích nhạc trẻ",
+            "tôi thích nghe rap",
+            "tôi thích EDM",
+            "tôi thích lofi",
+            "tôi thích acoustic",
+            "tôi thích nghe nhạc không lời",
+            "tôi thích hòa tấu",
+            "tôi thích nhạc country",
+            "tôi thích nhạc classical",
+            "tôi thích nhạc remix"
+        )
+
+        genres.forEach { preference ->
+            val result = applyNgocSiAiMemoryCommand(
+                NgocSiAiMemoryCommand(NgocSiAiMemoryCommandType.REMEMBER, preference),
+                emptyList()
+            )
+            assertTrue("Expected preference to be safe: $preference", result.shouldPersist)
+            assertEquals(listOf(preference), result.memories)
+            val answer = requireNotNull(
+                answerNgocSiAiMusicTasteQuestion("AI, tôi thích thể loại nhạc nào?", result.memories)
+            )
+            assertTrue("Expected answer to recall: $preference", answer.contains(preference))
+        }
+    }
+
+    @Test
     fun answersNaturalMusicTasteQuestionsFromLocalMemoryWithoutGemini() {
         val memories = buildList {
             add("tôi thích nghe nhạc Bolero")

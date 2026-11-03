@@ -77,7 +77,10 @@ private val NGOC_SI_AI_MEMORY_UPDATE_PREFIX = Regex(
 
 private val NGOC_SI_AI_MEMORY_ALLOWED_TOPICS = listOf(
     "nhac", "bolero", "trinh", "nhac vang", "nhac song", "nhac xua",
-    "cai luong", "jazz", "rock", "pop", "youtube", "drive", "radio", "tv",
+    "tru tinh", "dan ca", "que huong", "tien chien", "nhac tre",
+    "cai luong", "jazz", "rock", "pop", "rap", "edm", "lofi", "acoustic",
+    "nhac khong loi", "hoa tau", "nhac hoa tau", "country", "classical",
+    "instrumental", "remix", "youtube", "drive", "radio", "tv",
     "playlist", "hang doi", "thu vien", "yeu thich", "mini player", "video",
     "giong doc", "giong noi", "am luong", "hen gio", "phat nen", "background"
 )
@@ -96,8 +99,10 @@ private val NGOC_SI_AI_MEMORY_GENRE_INTENT_PHRASES = listOf(
 )
 
 private val NGOC_SI_AI_MEMORY_GENRE_MARKERS = listOf(
-    "bolero", "trinh", "nhac vang", "nhac xua", "cai luong",
-    "jazz", "rock", "pop", "nhac song"
+    "bolero", "trinh", "nhac vang", "nhac xua", "tru tinh", "dan ca",
+    "que huong", "tien chien", "nhac tre", "cai luong", "jazz", "rock",
+    "pop", "rap", "edm", "lofi", "acoustic", "nhac khong loi", "hoa tau",
+    "country", "classical", "instrumental", "remix", "nhac song"
 )
 
 private val NGOC_SI_AI_MEMORY_UNTRUSTED_MARKERS = listOf(
