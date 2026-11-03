@@ -29,7 +29,7 @@ internal data class NgocSiAiMemoryResult(
 )
 
 private val NGOC_SI_AI_MEMORY_WAKE_PREFIX = Regex(
-    """^(?:(?:hey|ok|alo)\s+)?(?:(?:ngoc\s+si|ngọc\s+sĩ)\s+)?ai(?:\s*[,.:]\s*|\s+)""",
+    """^(?:(?:hey|ok|alo)\s+)?(?:(?:ngoc\s+si|ngọc\s+sĩ)\s+)?(?:ai|a\s*i|al)(?:\s*[,.:]\s*|\s+)""",
     RegexOption.IGNORE_CASE
 )
 
@@ -103,7 +103,9 @@ internal fun parseNgocSiAiMemoryCommand(input: String): NgocSiAiMemoryCommand? {
     if (normalized in setOf(
             "quen het ghi nho", "xoa het ghi nho", "xoa ghi nho",
             "quen ghi nho", "xoa bo nho", "quen het bo nho",
-            "xoa bo nho dai han", "xoa ghi nho cua toi"
+            "xoa bo nho dai han", "xoa ghi nho cua toi",
+            "xoa toan bo ghi nho", "xoa toan bo bo nho",
+            "xoa sach ghi nho", "xoa sach bo nho"
         )
     ) {
         return NgocSiAiMemoryCommand(NgocSiAiMemoryCommandType.CLEAR)
