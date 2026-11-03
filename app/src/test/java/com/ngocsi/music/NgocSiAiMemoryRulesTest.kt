@@ -56,6 +56,28 @@ class NgocSiAiMemoryRulesTest {
             NgocSiAiMemoryCommand(NgocSiAiMemoryCommandType.CLEAR),
             parseNgocSiAiMemoryCommand("Al, xóa toàn bộ ghi nhớ")
         )
+
+        assertEquals(
+            NgocSiAiMemoryCommand(
+                NgocSiAiMemoryCommandType.REMEMBER,
+                "tôi thích nghe nhạc Bolero"
+            ),
+            parseNgocSiAiMemoryCommand("Al, hãy nhớ tôi thích nghe nhạc Bolero.")
+        )
+        assertEquals(
+            NgocSiAiMemoryCommand(
+                NgocSiAiMemoryCommandType.REMEMBER,
+                "tôi thích nghe nhạc Bolero"
+            ),
+            parseNgocSiAiMemoryCommand("A l, hãy nhớ tôi thích nghe nhạc Bolero.")
+        )
+        assertEquals(
+            NgocSiAiMemoryCommand(
+                NgocSiAiMemoryCommandType.REMEMBER,
+                "tôi thích nghe nhạc Bolero"
+            ),
+            parseNgocSiAiMemoryCommand("AI, ghi nhớ tôi thích nghe nhạc Bolero.")
+        )
         assertEquals(
             NgocSiAiMemoryCommand(
                 NgocSiAiMemoryCommandType.UPDATE,
