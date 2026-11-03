@@ -104,6 +104,8 @@ dependencies {
     // Downloaded by the Preview-only GitHub Actions workflow before lint/build.
     // It supplies the local sherpa-onnx runtime for the Vietnamese offline ASR fallback.
     implementation(files("libs/sherpa-onnx-1.13.8.aar"))
+    // Optional on-device language model; its 614 MB model file is downloaded only after user consent.
+    implementation("com.google.ai.edge.litertlm:litertlm-android:0.18.1")
     // Firebase AI Logic client; missing Firebase settings deliberately leave preview offline.
     implementation(platform("com.google.firebase:firebase-bom:35.0.0"))
     implementation("com.google.firebase:firebase-ai")
