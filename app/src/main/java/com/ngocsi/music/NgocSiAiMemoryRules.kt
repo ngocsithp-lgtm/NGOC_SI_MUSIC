@@ -43,8 +43,9 @@ private val NGOC_SI_AI_MEMORY_ALLOWED_TOPICS = listOf(
 
 private val NGOC_SI_AI_MEMORY_BLOCKED_TOPICS = listOf(
     "mat khau", "password", "ma pin", "otp", "so tai khoan", "tai khoan ngan hang",
-    "cccd", "cmnd", "so dien thoai", "dia chi nha", "email", "the ngan hang",
-    "the tin dung", "suc khoe", "benh ly", "chan doan", "thuoc men",
+    "cccd", "cmnd", "so dien thoai", "dia chi", "ngay sinh", "birth date",
+    "tai khoan", "email", "the ngan hang", "the tin dung", "suc khoe", "benh ly",
+    "chan doan", "thuoc men",
     "chinh tri", "ton giao", "dan toc", "gioi tinh", "doi song tinh duc"
 )
 
@@ -117,9 +118,11 @@ internal fun applyNgocSiAiMemoryCommand(
                 "Hiện chưa có ghi nhớ sở thích nhạc hoặc cách dùng NGỌC SĨ MUSIC. " +
                     "Bạn có thể nói “AI, hãy nhớ tôi thích nghe Bolero”."
             } else {
-                "Mình đang lưu \${memories.size} ghi nhớ trên thiết bị: " +
-                    memories.mapIndexed { index, item -> "\${index + 1}. $item" }.joinToString("; ") +
-                    ". Bạn có thể nói “AI, quên hết ghi nhớ” để xóa."
+                val numberedMemories = memories.mapIndexed { index, item ->
+                    (index + 1).toString() + ". " + item
+                }.joinToString("; ")
+                "Mình đang lưu " + memories.size + " ghi nhớ trên thiết bị: " +
+                    numberedMemories + ". Bạn có thể nói “AI, quên hết ghi nhớ” để xóa."
             }
             NgocSiAiMemoryResult(memories, reply, shouldPersist = false)
         }

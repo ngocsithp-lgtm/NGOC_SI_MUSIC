@@ -51,6 +51,12 @@ class NgocSiAiMemoryRulesTest {
         assertTrue(rejectedPassword.memories.isEmpty())
         assertTrue(rejectedPassword.reply.contains("không lưu mật khẩu"))
 
+        val rejectedAddress = applyNgocSiAiMemoryCommand(
+            parseNgocSiAiMemoryCommand("AI, nhớ địa chỉ của tôi để mở YouTube")!!,
+            emptyList()
+        )
+        assertTrue(rejectedAddress.memories.isEmpty())
+
         val rejectedGeneralFact = applyNgocSiAiMemoryCommand(
             parseNgocSiAiMemoryCommand("AI, nhớ tôi sống ở thành phố này")!!,
             emptyList()
@@ -93,7 +99,9 @@ class NgocSiAiMemoryRulesTest {
             current
         )
         assertEquals(current, listed.memories)
+        assertTrue(listed.reply.contains("2 ghi nhớ"))
         assertTrue(listed.reply.contains("1. tôi thích nghe Bolero"))
+        assertTrue(listed.reply.contains("2. tôi muốn mini player nhỏ gọn"))
         assertFalse(listed.shouldPersist)
 
         val cleared = applyNgocSiAiMemoryCommand(
