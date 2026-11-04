@@ -398,6 +398,8 @@ class NgocSiAiActivity : ComponentActivity() {
     // Recover by opening the system speech UI instead of leaving the microphone silently stuck.
     private val speechFallbackHandler = Handler(Looper.getMainLooper())
     private var speechFallbackUsed = false
+    private var speechHasEnded = false
+    private const val IN_APP_PARTIAL_FINALIZATION_DELAY_MILLIS = 1_800L
     private val speechNoTranscriptWatchdog = object : Runnable {
         override fun run() {
             if (!voiceRecognitionInProgress || isFinishing || isDestroyed || speechFallbackUsed) return
@@ -407,7 +409,9 @@ class NgocSiAiActivity : ComponentActivity() {
                 // After a quiet timeout, submit the best available transcript instead of
                 // leaving the chat stuck forever waiting for a final callback.
                 speechFallbackUsed = true
+                speechHasEnded = false
                 speechFallbackHandler.removeCallbacks(this)
+                speechFallbackHandler.removeCallbacks(speechPartialFinalizationWatchdog)
                 val capturedPcm = pendingOwnerVoicePcm ?: voiceInputAudioBuffer.toByteArray()
                 voiceInputAudioBuffer.reset()
                 closeOwnerVoiceAudioSource()
@@ -426,6 +430,8 @@ class NgocSiAiActivity : ComponentActivity() {
                 return
             }
             speechFallbackUsed = true
+            speechHasEnded = false
+            speechFallbackHandler.removeCallbacks(speechPartialFinalizationWatchdog)
             val intent = activeVoiceIntent
             voiceInputAudioBuffer.reset()
             closeOwnerVoiceAudioSource()
@@ -454,6 +460,17 @@ class NgocSiAiActivity : ComponentActivity() {
             }
         }
     }
+    // If Android emits interim text but omits its final callback, submit the
+    // completed utterance shortly after end-of-speech instead of waiting for the
+    // general 10-second no-transcript recovery timer.
+    private val speechPartialFinalizationWatchdog = Runnable {
+        if (
+            !voiceRecognitionInProgress || isFinishing || isDestroyed ||
+            !speechHasEnded || partialSpeechTranscript.isBlank() || speechFallbackUsed
+        ) return@Runnable
+        speechNoTranscriptWatchdog.run()
+    }
+
     private val wakeWordStatusChecker = object : Runnable {
         override fun run() {
             if (isFinishing || isDestroyed) return
@@ -520,7 +537,9 @@ class NgocSiAiActivity : ComponentActivity() {
         override fun onBeginningOfSpeech() {
             runOnUiThread {
                 if (!isFinishing && !isDestroyed) {
+                    speechHasEnded = false
                     partialSpeechTranscript = ""
+                    speechFallbackHandler.removeCallbacks(speechPartialFinalizationWatchdog)
                     // Give the direct recognition service a chance, then fall back if it
                     // produces no transcript at all. This watchdog never submits speech itself.
                     speechFallbackHandler.removeCallbacks(speechNoTranscriptWatchdog)
@@ -534,7 +553,18 @@ class NgocSiAiActivity : ComponentActivity() {
             val remaining = 160_000 - voiceInputAudioBuffer.size()
             if (remaining > 0) voiceInputAudioBuffer.write(buffer, 0, minOf(buffer.size, remaining))
         }
-        override fun onEndOfSpeech() = Unit
+        override fun onEndOfSpeech() {
+            runOnUiThread {
+                if (!isFinishing && !isDestroyed && voiceRecognitionInProgress) {
+                    speechHasEnded = true
+                    speechFallbackHandler.removeCallbacks(speechPartialFinalizationWatchdog)
+                    speechFallbackHandler.postDelayed(
+                        speechPartialFinalizationWatchdog,
+                        IN_APP_PARTIAL_FINALIZATION_DELAY_MILLIS
+                    )
+                }
+            }
+        }
 
         override fun onError(error: Int) {
             runOnUiThread {
@@ -544,6 +574,8 @@ class NgocSiAiActivity : ComponentActivity() {
                     return@runOnUiThread
                 }
                 speechFallbackHandler.removeCallbacks(speechNoTranscriptWatchdog)
+                speechFallbackHandler.removeCallbacks(speechPartialFinalizationWatchdog)
+                speechHasEnded = false
                 val partial = partialSpeechTranscript.trim()
                 val capturedPcm = pendingOwnerVoicePcm ?: voiceInputAudioBuffer.toByteArray()
                 if (partial.isNotBlank() &&
@@ -639,6 +671,9 @@ class NgocSiAiActivity : ComponentActivity() {
                 ?: candidates.firstOrNull { classifyNgocSiAiLocalCommand(it) != null }
                 ?: candidates.firstOrNull().orEmpty()
             runOnUiThread {
+                speechFallbackHandler.removeCallbacks(speechNoTranscriptWatchdog)
+                speechFallbackHandler.removeCallbacks(speechPartialFinalizationWatchdog)
+                speechHasEnded = false
                 voiceRecognitionInProgress = false
                 partialSpeechTranscript = ""
                 voiceRetryCount = 0
@@ -676,10 +711,18 @@ class NgocSiAiActivity : ComponentActivity() {
                 if (!isFinishing && !isDestroyed && voiceRecognitionInProgress) {
                     partialSpeechTranscript = phrase.take(180)
                     if (phrase.isNotBlank()) {
-                        // Keep a finalization timeout active. If only interim text arrives,
-                        // the watchdog will submit it after the recognizer goes quiet.
+                        // Keep the no-transcript recovery active while the user is speaking.
                         speechFallbackHandler.removeCallbacks(speechNoTranscriptWatchdog)
                         speechFallbackHandler.postDelayed(speechNoTranscriptWatchdog, 10_000L)
+                        // Some Android services emit their last interim result just after
+                        // onEndOfSpeech; restart the short fallback so that phrase is not lost.
+                        if (speechHasEnded) {
+                            speechFallbackHandler.removeCallbacks(speechPartialFinalizationWatchdog)
+                            speechFallbackHandler.postDelayed(
+                                speechPartialFinalizationWatchdog,
+                                IN_APP_PARTIAL_FINALIZATION_DELAY_MILLIS
+                            )
+                        }
                     }
                 }
             }
@@ -690,6 +733,8 @@ class NgocSiAiActivity : ComponentActivity() {
     private val speechLauncher: androidx.activity.result.ActivityResultLauncher<Intent> =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             speechFallbackHandler.removeCallbacks(speechNoTranscriptWatchdog)
+            speechFallbackHandler.removeCallbacks(speechPartialFinalizationWatchdog)
+            speechHasEnded = false
             speechFallbackUsed = false
             voiceRecognitionInProgress = false
             partialSpeechTranscript = ""
@@ -1836,7 +1881,9 @@ class NgocSiAiActivity : ComponentActivity() {
         }
 
         speechFallbackUsed = false
+        speechHasEnded = false
         speechFallbackHandler.removeCallbacks(speechNoTranscriptWatchdog)
+        speechFallbackHandler.removeCallbacks(speechPartialFinalizationWatchdog)
         voiceInputAudioBuffer.reset()
         if (NgocSiVoiceProfile.isLockEnabled(this)) {
             // Protected mode transcribes the just-recorded utterance locally; no injected
