@@ -85,6 +85,14 @@ internal fun normalizeNgocSiAiHistory(
         throw IllegalArgumentException("Tin nhắn chưa hợp lệ. Hãy gửi một câu hỏi mới.")
     }
 
+    // Gemini chat history must alternate user/assistant turns. Reject malformed
+    // persisted or concurrently merged state before it reaches the remote SDK.
+    if (selected.zipWithNext().any { (first, second) -> first.role == second.role }) {
+        throw IllegalArgumentException(
+            "Lịch sử hội thoại không luân phiên giữa người dùng và trợ lý."
+        )
+    }
+
     var history = selected.mapIndexed { index, message ->
         val content = message.content.trim()
         if (content.isBlank()) {
