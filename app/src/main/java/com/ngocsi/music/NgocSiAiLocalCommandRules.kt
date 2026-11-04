@@ -57,6 +57,7 @@ internal enum class NgocSiAiLocalCommand {
     OPEN_ONLINE,
     SEARCH_ONLINE_MUSIC,
     SEARCH_DRIVE,
+    SEARCH_AND_PLAY_YOUTUBE,
     SEARCH_YOUTUBE,
     OPEN_YOUTUBE,
     OPEN_DRIVE,
@@ -351,6 +352,7 @@ private val NGOC_SI_AI_WAKE_WORD_COMMANDS = setOf(
     NgocSiAiLocalCommand.OPEN_ONLINE,
     NgocSiAiLocalCommand.SEARCH_ONLINE_MUSIC,
     NgocSiAiLocalCommand.SEARCH_DRIVE,
+    NgocSiAiLocalCommand.SEARCH_AND_PLAY_YOUTUBE,
     NgocSiAiLocalCommand.SEARCH_YOUTUBE,
     NgocSiAiLocalCommand.OPEN_YOUTUBE,
     NgocSiAiLocalCommand.OPEN_DRIVE,
@@ -810,6 +812,10 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
         // Explicit YouTube controls must not be mistaken for local music controls.
         startsWithAny("tam dung youtube", "tam dung video youtube", "pause youtube", "pause video") ->
             NgocSiAiLocalCommand.PAUSE_YOUTUBE
+
+        // An explicit search-then-play request is one atomic command. Do not stop
+        // after rendering search results and leave the user to tap Play.
+        extractNgocSiAiYoutubeAutoPlayQuery(input) != null -> NgocSiAiLocalCommand.SEARCH_AND_PLAY_YOUTUBE
 
         // A YouTube request with an actual search phrase must win over the bare
         // "phát YouTube" resume command (for example, "Phát YouTube nhạc Trịnh").
@@ -1312,6 +1318,60 @@ internal fun extractNgocSiAiOnlineQuery(input: String): String? {
 }
 
 /**
+ * Extracts a YouTube query only when the user explicitly asks to search and then play.
+ * Supports combined navigation/search phrasing without turning an ordinary search into
+ * unexpected playback. The original spelling and accents are retained for the API query.
+ */
+internal fun extractNgocSiAiYoutubeAutoPlayQuery(input: String): String? {
+    var phrase = input.trim()
+    phrase = phrase.replace(
+        Regex("""^(?:(?:hey|ok|alo)\\s+)?(?:ai|ngọc sĩ|ngoc si)\\b[\\s,:-]*""", RegexOption.IGNORE_CASE),
+        ""
+    )
+    val normalized = normalizeNgocSiAiVoicePhrase(phrase)
+    val explicitPlayAfterSearch = Regex(
+        """(?:\\b(?:roi|va|sau do|then)\\s+(?:phat|play))$"""
+    ).containsMatchIn(normalized)
+    if (!explicitPlayAfterSearch || !normalized.contains("youtube")) return null
+
+    phrase = phrase.replace(
+        Regex(
+            """\\s+(?:(?:rồi|roi|và|va|sau đó|sau do|then)\\s+)?(?:phát|phat|play)(?:\\s+(?:đi|di))?[.!?,;:]*$""",
+            RegexOption.IGNORE_CASE
+        ),
+        ""
+    ).trim()
+    phrase = phrase.replace(
+        Regex(
+            """^(?:(?:hãy|hay)\\s+)?(?:mở|mo|vào|vao|chuyển sang|chuyen sang)\\s+(?:mục\\s+)?youtube\\b(?:\\s+(?:và|va|rồi|roi))?[\\s,;:]*""",
+            RegexOption.IGNORE_CASE
+        ),
+        ""
+    ).trim()
+
+    val searchPrefix = Regex(
+        """^(?:(?:hãy|hay)\\s+)?(?:tìm|tim|kiếm|kiem)\\s+""",
+        RegexOption.IGNORE_CASE
+    )
+    if (!searchPrefix.containsMatchIn(phrase)) return null
+    var query = searchPrefix.replaceFirst(phrase, "").trim()
+    query = query.replace(
+        Regex("""^youtube\\b[\\s,;:]*""", RegexOption.IGNORE_CASE),
+        ""
+    )
+    query = query.replace(
+        Regex("""^(?:video|bài hát|bai hat|nhạc|nhac)\\s+""", RegexOption.IGNORE_CASE),
+        ""
+    )
+    query = query.replace(
+        Regex("""\\s+(?:(?:trên|tren)\\s+)?youtube[.!?,;:]*$""", RegexOption.IGNORE_CASE),
+        ""
+    )
+    query = trimNgocSiAiExtractedQuery(query).trim(',', ':', '-', '.', '?', '!')
+    return query.take(120).takeIf { it.length >= 2 }
+}
+
+/**
  * Extract a user-supplied YouTube search phrase while preserving Vietnamese spelling.
  * The caller sends it only to the app's existing YouTube search UI after an explicit request.
  */
@@ -1411,7 +1471,7 @@ internal fun buildNgocSiAiToolCommandPhrase(action: String, query: String = ""):
     val needsQuery = setOf(
         "play_track", "add_track_to_queue", "play_radio_station", "open_tv_channel",
         "create_playlist", "play_playlist", "add_current_to_playlist",
-        "add_queue_to_playlist", "search_youtube", "search_online_music", "search_drive",
+        "add_queue_to_playlist", "search_youtube", "search_and_play_youtube", "search_online_music", "search_drive",
         "set_playback_speed", "seek_by_seconds", "youtube_seek_by_seconds",
         "sleep_timer_custom"
     )
@@ -1467,6 +1527,7 @@ internal fun buildNgocSiAiToolCommandPhrase(action: String, query: String = ""):
         "search_online_music" -> "tìm nhạc $safeQuery"
         "open_youtube" -> "mở youtube"
         "search_youtube" -> "tìm youtube $safeQuery"
+        "search_and_play_youtube" -> "tìm youtube $safeQuery rồi phát"
         "youtube_play" -> "phát youtube"
         "youtube_pause" -> "tạm dừng youtube"
         "youtube_next" -> "youtube tiếp theo"
