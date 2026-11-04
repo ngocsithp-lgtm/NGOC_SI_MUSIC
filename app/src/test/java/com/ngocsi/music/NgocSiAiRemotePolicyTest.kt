@@ -34,6 +34,20 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
+    fun simpleUpgradeAndOptimizationRequestsUseTheLowLatencyPath() {
+        val prompts = listOf(
+            "AI xử lý chậm quá, bạn có thể nâng cấp cho tốt hơn không?",
+            "Nâng cấp AI",
+            "Tối ưu AI"
+        )
+        prompts.forEach { prompt ->
+            assertEquals("$prompt should use low-latency thinking", ThinkingLevel.LOW, selectNgocSiAiThinkingLevel(prompt))
+            assertEquals(25_000L, selectNgocSiAiRemoteTimeoutMillis(prompt))
+        }
+    }
+
+
+    @Test
     fun complexRequestsKeepMediumReasoningAndLargerAnswerBudget() {
         val prompt = "Hãy phân tích kỹ, tìm nguyên nhân và lập kế hoạch nâng cấp AI từng bước."
         assertEquals(ThinkingLevel.MEDIUM, selectNgocSiAiThinkingLevel(prompt))
