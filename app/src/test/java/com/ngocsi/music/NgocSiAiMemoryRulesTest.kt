@@ -365,6 +365,14 @@ class NgocSiAiMemoryRulesTest {
     }
 
     @Test
+    fun generalArtistQuestionsDoNotPretendToBePersonalPreferenceLookups() {
+        val memories = listOf("tôi thích ca sĩ Mỹ Tâm", "tôi thích nhạc sĩ Trịnh Công Sơn")
+        assertEquals(null, answerNgocSiAiMusicTasteQuestion("Ca sĩ nào nổi tiếng?", memories))
+        assertEquals(null, answerNgocSiAiMusicTasteQuestion("Nhạc sĩ nào nổi tiếng?", memories))
+        assertEquals(null, answerNgocSiAiMusicTasteQuestion("Ban nhạc nào đang hoạt động?", memories))
+    }
+
+    @Test
     fun artistPreferenceMemoryStillRejectsSensitiveAccountDetails() {
         val result = applyNgocSiAiMemoryCommand(
             NgocSiAiMemoryCommand(
