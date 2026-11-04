@@ -5287,6 +5287,12 @@ class MainActivity : ComponentActivity() {
     }
 
 
+    private fun openNgocSiAiFromCurrentPage() {
+        // Launching the assistant as a separate Activity preserves the current
+        // page and its playback state when the user returns with Back.
+        startActivity(Intent(this, NgocSiAiActivity::class.java))
+    }
+
     @OptIn(ExperimentalFoundationApi::class)
     @Composable
     private fun NgocSiMusicApp() {
@@ -5640,6 +5646,51 @@ class MainActivity : ComponentActivity() {
                         }
                         BottomNav()
                     }
+                    }
+
+                    // Shared quick access to NGỌC SĨ AI on feature pages.
+                    // Keep it above the mini-player and BottomNav, and hide it
+                    // in YouTube's immersive fullscreen mode.
+                    if (selectedSection != "Trang chủ" && !youtubeInlineFullscreen) {
+                        val hasCompactPlaybackBar =
+                            (youtubeIsActiveSource && youtubeLastPlayed != null) ||
+                                (!youtubeIsActiveSource && currentSong != null)
+                        Surface(
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(
+                                    end = 14.dp,
+                                    bottom = if (hasCompactPlaybackBar) 104.dp else 72.dp
+                                )
+                                .clickable { openNgocSiAiFromCurrentPage() },
+                            shape = RoundedCornerShape(50),
+                            color = Color(0xFF30234D),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                Color(0xFF8F78C8)
+                            ),
+                            shadowElevation = 8.dp
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    "✦",
+                                    color = Color(0xFFD4C2FF),
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Black
+                                )
+                                Text(
+                                    "MỞ AI",
+                                    color = Color.White,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Black,
+                                    letterSpacing = 0.6.sp
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -6017,7 +6068,7 @@ class MainActivity : ComponentActivity() {
                     ProHomeUtilityTile(
                         "✦",
                         "NGỌC SĨ AI",
-                        { startActivity(Intent(this@MainActivity, NgocSiAiActivity::class.java)) },
+                        { openNgocSiAiFromCurrentPage() },
                         Modifier.weight(1f)
                     )
                 }
