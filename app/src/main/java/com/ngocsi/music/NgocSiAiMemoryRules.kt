@@ -113,6 +113,22 @@ private val NGOC_SI_AI_MEMORY_ARTIST_MARKERS = listOf(
     "ca si", "nghe si", "nhac si", "ban nhac", "nhom nhac"
 )
 
+private val NGOC_SI_AI_MEMORY_OWN_PREFERENCE_PHRASES = listOf(
+    "toi thich", "minh thich", "toi rat thich", "minh rat thich",
+    "toi yeu thich", "minh yeu thich", "yeu thich cua toi", "yeu thich cua minh",
+    "toi hay nghe", "minh hay nghe", "toi thuong nghe", "minh thuong nghe",
+    "gu", "so thich cua toi", "so thich cua minh",
+    "toi yeu quy", "minh yeu quy", "yeu quy cua toi", "yeu quy cua minh"
+)
+
+/** Match whole preference phrases; a substring such as "gu" inside "nguoi" is not intent. */
+private fun containsNgocSiAiOwnPreferenceWording(query: String): Boolean {
+    val paddedQuery = " ${normalizeNgocSiAiVoicePhrase(query)} "
+    return NGOC_SI_AI_MEMORY_OWN_PREFERENCE_PHRASES.any { phrase ->
+        paddedQuery.contains(" $phrase ")
+    }
+}
+
 /** Require an explicit first-person preference before answering with personal artist memories. */
 private fun asksNgocSiAiAboutOwnArtistPreference(query: String): Boolean {
     val normalized = normalizeNgocSiAiVoicePhrase(query)
@@ -122,9 +138,7 @@ private fun asksNgocSiAiAboutOwnArtistPreference(query: String): Boolean {
         normalized.contains(" cua minh") ||
         " $normalized ".contains(" toi ") ||
         " $normalized ".contains(" minh ")
-    val expressesPreference = listOf(
-        "thich", "yeu thich", "hay nghe", "thuong nghe", "gu", "so thich"
-    ).any(normalized::contains)
+    val expressesPreference = containsNgocSiAiOwnPreferenceWording(normalized)
     val mentionsArtistRole = NGOC_SI_AI_MEMORY_ARTIST_INTENT_PHRASES.any(normalized::contains) ||
         NGOC_SI_AI_MEMORY_ARTIST_MARKERS.any(normalized::contains)
     return hasOwnReference && expressesPreference && mentionsArtistRole
@@ -502,8 +516,7 @@ internal fun answerNgocSiAiMusicTasteQuestion(
         query.contains(" cua minh") ||
         " $query ".contains(" toi ") ||
         " $query ".contains(" minh ")
-    val expressesPreference = listOf("thich", "yeu thich", "hay nghe", "thuong nghe", "gu", "so thich")
-        .any(query::contains)
+    val expressesPreference = containsNgocSiAiOwnPreferenceWording(query)
 
     val asksAboutGenres = listOf(
         "toi thich the loai nhac nao",

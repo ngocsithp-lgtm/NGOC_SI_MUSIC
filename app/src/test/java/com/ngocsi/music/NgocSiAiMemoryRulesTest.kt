@@ -378,6 +378,28 @@ class NgocSiAiMemoryRulesTest {
     }
 
     @Test
+    fun doesNotTreatTheWordNguoiAsAFirstPersonMusicPreference() {
+        val memories = listOf(
+            "tôi thích ca sĩ Mỹ Tâm",
+            "tôi thích nhạc sĩ Trịnh Công Sơn",
+            "tôi thích nghe nhạc Bolero"
+        )
+
+        assertEquals(
+            null,
+            answerNgocSiAiMusicTasteQuestion("Tôi muốn biết người ca sĩ nào nổi tiếng?", memories)
+        )
+        assertEquals(
+            null,
+            answerNgocSiAiMusicTasteQuestion("Tôi muốn biết người nhạc sĩ nào nổi tiếng?", memories)
+        )
+        assertEquals(
+            null,
+            answerNgocSiAiMusicTasteQuestion("Tôi muốn biết người nghe thể loại nhạc nào?", memories)
+        )
+    }
+
+    @Test
     fun artistPreferenceMemoryStillRejectsSensitiveAccountDetails() {
         val result = applyNgocSiAiMemoryCommand(
             NgocSiAiMemoryCommand(
