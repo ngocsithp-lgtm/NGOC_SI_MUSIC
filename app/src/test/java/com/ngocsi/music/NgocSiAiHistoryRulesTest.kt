@@ -126,6 +126,29 @@ class NgocSiAiHistoryRulesTest {
     }
 
     @Test
+    fun rejectsConsecutiveMessagesFromTheSameRole() {
+        val malformedHistories = listOf(
+            listOf(
+                NgocSiAiMessage("user", "Câu hỏi 1"),
+                NgocSiAiMessage("user", "Câu hỏi 2")
+            ),
+            listOf(
+                NgocSiAiMessage("user", "Câu hỏi 1"),
+                NgocSiAiMessage("assistant", "Trả lời 1"),
+                NgocSiAiMessage("assistant", "Trả lời trùng vai trò"),
+                NgocSiAiMessage("user", "Câu hỏi mới")
+            )
+        )
+
+        malformedHistories.forEach { malformed ->
+            val error = org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+                normalizeNgocSiAiHistory(malformed)
+            }
+            assertTrue(error.message!!.contains("không luân phiên"))
+        }
+    }
+
+    @Test
     fun rejectsUnsupportedRoles() {
         val error = org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
             normalizeNgocSiAiHistory(listOf(NgocSiAiMessage(role = "system", content = "không hợp lệ")))
