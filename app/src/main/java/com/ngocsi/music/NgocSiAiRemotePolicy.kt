@@ -29,8 +29,8 @@ internal fun selectNgocSiAiThinkingLevel(prompt: String): ThinkingLevel {
     val normalized = normalizeNgocSiAiVoicePhrase(prompt)
     val mediumIntentMarkers = listOf(
         "phan tich", "so sanh", "lap ke hoach", "chien luoc", "danh gia",
-        "kiem tra ky", "tim nguyen nhan", "sua loi", "nang cap", "de xuat",
-        "toi uu", "huong dan tung buoc", "bao cao", "tong hop", "phan tich sau"
+        "kiem tra ky", "tim nguyen nhan", "sua loi", "huong dan tung buoc",
+        "bao cao", "tong hop", "phan tich sau"
     )
     // Multi-action requests need planning, even when the sentence is short.
     // Count distinct app-action categories so a single command such as "mở YouTube"
