@@ -630,6 +630,9 @@ class MainActivity : ComponentActivity() {
     private val inlineYouTubeBackgroundControlReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: android.content.Context?, intent: Intent?) {
             if (intent?.action != YouTubeBackgroundService.ACTION_CONTROL) return
+            // The full-page player owns controls whenever it is alive. Avoid applying
+            // one broadcast to both the full-page and inline WebView queues.
+            if (YouTubePlayerActivity.hasLiveInstance()) return
             when (intent.getStringExtra(YouTubeBackgroundService.EXTRA_CONTROL)) {
                 "play" -> {
                     playInlineYouTubeWebView()
@@ -1086,6 +1089,7 @@ class MainActivity : ComponentActivity() {
             ContextCompat.RECEIVER_NOT_EXPORTED
         )
         inlineBackgroundReceiverRegistered = true
+        NgocSiMainActivityState.attach(this)
         // Restore selected playback engine and its matching YouTube item after
         // Activity/process recreation. Without loading the persisted track here,
         // the compact player's click can fall through to local Media3 playback.
@@ -5272,6 +5276,7 @@ class MainActivity : ComponentActivity() {
             runCatching { unregisterReceiver(inlineYouTubeBackgroundControlReceiver) }
             inlineBackgroundReceiverRegistered = false
         }
+        NgocSiMainActivityState.detach(this)
         sleepTimerJob?.cancel()
         sleepTimerJob = null
         savePlaybackState()

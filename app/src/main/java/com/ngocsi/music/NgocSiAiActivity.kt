@@ -1265,7 +1265,8 @@ class NgocSiAiActivity : ComponentActivity() {
         return when (
             selectNgocSiAiYouTubeDispatchTarget(
                 hasSavedVideo = hasSavedVideo,
-                livePlayerActivityAvailable = YouTubePlayerActivity.hasLiveInstance()
+                liveControlHostAvailable = YouTubePlayerActivity.hasLiveInstance() ||
+                    NgocSiMainActivityState.hasLiveInstance()
             )
         ) {
             NgocSiAiYouTubeDispatchTarget.OPEN_YOUTUBE -> openAppDestination(
@@ -1273,7 +1274,7 @@ class NgocSiAiActivity : ComponentActivity() {
                 "Chưa có video YouTube gần đây để điều khiển. Tôi đã mở YouTube; hãy tìm và phát video trước."
             )
 
-            NgocSiAiYouTubeDispatchTarget.LIVE_PLAYER_ACTIVITY -> {
+            NgocSiAiYouTubeDispatchTarget.LIVE_CONTROL_HOST -> {
                 // Broadcast only when the Activity is known to exist in this process.
                 // A stale SharedPreferences flag is not proof that its receiver survived
                 // background process reclamation.

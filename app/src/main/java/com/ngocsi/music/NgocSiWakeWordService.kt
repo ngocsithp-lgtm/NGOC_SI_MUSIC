@@ -1540,9 +1540,9 @@ class NgocSiWakeWordService : Service() {
         }
 
         val prefs = getSharedPreferences("ngoc_si_music", Context.MODE_PRIVATE)
-        // A persisted Activity flag may remain true if Android reclaims the process.
-        // Only broadcast directly when the dedicated player is verified alive in this process.
-        if (YouTubePlayerActivity.hasLiveInstance()) {
+        // A persisted Activity flag may remain true after process death. Broadcast only
+        // when one of this process's actual YouTube control hosts is still alive.
+        if (YouTubePlayerActivity.hasLiveInstance() || NgocSiMainActivityState.hasLiveInstance()) {
             val sent = runCatching {
                 sendBroadcast(
                     Intent(YouTubeBackgroundService.ACTION_CONTROL)

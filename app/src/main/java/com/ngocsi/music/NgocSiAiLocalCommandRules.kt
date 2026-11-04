@@ -225,20 +225,20 @@ internal fun ngocSiAiYouTubeActionForCommand(
 internal enum class NgocSiAiYouTubeDispatchTarget {
     OPEN_YOUTUBE,
     MAIN_INLINE_PLAYER,
-    LIVE_PLAYER_ACTIVITY
+    LIVE_CONTROL_HOST
 }
 
 /**
- * Selects a real YouTube command destination from current runtime state.
- * A persisted Activity flag is intentionally not accepted: Android can kill a
- * background process without allowing its stale SharedPreferences marker to clear.
+ * Selects a YouTube control destination only from current runtime state.
+ * A live control host means either the dedicated YouTube player or MainActivity's
+ * registered inline-WebView receiver; a persisted Activity flag is never trusted.
  */
 internal fun selectNgocSiAiYouTubeDispatchTarget(
     hasSavedVideo: Boolean,
-    livePlayerActivityAvailable: Boolean
+    liveControlHostAvailable: Boolean
 ): NgocSiAiYouTubeDispatchTarget = when {
     !hasSavedVideo -> NgocSiAiYouTubeDispatchTarget.OPEN_YOUTUBE
-    livePlayerActivityAvailable -> NgocSiAiYouTubeDispatchTarget.LIVE_PLAYER_ACTIVITY
+    liveControlHostAvailable -> NgocSiAiYouTubeDispatchTarget.LIVE_CONTROL_HOST
     else -> NgocSiAiYouTubeDispatchTarget.MAIN_INLINE_PLAYER
 }
 

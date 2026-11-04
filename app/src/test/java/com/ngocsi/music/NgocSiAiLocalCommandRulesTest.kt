@@ -1408,19 +1408,19 @@ class NgocSiAiLocalCommandRulesTest {
 
 
     @Test
-    fun youtubeAiDispatchUsesLiveRuntimeActivityAndFallsBackAfterProcessDeath() {
+    fun youtubeAiDispatchUsesLiveControlHostAndFallsBackAfterProcessDeath() {
         assertEquals(
             NgocSiAiYouTubeDispatchTarget.OPEN_YOUTUBE,
             selectNgocSiAiYouTubeDispatchTarget(
                 hasSavedVideo = false,
-                livePlayerActivityAvailable = false
+                liveControlHostAvailable = false
             )
         )
         assertEquals(
-            NgocSiAiYouTubeDispatchTarget.LIVE_PLAYER_ACTIVITY,
+            NgocSiAiYouTubeDispatchTarget.LIVE_CONTROL_HOST,
             selectNgocSiAiYouTubeDispatchTarget(
                 hasSavedVideo = true,
-                livePlayerActivityAvailable = true
+                liveControlHostAvailable = true
             )
         )
         // A saved video with no live Activity must use MainActivity's inline player;
@@ -1429,7 +1429,7 @@ class NgocSiAiLocalCommandRulesTest {
             NgocSiAiYouTubeDispatchTarget.MAIN_INLINE_PLAYER,
             selectNgocSiAiYouTubeDispatchTarget(
                 hasSavedVideo = true,
-                livePlayerActivityAvailable = false
+                liveControlHostAvailable = false
             )
         )
     }
