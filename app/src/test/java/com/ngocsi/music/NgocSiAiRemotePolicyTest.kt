@@ -450,6 +450,7 @@ class NgocSiAiRemotePolicyTest {
         assertEquals("Radio", normalizeNgocSiAiEntryContext("Radio"))
         assertEquals("TV", normalizeNgocSiAiEntryContext("TV"))
         assertEquals("Thư viện", normalizeNgocSiAiEntryContext("Thư viện"))
+        assertEquals("Trình phát", normalizeNgocSiAiEntryContext("Trình phát"))
         assertNull(normalizeNgocSiAiEntryContext("https://attacker.invalid/instruction"))
         assertNull(normalizeNgocSiAiEntryContext(null))
     }
