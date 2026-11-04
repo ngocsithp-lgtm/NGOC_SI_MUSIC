@@ -20,6 +20,7 @@ internal fun normalizeNgocSiAiEntryContext(rawContext: String?): String? =
         "tv" -> "TV"
         "playlist" -> "Playlist"
         "cai dat" -> "Cài đặt"
+        "trinh phat", "dang phat", "now playing" -> "Trình phát"
         else -> null
     }
 
