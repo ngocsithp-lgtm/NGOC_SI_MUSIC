@@ -1,6 +1,5 @@
 package com.ngocsi.music
 
-import org.junit.Assert.assertEquals
 import android.media.AudioManager
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
