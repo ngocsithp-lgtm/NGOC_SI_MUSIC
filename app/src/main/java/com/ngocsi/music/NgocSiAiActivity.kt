@@ -1759,7 +1759,7 @@ class NgocSiAiActivity : ComponentActivity() {
             ) == PackageManager.PERMISSION_GRANTED
         ) {
             try {
-                NgocSiWakeWordService.start(this)
+                NgocSiWakeWordService.start(this, entryContext)
                 wakeWordListening = true
                 monitorWakeWordStatus()
             } catch (_: Exception) {
