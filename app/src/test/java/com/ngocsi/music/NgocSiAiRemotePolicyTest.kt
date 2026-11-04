@@ -442,5 +442,35 @@ class NgocSiAiRemotePolicyTest {
         assertTrue(shouldContinueNgocSiAiAgentSequence(true, "Đã tăng âm lượng lên 70%."))
         assertTrue(shouldContinueNgocSiAiAgentSequence(true, "Đã chuyển sang bài tiếp theo."))
     }
+
+    @Test
+    fun ordinaryChatUsesTheFasterFlashLiteModel() {
+        assertEquals("gemini-3.5-flash-lite", NGOC_SI_AI_FAST_CHAT_MODEL_NAME)
+        assertEquals(
+            NGOC_SI_AI_FAST_CHAT_MODEL_NAME,
+            selectNgocSiAiModelName("Thủ đô Việt Nam là gì?")
+        )
+        assertEquals(
+            NGOC_SI_AI_FAST_CHAT_MODEL_NAME,
+            selectNgocSiAiModelName("Xin chào, bạn khỏe không?")
+        )
+    }
+
+    @Test
+    fun complexReasoningKeepsTheGeminiFlashModel() {
+        assertEquals("gemini-3.8-flash", NGOC_SI_AI_REASONING_MODEL_NAME)
+        assertEquals(
+            NGOC_SI_AI_REASONING_MODEL_NAME,
+            selectNgocSiAiModelName("Hãy phân tích kỹ nguyên nhân và lập kế hoạch khắc phục.")
+        )
+    }
+
+    @Test
+    fun appToolRequestsAlwaysKeepTheGeminiFlashModel() {
+        assertEquals(
+            NGOC_SI_AI_REASONING_MODEL_NAME,
+            selectNgocSiAiModelName("Mở YouTube", offersAppCommandTool = true)
+        )
+    }
 }
 
