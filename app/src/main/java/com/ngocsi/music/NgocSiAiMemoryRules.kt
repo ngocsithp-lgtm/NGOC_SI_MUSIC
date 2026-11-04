@@ -113,6 +113,23 @@ private val NGOC_SI_AI_MEMORY_ARTIST_MARKERS = listOf(
     "ca si", "nghe si", "nhac si", "ban nhac", "nhom nhac", "nhac cua"
 )
 
+/** Require an explicit first-person preference before answering with personal artist memories. */
+private fun asksNgocSiAiAboutOwnArtistPreference(query: String): Boolean {
+    val normalized = normalizeNgocSiAiVoicePhrase(query)
+    val hasOwnReference = normalized.startsWith("toi ") ||
+        normalized.startsWith("minh ") ||
+        normalized.contains(" cua toi") ||
+        normalized.contains(" cua minh") ||
+        " $normalized ".contains(" toi ") ||
+        " $normalized ".contains(" minh ")
+    val expressesPreference = listOf(
+        "thich", "yeu thich", "hay nghe", "thuong nghe", "gu", "so thich"
+    ).any(normalized::contains)
+    val mentionsArtistRole = NGOC_SI_AI_MEMORY_ARTIST_INTENT_PHRASES.any(normalized::contains) ||
+        NGOC_SI_AI_MEMORY_ARTIST_MARKERS.any(normalized::contains)
+    return hasOwnReference && expressesPreference && mentionsArtistRole
+}
+
 /** Select role-specific markers so a singer query does not return a composer or a band. */
 private fun ngocSiAiMusicArtistMarkersForQuery(query: String): List<String> {
     val normalized = normalizeNgocSiAiVoicePhrase(query)
@@ -418,7 +435,7 @@ internal fun selectNgocSiAiRelevantMemories(
     // Resolve natural questions about musical taste to saved genre or artist preferences,
     // even when the question shares no literal word with the saved name.
     val asksAboutMusicGenre = NGOC_SI_AI_MEMORY_GENRE_INTENT_PHRASES.any(query::contains)
-    val asksAboutMusicArtist = NGOC_SI_AI_MEMORY_ARTIST_INTENT_PHRASES.any(query::contains)
+    val asksAboutMusicArtist = asksNgocSiAiAboutOwnArtistPreference(query)
 
     val ranked = safeMemories.mapIndexed { index, memory ->
         val normalized = normalizeNgocSiAiVoicePhrase(memory)
@@ -492,10 +509,7 @@ internal fun answerNgocSiAiMusicTasteQuestion(
         NGOC_SI_AI_MEMORY_GENRE_INTENT_PHRASES.any(query::contains) &&
             hasOwnReference && expressesPreference
     )
-    val asksAboutArtists = NGOC_SI_AI_MEMORY_ARTIST_INTENT_PHRASES.any(query::contains) || (
-        hasOwnReference && expressesPreference &&
-            listOf("ca si", "nghe si", "nhac si", "ban nhac", "nhom nhac").any(query::contains)
-    )
+    val asksAboutArtists = asksNgocSiAiAboutOwnArtistPreference(query)
     if (!asksAboutGenres && !asksAboutArtists) return null
 
     val savedTasteNotes = selectNgocSiAiRelevantMemories(memories, userText)
