@@ -883,6 +883,9 @@ class NgocSiAiActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val aiEntryContext = normalizeNgocSiAiEntryContext(
+            intent.getStringExtra(NGOC_SI_AI_ENTRY_CONTEXT_EXTRA)
+        )
         refreshOwnerVoiceState()
         responseTts = TextToSpeech(this) { status ->
             responseTtsInitialized = true
@@ -991,7 +994,12 @@ class NgocSiAiActivity : ComponentActivity() {
                     NgocSiAiOnDeviceModel.release()
                 },
                 onSendOnline = { history, executeTool, onPartialResponse ->
-                    aiClient.send(history, executeTool, onPartialResponse)
+                    aiClient.send(
+                        history,
+                        executeTool,
+                        onPartialResponse,
+                        entryContext = aiEntryContext
+                    )
                 },
                 onExecuteAppCommand = { action, query -> executeAiAppCommand(action, query) },
                 onLocalCommand = { command, phrase -> runLocalCommand(command, phrase) },
