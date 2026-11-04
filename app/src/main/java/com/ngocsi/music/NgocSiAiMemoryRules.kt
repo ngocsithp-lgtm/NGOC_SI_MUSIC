@@ -104,32 +104,34 @@ private val NGOC_SI_AI_MEMORY_GENRE_INTENT_PHRASES = listOf(
 private val NGOC_SI_AI_MEMORY_ARTIST_INTENT_PHRASES = listOf(
     "ca si nao", "ca si toi thich", "ca si toi yeu thich", "ca si yeu thich cua toi",
     "nghe si nao", "nghe si toi thich", "nghe si yeu thich cua toi",
-    "nhac si nao", "nhac si toi thich", "nhac si yeu thich",
-    "ban nhac nao", "nhom nhac nao"
+    "nhac si nao", "nhac si toi thich", "nhac si yeu thich", "nhac si yeu thich cua toi",
+    "ban nhac nao", "ban nhac toi thich", "ban nhac yeu thich cua toi",
+    "nhom nhac nao", "nhom nhac toi thich", "nhom nhac yeu thich cua toi"
 )
 
 private val NGOC_SI_AI_MEMORY_ARTIST_MARKERS = listOf(
     "ca si", "nghe si", "nhac si", "ban nhac", "nhom nhac", "nhac cua"
 )
 
-/** Match explicit artist-role phrases, not arbitrary names or unrelated app preferences. */
-private fun containsNgocSiAiMusicArtistPreference(normalizedText: String): Boolean {
-    val paddedText = " ${normalizeNgocSiAiVoicePhrase(normalizedText)} "
-    return NGOC_SI_AI_MEMORY_ARTIST_MARKERS.any { marker ->
-        paddedText.contains(" $marker ")
+/** Select role-specific markers so a singer query does not return a composer or a band. */
+private fun ngocSiAiMusicArtistMarkersForQuery(query: String): List<String> {
+    val normalized = normalizeNgocSiAiVoicePhrase(query)
+    return when {
+        normalized.contains("ca si") -> listOf("ca si")
+        normalized.contains("nhac si") -> listOf("nhac si")
+        normalized.contains("ban nhac") || normalized.contains("nhom nhac") ->
+            listOf("ban nhac", "nhom nhac")
+        else -> NGOC_SI_AI_MEMORY_ARTIST_MARKERS
     }
 }
-private val NGOC_SI_AI_MEMORY_GENRE_MARKERS = listOf(
-    "bolero", "nhac trinh", "nhac vang", "nhac xua", "tru tinh", "dan ca",
-    "que huong", "tien chien", "nhac tre", "cai luong", "jazz", "rock",
-    "pop", "rap", "edm", "lofi", "acoustic", "nhac khong loi", "hoa tau",
-    "country", "classical", "instrumental", "remix", "nhac song"
-)
 
-/** Match complete normalized genre phrases, not incidental substrings such as "trình" in "trình phát". */
-private fun containsNgocSiAiMusicGenre(normalizedText: String): Boolean {
+/** Match explicit artist-role phrases, not arbitrary names or unrelated app preferences. */
+private fun containsNgocSiAiMusicArtistPreference(
+    normalizedText: String,
+    markers: List<String> = NGOC_SI_AI_MEMORY_ARTIST_MARKERS
+): Boolean {
     val paddedText = " ${normalizeNgocSiAiVoicePhrase(normalizedText)} "
-    return NGOC_SI_AI_MEMORY_GENRE_MARKERS.any { marker ->
+    return markers.any { marker ->
         paddedText.contains(" $marker ")
     }
 }
@@ -424,7 +426,8 @@ internal fun selectNgocSiAiRelevantMemories(
         val overlap = queryTokens.intersect(memoryTokens).size
         val phraseMatch = query.isNotBlank() && normalized.contains(query)
         val genreMatch = asksAboutMusicGenre && containsNgocSiAiMusicGenre(normalized)
-        val artistMatch = asksAboutMusicArtist && containsNgocSiAiMusicArtistPreference(normalized)
+        val artistMarkers = ngocSiAiMusicArtistMarkersForQuery(query)
+        val artistMatch = asksAboutMusicArtist && containsNgocSiAiMusicArtistPreference(normalized, artistMarkers)
         val relevanceScore = overlap +
             (if (phraseMatch) 4 else 0) +
             (if (genreMatch) 6 else 0) +
@@ -499,7 +502,10 @@ internal fun answerNgocSiAiMusicTasteQuestion(
         .filter { note ->
             val normalizedNote = normalizeNgocSiAiVoicePhrase(note)
             if (asksAboutArtists) {
-                containsNgocSiAiMusicArtistPreference(normalizedNote)
+                containsNgocSiAiMusicArtistPreference(
+                    normalizedNote,
+                    ngocSiAiMusicArtistMarkersForQuery(query)
+                )
             } else {
                 containsNgocSiAiMusicGenre(normalizedNote)
             }
