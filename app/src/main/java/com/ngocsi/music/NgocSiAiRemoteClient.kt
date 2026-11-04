@@ -98,8 +98,8 @@ internal class NgocSiAiRemoteClient(context: Context) {
     suspend fun send(
         messages: List<NgocSiAiMessage>,
         executeTool: NgocSiAiToolExecutor,
-        onPartialResponse: (String) -> Unit = {},
-        entryContext: String? = null
+        entryContext: String? = null,
+        onPartialResponse: (String) -> Unit = {}
     ): NgocSiAiReply {
         if (!REMOTE_REQUEST_MUTEX.tryLock()) {
             throw NgocSiAiRemoteException(
