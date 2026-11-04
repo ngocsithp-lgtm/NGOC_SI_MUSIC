@@ -6,6 +6,7 @@ import java.lang.ref.WeakReference
  * Exposes whether MainActivity's inline YouTube control receiver is registered
  * in this process. The reference is cleared at onDestroy and is never persisted.
  */
+@androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 internal object NgocSiMainActivityState {
     @Volatile
     private var currentActivity: WeakReference<MainActivity>? = null
