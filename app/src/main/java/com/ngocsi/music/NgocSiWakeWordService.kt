@@ -842,7 +842,8 @@ class NgocSiWakeWordService : Service() {
                             applicationContext,
                             cleanQuestion,
                             onDeviceMemories,
-                            requestHistory.dropLast(1)
+                            requestHistory.dropLast(1),
+                            entryContext = aiEntryContext
                         )
                         usedOnDeviceModel = true
                     } catch (error: Exception) {

@@ -230,7 +230,8 @@ internal object NgocSiAiOnDeviceModel {
         context: Context,
         prompt: String,
         onDeviceMemories: List<String> = emptyList(),
-        priorMessages: List<NgocSiAiMessage> = emptyList()
+        priorMessages: List<NgocSiAiMessage> = emptyList(),
+        entryContext: String? = null
     ): String = withContext(engineDispatcher) {
         val cleanPrompt = prompt.trim().take(MAX_LOCAL_PROMPT_CHARS)
         require(cleanPrompt.isNotBlank()) { "Câu hỏi không được để trống." }
@@ -241,7 +242,7 @@ internal object NgocSiAiOnDeviceModel {
             // Recreate the lightweight conversation from app-persisted history each turn.
             // The native Engine stays loaded; only the conversation state is rebuilt.
             resetConversation()
-            ensureEngine(context.applicationContext, onDeviceMemories)
+            ensureEngine(context.applicationContext, onDeviceMemories, entryContext)
             val activeConversation = checkNotNull(conversation) {
                 "Mô hình AI ngoại tuyến chưa sẵn sàng."
             }
@@ -268,7 +269,17 @@ internal object NgocSiAiOnDeviceModel {
         }
     }
 
-    private fun ensureEngine(context: Context, memories: List<String>) {
+    /**
+     * Compose the per-turn system instruction after validating the app-owned page label.
+     * The Qwen Engine stays loaded, but generate() rebuilds its Conversation each turn,
+     * so page context can change without reloading the 586 MiB model.
+     */
+    internal fun buildSystemInstruction(memories: List<String>, entryContext: String?): String =
+        LOCAL_MODEL_SYSTEM_INSTRUCTION +
+            buildNgocSiAiMemorySystemInstruction(memories) +
+            buildNgocSiAiEntryContextInstruction(entryContext)
+
+    private fun ensureEngine(context: Context, memories: List<String>, entryContext: String?) {
         val path = modelFile(context).absolutePath
         if (engine == null || loadedModelPath != path) {
             resetConversation()
@@ -287,11 +298,10 @@ internal object NgocSiAiOnDeviceModel {
         }
 
         if (conversation == null) {
-            val savedMemoryContext = buildNgocSiAiMemorySystemInstruction(memories)
             conversation = checkNotNull(engine).createConversation(
                 ConversationConfig(
                     systemInstruction = Contents.of(
-                        LOCAL_MODEL_SYSTEM_INSTRUCTION + savedMemoryContext
+                        buildSystemInstruction(memories, entryContext)
                     ),
                     samplerConfig = SamplerConfig(
                         topK = 30,

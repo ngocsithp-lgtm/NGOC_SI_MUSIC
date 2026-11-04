@@ -992,7 +992,8 @@ class NgocSiAiActivity : ComponentActivity() {
                         applicationContext,
                         prompt,
                         memories,
-                        priorMessages
+                        priorMessages,
+                        entryContext = aiEntryContext
                     )
                 },
                 onReleaseLocalModel = {
