@@ -55,6 +55,31 @@ class NgocSiAiRemotePolicyTest {
     }
 
 
+
+    @Test
+    fun deliberateDeepAnalysisUsesHighThinkingAndASeparateBoundedBudget() {
+        val prompt = "Hãy kiểm tra toàn diện mã nguồn, phân tích chuyên sâu và tìm nguyên nhân gốc."
+        assertEquals(ThinkingLevel.HIGH, selectNgocSiAiThinkingLevel(prompt))
+        assertEquals(NGOC_SI_AI_REASONING_MODEL_NAME, selectNgocSiAiModelName(prompt))
+        assertEquals(ThinkingLevel.HIGH, selectNgocSiAiGenerationThinkingLevel(prompt))
+        assertEquals(60_000L, NGOC_SI_AI_DEEP_REMOTE_CONVERSATION_TIMEOUT_MILLIS)
+        assertEquals(60_000L, selectNgocSiAiRemoteTimeoutMillis(prompt))
+        assertTrue(ngocSiAiRemoteTimeoutMessage(prompt).contains("60 giây"))
+        assertEquals(NGOC_SI_AI_DEEP_REPLY_MAX_OUTPUT_TOKENS, selectNgocSiAiMaxOutputTokens(prompt))
+    }
+
+    @Test
+    fun explicitCompletionRequestsCanUseDeepReasoningWithoutSlowingOrdinaryUpgradeRequests() {
+        assertEquals(
+            ThinkingLevel.HIGH,
+            selectNgocSiAiThinkingLevel("Hãy nâng cấp và hoàn thiện đến khi hoàn thành, kiểm tra toàn diện.")
+        )
+        assertEquals(
+            ThinkingLevel.LOW,
+            selectNgocSiAiThinkingLevel("Nâng cấp AI")
+        )
+    }
+
     @Test
     fun compoundAppRequestsUsePlanningReasoningButSingleActionsStayFast() {
         assertEquals(ThinkingLevel.LOW, selectNgocSiAiThinkingLevel("AI, mở YouTube."))
@@ -72,6 +97,7 @@ class NgocSiAiRemotePolicyTest {
     fun everydayQuestionsUseSmallerAnswerBudget() {
         assertEquals(384, NGOC_SI_AI_SHORT_REPLY_MAX_OUTPUT_TOKENS)
         assertEquals(1_024, NGOC_SI_AI_COMPLEX_REPLY_MAX_OUTPUT_TOKENS)
+        assertEquals(2_048, NGOC_SI_AI_DEEP_REPLY_MAX_OUTPUT_TOKENS)
         assertEquals(
             NGOC_SI_AI_SHORT_REPLY_MAX_OUTPUT_TOKENS,
             selectNgocSiAiMaxOutputTokens("Thời tiết có ảnh hưởng đến pin điện thoại không?")
