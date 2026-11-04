@@ -113,6 +113,11 @@ private val NGOC_SI_AI_MEMORY_ARTIST_MARKERS = listOf(
     "ca si", "nghe si", "nhac si", "ban nhac", "nhom nhac"
 )
 
+/** Correct a recurring Vietnamese ASR variant where "ca sĩ" is transcribed as "ca SŤ". */
+private fun normalizeNgocSiAiMemoryPreferenceQuery(input: String): String =
+    normalizeNgocSiAiVoicePhrase(input)
+        .replace(Regex("""\\bca\\s+st\\b"""), "ca si")
+
 private val NGOC_SI_AI_MEMORY_OWN_PREFERENCE_PHRASES = listOf(
     "toi thich", "minh thich", "toi rat thich", "minh rat thich",
     "toi yeu thich", "minh yeu thich", "yeu thich cua toi", "yeu thich cua minh",
@@ -131,7 +136,7 @@ private fun containsNgocSiAiOwnPreferenceWording(query: String): Boolean {
 
 /** Require an explicit first-person preference before answering with personal artist memories. */
 private fun asksNgocSiAiAboutOwnArtistPreference(query: String): Boolean {
-    val normalized = normalizeNgocSiAiVoicePhrase(query)
+    val normalized = normalizeNgocSiAiMemoryPreferenceQuery(query)
     val hasOwnReference = normalized.startsWith("toi ") ||
         normalized.startsWith("minh ") ||
         normalized.contains(" cua toi") ||
@@ -146,7 +151,7 @@ private fun asksNgocSiAiAboutOwnArtistPreference(query: String): Boolean {
 
 /** Select role-specific markers so a singer query does not return a composer or a band. */
 private fun ngocSiAiMusicArtistMarkersForQuery(query: String): List<String> {
-    val normalized = normalizeNgocSiAiVoicePhrase(query)
+    val normalized = normalizeNgocSiAiMemoryPreferenceQuery(query)
     return when {
         normalized.contains("ca si") -> listOf("ca si")
         normalized.contains("nhac si") -> listOf("nhac si")
@@ -510,22 +515,42 @@ private fun extractNgocSiAiPreferenceValue(
     markers: List<String>,
     includeMarkerInValue: Boolean = false
 ): String? {
-    val normalized = normalizeNgocSiAiVoicePhrase(note)
-    val marker = markers.sortedByDescending { it.length }
-        .firstOrNull { normalized.contains(it) } ?: return null
-    val markerIndex = normalized.indexOf(marker)
-    val valueStart = if (includeMarkerInValue) markerIndex else markerIndex + marker.length
-    if (valueStart !in 0..note.length) return null
-    val value = note.substring(valueStart)
-        .trim()
-        .trimStart(':', '-', '—')
-        .trim()
-        .trimEnd('.', '!', '?', ';', ',')
-    if (value.isBlank()) return null
-    return value.split(Regex("\\s+"))
-        .joinToString(" ") { word ->
-            word.replaceFirstChar { character -> character.titlecase() }
+    val originalWords = note.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
+    val normalizedWords = originalWords.map(::normalizeNgocSiAiVoicePhrase)
+    var markerStart = -1
+    var markerLength = 0
+
+    // Match word positions in the original note. Using character offsets from a
+    // diacritic-stripped string can cut the wrong place in Vietnamese text.
+    for (marker in markers.sortedByDescending { it.length }) {
+        val markerWords = normalizeNgocSiAiVoicePhrase(marker)
+            .split(' ')
+            .filter { it.isNotBlank() }
+        if (markerWords.isEmpty() || markerWords.size > normalizedWords.size) continue
+        val matchStart = (0..(normalizedWords.size - markerWords.size)).firstOrNull { offset ->
+            markerWords.indices.all { index ->
+                normalizedWords[offset + index] == markerWords[index]
+            }
         }
+        if (matchStart != null) {
+            markerStart = matchStart
+            markerLength = markerWords.size
+            break
+        }
+    }
+    if (markerStart < 0) return null
+
+    val valueStart = if (includeMarkerInValue) markerStart else markerStart + markerLength
+    val valueWords = originalWords.drop(valueStart)
+        .map { word ->
+            word.trim().trimStart(':', '-', '—', '“', '"', '\\'')
+                .trimEnd('.', '!', '?', ';', ',', '”', '"', '\\'')
+        }
+        .filter { it.isNotBlank() }
+    if (valueWords.isEmpty()) return null
+    return valueWords.joinToString(" ") { word ->
+        word.replaceFirstChar { character -> character.titlecase() }
+    }
 }
 
 private fun formatNgocSiAiArtistPreference(note: String, query: String): String? =
@@ -542,7 +567,7 @@ private fun formatNgocSiAiGenrePreference(note: String): String? =
     )
 
 private fun ngocSiAiArtistLabelForQuery(query: String): String = when {
-    query.contains("ca si") -> "Ca sĩ"
+    normalizeNgocSiAiMemoryPreferenceQuery(query).contains("ca si") -> "Ca sĩ"
     query.contains("nhac si") -> "Nhạc sĩ"
     query.contains("ban nhac") || query.contains("nhom nhac") -> "Ban nhạc"
     else -> "Nghệ sĩ"
@@ -557,7 +582,7 @@ internal fun answerNgocSiAiMusicTasteQuestion(
     userText: String,
     memories: List<String>
 ): String? {
-    val query = normalizeNgocSiAiVoicePhrase(userText)
+    val query = normalizeNgocSiAiMemoryPreferenceQuery(userText)
     val hasOwnReference = query.startsWith("toi ") ||
         query.startsWith("minh ") ||
         query.contains(" cua toi") ||
@@ -619,14 +644,16 @@ internal fun answerNgocSiAiMusicTasteQuestion(
     if (asksAboutArtists) {
         val artistLabel = ngocSiAiArtistLabelForQuery(query)
         if (artistNotes.isEmpty()) {
-            answerParts += "Chưa tìm thấy ghi nhớ về $artistLabel bạn yêu thích."
+            answerParts += "Mình chưa tìm thấy ghi nhớ về $artistLabel bạn yêu thích. " +
+                "Bạn có thể nói “AI, hãy nhớ tôi thích ca sĩ Đan Trường” để lưu sở thích này."
         } else {
             answerParts += "$artistLabel bạn yêu thích: ${artistNotes.joinToString("; ")}."
         }
     }
     if (asksAboutGenres) {
         if (genreNotes.isEmpty()) {
-            answerParts += "Chưa tìm thấy ghi nhớ về thể loại nhạc bạn yêu thích."
+            answerParts += "Mình chưa tìm thấy ghi nhớ về thể loại nhạc bạn yêu thích. " +
+                "Bạn có thể nói “AI, hãy nhớ tôi thích nghe nhạc Bolero” để lưu thể loại bạn thích."
         } else {
             answerParts += "Thể loại nhạc bạn yêu thích: ${genreNotes.joinToString("; ")}."
         }

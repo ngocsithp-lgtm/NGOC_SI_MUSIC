@@ -269,23 +269,23 @@ class NgocSiAiMemoryRulesTest {
     @Test
     fun recognizesAdditionalVietnameseAndInternationalMusicGenres() {
         val genres = listOf(
-            "tôi thích nghe nhạc trữ tình",
-            "tôi thích nghe dân ca",
-            "tôi thích nhạc quê hương",
-            "tôi thích nhạc tiền chiến",
-            "tôi thích nhạc trẻ",
-            "tôi thích nghe rap",
-            "tôi thích EDM",
-            "tôi thích lofi",
-            "tôi thích acoustic",
-            "tôi thích nghe nhạc không lời",
-            "tôi thích hòa tấu",
-            "tôi thích nhạc country",
-            "tôi thích nhạc classical",
-            "tôi thích nhạc remix"
+            "tôi thích nghe nhạc trữ tình" to "Trữ tình",
+            "tôi thích nghe dân ca" to "Dân ca",
+            "tôi thích nhạc quê hương" to "Quê hương",
+            "tôi thích nhạc tiền chiến" to "Tiền chiến",
+            "tôi thích nhạc trẻ" to "Nhạc trẻ",
+            "tôi thích nghe rap" to "Rap",
+            "tôi thích EDM" to "Edm",
+            "tôi thích lofi" to "Lofi",
+            "tôi thích acoustic" to "Acoustic",
+            "tôi thích nghe nhạc không lời" to "Nhạc không lời",
+            "tôi thích hòa tấu" to "Hòa tấu",
+            "tôi thích nhạc country" to "Country",
+            "tôi thích nhạc classical" to "Classical",
+            "tôi thích nhạc remix" to "Remix"
         )
 
-        genres.forEach { preference ->
+        genres.forEach { (preference, expectedGenre) ->
             val result = applyNgocSiAiMemoryCommand(
                 NgocSiAiMemoryCommand(NgocSiAiMemoryCommandType.REMEMBER, preference),
                 emptyList()
@@ -295,7 +295,7 @@ class NgocSiAiMemoryRulesTest {
             val answer = requireNotNull(
                 answerNgocSiAiMusicTasteQuestion("AI, tôi thích thể loại nhạc nào?", result.memories)
             )
-            assertTrue("Expected answer to recall: $preference", answer.contains(preference))
+            assertTrue("Expected answer to recall: $expectedGenre", answer.contains(expectedGenre))
         }
     }
 
@@ -386,6 +386,18 @@ class NgocSiAiMemoryRulesTest {
 
         assertTrue(answer.contains("Ca sĩ bạn yêu thích: Tuấn Vũ."))
         assertTrue(answer.contains("Chưa tìm thấy ghi nhớ về thể loại nhạc"))
+    }
+
+    @Test
+    fun recognizesCaSiAsVietnameseSpeechRecognitionVariantCaST() {
+        val answer = requireNotNull(
+            answerNgocSiAiMusicTasteQuestion(
+                "Al, tôi thích Ca SŤ nào và thể loại nhạc nào?",
+                listOf("toi thich ca si tuan vu", "toi thich nghe nhac bolero")
+            )
+        )
+        assertTrue(answer.contains("Ca sĩ bạn yêu thích: Tuan Vu."))
+        assertTrue(answer.contains("Thể loại nhạc bạn yêu thích: Bolero."))
     }
 
     @Test
@@ -517,7 +529,7 @@ class NgocSiAiMemoryRulesTest {
             )
         )
 
-        assertTrue(answer.contains("tôi thích nghe nhạc Trịnh"))
+        assertTrue(answer.contains("Nhạc Trịnh"))
         assertFalse(answer.contains("trình phát nhạc nhỏ gọn"))
     }
 
