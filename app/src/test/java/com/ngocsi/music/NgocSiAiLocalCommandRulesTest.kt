@@ -684,6 +684,34 @@ class NgocSiAiLocalCommandRulesTest {
 
 
     @Test
+    fun recognizesCompoundYouTubeSearchAndPlayAsOneCommand() {
+        val examples = listOf(
+            "AI, mở YouTube, tìm nhạc Bolero rồi phát." to "Bolero",
+            "Mở YouTube tìm nhạc Bolero rồi phát" to "Bolero",
+            "Tìm nhạc Bolero trên YouTube rồi phát" to "Bolero",
+            "Tìm YouTube nhạc Bolero rồi phát" to "Bolero"
+        )
+        examples.forEach { (phrase, query) ->
+            assertEquals(
+                NgocSiAiLocalCommand.SEARCH_AND_PLAY_YOUTUBE,
+                classifyNgocSiAiLocalCommand(phrase)
+            )
+            assertEquals(query, extractNgocSiAiYoutubeAutoPlayQuery(phrase))
+            assertEquals(
+                NgocSiAiLocalCommand.SEARCH_AND_PLAY_YOUTUBE,
+                classifyNgocSiAiWakePhrase(phrase)
+            )
+        }
+
+        // A generic music search without an explicit YouTube target must not autoplay.
+        assertNull(extractNgocSiAiYoutubeAutoPlayQuery("Tìm nhạc Bolero rồi phát"))
+        assertEquals(
+            NgocSiAiLocalCommand.SEARCH_YOUTUBE,
+            classifyNgocSiAiLocalCommand("Tìm YouTube nhạc Bolero")
+        )
+    }
+
+    @Test
     fun wakeWordCanActivateListeningForOneSubsequentPlaybackCommand() {
         assertEquals(true, isNgocSiAiWakeWordOnly("AI"))
         assertEquals(true, isNgocSiAiWakeWordOnly("AI ơi"))
