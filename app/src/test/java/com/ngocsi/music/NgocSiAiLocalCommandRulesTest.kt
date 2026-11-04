@@ -697,11 +697,15 @@ class NgocSiAiLocalCommandRulesTest {
                 classifyNgocSiAiLocalCommand(phrase)
             )
             assertEquals(query, extractNgocSiAiYoutubeAutoPlayQuery(phrase))
-            assertEquals(
-                NgocSiAiLocalCommand.SEARCH_AND_PLAY_YOUTUBE,
-                classifyNgocSiAiWakePhrase(phrase)
-            )
         }
+        assertEquals(
+            NgocSiAiLocalCommand.SEARCH_AND_PLAY_YOUTUBE,
+            classifyNgocSiAiWakePhrase("AI, mở YouTube, tìm nhạc Bolero rồi phát.")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.SEARCH_AND_PLAY_YOUTUBE,
+            classifyNgocSiAiWakePhrase("AI, tìm YouTube nhạc Bolero rồi phát")
+        )
 
         // A generic music search without an explicit YouTube target must not autoplay.
         assertNull(extractNgocSiAiYoutubeAutoPlayQuery("Tìm nhạc Bolero rồi phát"))
