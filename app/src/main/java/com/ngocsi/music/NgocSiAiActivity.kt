@@ -354,6 +354,11 @@ private fun saveAiApiConversation(
 
 @UnstableApi
 class NgocSiAiActivity : ComponentActivity() {
+    // Preserve the allowlisted page context when wake-word listening is enabled.
+    private val entryContext: String?
+        get() = normalizeNgocSiAiEntryContext(
+            intent.getStringExtra(NGOC_SI_AI_ENTRY_CONTEXT_EXTRA)
+        )
     private var recognizedSpeech by mutableStateOf("")
     private var recognizedSpeechShouldSend by mutableStateOf(false)
     // Show live partial transcription so voice chat visibly responds while the user speaks.
