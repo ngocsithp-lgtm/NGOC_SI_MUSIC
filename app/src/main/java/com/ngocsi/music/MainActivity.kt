@@ -790,6 +790,8 @@ class MainActivity : ComponentActivity() {
     private var jamendoSearchGeneration = 0L
     private var audiusSearchGeneration = 0L
     private var youtubeSearchGeneration = 0L
+    // One-shot AI intent: the next first-page YouTube search may auto-play its first result.
+    private var autoPlayFirstYouTubeResultOnNextSearch = false
     // Invalidates delayed Drive authorization callbacks when the user selects another action.
     private var playbackIntentGeneration = 0L
     private var driveImportJob: Job? = null
@@ -1271,7 +1273,8 @@ class MainActivity : ComponentActivity() {
                 onlineHubTab = "YouTube"
                 youtubeSearchQuery?.trim()?.takeIf { it.isNotEmpty() }?.let { query ->
                     youtubeQuery = query.take(120)
-                    searchYouTube(autoPlayFirstResult = true)
+                    autoPlayFirstYouTubeResultOnNextSearch = true
+                    searchYouTube()
                 } ?: run {
                     errorMessage = "Chưa có từ khóa YouTube để tìm và phát."
                 }
@@ -8945,7 +8948,9 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         }
     }
 
-    private fun searchYouTube(loadMore: Boolean = false, autoPlayFirstResult: Boolean = false) {
+    private fun searchYouTube(loadMore: Boolean = false) {
+        val autoPlayFirstResult = !loadMore && autoPlayFirstYouTubeResultOnNextSearch
+        if (!loadMore) autoPlayFirstYouTubeResultOnNextSearch = false
         // Searching from the YouTube page must return to the discovery shelf.
         // Otherwise results can be fetched successfully but remain hidden when
         // the user previously opened Favorites or Watch Later.
