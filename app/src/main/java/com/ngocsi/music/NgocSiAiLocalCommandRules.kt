@@ -1325,46 +1325,46 @@ internal fun extractNgocSiAiOnlineQuery(input: String): String? {
 internal fun extractNgocSiAiYoutubeAutoPlayQuery(input: String): String? {
     var phrase = input.trim()
     phrase = phrase.replace(
-        Regex("""^(?:(?:hey|ok|alo)\\s+)?(?:ai|ngọc sĩ|ngoc si)\\b[\\s,:-]*""", RegexOption.IGNORE_CASE),
+        Regex("""^(?:(?:hey|ok|alo)\s+)?(?:ai|ngọc sĩ|ngoc si)\b[\s,:-]*""", RegexOption.IGNORE_CASE),
         ""
     )
     val normalized = normalizeNgocSiAiVoicePhrase(phrase)
     val explicitPlayAfterSearch = Regex(
-        """(?:\\b(?:roi|va|sau do|then)\\s+(?:phat|play))$"""
+        """(?:\b(?:roi|va|sau do|then)\s+(?:phat|play))$"""
     ).containsMatchIn(normalized)
     if (!explicitPlayAfterSearch || !normalized.contains("youtube")) return null
 
     phrase = phrase.replace(
         Regex(
-            """\\s+(?:(?:rồi|roi|và|va|sau đó|sau do|then)\\s+)?(?:phát|phat|play)(?:\\s+(?:đi|di))?[.!?,;:]*$""",
+            """\s+(?:(?:rồi|roi|và|va|sau đó|sau do|then)\s+)?(?:phát|phat|play)(?:\s+(?:đi|di))?[.!?,;:]*$""",
             RegexOption.IGNORE_CASE
         ),
         ""
     ).trim()
     phrase = phrase.replace(
         Regex(
-            """^(?:(?:hãy|hay)\\s+)?(?:mở|mo|vào|vao|chuyển sang|chuyen sang)\\s+(?:mục\\s+)?youtube\\b(?:\\s+(?:và|va|rồi|roi))?[\\s,;:]*""",
+            """^(?:(?:hãy|hay)\s+)?(?:mở|mo|vào|vao|chuyển sang|chuyen sang)\s+(?:mục\s+)?youtube\b(?:\s+(?:và|va|rồi|roi))?[\s,;:]*""",
             RegexOption.IGNORE_CASE
         ),
         ""
     ).trim()
 
     val searchPrefix = Regex(
-        """^(?:(?:hãy|hay)\\s+)?(?:tìm|tim|kiếm|kiem)\\s+""",
+        """^(?:(?:hãy|hay)\s+)?(?:tìm|tim|kiếm|kiem)\s+""",
         RegexOption.IGNORE_CASE
     )
     if (!searchPrefix.containsMatchIn(phrase)) return null
     var query = searchPrefix.replaceFirst(phrase, "").trim()
     query = query.replace(
-        Regex("""^youtube\\b[\\s,;:]*""", RegexOption.IGNORE_CASE),
+        Regex("""^youtube\b[\s,;:]*""", RegexOption.IGNORE_CASE),
         ""
     )
     query = query.replace(
-        Regex("""^(?:video|bài hát|bai hat|nhạc|nhac)\\s+""", RegexOption.IGNORE_CASE),
+        Regex("""^(?:video|bài hát|bai hat|nhạc|nhac)\s+""", RegexOption.IGNORE_CASE),
         ""
     )
     query = query.replace(
-        Regex("""\\s+(?:(?:trên|tren)\\s+)?youtube[.!?,;:]*$""", RegexOption.IGNORE_CASE),
+        Regex("""\s+(?:(?:trên|tren)\s+)?youtube[.!?,;:]*$""", RegexOption.IGNORE_CASE),
         ""
     )
     query = trimNgocSiAiExtractedQuery(query).trim(',', ':', '-', '.', '?', '!')
