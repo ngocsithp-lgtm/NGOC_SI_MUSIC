@@ -1648,61 +1648,18 @@ class NgocSiWakeWordService : Service() {
                 ?: return "Hãy nói thời lượng từ 1 phút đến 24 giờ, ví dụ: “AI, hẹn giờ 5 phút”."
         } else null
 
-        val destination = when (command) {
-            NgocSiAiLocalCommand.OPEN_HOME -> "home"
-            NgocSiAiLocalCommand.OPEN_LIBRARY -> "library"
-            NgocSiAiLocalCommand.OPEN_FAVORITES -> "favorites"
-            NgocSiAiLocalCommand.FAVORITE_CURRENT_TRACK -> "favorite_current"
-            NgocSiAiLocalCommand.OPEN_ALBUMS -> "albums"
-            NgocSiAiLocalCommand.OPEN_FOLDERS -> "folders"
-            NgocSiAiLocalCommand.OPEN_ONLINE -> "online"
-            NgocSiAiLocalCommand.SEARCH_ONLINE_MUSIC -> "search_online"
-            NgocSiAiLocalCommand.SEARCH_DRIVE -> "drive_search"
-            NgocSiAiLocalCommand.ADD_TRACK_TO_QUEUE -> "queue_track"
-            NgocSiAiLocalCommand.OPEN_YOUTUBE,
-            NgocSiAiLocalCommand.SEARCH_YOUTUBE -> "youtube"
-            NgocSiAiLocalCommand.OPEN_DRIVE -> "drive"
-            NgocSiAiLocalCommand.OPEN_RADIO -> "radio"
-            NgocSiAiLocalCommand.PLAY_RADIO_STATION -> "radio_station"
-            NgocSiAiLocalCommand.OPEN_TV -> "tv"
-            NgocSiAiLocalCommand.OPEN_TV_CHANNEL -> "tv_channel"
-            NgocSiAiLocalCommand.CREATE_PLAYLIST -> "create_playlist"
-            NgocSiAiLocalCommand.PLAY_NAMED_PLAYLIST -> "play_playlist"
-            NgocSiAiLocalCommand.ADD_CURRENT_TRACK_TO_PLAYLIST -> "add_current_to_playlist"
-            NgocSiAiLocalCommand.ADD_QUEUE_TO_PLAYLIST -> "add_queue_to_playlist"
-            NgocSiAiLocalCommand.RESUME_YOUTUBE,
-            NgocSiAiLocalCommand.PAUSE_YOUTUBE,
-            NgocSiAiLocalCommand.NEXT_YOUTUBE_VIDEO,
-            NgocSiAiLocalCommand.PREVIOUS_YOUTUBE_VIDEO,
-            NgocSiAiLocalCommand.YOUTUBE_SHUFFLE_ON,
-            NgocSiAiLocalCommand.YOUTUBE_SHUFFLE_OFF,
-            NgocSiAiLocalCommand.YOUTUBE_REPEAT_OFF,
-            NgocSiAiLocalCommand.YOUTUBE_REPEAT_ALL,
-            NgocSiAiLocalCommand.YOUTUBE_REPEAT_ONE,
-            NgocSiAiLocalCommand.YOUTUBE_FAVORITE,
-            NgocSiAiLocalCommand.YOUTUBE_WATCH_LATER ->
-                if (hasSavedYouTubeVideo) "youtube_command" else "youtube"
-            NgocSiAiLocalCommand.OPEN_PLAYLISTS -> "playlists"
-            NgocSiAiLocalCommand.OPEN_QUEUE -> "queue"
-            NgocSiAiLocalCommand.OPEN_PLAYER -> "player"
-            NgocSiAiLocalCommand.OPEN_SETTINGS -> "settings"
-            NgocSiAiLocalCommand.OPEN_SLEEP_TIMER -> "sleep_timer"
-            NgocSiAiLocalCommand.SLEEP_TIMER_15 -> "sleep_timer_15"
-            NgocSiAiLocalCommand.SLEEP_TIMER_30 -> "sleep_timer_30"
-            NgocSiAiLocalCommand.SLEEP_TIMER_45 -> "sleep_timer_45"
-            NgocSiAiLocalCommand.SLEEP_TIMER_60 -> "sleep_timer_60"
-            NgocSiAiLocalCommand.SLEEP_TIMER_90 -> "sleep_timer_90"
-            NgocSiAiLocalCommand.SLEEP_TIMER_120 -> "sleep_timer_120"
-            NgocSiAiLocalCommand.SLEEP_TIMER_CUSTOM -> "sleep_timer_custom"
-            NgocSiAiLocalCommand.CANCEL_SLEEP_TIMER -> "sleep_timer_off"
-            else -> null
-        }
+        val destination = ngocSiAiWakeWordDestination(command)
 
         if (destination != null) {
-            val query = if (command == NgocSiAiLocalCommand.SEARCH_YOUTUBE) {
-                extractNgocSiAiYoutubeQuery(originalText)
-                    ?: return "Hãy nói rõ nội dung cần tìm, ví dụ: AI, tìm YouTube nhạc Trịnh Công Sơn."
-            } else null
+            val query = when (command) {
+                NgocSiAiLocalCommand.SEARCH_AND_PLAY_YOUTUBE ->
+                    extractNgocSiAiYoutubeAutoPlayQuery(originalText)
+                        ?: return "Hãy nói rõ nội dung cần tìm rồi phát, ví dụ: AI, mở YouTube tìm nhạc Bolero rồi phát."
+                NgocSiAiLocalCommand.SEARCH_YOUTUBE ->
+                    extractNgocSiAiYoutubeQuery(originalText)
+                        ?: return "Hãy nói rõ nội dung cần tìm, ví dụ: AI, tìm YouTube nhạc Trịnh Công Sơn."
+                else -> null
+            }
             val onlineQuery = if (command == NgocSiAiLocalCommand.SEARCH_ONLINE_MUSIC) {
                 extractNgocSiAiOnlineQuery(originalText)
                     ?: return "Hãy nói nội dung cần tìm, ví dụ: AI, tìm nhạc Trịnh Công Sơn."
@@ -1763,6 +1720,8 @@ class NgocSiWakeWordService : Service() {
                 "Chưa có video YouTube gần đây để điều khiển. Tôi đã mở YouTube; hãy tìm và phát video trước."
             } else when (command) {
                 NgocSiAiLocalCommand.SEARCH_YOUTUBE -> "Đang tìm trên YouTube: $query."
+                NgocSiAiLocalCommand.SEARCH_AND_PLAY_YOUTUBE ->
+                    "Đang tìm $query trên YouTube và sẽ tự phát video phù hợp đầu tiên khi có kết quả."
                 NgocSiAiLocalCommand.SEARCH_ONLINE_MUSIC -> "Đang tìm $onlineQuery trên các nguồn nhạc trực tuyến."
                 NgocSiAiLocalCommand.SEARCH_DRIVE -> "Đã mở Google Drive."
                 NgocSiAiLocalCommand.ADD_TRACK_TO_QUEUE -> "Đã nhận lệnh thêm bài vào hàng đợi."
