@@ -81,6 +81,61 @@ internal enum class NgocSiAiLocalCommand {
 
 
 /**
+ * Maps a recognized hands-free app command to a MainActivity destination.
+ * Kept pure so chat, wake-word routing and tests agree on the same navigation contract.
+ */
+internal fun ngocSiAiWakeWordDestination(command: NgocSiAiLocalCommand): String? =
+    when (command) {
+        NgocSiAiLocalCommand.OPEN_HOME -> "home"
+        NgocSiAiLocalCommand.OPEN_LIBRARY -> "library"
+        NgocSiAiLocalCommand.OPEN_FAVORITES -> "favorites"
+        NgocSiAiLocalCommand.FAVORITE_CURRENT_TRACK -> "favorite_current"
+        NgocSiAiLocalCommand.OPEN_ALBUMS -> "albums"
+        NgocSiAiLocalCommand.OPEN_FOLDERS -> "folders"
+        NgocSiAiLocalCommand.OPEN_ONLINE -> "online"
+        NgocSiAiLocalCommand.SEARCH_ONLINE_MUSIC -> "search_online"
+        NgocSiAiLocalCommand.SEARCH_DRIVE -> "drive_search"
+        NgocSiAiLocalCommand.ADD_TRACK_TO_QUEUE -> "queue_track"
+        NgocSiAiLocalCommand.OPEN_YOUTUBE,
+        NgocSiAiLocalCommand.SEARCH_YOUTUBE -> "youtube"
+        NgocSiAiLocalCommand.SEARCH_AND_PLAY_YOUTUBE -> "youtube_search_play"
+        NgocSiAiLocalCommand.OPEN_DRIVE -> "drive"
+        NgocSiAiLocalCommand.OPEN_RADIO -> "radio"
+        NgocSiAiLocalCommand.PLAY_RADIO_STATION -> "radio_station"
+        NgocSiAiLocalCommand.OPEN_TV -> "tv"
+        NgocSiAiLocalCommand.OPEN_TV_CHANNEL -> "tv_channel"
+        NgocSiAiLocalCommand.CREATE_PLAYLIST -> "create_playlist"
+        NgocSiAiLocalCommand.PLAY_NAMED_PLAYLIST -> "play_playlist"
+        NgocSiAiLocalCommand.ADD_CURRENT_TRACK_TO_PLAYLIST -> "add_current_to_playlist"
+        NgocSiAiLocalCommand.ADD_QUEUE_TO_PLAYLIST -> "add_queue_to_playlist"
+        NgocSiAiLocalCommand.RESUME_YOUTUBE,
+        NgocSiAiLocalCommand.PAUSE_YOUTUBE,
+        NgocSiAiLocalCommand.NEXT_YOUTUBE_VIDEO,
+        NgocSiAiLocalCommand.PREVIOUS_YOUTUBE_VIDEO,
+        NgocSiAiLocalCommand.YOUTUBE_SHUFFLE_ON,
+        NgocSiAiLocalCommand.YOUTUBE_SHUFFLE_OFF,
+        NgocSiAiLocalCommand.YOUTUBE_REPEAT_OFF,
+        NgocSiAiLocalCommand.YOUTUBE_REPEAT_ALL,
+        NgocSiAiLocalCommand.YOUTUBE_REPEAT_ONE,
+        NgocSiAiLocalCommand.YOUTUBE_FAVORITE,
+        NgocSiAiLocalCommand.YOUTUBE_WATCH_LATER -> "youtube_command"
+        NgocSiAiLocalCommand.OPEN_PLAYLISTS -> "playlists"
+        NgocSiAiLocalCommand.OPEN_QUEUE -> "queue"
+        NgocSiAiLocalCommand.OPEN_PLAYER -> "player"
+        NgocSiAiLocalCommand.OPEN_SETTINGS -> "settings"
+        NgocSiAiLocalCommand.OPEN_SLEEP_TIMER -> "sleep_timer"
+        NgocSiAiLocalCommand.SLEEP_TIMER_15 -> "sleep_timer_15"
+        NgocSiAiLocalCommand.SLEEP_TIMER_30 -> "sleep_timer_30"
+        NgocSiAiLocalCommand.SLEEP_TIMER_45 -> "sleep_timer_45"
+        NgocSiAiLocalCommand.SLEEP_TIMER_60 -> "sleep_timer_60"
+        NgocSiAiLocalCommand.SLEEP_TIMER_90 -> "sleep_timer_90"
+        NgocSiAiLocalCommand.SLEEP_TIMER_120 -> "sleep_timer_120"
+        NgocSiAiLocalCommand.SLEEP_TIMER_CUSTOM -> "sleep_timer_custom"
+        NgocSiAiLocalCommand.CANCEL_SLEEP_TIMER -> "sleep_timer_off"
+        else -> null
+    }
+
+/**
  * These controls act on the live Media3 queue. If the controller is still connecting,
  * the wake-word service should wait briefly instead of immediately dropping the command.
  * Navigation and commands with a MainActivity fallback do not need this wait.
