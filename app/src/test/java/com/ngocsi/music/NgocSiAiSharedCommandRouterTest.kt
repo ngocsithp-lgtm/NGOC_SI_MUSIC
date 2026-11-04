@@ -49,7 +49,11 @@ class NgocSiAiSharedCommandRouterTest {
             "mute" to "",
             "unmute" to "",
             "set_playback_speed" to "1.25",
+            "seek_forward_10" to "",
+            "seek_back_10" to "",
             "seek_by_seconds" to "30",
+            "youtube_seek_forward_10" to "",
+            "youtube_seek_back_10" to "",
             "youtube_seek_by_seconds" to "-15",
             "favorite_current_track" to "",
             "shuffle_on" to "",
@@ -93,12 +97,18 @@ class NgocSiAiSharedCommandRouterTest {
             "open_player" to "",
             "open_settings" to "",
             "open_sleep_timer" to "",
+            "sleep_timer_15" to "",
+            "sleep_timer_30" to "",
+            "sleep_timer_45" to "",
+            "sleep_timer_60" to "",
+            "sleep_timer_90" to "",
+            "sleep_timer_120" to "",
             "sleep_timer_custom" to "15",
             "cancel_sleep_timer" to "",
             "help" to ""
         )
 
-        assertEquals(61, actions.size)
+        assertEquals(71, actions.size)
         actions.forEach { (action, query) ->
             val chatRoute = resolveNgocSiAiToolCommand(action, query, false)
             val voiceRoute = resolveNgocSiAiToolCommand(action, query, true)
