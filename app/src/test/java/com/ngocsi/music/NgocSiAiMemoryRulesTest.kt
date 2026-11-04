@@ -300,6 +300,70 @@ class NgocSiAiMemoryRulesTest {
     }
 
     @Test
+    fun remembersArtistPreferencesAndAnswersArtistQuestionsLocally() {
+        val command = requireNotNull(parseNgocSiAiMemoryCommand("AI, hãy nhớ tôi thích ca sĩ Đan Trường"))
+        assertEquals(NgocSiAiMemoryCommandType.REMEMBER, command.type)
+        assertEquals("tôi thích ca sĩ Đan Trường", command.note)
+
+        val saved = applyNgocSiAiMemoryCommand(command, emptyList())
+        assertTrue(saved.shouldPersist)
+        assertEquals(listOf("tôi thích ca sĩ Đan Trường"), saved.memories)
+        assertEquals(saved.memories, decodeNgocSiAiMemory(encodeNgocSiAiMemory(saved.memories)))
+
+        val answer = requireNotNull(answerNgocSiAiMusicTasteQuestion("AI, ca sĩ tôi yêu thích là ai?", saved.memories))
+        assertTrue(answer.contains("Đan Trường"))
+        assertTrue(answer.contains("không cần Firebase"))
+    }
+
+    @Test
+    fun artistLookupReturnsOnlyArtistPreferencesNotGenresOrAppSettings() {
+        val memories = listOf(
+            "tôi thích nghe nhạc Bolero",
+            "tôi thích ca sĩ Mỹ Tâm",
+            "tôi muốn mini player nhỏ gọn",
+            "tôi thích nhạc sĩ Trịnh Công Sơn"
+        )
+
+        val singerAnswer = requireNotNull(answerNgocSiAiSavedPreferenceQuestion("Tôi thích ca sĩ nào?", memories))
+        assertTrue(singerAnswer.contains("Mỹ Tâm"))
+        assertFalse(singerAnswer.contains("Bolero"))
+        assertFalse(singerAnswer.contains("mini player"))
+
+        val composerAnswer = requireNotNull(answerNgocSiAiSavedPreferenceQuestion("Nhạc sĩ yêu thích của tôi là ai?", memories))
+        assertTrue(composerAnswer.contains("Trịnh Công Sơn"))
+        assertFalse(composerAnswer.contains("Mỹ Tâm"))
+    }
+
+    @Test
+    fun recognizesBandPreferencesAndDoesNotInventAnUnknownArtist() {
+        val band = applyNgocSiAiMemoryCommand(
+            NgocSiAiMemoryCommand(NgocSiAiMemoryCommandType.REMEMBER, "tôi thích ban nhạc Bức Tường"),
+            emptyList()
+        )
+        assertTrue(band.shouldPersist)
+        val answer = requireNotNull(answerNgocSiAiMusicTasteQuestion("Ban nhạc tôi thích là gì?", band.memories))
+        assertTrue(answer.contains("Bức Tường"))
+
+        val missing = requireNotNull(
+            answerNgocSiAiMusicTasteQuestion("Ca sĩ tôi yêu thích là ai?", listOf("tôi thích nghe nhạc Bolero"))
+        )
+        assertTrue(missing.contains("chưa tìm thấy ghi nhớ về ca sĩ"))
+        assertFalse(missing.contains("Bolero"))
+    }
+
+    @Test
+    fun artistPreferenceMemoryStillRejectsSensitiveAccountDetails() {
+        val result = applyNgocSiAiMemoryCommand(
+            NgocSiAiMemoryCommand(
+                NgocSiAiMemoryCommandType.REMEMBER,
+                "tôi thích ca sĩ và mật khẩu tài khoản là abc123"
+            ),
+            emptyList()
+        )
+        assertTrue(result.memories.isEmpty())
+        assertFalse(result.shouldPersist)
+    }
+    @Test
     fun answersNaturalMusicTasteQuestionsFromLocalMemoryWithoutGemini() {
         val memories = buildList {
             add("tôi thích nghe nhạc Bolero")
