@@ -11,6 +11,17 @@ internal object NgocSiMainActivityState {
     @Volatile
     private var currentActivity: WeakReference<MainActivity>? = null
 
+    // Updated by MainActivity navigation; read by the wake-word service on every turn.
+    @Volatile
+    private var activeEntryContext: String? = null
+
+    fun updateEntryContext(rawContext: String?) {
+        activeEntryContext = normalizeNgocSiAiEntryContext(rawContext)
+    }
+
+    fun entryContextOr(fallback: String? = null): String? =
+        activeEntryContext ?: normalizeNgocSiAiEntryContext(fallback)
+
     @Synchronized
     fun attach(activity: MainActivity) {
         currentActivity = WeakReference(activity)

@@ -738,6 +738,9 @@ class NgocSiWakeWordService : Service() {
             return
         }
 
+        // MainActivity can change pages while this foreground service remains active.
+        // Read the latest page for every turn; fall back to the page used to start listening.
+        val requestEntryContext = NgocSiMainActivityState.entryContextOr(aiEntryContext)
         answeringQuestion = true
         cancelConversationTimeout()
         val conversationTurnId = nextConversationTurnId()
@@ -843,7 +846,7 @@ class NgocSiWakeWordService : Service() {
                             cleanQuestion,
                             onDeviceMemories,
                             requestHistory.dropLast(1),
-                            entryContext = aiEntryContext
+                            entryContext = requestEntryContext
                         )
                         usedOnDeviceModel = true
                     } catch (error: Exception) {
@@ -865,7 +868,7 @@ class NgocSiWakeWordService : Service() {
                                 client.send(
                                     messages = requestHistory,
                                     executeTool = { action, query -> executeAiAppCommand(action, query) },
-                                    entryContext = aiEntryContext,
+                                    entryContext = requestEntryContext,
                                     onPartialResponse = { partialResponse ->
                                         // Begin speaking each complete sentence while the next one is
                                         // still generating; subsequent chunks are queued in order.

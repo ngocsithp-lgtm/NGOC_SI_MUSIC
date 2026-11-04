@@ -59,6 +59,22 @@ class NgocSiAiEntryContextTest {
     }
 
     @Test
+    fun wakeWordContextTracksTheMostRecentlyVisiblePage() {
+        NgocSiMainActivityState.updateEntryContext("Radio")
+        assertEquals("Radio", NgocSiMainActivityState.entryContextOr("YouTube"))
+
+        NgocSiMainActivityState.updateEntryContext("YouTube")
+        assertEquals("YouTube", NgocSiMainActivityState.entryContextOr("Radio"))
+        NgocSiMainActivityState.updateEntryContext(null)
+    }
+
+    @Test
+    fun wakeWordContextFallsBackToItsStartPageWhenNoMainPageIsPublished() {
+        NgocSiMainActivityState.updateEntryContext(null)
+        assertEquals("Google Drive", NgocSiMainActivityState.entryContextOr("Drive"))
+    }
+
+    @Test
     fun accentAndCaseDifferencesDoNotChangeThePageContext() {
         assertEquals("Thư viện", normalizeNgocSiAiEntryContext("THU VIEN"))
         assertEquals("Google Drive", normalizeNgocSiAiEntryContext("google DRIVE"))

@@ -5287,10 +5287,8 @@ class MainActivity : ComponentActivity() {
     }
 
 
-    private fun openNgocSiAiFromCurrentPage(pageOverride: String? = null) {
-        // Preserve the current page and let the assistant understand references such as
-        // "tìm tiếp ở đây" without adding hidden messages to the conversation.
-        val entryPage = pageOverride ?: when {
+    private fun currentNgocSiAiEntryContext(): String? = normalizeNgocSiAiEntryContext(
+        when {
             selectedSection == "Online" && onlineHubTab == "YouTube" -> "YouTube"
             selectedSection == "Online" && onlineHubTab == "Drive" -> "Google Drive"
             selectedSection == "Online" && onlineHubTab == "Yêu thích" -> "Yêu thích"
@@ -5301,6 +5299,15 @@ class MainActivity : ComponentActivity() {
             selectedSection == "Thư viện" && selectedLibrary.startsWith("Google Drive") -> "Google Drive"
             else -> selectedSection
         }
+    )
+
+    private fun openNgocSiAiFromCurrentPage(pageOverride: String? = null) {
+        // Preserve the current page and let the assistant understand references such as
+        // "tìm tiếp ở đây" without adding hidden messages to the conversation.
+        val entryPage = normalizeNgocSiAiEntryContext(pageOverride)
+            ?: currentNgocSiAiEntryContext()
+            ?: "Trang chủ"
+        NgocSiMainActivityState.updateEntryContext(entryPage)
         startActivity(
             Intent(this, NgocSiAiActivity::class.java)
                 .putExtra(NGOC_SI_AI_ENTRY_CONTEXT_EXTRA, entryPage)
@@ -5321,6 +5328,11 @@ class MainActivity : ComponentActivity() {
         }
         val isYouTubeScreenVisible = selectedSection == "Online" && onlineHubTab == "YouTube"
         val currentSong = songs.getOrNull(currentIndex)
+
+        // Keep hands-free AI aligned with navigation even after the AI screen is closed.
+        LaunchedEffect(selectedSection, onlineHubTab, selectedLibrary, libraryView) {
+            NgocSiMainActivityState.updateEntryContext(currentNgocSiAiEntryContext())
+        }
         val statusSnackbarHostState = remember { SnackbarHostState() }
         // The YouTube screen already owns the main player controls. Showing a second
         // mini-player below it duplicates controls and covers content in portrait.
