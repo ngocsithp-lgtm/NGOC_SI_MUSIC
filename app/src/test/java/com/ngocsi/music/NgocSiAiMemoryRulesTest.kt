@@ -316,6 +316,19 @@ class NgocSiAiMemoryRulesTest {
     }
 
     @Test
+    fun retrievesOlderBandPreferenceWhenNewerMemoriesFillTheContextWindow() {
+        val memories = buildList {
+            add("tôi thích ban nhạc Bức Tường")
+            repeat(12) { index ->
+                add("tôi muốn playlist nhạc số $index")
+            }
+        }
+
+        assertEquals(listOf("tôi thích ban nhạc Bức Tường"),
+            selectNgocSiAiRelevantMemories(memories, "Ban nhạc tôi thích là gì?"))
+    }
+
+    @Test
     fun artistLookupReturnsOnlyArtistPreferencesNotGenresOrAppSettings() {
         val memories = listOf(
             "tôi thích nghe nhạc Bolero",
