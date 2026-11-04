@@ -5288,9 +5288,18 @@ class MainActivity : ComponentActivity() {
 
 
     private fun openNgocSiAiFromCurrentPage() {
-        // Launching the assistant as a separate Activity preserves the current
-        // page and its playback state when the user returns with Back.
-        startActivity(Intent(this, NgocSiAiActivity::class.java))
+        // Preserve the current page and let the assistant understand references such as
+        // "tìm tiếp ở đây" without adding hidden messages to the conversation.
+        val entryPage = when {
+            selectedSection == "Online" && onlineHubTab == "YouTube" -> "YouTube"
+            selectedSection == "Online" && onlineHubTab == "Drive" -> "Google Drive"
+            selectedSection == "Online" && onlineHubTab == "Yêu thích" -> "Yêu thích"
+            else -> selectedSection
+        }
+        startActivity(
+            Intent(this, NgocSiAiActivity::class.java)
+                .putExtra(NGOC_SI_AI_ENTRY_CONTEXT_EXTRA, entryPage)
+        )
     }
 
     @OptIn(ExperimentalFoundationApi::class)
