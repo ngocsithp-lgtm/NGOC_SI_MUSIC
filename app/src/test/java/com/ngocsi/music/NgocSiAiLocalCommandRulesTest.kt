@@ -716,6 +716,36 @@ class NgocSiAiLocalCommandRulesTest {
     }
 
     @Test
+    fun handsFreeYouTubeSearchAndPlayUsesItsOwnDestination() {
+        assertEquals(
+            "youtube_search_play",
+            ngocSiAiWakeWordDestination(NgocSiAiLocalCommand.SEARCH_AND_PLAY_YOUTUBE)
+        )
+        assertEquals(
+            "youtube",
+            ngocSiAiWakeWordDestination(NgocSiAiLocalCommand.SEARCH_YOUTUBE)
+        )
+        assertEquals(
+            "youtube",
+            ngocSiAiWakeWordDestination(NgocSiAiLocalCommand.OPEN_YOUTUBE)
+        )
+        assertEquals(
+            "youtube_command",
+            ngocSiAiWakeWordDestination(
+                NgocSiAiLocalCommand.RESUME_YOUTUBE,
+                hasSavedYouTubeVideo = true
+            )
+        )
+        assertEquals(
+            "youtube",
+            ngocSiAiWakeWordDestination(
+                NgocSiAiLocalCommand.RESUME_YOUTUBE,
+                hasSavedYouTubeVideo = false
+            )
+        )
+    }
+
+    @Test
     fun wakeWordCanActivateListeningForOneSubsequentPlaybackCommand() {
         assertEquals(true, isNgocSiAiWakeWordOnly("AI"))
         assertEquals(true, isNgocSiAiWakeWordOnly("AI ơi"))
