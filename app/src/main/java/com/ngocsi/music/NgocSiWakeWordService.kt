@@ -1648,7 +1648,7 @@ class NgocSiWakeWordService : Service() {
                 ?: return "Hãy nói thời lượng từ 1 phút đến 24 giờ, ví dụ: “AI, hẹn giờ 5 phút”."
         } else null
 
-        val destination = ngocSiAiWakeWordDestination(command)
+        val destination = ngocSiAiWakeWordDestination(command, hasSavedYouTubeVideo)
 
         if (destination != null) {
             val query = when (command) {
