@@ -12,6 +12,10 @@ internal fun normalizeNgocSiAiEntryContext(rawContext: String?): String? =
     when (normalizeNgocSiAiVoicePhrase(rawContext.orEmpty())) {
         "trang chu" -> "Trang chủ"
         "thu vien" -> "Thư viện"
+        "album" -> "Album"
+        "thu muc" -> "Thư mục"
+        "thiet bi" -> "Thiết bị"
+        "nhac yeu thich" -> "Yêu thích"
         "online", "tat ca" -> "Online"
         "youtube" -> "YouTube"
         "drive", "google drive" -> "Google Drive"

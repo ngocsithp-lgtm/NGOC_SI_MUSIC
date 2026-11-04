@@ -5294,6 +5294,11 @@ class MainActivity : ComponentActivity() {
             selectedSection == "Online" && onlineHubTab == "YouTube" -> "YouTube"
             selectedSection == "Online" && onlineHubTab == "Drive" -> "Google Drive"
             selectedSection == "Online" && onlineHubTab == "Yêu thích" -> "Yêu thích"
+            selectedSection == "Thư viện" && libraryView == "Album" -> "Album"
+            selectedSection == "Thư viện" && libraryView == "Thư mục" -> "Thư mục"
+            selectedSection == "Thư viện" && selectedLibrary == "Yêu thích" -> "Yêu thích"
+            selectedSection == "Thư viện" && selectedLibrary == "Thiết bị" -> "Thiết bị"
+            selectedSection == "Thư viện" && selectedLibrary.startsWith("Google Drive") -> "Google Drive"
             else -> selectedSection
         }
         startActivity(

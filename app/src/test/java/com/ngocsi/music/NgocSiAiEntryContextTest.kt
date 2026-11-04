@@ -11,6 +11,10 @@ class NgocSiAiEntryContextTest {
         val cases = listOf(
             "Trang chủ" to "Trang chủ",
             "Thư viện" to "Thư viện",
+            "Album" to "Album",
+            "Thư mục" to "Thư mục",
+            "Thiết bị" to "Thiết bị",
+            "Nhạc yêu thích" to "Yêu thích",
             "Online" to "Online",
             "YouTube" to "YouTube",
             "Drive" to "Google Drive",
@@ -27,6 +31,14 @@ class NgocSiAiEntryContextTest {
         cases.forEach { (input, expected) ->
             assertEquals(input, expected, normalizeNgocSiAiEntryContext(input))
         }
+    }
+
+    @Test
+    fun librarySubviewsKeepTheirOwnPageContext() {
+        assertEquals("Album", normalizeNgocSiAiEntryContext("album"))
+        assertEquals("Thư mục", normalizeNgocSiAiEntryContext("THU MUC"))
+        assertEquals("Thiết bị", normalizeNgocSiAiEntryContext("thiet bi"))
+        assertTrue(buildNgocSiAiEntryContextInstruction("Album").contains("trang Album"))
     }
 
     @Test
