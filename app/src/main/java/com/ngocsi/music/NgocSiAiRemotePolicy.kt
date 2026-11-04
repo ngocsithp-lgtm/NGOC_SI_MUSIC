@@ -26,6 +26,25 @@ internal fun selectNgocSiAiModelName(
     NGOC_SI_AI_FAST_CHAT_MODEL_NAME
 }
 
+/**
+ * Flash-Lite supports MINIMAL thinking and uses it by default. Keep the 3.8 Flash
+ * path at LOW or MEDIUM because that model does not accept MINIMAL.
+ */
+internal fun selectNgocSiAiGenerationThinkingLevel(
+    prompt: String,
+    offersAppCommandTool: Boolean = false
+): ThinkingLevel {
+    val requestedLevel = selectNgocSiAiThinkingLevel(prompt)
+    return if (
+        !offersAppCommandTool &&
+        requestedLevel == ThinkingLevel.LOW
+    ) {
+        ThinkingLevel.MINIMAL
+    } else {
+        requestedLevel
+    }
+}
+
 internal const val NGOC_SI_AI_SHORT_REPLY_MAX_OUTPUT_TOKENS = 384
 internal const val NGOC_SI_AI_COMPLEX_REPLY_MAX_OUTPUT_TOKENS = 1_024
 
