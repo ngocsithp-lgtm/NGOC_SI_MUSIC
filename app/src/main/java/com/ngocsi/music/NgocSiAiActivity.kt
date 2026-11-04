@@ -891,6 +891,9 @@ class NgocSiAiActivity : ComponentActivity() {
         val aiEntryContext = normalizeNgocSiAiEntryContext(
             intent.getStringExtra(NGOC_SI_AI_ENTRY_CONTEXT_EXTRA)
         )
+        // Prefer the page that opened this AI screen; MainActivity will keep it current
+        // as the user navigates after the AI UI has been closed.
+        NgocSiMainActivityState.updateEntryContext(aiEntryContext)
         refreshOwnerVoiceState()
         responseTts = TextToSpeech(this) { status ->
             responseTtsInitialized = true
