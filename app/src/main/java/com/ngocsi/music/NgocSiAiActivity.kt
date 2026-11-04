@@ -815,7 +815,7 @@ class NgocSiAiActivity : ComponentActivity() {
                 else Toast.makeText(this, "Cần quyền micro để đăng ký giọng nói.", Toast.LENGTH_LONG).show()
             } else if (granted) {
                 try {
-                    NgocSiWakeWordService.start(this)
+                    NgocSiWakeWordService.start(this, entryContext)
                     wakeWordListening = true
                     monitorWakeWordStatus()
                 } catch (_: Exception) {
@@ -997,8 +997,8 @@ class NgocSiAiActivity : ComponentActivity() {
                     aiClient.send(
                         history,
                         executeTool,
-                        onPartialResponse,
-                        entryContext = aiEntryContext
+                        entryContext = aiEntryContext,
+                        onPartialResponse = onPartialResponse
                     )
                 },
                 onExecuteAppCommand = { action, query -> executeAiAppCommand(action, query) },
@@ -1023,7 +1023,7 @@ class NgocSiAiActivity : ComponentActivity() {
                 onBack = { finish() },
                 onVoice = { startVoiceInput() },
                 isWakeWordListening = wakeWordListening,
-                onToggleWakeWord = { toggleWakeWordListening() },
+                onToggleWakeWord = { toggleWakeWordListening(aiEntryContext) },
                 wakeWordConversationTurnId = wakeWordConversationTurnId,
                 wakeWordConversationRevision = wakeWordConversationRevision,
                 wakeWordConversationQuestion = wakeWordConversationQuestion,
@@ -1740,7 +1740,7 @@ class NgocSiAiActivity : ComponentActivity() {
         Toast.makeText(this, "Bảo vệ giọng nói đã được gỡ bỏ. AI sẽ nhận lệnh mà không xác minh người nói.", Toast.LENGTH_LONG).show()
     }
 
-    private fun toggleWakeWordListening() {
+    private fun toggleWakeWordListening(entryContext: String? = null) {
         if (wakeWordListening) {
             NgocSiWakeWordService.stop(this)
             wakeWordListening = false
