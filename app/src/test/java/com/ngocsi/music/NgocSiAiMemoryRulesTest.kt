@@ -275,7 +275,7 @@ class NgocSiAiMemoryRulesTest {
             "tôi thích nhạc tiền chiến" to "Tiền chiến",
             "tôi thích nhạc trẻ" to "Nhạc trẻ",
             "tôi thích nghe rap" to "Rap",
-            "tôi thích EDM" to "Edm",
+            "tôi thích EDM" to "EDM",
             "tôi thích lofi" to "Lofi",
             "tôi thích acoustic" to "Acoustic",
             "tôi thích nghe nhạc không lời" to "Nhạc không lời",
