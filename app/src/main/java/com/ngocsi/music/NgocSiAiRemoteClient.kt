@@ -161,8 +161,12 @@ internal class NgocSiAiRemoteClient(context: Context) {
                     thinkingLevel = selectNgocSiAiThinkingLevel(newestUserMessage.content)
                 }
             }
+            val selectedModelName = selectNgocSiAiModelName(
+                newestUserMessage.content,
+                offersAppCommandTool
+            )
             val model = firebaseAi.generativeModel(
-                modelName = MODEL_NAME,
+                modelName = selectedModelName,
                 generationConfig = responseConfig,
                 systemInstruction = content {
                     val savedMemories = decodeNgocSiAiMemory(
@@ -429,10 +433,8 @@ internal class NgocSiAiRemoteClient(context: Context) {
         private const val KEY_QUOTA_COOLDOWN_UNTIL = "cooldown_until_millis"
         private const val KEY_QUOTA_COOLDOWN_KIND = "cooldown_kind"
         private const val EXPECTED_FIREBASE_PROJECT_ID = "ngoc-si-music-ai"
-        // Keep Gemini 3.8 Flash as the single Google AI backend model.
-        // Quota errors trigger a cooldown; there is no automatic paid-model fallback.
-        private const val MODEL_NAME = "gemini-3.8-flash"
-        private const val MAX_OUTPUT_TOKENS = 2048
+        // Primary model routing is deterministic in NgocSiAiRemotePolicy.
+        // Quota errors trigger a cooldown; there is no automatic model fallback.
         private const val APP_COMMAND_TOOL_NAME = "execute_app_command"
         private val SUPPORTED_APP_ACTIONS = listOf(
             "play",
