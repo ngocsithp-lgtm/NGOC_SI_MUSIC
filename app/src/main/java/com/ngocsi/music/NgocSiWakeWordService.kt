@@ -49,6 +49,11 @@ class NgocSiWakeWordService : Service() {
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val aiScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    // Reuse the Firebase/App Check client across consecutive hands-free turns.
+    // This avoids reinitializing the client wrapper for every user question.
+    private val remoteAiClient by lazy(LazyThreadSafetyMode.NONE) {
+        NgocSiAiRemoteClient(applicationContext)
+    }
     private var answeringQuestion = false
     // Once "AI" wakes the assistant, keep a hands-free conversation session open until idle.
     private var conversationActive = false
@@ -843,7 +848,7 @@ class NgocSiWakeWordService : Service() {
                 if (localFallback == null && remoteAnswer.isNullOrBlank() && remoteError == null) {
                     // Initialize Firebase AI only for turns that truly need Gemini.
                     // Local memory, local-first chat, and deterministic offline replies skip Firebase setup.
-                    val client = NgocSiAiRemoteClient(applicationContext)
+                    val client = remoteAiClient
                     if (!client.isConfigured) {
                         remoteError =
                             "Tôi nghe được câu hỏi, nhưng chat trực tuyến chưa được cấu hình trong bản Preview này. Các lệnh ứng dụng được hỗ trợ vẫn có thể chạy trên điện thoại."
