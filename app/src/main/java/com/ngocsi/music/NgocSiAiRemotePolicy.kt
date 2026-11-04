@@ -5,6 +5,7 @@ import com.google.firebase.ai.type.ThinkingLevel
 /** Ordinary questions should fail fast; longer reasoning receives a separate bounded window. */
 internal const val NGOC_SI_AI_REMOTE_CONVERSATION_TIMEOUT_MILLIS = 25_000L
 internal const val NGOC_SI_AI_COMPLEX_REMOTE_CONVERSATION_TIMEOUT_MILLIS = 40_000L
+internal const val NGOC_SI_AI_DEEP_REMOTE_CONVERSATION_TIMEOUT_MILLIS = 60_000L
 
 /** Model routing keeps everyday chat on the faster, no-billing Flash-Lite tier. */
 internal const val NGOC_SI_AI_FAST_CHAT_MODEL_NAME = "gemini-3.5-flash-lite"
@@ -19,7 +20,7 @@ internal fun selectNgocSiAiModelName(
     prompt: String,
     offersAppCommandTool: Boolean = false
 ): String = if (
-    offersAppCommandTool || selectNgocSiAiThinkingLevel(prompt) == ThinkingLevel.MEDIUM
+    offersAppCommandTool || selectNgocSiAiThinkingLevel(prompt) != ThinkingLevel.LOW
 ) {
     NGOC_SI_AI_REASONING_MODEL_NAME
 } else {
@@ -47,13 +48,13 @@ internal fun selectNgocSiAiGenerationThinkingLevel(
 
 internal const val NGOC_SI_AI_SHORT_REPLY_MAX_OUTPUT_TOKENS = 384
 internal const val NGOC_SI_AI_COMPLEX_REPLY_MAX_OUTPUT_TOKENS = 1_024
+internal const val NGOC_SI_AI_DEEP_REPLY_MAX_OUTPUT_TOKENS = 2_048
 
-internal fun selectNgocSiAiRemoteTimeoutMillis(prompt: String): Long =
-    if (selectNgocSiAiThinkingLevel(prompt) == ThinkingLevel.MEDIUM) {
-        NGOC_SI_AI_COMPLEX_REMOTE_CONVERSATION_TIMEOUT_MILLIS
-    } else {
-        NGOC_SI_AI_REMOTE_CONVERSATION_TIMEOUT_MILLIS
-    }
+internal fun selectNgocSiAiRemoteTimeoutMillis(prompt: String): Long = when (selectNgocSiAiThinkingLevel(prompt)) {
+    ThinkingLevel.HIGH -> NGOC_SI_AI_DEEP_REMOTE_CONVERSATION_TIMEOUT_MILLIS
+    ThinkingLevel.MEDIUM -> NGOC_SI_AI_COMPLEX_REMOTE_CONVERSATION_TIMEOUT_MILLIS
+    else -> NGOC_SI_AI_REMOTE_CONVERSATION_TIMEOUT_MILLIS
+}
 
 internal fun ngocSiAiRemoteTimeoutMessage(prompt: String): String {
     val seconds = selectNgocSiAiRemoteTimeoutMillis(prompt) / 1_000L
@@ -62,15 +63,27 @@ internal fun ngocSiAiRemoteTimeoutMessage(prompt: String): String {
 }
 
 /**
- * Keep ordinary follow-up turns at LOW thinking even when history is long.
- * The newest request, not the number of prior messages, determines reasoning depth.
+ * The newest request, not history length, determines the reasoning budget.
+ * Deep markers opt into HIGH only for deliberate, demanding analysis; normal chat
+ * and ordinary app commands retain their fast path.
  */
 internal fun selectNgocSiAiThinkingLevel(prompt: String): ThinkingLevel {
     val normalized = normalizeNgocSiAiVoicePhrase(prompt)
+    val highIntentMarkers = listOf(
+        "suy nghi that ky", "suy nghi that sau", "phan tich chuyen sau", "phan tich sau",
+        "kiem tra toan dien", "kiem tra toan bo", "ra soat toan bo", "danh gia toan dien",
+        "tim nguyen nhan goc", "thiet ke kien truc", "lap trinh phuc tap", "ma nguon",
+        "kiem thu toan dien", "toi uu chuyen sau", "phan tich rui ro",
+        "den khi hoan thanh", "hoan thien den khi"
+    )
+    if (normalized.length >= 420 || highIntentMarkers.any(normalized::contains)) {
+        return ThinkingLevel.HIGH
+    }
+
     val mediumIntentMarkers = listOf(
         "phan tich", "so sanh", "lap ke hoach", "chien luoc", "danh gia",
         "kiem tra ky", "tim nguyen nhan", "sua loi", "huong dan tung buoc",
-        "bao cao", "tong hop", "phan tich sau"
+        "bao cao", "tong hop", "lo trinh", "de xuat", "tu van", "kiem tra ky"
     )
     // Multi-action requests need planning, even when the sentence is short.
     // Count distinct app-action categories so a single command such as "mở YouTube"
@@ -92,12 +105,11 @@ internal fun selectNgocSiAiThinkingLevel(prompt: String): ThinkingLevel {
 }
 
 /** Use a compact token budget for everyday chat and retain capacity for complex requests. */
-internal fun selectNgocSiAiMaxOutputTokens(prompt: String): Int =
-    if (selectNgocSiAiThinkingLevel(prompt) == ThinkingLevel.MEDIUM) {
-        NGOC_SI_AI_COMPLEX_REPLY_MAX_OUTPUT_TOKENS
-    } else {
-        NGOC_SI_AI_SHORT_REPLY_MAX_OUTPUT_TOKENS
-    }
+internal fun selectNgocSiAiMaxOutputTokens(prompt: String): Int = when (selectNgocSiAiThinkingLevel(prompt)) {
+    ThinkingLevel.HIGH -> NGOC_SI_AI_DEEP_REPLY_MAX_OUTPUT_TOKENS
+    ThinkingLevel.MEDIUM -> NGOC_SI_AI_COMPLEX_REPLY_MAX_OUTPUT_TOKENS
+    else -> NGOC_SI_AI_SHORT_REPLY_MAX_OUTPUT_TOKENS
+}
 
 /**
  * Attach the large app-command tool schema only when the newest message appears to request
