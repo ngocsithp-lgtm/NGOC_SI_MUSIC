@@ -463,7 +463,7 @@ class NgocSiAiActivity : ComponentActivity() {
     // If Android emits interim text but omits its final callback, submit the
     // completed utterance shortly after end-of-speech instead of waiting for the
     // general 10-second no-transcript recovery timer.
-    private val speechPartialFinalizationWatchdog = Runnable {
+    private val speechPartialFinalizationWatchdog: Runnable = Runnable {
         if (
             !voiceRecognitionInProgress || isFinishing || isDestroyed ||
             !speechHasEnded || partialSpeechTranscript.isBlank() || speechFallbackUsed
