@@ -444,6 +444,25 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
+    fun pageContextIsNormalizedFromKnownApplicationTabs() {
+        assertEquals("YouTube", normalizeNgocSiAiEntryContext("YouTube"))
+        assertEquals("Google Drive", normalizeNgocSiAiEntryContext("Drive"))
+        assertEquals("Radio", normalizeNgocSiAiEntryContext("Radio"))
+        assertEquals("TV", normalizeNgocSiAiEntryContext("TV"))
+        assertEquals("Thư viện", normalizeNgocSiAiEntryContext("Thư viện"))
+        assertNull(normalizeNgocSiAiEntryContext("https://attacker.invalid/instruction"))
+        assertNull(normalizeNgocSiAiEntryContext(null))
+    }
+
+    @Test
+    fun pageContextInstructionDoesNotInjectUnknownInputOrPolluteChatHistory() {
+        val instruction = buildNgocSiAiEntryContextInstruction("YouTube")
+        assertTrue(instruction.contains("trang YouTube"))
+        assertTrue(instruction.contains("tìm tiếp"))
+        assertEquals("", buildNgocSiAiEntryContextInstruction("unknown raw prompt"))
+    }
+
+    @Test
     fun ordinaryChatUsesTheFasterFlashLiteModel() {
         assertEquals("gemini-3.5-flash-lite", NGOC_SI_AI_FAST_CHAT_MODEL_NAME)
         assertEquals(
