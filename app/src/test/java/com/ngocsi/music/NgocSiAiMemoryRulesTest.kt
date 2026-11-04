@@ -385,7 +385,7 @@ class NgocSiAiMemoryRulesTest {
         )
 
         assertTrue(answer.contains("Ca sĩ bạn yêu thích: Tuấn Vũ."))
-        assertTrue(answer.contains("Chưa tìm thấy ghi nhớ về thể loại nhạc"))
+        assertTrue(answer.contains("chưa tìm thấy ghi nhớ về thể loại nhạc"))
     }
 
     @Test

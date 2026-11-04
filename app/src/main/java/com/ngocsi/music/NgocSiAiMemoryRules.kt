@@ -116,7 +116,7 @@ private val NGOC_SI_AI_MEMORY_ARTIST_MARKERS = listOf(
 /** Correct a recurring Vietnamese ASR variant where "ca sĩ" is transcribed as "ca SŤ". */
 private fun normalizeNgocSiAiMemoryPreferenceQuery(input: String): String =
     normalizeNgocSiAiVoicePhrase(input)
-        .replace(Regex("""\\bca\\s+st\\b"""), "ca si")
+        .replace(Regex("\\bca\\s+st\\b"), "ca si")
 
 private val NGOC_SI_AI_MEMORY_OWN_PREFERENCE_PHRASES = listOf(
     "toi thich", "minh thich", "toi rat thich", "minh rat thich",
@@ -543,8 +543,8 @@ private fun extractNgocSiAiPreferenceValue(
     val valueStart = if (includeMarkerInValue) markerStart else markerStart + markerLength
     val valueWords = originalWords.drop(valueStart)
         .map { word ->
-            word.trim().trimStart(':', '-', '—', '“', '"', '\\'')
-                .trimEnd('.', '!', '?', ';', ',', '”', '"', '\\'')
+            word.trim().trimStart(':', '-', '—', '“', '"')
+                .trimEnd('.', '!', '?', ';', ',', '”', '"')
         }
         .filter { it.isNotBlank() }
     if (valueWords.isEmpty()) return null
@@ -644,7 +644,7 @@ internal fun answerNgocSiAiMusicTasteQuestion(
     if (asksAboutArtists) {
         val artistLabel = ngocSiAiArtistLabelForQuery(query)
         if (artistNotes.isEmpty()) {
-            answerParts += "Mình chưa tìm thấy ghi nhớ về $artistLabel bạn yêu thích. " +
+            answerParts += "Mình chưa tìm thấy ghi nhớ về ${artistLabel.replaceFirstChar { it.lowercase() }} bạn yêu thích. " +
                 "Bạn có thể nói “AI, hãy nhớ tôi thích ca sĩ Đan Trường” để lưu sở thích này."
         } else {
             answerParts += "$artistLabel bạn yêu thích: ${artistNotes.joinToString("; ")}."
