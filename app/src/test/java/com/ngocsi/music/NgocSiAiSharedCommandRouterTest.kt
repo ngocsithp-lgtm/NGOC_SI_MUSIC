@@ -1,6 +1,8 @@
 package com.ngocsi.music
 
 import org.junit.Assert.assertEquals
+import android.media.AudioManager
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -74,5 +76,17 @@ class NgocSiAiSharedTrackMatchingTest {
         val candidates = listOf(NgocSiAiTrackCandidate("Biển nhớ", "Khánh Ly"))
         assertNull(selectNgocSiAiTrackMatchIndex(candidates, ""))
         assertNull(selectNgocSiAiTrackMatchIndex(candidates, "khong ton tai"))
+    }
+}
+
+
+class NgocSiAiSharedVolumeCommandTest {
+    @Test
+    fun chatAndHandsFreeShareTheSameMediaVolumeAdjustments() {
+        assertEquals(AudioManager.ADJUST_RAISE, ngocSiAiVolumeAdjustment(NgocSiAiLocalCommand.VOLUME_UP))
+        assertEquals(AudioManager.ADJUST_LOWER, ngocSiAiVolumeAdjustment(NgocSiAiLocalCommand.VOLUME_DOWN))
+        assertEquals(AudioManager.ADJUST_MUTE, ngocSiAiVolumeAdjustment(NgocSiAiLocalCommand.MUTE))
+        assertEquals(AudioManager.ADJUST_UNMUTE, ngocSiAiVolumeAdjustment(NgocSiAiLocalCommand.UNMUTE))
+        assertNull(ngocSiAiVolumeAdjustment(NgocSiAiLocalCommand.NEXT))
     }
 }

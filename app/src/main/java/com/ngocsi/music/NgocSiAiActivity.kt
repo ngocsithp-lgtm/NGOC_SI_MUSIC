@@ -1,6 +1,7 @@
 package com.ngocsi.music
 
 import android.Manifest
+import android.media.AudioManager
 import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.ContentUris
@@ -1358,6 +1359,10 @@ class NgocSiAiActivity : ComponentActivity() {
         if (youtubeAction != null) {
             return runYouTubeControl(youtubeAction, youtubeControlResponse(youtubeAction))
         }
+        executeNgocSiAiSystemVolumeCommand(
+            getSystemService(AudioManager::class.java),
+            command
+        )?.let { return it }
 
         when (command) {
             NgocSiAiLocalCommand.HELP -> return "Tôi có thể điều khiển nhạc trên điện thoại, Drive, Radio và YouTube: phát/tạm dừng/dừng, chuyển bài, phát bài theo tên, thêm bài vào hàng đợi, tua, chỉnh tốc độ và âm lượng; bật ngẫu nhiên/lặp; tìm nội dung YouTube, Online và Drive; mở Thư viện, Yêu thích, Album, Thư mục, Radio, TV và Drive; mở/phát playlist, thêm bài hoặc hàng đợi vào playlist; lưu bài hiện tại vào Yêu thích; mở Hàng đợi, Trình phát, Cài đặt và hẹn giờ. Một số thao tác phụ thuộc đăng nhập Drive, quyền Android và kết nối nguồn trực tuyến."

@@ -1,5 +1,6 @@
 package com.ngocsi.music
 
+import android.media.AudioManager
 import androidx.media3.common.Player
 
 internal data class NgocSiAiTrackCandidate(
@@ -155,4 +156,41 @@ internal fun executeNgocSiAiMediaCommand(
     }
 }.getOrElse {
     "Không thể thực hiện lệnh Media3 lúc này. Ứng dụng chưa xác nhận thao tác hoàn tất."
+}
+
+/** Maps only the four explicit, allowlisted media-volume commands. */
+internal fun ngocSiAiVolumeAdjustment(command: NgocSiAiLocalCommand): Int? = when (command) {
+    NgocSiAiLocalCommand.VOLUME_UP -> AudioManager.ADJUST_RAISE
+    NgocSiAiLocalCommand.VOLUME_DOWN -> AudioManager.ADJUST_LOWER
+    NgocSiAiLocalCommand.MUTE -> AudioManager.ADJUST_MUTE
+    NgocSiAiLocalCommand.UNMUTE -> AudioManager.ADJUST_UNMUTE
+    else -> null
+}
+
+/**
+ * Executes Android media-volume commands identically from chat and hands-free voice.
+ * Null means this command is not an Android system-volume operation.
+ */
+internal fun executeNgocSiAiSystemVolumeCommand(
+    audioManager: AudioManager?,
+    command: NgocSiAiLocalCommand
+): String? {
+    val adjustment = ngocSiAiVolumeAdjustment(command) ?: return null
+    if (audioManager == null) return "Không truy cập được điều khiển âm lượng của điện thoại."
+    return runCatching {
+        audioManager.adjustStreamVolume(
+            AudioManager.STREAM_MUSIC,
+            adjustment,
+            AudioManager.FLAG_SHOW_UI
+        )
+        when (command) {
+            NgocSiAiLocalCommand.VOLUME_UP -> "Đã gửi lệnh tăng âm lượng media."
+            NgocSiAiLocalCommand.VOLUME_DOWN -> "Đã gửi lệnh giảm âm lượng media."
+            NgocSiAiLocalCommand.MUTE -> "Đã gửi lệnh tắt tiếng media."
+            NgocSiAiLocalCommand.UNMUTE -> "Đã gửi lệnh bật tiếng media."
+            else -> "Đã gửi lệnh điều chỉnh âm lượng."
+        }
+    }.getOrElse {
+        "Không thể điều chỉnh âm lượng media trên thiết bị này."
+    }
 }
