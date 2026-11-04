@@ -321,6 +321,10 @@ class NgocSiAiRemotePolicyTest {
             classifyNgocSiAiAgentFeedback(true, "Không gửi được lệnh điều khiển.")
         )
         assertEquals(
+            NgocSiAiAgentFeedbackState.FAILED,
+            classifyNgocSiAiAgentFeedback(true, "Hàng đợi đang trống. Hãy mở Thư viện trước.")
+        )
+        assertEquals(
             NgocSiAiAgentFeedbackState.PENDING,
             classifyNgocSiAiAgentFeedback(true, "Đang chuyển sang video YouTube tiếp theo.")
         )
@@ -409,6 +413,7 @@ class NgocSiAiRemotePolicyTest {
         assertFalse(shouldContinueNgocSiAiAgentSequence(false, "Đã gửi lệnh mở YouTube."))
         assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Không tìm thấy bài hát."))
         assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Hàng đợi hiện tại chưa có bài thứ hai."))
+        assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Hàng đợi đang trống. Hãy mở Thư viện trước."))
         assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Chưa có video YouTube gần đây để điều khiển."))
         assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Bạn cần đăng nhập Google Drive."))
         assertFalse(shouldContinueNgocSiAiAgentSequence(true, "Ứng dụng gặp lỗi khi nhận lệnh."))

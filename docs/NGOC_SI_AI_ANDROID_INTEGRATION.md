@@ -1,15 +1,15 @@
 # NGỌC SĨ AI — Firebase AI Logic preview
 
-**Status: experimental, unmerged, and not deployed.** This isolated branch adds the Firebase AI Logic Android SDK to the chat preview. It does not modify `main`, replace the installed production app, publish a release, or run an APK build as part of this change.
+**Status: experimental, isolated, unmerged, and not deployed.** The current `ngocsiAI` Preview branch adds Firebase AI Logic, local voice control, an allowlisted app-action tool, and a separate Preview package. It does not modify `main`, replace the installed production app, publish a release, or deploy backend services.
 
 ## What the preview uses
 
 - Free-form chat is sent directly from the preview app through the Firebase AI Logic SDK using the Gemini Developer API backend and model `gemini-3.8-flash`.
-- App Check with Play Integrity is installed before the AI Logic client is created. Firebase AI Logic setup must be completed and App Check enforcement configured for the registered preview app.
+- Debug Preview builds install the Firebase App Check Debug provider and require the exact debug token to be registered for the `com.ngocsi.music.aipreview` app. Non-debug variants use Play Integrity. Keep enforcement enabled and never substitute a debug token for release attestation.
 - No Gemini API key is embedded in the Android app. Firebase AI Logic uses the Firebase client configuration. Do not add the Gemini Developer API to the Firebase API key's allowed API list.
 - If Firebase client settings are missing or point to a different project, the preview remains offline rather than sending a request.
 - The recent chat transcript stays in the preview app's private local preferences (up to 60 visible messages). The app does not sync it to cloud storage; the **XÓA** action clears it. Online requests include only the most recent validated conversation history. Never enter passwords, verification codes, bank details, or other sensitive information.
-- Playback and status commands are checked locally using an allowlist through this preview's own Media3 session: play, pause, next, previous, current track, shuffle, repeat, and sleep timer/navigation commands. The preview's queue is separate from the installed production app's queue. Text that does not match a local command is sent to Firebase AI Logic only when the user submits it and online configuration is present.
+- Playback and status commands use a shared allowlisted router for typed chat, Gemini tool calls, and the hands-free voice service. The shared Media3 executor handles queue playback, pause, next/previous, seek, playback speed, current-track status, shuffle, and repeat consistently. The Preview can bind the stable app's MediaSession or use its own Preview session according to the active playback target. Navigation, Android volume, STOP target selection, and YouTube WebView controls remain host-specific because they require different Android services and lifecycle state. Text that does not match a local command is sent to Firebase AI Logic only when the user submits it and online configuration is present.
 - The microphone action is user-initiated. Android speech recognition transcribes the phrase before the app follows the same local-command / chat submission path. The experimental **wake phrase** is separate: the user must start its foreground service while the app is visible. It requires microphone permission and a visible ongoing notification; it uses on-device recognition only and stops if the Vietnamese offline model is unavailable. This is a best-effort prototype, not a dedicated low-power wake-word model.
 - The older Cloud Functions source remains in this repository as a separate backend experiment, but this branch's Android chat client does **not** call `ngocSiAiChat`. The function is not required for Firebase AI Logic and is not deployed by this branch.
 
@@ -49,4 +49,4 @@ The app ID for the preview is separate from the production `com.ngocsi.music` ap
 
 ## Validation boundary
 
-This change was committed only to `feature/ngoc-si-ai-firebase-ai-logic-preview`. It has **not** been compiled or tested by a workflow yet, and no APK has been built for this change. Firebase console setup and an explicit on-device online test remain necessary. A passing code change by itself is not evidence that the live Firebase endpoint is working.
+The Preview branch has passed GitHub Actions Android lint, unit tests, debug APK packaging, native-library alignment, package isolation, and APK-signature checks on its last validated build. It remains unmerged and has not been deployed. Firebase console setup and explicit on-device tests are still required to verify live online responses, App Check, speech recognition, and background playback. A passing CI build is not evidence that every live device workflow works.

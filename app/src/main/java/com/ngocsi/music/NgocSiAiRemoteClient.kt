@@ -614,6 +614,7 @@ internal fun classifyNgocSiAiAgentFeedback(
     val normalized = normalizeNgocSiAiVoicePhrase(feedback)
     val failureMarkers = listOf(
         "chua thuc hien", "khong tim thay", "khong tim duoc",
+        "hang doi dang trong", "hang doi rong",
         "khong co bai", "chua co ", "khong co kenh", "khong co dai",
         "khong co quyen", "gap loi", "that bai", "khong the", "chua ket noi",
         "chua dang nhap", "can dang nhap", "chua cap quyen", "chua co quyen",

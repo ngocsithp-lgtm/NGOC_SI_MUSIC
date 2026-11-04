@@ -1,6 +1,6 @@
 # NGỌC SĨ AI — Firebase AI Logic setup (phone-friendly)
 
-This guide is for the isolated branch `feature/ngoc-si-ai-firebase-ai-logic-preview`. It uses the official Android Firebase AI Logic SDK, not the separate Cloud Functions proxy experiment.
+This guide is for the isolated preview branch `ngocsiAI`. It uses the official Android Firebase AI Logic SDK, not the separate Cloud Functions proxy experiment.
 
 ## 1. Confirm the right Firebase project
 
@@ -45,11 +45,11 @@ Do not send these values in chat. The preview app ID is not the same as the prod
 
 ## 5. Model and quota protection
 
-The preview uses `gemini-3.5-flash-lite` as the high-volume primary model and `gemini-3.8-flash` as a distinct fallback when the primary model appears to hit a model-specific quota or capacity limit. Firebase lists both models as available without the Blaze pay-as-you-go plan when using the Gemini Developer API. Responses are capped at 256 output tokens, thinking effort is set to LOW, and conversation context is bounded by the app's history normalizer. These limits reduce typical usage but cannot guarantee unlimited free requests: RPM, input-token limits, daily quotas, project-wide restrictions, and model capacity still apply. A fallback model cannot fix a project-wide quota. Do not enable billing simply to bypass `AI_QUOTA_429`.
+The Android preview currently uses `gemini-3.8-flash` as its only remote model. Automatic model fallback is deliberately disabled, so a quota or capacity error does not trigger an extra request to another model. Ordinary questions use LOW thinking with a 384-token output cap; requests classified as complex use MEDIUM thinking with a 1,024-token output cap. Conversation history and saved-memory context are bounded before sending. These limits reduce typical usage but cannot guarantee unlimited free requests: RPM, input-token limits, daily quotas, project-wide restrictions, and model capacity still apply. Do not enable billing simply to bypass `AI_QUOTA_429`.
 
 ## 6. Test only after a preview is built intentionally
 
-The present change has **not** been built or run on a phone. After an approved preview build is made, verify in order: the AI page opens; a typed question returns a live answer; the answer can be read aloud by Android TTS; a supported music command executes locally; App Check, network, and quota errors show a useful message. A local-command success does not prove the online model works.
+The latest Preview commit before this update passed GitHub Actions Android lint, unit tests, debug APK packaging, 16 KB native-library alignment checks, Preview-package isolation checks, and APK-signature verification. This does not prove live Firebase/App Check access or real-device speech and background behavior. On the phone, verify in order: install the Preview alongside the stable app; open the AI screen; submit one short typed question; verify TTS; test local media commands; test YouTube while foregrounded and with the screen off; then test quota/network failure behavior. A local-command success does not prove the online model works.
 
 This SDK path does not require `GEMINI_API_KEY`, `firebase functions:secrets:set`, or `firebase deploy`. The Cloud Functions files are a separate retained experiment, not part of this branch's Android chat request path. GitHub Actions checks source, unit tests, package isolation, and APK signing; only a real phone test can confirm live Firebase responses and App Check behavior.
 
