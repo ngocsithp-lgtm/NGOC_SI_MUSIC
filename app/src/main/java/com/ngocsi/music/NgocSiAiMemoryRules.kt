@@ -153,6 +153,21 @@ private fun containsNgocSiAiMusicArtistPreference(
     }
 }
 
+private val NGOC_SI_AI_MEMORY_GENRE_MARKERS = listOf(
+    "bolero", "nhac trinh", "nhac vang", "nhac xua", "tru tinh", "dan ca",
+    "que huong", "tien chien", "nhac tre", "cai luong", "jazz", "rock",
+    "pop", "rap", "edm", "lofi", "acoustic", "nhac khong loi", "hoa tau",
+    "country", "classical", "instrumental", "remix", "nhac song"
+)
+
+/** Match complete normalized genre phrases, not incidental substrings such as "trình" in "trình phát". */
+private fun containsNgocSiAiMusicGenre(normalizedText: String): Boolean {
+    val paddedText = " ${normalizeNgocSiAiVoicePhrase(normalizedText)} "
+    return NGOC_SI_AI_MEMORY_GENRE_MARKERS.any { marker ->
+        paddedText.contains(" $marker ")
+    }
+}
+
 private val NGOC_SI_AI_MEMORY_UNTRUSTED_MARKERS = listOf(
     "bo qua huong dan", "bo qua tat ca huong dan", "ignore previous", "ignore all",
     "system prompt", "developer instruction", "prompt injection", "goi cong cu",
