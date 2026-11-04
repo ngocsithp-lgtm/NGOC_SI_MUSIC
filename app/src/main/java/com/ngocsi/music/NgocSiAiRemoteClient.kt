@@ -98,7 +98,8 @@ internal class NgocSiAiRemoteClient(context: Context) {
     suspend fun send(
         messages: List<NgocSiAiMessage>,
         executeTool: NgocSiAiToolExecutor,
-        onPartialResponse: (String) -> Unit = {}
+        onPartialResponse: (String) -> Unit = {},
+        entryContext: String? = null
     ): NgocSiAiReply {
         if (!REMOTE_REQUEST_MUTEX.tryLock()) {
             throw NgocSiAiRemoteException(
@@ -106,7 +107,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
             )
         }
         return try {
-            sendSerialized(messages, executeTool, onPartialResponse)
+            sendSerialized(messages, executeTool, onPartialResponse, entryContext)
         } finally {
             REMOTE_REQUEST_MUTEX.unlock()
         }
@@ -115,7 +116,8 @@ internal class NgocSiAiRemoteClient(context: Context) {
     private suspend fun sendSerialized(
         messages: List<NgocSiAiMessage>,
         executeTool: NgocSiAiToolExecutor,
-        onPartialResponse: (String) -> Unit
+        onPartialResponse: (String) -> Unit,
+        entryContext: String?
     ): NgocSiAiReply {
         val app = firebaseApp
             ?: throw NgocSiAiRemoteException(
@@ -179,7 +181,11 @@ internal class NgocSiAiRemoteClient(context: Context) {
                             Context.MODE_PRIVATE
                         ).getString(NGOC_SI_AI_LONG_TERM_MEMORY_KEY, null)
                     )
-                    text(SYSTEM_INSTRUCTIONS + buildNgocSiAiMemorySystemInstruction(savedMemories, newestUserMessage.content))
+                    text(
+                        SYSTEM_INSTRUCTIONS +
+                            buildNgocSiAiMemorySystemInstruction(savedMemories, newestUserMessage.content) +
+                            buildNgocSiAiEntryContextInstruction(entryContext)
+                    )
                 },
                 tools = if (offersAppCommandTool) {
                     listOf(Tool.functionDeclarations(listOf(APP_COMMAND_TOOL)))
