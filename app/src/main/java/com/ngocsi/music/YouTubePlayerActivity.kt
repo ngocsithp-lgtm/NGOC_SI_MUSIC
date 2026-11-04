@@ -1258,6 +1258,7 @@ class YouTubePlayerActivity : ComponentActivity() {
         })
         popup.menu.add(0, 5, 4, "🎧  Bật phát nền trong ứng dụng")
         popup.menu.add(0, 6, 5, "↗  Chia sẻ video")
+        popup.menu.add(0, 7, 6, "✦  Mở NGỌC SĨ AI")
         popup.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 1 -> toggleFavorite()
@@ -1266,9 +1267,13 @@ class YouTubePlayerActivity : ComponentActivity() {
                 4 -> toggleYoutubeRepeat()
                 5 -> enableInAppBackgroundPlayback()
                 6 -> shareCurrentVideo()
+                7 -> startActivity(
+                    Intent(this, NgocSiAiActivity::class.java)
+                        .putExtra(NGOC_SI_AI_ENTRY_CONTEXT_EXTRA, "YouTube")
+                )
                 else -> return@setOnMenuItemClickListener false
             }
-            updateQueueModeButtons()
+            if (item.itemId != 7) updateQueueModeButtons()
             true
         }
         popup.show()
