@@ -513,7 +513,8 @@ internal fun selectNgocSiAiRelevantMemories(
 private fun extractNgocSiAiPreferenceValue(
     note: String,
     markers: List<String>,
-    includeMarkerInValue: Boolean = false
+    includeMarkerInValue: Boolean = false,
+    capitalizeEachWord: Boolean = false
 ): String? {
     val originalWords = note.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
     val normalizedWords = originalWords.map(::normalizeNgocSiAiVoicePhrase)
@@ -548,15 +549,20 @@ private fun extractNgocSiAiPreferenceValue(
         }
         .filter { it.isNotBlank() }
     if (valueWords.isEmpty()) return null
-    return valueWords.joinToString(" ") { word ->
-        word.replaceFirstChar { character -> character.titlecase() }
+    return if (capitalizeEachWord) {
+        valueWords.joinToString(" ") { word ->
+            word.replaceFirstChar { character -> character.titlecase() }
+        }
+    } else {
+        valueWords.joinToString(" ").replaceFirstChar { character -> character.titlecase() }
     }
 }
 
 private fun formatNgocSiAiArtistPreference(note: String, query: String): String? =
     extractNgocSiAiPreferenceValue(
         note,
-        ngocSiAiMusicArtistMarkersForQuery(query)
+        ngocSiAiMusicArtistMarkersForQuery(query),
+        capitalizeEachWord = true
     )
 
 private fun formatNgocSiAiGenrePreference(note: String): String? =
