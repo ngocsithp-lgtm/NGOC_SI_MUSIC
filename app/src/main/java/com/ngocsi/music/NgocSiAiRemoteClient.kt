@@ -22,6 +22,7 @@ import com.google.firebase.appcheck.debug.DebugAppCheckProviderFactory
 import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import java.util.Locale
 
@@ -193,10 +194,10 @@ internal class NgocSiAiRemoteClient(context: Context) {
                     emptyList()
                 }
             )
-            val chat = model.startChat(history = previousTurns)
             val answer: String?
 
             if (offersAppCommandTool) {
+                val chat = model.startChat(history = previousTurns)
                 // Explicit app actions retain structured tool calling and allowlist validation.
                 var response = chat.sendMessage(newestUserMessage.content)
                 var toolRound = 0
@@ -275,16 +276,43 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 }
                 answer = response.text?.trim()
             } else {
-                // Stream ordinary chat answers so the UI can display the first words early.
-                val streamedAnswer = StringBuilder()
-                chat.sendMessageStream(newestUserMessage.content).collect { chunk ->
-                    val textChunk = chunk.text.orEmpty()
-                    if (textChunk.isNotEmpty()) {
-                        streamedAnswer.append(textChunk)
-                        onPartialResponse(streamedAnswer.toString())
+                // Stream ordinary chat. Retry once only when a transient failure happens
+                // before any text is emitted; replaying a partially visible answer would duplicate it.
+                var attempt = 0
+                var completedStream: String? = null
+                while (completedStream == null) {
+                    val streamedAnswer = StringBuilder()
+                    try {
+                        model.startChat(history = previousTurns)
+                            .sendMessageStream(newestUserMessage.content)
+                            .collect { chunk ->
+                                val textChunk = chunk.text.orEmpty()
+                                if (textChunk.isNotEmpty()) {
+                                    streamedAnswer.append(textChunk)
+                                    onPartialResponse(streamedAnswer.toString())
+                                }
+                            }
+                        completedStream = streamedAnswer.toString().trim()
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (error: Exception) {
+                        val errorDetails = generateSequence<Throwable>(error) { it.cause }
+                            .take(6)
+                            .joinToString(" ") {
+                                it.javaClass.simpleName + " " + it.message.orEmpty()
+                            }
+                        val mayRetry = shouldRetryNgocSiAiRemoteRequest(
+                            errorDetails = errorDetails,
+                            isToolRequest = offersAppCommandTool,
+                            hasEmittedPartialResponse = streamedAnswer.isNotBlank(),
+                            attempt = attempt
+                        )
+                        if (!mayRetry) throw error
+                        attempt++
+                        delay(NGOC_SI_AI_TRANSIENT_RETRY_DELAY_MILLIS)
                     }
                 }
-                answer = streamedAnswer.toString().trim()
+                answer = completedStream
             }
 
             if (answer.isNullOrBlank()) {
@@ -383,7 +411,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
             .take(6)
             .joinToString(" ") { it.message.orEmpty() }
             .lowercase(Locale.ROOT)
-        val errorCode = Regex("\\b(400|401|403|404|429|500|502|503)\\b")
+        val errorCode = Regex("\\b(400|401|403|404|408|429|500|502|503|504)\\b")
             .find(details)
             ?.value
 
@@ -416,6 +444,9 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 "Firebase không xác thực được yêu cầu. Mã chẩn đoán: AUTH_401. Cần kiểm tra cấu hình Firebase của bản thử."
             errorCode == "404" || "model not found" in details || "not found" in details ->
                 "Không tìm thấy model hoặc endpoint AI. Mã chẩn đoán: MODEL_OR_ENDPOINT_404."
+            errorCode in setOf("408", "500", "502", "503", "504") ->
+                "Máy chủ Gemini đang tạm thời bận hoặc kết nối bị gián đoạn (HTTP $errorCode). " +
+                    "Ứng dụng chỉ tự thử lại một lần cho câu chat thông thường; lệnh điều khiển không tự gửi lại."
             "api key" in details || "api has not been used" in details ||
                 "service disabled" in details || "not enabled" in details ->
                 "Firebase AI Logic chưa được bật hoặc cấu hình đúng. Mã chẩn đoán: FIREBASE_CONFIG."
