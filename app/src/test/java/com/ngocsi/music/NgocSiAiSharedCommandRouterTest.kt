@@ -31,6 +31,84 @@ class NgocSiAiSharedCommandRouterTest {
     }
 
     @Test
+    fun everyGeminiAllowlistedActionResolvesForChatAndHandsFreeVoice() {
+        // Keep this catalog aligned with SUPPORTED_APP_ACTIONS in NgocSiAiRemoteClient.
+        // Non-empty sample arguments cover every action that requires a query.
+        val actions = listOf(
+            "play" to "",
+            "play_second" to "",
+            "play_track" to "Biển nhớ",
+            "add_track_to_queue" to "Biển nhớ",
+            "pause" to "",
+            "stop" to "",
+            "next" to "",
+            "previous" to "",
+            "current_track" to "",
+            "volume_up" to "",
+            "volume_down" to "",
+            "mute" to "",
+            "unmute" to "",
+            "set_playback_speed" to "1.25",
+            "seek_by_seconds" to "30",
+            "youtube_seek_by_seconds" to "-15",
+            "favorite_current_track" to "",
+            "shuffle_on" to "",
+            "shuffle_off" to "",
+            "repeat_off" to "",
+            "repeat_all" to "",
+            "repeat_one" to "",
+            "open_home" to "",
+            "open_library" to "",
+            "open_favorites" to "",
+            "open_albums" to "",
+            "open_folders" to "",
+            "open_online" to "",
+            "search_online_music" to "Bolero",
+            "search_drive" to "Bolero",
+            "open_youtube" to "",
+            "search_youtube" to "Bolero",
+            "youtube_play" to "",
+            "youtube_pause" to "",
+            "youtube_next" to "",
+            "youtube_previous" to "",
+            "youtube_shuffle_on" to "",
+            "youtube_shuffle_off" to "",
+            "youtube_repeat_off" to "",
+            "youtube_repeat_all" to "",
+            "youtube_repeat_one" to "",
+            "youtube_favorite" to "",
+            "youtube_watch_later" to "",
+            "open_drive" to "",
+            "open_radio" to "",
+            "play_radio_station" to "VOV1",
+            "open_tv" to "",
+            "open_tv_channel" to "VTV1",
+            "create_playlist" to "Bolero yêu thích",
+            "play_playlist" to "Bolero yêu thích",
+            "add_current_to_playlist" to "Bolero yêu thích",
+            "add_queue_to_playlist" to "Bolero yêu thích",
+            "open_playlists" to "",
+            "open_queue" to "",
+            "open_player" to "",
+            "open_settings" to "",
+            "open_sleep_timer" to "",
+            "sleep_timer_custom" to "15",
+            "cancel_sleep_timer" to "",
+            "help" to ""
+        )
+
+        assertEquals(60, actions.size)
+        actions.forEach { (action, query) ->
+            val chatRoute = resolveNgocSiAiToolCommand(action, query, false)
+            val voiceRoute = resolveNgocSiAiToolCommand(action, query, true)
+            org.junit.Assert.assertNotNull("Chat route missing for $action", chatRoute)
+            org.junit.Assert.assertNotNull("Hands-free route missing for $action", voiceRoute)
+            assertEquals("Chat/voice phrase mismatch for $action", chatRoute?.phrase, voiceRoute?.phrase)
+            assertEquals("Chat/voice command mismatch for $action", chatRoute?.command, voiceRoute?.command)
+        }
+    }
+
+    @Test
     fun routesRejectUnknownActionsAndMissingOrInvalidArguments() {
         assertNull(resolveNgocSiAiToolCommand("delete_library", "", false))
         assertNull(resolveNgocSiAiToolCommand("play_track", "", false))
