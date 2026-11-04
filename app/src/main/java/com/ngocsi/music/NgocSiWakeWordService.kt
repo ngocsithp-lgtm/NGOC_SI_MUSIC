@@ -1564,19 +1564,18 @@ class NgocSiWakeWordService : Service() {
      * This prevents a conversational model response from bypassing the active AI session.
      */
     private fun executeAiAppCommand(action: String, query: String): NgocSiAiToolResult {
-        val phrase = buildNgocSiAiToolCommandPhrase(action, query)
-            ?: return NgocSiAiToolResult(
-                routed = false,
-                feedback = "Thiếu tên bài, đài, kênh, playlist hoặc action không được hỗ trợ. Chưa thực hiện thao tác."
-            )
-        // Gemini tool calls run inside an already-awake AI session. Add the explicit
-        // wake prefix for allowlist validation so sensitive seek/speed commands pass
-        // the same guard as direct voice commands; keep the original phrase for dispatch.
-        val command = classifyNgocSiAiActivatedCommand("AI, $phrase")
-            ?: return NgocSiAiToolResult(
-                routed = false,
-                feedback = "Lệnh này không nằm trong danh sách được phép khi điều khiển rảnh tay. Chưa thực hiện thao tác."
-            )
+        // The shared allowlist router applies the stricter activated-session check
+        // before a Gemini-proposed action reaches the background service.
+        val route = resolveNgocSiAiToolCommand(
+            action = action,
+            query = query,
+            requireActivatedSession = true
+        ) ?: return NgocSiAiToolResult(
+            routed = false,
+            feedback = "Lệnh này thiếu thông tin hoặc không nằm trong danh sách được phép khi điều khiển rảnh tay. Chưa thực hiện thao tác."
+        )
+        val phrase = route.phrase
+        val command = route.command
         return runCatching {
             NgocSiAiToolResult(
                 routed = true,
@@ -1873,18 +1872,7 @@ class NgocSiWakeWordService : Service() {
         if (command == NgocSiAiLocalCommand.PLAY_TRACK) {
             val query = extractNgocSiAiTrackQuery(originalText)
                 ?: return "Hãy nói rõ tên bài, ví dụ: “AI, phát bài hát Diễm xưa”."
-            val normalizedQuery = normalizeNgocSiAiVoicePhrase(query)
-            val exactIndex = (0 until player.mediaItemCount).firstOrNull { index ->
-                normalizeNgocSiAiVoicePhrase(
-                    player.getMediaItemAt(index).mediaMetadata.title?.toString().orEmpty()
-                ) == normalizedQuery
-            }
-            val matchIndex = exactIndex ?: (0 until player.mediaItemCount).firstOrNull { index ->
-                val item = player.getMediaItemAt(index)
-                val title = normalizeNgocSiAiVoicePhrase(item.mediaMetadata.title?.toString().orEmpty())
-                val artist = normalizeNgocSiAiVoicePhrase(item.mediaMetadata.artist?.toString().orEmpty())
-                title.contains(normalizedQuery) || artist.contains(normalizedQuery)
-            }
+            val matchIndex = findNgocSiAiTrackMatchIndex(player, query)
             if (matchIndex == null) {
                 return launchMainAppRoute(
                     destination = "play_track",
@@ -1923,97 +1911,8 @@ class NgocSiWakeWordService : Service() {
             }
         }
 
-        return runCatching {
-            when (command) {
-                NgocSiAiLocalCommand.PLAY -> {
-                    player.play()
-                    "Đã gửi lệnh phát nhạc"
-                }
-                NgocSiAiLocalCommand.PLAY_SECOND -> {
-                    if (player.mediaItemCount > 1) {
-                        player.seekTo(1, 0L)
-                        player.play()
-                        "Đang phát bài thứ hai"
-                    } else "Hàng đợi chưa có bài thứ hai"
-                }
-                NgocSiAiLocalCommand.PAUSE -> {
-                    player.pause()
-                    "Đã tạm dừng nhạc"
-                }
-                NgocSiAiLocalCommand.NEXT -> {
-                    if (player.hasNextMediaItem()) {
-                        player.seekToNextMediaItem()
-                        "Đã chuyển bài tiếp theo"
-                    } else "Không có bài tiếp theo"
-                }
-                NgocSiAiLocalCommand.PREVIOUS -> {
-                    if (player.hasPreviousMediaItem()) {
-                        player.seekToPreviousMediaItem()
-                        "Đã quay lại bài trước"
-                    } else "Không có bài trước"
-                }
-                NgocSiAiLocalCommand.SET_PLAYBACK_SPEED -> {
-                    val speed = extractNgocSiAiPlaybackSpeed(originalText)
-                        ?: return "Hãy chọn tốc độ 0.5x, 0.75x, 1.0x, 1.25x, 1.5x, 1.75x hoặc 2.0x."
-                    player.setPlaybackSpeed(speed)
-                    "Đã đặt tốc độ phát ${speed}x"
-                }
-                NgocSiAiLocalCommand.SEEK_FORWARD_10 -> {
-                    val duration = player.duration.takeIf { it > 0L }
-                    val target = (player.currentPosition + 10_000L).coerceAtLeast(0L)
-                        .let { if (duration == null) it else it.coerceAtMost(duration) }
-                    player.seekTo(target)
-                    "Đã tua tiến 10 giây"
-                }
-                NgocSiAiLocalCommand.SEEK_BACK_10 -> {
-                    player.seekTo((player.currentPosition - 10_000L).coerceAtLeast(0L))
-                    "Đã tua lùi 10 giây"
-                }
-                NgocSiAiLocalCommand.SEEK_FORWARD_CUSTOM,
-                NgocSiAiLocalCommand.SEEK_BACK_CUSTOM,
-                NgocSiAiLocalCommand.YOUTUBE_SEEK_FORWARD_CUSTOM,
-                NgocSiAiLocalCommand.YOUTUBE_SEEK_BACK_CUSTOM -> {
-                    val request = extractNgocSiAiSeekRequest(originalText)
-                        ?: return "Hãy nói rõ thời lượng tua từ 1 đến 120 giây hoặc 1 đến 2 phút."
-                    val duration = player.duration.takeIf { it > 0L }
-                    val target = (player.currentPosition + request.deltaMs).coerceAtLeast(0L)
-                        .let { if (duration == null) it else it.coerceAtMost(duration) }
-                    player.seekTo(target)
-                    val seconds = kotlin.math.abs(request.deltaMs) / 1_000L
-                    val direction = if (request.deltaMs > 0L) "tiến" else "lùi"
-                    "Đã tua $direction $seconds giây."
-                }
-                NgocSiAiLocalCommand.CURRENT_TRACK -> {
-                    val title = player.currentMediaItem?.mediaMetadata?.title?.toString()
-                        ?.takeIf { it.isNotBlank() } ?: "Chưa rõ tên bài"
-                    val artist = player.currentMediaItem?.mediaMetadata?.artist?.toString()
-                        ?.takeIf { it.isNotBlank() }
-                    val status = if (player.isPlaying) "Đang phát" else "Bài hiện tại"
-                    if (artist == null) "$status: $title" else "$status: $title — $artist"
-                }
-                NgocSiAiLocalCommand.SHUFFLE_ON -> {
-                    player.shuffleModeEnabled = true
-                    "Đã bật phát ngẫu nhiên"
-                }
-                NgocSiAiLocalCommand.SHUFFLE_OFF -> {
-                    player.shuffleModeEnabled = false
-                    "Đã tắt phát ngẫu nhiên"
-                }
-                NgocSiAiLocalCommand.REPEAT_OFF -> {
-                    player.repeatMode = Player.REPEAT_MODE_OFF
-                    "Đã tắt chế độ lặp"
-                }
-                NgocSiAiLocalCommand.REPEAT_ALL -> {
-                    player.repeatMode = Player.REPEAT_MODE_ALL
-                    "Đã bật lặp hàng đợi"
-                }
-                NgocSiAiLocalCommand.REPEAT_ONE -> {
-                    player.repeatMode = Player.REPEAT_MODE_ONE
-                    "Đã bật lặp bài hiện tại"
-                }
-                else -> "Lệnh này chưa có thao tác trực tiếp. Hãy mở NGỌC SĨ AI để được hướng dẫn."
-            }
-        }.getOrElse { "Không thể thực hiện lệnh này" }
+        return executeNgocSiAiMediaCommand(player, command, originalText)
+            ?: "Lệnh này chưa có thao tác Media3 trực tiếp."
     }
 
     private fun buildNotification(message: String): Notification {

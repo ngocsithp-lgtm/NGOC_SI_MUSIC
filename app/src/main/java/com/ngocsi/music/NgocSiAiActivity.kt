@@ -1329,16 +1329,16 @@ class NgocSiAiActivity : ComponentActivity() {
      * call arbitrary Activity methods, launch arbitrary Intents, or mutate app data directly.
      */
     private fun executeAiAppCommand(action: String, query: String): NgocSiAiToolResult {
-        val phrase = buildNgocSiAiToolCommandPhrase(action, query)
-            ?: return NgocSiAiToolResult(
-                routed = false,
-                feedback = "Thiếu thông tin hoặc action không nằm trong danh sách điều khiển được phép. Chưa thực hiện thao tác."
-            )
-        val command = classifyNgocSiAiLocalCommand(phrase)
-            ?: return NgocSiAiToolResult(
-                routed = false,
-                feedback = "Ứng dụng chưa nhận diện được thao tác này. Chưa thực hiện thao tác."
-            )
+        val route = resolveNgocSiAiToolCommand(
+            action = action,
+            query = query,
+            requireActivatedSession = false
+        ) ?: return NgocSiAiToolResult(
+            routed = false,
+            feedback = "Thiếu thông tin hoặc action không nằm trong danh sách điều khiển được phép. Chưa thực hiện thao tác."
+        )
+        val phrase = route.phrase
+        val command = route.command
         // Let exceptions propagate to executeNgocSiAiToolSafely in the remote
         // agent. That single boundary preserves CancellationException and converts
         // ordinary failures into safe feedback without swallowing coroutine cancellation.
@@ -1499,20 +1499,8 @@ class NgocSiAiActivity : ComponentActivity() {
         if (command == NgocSiAiLocalCommand.PLAY_TRACK) {
             val query = extractNgocSiAiTrackQuery(originalText)
                 ?: return "Hãy nói tên bài, ví dụ: “Phát bài hát Diễm xưa”."
-            val normalizedQuery = normalizeNgocSiAiVoicePhrase(query)
             val matchIndex = availablePlayer?.let { currentPlayer ->
-                val exact = (0 until currentPlayer.mediaItemCount).firstOrNull { index ->
-                    normalizeNgocSiAiVoicePhrase(
-                        currentPlayer.getMediaItemAt(index).mediaMetadata.title?.toString().orEmpty()
-                    ) == normalizedQuery
-                }
-                exact ?: (0 until currentPlayer.mediaItemCount).firstOrNull { index ->
-                    val item = currentPlayer.getMediaItemAt(index)
-                    normalizeNgocSiAiVoicePhrase(item.mediaMetadata.title?.toString().orEmpty())
-                        .contains(normalizedQuery) ||
-                        normalizeNgocSiAiVoicePhrase(item.mediaMetadata.artist?.toString().orEmpty())
-                            .contains(normalizedQuery)
-                }
+                findNgocSiAiTrackMatchIndex(currentPlayer, query)
             }
             if (matchIndex != null && availablePlayer != null) {
                 availablePlayer.seekTo(matchIndex, 0L)
@@ -1565,129 +1553,8 @@ class NgocSiAiActivity : ComponentActivity() {
             }
         }
 
-        return when (command) {
-            NgocSiAiLocalCommand.SET_PLAYBACK_SPEED -> {
-                val speed = extractNgocSiAiPlaybackSpeed(originalText)
-                    ?: return "Hãy chọn tốc độ 0.5x, 0.75x, 1.0x, 1.25x, 1.5x, 1.75x hoặc 2.0x."
-                player.setPlaybackSpeed(speed)
-                "Đã đặt tốc độ phát ${speed}x."
-            }
-            NgocSiAiLocalCommand.SEEK_FORWARD_10 -> {
-                val target = (player.currentPosition + 10_000L)
-                    .coerceAtLeast(0L)
-                    .let { position ->
-                        player.duration.takeIf { it > 0L }?.let(position::coerceAtMost) ?: position
-                    }
-                player.seekTo(target)
-                "Đã tua tiến 10 giây."
-            }
-            NgocSiAiLocalCommand.SEEK_BACK_10 -> {
-                val target = (player.currentPosition - 10_000L).coerceAtLeast(0L)
-                player.seekTo(target)
-                "Đã tua lùi 10 giây."
-            }
-            NgocSiAiLocalCommand.CURRENT_TRACK -> {
-                val item = player.currentMediaItem
-                val title = item?.mediaMetadata?.title?.toString()?.takeIf { it.isNotBlank() }
-                    ?: "Chưa rõ tên bài hát"
-                val artist = item?.mediaMetadata?.artist?.toString()?.takeIf { it.isNotBlank() }
-                val status = when {
-                    player.isPlaying -> "Đang phát"
-                    player.playbackState == androidx.media3.common.Player.STATE_BUFFERING &&
-                        player.playWhenReady -> "Đang tải"
-                    player.playbackState == androidx.media3.common.Player.STATE_ENDED -> "Đã phát hết"
-                    else -> "Đang tạm dừng"
-                }
-                if (artist == null) "$status: $title" else "$status: $title — $artist"
-            }
-            NgocSiAiLocalCommand.PLAY_TRACK -> {
-                val query = extractNgocSiAiTrackQuery(originalText)
-                    ?: return "Hãy nói tên bài, ví dụ: “Phát bài hát Diễm xưa”."
-                val normalizedQuery = normalizeNgocSiAiVoicePhrase(query)
-                val exactIndex = (0 until player.mediaItemCount).firstOrNull { index ->
-                    normalizeNgocSiAiVoicePhrase(
-                        player.getMediaItemAt(index).mediaMetadata.title?.toString().orEmpty()
-                    ) == normalizedQuery
-                }
-                val matchIndex = exactIndex ?: (0 until player.mediaItemCount).firstOrNull { index ->
-                    val item = player.getMediaItemAt(index)
-                    val title = normalizeNgocSiAiVoicePhrase(item.mediaMetadata.title?.toString().orEmpty())
-                    val artist = normalizeNgocSiAiVoicePhrase(item.mediaMetadata.artist?.toString().orEmpty())
-                    title.contains(normalizedQuery) || artist.contains(normalizedQuery)
-                }
-                if (matchIndex == null) {
-                    "Không tìm thấy “$query” trong hàng đợi hiện tại. Hãy mở Thư viện hoặc thêm bài vào hàng đợi trước."
-                } else {
-                    player.seekTo(matchIndex, 0L)
-                    player.play()
-                    val title = player.getMediaItemAt(matchIndex).mediaMetadata.title?.toString()
-                        ?.takeIf { it.isNotBlank() } ?: query
-                    "Đang phát $title."
-                }
-            }
-            NgocSiAiLocalCommand.PLAY_SECOND -> {
-                if (player.mediaItemCount > 1) {
-                    player.seekTo(1, 0L)
-                    player.play()
-                    "Đang phát bài thứ hai trong hàng đợi."
-                } else {
-                    "Hàng đợi hiện tại chưa có bài thứ hai."
-                }
-            }
-            NgocSiAiLocalCommand.PLAY -> {
-                player.play()
-                "Đã gửi lệnh phát nhạc đến trình phát."
-            }
-            NgocSiAiLocalCommand.PAUSE -> {
-                player.pause()
-                "Đã gửi lệnh tạm dừng nhạc."
-            }
-            NgocSiAiLocalCommand.STOP -> {
-                // Explicitly disable playback before stopping so the service cannot
-                // continue playing due to a stale playWhenReady state.
-                player.pause()
-                player.playWhenReady = false
-                player.stop()
-                "Đã dừng hẳn nhạc. Hàng đợi vẫn được giữ để bạn có thể phát lại."
-            }
-            NgocSiAiLocalCommand.NEXT -> {
-                if (player.hasNextMediaItem()) {
-                    player.seekToNextMediaItem()
-                    "Đang chuyển sang bài tiếp theo."
-                } else {
-                    "Không có bài tiếp theo trong hàng đợi hiện tại."
-                }
-            }
-            NgocSiAiLocalCommand.PREVIOUS -> {
-                if (player.hasPreviousMediaItem()) {
-                    player.seekToPreviousMediaItem()
-                    "Đang chuyển về bài trước."
-                } else {
-                    "Không có bài trước trong hàng đợi hiện tại."
-                }
-            }
-            NgocSiAiLocalCommand.SHUFFLE_ON -> {
-                player.shuffleModeEnabled = true
-                "Đã bật phát ngẫu nhiên cho hàng đợi hiện tại."
-            }
-            NgocSiAiLocalCommand.SHUFFLE_OFF -> {
-                player.shuffleModeEnabled = false
-                "Đã tắt phát ngẫu nhiên."
-            }
-            NgocSiAiLocalCommand.REPEAT_OFF -> {
-                player.repeatMode = androidx.media3.common.Player.REPEAT_MODE_OFF
-                "Đã tắt chế độ lặp."
-            }
-            NgocSiAiLocalCommand.REPEAT_ALL -> {
-                player.repeatMode = androidx.media3.common.Player.REPEAT_MODE_ALL
-                "Đã bật lặp toàn bộ hàng đợi."
-            }
-            NgocSiAiLocalCommand.REPEAT_ONE -> {
-                player.repeatMode = androidx.media3.common.Player.REPEAT_MODE_ONE
-                "Đã bật lặp bài hiện tại."
-            }
-            else -> "Yêu cầu này cần mở mục chức năng tương ứng trong ứng dụng."
-        }
+        return executeNgocSiAiMediaCommand(player, command, originalText)
+            ?: "Yêu cầu này cần mở mục chức năng tương ứng trong ứng dụng."
     }
 
     private fun openAppDestination(

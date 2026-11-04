@@ -1510,3 +1510,26 @@ internal fun buildNgocSiAiToolCommandPhrase(action: String, query: String = ""):
     }
 }
 
+internal data class NgocSiAiToolCommandRoute(
+    val command: NgocSiAiLocalCommand,
+    val phrase: String
+)
+
+/**
+ * Shared allowlist boundary for Gemini actions. Both the chat screen and hands-free
+ * service use this exact conversion; the service additionally requires an activated
+ * AI session before a tool action can reach the local command executor.
+ */
+internal fun resolveNgocSiAiToolCommand(
+    action: String,
+    query: String,
+    requireActivatedSession: Boolean
+): NgocSiAiToolCommandRoute? {
+    val phrase = buildNgocSiAiToolCommandPhrase(action, query) ?: return null
+    val command = if (requireActivatedSession) {
+        classifyNgocSiAiActivatedCommand("AI, $phrase")
+    } else {
+        classifyNgocSiAiLocalCommand(phrase)
+    } ?: return null
+    return NgocSiAiToolCommandRoute(command = command, phrase = phrase)
+}
