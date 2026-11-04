@@ -54,6 +54,7 @@ class NgocSiWakeWordService : Service() {
     private val remoteAiClient by lazy(LazyThreadSafetyMode.NONE) {
         NgocSiAiRemoteClient(applicationContext)
     }
+    private var aiEntryContext: String? = null
     private var answeringQuestion = false
     // Once "AI" wakes the assistant, keep a hands-free conversation session open until idle.
     private var conversationActive = false
@@ -183,6 +184,11 @@ class NgocSiWakeWordService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_START) {
+            aiEntryContext = normalizeNgocSiAiEntryContext(
+                intent.getStringExtra(NGOC_SI_AI_ENTRY_CONTEXT_EXTRA)
+            )
+        }
         if (intent?.action == ACTION_STOP) {
             stopListeningService()
             return START_NOT_STICKY
@@ -856,17 +862,19 @@ class NgocSiWakeWordService : Service() {
                         try {
                             remoteAnswer = withTimeoutOrNull(selectNgocSiAiRemoteTimeoutMillis(cleanQuestion)) {
                                 client.send(
-                                    requestHistory,
-                                    { action, query -> executeAiAppCommand(action, query) }
-                                ) { partialResponse ->
-                                    // Begin speaking each complete sentence while the next one is
-                                    // still generating; subsequent chunks are queued in order.
-                                    if (!stopping && partialResponse.isNotBlank()) {
-                                        latestPartialRemoteAnswer = partialResponse
-                                        queueSpeechStreamChunks(partialResponse, flushRemainder = false)
-                                        updateNotification("NGỌC SĨ AI đang trả lời: ${partialResponse.take(80)}")
+                                    messages = requestHistory,
+                                    executeTool = { action, query -> executeAiAppCommand(action, query) },
+                                    entryContext = aiEntryContext,
+                                    onPartialResponse = { partialResponse ->
+                                        // Begin speaking each complete sentence while the next one is
+                                        // still generating; subsequent chunks are queued in order.
+                                        if (!stopping && partialResponse.isNotBlank()) {
+                                            latestPartialRemoteAnswer = partialResponse
+                                            queueSpeechStreamChunks(partialResponse, flushRemainder = false)
+                                            updateNotification("NGỌC SĨ AI đang trả lời: ${partialResponse.take(80)}")
+                                        }
                                     }
-                                }.answer
+                                ).answer
                             }
                             if (remoteAnswer.isNullOrBlank()) {
                                 remoteError = ngocSiAiRemoteTimeoutMessage(cleanQuestion)
@@ -2046,8 +2054,11 @@ class NgocSiWakeWordService : Service() {
         private const val KEY_WAKE_API_CONVERSATION = "wake_api_conversation_v1"
         private const val KEY_WAKE_LAST_FALLBACK_REPLY = "wake_last_fallback_reply_v1"
 
-        fun start(context: Context) {
+        fun start(context: Context, entryContext: String? = null) {
             val intent = Intent(context, NgocSiWakeWordService::class.java).setAction(ACTION_START)
+            normalizeNgocSiAiEntryContext(entryContext)?.let { page ->
+                intent.putExtra(NGOC_SI_AI_ENTRY_CONTEXT_EXTRA, page)
+            }
             ContextCompat.startForegroundService(context, intent)
         }
 
