@@ -67,6 +67,7 @@ class NgocSiAiSharedCommandRouterTest {
             "search_drive" to "Bolero",
             "open_youtube" to "",
             "search_youtube" to "Bolero",
+            "search_and_play_youtube" to "Bolero",
             "youtube_play" to "",
             "youtube_pause" to "",
             "youtube_next" to "",
@@ -97,7 +98,7 @@ class NgocSiAiSharedCommandRouterTest {
             "help" to ""
         )
 
-        assertEquals(60, actions.size)
+        assertEquals(61, actions.size)
         actions.forEach { (action, query) ->
             val chatRoute = resolveNgocSiAiToolCommand(action, query, false)
             val voiceRoute = resolveNgocSiAiToolCommand(action, query, true)
