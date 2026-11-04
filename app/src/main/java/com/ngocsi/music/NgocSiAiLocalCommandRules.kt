@@ -84,8 +84,10 @@ internal enum class NgocSiAiLocalCommand {
  * Maps a recognized hands-free app command to a MainActivity destination.
  * Kept pure so chat, wake-word routing and tests agree on the same navigation contract.
  */
-internal fun ngocSiAiWakeWordDestination(command: NgocSiAiLocalCommand): String? =
-    when (command) {
+internal fun ngocSiAiWakeWordDestination(
+    command: NgocSiAiLocalCommand,
+    hasSavedYouTubeVideo: Boolean = true
+): String? = when (command) {
         NgocSiAiLocalCommand.OPEN_HOME -> "home"
         NgocSiAiLocalCommand.OPEN_LIBRARY -> "library"
         NgocSiAiLocalCommand.OPEN_FAVORITES -> "favorites"
@@ -118,7 +120,8 @@ internal fun ngocSiAiWakeWordDestination(command: NgocSiAiLocalCommand): String?
         NgocSiAiLocalCommand.YOUTUBE_REPEAT_ALL,
         NgocSiAiLocalCommand.YOUTUBE_REPEAT_ONE,
         NgocSiAiLocalCommand.YOUTUBE_FAVORITE,
-        NgocSiAiLocalCommand.YOUTUBE_WATCH_LATER -> "youtube_command"
+        NgocSiAiLocalCommand.YOUTUBE_WATCH_LATER ->
+            if (hasSavedYouTubeVideo) "youtube_command" else "youtube"
         NgocSiAiLocalCommand.OPEN_PLAYLISTS -> "playlists"
         NgocSiAiLocalCommand.OPEN_QUEUE -> "queue"
         NgocSiAiLocalCommand.OPEN_PLAYER -> "player"
