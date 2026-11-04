@@ -1266,6 +1266,16 @@ class MainActivity : ComponentActivity() {
                     searchYouTube()
                 }
             }
+            "youtube_search_play" -> {
+                selectedSection = "Online"
+                onlineHubTab = "YouTube"
+                youtubeSearchQuery?.trim()?.takeIf { it.isNotEmpty() }?.let { query ->
+                    youtubeQuery = query.take(120)
+                    searchYouTube(autoPlayFirstResult = true)
+                } ?: run {
+                    errorMessage = "Chưa có từ khóa YouTube để tìm và phát."
+                }
+            }
             "youtube_command" -> {
                 selectedSection = "Online"
                 onlineHubTab = "YouTube"
@@ -8935,7 +8945,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         }
     }
 
-    private fun searchYouTube(loadMore: Boolean = false) {
+    private fun searchYouTube(loadMore: Boolean = false, autoPlayFirstResult: Boolean = false) {
         // Searching from the YouTube page must return to the discovery shelf.
         // Otherwise results can be fetched successfully but remain hidden when
         // the user previously opened Favorites or Watch Later.
@@ -9076,6 +9086,10 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         youtubeLoading = false
                         if (youtubeTracks.isEmpty()) {
                             errorMessage = "Không tìm thấy nội dung YouTube phù hợp."
+                        } else if (autoPlayFirstResult && !loadMore) {
+                            // Only the current successful first-page search may start playback.
+                            // Empty/failed or stale searches must never replay an older saved video.
+                            playYouTube(youtubeTracks.first())
                         }
                     }
                 }
