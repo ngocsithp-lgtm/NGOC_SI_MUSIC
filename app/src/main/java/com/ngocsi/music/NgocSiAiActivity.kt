@@ -1438,6 +1438,15 @@ class NgocSiAiActivity : ComponentActivity() {
                     onlineSearchQuery = query
                 )
             }
+            NgocSiAiLocalCommand.SEARCH_AND_PLAY_YOUTUBE -> {
+                val query = extractNgocSiAiYoutubeAutoPlayQuery(originalText)
+                    ?: return "Hãy nói rõ từ khóa YouTube cần tìm rồi phát, ví dụ: “Tìm nhạc Bolero trên YouTube rồi phát”."
+                return openAppDestination(
+                    "youtube_search_play",
+                    "Đang tìm “$query” trên YouTube và sẽ tự phát video phù hợp đầu tiên khi có kết quả.",
+                    query
+                )
+            }
             NgocSiAiLocalCommand.SEARCH_YOUTUBE -> {
                 val query = extractNgocSiAiYoutubeQuery(originalText)
                     ?: return "Hãy nói tên nội dung cần tìm, ví dụ: “Tìm YouTube nhạc Trịnh Công Sơn”."
