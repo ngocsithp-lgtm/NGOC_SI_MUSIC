@@ -507,13 +507,14 @@ internal fun selectNgocSiAiRelevantMemories(
  */
 private fun extractNgocSiAiPreferenceValue(
     note: String,
-    markers: List<String>
+    markers: List<String>,
+    includeMarkerInValue: Boolean = false
 ): String? {
     val normalized = normalizeNgocSiAiVoicePhrase(note)
     val marker = markers.sortedByDescending { it.length }
         .firstOrNull { normalized.contains(it) } ?: return null
     val markerIndex = normalized.indexOf(marker)
-    val valueStart = markerIndex + marker.length
+    val valueStart = if (includeMarkerInValue) markerIndex else markerIndex + marker.length
     if (valueStart !in 0..note.length) return null
     val value = note.substring(valueStart)
         .trim()
@@ -534,7 +535,11 @@ private fun formatNgocSiAiArtistPreference(note: String, query: String): String?
     )
 
 private fun formatNgocSiAiGenrePreference(note: String): String? =
-    extractNgocSiAiPreferenceValue(note, NGOC_SI_AI_MEMORY_GENRE_MARKERS)
+    extractNgocSiAiPreferenceValue(
+        note,
+        NGOC_SI_AI_MEMORY_GENRE_MARKERS,
+        includeMarkerInValue = true
+    )
 
 private fun ngocSiAiArtistLabelForQuery(query: String): String = when {
     query.contains("ca si") -> "Ca sĩ"
