@@ -353,6 +353,55 @@ class NgocSiAiMemoryRulesTest {
     }
 
     @Test
+    fun combinedArtistAndGenreQuestionReturnsBothCategoriesSeparately() {
+        val memories = listOf(
+            "toi thich ca si tuan vu",
+            "toi thich nghe nhac bolero",
+            "toi thich nhac si trinh cong son",
+            "toi muon mini player nho gon"
+        )
+
+        val answer = requireNotNull(
+            answerNgocSiAiSavedPreferenceQuestion(
+                "AI, tôi thích ca sĩ nào và thể loại nhạc nào?",
+                memories
+            )
+        )
+
+        assertTrue(answer.contains("Ca sĩ bạn yêu thích: Tuan Vu."))
+        assertTrue(answer.contains("Thể loại nhạc bạn yêu thích: Bolero."))
+        assertFalse(answer.contains("toi thich"))
+        assertFalse(answer.contains("Trịnh Công Sơn"))
+        assertFalse(answer.contains("mini player"))
+    }
+
+    @Test
+    fun combinedPreferenceQuestionReportsMissingCategoryWithoutHidingSavedOne() {
+        val answer = requireNotNull(
+            answerNgocSiAiMusicTasteQuestion(
+                "Tôi thích ca sĩ nào và thể loại nhạc nào?",
+                listOf("tôi thích ca sĩ Tuấn Vũ")
+            )
+        )
+
+        assertTrue(answer.contains("Ca sĩ bạn yêu thích: Tuấn Vũ."))
+        assertTrue(answer.contains("Chưa tìm thấy ghi nhớ về thể loại nhạc"))
+    }
+
+    @Test
+    fun artistOnlyAnswerFormatsTheSavedSubjectInsteadOfEchoingTheRawNote() {
+        val answer = requireNotNull(
+            answerNgocSiAiMusicTasteQuestion(
+                "Tôi thích ca sĩ nào?",
+                listOf("toi thich ca si tuan vu")
+            )
+        )
+
+        assertTrue(answer.contains("Ca sĩ bạn yêu thích: Tuan Vu."))
+        assertFalse(answer.contains("toi thich ca si"))
+    }
+
+    @Test
     fun recognizesBandPreferencesAndDoesNotInventAnUnknownArtist() {
         val band = applyNgocSiAiMemoryCommand(
             NgocSiAiMemoryCommand(NgocSiAiMemoryCommandType.REMEMBER, "tôi thích ban nhạc Bức Tường"),

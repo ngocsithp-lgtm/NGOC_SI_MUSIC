@@ -505,6 +505,49 @@ internal fun selectNgocSiAiRelevantMemories(
  * Answers explicit questions about the user's own music taste from private on-device
  * memories. These stable personal-preference lookups must not depend on Firebase.
  */
+private fun extractNgocSiAiPreferenceValue(
+    note: String,
+    markers: List<String>
+): String? {
+    val normalized = normalizeNgocSiAiVoicePhrase(note)
+    val marker = markers.sortedByDescending { it.length }
+        .firstOrNull { normalized.contains(it) } ?: return null
+    val markerIndex = normalized.indexOf(marker)
+    val valueStart = markerIndex + marker.length
+    if (valueStart !in 0..note.length) return null
+    val value = note.substring(valueStart)
+        .trim()
+        .trimStart(':', '-', '—')
+        .trim()
+        .trimEnd('.', '!', '?', ';', ',')
+    if (value.isBlank()) return null
+    return value.split(Regex("\\s+"))
+        .joinToString(" ") { word ->
+            word.replaceFirstChar { character -> character.titlecase() }
+        }
+}
+
+private fun formatNgocSiAiArtistPreference(note: String, query: String): String? =
+    extractNgocSiAiPreferenceValue(
+        note,
+        ngocSiAiMusicArtistMarkersForQuery(query)
+    )
+
+private fun formatNgocSiAiGenrePreference(note: String): String? =
+    extractNgocSiAiPreferenceValue(note, NGOC_SI_AI_MEMORY_GENRE_MARKERS)
+
+private fun ngocSiAiArtistLabelForQuery(query: String): String = when {
+    query.contains("ca si") -> "Ca sĩ"
+    query.contains("nhac si") -> "Nhạc sĩ"
+    query.contains("ban nhac") || query.contains("nhom nhac") -> "Ban nhạc"
+    else -> "Nghệ sĩ"
+}
+
+/**
+ * Answers personal music-preference questions from the bounded on-device memory.
+ * Combined requests are split into independent artist and genre lookups so one
+ * category cannot hide the other or return unrelated saved notes.
+ */
 internal fun answerNgocSiAiMusicTasteQuestion(
     userText: String,
     memories: List<String>
@@ -540,33 +583,53 @@ internal fun answerNgocSiAiMusicTasteQuestion(
     val asksAboutArtists = asksNgocSiAiAboutOwnArtistPreference(query)
     if (!asksAboutGenres && !asksAboutArtists) return null
 
-    val savedTasteNotes = selectNgocSiAiRelevantMemories(memories, userText)
-        .filter { note ->
+    val selectedNotes = selectNgocSiAiRelevantMemories(memories, userText)
+    val artistMarkers = ngocSiAiMusicArtistMarkersForQuery(query)
+    val artistNotes = if (asksAboutArtists) {
+        selectedNotes.mapNotNull { note ->
             val normalizedNote = normalizeNgocSiAiVoicePhrase(note)
-            if (asksAboutArtists) {
-                containsNgocSiAiMusicArtistPreference(
-                    normalizedNote,
-                    ngocSiAiMusicArtistMarkersForQuery(query)
-                )
+            if (!containsNgocSiAiMusicArtistPreference(normalizedNote, artistMarkers)) {
+                null
             } else {
-                containsNgocSiAiMusicGenre(normalizedNote)
+                formatNgocSiAiArtistPreference(note, query)
             }
-        }
-    if (savedTasteNotes.isEmpty()) {
-        return if (asksAboutArtists) {
-            "Mình chưa tìm thấy ghi nhớ về ca sĩ, nhạc sĩ hoặc ban nhạc bạn yêu thích trên thiết bị. " +
-                "Bạn có thể nói “AI, hãy nhớ tôi thích ca sĩ Đan Trường”. " +
-                "Sau khi lưu, mình sẽ tra cứu sở thích này trực tiếp trên thiết bị, không cần Firebase."
+        }.distinct()
+    } else {
+        emptyList()
+    }
+    val genreNotes = if (asksAboutGenres) {
+        selectedNotes.mapNotNull { note ->
+            val normalizedNote = normalizeNgocSiAiVoicePhrase(note)
+            if (!containsNgocSiAiMusicGenre(normalizedNote)) {
+                null
+            } else {
+                formatNgocSiAiGenrePreference(note)
+            }
+        }.distinct()
+    } else {
+        emptyList()
+    }
+
+    val answerParts = mutableListOf<String>()
+    if (asksAboutArtists) {
+        val artistLabel = ngocSiAiArtistLabelForQuery(query)
+        if (artistNotes.isEmpty()) {
+            answerParts += "Chưa tìm thấy ghi nhớ về $artistLabel bạn yêu thích."
         } else {
-            "Mình chưa tìm thấy ghi nhớ về thể loại nhạc bạn yêu thích trên thiết bị. " +
-                "Bạn có thể nói “AI, hãy nhớ tôi thích nghe nhạc Bolero” (hoặc thể loại bạn thích). " +
-                "Sau khi lưu thành công, mình sẽ trả lời câu hỏi này trực tiếp từ bộ nhớ, không cần kết nối Firebase."
+            answerParts += "$artistLabel bạn yêu thích: ${artistNotes.joinToString("; ")}."
+        }
+    }
+    if (asksAboutGenres) {
+        if (genreNotes.isEmpty()) {
+            answerParts += "Chưa tìm thấy ghi nhớ về thể loại nhạc bạn yêu thích."
+        } else {
+            answerParts += "Thể loại nhạc bạn yêu thích: ${genreNotes.joinToString("; ")}."
         }
     }
 
-    val tasteLabel = if (asksAboutArtists) "nghệ sĩ bạn yêu thích" else "sở thích nhạc của bạn"
-    return "Theo ghi nhớ đã lưu trên thiết bị, $tasteLabel là: " +
-        savedTasteNotes.joinToString("; ") + ". Mình lấy câu trả lời từ ghi nhớ cục bộ, không cần Firebase."
+    return "Theo ghi nhớ đã lưu trên thiết bị, " +
+        answerParts.joinToString(" ") +
+        " Mình lấy câu trả lời từ ghi nhớ cục bộ, không cần Firebase."
 }
 
 /**
