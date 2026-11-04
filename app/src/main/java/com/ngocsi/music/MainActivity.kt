@@ -5287,10 +5287,10 @@ class MainActivity : ComponentActivity() {
     }
 
 
-    private fun openNgocSiAiFromCurrentPage() {
+    private fun openNgocSiAiFromCurrentPage(pageOverride: String? = null) {
         // Preserve the current page and let the assistant understand references such as
         // "tìm tiếp ở đây" without adding hidden messages to the conversation.
-        val entryPage = when {
+        val entryPage = pageOverride ?: when {
             selectedSection == "Online" && onlineHubTab == "YouTube" -> "YouTube"
             selectedSection == "Online" && onlineHubTab == "Drive" -> "Google Drive"
             selectedSection == "Online" && onlineHubTab == "Yêu thích" -> "Yêu thích"
@@ -7294,6 +7294,22 @@ class MainActivity : ComponentActivity() {
                             fontSize = 10.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Surface(
+                        modifier = Modifier.clickable {
+                            openNgocSiAiFromCurrentPage("Trình phát")
+                        },
+                        shape = RoundedCornerShape(50),
+                        color = Color(0xFF30234D),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF8F78C8))
+                    ) {
+                        Text(
+                            "✦ AI",
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Black,
+                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 7.dp)
                         )
                     }
                     IconButton(onClick = { toggleFavorite(song) }) {
