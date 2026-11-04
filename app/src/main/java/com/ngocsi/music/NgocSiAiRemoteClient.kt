@@ -157,8 +157,12 @@ internal class NgocSiAiRemoteClient(context: Context) {
             val responseConfig = generationConfig {
                 maxOutputTokens = selectNgocSiAiMaxOutputTokens(newestUserMessage.content)
                 thinkingConfig = thinkingConfig {
-                    // Reasoning depth follows the current question, not accumulated chat length.
-                    thinkingLevel = selectNgocSiAiThinkingLevel(newestUserMessage.content)
+                    // Use Flash-Lite's supported MINIMAL level for simple chat;
+                    // keep LOW/MEDIUM on the reasoning/tool-capable Flash path.
+                    thinkingLevel = selectNgocSiAiGenerationThinkingLevel(
+                        newestUserMessage.content,
+                        offersAppCommandTool
+                    )
                 }
             }
             val selectedModelName = selectNgocSiAiModelName(
