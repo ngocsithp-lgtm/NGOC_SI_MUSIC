@@ -489,6 +489,86 @@ class NgocSiAiRemotePolicyTest {
         assertEquals("", buildNgocSiAiEntryContextInstruction("unknown raw prompt"))
     }
 
+
+    @Test
+    fun retriesOnlyTransientPreOutputOrdinaryChatFailures() {
+        assertEquals(1, NGOC_SI_AI_MAX_TRANSIENT_REMOTE_RETRIES)
+        assertEquals(450L, NGOC_SI_AI_TRANSIENT_RETRY_DELAY_MILLIS)
+        assertTrue(
+            shouldRetryNgocSiAiRemoteRequest(
+                "Firebase HTTP 503 service unavailable",
+                isToolRequest = false,
+                hasEmittedPartialResponse = false,
+                attempt = 0
+            )
+        )
+        assertTrue(
+            shouldRetryNgocSiAiRemoteRequest(
+                "SocketTimeoutException: read timed out",
+                isToolRequest = false,
+                hasEmittedPartialResponse = false,
+                attempt = 0
+            )
+        )
+    }
+
+    @Test
+    fun neverRetriesQuotaOrPermanentErrors() {
+        listOf(
+            "HTTP 429 RESOURCE_EXHAUSTED quota exceeded",
+            "HTTP 400 invalid argument",
+            "HTTP 401 unauthenticated",
+            "HTTP 403 permission denied",
+            "HTTP 404 model not found"
+        ).forEach { error ->
+            assertFalse(
+                error,
+                shouldRetryNgocSiAiRemoteRequest(
+                    error,
+                    isToolRequest = false,
+                    hasEmittedPartialResponse = false,
+                    attempt = 0
+                )
+            )
+        }
+    }
+
+    @Test
+    fun neverRetriesAppToolActionsPartialStreamsOrRepeatedAttempts() {
+        assertFalse(
+            shouldRetryNgocSiAiRemoteRequest(
+                "HTTP 503 service unavailable",
+                isToolRequest = true,
+                hasEmittedPartialResponse = false,
+                attempt = 0
+            )
+        )
+        assertFalse(
+            shouldRetryNgocSiAiRemoteRequest(
+                "HTTP 503 service unavailable",
+                isToolRequest = false,
+                hasEmittedPartialResponse = true,
+                attempt = 0
+            )
+        )
+        assertFalse(
+            shouldRetryNgocSiAiRemoteRequest(
+                "HTTP 503 service unavailable",
+                isToolRequest = false,
+                hasEmittedPartialResponse = false,
+                attempt = 1
+            )
+        )
+        assertFalse(
+            shouldRetryNgocSiAiRemoteRequest(
+                "UnknownHostException: unable to resolve host",
+                isToolRequest = false,
+                hasEmittedPartialResponse = false,
+                attempt = 0
+            )
+        )
+    }
+
     @Test
     fun ordinaryChatUsesTheFasterFlashLiteModel() {
         assertEquals("gemini-3.5-flash-lite", NGOC_SI_AI_FAST_CHAT_MODEL_NAME)
