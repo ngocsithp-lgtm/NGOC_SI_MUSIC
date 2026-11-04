@@ -7,6 +7,42 @@ internal const val NGOC_SI_AI_REMOTE_CONVERSATION_TIMEOUT_MILLIS = 25_000L
 internal const val NGOC_SI_AI_COMPLEX_REMOTE_CONVERSATION_TIMEOUT_MILLIS = 40_000L
 internal const val NGOC_SI_AI_DEEP_REMOTE_CONVERSATION_TIMEOUT_MILLIS = 60_000L
 
+
+/** Retry only a safe, pre-output text request after a transient transport/server failure. */
+internal const val NGOC_SI_AI_MAX_TRANSIENT_REMOTE_RETRIES = 1
+internal const val NGOC_SI_AI_TRANSIENT_RETRY_DELAY_MILLIS = 450L
+
+internal fun shouldRetryNgocSiAiRemoteRequest(
+    errorDetails: String,
+    isToolRequest: Boolean,
+    hasEmittedPartialResponse: Boolean,
+    attempt: Int
+): Boolean {
+    if (
+        isToolRequest ||
+        hasEmittedPartialResponse ||
+        attempt >= NGOC_SI_AI_MAX_TRANSIENT_REMOTE_RETRIES
+    ) return false
+
+    val details = errorDetails.lowercase()
+    // Never repeat quota, authentication, permission, model, or malformed-request errors.
+    if (Regex("\\b(400|401|403|404|429)\\b").containsMatchIn(details)) return false
+    val permanentMarkers = listOf(
+        "resource_exhausted", "quota", "rate limit", "permission denied",
+        "unauthenticated", "invalid argument", "model not found", "api key"
+    )
+    if (permanentMarkers.any(details::contains)) return false
+
+    if (Regex("\\b(408|500|502|503|504)\\b").containsMatchIn(details)) return true
+    val transientMarkers = listOf(
+        "sockettimeout", "socket timeout", "read timed out",
+        "connection reset", "connection closed", "eofexception",
+        "temporarily unavailable", "service unavailable",
+        "internal server error", "deadline exceeded"
+    )
+    return transientMarkers.any(details::contains)
+}
+
 /** Model routing keeps everyday chat on the faster, no-billing Flash-Lite tier. */
 internal const val NGOC_SI_AI_FAST_CHAT_MODEL_NAME = "gemini-3.5-flash-lite"
 internal const val NGOC_SI_AI_REASONING_MODEL_NAME = "gemini-3.8-flash"
