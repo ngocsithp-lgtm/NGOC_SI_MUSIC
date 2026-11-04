@@ -399,7 +399,7 @@ class NgocSiAiActivity : ComponentActivity() {
     private val speechFallbackHandler = Handler(Looper.getMainLooper())
     private var speechFallbackUsed = false
     private var speechHasEnded = false
-    private const val IN_APP_PARTIAL_FINALIZATION_DELAY_MILLIS = 1_800L
+    private val speechPartialFinalizationDelayMillis = 1_800L
     private val speechNoTranscriptWatchdog = object : Runnable {
         override fun run() {
             if (!voiceRecognitionInProgress || isFinishing || isDestroyed || speechFallbackUsed) return
@@ -560,7 +560,7 @@ class NgocSiAiActivity : ComponentActivity() {
                     speechFallbackHandler.removeCallbacks(speechPartialFinalizationWatchdog)
                     speechFallbackHandler.postDelayed(
                         speechPartialFinalizationWatchdog,
-                        IN_APP_PARTIAL_FINALIZATION_DELAY_MILLIS
+                        speechPartialFinalizationDelayMillis
                     )
                 }
             }
@@ -720,7 +720,7 @@ class NgocSiAiActivity : ComponentActivity() {
                             speechFallbackHandler.removeCallbacks(speechPartialFinalizationWatchdog)
                             speechFallbackHandler.postDelayed(
                                 speechPartialFinalizationWatchdog,
-                                IN_APP_PARTIAL_FINALIZATION_DELAY_MILLIS
+                                speechPartialFinalizationDelayMillis
                             )
                         }
                     }
