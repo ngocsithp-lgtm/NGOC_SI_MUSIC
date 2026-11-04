@@ -83,7 +83,7 @@ private val NGOC_SI_AI_MEMORY_ALLOWED_TOPICS = listOf(
     "instrumental", "remix", "youtube", "drive", "radio", "tv",
     "playlist", "hang doi", "thu vien", "yeu thich", "mini player", "video",
     "giong doc", "giong noi", "am luong", "hen gio", "phat nen", "background",
-    "ca si", "nghe si", "nhac si", "ban nhac", "nhom nhac", "nhac cua"
+    "ca si", "nghe si", "nhac si", "ban nhac", "nhom nhac"
 )
 
 private val NGOC_SI_AI_MEMORY_BLOCKED_TOPICS = listOf(
@@ -110,7 +110,7 @@ private val NGOC_SI_AI_MEMORY_ARTIST_INTENT_PHRASES = listOf(
 )
 
 private val NGOC_SI_AI_MEMORY_ARTIST_MARKERS = listOf(
-    "ca si", "nghe si", "nhac si", "ban nhac", "nhom nhac", "nhac cua"
+    "ca si", "nghe si", "nhac si", "ban nhac", "nhom nhac"
 )
 
 /** Require an explicit first-person preference before answering with personal artist memories. */
