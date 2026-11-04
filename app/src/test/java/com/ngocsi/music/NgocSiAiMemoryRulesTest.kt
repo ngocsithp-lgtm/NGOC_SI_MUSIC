@@ -344,7 +344,7 @@ class NgocSiAiMemoryRulesTest {
 
         val genreAnswer = requireNotNull(answerNgocSiAiSavedPreferenceQuestion("Gu nghe nhạc của tôi là gì?", memories))
         assertTrue(genreAnswer.contains("Bolero"))
-        assertTrue(genreAnswer.contains("Trịnh"))
+        assertFalse(genreAnswer.contains("Trịnh"))
         assertFalse(genreAnswer.contains("Mỹ Tâm"))
 
         val composerAnswer = requireNotNull(answerNgocSiAiSavedPreferenceQuestion("Nhạc sĩ yêu thích của tôi là ai?", memories))
