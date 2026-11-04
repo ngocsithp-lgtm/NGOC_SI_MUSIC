@@ -472,5 +472,31 @@ class NgocSiAiRemotePolicyTest {
             selectNgocSiAiModelName("Mở YouTube", offersAppCommandTool = true)
         )
     }
+
+    @Test
+    fun ordinaryFlashLiteChatUsesMinimalThinkingForLowerLatency() {
+        assertEquals(
+            ThinkingLevel.MINIMAL,
+            selectNgocSiAiGenerationThinkingLevel("Thủ đô Việt Nam là gì?")
+        )
+        assertEquals(
+            ThinkingLevel.MINIMAL,
+            selectNgocSiAiGenerationThinkingLevel("Xin chào, bạn khỏe không?")
+        )
+    }
+
+    @Test
+    fun reasoningAndToolRequestsNeverUseUnsupportedMinimalThinking() {
+        assertEquals(
+            ThinkingLevel.MEDIUM,
+            selectNgocSiAiGenerationThinkingLevel(
+                "Hãy phân tích kỹ nguyên nhân và lập kế hoạch khắc phục."
+            )
+        )
+        assertEquals(
+            ThinkingLevel.LOW,
+            selectNgocSiAiGenerationThinkingLevel("Mở YouTube", offersAppCommandTool = true)
+        )
+    }
 }
 
