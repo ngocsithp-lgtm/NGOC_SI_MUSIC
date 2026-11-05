@@ -5098,6 +5098,14 @@ class MainActivity : ComponentActivity() {
             ?: songs.getOrNull(currentIndex)?.uri?.toString()
             ?: lastSongUri
         val currentPosition = c?.currentPosition?.coerceAtLeast(0L) ?: position.coerceAtLeast(0L)
+        if (activeMixedPlaylist != null && !activeMixedPlaylistSegmentIsYouTube && !controllerUri.isNullOrBlank()) {
+            val entryIndex = activeMixedPlaylist?.entries?.indexOfFirst {
+                it.type == PlaylistEntry.TYPE_SONG && it.uri == controllerUri
+            } ?: -1
+            if (entryIndex in activeMixedPlaylistSegmentStartEntryIndex until activeMixedPlaylistNextEntryIndex) {
+                activeMixedPlaylistCurrentEntryIndex = entryIndex
+            }
+        }
 
         lastSongUri = uri
         savedPosition = currentPosition
@@ -5107,6 +5115,7 @@ class MainActivity : ComponentActivity() {
             .putString("last_song_uri", uri)
             .putLong("last_position", currentPosition)
             .apply()
+        if (activeMixedPlaylist != null) persistActiveMixedPlaylistPlaybackState()
     }
 
     private fun clearDriveLibrary() {
@@ -9922,6 +9931,16 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         youtubeLastPlayed = track.copy(thumbnailUrl = thumbnail)
         youtubeLastQueueJson = queueJson
         youtubeLastQueueIndex = queueIndex.coerceAtLeast(0)
+        val playlist = activeMixedPlaylist
+        if (playlist != null && activeMixedPlaylistSegmentIsYouTube) {
+            val entryIndex = playlist.entries.indexOfFirst {
+                it.type == PlaylistEntry.TYPE_YOUTUBE && it.videoId == track.videoId
+            }
+            if (entryIndex in activeMixedPlaylistSegmentStartEntryIndex until activeMixedPlaylistNextEntryIndex) {
+                activeMixedPlaylistCurrentEntryIndex = entryIndex
+                persistActiveMixedPlaylistPlaybackState()
+            }
+        }
     }
 
     private fun playLastYouTube(aiAction: String? = null) {
