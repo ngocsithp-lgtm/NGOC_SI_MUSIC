@@ -291,7 +291,13 @@ class MainActivity : ComponentActivity() {
             if (playbackState == Player.STATE_READY) {
                 errorMessage = null
             }
-            if (playbackState == Player.STATE_ENDED) {
+            if (
+                playbackState == Player.STATE_ENDED &&
+                activeMixedPlaylist != null &&
+                !activeMixedPlaylistSegmentIsYouTube
+            ) {
+                // Media3 may report its previous ended state after the mixed playlist
+                // has already handed playback over to the inline YouTube player.
                 advanceMixedPlaylistAfterSegment()
             }
         }
@@ -718,6 +724,10 @@ class MainActivity : ComponentActivity() {
         }
     }
     private fun setInlineYouTubeShuffle(enabled: Boolean) {
+        if (activeMixedPlaylist != null) {
+            errorMessage = "Playlist đa nguồn đang giữ thứ tự đã sắp xếp; không thể đổi ngẫu nhiên khi đang phát."
+            return
+        }
         youtubeShuffleEnabled = enabled
         prefs.edit().putBoolean("youtube_shuffle_enabled", enabled).apply()
         errorMessage = if (enabled) {
@@ -728,6 +738,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun setInlineYouTubeRepeat(mode: Int) {
+        if (activeMixedPlaylist != null) {
+            errorMessage = "Playlist đa nguồn đang giữ thứ tự đã sắp xếp; chế độ lặp sẽ áp dụng sau khi phát xong."
+            return
+        }
         youtubeRepeatMode = mode.coerceIn(0, 2)
         prefs.edit().putInt("youtube_repeat_mode", youtubeRepeatMode).apply()
         errorMessage = when (youtubeRepeatMode) {
@@ -4725,12 +4739,20 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun toggleShuffle() {
+        if (activeMixedPlaylist != null) {
+            errorMessage = "Playlist đa nguồn đang phát theo thứ tự đã lưu; không thể bật ngẫu nhiên lúc này."
+            return
+        }
         shuffleEnabled = !shuffleEnabled
         controller?.shuffleModeEnabled = shuffleEnabled
         savePlayerPreferences()
     }
 
     private fun cycleRepeat() {
+        if (activeMixedPlaylist != null) {
+            errorMessage = "Playlist đa nguồn đang phát theo thứ tự đã lưu; không thể đổi chế độ lặp lúc này."
+            return
+        }
         repeatMode = when (repeatMode) {
             Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
             Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
