@@ -80,4 +80,27 @@ class NgocSiAiEntryContextTest {
         assertEquals("Google Drive", normalizeNgocSiAiEntryContext("google DRIVE"))
         assertEquals("Radio", normalizeNgocSiAiEntryContext("rAdIo"))
     }
+
+    @Test
+    fun pageSpecificGuidanceKeepsPlaybackSourcesSeparate() {
+        val youtube = buildNgocSiAiEntryContextInstruction("YouTube")
+        assertTrue(youtube.contains("search_and_play_youtube"))
+        assertTrue(youtube.contains("nhóm youtube_*"))
+        assertTrue(youtube.contains("không dùng lệnh Media3"))
+
+        val radio = buildNgocSiAiEntryContextInstruction("Radio")
+        assertTrue(radio.contains("play_radio_station"))
+        assertTrue(radio.contains("không nhầm đài Radio"))
+
+        val drive = buildNgocSiAiEntryContextInstruction("Google Drive")
+        assertTrue(drive.contains("search_drive"))
+        assertTrue(drive.contains("Không tự giả định"))
+
+        val tv = buildNgocSiAiEntryContextInstruction("TV")
+        assertTrue(tv.contains("open_tv_channel"))
+
+        val player = buildNgocSiAiEntryContextInstruction("Trình phát")
+        assertTrue(player.contains("xác định nguồn đang phát"))
+        assertTrue(player.contains("lệnh youtube_*"))
+    }
 }
