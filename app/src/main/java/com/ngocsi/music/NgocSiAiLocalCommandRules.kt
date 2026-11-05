@@ -741,6 +741,9 @@ internal fun classifyNgocSiAiLocalCommand(
     if (extractNgocSiAiContextualYoutubeAutoPlayQuery(input, entryContext) != null) {
         return NgocSiAiLocalCommand.SEARCH_AND_PLAY_YOUTUBE
     }
+    if (extractNgocSiAiContextualYoutubeQuery(input, entryContext) != null) {
+        return NgocSiAiLocalCommand.SEARCH_YOUTUBE
+    }
     if (extractNgocSiAiContextualDriveQuery(input, entryContext) != null) {
         return NgocSiAiLocalCommand.SEARCH_DRIVE
     }
@@ -1545,6 +1548,46 @@ internal fun extractNgocSiAiContextualYoutubeAutoPlayQuery(
     val query = trimNgocSiAiExtractedQuery(
         searchPrefix.replaceFirst(phrase, "").trim()
     ).trim(',', ':', '-', '.', '?', '!')
+    return query.take(120).takeIf { it.length >= 2 }
+}
+
+/**
+ * Resolve a source-neutral, search-only request to YouTube when AI was opened
+ * from the YouTube page. Explicitly named sources always keep their own route.
+ * This helper never interprets the request as autoplay.
+ */
+internal fun extractNgocSiAiContextualYoutubeQuery(
+    input: String,
+    entryContext: String?
+): String? {
+    extractNgocSiAiYoutubeQuery(input)?.let { return it }
+    if (normalizeNgocSiAiEntryContext(entryContext) != "YouTube") return null
+
+    var phrase = stripNgocSiAiOuterQuotationMarks(input).replace(
+        Regex("""^(?:(?:hey|ok|alo)\\s+)?(?:ai|ngọc sĩ|ngoc si)\\b[\\s,:-]*""", RegexOption.IGNORE_CASE),
+        ""
+    ).trim()
+    phrase = phrase.replace(Regex("""^(?:hãy|hay)\\s+""", RegexOption.IGNORE_CASE), "")
+    val normalized = normalizeNgocSiAiVoicePhrase(phrase)
+    // A play suffix belongs to the dedicated search-and-play parser above.
+    if (Regex("""(?:\\b(?:roi|va|sau do|then)\\s+(?:phat|play)|\\b(?:phat|play)\\s+(?:luon|di))$""")
+            .containsMatchIn(normalized)
+    ) return null
+    // Do not let a YouTube page override a source explicitly named by the user.
+    val explicitOtherSources = listOf(
+        "drive", "google drive", "online", "audius", "jamendo",
+        "radio", "truc tuyen", "tren mang"
+    )
+    if (explicitOtherSources.any(normalized::contains)) return null
+
+    val match = Regex(
+        """^(?:tìm|tim|kiếm|kiem)\\s+(?:(?:bài hát|bai hat|ca khúc|ca khuc|nhạc|nhac|video)\\s+)?(.+?)[.!?,;:]*$""",
+        RegexOption.IGNORE_CASE
+    ).matchEntire(phrase) ?: return null
+    val query = trimNgocSiAiExtractedQuery(match.groupValues[1])
+        .trim(',', ':', '-', '.', '?', '!')
+    val normalizedQuery = normalizeNgocSiAiVoicePhrase(query)
+    if (normalizedQuery.isBlank() || normalizedQuery in setOf("nhac", "bai hat", "ca khuc", "video")) return null
     return query.take(120).takeIf { it.length >= 2 }
 }
 
