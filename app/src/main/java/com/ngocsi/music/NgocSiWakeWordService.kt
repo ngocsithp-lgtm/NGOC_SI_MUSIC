@@ -1669,7 +1669,12 @@ class NgocSiWakeWordService : Service() {
                 extractNgocSiAiOnlineQuery(originalText)
                     ?: return "Hãy nói nội dung cần tìm, ví dụ: AI, tìm nhạc Trịnh Công Sơn."
             } else null
-            val driveQuery = if (command == NgocSiAiLocalCommand.SEARCH_DRIVE) extractNgocSiAiDriveQuery(originalText) else null
+            val driveQuery = if (command == NgocSiAiLocalCommand.SEARCH_DRIVE) {
+                extractNgocSiAiContextualDriveQuery(
+                    originalText,
+                    NgocSiMainActivityState.entryContextOr(aiEntryContext)
+                ) ?: return "Hãy nói rõ nội dung cần tìm trong Drive, ví dụ: AI, tìm nhạc Bolero."
+            } else null
             val trackQuery = if (command == NgocSiAiLocalCommand.ADD_TRACK_TO_QUEUE) extractNgocSiAiQueueTrackQuery(originalText) else null
             val radioQuery = if (command == NgocSiAiLocalCommand.PLAY_RADIO_STATION) {
                 extractNgocSiAiRadioStationQuery(originalText)
