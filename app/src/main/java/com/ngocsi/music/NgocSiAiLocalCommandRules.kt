@@ -609,7 +609,10 @@ internal fun isNgocSiAiWakeWordOnly(input: String): Boolean =
     )
 
 /** Accepts a command only when wake phrase and command occur in the same utterance. */
-internal fun classifyNgocSiAiWakePhrase(input: String): NgocSiAiLocalCommand? {
+internal fun classifyNgocSiAiWakePhrase(
+    input: String,
+    entryContext: String? = null
+): NgocSiAiLocalCommand? {
     val normalized = normalizeNgocSiAiVoicePhrase(input)
     // Accept the same natural wake-word variants the microphone UI recognizes.
     // Check the longer prefixes first so "AI ơi" is stripped as one greeting.
@@ -636,7 +639,7 @@ internal fun classifyNgocSiAiWakePhrase(input: String): NgocSiAiLocalCommand? {
 
     // Rebuild a canonical explicit wake phrase after accepting "Hey AI"/"Alo AI".
     // This keeps the safety guard for seek, speed and favorite commands active.
-    return classifyNgocSiAiActivatedCommand("AI, $commandPhrase")
+    return classifyNgocSiAiActivatedCommand("AI, $commandPhrase", entryContext)
 }
 
 /**
@@ -644,8 +647,11 @@ internal fun classifyNgocSiAiWakePhrase(input: String): NgocSiAiLocalCommand? {
  * playback-control allowlist. Navigation, account and timer actions stay out of
  * always-listening mode.
  */
-internal fun classifyNgocSiAiActivatedCommand(input: String): NgocSiAiLocalCommand? {
-    val command = classifyNgocSiAiLocalCommand(input) ?: return null
+internal fun classifyNgocSiAiActivatedCommand(
+    input: String,
+    entryContext: String? = null
+): NgocSiAiLocalCommand? {
+    val command = classifyNgocSiAiLocalCommand(input, entryContext) ?: return null
     if (command !in NGOC_SI_AI_WAKE_WORD_COMMANDS) return null
 
     // Sensitive transport settings require an explicit assistant address so
@@ -722,10 +728,19 @@ internal fun extractNgocSiAiSleepTimerMinutes(input: String): Int? {
     return minutes.takeIf { it in 1..1_440 }
 }
 
-internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? {
+internal fun classifyNgocSiAiLocalCommand(
+    input: String,
+    entryContext: String? = null
+): NgocSiAiLocalCommand? {
     // A sentence asking the assistant to remember a music preference can also contain
     // words such as “nghe nhạc”; never reinterpret that sentence as a playback request.
     if (parseNgocSiAiMemoryCommand(input) != null) return null
+
+    // When AI is opened from YouTube, an otherwise source-neutral search-and-play
+    // request belongs to the visible YouTube page. Outside that page, do not guess.
+    if (extractNgocSiAiContextualYoutubeAutoPlayQuery(input, entryContext) != null) {
+        return NgocSiAiLocalCommand.SEARCH_AND_PLAY_YOUTUBE
+    }
 
     var phrase = Normalizer.normalize(input.trim().lowercase(Locale.ROOT), Normalizer.Form.NFD)
         .replace("\\p{Mn}+".toRegex(), "")
@@ -1170,9 +1185,12 @@ internal fun classifyNgocSiAiLocalCommand(input: String): NgocSiAiLocalCommand? 
  * Speech services can return several hypotheses. Prefer one that maps to a
  * supported explicit command rather than blindly using the first transcript.
  */
-internal fun selectNgocSiAiLocalCommandCandidate(candidates: List<String>): String? {
+internal fun selectNgocSiAiLocalCommandCandidate(
+    candidates: List<String>,
+    entryContext: String? = null
+): String? {
     val cleaned = candidates.map { it.trim() }.filter { it.isNotBlank() }
-    return cleaned.firstOrNull { classifyNgocSiAiLocalCommand(it) != null }
+    return cleaned.firstOrNull { classifyNgocSiAiLocalCommand(it, entryContext) != null }
         ?: cleaned.firstOrNull()
 }
 
@@ -1181,9 +1199,12 @@ internal fun selectNgocSiAiLocalCommandCandidate(candidates: List<String>): Stri
  * hypotheses by actionable intent. Choosing the first raw hypothesis can miss a
  * valid command when the recognizer offers several close Vietnamese transcriptions.
  */
-internal fun selectNgocSiAiActivatedCommandCandidate(candidates: List<String>): String? {
+internal fun selectNgocSiAiActivatedCommandCandidate(
+    candidates: List<String>,
+    entryContext: String? = null
+): String? {
     val cleaned = candidates.map { it.trim() }.filter { it.isNotBlank() }
-    return cleaned.firstOrNull { classifyNgocSiAiActivatedCommand(it) != null }
+    return cleaned.firstOrNull { classifyNgocSiAiActivatedCommand(it, entryContext) != null }
         ?: cleaned.firstOrNull()
 }
 
@@ -1206,9 +1227,12 @@ internal fun selectNgocSiAiStopVoiceControlCandidate(candidates: List<String>): 
 }
 
 /** Wake-word mode must keep its stricter explicit “AI” requirement. */
-internal fun selectNgocSiAiWakePhraseCandidate(candidates: List<String>): String? {
+internal fun selectNgocSiAiWakePhraseCandidate(
+    candidates: List<String>,
+    entryContext: String? = null
+): String? {
     val cleaned = candidates.map { it.trim() }.filter { it.isNotBlank() }
-    return cleaned.firstOrNull { classifyNgocSiAiWakePhrase(it) != null }
+    return cleaned.firstOrNull { classifyNgocSiAiWakePhrase(it, entryContext) != null }
         ?: cleaned.firstOrNull { isNgocSiAiWakeWordOnly(it) }
         ?: cleaned.firstOrNull()
 }
@@ -1430,6 +1454,48 @@ internal fun extractNgocSiAiYoutubeAutoPlayQuery(input: String): String? {
 }
 
 /**
+ * Resolve source-neutral search-and-play speech against the page that launched AI.
+ * A plain search never autoplays; an explicit play suffix is required. This helper
+ * is intentionally disabled outside the YouTube page to avoid guessing the source.
+ */
+internal fun extractNgocSiAiContextualYoutubeAutoPlayQuery(
+    input: String,
+    entryContext: String?
+): String? {
+    if (normalizeNgocSiAiEntryContext(entryContext) != "YouTube") return null
+    extractNgocSiAiYoutubeAutoPlayQuery(input)?.let { return it }
+
+    var phrase = input.trim().replace(
+        Regex("""^(?:(?:hey|ok|alo)\\s+)?(?:ai|ngọc sĩ|ngoc si)\\b[\\s,:-]*""", RegexOption.IGNORE_CASE),
+        ""
+    )
+    val normalized = normalizeNgocSiAiVoicePhrase(phrase)
+    // An explicit but malformed YouTube request must not be silently rewritten.
+    if (normalized.contains("youtube")) return null
+    val explicitPlaySuffix = Regex(
+        """(?:\\b(?:roi|va|sau do|then)\\s+(?:phat|play)|\\b(?:phat|play)\\s+(?:luon|di))$"""
+    )
+    if (!explicitPlaySuffix.containsMatchIn(normalized)) return null
+
+    phrase = phrase.replace(
+        Regex(
+            """\\s+(?:(?:rồi|roi|và|va|sau đó|sau do|then)\\s+)?(?:phát|phat|play)(?:\\s+(?:luôn|luon|đi|di))?[.!?,;:]*$""",
+            RegexOption.IGNORE_CASE
+        ),
+        ""
+    ).trim()
+    val searchPrefix = Regex(
+        """^(?:(?:hãy|hay)\\s+)?(?:tìm|tim|kiếm|kiem)\\s+(?:nhạc|nhac|bài hát|bai hat|ca khúc|ca khuc|video)\\s+""",
+        RegexOption.IGNORE_CASE
+    )
+    if (!searchPrefix.containsMatchIn(phrase)) return null
+    val query = trimNgocSiAiExtractedQuery(
+        searchPrefix.replaceFirst(phrase, "").trim()
+    ).trim(',', ':', '-', '.', '?', '!')
+    return query.take(120).takeIf { it.length >= 2 }
+}
+
+/**
  * Extract a user-supplied YouTube search phrase while preserving Vietnamese spelling.
  * The caller sends it only to the app's existing YouTube search UI after an explicit request.
  */
@@ -1642,13 +1708,14 @@ internal data class NgocSiAiToolCommandRoute(
 internal fun resolveNgocSiAiToolCommand(
     action: String,
     query: String,
-    requireActivatedSession: Boolean
+    requireActivatedSession: Boolean,
+    entryContext: String? = null
 ): NgocSiAiToolCommandRoute? {
     val phrase = buildNgocSiAiToolCommandPhrase(action, query) ?: return null
     val command = if (requireActivatedSession) {
-        classifyNgocSiAiActivatedCommand("AI, $phrase")
+        classifyNgocSiAiActivatedCommand("AI, $phrase", entryContext)
     } else {
-        classifyNgocSiAiLocalCommand(phrase)
+        classifyNgocSiAiLocalCommand(phrase, entryContext)
     } ?: return null
     return NgocSiAiToolCommandRoute(command = command, phrase = phrase)
 }
