@@ -5081,6 +5081,12 @@ class MainActivity : ComponentActivity() {
         activeMixedPlaylistNextEntryIndex = -1
         activeMixedPlaylistAdvancePending = false
         activeMixedPlaylistSegmentIsYouTube = false
+        // Restore the user's normal Media3 modes after a mixed playlist segment has ended
+        // or when playback is explicitly switched to another item/source.
+        controller?.let { player ->
+            player.shuffleModeEnabled = shuffleEnabled
+            player.repeatMode = repeatMode
+        }
     }
 
     private fun pauseInlineYouTubeForMixedPlaylistHandoff() {
