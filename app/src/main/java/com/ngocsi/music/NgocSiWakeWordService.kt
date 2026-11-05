@@ -1661,8 +1661,10 @@ class NgocSiWakeWordService : Service() {
                         NgocSiMainActivityState.entryContextOr(aiEntryContext)
                     ) ?: return "Hãy nói rõ nội dung cần tìm rồi phát. Ở trang YouTube, AI sẽ tự hiểu nguồn YouTube."
                 NgocSiAiLocalCommand.SEARCH_YOUTUBE ->
-                    extractNgocSiAiYoutubeQuery(originalText)
-                        ?: return "Hãy nói rõ nội dung cần tìm, ví dụ: AI, tìm YouTube nhạc Trịnh Công Sơn."
+                    extractNgocSiAiContextualYoutubeQuery(
+                        originalText,
+                        NgocSiMainActivityState.entryContextOr(aiEntryContext)
+                    ) ?: return "Hãy nói rõ nội dung cần tìm, ví dụ: AI, tìm YouTube nhạc Trịnh Công Sơn."
                 else -> null
             }
             val onlineQuery = if (command == NgocSiAiLocalCommand.SEARCH_ONLINE_MUSIC) {
