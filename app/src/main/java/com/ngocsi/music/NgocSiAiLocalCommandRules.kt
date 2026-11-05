@@ -1271,8 +1271,8 @@ internal fun extractNgocSiAiPlaylistQuery(input: String, create: Boolean): Strin
 internal fun extractNgocSiAiQueueToPlaylistQuery(input: String): String? {
     val raw = input.trim()
     val patterns = listOf(
-        Regex("""^(?:(?:ai)[\\s,:]+)?(?:(?:hãy|hay)\\s+)?(?:thêm|them|lưu|luu)\\s+(?:(?:toàn bộ|tất cả|tat ca)\\s+)?(?:(?:bài trong|bai trong)\\s+)?(?:hàng đợi|hang doi|queue)\\s+(?:(?:hiện tại|hien tai)\\s+)?(?:(?:vào|vao)\\s+)?(?:playlist|danh sách phát|danh sach phat)\\s+""", RegexOption.IGNORE_CASE),
-        Regex("""^(?:(?:ai)[\\s,:]+)?(?:(?:hãy|hay)\\s+)?(?:lưu|luu)\\s+hàng đợi thành\\s+(?:playlist|danh sách phát)\\s+""", RegexOption.IGNORE_CASE)
+        Regex("""^(?:(?:ai)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:thêm|them|lưu|luu)\s+(?:(?:toàn bộ|tất cả|tat ca)\s+)?(?:(?:bài trong|bai trong)\s+)?(?:hàng đợi|hang doi|queue)\s+(?:(?:hiện tại|hien tai)\s+)?(?:(?:vào|vao)\s+)?(?:playlist|danh sách phát|danh sach phat)\s+""", RegexOption.IGNORE_CASE),
+        Regex("""^(?:(?:ai)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:lưu|luu)\s+hàng đợi thành\s+(?:playlist|danh sách phát)\s+""", RegexOption.IGNORE_CASE)
     )
     val prefix = patterns.firstOrNull { it.containsMatchIn(raw) } ?: return null
     val query = trimNgocSiAiExtractedQuery(prefix.replaceFirst(raw, ""))
@@ -1285,7 +1285,7 @@ internal fun extractNgocSiAiQueueToPlaylistQuery(input: String): String? {
 internal fun extractNgocSiAiAddToPlaylistQuery(input: String): String? {
     val raw = input.trim()
     val prefixes = listOf(
-        Regex("""^(?:(?:ai)[\\s,:]+)?(?:(?:hãy|hay)\\s+)?(?:thêm|them|lưu|luu)\\s+(?:bài đang phát|bai dang phat|bài hiện tại|bai hien tai|bài này|bai nay|bài đang nghe|bai dang nghe)\\s+(?:(?:vào|vao)\\s+)?(?:playlist|danh sách phát|danh sach phat)\\s+""", RegexOption.IGNORE_CASE)
+        Regex("""^(?:(?:ai)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:thêm|them|lưu|luu)\s+(?:bài đang phát|bai dang phat|bài hiện tại|bai hien tai|bài này|bai nay|bài đang nghe|bai dang nghe)\s+(?:(?:vào|vao)\s+)?(?:playlist|danh sách phát|danh sach phat)\s+""", RegexOption.IGNORE_CASE)
     )
     val prefix = prefixes.firstOrNull { it.containsMatchIn(raw) } ?: return null
     val query = trimNgocSiAiExtractedQuery(prefix.replaceFirst(raw, ""))
