@@ -121,6 +121,7 @@ class NgocSiAiRemotePolicyTest {
             "AI, vào thư mục Drive.",
             "AI, bấm mở mục YouTube.",
             "AI, đi đến thư viện nhạc."
+            "AI, tìm nhạc Bolero."
         ).forEach { phrase ->
             assertTrue("$phrase should expose app command tools", shouldOfferNgocSiAiAppCommandTool(phrase))
         }
