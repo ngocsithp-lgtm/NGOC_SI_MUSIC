@@ -460,6 +460,43 @@ internal fun normalizeNgocSiAiVoicePhrase(input: String): String =
 
 
 /**
+ * Speech recognition can transcribe the assistant wake word “AI” as “Al” or “A L”.
+ * Canonicalize only those exact leading address forms; never rewrite words inside
+ * the user's actual music query or ordinary sentence.
+ */
+private fun normalizeNgocSiAiWakeWordAlias(input: String): String {
+    val phrase = normalizeNgocSiAiVoicePhrase(input)
+    val exactAliases = mapOf(
+        "al" to "ai",
+        "a l" to "ai",
+        "al oi" to "ai oi",
+        "a l oi" to "ai oi",
+        "hey al" to "hey ai",
+        "ok al" to "ok ai",
+        "alo al" to "alo ai",
+        "hey a l" to "hey ai",
+        "ok a l" to "ok ai",
+        "alo a l" to "alo ai"
+    )
+    exactAliases[phrase]?.let { return it }
+
+    val prefixAliases = listOf(
+        "hey a l " to "hey ai ",
+        "ok a l " to "ok ai ",
+        "alo a l " to "alo ai ",
+        "a l oi " to "ai oi ",
+        "al oi " to "ai oi ",
+        "hey al " to "hey ai ",
+        "ok al " to "ok ai ",
+        "alo al " to "alo ai ",
+        "a l " to "ai ",
+        "al " to "ai "
+    )
+    val alias = prefixAliases.firstOrNull { phrase.startsWith(it.first) } ?: return phrase
+    return alias.second + phrase.removePrefix(alias.first)
+}
+
+/**
  * Removes only common speech fillers at the end of an explicit voice command.
  * This makes commands tolerant of conversational phrasing without broad fuzzy
  * matching that could accidentally trigger an unrelated request.
@@ -483,7 +520,7 @@ private fun trimNgocSiAiNormalizedCommandFillers(input: String): String {
  * Exact normalized phrases are used to avoid stopping on unrelated conversation.
  */
 internal fun isNgocSiAiStopVoiceControlPhrase(input: String): Boolean {
-    var phrase = normalizeNgocSiAiVoicePhrase(input)
+    var phrase = normalizeNgocSiAiWakeWordAlias(input)
     // Remember whether the user explicitly addressed the assistant. This lets
     // "AI, tạm dừng" stop hands-free listening without making a bare "tạm dừng"
     // disable the assistant when it was intended as a music playback command.
@@ -553,7 +590,7 @@ internal fun isNgocSiAiStopVoiceControlPhrase(input: String): Boolean {
  * continues to route to the sleep timer rather than stopping immediately.
  */
 internal fun isNgocSiAiExplicitStopPhrase(input: String): Boolean {
-    var phrase = normalizeNgocSiAiVoicePhrase(input)
+    var phrase = normalizeNgocSiAiWakeWordAlias(input)
     val prefixes = listOf(
         "hey ngoc si ", "ok ngoc si ", "alo ngoc si ",
         "hey ai ", "ok ai ", "alo ai ", "ai oi ", "ai ",
@@ -622,7 +659,7 @@ private fun trimNgocSiAiExtractedQuery(input: String): String {
 
 /** True when recognition heard only the wake phrase, not a playback command yet. */
 internal fun isNgocSiAiWakeWordOnly(input: String): Boolean =
-    normalizeNgocSiAiVoicePhrase(input) in setOf(
+    normalizeNgocSiAiWakeWordAlias(input) in setOf(
         "ai", "ai oi", "hey ai", "ok ai", "alo ai",
         "hey ai oi", "ok ai oi", "alo ai oi"
     )
@@ -632,7 +669,7 @@ internal fun classifyNgocSiAiWakePhrase(
     input: String,
     entryContext: String? = null
 ): NgocSiAiLocalCommand? {
-    val normalized = normalizeNgocSiAiVoicePhrase(input)
+    val normalized = normalizeNgocSiAiWakeWordAlias(input)
     // Accept the same natural wake-word variants the microphone UI recognizes.
     // Check the longer prefixes first so "AI ơi" is stripped as one greeting.
     val wakePrefixes = listOf(
@@ -689,7 +726,7 @@ internal fun classifyNgocSiAiActivatedCommand(
     )
     if (!requiresExplicitAddress) return command
 
-    val normalized = normalizeNgocSiAiVoicePhrase(input)
+    val normalized = normalizeNgocSiAiWakeWordAlias(input)
     val explicitlyAddressed = normalized.startsWith("ai ") ||
         normalized.startsWith("hey ai ") ||
         normalized.startsWith("ok ai ") ||
@@ -706,7 +743,7 @@ internal fun classifyNgocSiAiActivatedCommand(
  * and a strict 1–1440 minute (24-hour) safety bound.
  */
 internal fun extractNgocSiAiSleepTimerMinutes(input: String): Int? {
-    var phrase = normalizeNgocSiAiVoicePhrase(input)
+    var phrase = normalizeNgocSiAiWakeWordAlias(input)
     val wakePrefixes = listOf(
         "hey ai oi ", "ok ai oi ", "alo ai oi ", "ai oi ",
         "hey ai ", "ok ai ", "alo ai ", "ai ",
@@ -767,11 +804,7 @@ internal fun classifyNgocSiAiLocalCommand(
         return NgocSiAiLocalCommand.SEARCH_DRIVE
     }
 
-    var phrase = Normalizer.normalize(input.trim().lowercase(Locale.ROOT), Normalizer.Form.NFD)
-        .replace("\\p{Mn}+".toRegex(), "")
-        .replace('đ', 'd')
-        .replace("[^a-z0-9]+".toRegex(), " ")
-        .trim()
+    var phrase = normalizeNgocSiAiWakeWordAlias(input)
     if (phrase.isBlank()) return null
 
     val politePrefixes = listOf(
