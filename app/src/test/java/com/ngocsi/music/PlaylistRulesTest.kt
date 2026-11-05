@@ -29,6 +29,17 @@ class PlaylistRulesTest {
     }
 
     @Test
+    fun addSongs_batchesUrisTrimsBlanksAndPreservesFirstSeenOrder() {
+        assertEquals(
+            listOf("content://a", "content://b", "content://c", "content://d"),
+            PlaylistRules.addSongs(
+                listOf("content://a", " content://a ", "content://b"),
+                listOf(" ", "content://c", " content://b ", "content://d")
+            )
+        )
+    }
+
+    @Test
     fun moveSong_placesAnItemBeforeOrAfterTheSelectedTarget() {
         val original = listOf("a", "b", "c", "d")
         assertEquals(

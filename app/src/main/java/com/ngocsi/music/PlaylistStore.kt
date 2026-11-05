@@ -115,15 +115,28 @@ class PlaylistStore(context: Context) {
         return updated.firstOrNull { it.id == playlistId }
     }
 
-    fun addSong(playlistId: String, uri: String): MusicPlaylist? {
-        val updated = load().map { playlist ->
+    fun addSong(playlistId: String, uri: String): MusicPlaylist? =
+        addSongs(playlistId, listOf(uri))
+
+    /** Persist a whole queue in one preference write instead of saving once per track. */
+    fun addSongs(playlistId: String, uris: List<String>): MusicPlaylist? {
+        val current = load()
+        var changed = false
+        val updated = current.map { playlist ->
             if (playlist.id != playlistId) playlist
-            else playlist.copy(
-                songUris = PlaylistRules.addSong(playlist.songUris, uri),
-                updatedAt = System.currentTimeMillis()
-            )
+            else {
+                val merged = PlaylistRules.addSongs(playlist.songUris, uris)
+                if (merged == playlist.songUris) playlist
+                else {
+                    changed = true
+                    playlist.copy(
+                        songUris = merged,
+                        updatedAt = System.currentTimeMillis()
+                    )
+                }
+            }
         }
-        save(updated)
+        if (changed) save(updated)
         return updated.firstOrNull { it.id == playlistId }
     }
 

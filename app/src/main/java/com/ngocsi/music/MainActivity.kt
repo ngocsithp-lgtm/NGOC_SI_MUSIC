@@ -5053,12 +5053,12 @@ class MainActivity : ComponentActivity() {
         }
         val existingUris = playlist.songUris.toSet()
         val addedCount = queueUris.count { it !in existingUris }
-        queueUris.forEach { playlistStore.addSong(playlist.id, it) }
+        val updated = playlistStore.addSongs(playlist.id, queueUris)
         refreshPlaylists()
-        errorMessage = if (addedCount == 0) {
-            "Các bài trong hàng đợi đã có sẵn trong playlist “${playlist.name}”."
-        } else {
-            "Đã thêm $addedCount bài mới từ hàng đợi vào “${playlist.name}”."
+        errorMessage = when {
+            updated == null -> "Không thể cập nhật playlist “${playlist.name}”."
+            addedCount == 0 -> "Các bài trong hàng đợi đã có sẵn trong playlist “${playlist.name}”."
+            else -> "Đã thêm $addedCount bài mới từ hàng đợi vào “${playlist.name}”."
         }
     }
 

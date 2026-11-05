@@ -4,10 +4,17 @@ internal object PlaylistRules {
     fun normalizeName(name: String, maxLength: Int = 80): String =
         name.trim().replace(Regex("\\s+"), " ").take(maxLength)
 
-    fun addSong(songUris: List<String>, uri: String): List<String> {
-        val clean = uri.trim()
-        if (clean.isBlank()) return songUris.distinct()
-        return (songUris + clean).distinct()
+    fun addSong(songUris: List<String>, uri: String): List<String> =
+        addSongs(songUris, listOf(uri))
+
+    /** Merge a batch of saved song URIs once, preserving the first-seen order. */
+    fun addSongs(songUris: List<String>, incomingUris: List<String>): List<String> {
+        val unique = LinkedHashSet<String>()
+        (songUris + incomingUris).forEach { uri ->
+            val clean = uri.trim()
+            if (clean.isNotBlank()) unique.add(clean)
+        }
+        return unique.toList()
     }
 
     fun removeSong(songUris: List<String>, uri: String): List<String> =
