@@ -247,8 +247,7 @@ class MainActivity : ComponentActivity() {
             controller?.let { c ->
                 position = c.currentPosition.coerceAtLeast(0L)
                 duration = c.duration.takeIf { it > 0L } ?: duration
-                shuffleEnabled = c.shuffleModeEnabled
-                repeatMode = c.repeatMode
+                syncPlaybackModesFromController(c)
             }
         }
 
@@ -1697,8 +1696,7 @@ class MainActivity : ComponentActivity() {
                     // continues in the background or resumes from the lock screen.
                     // Do not overwrite its persisted speed with the Activity default.
                     selectedPlaybackSpeed = c.playbackParameters.speed.coerceIn(0.5f, 2.0f)
-                    shuffleEnabled = c.shuffleModeEnabled
-                    repeatMode = c.repeatMode
+                    syncPlaybackModesFromController(c)
                     position = c.currentPosition.coerceAtLeast(0L)
                     isPlaying = c.isPlaying
                     // Re-check expired persisted timers after the service is connected;
@@ -2155,8 +2153,7 @@ class MainActivity : ComponentActivity() {
         // or prepare the queue; just move the current position and start playback.
         c.seekToDefaultPosition(queueIndex)
         c.play()
-        shuffleEnabled = c.shuffleModeEnabled
-        repeatMode = c.repeatMode
+        syncPlaybackModesFromController(c)
         errorMessage = null
     }
 
@@ -4321,8 +4318,7 @@ class MainActivity : ComponentActivity() {
                     if (wasPlaying) c.play()
                 }
 
-                shuffleEnabled = c.shuffleModeEnabled
-                repeatMode = c.repeatMode
+                syncPlaybackModesFromController(c)
                 c.setPlaybackSpeed(selectedPlaybackSpeed)
                 position = c.currentPosition.coerceAtLeast(0L)
                 isPlaying = c.isPlaying
@@ -5188,6 +5184,17 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Media3 runs each source segment with repeat/shuffle disabled so it cannot reorder
+     * the canonical mixed playlist. Do not copy those temporary segment flags back into
+     * the user's persistent player preferences while the mixed playlist is active.
+     */
+    private fun syncPlaybackModesFromController(player: Player) {
+        if (activeMixedPlaylist != null) return
+        shuffleEnabled = player.shuffleModeEnabled
+        repeatMode = player.repeatMode
+    }
+
     private fun clearActiveMixedPlaylistPlayback() {
         activeMixedPlaylist = null
         activeMixedPlaylistSegmentStartEntryIndex = -1
@@ -5600,8 +5607,7 @@ class MainActivity : ComponentActivity() {
             }
             position = c.currentPosition.coerceAtLeast(0L)
             isPlaying = c.isPlaying
-            shuffleEnabled = c.shuffleModeEnabled
-            repeatMode = c.repeatMode
+            syncPlaybackModesFromController(c)
         }
     }
 
