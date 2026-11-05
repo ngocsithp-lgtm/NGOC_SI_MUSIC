@@ -55,6 +55,8 @@ class NgocSiAiEntryContextTest {
 
         assertTrue(instruction.contains("trang YouTube"))
         assertTrue(instruction.contains("tìm tiếp"))
+        assertTrue(instruction.contains("search_and_play_youtube"))
+        assertTrue(instruction.contains("không tự phát"))
         assertTrue(instruction.contains("Không tự suy đoán"))
     }
 
