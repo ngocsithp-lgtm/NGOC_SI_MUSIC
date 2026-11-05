@@ -1462,8 +1462,10 @@ internal fun extractNgocSiAiContextualYoutubeAutoPlayQuery(
     input: String,
     entryContext: String?
 ): String? {
-    if (normalizeNgocSiAiEntryContext(entryContext) != "YouTube") return null
+    // Explicit YouTube requests work from any page. Context inference is the only
+    // behavior restricted to YouTube, so other pages never silently change source.
     extractNgocSiAiYoutubeAutoPlayQuery(input)?.let { return it }
+    if (normalizeNgocSiAiEntryContext(entryContext) != "YouTube") return null
 
     var phrase = input.trim().replace(
         Regex("""^(?:(?:hey|ok|alo)\s+)?(?:ai|ngọc sĩ|ngoc si)\b[\s,:-]*""", RegexOption.IGNORE_CASE),
