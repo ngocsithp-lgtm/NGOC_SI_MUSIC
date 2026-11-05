@@ -545,6 +545,11 @@ class MainActivity : ComponentActivity() {
                     .filter { it.isLetterOrDigit() || it == '-' || it == '_' }
                     .take(32)
                 if (reportedId.isNotBlank() && reportedId != track.videoId) return@runOnUiThread
+                // Ignore delayed WebView events from the previous YouTube segment
+                // after the mixed playlist has already switched to Media3.
+                if (activeMixedPlaylist != null && !activeMixedPlaylistSegmentIsYouTube) {
+                    return@runOnUiThread
+                }
 
                 val isPlaying = state == 1 || state == 3
                 if (state == 1) lastHandledInlineYouTubeEndedId = null
@@ -819,6 +824,7 @@ class MainActivity : ComponentActivity() {
     private var activeMixedPlaylist: MusicPlaylist? = null
     private var activeMixedPlaylistNextEntryIndex = -1
     private var activeMixedPlaylistAdvancePending = false
+    private var activeMixedPlaylistSegmentIsYouTube = false
     private var pendingAiPlaylistName: String? = null
     private var pendingAiAddCurrentSongPlaylistName: String? = null
     private var pendingAiLocalPlaybackRequested = false
@@ -5074,6 +5080,17 @@ class MainActivity : ComponentActivity() {
         activeMixedPlaylist = null
         activeMixedPlaylistNextEntryIndex = -1
         activeMixedPlaylistAdvancePending = false
+        activeMixedPlaylistSegmentIsYouTube = false
+    }
+
+    private fun pauseInlineYouTubeForMixedPlaylistHandoff() {
+        val track = youtubeInlineTrack ?: youtubeLastPlayed
+        pauseInlineYouTubeWebView()
+        youtubePlaybackIsPlaying = false
+        prefs.edit().putBoolean("youtube_playback_is_playing", false).apply()
+        if (track != null && inlineBackgroundPlaybackEnabled) {
+            updateInlineYouTubeBackgroundService(track, isPlaying = false)
+        }
     }
 
     /**
@@ -5138,6 +5155,8 @@ class MainActivity : ComponentActivity() {
                         it.uri == requestedSong.uri
                     }.takeIf { it >= 0 } ?: 0
                     invalidatePendingPlaybackAuthorization()
+                    activeMixedPlaylistSegmentIsYouTube = false
+                    pauseInlineYouTubeForMixedPlaylistHandoff()
                     setYouTubeActiveSource(false)
                     queueSongs.clear()
                     queueSongs.addAll(segmentSongs)
@@ -5174,6 +5193,7 @@ class MainActivity : ComponentActivity() {
                         continue
                     }
                     activeMixedPlaylistNextEntryIndex = segmentEnd
+                    activeMixedPlaylistSegmentIsYouTube = true
                     playYouTubePlaylistItems(items, 0, preserveMixedPlaylist = true)
                     return true
                 }
