@@ -19,6 +19,23 @@ class NgocSiAiLocalCommandRulesTest {
     }
 
     @Test
+    fun genericTransportCommandsCanBeRoutedThroughMainActivityWithoutCapturingYouTubeSpecificActions() {
+        assertEquals("next", ngocSiAiMainActivityTransportAction(NgocSiAiLocalCommand.NEXT))
+        assertEquals("previous", ngocSiAiMainActivityTransportAction(NgocSiAiLocalCommand.PREVIOUS))
+        assertNull(ngocSiAiMainActivityTransportAction(NgocSiAiLocalCommand.NEXT_YOUTUBE_VIDEO))
+        assertNull(ngocSiAiMainActivityTransportAction(NgocSiAiLocalCommand.PAUSE))
+        assertEquals(
+            "Đang chuyển sang bài tiếp theo.",
+            ngocSiAiMainActivityTransportResponse(NgocSiAiLocalCommand.NEXT)
+        )
+        assertEquals(
+            "Đang quay về bài trước.",
+            ngocSiAiMainActivityTransportResponse(NgocSiAiLocalCommand.PREVIOUS)
+        )
+        assertNull(ngocSiAiMainActivityTransportResponse(NgocSiAiLocalCommand.PLAY))
+    }
+
+    @Test
     fun recognizesSafeMediaVolumeCommandsInWakeWordSessions() {
         assertEquals(NgocSiAiLocalCommand.VOLUME_UP, classifyNgocSiAiLocalCommand("Tăng âm lượng"))
         assertEquals(NgocSiAiLocalCommand.VOLUME_UP, classifyNgocSiAiWakePhrase("AI, tăng tiếng lên"))

@@ -404,6 +404,13 @@ class NgocSiWakeWordService : Service() {
             youtubeActiveSource = getSharedPreferences("ngoc_si_music", Context.MODE_PRIVATE)
                 .getBoolean("youtube_active_source", false)
         )
+        if (youtubeControlAction == null) {
+            dispatchMainActivityTransport(command)?.let { reply ->
+                updateNotification("Đã nghe “$recognized” · $reply")
+                speakReply(reply)
+                return
+            }
+        }
 
         if (
             youtubeControlAction == null &&
@@ -1608,6 +1615,19 @@ class NgocSiWakeWordService : Service() {
         }
     }
 
+    private fun dispatchMainActivityTransport(command: NgocSiAiLocalCommand): String? {
+        val action = ngocSiAiMainActivityTransportAction(command) ?: return null
+        if (!NgocSiMainActivityState.hasLiveInstance()) return null
+        val sent = runCatching {
+            sendBroadcast(
+                Intent(YouTubeBackgroundService.ACTION_CONTROL)
+                    .setPackage(packageName)
+                    .putExtra(YouTubeBackgroundService.EXTRA_CONTROL, action)
+            )
+        }.isSuccess
+        return if (sent) ngocSiAiMainActivityTransportResponse(command) else null
+    }
+
     private fun runAppCommand(command: NgocSiAiLocalCommand, originalText: String): String {
         if (command == NgocSiAiLocalCommand.HELP) {
             return "Tôi có thể điều khiển nhạc điện thoại, YouTube, Drive và Radio; tìm bài, phát hoặc tạm dừng, chuyển bài, tua, chỉnh âm lượng và tốc độ; mở Thư viện, Album, Thư mục, Yêu thích, TV, Hàng đợi, Playlist, Trình phát, Cài đặt; tạo và phát playlist, thêm bài vào hàng đợi hoặc playlist, lưu bài yêu thích và đặt hoặc hủy hẹn giờ. Một số thao tác cần Internet, đăng nhập hoặc quyền Android."
@@ -1634,6 +1654,7 @@ class NgocSiWakeWordService : Service() {
         if (selectedYouTubeAction != null) {
             return runYouTubeControl(selectedYouTubeAction, hasSavedYouTubeVideo)
         }
+        dispatchMainActivityTransport(command)?.let { return it }
         if (youtubePrefs.getBoolean("youtube_active_source", false) &&
             command in setOf(
                 NgocSiAiLocalCommand.SET_PLAYBACK_SPEED,

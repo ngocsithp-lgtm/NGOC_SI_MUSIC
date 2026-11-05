@@ -281,6 +281,25 @@ internal fun ngocSiAiYouTubeActionForCommand(
     else -> null
 }
 
+/**
+ * Generic transport commands should be handled by MainActivity when it is alive,
+ * because it owns mixed-source playlist transitions. Otherwise callers may fall
+ * back to the ordinary Media3 session.
+ */
+internal fun ngocSiAiMainActivityTransportAction(command: NgocSiAiLocalCommand): String? =
+    when (command) {
+        NgocSiAiLocalCommand.NEXT -> "next"
+        NgocSiAiLocalCommand.PREVIOUS -> "previous"
+        else -> null
+    }
+
+internal fun ngocSiAiMainActivityTransportResponse(command: NgocSiAiLocalCommand): String? =
+    when (command) {
+        NgocSiAiLocalCommand.NEXT -> "Đang chuyển sang bài tiếp theo."
+        NgocSiAiLocalCommand.PREVIOUS -> "Đang quay về bài trước."
+        else -> null
+    }
+
 internal enum class NgocSiAiYouTubeDispatchTarget {
     OPEN_YOUTUBE,
     MAIN_INLINE_PLAYER,

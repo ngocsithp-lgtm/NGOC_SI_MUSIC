@@ -1416,6 +1416,19 @@ class NgocSiAiActivity : ComponentActivity() {
         )
     }
 
+    private fun dispatchMainActivityTransport(command: NgocSiAiLocalCommand): String? {
+        val action = ngocSiAiMainActivityTransportAction(command) ?: return null
+        if (!NgocSiMainActivityState.hasLiveInstance()) return null
+        val sent = runCatching {
+            sendBroadcast(
+                Intent(YouTubeBackgroundService.ACTION_CONTROL)
+                    .setPackage(packageName)
+                    .putExtra(YouTubeBackgroundService.EXTRA_CONTROL, action)
+            )
+        }.isSuccess
+        return if (sent) ngocSiAiMainActivityTransportResponse(command) else null
+    }
+
     private fun runLocalCommand(command: NgocSiAiLocalCommand, originalText: String = ""): String {
         val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
         val youtubeAction = ngocSiAiYouTubeActionForCommand(
@@ -1425,6 +1438,7 @@ class NgocSiAiActivity : ComponentActivity() {
         if (youtubeAction != null) {
             return runYouTubeControl(youtubeAction, youtubeControlResponse(youtubeAction))
         }
+        dispatchMainActivityTransport(command)?.let { return it }
         executeNgocSiAiSystemVolumeCommand(
             getSystemService(AudioManager::class.java),
             command
