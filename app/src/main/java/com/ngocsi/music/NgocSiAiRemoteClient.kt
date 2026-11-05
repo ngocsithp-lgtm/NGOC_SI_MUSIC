@@ -143,6 +143,12 @@ internal class NgocSiAiRemoteClient(context: Context) {
         // the general Online search action for an explicit search-then-play request.
         val contextualYoutubeAutoPlayQuery =
             extractNgocSiAiContextualYoutubeAutoPlayQuery(newestUserMessage.content, entryContext)
+        // A search-only request from the YouTube page must stay on YouTube without autoplay.
+        val contextualYoutubeSearchQuery = if (contextualYoutubeAutoPlayQuery == null) {
+            extractNgocSiAiContextualYoutubeQuery(newestUserMessage.content, entryContext)
+        } else {
+            null
+        }
         // On the Drive page, keep source-neutral searches in Drive even if Gemini
         // proposes the general Online action. Explicitly named sources are excluded
         // by the contextual query extractor and therefore remain untouched.
@@ -212,6 +218,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 var toolRound = 0
                 var stopSequenceFeedback: String? = null
                 var contextualYoutubeAutoPlayDispatched = false
+                var contextualYoutubeSearchDispatched = false
                 var contextualDriveSearchDispatched = false
                 while (response.functionCalls.isNotEmpty() && toolRound < MAX_TOOL_ROUNDS) {
                     // Select one valid action for this round. Other proposed actions are
@@ -247,12 +254,18 @@ internal class NgocSiAiRemoteClient(context: Context) {
                             else -> {
                                 val inferredYoutubeQuery = contextualYoutubeAutoPlayQuery
                                     ?.takeIf { !contextualYoutubeAutoPlayDispatched }
+                                val inferredYoutubeSearchQuery = contextualYoutubeSearchQuery
+                                    ?.takeIf { !contextualYoutubeSearchDispatched }
                                 val inferredDriveQuery = contextualDriveSearchQuery
                                     ?.takeIf { !contextualDriveSearchDispatched }
                                 if (inferredYoutubeQuery != null) {
                                     contextualYoutubeAutoPlayDispatched = true
                                     effectiveAction = "search_and_play_youtube"
                                     executeNgocSiAiToolSafely(executeTool, effectiveAction, inferredYoutubeQuery)
+                                } else if (inferredYoutubeSearchQuery != null) {
+                                    contextualYoutubeSearchDispatched = true
+                                    effectiveAction = "search_youtube"
+                                    executeNgocSiAiToolSafely(executeTool, effectiveAction, inferredYoutubeSearchQuery)
                                 } else if (inferredDriveQuery != null) {
                                     contextualDriveSearchDispatched = true
                                     effectiveAction = "search_drive"
