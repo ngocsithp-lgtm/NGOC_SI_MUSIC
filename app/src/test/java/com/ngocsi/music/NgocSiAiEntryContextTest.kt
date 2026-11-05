@@ -42,6 +42,14 @@ class NgocSiAiEntryContextTest {
     }
 
     @Test
+    fun missingLaunchExtraRecoversTheCurrentVisiblePage() {
+        assertEquals("YouTube", resolveNgocSiAiEntryContext(null, "YouTube"))
+        assertEquals("Radio", resolveNgocSiAiEntryContext("invalid", "Radio"))
+        assertEquals("Google Drive", resolveNgocSiAiEntryContext("Drive", "YouTube"))
+        assertNull(resolveNgocSiAiEntryContext(null, null))
+    }
+
+    @Test
     fun unknownOrInstructionLikePageValuesAreRejected() {
         assertNull(normalizeNgocSiAiEntryContext(null))
         assertNull(normalizeNgocSiAiEntryContext(""))
