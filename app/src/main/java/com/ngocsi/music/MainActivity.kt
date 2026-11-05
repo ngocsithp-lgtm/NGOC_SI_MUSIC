@@ -5062,8 +5062,17 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun playlistYouTubeItemsInOrder(playlist: MusicPlaylist): List<YouTubePlaylistItem> =
+        playlist.entries.filter { it.type == PlaylistEntry.TYPE_YOUTUBE }
+            .mapNotNull { entry ->
+                playlist.youtubeItems.firstOrNull { it.videoId == entry.videoId } ?: entry.toYouTubeItem()
+            }
+
     private fun playYouTubePlaylist(playlist: MusicPlaylist, startIndex: Int = 0) {
-        val items = playlist.youtubeItems
+        playYouTubePlaylistItems(playlistYouTubeItemsInOrder(playlist), startIndex)
+    }
+
+    private fun playYouTubePlaylistItems(items: List<YouTubePlaylistItem>, startIndex: Int = 0) {
         val selected = items.getOrNull(startIndex) ?: run {
             errorMessage = "Playlist chưa có video YouTube để phát."
             return
@@ -5079,33 +5088,72 @@ class MainActivity : ComponentActivity() {
             }
         }.toString()
         playYouTube(
-            YouTubeTrack(
-                videoId = selected.videoId,
-                title = selected.title,
-                channelTitle = selected.channelTitle,
-                thumbnailUrl = selected.thumbnailUrl
-            ),
+            YouTubeTrack(selected.videoId, selected.title, selected.channelTitle, selected.thumbnailUrl),
             queueJson,
             startIndex.coerceIn(0, items.lastIndex)
         )
     }
 
     private fun playPlaylistDefault(playlist: MusicPlaylist) {
-        if (playlist.songUris.isNotEmpty()) {
-            playPlaylist(playlist)
-        } else {
-            playYouTubePlaylist(playlist)
+        for ((index, entry) in playlist.entries.withIndex()) {
+            when (entry.type) {
+                PlaylistEntry.TYPE_SONG -> {
+                    val song = songs.firstOrNull { it.uri.toString() == entry.uri }
+                    if (song != null) {
+                        playPlaylistSong(playlist, song)
+                        return
+                    }
+                }
+                PlaylistEntry.TYPE_YOUTUBE -> {
+                    val youtubeItems = playlistYouTubeItemsInOrder(playlist)
+                    val youtubeIndex = playlist.entries.take(index + 1)
+                        .count { it.type == PlaylistEntry.TYPE_YOUTUBE } - 1
+                    if (youtubeItems.getOrNull(youtubeIndex) != null) {
+                        playYouTubePlaylistItems(youtubeItems, youtubeIndex)
+                        return
+                    }
+                }
+            }
+        }
+        errorMessage = "Playlist chưa có mục nào khả dụng. Kiểm tra quyền nhạc thiết bị/Drive hoặc kết nối YouTube."
+    }
+
+    private fun playPlaylistEntry(playlist: MusicPlaylist, entryIndex: Int) {
+        val entry = playlist.entries.getOrNull(entryIndex) ?: return
+        when (entry.type) {
+            PlaylistEntry.TYPE_SONG -> {
+                val song = songs.firstOrNull { it.uri.toString() == entry.uri }
+                if (song == null) {
+                    errorMessage = "Bài nhạc chưa khả dụng. Hãy kiểm tra thư viện thiết bị hoặc kết nối lại Google Drive."
+                } else {
+                    playPlaylistSong(playlist, song)
+                }
+            }
+            PlaylistEntry.TYPE_YOUTUBE -> {
+                val youtubeItems = playlistYouTubeItemsInOrder(playlist)
+                val youtubeIndex = playlist.entries.take(entryIndex + 1)
+                    .count { it.type == PlaylistEntry.TYPE_YOUTUBE } - 1
+                playYouTubePlaylistItems(youtubeItems, youtubeIndex)
+            }
         }
     }
 
     private fun playPlaylistFromSong(playlist: MusicPlaylist, songIndex: Int) {
+        val orderedSongs = playlist.entries.filter { it.type == PlaylistEntry.TYPE_SONG }
+            .mapNotNull { entry -> songs.firstOrNull { it.uri.toString() == entry.uri } }
+        orderedSongs.getOrNull(songIndex)?.let { playPlaylistSong(playlist, it) }
+    }
+
+    private fun playPlaylistSong(playlist: MusicPlaylist, requestedSong: Song) {
         invalidatePendingPlaybackAuthorization()
-        val orderedSongs = playlist.songUris.mapNotNull { uri -> songs.firstOrNull { it.uri.toString() == uri } }
-        val requestedSong = orderedSongs.getOrNull(songIndex)
-        if (requestedSong == null) return
+        val orderedSongs = playlist.entries.filter { it.type == PlaylistEntry.TYPE_SONG }
+            .mapNotNull { entry -> songs.firstOrNull { it.uri.toString() == entry.uri } }
         val sourceScopedSongs = orderedSongs.filter { it.source == requestedSong.source }
         val scopedIndex = sourceScopedSongs.indexOfFirst { it.uri == requestedSong.uri }
-        if (sourceScopedSongs.isEmpty() || scopedIndex < 0) return
+        if (sourceScopedSongs.isEmpty() || scopedIndex < 0) {
+            errorMessage = "Không tìm thấy bài trong hàng đợi cùng nguồn."
+            return
+        }
         val c = controller ?: run {
             errorMessage = "Trình phát đang khởi động, thử lại sau."
             return
@@ -5120,15 +5168,18 @@ class MainActivity : ComponentActivity() {
         c.setPlaybackSpeed(selectedPlaybackSpeed)
         c.prepare()
         c.play()
-        currentIndex = songs.indexOfFirst { it.uri == orderedSongs[songIndex].uri }
+        currentIndex = songs.indexOfFirst { it.uri == requestedSong.uri }
         position = 0L
         savedPosition = 0L
-        lastSongUri = orderedSongs[songIndex].uri.toString()
+        lastSongUri = requestedSong.uri.toString()
         saveQueueOrder()
         savePlaybackState()
         playlistDetailId = null
         showPlaylists = false
     }
+
+
+
     private fun dispatchPendingAiPlaylistIfReady() {
         val requestedName = pendingAiPlaylistName ?: return
         if (!localLibraryLoaded || controller == null) return
@@ -5233,52 +5284,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun playPlaylist(playlist: MusicPlaylist) {
-        invalidatePendingPlaybackAuthorization()
-        val orderedSongs = playlist.songUris.mapNotNull { uri ->
-            songs.firstOrNull { it.uri.toString() == uri }
-        }
-        if (orderedSongs.isEmpty()) {
-            errorMessage = "Playlist “" + playlist.name + "” chưa có bài khả dụng."
-            return
-        }
-
-        val c = controller ?: run {
-            errorMessage = "Trình phát đang khởi động, thử lại sau."
-            return
-        }
-        setYouTubeActiveSource(false)
-
-        cancelRadioRecovery()
-        activeRadioTitle = null
-        activeRadioStreams = emptyList()
-        activeRadioStreamIndex = 0
-
-        val keepShuffle = c.shuffleModeEnabled
-        val keepRepeat = c.repeatMode
-        val sourceScopedSongs = orderedSongs.filter { it.source == orderedSongs.first().source }
-        queueSongs.clear()
-        queueSongs.addAll(sourceScopedSongs)
-        queueSource = sourceScopedSongs.firstOrNull()?.source.orEmpty()
-        if (queueSongs.isEmpty()) {
-            errorMessage = "Playlist không có bài hát khả dụng."
-            return
-        }
-
-        c.setMediaItems(queueSongs.map { mediaItemFor(it) }, 0, 0L)
-        c.shuffleModeEnabled = keepShuffle
-        c.repeatMode = keepRepeat
-        c.setPlaybackSpeed(selectedPlaybackSpeed)
-        c.prepare()
-        c.play()
-
-        currentIndex = songs.indexOfFirst { it.uri == orderedSongs.first().uri }
-        position = 0L
-        savedPosition = 0L
-        lastSongUri = orderedSongs.first().uri.toString()
-        saveQueueOrder()
-        savePlaybackState()
-        showPlaylists = false
-        errorMessage = "Đang phát playlist: " + playlist.name
+        playPlaylistDefault(playlist)
     }
 
     override fun onResume() {
@@ -6336,8 +6342,10 @@ class MainActivity : ComponentActivity() {
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     items(playlists, key = { it.id }) { playlist ->
-                        val coverSong = playlist.songUris.firstNotNullOfOrNull { uri ->
-                            songs.firstOrNull { it.uri.toString() == uri }
+                        val coverSong = playlist.entries.firstNotNullOfOrNull { entry ->
+                            if (entry.type == PlaylistEntry.TYPE_SONG) {
+                                songs.firstOrNull { it.uri.toString() == entry.uri }
+                            } else null
                         }
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
@@ -6377,7 +6385,7 @@ class MainActivity : ComponentActivity() {
                                         overflow = TextOverflow.Ellipsis
                                     )
                                     Text(
-                                        "${playlist.songUris.size} bài • ${playlist.youtubeItems.size} video YouTube • chạm để mở",
+                                        "${playlist.entries.size} mục • ${playlist.songUris.size} nhạc • ${playlist.youtubeItems.size} YouTube • chạm để mở",
                                         color = Color(0xFF888894),
                                         fontSize = 10.sp
                                     )
@@ -14465,7 +14473,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                                 overflow = TextOverflow.Ellipsis
                                             )
                                             Text(
-                                                playlist.songUris.size.toString() + " bài • " + playlist.youtubeItems.size + " video YouTube",
+                                                playlist.entries.size.toString() + " mục • " + playlist.songUris.size + " nhạc • " + playlist.youtubeItems.size + " YouTube",
                                                 color = Color(0xFF888894),
                                                 fontSize = 10.sp,
                                                 maxLines = 1
@@ -14537,12 +14545,12 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
     @Composable
     private fun PlaylistDetailDialog(playlist: MusicPlaylist) {
-        val playlistSongs = playlist.songUris.mapNotNull { uri ->
-            songs.firstOrNull { it.uri.toString() == uri }
-        }
+        val playlistSongs = playlist.entries.filter { it.type == PlaylistEntry.TYPE_SONG }
+            .mapNotNull { entry -> songs.firstOrNull { it.uri.toString() == entry.uri } }
+        val songEntryCount = playlist.entries.count { it.type == PlaylistEntry.TYPE_SONG }
+        val unavailableSongCount = (songEntryCount - playlistSongs.size).coerceAtLeast(0)
         val playlistSourceCount = playlistSongs.map { it.source }.distinct().size +
-            if (playlist.youtubeItems.isNotEmpty()) 1 else 0
-        val unavailableSongCount = (playlist.songUris.size - playlistSongs.size).coerceAtLeast(0)
+            if (playlist.entries.any { it.type == PlaylistEntry.TYPE_YOUTUBE }) 1 else 0
 
         Dialog(onDismissRequest = { playlistDetailId = null }) {
             Surface(
@@ -14557,13 +14565,20 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                 playlistDetailId = null
                                 showPlaylists = true
                             }
-                        ) {
-                            Text("‹")
-                        }
+                        ) { Text("‹") }
                         Column(Modifier.weight(1f)) {
-                            Text(playlist.name, color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(
-                                "${playlistSongs.size}/${playlist.songUris.size} bài khả dụng • ${playlist.youtubeItems.size} video YouTube",
+                                playlist.name,
+                                color = Color.White,
+                                fontSize = 19.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                playlist.entries.size.toString() + " mục • " +
+                                    playlistSongs.size + "/" + songEntryCount + " nhạc khả dụng • " +
+                                    playlist.youtubeItems.size + " YouTube",
                                 color = Color(0xFF888894),
                                 fontSize = 11.sp,
                                 maxLines = 1,
@@ -14572,14 +14587,9 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                             TextButton(
-                                onClick = { playPlaylist(playlist) },
-                                enabled = playlistSongs.isNotEmpty()
-                            ) { Text(if (playlistSourceCount > 1) "▶ Nguồn đầu" else "▶ Phát") }
-                            if (playlist.youtubeItems.isNotEmpty()) {
-                                TextButton(
-                                    onClick = { playYouTubePlaylist(playlist) }
-                                ) { Text("▶ YOUTUBE") }
-                            }
+                                onClick = { playPlaylistDefault(playlist) },
+                                enabled = playlist.entries.isNotEmpty()
+                            ) { Text("▶ PHÁT TỪ ĐẦU") }
                             TextButton(
                                 onClick = { addQueueToPlaylist(playlist) },
                                 enabled = queueSongs.isNotEmpty() || prefs.getBoolean("youtube_active_source", false)
@@ -14590,7 +14600,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
 
                     if (unavailableSongCount > 0) {
                         Text(
-                            "${unavailableSongCount} mục đã lưu chưa có trong thư viện hiện tại. Nếu đây là nhạc Google Drive, hãy kết nối hoặc khôi phục nguồn Drive để ứng dụng nhận lại bài hát.",
+                            unavailableSongCount.toString() +
+                                " bài nhạc chưa khả dụng. Nếu là nhạc Google Drive, hãy kết nối lại tài khoản hoặc khôi phục quyền truy cập thư mục.",
                             color = Color(0xFFFFC66D),
                             fontSize = 11.sp,
                             lineHeight = 15.sp
@@ -14599,20 +14610,16 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                     }
                     if (playlistSourceCount > 1) {
                         Text(
-                            "Playlist có nhiều nguồn. Khi phát một bài, ứng dụng giữ các bài cùng nguồn trong hàng đợi để không trộn thư viện.",
+                            "Thứ tự chung giữa nhạc thiết bị, Google Drive và YouTube được giữ trong danh sách. Khi phát, ứng dụng dùng đúng trình phát và hàng đợi tương thích với nguồn đã chọn.",
                             color = Color(0xFF9B9EAD),
                             fontSize = 11.sp,
                             lineHeight = 15.sp
                         )
                         Spacer(Modifier.height(6.dp))
                     }
-                    if (playlistSongs.isEmpty() && playlist.youtubeItems.isEmpty()) {
+                    if (playlist.entries.isEmpty()) {
                         Text(
-                            if (playlist.songUris.isEmpty()) {
-                                "Playlist chưa có bài. Hãy thêm nhạc hoặc video YouTube bằng các lệnh AI."
-                            } else {
-                                "Nhạc đã lưu hiện chưa khả dụng. Hãy kiểm tra thư viện thiết bị hoặc kết nối lại Google Drive."
-                            },
+                            "Playlist chưa có bài. Hãy thêm nhạc thiết bị, Google Drive hoặc video YouTube.",
                             color = Color(0xFF9999A5),
                             fontSize = 13.sp
                         )
@@ -14621,195 +14628,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                             modifier = Modifier.heightIn(max = 520.dp),
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            if (playlistSongs.isNotEmpty()) {
-                                item {
-                                    Text(
-                                        "NHẠC THIẾT BỊ / GOOGLE DRIVE",
-                                        color = Color(0xFF9B9EAD),
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                                itemsIndexed(playlistSongs, key = { _, song -> song.uri.toString() }) { index, song ->
-                                    Row(
-                                        Modifier.fillMaxWidth()
-                                            .clip(RoundedCornerShape(14.dp))
-                                            .background(Color(0xFF181922))
-                                            .clickable { playPlaylistFromSong(playlist, index) }
-                                            .padding(horizontal = 8.dp, vertical = 6.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        SongArtwork(song, Modifier.size(42.dp))
-                                        Spacer(Modifier.width(8.dp))
-                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                            Text(
-                                                song.title,
-                                                color = Color.White,
-                                                fontSize = 14.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                            Row(
-                                                Modifier.fillMaxWidth(),
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(5.dp)
-                                            ) {
-                                                Text(
-                                                    song.artist.ifBlank { "Không rõ nghệ sĩ" },
-                                                    color = Color(0xFF888894),
-                                                    fontSize = 10.sp,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                    modifier = Modifier.weight(1f, fill = false)
-                                                )
-                                                SourceBadge(song.source)
-                                            }
-                                        }
-                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            IconButton(
-                                                onClick = {
-                                                    playlistSongs.getOrNull(index - 1)?.let { target ->
-                                                        playlistStore.moveSong(
-                                                            playlist.id,
-                                                            song.uri.toString(),
-                                                            target.uri.toString(),
-                                                            placeAfterTarget = false
-                                                        )
-                                                        refreshPlaylists()
-                                                    }
-                                                },
-                                                enabled = index > 0,
-                                                modifier = Modifier.size(26.dp)
-                                            ) {
-                                                Text("↑", color = if (index > 0) Color(0xFFB9A7FF) else Color(0xFF444956), fontSize = 14.sp)
-                                            }
-                                            IconButton(
-                                                onClick = {
-                                                    playlistSongs.getOrNull(index + 1)?.let { target ->
-                                                        playlistStore.moveSong(
-                                                            playlist.id,
-                                                            song.uri.toString(),
-                                                            target.uri.toString(),
-                                                            placeAfterTarget = true
-                                                        )
-                                                        refreshPlaylists()
-                                                    }
-                                                },
-                                                enabled = index < playlistSongs.lastIndex,
-                                                modifier = Modifier.size(26.dp)
-                                            ) {
-                                                Text("↓", color = if (index < playlistSongs.lastIndex) Color(0xFFB9A7FF) else Color(0xFF444956), fontSize = 14.sp)
-                                            }
-                                        }
-                                        TextButton(onClick = { playPlaylistFromSong(playlist, index) }) { Text("▶") }
-                                        TextButton(
-                                            onClick = {
-                                                playlistStore.removeSong(playlist.id, song.uri.toString())
-                                                refreshPlaylists()
-                                            }
-                                        ) { Text("XÓA", color = Color(0xFFFF8A9A)) }
-                                    }
-                                }
-                            }
-                            if (playlist.youtubeItems.isNotEmpty()) {
-                                item {
-                                    Row(
-                                        Modifier.fillMaxWidth(),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            "VIDEO YOUTUBE • ${playlist.youtubeItems.size}",
-                                            color = Color(0xFF9B9EAD),
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        TextButton(onClick = { playYouTubePlaylist(playlist) }) {
-                                            Text("PHÁT HÀNG ĐỢI")
-                                        }
-                                    }
-                                }
-                                itemsIndexed(playlist.youtubeItems, key = { _, item -> item.videoId }) { index, item ->
-                                    Row(
-                                        Modifier.fillMaxWidth()
-                                            .clip(RoundedCornerShape(14.dp))
-                                            .background(Color(0xFF181922))
-                                            .clickable { playYouTubePlaylist(playlist, index) }
-                                            .padding(horizontal = 8.dp, vertical = 6.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Box(
-                                            Modifier.size(42.dp)
-                                                .clip(RoundedCornerShape(9.dp))
-                                                .background(Color(0xFF25263A)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text("▶", color = Color(0xFFFF6B75), fontSize = 18.sp)
-                                        }
-                                        Spacer(Modifier.width(8.dp))
-                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                            Text(
-                                                item.title,
-                                                color = Color.White,
-                                                fontSize = 13.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                            Text(
-                                                item.channelTitle,
-                                                color = Color(0xFF888894),
-                                                fontSize = 10.sp,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                        }
-                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            IconButton(
-                                                onClick = {
-                                                    playlist.youtubeItems.getOrNull(index - 1)?.let { target ->
-                                                        playlistStore.moveYouTubeItem(
-                                                            playlist.id,
-                                                            item.videoId,
-                                                            target.videoId,
-                                                            placeAfterTarget = false
-                                                        )
-                                                        refreshPlaylists()
-                                                    }
-                                                },
-                                                enabled = index > 0,
-                                                modifier = Modifier.size(26.dp)
-                                            ) {
-                                                Text("↑", color = if (index > 0) Color(0xFFB9A7FF) else Color(0xFF444956), fontSize = 14.sp)
-                                            }
-                                            IconButton(
-                                                onClick = {
-                                                    playlist.youtubeItems.getOrNull(index + 1)?.let { target ->
-                                                        playlistStore.moveYouTubeItem(
-                                                            playlist.id,
-                                                            item.videoId,
-                                                            target.videoId,
-                                                            placeAfterTarget = true
-                                                        )
-                                                        refreshPlaylists()
-                                                    }
-                                                },
-                                                enabled = index < playlist.youtubeItems.lastIndex,
-                                                modifier = Modifier.size(26.dp)
-                                            ) {
-                                                Text("↓", color = if (index < playlist.youtubeItems.lastIndex) Color(0xFFB9A7FF) else Color(0xFF444956), fontSize = 14.sp)
-                                            }
-                                        }
-                                        TextButton(onClick = { playYouTubePlaylist(playlist, index) }) { Text("▶") }
-                                        TextButton(
-                                            onClick = {
-                                                playlistStore.removeYouTubeItem(playlist.id, item.videoId)
-                                                refreshPlaylists()
-                                            }
-                                        ) { Text("XÓA", color = Color(0xFFFF8A9A)) }
-                                    }
-                                }
+                            itemsIndexed(
+                                playlist.entries,
+                                key = { _, entry -> entry.stableKey }
+                            ) { index, entry ->
+                                PlaylistEntryRow(playlist, entry, index)
                             }
                         }
                     }
@@ -14820,6 +14643,129 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             }
         }
     }
+
+    @Composable
+    private fun PlaylistEntryRow(playlist: MusicPlaylist, entry: PlaylistEntry, index: Int) {
+        val song = if (entry.type == PlaylistEntry.TYPE_SONG) {
+            songs.firstOrNull { it.uri.toString() == entry.uri }
+        } else null
+        val youtubeItem = if (entry.type == PlaylistEntry.TYPE_YOUTUBE) {
+            playlist.youtubeItems.firstOrNull { it.videoId == entry.videoId } ?: entry.toYouTubeItem()
+        } else null
+        val canPlay = song != null || youtubeItem != null
+        Row(
+            Modifier.fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .background(Color(0xFF181922))
+                .clickable(enabled = canPlay) { playPlaylistEntry(playlist, index) }
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (song != null) {
+                SongArtwork(song, Modifier.size(42.dp))
+            } else {
+                Box(
+                    Modifier.size(42.dp)
+                        .clip(RoundedCornerShape(9.dp))
+                        .background(Color(0xFF25263A)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "▶",
+                        color = if (entry.type == PlaylistEntry.TYPE_YOUTUBE) Color(0xFFFF6B75) else Color(0xFF8892A7),
+                        fontSize = 18.sp
+                    )
+                }
+            }
+            Spacer(Modifier.width(8.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    song?.title?.takeIf { it.isNotBlank() }
+                        ?: entry.title.ifBlank {
+                            if (entry.type == PlaylistEntry.TYPE_YOUTUBE) "Video YouTube" else "Bài nhạc không khả dụng"
+                        },
+                    color = if (canPlay) Color.White else Color(0xFF9A9AA5),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                    Text(
+                        when {
+                            song != null -> song.artist.ifBlank { "Không rõ nghệ sĩ" }
+                            entry.type == PlaylistEntry.TYPE_YOUTUBE -> youtubeItem?.channelTitle ?: entry.channelTitle
+                            else -> "Nguồn chưa khả dụng"
+                        },
+                        color = Color(0xFF888894),
+                        fontSize = 10.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    if (song != null) {
+                        SourceBadge(song.source)
+                    } else {
+                        Text(
+                            if (entry.type == PlaylistEntry.TYPE_YOUTUBE) "YOUTUBE" else "THIẾT BỊ / DRIVE",
+                            color = if (entry.type == PlaylistEntry.TYPE_YOUTUBE) Color(0xFFFF9099) else Color(0xFF9BACC7),
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                IconButton(
+                    onClick = {
+                        playlist.entries.getOrNull(index - 1)?.let { target ->
+                            playlistStore.moveEntry(
+                                playlist.id,
+                                entry.stableKey,
+                                target.stableKey,
+                                placeAfterTarget = false
+                            )
+                            refreshPlaylists()
+                        }
+                    },
+                    enabled = index > 0,
+                    modifier = Modifier.size(26.dp)
+                ) {
+                    Text("↑", color = if (index > 0) Color(0xFFB9A7FF) else Color(0xFF444956), fontSize = 14.sp)
+                }
+                IconButton(
+                    onClick = {
+                        playlist.entries.getOrNull(index + 1)?.let { target ->
+                            playlistStore.moveEntry(
+                                playlist.id,
+                                entry.stableKey,
+                                target.stableKey,
+                                placeAfterTarget = true
+                            )
+                            refreshPlaylists()
+                        }
+                    },
+                    enabled = index < playlist.entries.lastIndex,
+                    modifier = Modifier.size(26.dp)
+                ) {
+                    Text("↓", color = if (index < playlist.entries.lastIndex) Color(0xFFB9A7FF) else Color(0xFF444956), fontSize = 14.sp)
+                }
+            }
+            TextButton(onClick = { playPlaylistEntry(playlist, index) }, enabled = canPlay) { Text("▶") }
+            TextButton(
+                onClick = {
+                    playlistStore.removeEntry(playlist.id, entry.stableKey)
+                    refreshPlaylists()
+                }
+            ) { Text("XÓA", color = Color(0xFFFF8A9A)) }
+        }
+    }
+
+
 
     @Composable
     private fun PlaylistPickerDialog(song: Song) {
@@ -14854,7 +14800,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(14.dp)
                                 ) {
-                                    Text(playlist.name + " • " + playlist.songUris.size.toString() + " bài", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(playlist.name + " • " + playlist.entries.size.toString() + " mục", maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                             }
                             item {
