@@ -146,7 +146,11 @@ class NgocSiAiRemotePolicyTest {
         listOf(
             "AI, đặt hẹn giờ tắt nhạc sau 30 phút.",
             "AI, mở playlist Nhạc Trịnh.",
-            "AI, thêm bài đang phát vào yêu thích."
+            "AI, thêm bài đang phát vào yêu thích.",
+            "AI, lưu bài này vào playlist Bolero.",
+            "AI, thêm bài đang nghe vào playlist Nhạc Trịnh.",
+            "AI, thêm tất cả bài trong hàng đợi vào playlist Bolero.",
+            "AI, lưu toàn bộ hàng đợi vào playlist Nhạc Trịnh."
         ).forEach { phrase ->
             assertTrue("$phrase should expose app command tools", shouldOfferNgocSiAiAppCommandTool(phrase))
         }
