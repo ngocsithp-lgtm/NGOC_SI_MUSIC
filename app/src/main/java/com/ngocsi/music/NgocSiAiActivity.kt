@@ -1452,7 +1452,7 @@ class NgocSiAiActivity : ComponentActivity() {
                 )
             }
             NgocSiAiLocalCommand.SEARCH_YOUTUBE -> {
-                val query = extractNgocSiAiYoutubeQuery(originalText)
+                val query = extractNgocSiAiContextualYoutubeQuery(originalText, entryContext)
                     ?: return "Hãy nói tên nội dung cần tìm, ví dụ: “Tìm YouTube nhạc Trịnh Công Sơn”."
                 return openAppDestination("youtube", "Đang tìm trên YouTube: $query", query)
             }
