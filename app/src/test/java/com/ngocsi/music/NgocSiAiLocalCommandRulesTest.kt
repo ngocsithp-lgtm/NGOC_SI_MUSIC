@@ -352,6 +352,43 @@ class NgocSiAiLocalCommandRulesTest {
     }
 
     @Test
+    fun recognizesNaturalCurrentTrackAndAllQueuePlaylistCommands() {
+        val currentTrackExamples = listOf(
+            "AI, lưu bài này vào playlist Bolero" to "Bolero",
+            "AI, thêm bài đang nghe vào playlist Nhạc Trịnh" to "Nhạc Trịnh",
+            "Thêm bài hiện tại vào playlist Nhạc xưa" to "Nhạc xưa"
+        )
+        currentTrackExamples.forEach { (phrase, playlist) ->
+            assertEquals(
+                NgocSiAiLocalCommand.ADD_CURRENT_TRACK_TO_PLAYLIST,
+                classifyNgocSiAiLocalCommand(phrase)
+            )
+            assertEquals(playlist, extractNgocSiAiAddToPlaylistQuery(phrase))
+            assertEquals(
+                NgocSiAiLocalCommand.ADD_CURRENT_TRACK_TO_PLAYLIST,
+                classifyNgocSiAiWakePhrase(phrase)
+            )
+        }
+
+        val queueExamples = listOf(
+            "AI, thêm tất cả bài trong hàng đợi vào playlist Bolero" to "Bolero",
+            "AI, lưu toàn bộ hàng đợi vào playlist Nhạc Trịnh" to "Nhạc Trịnh",
+            "Thêm tất cả hàng đợi vào playlist Nhạc xưa" to "Nhạc xưa"
+        )
+        queueExamples.forEach { (phrase, playlist) ->
+            assertEquals(
+                NgocSiAiLocalCommand.ADD_QUEUE_TO_PLAYLIST,
+                classifyNgocSiAiLocalCommand(phrase)
+            )
+            assertEquals(playlist, extractNgocSiAiQueueToPlaylistQuery(phrase))
+            assertEquals(
+                NgocSiAiLocalCommand.ADD_QUEUE_TO_PLAYLIST,
+                classifyNgocSiAiWakePhrase(phrase)
+            )
+        }
+    }
+
+    @Test
     fun recognizesAddingCurrentTrackToPlaylist() {
         assertEquals(NgocSiAiLocalCommand.ADD_CURRENT_TRACK_TO_PLAYLIST, classifyNgocSiAiLocalCommand("Thêm bài đang phát vào playlist Nhạc Trịnh"))
         assertEquals(NgocSiAiLocalCommand.ADD_CURRENT_TRACK_TO_PLAYLIST, classifyNgocSiAiWakePhrase("AI, thêm bài đang phát vào playlist Nhạc Trịnh"))
