@@ -356,6 +356,8 @@ class NgocSiAiLocalCommandRulesTest {
         val currentTrackExamples = listOf(
             "AI, lưu bài này vào playlist Bolero" to "Bolero",
             "AI, thêm bài đang nghe vào playlist Nhạc Trịnh" to "Nhạc Trịnh",
+            "AI, lưu video YouTube này vào playlist Bolero" to "Bolero",
+            "AI, thêm video đang phát vào playlist Nhạc YouTube" to "Nhạc YouTube",
             "Thêm bài hiện tại vào playlist Nhạc xưa" to "Nhạc xưa"
         )
         currentTrackExamples.forEach { (phrase, playlist) ->
@@ -373,6 +375,7 @@ class NgocSiAiLocalCommandRulesTest {
         val queueExamples = listOf(
             "AI, thêm tất cả bài trong hàng đợi vào playlist Bolero" to "Bolero",
             "AI, lưu toàn bộ hàng đợi vào playlist Nhạc Trịnh" to "Nhạc Trịnh",
+            "AI, lưu toàn bộ hàng đợi YouTube vào playlist Video Bolero" to "Video Bolero",
             "Thêm tất cả hàng đợi vào playlist Nhạc xưa" to "Nhạc xưa"
         )
         queueExamples.forEach { (phrase, playlist) ->
