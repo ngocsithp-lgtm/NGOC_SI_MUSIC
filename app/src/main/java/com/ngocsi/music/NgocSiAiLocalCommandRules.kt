@@ -1581,7 +1581,7 @@ internal fun extractNgocSiAiContextualYoutubeQuery(
     if (explicitOtherSources.any(normalized::contains)) return null
 
     val match = Regex(
-        """^(?:tìm|tim|kiếm|kiem)\s+(?:(?:bài hát|bai hat|ca khúc|ca khuc|nhạc|nhac|video)\s+)?(.+?)[.!?,;:]*$""",
+        """^(?:tìm\s+kiếm|tim\s+kiem|tìm|tim|kiếm|kiem)\s+(?:(?:bài hát|bai hat|ca khúc|ca khuc|nhạc|nhac|video)\s+)?(.+?)[.!?,;:]*$""",
         RegexOption.IGNORE_CASE
     ).matchEntire(phrase) ?: return null
     val query = trimNgocSiAiExtractedQuery(match.groupValues[1])
