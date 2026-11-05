@@ -756,6 +756,37 @@ class NgocSiAiLocalCommandRulesTest {
     }
 
     @Test
+    fun sourceNeutralDriveSearchUsesDriveOnlyOnTheDrivePage() {
+        val phrase = "AI, tìm nhạc Bolero"
+
+        assertEquals(
+            "Bolero",
+            extractNgocSiAiContextualDriveQuery(phrase, "Google Drive")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.SEARCH_DRIVE,
+            classifyNgocSiAiLocalCommand(phrase, "Google Drive")
+        )
+
+        assertNull(extractNgocSiAiContextualDriveQuery(phrase, "Radio"))
+        assertEquals(
+            NgocSiAiLocalCommand.SEARCH_ONLINE_MUSIC,
+            classifyNgocSiAiLocalCommand(phrase, "Radio")
+        )
+
+        assertNull(
+            extractNgocSiAiContextualDriveQuery(
+                "AI, tìm nhạc Bolero trên YouTube",
+                "Google Drive"
+            )
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.SEARCH_YOUTUBE,
+            classifyNgocSiAiLocalCommand("AI, tìm nhạc Bolero trên YouTube", "Google Drive")
+        )
+    }
+
+    @Test
     fun quotedSearchAndPlayCommandIsStillParsedOnTheYouTubePage() {
         val quoted = "“AI, tìm nhạc Bolero rồi phát.”"
         assertEquals(
