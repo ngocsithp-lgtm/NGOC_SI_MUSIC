@@ -716,6 +716,46 @@ class NgocSiAiLocalCommandRulesTest {
     }
 
     @Test
+    fun searchAndPlayWithoutSourceUsesYouTubeOnlyWhenAiOpenedFromYouTube() {
+        val phrase = "AI, tìm nhạc Bolero rồi phát"
+
+        assertEquals(
+            "Bolero",
+            extractNgocSiAiContextualYoutubeAutoPlayQuery(phrase, "YouTube")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.SEARCH_AND_PLAY_YOUTUBE,
+            classifyNgocSiAiLocalCommand(phrase, "YouTube")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.SEARCH_AND_PLAY_YOUTUBE,
+            classifyNgocSiAiWakePhrase(phrase, "YouTube")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.SEARCH_AND_PLAY_YOUTUBE,
+            classifyNgocSiAiActivatedCommand("tìm nhạc Bolero rồi phát", "YouTube")
+        )
+
+        // On another page the source-neutral request keeps its general Online meaning.
+        assertNull(extractNgocSiAiContextualYoutubeAutoPlayQuery(phrase, "Radio"))
+        assertEquals(
+            NgocSiAiLocalCommand.SEARCH_ONLINE_MUSIC,
+            classifyNgocSiAiLocalCommand(phrase, "Radio")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.SEARCH_ONLINE_MUSIC,
+            classifyNgocSiAiLocalCommand("Tìm nhạc Bolero rồi phát")
+        )
+
+        // A search without an explicit play suffix must never trigger autoplay.
+        assertNull(extractNgocSiAiContextualYoutubeAutoPlayQuery("Tìm nhạc Bolero", "YouTube"))
+        assertEquals(
+            NgocSiAiLocalCommand.SEARCH_ONLINE_MUSIC,
+            classifyNgocSiAiLocalCommand("Tìm nhạc Bolero", "YouTube")
+        )
+    }
+
+    @Test
     fun handsFreeYouTubeSearchAndPlayUsesItsOwnDestination() {
         assertEquals(
             "youtube_search_play",
