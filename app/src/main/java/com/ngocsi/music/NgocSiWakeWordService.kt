@@ -680,13 +680,14 @@ class NgocSiWakeWordService : Service() {
         } else {
             classifyNgocSiAiWakePhrase(recognized, activeEntryContext)
                 ?: if (wasAwaitingCommand) {
-                    classifyNgocSiAiActivatedCommand(
-                        if (normalizeNgocSiAiVoicePhrase(recognized).startsWith("ai ")) {
-                            recognized
-                        } else {
-                            "AI, $recognized"
-                        }
-                    , activeEntryContext)
+                    val activatedPhrase = if (
+                        normalizeNgocSiAiVoicePhrase(recognized).startsWith("ai ")
+                    ) {
+                        recognized
+                    } else {
+                        "AI, $recognized"
+                    }
+                    classifyNgocSiAiActivatedCommand(activatedPhrase, activeEntryContext)
                 } else null
         }
 
