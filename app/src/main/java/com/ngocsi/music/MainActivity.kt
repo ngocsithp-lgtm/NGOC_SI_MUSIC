@@ -5122,7 +5122,6 @@ class MainActivity : ComponentActivity() {
         playlist: MusicPlaylist,
         requestedEntryIndex: Int
     ): Boolean {
-        activeMixedPlaylist = playlist
         activeMixedPlaylistAdvancePending = false
         var cursor = requestedEntryIndex.coerceAtLeast(0)
         while (cursor < playlist.entries.size) {
@@ -5143,7 +5142,13 @@ class MainActivity : ComponentActivity() {
                         val candidateEntry = playlist.entries[segmentEnd]
                         val candidateSong = songs.firstOrNull {
                             it.uri.toString() == candidateEntry.uri
-                        } ?: break
+                        }
+                        if (candidateSong == null) {
+                            // Skip stale or permission-revoked entries without truncating
+                            // the rest of this same-source segment.
+                            segmentEnd++
+                            continue
+                        }
                         if (candidateSong.source != requestedSong.source) break
                         segmentSongs.add(candidateSong)
                         segmentEnd++
@@ -5170,11 +5175,15 @@ class MainActivity : ComponentActivity() {
                     activeMixedPlaylistNextEntryIndex = segmentEnd
                     activeMixedPlaylistAdvancePending = false
                     c.setMediaItems(queueSongs.map { mediaItemFor(it) }, selectedIndex, 0L)
-                    // A source-specific repeat/shuffle queue cannot safely represent the
-                    // ordering of a mixed-source playlist. Keep this segment deterministic;
-                    // the canonical playlist decides what follows at its boundary.
-                    c.shuffleModeEnabled = false
-                    c.repeatMode = Player.REPEAT_MODE_OFF
+                    // Mixed-source order belongs to the canonical playlist. Homogeneous
+                    // playlists can safely keep the player's usual shuffle/repeat behavior.
+                    val orderedMixedPlayback = activeMixedPlaylist != null
+                    c.shuffleModeEnabled = if (orderedMixedPlayback) false else shuffleEnabled
+                    c.repeatMode = if (orderedMixedPlayback) {
+                        Player.REPEAT_MODE_OFF
+                    } else {
+                        repeatMode
+                    }
                     c.setPlaybackSpeed(selectedPlaybackSpeed)
                     c.prepare()
                     c.play()
@@ -5200,7 +5209,11 @@ class MainActivity : ComponentActivity() {
                     }
                     activeMixedPlaylistNextEntryIndex = segmentEnd
                     activeMixedPlaylistSegmentIsYouTube = true
-                    playYouTubePlaylistItems(items, 0, preserveMixedPlaylist = true)
+                    playYouTubePlaylistItems(
+                        items,
+                        0,
+                        preserveMixedPlaylist = activeMixedPlaylist != null
+                    )
                     return true
                 }
                 else -> cursor++
@@ -5247,8 +5260,13 @@ class MainActivity : ComponentActivity() {
         )
     }
 
+    private fun playlistRequiresOrderedMixedPlayback(playlist: MusicPlaylist): Boolean {
+        val sourceByUri = songs.associate { song -> song.uri.toString() to song.source }
+        return PlaylistRules.requiresOrderedMixedPlayback(playlist.entries, sourceByUri)
+    }
+
     private fun playPlaylistDefault(playlist: MusicPlaylist) {
-        activeMixedPlaylist = playlist
+        activeMixedPlaylist = playlist.takeIf { playlistRequiresOrderedMixedPlayback(it) }
         if (!startMixedPlaylistAtOrAfter(playlist, 0)) {
             clearActiveMixedPlaylistPlayback()
             errorMessage = "Playlist chưa có mục nào khả dụng. Kiểm tra quyền nhạc thiết bị/Drive hoặc kết nối YouTube."
@@ -5257,7 +5275,7 @@ class MainActivity : ComponentActivity() {
 
     private fun playPlaylistEntry(playlist: MusicPlaylist, entryIndex: Int) {
         if (playlist.entries.getOrNull(entryIndex) == null) return
-        activeMixedPlaylist = playlist
+        activeMixedPlaylist = playlist.takeIf { playlistRequiresOrderedMixedPlayback(it) }
         if (!startMixedPlaylistAtOrAfter(playlist, entryIndex)) {
             clearActiveMixedPlaylistPlayback()
             errorMessage = "Mục đã chọn chưa khả dụng. Kiểm tra quyền nhạc thiết bị/Drive hoặc kết nối YouTube."

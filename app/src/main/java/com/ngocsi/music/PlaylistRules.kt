@@ -147,6 +147,25 @@ internal object PlaylistRules {
         return end
     }
 
+    /**
+     * True only when playable entries span more than one playback engine/source.
+     * Single-source playlists should retain the player's normal repeat and shuffle modes.
+     */
+    fun requiresOrderedMixedPlayback(
+        entries: List<PlaylistEntry>,
+        songSourceByUri: Map<String, String>
+    ): Boolean {
+        val sourceKeys = entries.mapNotNull { entry ->
+            when (entry.type) {
+                PlaylistEntry.TYPE_SONG ->
+                    songSourceByUri[entry.uri]?.trim()?.takeIf { it.isNotBlank() }?.let { "song:$it" }
+                PlaylistEntry.TYPE_YOUTUBE -> "youtube"
+                else -> null
+            }
+        }.toSet()
+        return sourceKeys.size > 1
+    }
+
     /** Move an entry before/after any item, including an item from another source. */
     fun movePlaylistEntry(
         entries: List<PlaylistEntry>,

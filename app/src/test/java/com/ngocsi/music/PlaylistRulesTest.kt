@@ -125,6 +125,42 @@ class PlaylistRulesTest {
     }
 
     @Test
+    fun requiresOrderedMixedPlayback_onlyWhenPlayableEntriesSpanDifferentSources() {
+        val deviceSong = PlaylistRules.songEntry("content://device-a")!!
+        val driveSong = PlaylistRules.songEntry("content://drive-a")!!
+        val youtube = PlaylistRules.youtubeEntry(
+            YouTubePlaylistItem("abcdefghijk", "Video", "Channel", "")
+        )!!
+
+        assertTrue(
+            !PlaylistRules.requiresOrderedMixedPlayback(
+                listOf(deviceSong, PlaylistRules.songEntry("content://device-b")!!),
+                mapOf("content://device-a" to "Thiết bị", "content://device-b" to "Thiết bị")
+            )
+        )
+        assertTrue(
+            PlaylistRules.requiresOrderedMixedPlayback(
+                listOf(deviceSong, driveSong),
+                mapOf("content://device-a" to "Thiết bị", "content://drive-a" to "Google Drive")
+            )
+        )
+        assertTrue(
+            PlaylistRules.requiresOrderedMixedPlayback(
+                listOf(deviceSong, youtube),
+                mapOf("content://device-a" to "Thiết bị")
+            )
+        )
+        // Missing songs are not treated as an extra source and therefore do not
+        // force a homogeneous playlist into ordered cross-source playback.
+        assertTrue(
+            !PlaylistRules.requiresOrderedMixedPlayback(
+                listOf(deviceSong, PlaylistRules.songEntry("content://missing")!!),
+                mapOf("content://device-a" to "Thiết bị")
+            )
+        )
+    }
+
+    @Test
     fun moveSong_placesAnItemBeforeOrAfterTheSelectedTarget() {
         val original = listOf("a", "b", "c", "d")
         assertEquals(
