@@ -143,6 +143,11 @@ internal class NgocSiAiRemoteClient(context: Context) {
         // the general Online search action for an explicit search-then-play request.
         val contextualYoutubeAutoPlayQuery =
             extractNgocSiAiContextualYoutubeAutoPlayQuery(newestUserMessage.content, entryContext)
+        // On the Drive page, keep source-neutral searches in Drive even if Gemini
+        // proposes the general Online action. Explicitly named sources are excluded
+        // by the contextual query extractor and therefore remain untouched.
+        val contextualDriveSearchQuery =
+            extractNgocSiAiContextualDriveQuery(newestUserMessage.content, entryContext)
 
         // Firebase AI Logic requires model-role history for assistant responses.
         val previousTurns = normalized.dropLast(1).map { message ->
@@ -207,6 +212,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 var toolRound = 0
                 var stopSequenceFeedback: String? = null
                 var contextualYoutubeAutoPlayDispatched = false
+                var contextualDriveSearchDispatched = false
                 while (response.functionCalls.isNotEmpty() && toolRound < MAX_TOOL_ROUNDS) {
                     // Select one valid action for this round. Other proposed actions are
                     // deferred until the model has read the result of the selected action.
@@ -239,12 +245,18 @@ internal class NgocSiAiRemoteClient(context: Context) {
                                     feedback = ngocSiAiDeferredToolCallFeedback()
                                 )
                             else -> {
-                                val inferredQuery = contextualYoutubeAutoPlayQuery
+                                val inferredYoutubeQuery = contextualYoutubeAutoPlayQuery
                                     ?.takeIf { !contextualYoutubeAutoPlayDispatched }
-                                if (inferredQuery != null) {
+                                val inferredDriveQuery = contextualDriveSearchQuery
+                                    ?.takeIf { !contextualDriveSearchDispatched }
+                                if (inferredYoutubeQuery != null) {
                                     contextualYoutubeAutoPlayDispatched = true
                                     effectiveAction = "search_and_play_youtube"
-                                    executeNgocSiAiToolSafely(executeTool, effectiveAction, inferredQuery)
+                                    executeNgocSiAiToolSafely(executeTool, effectiveAction, inferredYoutubeQuery)
+                                } else if (inferredDriveQuery != null) {
+                                    contextualDriveSearchDispatched = true
+                                    effectiveAction = "search_drive"
+                                    executeNgocSiAiToolSafely(executeTool, effectiveAction, inferredDriveQuery)
                                 } else if (action.isBlank()) {
                                     NgocSiAiToolResult(
                                         routed = false,
