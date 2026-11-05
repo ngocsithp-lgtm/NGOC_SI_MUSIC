@@ -73,4 +73,56 @@ class PlaylistRulesTest {
         )
         assertTrue(PlaylistRules.removeSong(emptyList(), "content://missing").isEmpty())
     }
+
+    @Test
+    fun addYouTubeItems_validatesIdsAndKeepsEntriesUnique() {
+        val first = YouTubePlaylistItem(
+            videoId = "abcdefghijk",
+            title = "Video Bolero",
+            channelTitle = "Kênh nhạc",
+            thumbnailUrl = ""
+        )
+        val duplicate = first.copy(title = "Tên mới")
+        val second = YouTubePlaylistItem(
+            videoId = "lmnopqrstuv",
+            title = "Video thứ hai",
+            channelTitle = "Kênh khác",
+            thumbnailUrl = "https://example.com/thumb.jpg"
+        )
+        val result = PlaylistRules.addYouTubeItems(
+            listOf(first),
+            listOf(duplicate, second, first.copy(videoId = "bad/id"))
+        )
+
+        assertEquals(listOf("abcdefghijk", "lmnopqrstuv"), result.map { it.videoId })
+        assertEquals("Video Bolero", result.first().title)
+        assertEquals(
+            "https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg",
+            PlaylistRules.addYouTubeItems(emptyList(), listOf(first)).first().thumbnailUrl
+        )
+    }
+
+    @Test
+    fun moveAndRemoveYouTubeItemsPreserveTheExpectedOrder() {
+        val items = listOf(
+            YouTubePlaylistItem("abcdefghijk", "A", "Kênh", ""),
+            YouTubePlaylistItem("lmnopqrstuv", "B", "Kênh", ""),
+            YouTubePlaylistItem("zyxwvutsrq0", "C", "Kênh", "")
+        )
+        val moved = PlaylistRules.moveYouTubeItem(
+            items,
+            movingVideoId = "zyxwvutsrq0",
+            targetVideoId = "abcdefghijk",
+            placeAfterTarget = false
+        )
+        assertEquals(
+            listOf("zyxwvutsrq0", "abcdefghijk", "lmnopqrstuv"),
+            moved.map { it.videoId }
+        )
+        assertEquals(
+            listOf("abcdefghijk", "lmnopqrstuv"),
+            PlaylistRules.removeYouTubeItem(moved, "zyxwvutsrq0").map { it.videoId }
+        )
+        assertTrue(PlaylistRules.removeYouTubeItem(items, "invalid/id").size == items.size)
+    }
 }
