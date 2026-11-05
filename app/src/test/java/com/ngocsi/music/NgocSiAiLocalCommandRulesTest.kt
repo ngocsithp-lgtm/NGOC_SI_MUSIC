@@ -756,6 +756,24 @@ class NgocSiAiLocalCommandRulesTest {
     }
 
     @Test
+    fun quotedSearchAndPlayCommandIsStillParsedOnTheYouTubePage() {
+        val quoted = "“AI, tìm nhạc Bolero rồi phát.”"
+        assertEquals(
+            "Bolero",
+            extractNgocSiAiContextualYoutubeAutoPlayQuery(quoted, "YouTube")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.SEARCH_AND_PLAY_YOUTUBE,
+            classifyNgocSiAiLocalCommand(quoted, "YouTube")
+        )
+        assertEquals(
+            "Bolero",
+            extractNgocSiAiOnlineQuery("“AI, tìm nhạc Bolero”")
+        )
+        assertNull(extractNgocSiAiContextualYoutubeAutoPlayQuery(quoted, "Radio"))
+    }
+
+    @Test
     fun handsFreeYouTubeSearchAndPlayUsesItsOwnDestination() {
         assertEquals(
             "youtube_search_play",
