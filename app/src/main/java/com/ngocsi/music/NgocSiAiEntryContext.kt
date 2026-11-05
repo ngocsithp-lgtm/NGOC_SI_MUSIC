@@ -29,6 +29,16 @@ internal fun normalizeNgocSiAiEntryContext(rawContext: String?): String? =
     }
 
 /**
+ * Prefer the explicit launch page, but recover the current visible page when an
+ * older shortcut or notification opens AI without attaching the intent extra.
+ */
+internal fun resolveNgocSiAiEntryContext(
+    intentContext: String?,
+    activePageContext: String?
+): String? = normalizeNgocSiAiEntryContext(intentContext)
+    ?: normalizeNgocSiAiEntryContext(activePageContext)
+
+/**
  * The page hint is system context only: it is never inserted into the user's
  * visible transcript or persisted conversation history.
  */
