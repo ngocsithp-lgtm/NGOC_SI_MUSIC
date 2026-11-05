@@ -356,8 +356,9 @@ private fun saveAiApiConversation(
 class NgocSiAiActivity : ComponentActivity() {
     // Preserve the allowlisted page context when wake-word listening is enabled.
     private val entryContext: String?
-        get() = normalizeNgocSiAiEntryContext(
-            intent.getStringExtra(NGOC_SI_AI_ENTRY_CONTEXT_EXTRA)
+        get() = resolveNgocSiAiEntryContext(
+            intent.getStringExtra(NGOC_SI_AI_ENTRY_CONTEXT_EXTRA),
+            NgocSiMainActivityState.entryContextOr()
         )
     private var recognizedSpeech by mutableStateOf("")
     private var recognizedSpeechShouldSend by mutableStateOf(false)
