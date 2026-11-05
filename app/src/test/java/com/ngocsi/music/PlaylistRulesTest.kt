@@ -99,6 +99,32 @@ class PlaylistRulesTest {
     }
 
     @Test
+    fun contiguousPlaylistSegmentEnd_stopsAtEverySourceTypeBoundary() {
+        val entries = listOf(
+            PlaylistRules.songEntry("content://song-a")!!,
+            PlaylistRules.songEntry("content://song-b")!!,
+            PlaylistRules.youtubeEntry(YouTubePlaylistItem("abcdefghijk", "Video A", "Kênh", ""))!!,
+            PlaylistRules.youtubeEntry(YouTubePlaylistItem("lmnopqrstuv", "Video B", "Kênh", ""))!!,
+            PlaylistRules.songEntry("content://song-c")!!
+        )
+        assertEquals(2, PlaylistRules.contiguousPlaylistSegmentEnd(
+            entries, 0, PlaylistEntry.TYPE_SONG
+        ))
+        assertEquals(4, PlaylistRules.contiguousPlaylistSegmentEnd(
+            entries, 2, PlaylistEntry.TYPE_YOUTUBE
+        ))
+        assertEquals(5, PlaylistRules.contiguousPlaylistSegmentEnd(
+            entries, 4, PlaylistEntry.TYPE_SONG
+        ))
+        assertEquals(2, PlaylistRules.contiguousPlaylistSegmentEnd(
+            entries, 2, PlaylistEntry.TYPE_SONG
+        ))
+        assertEquals(0, PlaylistRules.contiguousPlaylistSegmentEnd(
+            entries, -1, PlaylistEntry.TYPE_SONG
+        ))
+    }
+
+    @Test
     fun moveSong_placesAnItemBeforeOrAfterTheSelectedTarget() {
         val original = listOf("a", "b", "c", "d")
         assertEquals(

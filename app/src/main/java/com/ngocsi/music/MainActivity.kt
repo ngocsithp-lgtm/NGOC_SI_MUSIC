@@ -291,6 +291,9 @@ class MainActivity : ComponentActivity() {
             if (playbackState == Player.STATE_READY) {
                 errorMessage = null
             }
+            if (playbackState == Player.STATE_ENDED) {
+                advanceMixedPlaylistAfterSegment()
+            }
         }
 
         override fun onPositionDiscontinuity(
@@ -812,6 +815,10 @@ class MainActivity : ComponentActivity() {
     private lateinit var playlistStore: PlaylistStore
     private val playlists = mutableStateListOf<MusicPlaylist>()
     // Named playlist commands may be delivered before Media3 is connected on cold launch.
+    // Tracks one canonical playlist across Media3 and inline YouTube segment hand-offs.
+    private var activeMixedPlaylist: MusicPlaylist? = null
+    private var activeMixedPlaylistNextEntryIndex = -1
+    private var activeMixedPlaylistAdvancePending = false
     private var pendingAiPlaylistName: String? = null
     private var pendingAiAddCurrentSongPlaylistName: String? = null
     private var pendingAiLocalPlaybackRequested = false
@@ -2046,6 +2053,7 @@ class MainActivity : ComponentActivity() {
 
     private fun play(index: Int, driveTokenReady: Boolean = false) {
         if (index !in songs.indices) return
+        clearActiveMixedPlaylistPlayback()
         // This method is also used by restoration/reconnect paths, so it must not
         // decide the active engine. Explicit user selections switch the source
         // at their call sites; restoration must preserve a selected YouTube source.
@@ -5062,6 +5070,120 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun clearActiveMixedPlaylistPlayback() {
+        activeMixedPlaylist = null
+        activeMixedPlaylistNextEntryIndex = -1
+        activeMixedPlaylistAdvancePending = false
+    }
+
+    /**
+     * Continues a mixed playlist when the current Media3 or YouTube source segment ends.
+     * Returns true only when another segment was successfully started.
+     */
+    private fun advanceMixedPlaylistAfterSegment(): Boolean {
+        val playlist = activeMixedPlaylist ?: return false
+        if (activeMixedPlaylistAdvancePending) return true
+        activeMixedPlaylistAdvancePending = true
+        val nextIndex = activeMixedPlaylistNextEntryIndex
+        if (nextIndex !in playlist.entries.indices) {
+            clearActiveMixedPlaylistPlayback()
+            return false
+        }
+        val advanced = startMixedPlaylistAtOrAfter(playlist, nextIndex)
+        if (!advanced) clearActiveMixedPlaylistPlayback()
+        return advanced
+    }
+
+    /** Start the next consecutive segment without changing the canonical playlist order. */
+    private fun startMixedPlaylistAtOrAfter(
+        playlist: MusicPlaylist,
+        requestedEntryIndex: Int
+    ): Boolean {
+        activeMixedPlaylist = playlist
+        activeMixedPlaylistAdvancePending = false
+        var cursor = requestedEntryIndex.coerceAtLeast(0)
+        while (cursor < playlist.entries.size) {
+            val entry = playlist.entries[cursor]
+            when (entry.type) {
+                PlaylistEntry.TYPE_SONG -> {
+                    val requestedSong = songs.firstOrNull { it.uri.toString() == entry.uri }
+                    if (requestedSong == null) {
+                        cursor++
+                        continue
+                    }
+                    val typeRunEnd = PlaylistRules.contiguousPlaylistSegmentEnd(
+                        playlist.entries, cursor, PlaylistEntry.TYPE_SONG
+                    )
+                    val segmentSongs = mutableListOf<Song>()
+                    var segmentEnd = cursor
+                    while (segmentEnd < typeRunEnd) {
+                        val candidateEntry = playlist.entries[segmentEnd]
+                        val candidateSong = songs.firstOrNull {
+                            it.uri.toString() == candidateEntry.uri
+                        } ?: break
+                        if (candidateSong.source != requestedSong.source) break
+                        segmentSongs.add(candidateSong)
+                        segmentEnd++
+                    }
+                    if (segmentSongs.isEmpty()) {
+                        cursor++
+                        continue
+                    }
+                    val c = controller ?: run {
+                        errorMessage = "Trình phát đang khởi động, thử lại sau."
+                        clearActiveMixedPlaylistPlayback()
+                        return false
+                    }
+                    val selectedIndex = segmentSongs.indexOfFirst {
+                        it.uri == requestedSong.uri
+                    }.takeIf { it >= 0 } ?: 0
+                    invalidatePendingPlaybackAuthorization()
+                    setYouTubeActiveSource(false)
+                    queueSongs.clear()
+                    queueSongs.addAll(segmentSongs)
+                    queueSource = requestedSong.source
+                    activeMixedPlaylistNextEntryIndex = segmentEnd
+                    activeMixedPlaylistAdvancePending = false
+                    c.setMediaItems(queueSongs.map { mediaItemFor(it) }, selectedIndex, 0L)
+                    // A source-specific repeat/shuffle queue cannot safely represent the
+                    // ordering of a mixed-source playlist. Keep this segment deterministic;
+                    // the canonical playlist decides what follows at its boundary.
+                    c.shuffleModeEnabled = false
+                    c.repeatMode = Player.REPEAT_MODE_OFF
+                    c.setPlaybackSpeed(selectedPlaybackSpeed)
+                    c.prepare()
+                    c.play()
+                    currentIndex = songs.indexOfFirst { it.uri == requestedSong.uri }
+                    position = 0L
+                    savedPosition = 0L
+                    lastSongUri = requestedSong.uri.toString()
+                    saveQueueOrder()
+                    savePlaybackState()
+                    playlistDetailId = null
+                    showPlaylists = false
+                    return true
+                }
+                PlaylistEntry.TYPE_YOUTUBE -> {
+                    val segmentEnd = PlaylistRules.contiguousPlaylistSegmentEnd(
+                        playlist.entries, cursor, PlaylistEntry.TYPE_YOUTUBE
+                    )
+                    val items = playlist.entries.subList(cursor, segmentEnd)
+                        .mapNotNull { it.toYouTubeItem() }
+                    if (items.isEmpty()) {
+                        cursor = segmentEnd
+                        continue
+                    }
+                    activeMixedPlaylistNextEntryIndex = segmentEnd
+                    playYouTubePlaylistItems(items, 0, preserveMixedPlaylist = true)
+                    return true
+                }
+                else -> cursor++
+            }
+        }
+        activeMixedPlaylistNextEntryIndex = -1
+        return false
+    }
+
     private fun playlistYouTubeItemsInOrder(playlist: MusicPlaylist): List<YouTubePlaylistItem> =
         playlist.entries.filter { it.type == PlaylistEntry.TYPE_YOUTUBE }
             .mapNotNull { entry ->
@@ -5072,7 +5194,11 @@ class MainActivity : ComponentActivity() {
         playYouTubePlaylistItems(playlistYouTubeItemsInOrder(playlist), startIndex)
     }
 
-    private fun playYouTubePlaylistItems(items: List<YouTubePlaylistItem>, startIndex: Int = 0) {
+    private fun playYouTubePlaylistItems(
+        items: List<YouTubePlaylistItem>,
+        startIndex: Int = 0,
+        preserveMixedPlaylist: Boolean = false
+    ) {
         val selected = items.getOrNull(startIndex) ?: run {
             errorMessage = "Playlist chưa có video YouTube để phát."
             return
@@ -5090,92 +5216,45 @@ class MainActivity : ComponentActivity() {
         playYouTube(
             YouTubeTrack(selected.videoId, selected.title, selected.channelTitle, selected.thumbnailUrl),
             queueJson,
-            startIndex.coerceIn(0, items.lastIndex)
+            startIndex.coerceIn(0, items.lastIndex),
+            preserveMixedPlaylist = preserveMixedPlaylist
         )
     }
 
     private fun playPlaylistDefault(playlist: MusicPlaylist) {
-        for ((index, entry) in playlist.entries.withIndex()) {
-            when (entry.type) {
-                PlaylistEntry.TYPE_SONG -> {
-                    val song = songs.firstOrNull { it.uri.toString() == entry.uri }
-                    if (song != null) {
-                        playPlaylistSong(playlist, song)
-                        return
-                    }
-                }
-                PlaylistEntry.TYPE_YOUTUBE -> {
-                    val youtubeItems = playlistYouTubeItemsInOrder(playlist)
-                    val youtubeIndex = playlist.entries.take(index + 1)
-                        .count { it.type == PlaylistEntry.TYPE_YOUTUBE } - 1
-                    if (youtubeItems.getOrNull(youtubeIndex) != null) {
-                        playYouTubePlaylistItems(youtubeItems, youtubeIndex)
-                        return
-                    }
-                }
-            }
+        activeMixedPlaylist = playlist
+        if (!startMixedPlaylistAtOrAfter(playlist, 0)) {
+            clearActiveMixedPlaylistPlayback()
+            errorMessage = "Playlist chưa có mục nào khả dụng. Kiểm tra quyền nhạc thiết bị/Drive hoặc kết nối YouTube."
         }
-        errorMessage = "Playlist chưa có mục nào khả dụng. Kiểm tra quyền nhạc thiết bị/Drive hoặc kết nối YouTube."
     }
 
     private fun playPlaylistEntry(playlist: MusicPlaylist, entryIndex: Int) {
-        val entry = playlist.entries.getOrNull(entryIndex) ?: return
-        when (entry.type) {
-            PlaylistEntry.TYPE_SONG -> {
-                val song = songs.firstOrNull { it.uri.toString() == entry.uri }
-                if (song == null) {
-                    errorMessage = "Bài nhạc chưa khả dụng. Hãy kiểm tra thư viện thiết bị hoặc kết nối lại Google Drive."
-                } else {
-                    playPlaylistSong(playlist, song)
-                }
-            }
-            PlaylistEntry.TYPE_YOUTUBE -> {
-                val youtubeItems = playlistYouTubeItemsInOrder(playlist)
-                val youtubeIndex = playlist.entries.take(entryIndex + 1)
-                    .count { it.type == PlaylistEntry.TYPE_YOUTUBE } - 1
-                playYouTubePlaylistItems(youtubeItems, youtubeIndex)
-            }
+        if (playlist.entries.getOrNull(entryIndex) == null) return
+        activeMixedPlaylist = playlist
+        if (!startMixedPlaylistAtOrAfter(playlist, entryIndex)) {
+            clearActiveMixedPlaylistPlayback()
+            errorMessage = "Mục đã chọn chưa khả dụng. Kiểm tra quyền nhạc thiết bị/Drive hoặc kết nối YouTube."
         }
     }
 
     private fun playPlaylistFromSong(playlist: MusicPlaylist, songIndex: Int) {
-        val orderedSongs = playlist.entries.filter { it.type == PlaylistEntry.TYPE_SONG }
-            .mapNotNull { entry -> songs.firstOrNull { it.uri.toString() == entry.uri } }
-        orderedSongs.getOrNull(songIndex)?.let { playPlaylistSong(playlist, it) }
+        val songEntryIndices = playlist.entries.withIndex()
+            .filter { it.value.type == PlaylistEntry.TYPE_SONG }
+            .map { it.index }
+        val entryIndex = songEntryIndices.getOrNull(songIndex) ?: return
+        playPlaylistEntry(playlist, entryIndex)
     }
 
     private fun playPlaylistSong(playlist: MusicPlaylist, requestedSong: Song) {
-        invalidatePendingPlaybackAuthorization()
-        val orderedSongs = playlist.entries.filter { it.type == PlaylistEntry.TYPE_SONG }
-            .mapNotNull { entry -> songs.firstOrNull { it.uri.toString() == entry.uri } }
-        val sourceScopedSongs = orderedSongs.filter { it.source == requestedSong.source }
-        val scopedIndex = sourceScopedSongs.indexOfFirst { it.uri == requestedSong.uri }
-        if (sourceScopedSongs.isEmpty() || scopedIndex < 0) {
-            errorMessage = "Không tìm thấy bài trong hàng đợi cùng nguồn."
+        val entryIndex = playlist.entries.indexOfFirst {
+            it.type == PlaylistEntry.TYPE_SONG && it.uri == requestedSong.uri.toString()
+        }
+        if (entryIndex < 0) {
+            errorMessage = "Không tìm thấy bài trong playlist."
             return
         }
-        val c = controller ?: run {
-            errorMessage = "Trình phát đang khởi động, thử lại sau."
-            return
-        }
-        setYouTubeActiveSource(false)
-        queueSongs.clear()
-        queueSongs.addAll(sourceScopedSongs)
-        queueSource = requestedSong.source
-        c.setMediaItems(queueSongs.map { mediaItemFor(it) }, scopedIndex, 0L)
-        c.shuffleModeEnabled = shuffleEnabled
-        c.repeatMode = repeatMode
-        c.setPlaybackSpeed(selectedPlaybackSpeed)
-        c.prepare()
-        c.play()
-        currentIndex = songs.indexOfFirst { it.uri == requestedSong.uri }
-        position = 0L
-        savedPosition = 0L
-        lastSongUri = requestedSong.uri.toString()
-        saveQueueOrder()
-        savePlaybackState()
-        playlistDetailId = null
-        showPlaylists = false
+        playPlaylistEntry(playlist, entryIndex)
     }
 
 
@@ -9302,7 +9381,13 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         playYouTube(track, queueJson, selectedIndex)
     }
 
-    private fun playYouTube(track: YouTubeTrack, queueJson: String, selectedIndex: Int) {
+    private fun playYouTube(
+        track: YouTubeTrack,
+        queueJson: String,
+        selectedIndex: Int,
+        preserveMixedPlaylist: Boolean = false
+    ) {
+        if (!preserveMixedPlaylist) clearActiveMixedPlaylistPlayback()
         // Always return to the YouTube discovery screen before selecting playback.
         // This also covers video cards opened from Home, history, favorites, and
         // Watch Later: playback belongs in the top inline card, not a separate page.
@@ -9830,14 +9915,17 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 return@runCatching
             }
             val currentIndex = youtubeLastQueueIndex.coerceIn(0, count - 1)
-            val randomTarget = if (youtubeShuffleEnabled && count > 1) {
+            val mixedPlaylistActive = activeMixedPlaylist != null
+            val segmentShuffleEnabled = youtubeShuffleEnabled && !mixedPlaylistActive
+            val segmentRepeatMode = if (mixedPlaylistActive) 0 else youtubeRepeatMode
+            val randomTarget = if (segmentShuffleEnabled && count > 1) {
                 (0 until count).filter { it != currentIndex }.random()
             } else null
             val nextIndex = selectNgocSiAiEndedYouTubeQueueIndex(
                 currentIndex = currentIndex,
                 queueSize = count,
-                shuffleEnabled = youtubeShuffleEnabled,
-                repeatMode = youtubeRepeatMode,
+                shuffleEnabled = segmentShuffleEnabled,
+                repeatMode = segmentRepeatMode,
                 shuffleTargetIndex = randomTarget
             ) ?: run {
                 finishInlineYouTubeQueue()
@@ -9858,7 +9946,12 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                 return@runCatching
             }
             if (!playInlineYouTubeQueueItemWithoutReload(nextTrack, queueSnapshot, nextIndex)) {
-                playYouTube(nextTrack, queueSnapshot, nextIndex)
+                playYouTube(
+                    nextTrack,
+                    queueSnapshot,
+                    nextIndex,
+                    preserveMixedPlaylist = activeMixedPlaylist != null
+                )
             }
         }.onFailure {
             youtubePlaybackIsPlaying = false
@@ -9868,6 +9961,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
     }
 
     private fun finishInlineYouTubeQueue() {
+        if (advanceMixedPlaylistAfterSegment()) return
         youtubePlaybackIsPlaying = false
         prefs.edit().putBoolean("youtube_playback_is_playing", false).apply()
         val track = youtubeInlineTrack ?: youtubeLastPlayed ?: return

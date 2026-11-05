@@ -135,6 +135,18 @@ internal object PlaylistRules {
     fun removePlaylistEntry(entries: List<PlaylistEntry>, stableKey: String): List<PlaylistEntry> =
         if (stableKey.isBlank()) entries else entries.filterNot { it.stableKey == stableKey }
 
+    /** End-exclusive boundary of a consecutive run of one playlist entry type. */
+    fun contiguousPlaylistSegmentEnd(
+        entries: List<PlaylistEntry>,
+        startIndex: Int,
+        type: String
+    ): Int {
+        if (startIndex !in entries.indices || entries[startIndex].type != type) return startIndex
+        var end = startIndex + 1
+        while (end < entries.size && entries[end].type == type) end++
+        return end
+    }
+
     /** Move an entry before/after any item, including an item from another source. */
     fun movePlaylistEntry(
         entries: List<PlaylistEntry>,
