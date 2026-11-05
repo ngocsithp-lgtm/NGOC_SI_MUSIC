@@ -106,7 +106,7 @@ internal object PlaylistRules {
         songUris: List<String>,
         youtubeItems: List<YouTubePlaylistItem>
     ): List<PlaylistEntry> = addPlaylistEntries(
-        songUris.mapNotNull(::songEntry),
+        songUris.mapNotNull { uri -> songEntry(uri) },
         youtubeItems.mapNotNull(::youtubeEntry)
     )
 

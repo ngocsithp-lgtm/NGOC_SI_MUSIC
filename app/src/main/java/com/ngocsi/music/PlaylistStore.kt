@@ -174,7 +174,7 @@ class PlaylistStore(context: Context) {
         val updated = current.map { playlist ->
             if (playlist.id != playlistId) playlist
             else {
-                val incoming = uris.mapNotNull(PlaylistRules::songEntry)
+                val incoming = uris.mapNotNull { uri -> PlaylistRules.songEntry(uri) }
                 val entries = PlaylistRules.addPlaylistEntries(playlist.entries, incoming)
                 if (entries == playlist.entries) playlist
                 else {
