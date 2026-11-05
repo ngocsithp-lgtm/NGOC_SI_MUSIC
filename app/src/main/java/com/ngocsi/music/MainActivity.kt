@@ -1416,9 +1416,12 @@ class MainActivity : ComponentActivity() {
                 if (playlist == null) {
                     errorMessage = "Chưa tìm thấy playlist “${playlistQuery.orEmpty()}”. Hãy nói “Mở danh sách phát” để xem tên playlist hiện có."
                     showPlaylists = true
+                } else if (playlist.songUris.isEmpty() && playlist.youtubeItems.isNotEmpty()) {
+                    pendingAiPlaylistName = null
+                    playYouTubePlaylist(playlist)
                 } else if (controller != null && localLibraryLoaded) {
                     pendingAiPlaylistName = null
-                    playPlaylist(playlist)
+                    playPlaylistDefault(playlist)
                 } else {
                     pendingAiPlaylistName = playlist.name
                     showPlaylists = true
@@ -5126,7 +5129,7 @@ class MainActivity : ComponentActivity() {
             errorMessage = "Không tìm thấy playlist “$requestedName” sau khi tải danh sách."
             return
         }
-        playPlaylist(playlist)
+        playPlaylistDefault(playlist)
     }
 
     private fun dispatchPendingAiLocalPlaybackIfReady() {
