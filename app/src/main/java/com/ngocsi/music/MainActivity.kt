@@ -1365,6 +1365,7 @@ class MainActivity : ComponentActivity() {
                     if (track == null) {
                         errorMessage = "Không tìm thấy video YouTube đang phát để lưu vào playlist."
                     } else {
+                        val alreadySaved = playlist.youtubeItems.any { it.videoId == track.videoId }
                         val updated = playlistStore.addYouTubeItems(
                             playlist.id,
                             listOf(
@@ -1377,10 +1378,10 @@ class MainActivity : ComponentActivity() {
                             )
                         )
                         refreshPlaylists()
-                        errorMessage = if (updated != null) {
-                            "Đã lưu video YouTube “${track.title}” vào playlist “${playlist.name}”."
-                        } else {
-                            "Không thể cập nhật playlist “${playlist.name}”."
+                        errorMessage = when {
+                            updated == null -> "Không thể cập nhật playlist “${playlist.name}”."
+                            alreadySaved -> "Video YouTube “${track.title}” đã có sẵn trong playlist “${playlist.name}”."
+                            else -> "Đã lưu video YouTube “${track.title}” vào playlist “${playlist.name}”."
                         }
                     }
                 } else {
@@ -4970,13 +4971,15 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun addSongToPlaylist(playlistId: String, song: Song) {
-        val updated = playlistStore.addSong(playlistId, song.uri.toString())
+        val uri = song.uri.toString()
+        val alreadySaved = playlists.firstOrNull { it.id == playlistId }?.songUris?.contains(uri) == true
+        val updated = playlistStore.addSong(playlistId, uri)
         refreshPlaylists()
         playlistTargetSongUri = null
-        errorMessage = if (updated != null) {
-            "Đã thêm “" + song.title + "” vào " + updated.name + "."
-        } else {
-            "Không tìm thấy playlist."
+        errorMessage = when {
+            updated == null -> "Không tìm thấy playlist."
+            alreadySaved -> "“${song.title}” đã có sẵn trong playlist “${updated.name}”."
+            else -> "Đã thêm “${song.title}” vào playlist “${updated.name}”."
         }
     }
 
@@ -5035,7 +5038,11 @@ class MainActivity : ComponentActivity() {
             val updated = playlistStore.addYouTubeItems(playlist.id, videoItems)
             refreshPlaylists()
             val addedCount = ((updated?.youtubeItems?.size ?: beforeCount) - beforeCount).coerceAtLeast(0)
-            errorMessage = "Đã lưu $addedCount video YouTube từ hàng đợi vào ${playlist.name}."
+            errorMessage = when {
+                updated == null -> "Không thể cập nhật playlist “${playlist.name}”."
+                addedCount == 0 -> "Các video trong hàng đợi YouTube đã có sẵn trong playlist “${playlist.name}”."
+                else -> "Đã lưu $addedCount video YouTube mới từ hàng đợi vào ${playlist.name}."
+            }
             return
         }
 
@@ -5044,9 +5051,15 @@ class MainActivity : ComponentActivity() {
             errorMessage = "Hàng đợi đang trống."
             return
         }
+        val existingUris = playlist.songUris.toSet()
+        val addedCount = queueUris.count { it !in existingUris }
         queueUris.forEach { playlistStore.addSong(playlist.id, it) }
         refreshPlaylists()
-        errorMessage = "Đã thêm " + queueUris.size + " bài từ hàng đợi vào " + playlist.name + "."
+        errorMessage = if (addedCount == 0) {
+            "Các bài trong hàng đợi đã có sẵn trong playlist “${playlist.name}”."
+        } else {
+            "Đã thêm $addedCount bài mới từ hàng đợi vào “${playlist.name}”."
+        }
     }
 
     private fun playYouTubePlaylist(playlist: MusicPlaylist, startIndex: Int = 0) {
@@ -5209,9 +5222,14 @@ class MainActivity : ComponentActivity() {
             return
         }
 
+        val alreadySaved = playlist.songUris.contains(song.uri.toString())
         playlistStore.addSong(playlist.id, song.uri.toString())
         refreshPlaylists()
-        errorMessage = "Đã thêm “${song.title}” vào playlist “${playlist.name}”."
+        errorMessage = if (alreadySaved) {
+            "“${song.title}” đã có sẵn trong playlist “${playlist.name}”."
+        } else {
+            "Đã thêm “${song.title}” vào playlist “${playlist.name}”."
+        }
     }
 
     private fun playPlaylist(playlist: MusicPlaylist) {
