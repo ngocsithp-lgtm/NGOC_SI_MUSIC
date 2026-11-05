@@ -1360,6 +1360,29 @@ class MainActivity : ComponentActivity() {
                 if (playlist == null) {
                     errorMessage = "Chưa tìm thấy playlist “${playlistQuery.orEmpty()}”. Hãy tạo playlist trước hoặc mở Danh sách phát."
                     showPlaylists = true
+                } else if (prefs.getBoolean("youtube_active_source", false)) {
+                    val track = currentYouTubeTrackForPlaylist()
+                    if (track == null) {
+                        errorMessage = "Không tìm thấy video YouTube đang phát để lưu vào playlist."
+                    } else {
+                        val updated = playlistStore.addYouTubeItems(
+                            playlist.id,
+                            listOf(
+                                YouTubePlaylistItem(
+                                    videoId = track.videoId,
+                                    title = track.title,
+                                    channelTitle = track.channelTitle,
+                                    thumbnailUrl = track.thumbnailUrl
+                                )
+                            )
+                        )
+                        refreshPlaylists()
+                        errorMessage = if (updated != null) {
+                            "Đã lưu video YouTube “${track.title}” vào playlist “${playlist.name}”."
+                        } else {
+                            "Không thể cập nhật playlist “${playlist.name}”."
+                        }
+                    }
                 } else {
                     pendingAiAddCurrentSongPlaylistName = playlist.name
                     dispatchPendingAiAddCurrentSongToPlaylistIfReady()
@@ -4954,7 +4977,65 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun currentYouTubeTrackForPlaylist(): YouTubeTrack? {
+        val candidate = youtubeInlineTrack ?: youtubeLastPlayed
+        val videoId = PlaylistRules.sanitizeYouTubeVideoId(
+            candidate?.videoId ?: prefs.getString("youtube_last_played_video_id", null).orEmpty()
+        )
+        if (videoId.isBlank()) return null
+        val matching = candidate?.takeIf { it.videoId == videoId }
+        return YouTubeTrack(
+            videoId = videoId,
+            title = matching?.title.orEmpty().ifBlank {
+                prefs.getString("youtube_last_played_title", "Video YouTube").orEmpty()
+            },
+            channelTitle = matching?.channelTitle.orEmpty().ifBlank {
+                prefs.getString("youtube_last_played_channel", "YouTube").orEmpty()
+            },
+            thumbnailUrl = matching?.thumbnailUrl.orEmpty().ifBlank {
+                prefs.getString("youtube_last_played_thumbnail", null).orEmpty()
+                    .ifBlank { "https://i.ytimg.com/vi/$videoId/hqdefault.jpg" }
+            }
+        )
+    }
+
     private fun addQueueToPlaylist(playlist: MusicPlaylist) {
+        if (prefs.getBoolean("youtube_active_source", false)) {
+            val rawQueue = youtubeLastQueueJson
+                ?.takeIf { it.isNotBlank() }
+                ?: prefs.getString("youtube_last_played_queue_json", null).orEmpty()
+            val videoItems = runCatching {
+                val array = JSONArray(rawQueue)
+                buildList {
+                    for (index in 0 until array.length()) {
+                        val item = array.optJSONObject(index) ?: continue
+                        val videoId = PlaylistRules.sanitizeYouTubeVideoId(item.optString("videoId"))
+                        if (videoId.isBlank()) continue
+                        add(
+                            YouTubePlaylistItem(
+                                videoId = videoId,
+                                title = item.optString("title").ifBlank { "Video YouTube" },
+                                channelTitle = item.optString("channelTitle").ifBlank { "YouTube" },
+                                thumbnailUrl = item.optString("thumbnailUrl").ifBlank {
+                                    "https://i.ytimg.com/vi/$videoId/hqdefault.jpg"
+                                }
+                            )
+                        )
+                    }
+                }.distinctBy { it.videoId }
+            }.getOrDefault(emptyList())
+            if (videoItems.isEmpty()) {
+                errorMessage = "Hàng đợi YouTube đang trống hoặc chưa có dữ liệu để lưu."
+                return
+            }
+            val beforeCount = playlist.youtubeItems.size
+            val updated = playlistStore.addYouTubeItems(playlist.id, videoItems)
+            refreshPlaylists()
+            val addedCount = ((updated?.youtubeItems?.size ?: beforeCount) - beforeCount).coerceAtLeast(0)
+            errorMessage = "Đã lưu $addedCount video YouTube từ hàng đợi vào ${playlist.name}."
+            return
+        }
+
         val queueUris = queueSongs.map { it.uri.toString() }.distinct()
         if (queueUris.isEmpty()) {
             errorMessage = "Hàng đợi đang trống."
@@ -4963,6 +5044,42 @@ class MainActivity : ComponentActivity() {
         queueUris.forEach { playlistStore.addSong(playlist.id, it) }
         refreshPlaylists()
         errorMessage = "Đã thêm " + queueUris.size + " bài từ hàng đợi vào " + playlist.name + "."
+    }
+
+    private fun playYouTubePlaylist(playlist: MusicPlaylist, startIndex: Int = 0) {
+        val items = playlist.youtubeItems
+        val selected = items.getOrNull(startIndex) ?: run {
+            errorMessage = "Playlist chưa có video YouTube để phát."
+            return
+        }
+        val queueJson = JSONArray().apply {
+            items.forEach { item ->
+                put(org.json.JSONObject().apply {
+                    put("videoId", item.videoId)
+                    put("title", item.title)
+                    put("channelTitle", item.channelTitle)
+                    put("thumbnailUrl", item.thumbnailUrl)
+                })
+            }
+        }.toString()
+        playYouTube(
+            YouTubeTrack(
+                videoId = selected.videoId,
+                title = selected.title,
+                channelTitle = selected.channelTitle,
+                thumbnailUrl = selected.thumbnailUrl
+            ),
+            queueJson,
+            startIndex.coerceIn(0, items.lastIndex)
+        )
+    }
+
+    private fun playPlaylistDefault(playlist: MusicPlaylist) {
+        if (playlist.songUris.isNotEmpty()) {
+            playPlaylist(playlist)
+        } else {
+            playYouTubePlaylist(playlist)
+        }
     }
 
     private fun playPlaylistFromSong(playlist: MusicPlaylist, songIndex: Int) {
@@ -6239,12 +6356,12 @@ class MainActivity : ComponentActivity() {
                                         overflow = TextOverflow.Ellipsis
                                     )
                                     Text(
-                                        "${playlist.songUris.size} bài • chạm để mở",
+                                        "${playlist.songUris.size} bài • ${playlist.youtubeItems.size} video YouTube • chạm để mở",
                                         color = Color(0xFF888894),
                                         fontSize = 10.sp
                                     )
                                 }
-                                IconButton(onClick = { playPlaylist(playlist) }, modifier = Modifier.size(32.dp)) {
+                                IconButton(onClick = { playPlaylistDefault(playlist) }, modifier = Modifier.size(32.dp)) {
                                     Text("▶", color = NgocSiVisuals.Secondary, fontSize = 13.sp)
                                 }
                                 IconButton(onClick = {
@@ -14327,14 +14444,14 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                                 overflow = TextOverflow.Ellipsis
                                             )
                                             Text(
-                                                playlist.songUris.size.toString() + " bài • chạm để xem",
+                                                playlist.songUris.size.toString() + " bài • " + playlist.youtubeItems.size + " video YouTube",
                                                 color = Color(0xFF888894),
                                                 fontSize = 10.sp,
                                                 maxLines = 1
                                             )
                                         }
                                         IconButton(
-                                            onClick = { playPlaylist(playlist) },
+                                            onClick = { playPlaylistDefault(playlist) },
                                             modifier = Modifier.size(32.dp)
                                         ) { Text("▶", color = Color(0xFFB99AFF), fontSize = 13.sp) }
                                         IconButton(
@@ -14345,7 +14462,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                             },
                                             modifier = Modifier.size(32.dp)
                                         ) { Text("✎", color = Color(0xFFB8C2D3), fontSize = 15.sp) }
-                                        if (queueSongs.isNotEmpty()) {
+                                        if (queueSongs.isNotEmpty() || prefs.getBoolean("youtube_active_source", false)) {
                                             IconButton(
                                                 onClick = { addQueueToPlaylist(playlist) },
                                                 modifier = Modifier.size(32.dp)
