@@ -1836,4 +1836,41 @@ class NgocSiAiLocalCommandRulesTest {
         assertNull(classifyNgocSiAiWakePhrase("tua tới 10 giây"))
     }
 
+    @Test
+    fun recognizesSpeechToTextAliasesForTheAiWakeWordAcrossCommandRoutes() {
+        assertEquals(
+            NgocSiAiLocalCommand.NEXT,
+            classifyNgocSiAiWakePhrase("Al, chuyển bài")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.PLAY,
+            classifyNgocSiAiWakePhrase("Al ơi, phát nhạc")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.PREVIOUS,
+            classifyNgocSiAiWakePhrase("A L, quay lại bài trước")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.OPEN_YOUTUBE,
+            classifyNgocSiAiLocalCommand("Al, mở YouTube")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.YOUTUBE_SEEK_FORWARD_10,
+            classifyNgocSiAiActivatedCommand("Al, tua YouTube tới 10 giây")
+        )
+        assertEquals(true, isNgocSiAiWakeWordOnly("Al"))
+        assertEquals(true, isNgocSiAiWakeWordOnly("A L ơi"))
+        assertEquals(
+            "Al, chuyển bài",
+            selectNgocSiAiWakePhraseCandidate(listOf("nhiễu nền", "Al, chuyển bài"))
+        )
+        assertEquals(true, isNgocSiAiStopVoiceControlPhrase("Al, tạm dừng AI"))
+        assertEquals(true, isNgocSiAiExplicitStopPhrase("Al, dừng hẳn nhạc"))
+        assertEquals(
+            30,
+            extractNgocSiAiSleepTimerMinutes("Al, hẹn giờ tắt nhạc sau 30 phút")
+        )
+        assertNull(classifyNgocSiAiWakePhrase("Tôi nghe thấy Al đang nói chuyện"))
+    }
+
 }
