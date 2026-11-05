@@ -892,6 +892,9 @@ internal fun classifyNgocSiAiLocalCommand(
         startsWithAny("tam dung youtube", "tam dung video youtube", "pause youtube", "pause video") ->
             NgocSiAiLocalCommand.PAUSE_YOUTUBE
 
+        // Playlist save commands must take priority over generic YouTube search parsing.
+        extractNgocSiAiAddToPlaylistQuery(input) != null -> NgocSiAiLocalCommand.ADD_CURRENT_TRACK_TO_PLAYLIST
+        extractNgocSiAiQueueToPlaylistQuery(input) != null -> NgocSiAiLocalCommand.ADD_QUEUE_TO_PLAYLIST
         // An explicit search-then-play request is one atomic command. Do not stop
         // after rendering search results and leave the user to tap Play.
         extractNgocSiAiYoutubeAutoPlayQuery(input) != null -> NgocSiAiLocalCommand.SEARCH_AND_PLAY_YOUTUBE
