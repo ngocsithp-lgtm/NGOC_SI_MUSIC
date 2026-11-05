@@ -180,6 +180,7 @@ class NgocSiAiRemotePolicyTest {
     @Test
     fun explicitRequestsAndIndependentActionsStillExposeTheTool() {
         assertTrue(shouldOfferNgocSiAiAppCommandTool("Tôi muốn nghe nhạc Bolero."))
+        assertTrue(shouldOfferNgocSiAiAppCommandTool("AI, tìm nhạc Bolero rồi phát."))
         assertTrue(shouldOfferNgocSiAiAppCommandTool("AI, mở YouTube."))
         assertTrue(shouldOfferNgocSiAiAppCommandTool("Tôi thích nghe Bolero, hãy tìm bài trên YouTube rồi phát."))
         assertTrue(shouldOfferNgocSiAiAppCommandTool("AI, đừng phát nhạc nữa."))
