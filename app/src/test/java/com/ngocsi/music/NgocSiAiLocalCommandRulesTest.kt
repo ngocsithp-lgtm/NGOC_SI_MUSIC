@@ -365,7 +365,7 @@ class NgocSiAiLocalCommandRulesTest {
             )
             assertEquals(playlist, extractNgocSiAiAddToPlaylistQuery(phrase))
             assertEquals(
-                NgocSiAiLocalCommand.ADD_CURRENT_TRACK_TO_PLAYLIST,
+                if (phrase.startsWith("AI,")) NgocSiAiLocalCommand.ADD_CURRENT_TRACK_TO_PLAYLIST else null,
                 classifyNgocSiAiWakePhrase(phrase)
             )
         }
@@ -382,7 +382,7 @@ class NgocSiAiLocalCommandRulesTest {
             )
             assertEquals(playlist, extractNgocSiAiQueueToPlaylistQuery(phrase))
             assertEquals(
-                NgocSiAiLocalCommand.ADD_QUEUE_TO_PLAYLIST,
+                if (phrase.startsWith("AI,")) NgocSiAiLocalCommand.ADD_QUEUE_TO_PLAYLIST else null,
                 classifyNgocSiAiWakePhrase(phrase)
             )
         }
