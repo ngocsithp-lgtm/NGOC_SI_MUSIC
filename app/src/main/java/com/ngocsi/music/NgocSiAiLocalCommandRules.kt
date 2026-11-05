@@ -1373,13 +1373,13 @@ internal fun extractNgocSiAiContextualDriveQuery(
     if (normalizeNgocSiAiEntryContext(entryContext) != "Google Drive") return null
 
     var phrase = stripNgocSiAiOuterQuotationMarks(input).replace(
-        Regex("""^(?:(?:hey|ok|alo)\\s+)?(?:ai|ngọc sĩ|ngoc si)\\b[\\s,:-]*""", RegexOption.IGNORE_CASE),
+        Regex("""^(?:(?:hey|ok|alo)\s+)?(?:ai|ngọc sĩ|ngoc si)\b[\s,:-]*""", RegexOption.IGNORE_CASE),
         ""
     ).trim()
-    phrase = phrase.replace(Regex("""^(?:hãy|hay)\\s+""", RegexOption.IGNORE_CASE), "")
+    phrase = phrase.replace(Regex("""^(?:hãy|hay)\s+""", RegexOption.IGNORE_CASE), "")
 
     val match = Regex(
-        """^(?:tìm|tim|kiếm|kiem)\\s+(?:(?:bài hát|bai hat|ca khúc|ca khuc|nhạc|nhac|file|tệp|tep)\\s+)?(.+?)[.!?,;:]*$""",
+        """^(?:tìm|tim|kiếm|kiem)\s+(?:(?:bài hát|bai hat|ca khúc|ca khuc|nhạc|nhac|file|tệp|tep)\s+)?(.+?)[.!?,;:]*$""",
         RegexOption.IGNORE_CASE
     ).matchEntire(phrase) ?: return null
     var query = match.groupValues[1].trim()
@@ -1391,7 +1391,7 @@ internal fun extractNgocSiAiContextualDriveQuery(
 
     query = query.replace(
         Regex(
-            """\\s+(?:trong|ở|o)\\s+(?:thư mục này|thu muc nay|thư mục hiện tại|thu muc hien tai|đây|day)$""",
+            """\s+(?:trong|ở|o)\s+(?:thư mục này|thu muc nay|thư mục hiện tại|thu muc hien tai|đây|day)$""",
             RegexOption.IGNORE_CASE
         ),
         ""
