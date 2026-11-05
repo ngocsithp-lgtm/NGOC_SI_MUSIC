@@ -119,7 +119,7 @@ class PlaylistRulesTest {
         assertEquals(2, PlaylistRules.contiguousPlaylistSegmentEnd(
             entries, 2, PlaylistEntry.TYPE_SONG
         ))
-        assertEquals(0, PlaylistRules.contiguousPlaylistSegmentEnd(
+        assertEquals(-1, PlaylistRules.contiguousPlaylistSegmentEnd(
             entries, -1, PlaylistEntry.TYPE_SONG
         ))
     }
