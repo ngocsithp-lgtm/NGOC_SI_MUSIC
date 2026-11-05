@@ -1564,13 +1564,13 @@ internal fun extractNgocSiAiContextualYoutubeQuery(
     if (normalizeNgocSiAiEntryContext(entryContext) != "YouTube") return null
 
     var phrase = stripNgocSiAiOuterQuotationMarks(input).replace(
-        Regex("""^(?:(?:hey|ok|alo)\\s+)?(?:ai|ngọc sĩ|ngoc si)\\b[\\s,:-]*""", RegexOption.IGNORE_CASE),
+        Regex("""^(?:(?:hey|ok|alo)\s+)?(?:ai|ngọc sĩ|ngoc si)\b[\s,:-]*""", RegexOption.IGNORE_CASE),
         ""
     ).trim()
-    phrase = phrase.replace(Regex("""^(?:hãy|hay)\\s+""", RegexOption.IGNORE_CASE), "")
+    phrase = phrase.replace(Regex("""^(?:hãy|hay)\s+""", RegexOption.IGNORE_CASE), "")
     val normalized = normalizeNgocSiAiVoicePhrase(phrase)
     // A play suffix belongs to the dedicated search-and-play parser above.
-    if (Regex("""(?:\\b(?:roi|va|sau do|then)\\s+(?:phat|play)|\\b(?:phat|play)\\s+(?:luon|di))$""")
+    if (Regex("""(?:\b(?:roi|va|sau do|then)\s+(?:phat|play)|\b(?:phat|play)\s+(?:luon|di))$""")
             .containsMatchIn(normalized)
     ) return null
     // Do not let a YouTube page override a source explicitly named by the user.
@@ -1581,7 +1581,7 @@ internal fun extractNgocSiAiContextualYoutubeQuery(
     if (explicitOtherSources.any(normalized::contains)) return null
 
     val match = Regex(
-        """^(?:tìm|tim|kiếm|kiem)\\s+(?:(?:bài hát|bai hat|ca khúc|ca khuc|nhạc|nhac|video)\\s+)?(.+?)[.!?,;:]*$""",
+        """^(?:tìm|tim|kiếm|kiem)\s+(?:(?:bài hát|bai hat|ca khúc|ca khuc|nhạc|nhac|video)\s+)?(.+?)[.!?,;:]*$""",
         RegexOption.IGNORE_CASE
     ).matchEntire(phrase) ?: return null
     val query = trimNgocSiAiExtractedQuery(match.groupValues[1])
