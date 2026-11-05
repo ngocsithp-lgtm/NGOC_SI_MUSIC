@@ -10037,18 +10037,25 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             val count = array.length()
             if (count == 0) return@runCatching
             val currentIndex = youtubeLastQueueIndex.coerceIn(0, count - 1)
-            val randomTarget = if (offset > 0 && youtubeShuffleEnabled && count > 1) {
+            val mixedPlaylistActive = activeMixedPlaylist != null
+            val queueShuffleEnabled = youtubeShuffleEnabled && !mixedPlaylistActive
+            val queueRepeatMode = if (mixedPlaylistActive) 0 else youtubeRepeatMode
+            val randomTarget = if (offset > 0 && queueShuffleEnabled && count > 1) {
                 (0 until count).filter { it != currentIndex }.random()
             } else null
             val targetIndex = selectNgocSiAiManualYouTubeQueueIndex(
                 currentIndex = currentIndex,
                 queueSize = count,
                 offset = offset,
-                shuffleEnabled = youtubeShuffleEnabled,
-                repeatMode = youtubeRepeatMode,
+                shuffleEnabled = queueShuffleEnabled,
+                repeatMode = queueRepeatMode,
                 shuffleTargetIndex = randomTarget
             )
             if (targetIndex == null) {
+                if (activeMixedPlaylist != null && offset > 0) {
+                    advanceMixedPlaylistAfterSegment(forceAdvance = true)
+                    return@runCatching
+                }
                 errorMessage = if (offset > 0) {
                     "Đã tới video cuối hàng đợi YouTube."
                 } else {
@@ -10069,7 +10076,12 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             // Prefer an in-place IFrame queue switch for notification, lock-screen,
             // voice, and in-app transport controls. Rebuild the WebView only as fallback.
             if (!playInlineYouTubeQueueItemWithoutReload(targetTrack, rawQueue, targetIndex)) {
-                playYouTube(targetTrack, rawQueue, targetIndex)
+                playYouTube(
+                    targetTrack,
+                    rawQueue,
+                    targetIndex,
+                    preserveMixedPlaylist = mixedPlaylistActive
+                )
             }
         }.onFailure {
             errorMessage = "Không chuyển được video trong hàng đợi YouTube."
@@ -13609,8 +13621,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         Modifier
                             .size(34.dp)
                             .clip(CircleShape)
-                            .clickable(enabled = queuePosition > 1) {
-                                playStoredYouTubeOffset(-1)
+                            .clickable(enabled = queuePosition > 1 || activeMixedPlaylist != null) {
+                                previousFromYouTubeControls()
                             },
                         contentAlignment = Alignment.Center
                     ) {
@@ -13634,8 +13646,8 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         Modifier
                             .size(34.dp)
                             .clip(CircleShape)
-                            .clickable(enabled = queuePosition < queueSize) {
-                                playStoredYouTubeOffset(1)
+                            .clickable(enabled = queuePosition < queueSize || activeMixedPlaylist != null) {
+                                nextFromYouTubeControls()
                             },
                         contentAlignment = Alignment.Center
                     ) {
@@ -14505,7 +14517,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                IconButton(onClick = { playStoredYouTubeOffset(-1) }, modifier = Modifier.size(34.dp)) {
+                IconButton(onClick = { previousFromYouTubeControls() }, modifier = Modifier.size(34.dp)) {
                     Text("⏮", color = Color(0xFFB8B3C7), fontSize = 14.sp)
                 }
                 Surface(
@@ -14527,7 +14539,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                         )
                     }
                 }
-                IconButton(onClick = { playStoredYouTubeOffset(1) }, modifier = Modifier.size(34.dp)) {
+                IconButton(onClick = { nextFromYouTubeControls() }, modifier = Modifier.size(34.dp)) {
                     Text("⏭", color = Color(0xFFB8B3C7), fontSize = 14.sp)
                 }
             }
