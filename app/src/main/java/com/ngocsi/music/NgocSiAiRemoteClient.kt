@@ -139,6 +139,10 @@ internal class NgocSiAiRemoteClient(context: Context) {
         val newestUserMessage = normalized.lastOrNull()
             ?.takeIf { it.role == "user" }
             ?: throw NgocSiAiRemoteException("Tin nhắn chưa hợp lệ. Hãy gửi một câu hỏi mới.")
+        // If AI was launched from YouTube, preserve that source even if Gemini proposes
+        // the general Online search action for an explicit search-then-play request.
+        val contextualYoutubeAutoPlayQuery =
+            extractNgocSiAiContextualYoutubeAutoPlayQuery(newestUserMessage.content, entryContext)
 
         // Firebase AI Logic requires model-role history for assistant responses.
         val previousTurns = normalized.dropLast(1).map { message ->
@@ -202,6 +206,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 var response = chat.sendMessage(newestUserMessage.content)
                 var toolRound = 0
                 var stopSequenceFeedback: String? = null
+                var contextualYoutubeAutoPlayDispatched = false
                 while (response.functionCalls.isNotEmpty() && toolRound < MAX_TOOL_ROUNDS) {
                     // Select one valid action for this round. Other proposed actions are
                     // deferred until the model has read the result of the selected action.
@@ -221,8 +226,9 @@ internal class NgocSiAiRemoteClient(context: Context) {
                     response.functionCalls.forEachIndexed { index, functionCall ->
                         val action = functionCall.args["action"]?.jsonPrimitive?.contentOrNull.orEmpty()
                         val query = functionCall.args["query"]?.jsonPrimitive?.contentOrNull.orEmpty()
+                        var effectiveAction = action
                         val result = when {
-                            functionCall.name != APP_COMMAND_TOOL_NAME || action.isBlank() ->
+                            functionCall.name != APP_COMMAND_TOOL_NAME ->
                                 NgocSiAiToolResult(
                                     routed = false,
                                     feedback = "Lệnh không nằm trong danh sách chức năng AI được phép điều khiển."
@@ -232,13 +238,28 @@ internal class NgocSiAiRemoteClient(context: Context) {
                                     routed = false,
                                     feedback = ngocSiAiDeferredToolCallFeedback()
                                 )
-                            else -> executeNgocSiAiToolSafely(executeTool, action, query)
+                            else -> {
+                                val inferredQuery = contextualYoutubeAutoPlayQuery
+                                    ?.takeIf { !contextualYoutubeAutoPlayDispatched }
+                                if (inferredQuery != null) {
+                                    contextualYoutubeAutoPlayDispatched = true
+                                    effectiveAction = "search_and_play_youtube"
+                                    executeNgocSiAiToolSafely(executeTool, effectiveAction, inferredQuery)
+                                } else if (action.isBlank()) {
+                                    NgocSiAiToolResult(
+                                        routed = false,
+                                        feedback = "Lệnh không nằm trong danh sách chức năng AI được phép điều khiển."
+                                    )
+                                } else {
+                                    executeNgocSiAiToolSafely(executeTool, action, query)
+                                }
+                            }
                         }
                         if (index == selectedCallIndex) {
                             val feedbackState = classifyNgocSiAiAgentFeedback(
                                 result.routed,
                                 result.feedback,
-                                action
+                                effectiveAction
                             )
                             stopSequenceFeedback = ngocSiAiAgentStopFeedback(
                                 feedbackState,
