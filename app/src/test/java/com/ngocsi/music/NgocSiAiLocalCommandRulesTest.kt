@@ -747,12 +747,59 @@ class NgocSiAiLocalCommandRulesTest {
             classifyNgocSiAiLocalCommand("Tìm nhạc Bolero rồi phát")
         )
 
-        // A search without an explicit play suffix must never trigger autoplay.
-        assertNull(extractNgocSiAiContextualYoutubeAutoPlayQuery("Tìm nhạc Bolero", "YouTube"))
+        // A search without an explicit play suffix stays on YouTube but never autoplays.
+        val searchOnly = "Tìm nhạc Bolero"
+        assertNull(extractNgocSiAiContextualYoutubeAutoPlayQuery(searchOnly, "YouTube"))
+        assertEquals("Bolero", extractNgocSiAiContextualYoutubeQuery(searchOnly, "YouTube"))
+        assertEquals(
+            NgocSiAiLocalCommand.SEARCH_YOUTUBE,
+            classifyNgocSiAiLocalCommand(searchOnly, "YouTube")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.SEARCH_YOUTUBE,
+            classifyNgocSiAiWakePhrase("AI, tìm nhạc Bolero", "YouTube")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.SEARCH_YOUTUBE,
+            classifyNgocSiAiActivatedCommand("tìm nhạc Bolero", "YouTube")
+        )
         assertEquals(
             NgocSiAiLocalCommand.SEARCH_ONLINE_MUSIC,
-            classifyNgocSiAiLocalCommand("Tìm nhạc Bolero", "YouTube")
+            classifyNgocSiAiLocalCommand(searchOnly, "Radio")
         )
+        assertNull(extractNgocSiAiContextualYoutubeQuery(searchOnly, "Radio"))
+        assertNull(extractNgocSiAiContextualYoutubeQuery(searchOnly, "Google Drive"))
+        assertNull(
+            extractNgocSiAiContextualYoutubeQuery(
+                "Tìm nhạc Bolero trên Online",
+                "YouTube"
+            )
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.SEARCH_ONLINE_MUSIC,
+            classifyNgocSiAiLocalCommand("Tìm nhạc Bolero trên Online", "YouTube")
+        )
+        assertNull(
+            extractNgocSiAiContextualYoutubeQuery(
+                "“AI, tìm nhạc Bolero”",
+                "Radio"
+            )
+        )
+    }
+
+    @Test
+    fun contextualYoutubeSearchOnlyDoesNotAutoplayOrHijackOtherSources() {
+        assertEquals(
+            "Bolero",
+            extractNgocSiAiContextualYoutubeQuery("“AI, tìm nhạc Bolero”", "YouTube")
+        )
+        assertEquals(
+            "Bolero",
+            extractNgocSiAiContextualYoutubeQuery("Tìm kiếm bài hát Bolero", "YouTube")
+        )
+        assertNull(extractNgocSiAiContextualYoutubeQuery("Tìm nhạc Bolero rồi phát", "YouTube"))
+        assertNull(extractNgocSiAiContextualYoutubeQuery("Tìm nhạc Bolero trong Drive", "YouTube"))
+        assertNull(extractNgocSiAiContextualYoutubeQuery("Tìm nhạc Bolero trên Audius", "YouTube"))
     }
 
     @Test
