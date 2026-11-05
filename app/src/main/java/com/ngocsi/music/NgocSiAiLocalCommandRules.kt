@@ -1384,8 +1384,12 @@ internal fun extractNgocSiAiTrackQuery(input: String): String? {
 /**
  * Extract free-text search for the app's general Online hub (Jamendo, Audius and YouTube).
  */
+/** Removes quotation marks wrapped around a complete spoken or typed command. */
+private fun stripNgocSiAiOuterQuotationMarks(input: String): String =
+    input.trim().trim { it.isWhitespace() || it in "\"“”'‘’" }.trim()
+
 internal fun extractNgocSiAiOnlineQuery(input: String): String? {
-    var query = input.trim()
+    var query = stripNgocSiAiOuterQuotationMarks(input)
     val prefixes = listOf(
         Regex("""^(?:(?:ai)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:tìm|tim|kiếm|kiem)\s+(?:bài hát|bai hat|ca khúc|ca khuc|nhạc|nhac)\s+""", RegexOption.IGNORE_CASE)
     )
@@ -1405,7 +1409,7 @@ internal fun extractNgocSiAiOnlineQuery(input: String): String? {
  * unexpected playback. The original spelling and accents are retained for the API query.
  */
 internal fun extractNgocSiAiYoutubeAutoPlayQuery(input: String): String? {
-    var phrase = input.trim()
+    var phrase = stripNgocSiAiOuterQuotationMarks(input)
     phrase = phrase.replace(
         Regex("""^(?:(?:hey|ok|alo)\s+)?(?:ai|ngọc sĩ|ngoc si)\b[\s,:-]*""", RegexOption.IGNORE_CASE),
         ""
