@@ -673,7 +673,7 @@ class NgocSiAiActivity : ComponentActivity() {
             // Prefer a recognized candidate that matches an implemented music command;
             // otherwise keep Android's highest-confidence candidate.
             val phrase = candidates.firstOrNull { isNgocSiAiExplicitStopPhrase(it) }
-                ?: candidates.firstOrNull { classifyNgocSiAiLocalCommand(it) != null }
+                ?: candidates.firstOrNull { classifyNgocSiAiLocalCommand(it, entryContext) != null }
                 ?: candidates.firstOrNull().orEmpty()
             runOnUiThread {
                 speechFallbackHandler.removeCallbacks(speechNoTranscriptWatchdog)
@@ -710,7 +710,7 @@ class NgocSiAiActivity : ComponentActivity() {
                 .map { it.trim() }
                 .filter { it.isNotBlank() }
             val phrase = candidates.firstOrNull { isNgocSiAiExplicitStopPhrase(it) }
-                ?: candidates.firstOrNull { classifyNgocSiAiLocalCommand(it) != null }
+                ?: candidates.firstOrNull { classifyNgocSiAiLocalCommand(it, entryContext) != null }
                 ?: candidates.firstOrNull().orEmpty()
             runOnUiThread {
                 if (!isFinishing && !isDestroyed && voiceRecognitionInProgress) {
@@ -758,7 +758,7 @@ class NgocSiAiActivity : ComponentActivity() {
             // conversational speech too—not only recognized local music commands.
             // Otherwise voice chat appears to do nothing for normal questions.
             val phrase = candidates.firstOrNull { isNgocSiAiExplicitStopPhrase(it) }
-                ?: selectNgocSiAiLocalCommandCandidate(candidates)
+                ?: selectNgocSiAiLocalCommandCandidate(candidates, entryContext)
                 ?: candidates.firstOrNull().orEmpty().trim()
             if (result.resultCode == RESULT_OK && phrase.isNotBlank()) {
                 // Confirm recognition immediately so a user can distinguish microphone/
@@ -978,6 +978,7 @@ class NgocSiAiActivity : ComponentActivity() {
         setContent {
             NgocSiAiPreviewScreen(
                 isOnlineConfigured = remoteConfigured,
+                entryContext = aiEntryContext,
                 chatPreferences = aiChatPreferences,
                 onIsLocalModelInstalled = {
                     NgocSiAiOnDeviceModel.isInstalled(applicationContext)
@@ -1396,7 +1397,8 @@ class NgocSiAiActivity : ComponentActivity() {
         val route = resolveNgocSiAiToolCommand(
             action = action,
             query = query,
-            requireActivatedSession = false
+            requireActivatedSession = false,
+            entryContext = entryContext
         ) ?: return NgocSiAiToolResult(
             routed = false,
             feedback = "Thiếu thông tin hoặc action không nằm trong danh sách điều khiển được phép. Chưa thực hiện thao tác."
@@ -1439,8 +1441,8 @@ class NgocSiAiActivity : ComponentActivity() {
                 )
             }
             NgocSiAiLocalCommand.SEARCH_AND_PLAY_YOUTUBE -> {
-                val query = extractNgocSiAiYoutubeAutoPlayQuery(originalText)
-                    ?: return "Hãy nói rõ từ khóa YouTube cần tìm rồi phát, ví dụ: “Tìm nhạc Bolero trên YouTube rồi phát”."
+                val query = extractNgocSiAiContextualYoutubeAutoPlayQuery(originalText, entryContext)
+                    ?: return "Hãy nói rõ nội dung cần tìm rồi phát. Khi mở AI từ trang YouTube, nguồn YouTube sẽ được tự hiểu."
                 return openAppDestination(
                     "youtube_search_play",
                     "Đang tìm “$query” trên YouTube và sẽ tự phát video phù hợp đầu tiên khi có kết quả.",
@@ -2098,6 +2100,7 @@ class NgocSiAiActivity : ComponentActivity() {
 @Composable
 private fun NgocSiAiPreviewScreen(
     isOnlineConfigured: Boolean,
+    entryContext: String?,
     chatPreferences: SharedPreferences,
     onIsLocalModelInstalled: () -> Boolean,
     onDownloadLocalModel: suspend (onProgress: (Long, Long) -> Unit) -> Unit,
@@ -2310,7 +2313,7 @@ private fun NgocSiAiPreviewScreen(
         } else if (explicitStop) {
             NgocSiAiLocalCommand.STOP
         } else {
-            classifyNgocSiAiLocalCommand(clean)
+            classifyNgocSiAiLocalCommand(clean, entryContext)
         }
         val localReply = localMemoryReply
             ?: localMemoryQuestionReply
