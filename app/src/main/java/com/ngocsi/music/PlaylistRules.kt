@@ -178,6 +178,28 @@ internal object PlaylistRules {
         return if (repeatAll) 0 else null
     }
 
+    /** Validate a restored mixed-playlist cursor before resuming cross-source playback. */
+    fun isValidMixedPlaylistPlaybackCursor(
+        entries: List<PlaylistEntry>,
+        segmentStartIndex: Int,
+        currentEntryIndex: Int,
+        nextEntryIndex: Int,
+        segmentIsYouTube: Boolean
+    ): Boolean {
+        if (segmentStartIndex !in entries.indices) return false
+        if (currentEntryIndex !in entries.indices) return false
+        if (nextEntryIndex !in (segmentStartIndex + 1)..entries.size) return false
+        if (currentEntryIndex !in segmentStartIndex until nextEntryIndex) return false
+        val expectedType = if (segmentIsYouTube) {
+            PlaylistEntry.TYPE_YOUTUBE
+        } else {
+            PlaylistEntry.TYPE_SONG
+        }
+        return entries[segmentStartIndex].type == expectedType &&
+            entries[currentEntryIndex].type == expectedType &&
+            entries.subList(segmentStartIndex, nextEntryIndex).all { it.type == expectedType }
+    }
+
     /**
      * True only when playable entries span more than one playback engine/source.
      * Single-source playlists should retain the player's normal repeat and shuffle modes.

@@ -173,6 +173,44 @@ class PlaylistRulesTest {
     }
 
     @Test
+    fun isValidMixedPlaylistPlaybackCursor_acceptsAndRejectsRestoredSegments() {
+        val entries = listOf(
+            PlaylistRules.songEntry("content://song-a")!!,
+            PlaylistRules.songEntry("content://song-b")!!,
+            PlaylistRules.youtubeEntry(YouTubePlaylistItem("abcdefghijk", "Video A", "Kênh", ""))!!,
+            PlaylistRules.youtubeEntry(YouTubePlaylistItem("lmnopqrstuv", "Video B", "Kênh", ""))!!
+        )
+        assertTrue(
+            PlaylistRules.isValidMixedPlaylistPlaybackCursor(
+                entries, segmentStartIndex = 0, currentEntryIndex = 1,
+                nextEntryIndex = 2, segmentIsYouTube = false
+            )
+        )
+        assertTrue(
+            PlaylistRules.isValidMixedPlaylistPlaybackCursor(
+                entries, segmentStartIndex = 2, currentEntryIndex = 3,
+                nextEntryIndex = 4, segmentIsYouTube = true
+            )
+        )
+        assertTrue(!PlaylistRules.isValidMixedPlaylistPlaybackCursor(
+            entries, segmentStartIndex = 0, currentEntryIndex = 2,
+            nextEntryIndex = 4, segmentIsYouTube = false
+        ))
+        assertTrue(!PlaylistRules.isValidMixedPlaylistPlaybackCursor(
+            entries, segmentStartIndex = 2, currentEntryIndex = 2,
+            nextEntryIndex = 3, segmentIsYouTube = false
+        ))
+        assertTrue(!PlaylistRules.isValidMixedPlaylistPlaybackCursor(
+            entries, segmentStartIndex = 2, currentEntryIndex = 3,
+            nextEntryIndex = 2, segmentIsYouTube = true
+        ))
+        assertTrue(!PlaylistRules.isValidMixedPlaylistPlaybackCursor(
+            entries, segmentStartIndex = -1, currentEntryIndex = 0,
+            nextEntryIndex = 2, segmentIsYouTube = false
+        ))
+    }
+
+    @Test
     fun requiresOrderedMixedPlayback_onlyWhenPlayableEntriesSpanDifferentSources() {
         val deviceSong = PlaylistRules.songEntry("content://device-a")!!
         val driveSong = PlaylistRules.songEntry("content://drive-a")!!

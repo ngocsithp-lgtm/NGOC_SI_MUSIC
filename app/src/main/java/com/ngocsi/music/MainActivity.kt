@@ -259,6 +259,16 @@ class MainActivity : ComponentActivity() {
             if (uri.isNotBlank()) {
                 currentIndex = songs.indexOfFirst { it.uri.toString() == uri }
                 lastSongUri = uri
+                val playlist = activeMixedPlaylist
+                if (playlist != null && !activeMixedPlaylistSegmentIsYouTube) {
+                    val entryIndex = playlist.entries.indexOfFirst {
+                        it.type == PlaylistEntry.TYPE_SONG && it.uri == uri
+                    }
+                    if (entryIndex in activeMixedPlaylistSegmentStartEntryIndex until activeMixedPlaylistNextEntryIndex) {
+                        activeMixedPlaylistCurrentEntryIndex = entryIndex
+                        persistActiveMixedPlaylistPlaybackState()
+                    }
+                }
             }
             controller?.let { c ->
                 position = c.currentPosition.coerceAtLeast(0L)
@@ -558,6 +568,16 @@ class MainActivity : ComponentActivity() {
 
                 val isPlaying = state == 1 || state == 3
                 if (state == 1) lastHandledInlineYouTubeEndedId = null
+                val mixedPlaylist = activeMixedPlaylist
+                if (mixedPlaylist != null && activeMixedPlaylistSegmentIsYouTube && reportedId.isNotBlank()) {
+                    val entryIndex = mixedPlaylist.entries.indexOfFirst {
+                        it.type == PlaylistEntry.TYPE_YOUTUBE && it.videoId == reportedId
+                    }
+                    if (entryIndex in activeMixedPlaylistSegmentStartEntryIndex until activeMixedPlaylistNextEntryIndex) {
+                        activeMixedPlaylistCurrentEntryIndex = entryIndex
+                        persistActiveMixedPlaylistPlaybackState()
+                    }
+                }
                 youtubePlaybackIsPlaying = isPlaying
                 youtubeIsActiveSource = true
                 prefs.edit()
@@ -4528,7 +4548,7 @@ class MainActivity : ComponentActivity() {
         val playlist = activeMixedPlaylist ?: return false
         val currentStart = activeMixedPlaylistSegmentStartEntryIndex
         val targetIndex = if (repeatMode == Player.REPEAT_MODE_ONE) {
-            currentStart.takeIf { it in playlist.entries.indices }
+            activeMixedPlaylistCurrentEntryIndex.takeIf { it in playlist.entries.indices }
         } else {
             PlaylistRules.previousMixedPlaylistEntryIndex(
                 segmentStartIndex = currentStart,
@@ -4563,6 +4583,10 @@ class MainActivity : ComponentActivity() {
             val c = controller ?: return
             if (!isControllerQueueInSync(c)) syncControllerQueue()
             when {
+                repeatMode == Player.REPEAT_MODE_ONE -> {
+                    c.seekTo(c.currentMediaItemIndex, 0L)
+                    c.play()
+                }
                 c.currentPosition > 3_000L -> {
                     c.seekTo(0L)
                     c.play()
@@ -4948,6 +4972,86 @@ class MainActivity : ComponentActivity() {
         prefs.edit().remove("drive_access_token").apply()
     }
 
+    private fun persistActiveMixedPlaylistPlaybackState() {
+        if (!::prefs.isInitialized) return
+        val playlist = activeMixedPlaylist
+        if (playlist == null) {
+            prefs.edit()
+                .remove("active_mixed_playlist_id")
+                .remove("active_mixed_playlist_start_key")
+                .remove("active_mixed_playlist_current_key")
+                .remove("active_mixed_playlist_next_key")
+                .remove("active_mixed_playlist_start_index")
+                .remove("active_mixed_playlist_current_index")
+                .remove("active_mixed_playlist_next_index")
+                .remove("active_mixed_playlist_is_youtube")
+                .apply()
+            return
+        }
+        val startEntry = playlist.entries.getOrNull(activeMixedPlaylistSegmentStartEntryIndex)
+        val currentEntry = playlist.entries.getOrNull(activeMixedPlaylistCurrentEntryIndex)
+        val nextEntry = playlist.entries.getOrNull(activeMixedPlaylistNextEntryIndex)
+        prefs.edit()
+            .putString("active_mixed_playlist_id", playlist.id)
+            .putString("active_mixed_playlist_start_key", startEntry?.stableKey.orEmpty())
+            .putString("active_mixed_playlist_current_key", currentEntry?.stableKey.orEmpty())
+            .putString("active_mixed_playlist_next_key", nextEntry?.stableKey.orEmpty())
+            .putInt("active_mixed_playlist_start_index", activeMixedPlaylistSegmentStartEntryIndex)
+            .putInt("active_mixed_playlist_current_index", activeMixedPlaylistCurrentEntryIndex)
+            .putInt("active_mixed_playlist_next_index", activeMixedPlaylistNextEntryIndex)
+            .putBoolean("active_mixed_playlist_is_youtube", activeMixedPlaylistSegmentIsYouTube)
+            .apply()
+    }
+
+    private fun restoreActiveMixedPlaylistPlaybackState() {
+        val playlistId = prefs.getString("active_mixed_playlist_id", null)
+            ?.takeIf { it.isNotBlank() } ?: return
+        val playlist = playlists.firstOrNull { it.id == playlistId }
+        if (playlist == null) {
+            activeMixedPlaylist = null
+            persistActiveMixedPlaylistPlaybackState()
+            return
+        }
+        val savedStartKey = prefs.getString("active_mixed_playlist_start_key", null).orEmpty()
+        val savedCurrentKey = prefs.getString("active_mixed_playlist_current_key", null).orEmpty()
+        val savedNextKey = prefs.getString("active_mixed_playlist_next_key", null).orEmpty()
+        val startIndex = if (savedStartKey.isNotBlank()) {
+            playlist.entries.indexOfFirst { it.stableKey == savedStartKey }
+        } else {
+            prefs.getInt("active_mixed_playlist_start_index", -1)
+        }
+        val currentIndex = if (savedCurrentKey.isNotBlank()) {
+            playlist.entries.indexOfFirst { it.stableKey == savedCurrentKey }
+        } else {
+            prefs.getInt("active_mixed_playlist_current_index", -1)
+        }
+        val nextIndex = if (savedNextKey.isNotBlank()) {
+            playlist.entries.indexOfFirst { it.stableKey == savedNextKey }
+        } else {
+            prefs.getInt("active_mixed_playlist_next_index", -1)
+                .takeIf { it == playlist.entries.size } ?: -1
+        }
+        val isYouTube = prefs.getBoolean("active_mixed_playlist_is_youtube", false)
+        if (!PlaylistRules.isValidMixedPlaylistPlaybackCursor(
+                entries = playlist.entries,
+                segmentStartIndex = startIndex,
+                currentEntryIndex = currentIndex,
+                nextEntryIndex = nextIndex,
+                segmentIsYouTube = isYouTube
+            )
+        ) {
+            activeMixedPlaylist = null
+            persistActiveMixedPlaylistPlaybackState()
+            return
+        }
+        activeMixedPlaylist = playlist
+        activeMixedPlaylistSegmentStartEntryIndex = startIndex
+        activeMixedPlaylistCurrentEntryIndex = currentIndex
+        activeMixedPlaylistNextEntryIndex = nextIndex
+        activeMixedPlaylistSegmentIsYouTube = isYouTube
+        activeMixedPlaylistAdvancePending = false
+    }
+
     private fun loadSavedState() {
         val savedFavorites = prefs.getStringSet("favorites", emptySet()).orEmpty()
         savedFavorites.forEach { it.toLongOrNull()?.let { id -> favorites[id] = true } }
@@ -4961,6 +5065,7 @@ class MainActivity : ComponentActivity() {
         onlineFavorites.addAll(onlineFavoriteSet)
         lastSongUri = prefs.getString("last_song_uri", null)
         savedPosition = prefs.getLong("last_position", 0L)
+        restoreActiveMixedPlaylistPlaybackState()
     }
 
     private fun saveQueueOrder() {
@@ -5202,6 +5307,7 @@ class MainActivity : ComponentActivity() {
         activeMixedPlaylistNextEntryIndex = -1
         activeMixedPlaylistAdvancePending = false
         activeMixedPlaylistSegmentIsYouTube = false
+        persistActiveMixedPlaylistPlaybackState()
         // Restore the user's normal Media3 modes after a mixed playlist segment has ended
         // or when playback is explicitly switched to another item/source.
         controller?.let { player ->
@@ -5308,6 +5414,7 @@ class MainActivity : ComponentActivity() {
                     queueSource = requestedSong.source
                     activeMixedPlaylistNextEntryIndex = segmentEnd
                     activeMixedPlaylistAdvancePending = false
+                    persistActiveMixedPlaylistPlaybackState()
                     c.setMediaItems(queueSongs.map { mediaItemFor(it) }, selectedIndex, 0L)
                     // Mixed-source order belongs to the canonical playlist. Homogeneous
                     // playlists can safely keep the player's usual shuffle/repeat behavior.
@@ -5352,6 +5459,7 @@ class MainActivity : ComponentActivity() {
                     }
                     activeMixedPlaylistNextEntryIndex = segmentEnd
                     activeMixedPlaylistSegmentIsYouTube = true
+                    persistActiveMixedPlaylistPlaybackState()
                     playYouTubePlaylistItems(
                         items,
                         0,
@@ -5673,7 +5781,10 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         // Keep the wall-clock countdown alive while this Activity is backgrounded.
         // MusicService also enforces the same deadline if the UI process is reclaimed.
-        if (::prefs.isInitialized) savePlaybackState()
+        if (::prefs.isInitialized) {
+            savePlaybackState()
+            persistActiveMixedPlaylistPlaybackState()
+        }
         super.onStop()
     }
 
