@@ -29,6 +29,65 @@ class PlaylistRulesTest {
     }
 
     @Test
+    fun legacyPlaylistMigrationPreservesSourceListsWithoutLosingItems() {
+        val video = YouTubePlaylistItem("abcdefghijk", "Video Bolero", "Kênh nhạc", "")
+        val entries = PlaylistRules.legacyPlaylistEntries(
+            listOf("content://song-a", "content://song-b"),
+            listOf(video)
+        )
+        assertEquals(
+            listOf("song:content://song-a", "song:content://song-b", "youtube:abcdefghijk"),
+            entries.map { it.stableKey }
+        )
+    }
+
+    @Test
+    fun mixedPlaylistEntriesAppendInOrderAndDeduplicateBySourceQualifiedKey() {
+        val song = PlaylistRules.songEntry("content://song-a")!!
+        val video = PlaylistRules.youtubeEntry(
+            YouTubePlaylistItem("abcdefghijk", "Video", "Channel", "")
+        )!!
+        val secondSong = PlaylistRules.songEntry("content://song-b")!!
+        val mixed = PlaylistRules.addPlaylistEntries(
+            listOf(song, video),
+            listOf(song.copy(title = "Duplicate title"), secondSong, video)
+        )
+        assertEquals(
+            listOf(song.stableKey, video.stableKey, secondSong.stableKey),
+            mixed.map { it.stableKey }
+        )
+    }
+
+    @Test
+    fun mixedPlaylistCanMoveSongAcrossYouTubeEntry() {
+        val entries = listOf(
+            PlaylistRules.songEntry("content://song-a")!!,
+            PlaylistRules.youtubeEntry(YouTubePlaylistItem("abcdefghijk", "Video", "Channel", ""))!!,
+            PlaylistRules.songEntry("content://song-b")!!
+        )
+        val moved = PlaylistRules.movePlaylistEntry(
+            entries,
+            movingKey = entries[2].stableKey,
+            targetKey = entries[1].stableKey,
+            placeAfterTarget = false
+        )
+        assertEquals(
+            listOf(entries[0].stableKey, entries[2].stableKey, entries[1].stableKey),
+            moved.map { it.stableKey }
+        )
+    }
+
+    @Test
+    fun removingMixedPlaylistEntryKeepsOtherSourceTypes() {
+        val song = PlaylistRules.songEntry("content://song-a")!!
+        val video = PlaylistRules.youtubeEntry(YouTubePlaylistItem("abcdefghijk", "Video", "Channel", ""))!!
+        assertEquals(
+            listOf(video.stableKey),
+            PlaylistRules.removePlaylistEntry(listOf(song, video), song.stableKey).map { it.stableKey }
+        )
+    }
+
+    @Test
     fun addSongs_batchesUrisTrimsBlanksAndPreservesFirstSeenOrder() {
         assertEquals(
             listOf("content://a", "content://b", "content://c", "content://d"),

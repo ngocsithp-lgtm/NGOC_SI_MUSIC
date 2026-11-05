@@ -76,6 +76,84 @@ internal object PlaylistRules {
         return reorderedIds.mapNotNull(byId::get)
     }
 
+    fun songEntry(uri: String, title: String = "", artist: String = ""): PlaylistEntry? {
+        val cleanUri = uri.trim()
+        if (cleanUri.isBlank()) return null
+        return PlaylistEntry(
+            type = PlaylistEntry.TYPE_SONG,
+            uri = cleanUri,
+            title = title.trim().take(200),
+            artist = artist.trim().take(160)
+        )
+    }
+
+    fun youtubeEntry(item: YouTubePlaylistItem): PlaylistEntry? {
+        val safeId = sanitizeYouTubeVideoId(item.videoId)
+        if (safeId.isBlank()) return null
+        return PlaylistEntry(
+            type = PlaylistEntry.TYPE_YOUTUBE,
+            videoId = safeId,
+            title = item.title.trim().take(200).ifBlank { "Video YouTube" },
+            channelTitle = item.channelTitle.trim().take(160).ifBlank { "YouTube" },
+            thumbnailUrl = item.thumbnailUrl.trim().takeIf {
+                it.startsWith("https://", ignoreCase = true)
+            } ?: "https://i.ytimg.com/vi/$safeId/hqdefault.jpg"
+        )
+    }
+
+    /** Legacy data did not store cross-source order; preserve each source's order deterministically. */
+    fun legacyPlaylistEntries(
+        songUris: List<String>,
+        youtubeItems: List<YouTubePlaylistItem>
+    ): List<PlaylistEntry> = addPlaylistEntries(
+        songUris.mapNotNull(::songEntry),
+        youtubeItems.mapNotNull(::youtubeEntry)
+    )
+
+    /** Merge by a source-qualified key, preserving first-seen order and metadata. */
+    fun addPlaylistEntries(
+        current: List<PlaylistEntry>,
+        incoming: List<PlaylistEntry>
+    ): List<PlaylistEntry> {
+        val unique = LinkedHashMap<String, PlaylistEntry>()
+        (current + incoming).forEach { entry ->
+            val clean = when (entry.type) {
+                PlaylistEntry.TYPE_SONG -> songEntry(entry.uri, entry.title, entry.artist)
+                PlaylistEntry.TYPE_YOUTUBE -> {
+                    val safeId = sanitizeYouTubeVideoId(entry.videoId)
+                    if (safeId.isBlank()) null else youtubeEntry(
+                        YouTubePlaylistItem(safeId, entry.title, entry.channelTitle, entry.thumbnailUrl)
+                    )
+                }
+                else -> null
+            } ?: return@forEach
+            if (!unique.containsKey(clean.stableKey)) unique[clean.stableKey] = clean
+        }
+        return unique.values.toList()
+    }
+
+    fun removePlaylistEntry(entries: List<PlaylistEntry>, stableKey: String): List<PlaylistEntry> =
+        if (stableKey.isBlank()) entries else entries.filterNot { it.stableKey == stableKey }
+
+    /** Move an entry before/after any item, including an item from another source. */
+    fun movePlaylistEntry(
+        entries: List<PlaylistEntry>,
+        movingKey: String,
+        targetKey: String,
+        placeAfterTarget: Boolean
+    ): List<PlaylistEntry> {
+        if (movingKey.isBlank() || targetKey.isBlank() || movingKey == targetKey) return entries
+        val movingIndex = entries.indexOfFirst { it.stableKey == movingKey }
+        val targetIndex = entries.indexOfFirst { it.stableKey == targetKey }
+        if (movingIndex < 0 || targetIndex < 0) return entries
+        val reordered = entries.toMutableList()
+        val moving = reordered.removeAt(movingIndex)
+        val adjustedTarget = if (movingIndex < targetIndex) targetIndex - 1 else targetIndex
+        val destination = adjustedTarget + if (placeAfterTarget) 1 else 0
+        reordered.add(destination.coerceIn(0, reordered.size), moving)
+        return reordered
+    }
+
     /** Move one saved playlist item immediately before/after another item. */
     fun moveSong(
         songUris: List<String>,

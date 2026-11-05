@@ -12,13 +12,38 @@ data class YouTubePlaylistItem(
     val thumbnailUrl: String
 )
 
+/** One source-aware item in the canonical ordered playlist. A song URI can be local or Drive. */
+data class PlaylistEntry(
+    val type: String,
+    val uri: String = "",
+    val videoId: String = "",
+    val title: String = "",
+    val artist: String = "",
+    val channelTitle: String = "",
+    val thumbnailUrl: String = ""
+) {
+    val stableKey: String
+        get() = when (type) {
+            TYPE_SONG -> "song:$uri"
+            TYPE_YOUTUBE -> "youtube:$videoId"
+            else -> "unknown:"
+        }
+
+    companion object {
+        const val TYPE_SONG = "song"
+        const val TYPE_YOUTUBE = "youtube"
+    }
+}
+
 data class MusicPlaylist(
     val id: String,
     val name: String,
     val songUris: List<String>,
     val createdAt: Long,
     val updatedAt: Long,
-    val youtubeItems: List<YouTubePlaylistItem> = emptyList()
+    val youtubeItems: List<YouTubePlaylistItem> = emptyList(),
+    /** Canonical mixed-source order; legacy lists remain mirrored for compatibility. */
+    val entries: List<PlaylistEntry> = emptyList()
 )
 
 class PlaylistStore(context: Context) {
@@ -50,9 +75,7 @@ class PlaylistStore(context: Context) {
                         if (items != null) {
                             for (j in 0 until items.length()) {
                                 val item = items.optJSONObject(j) ?: continue
-                                val videoId = PlaylistRules.sanitizeYouTubeVideoId(
-                                    item.optString("videoId")
-                                )
+                                val videoId = PlaylistRules.sanitizeYouTubeVideoId(item.optString("videoId"))
                                 if (videoId.isBlank()) continue
                                 add(
                                     YouTubePlaylistItem(
@@ -67,6 +90,33 @@ class PlaylistStore(context: Context) {
                             }
                         }
                     }.distinctBy { it.videoId }
+
+                    val legacyEntries = PlaylistRules.legacyPlaylistEntries(uris, youtubeItems)
+                    val savedEntries = obj.optJSONArray("entries")?.let { items ->
+                        buildList {
+                            for (j in 0 until items.length()) {
+                                val item = items.optJSONObject(j) ?: continue
+                                add(
+                                    PlaylistEntry(
+                                        type = item.optString("type"),
+                                        uri = item.optString("uri"),
+                                        videoId = item.optString("videoId"),
+                                        title = item.optString("title"),
+                                        artist = item.optString("artist"),
+                                        channelTitle = item.optString("channelTitle"),
+                                        thumbnailUrl = item.optString("thumbnailUrl")
+                                    )
+                                )
+                            }
+                        }
+                    }
+                    // Legacy playlists cannot reveal interleaving, so migrate source lists in stable order.
+                    // If old compatibility arrays contain an item missing from entries, append it instead of losing it.
+                    val entries = if (savedEntries == null) {
+                        legacyEntries
+                    } else {
+                        PlaylistRules.addPlaylistEntries(savedEntries, legacyEntries)
+                    }
                     add(
                         MusicPlaylist(
                             id = id,
@@ -74,7 +124,8 @@ class PlaylistStore(context: Context) {
                             songUris = uris,
                             createdAt = obj.optLong("createdAt", System.currentTimeMillis()),
                             updatedAt = obj.optLong("updatedAt", System.currentTimeMillis()),
-                            youtubeItems = youtubeItems
+                            youtubeItems = youtubeItems,
+                            entries = entries
                         )
                     )
                 }
@@ -105,34 +156,30 @@ class PlaylistStore(context: Context) {
         val clean = PlaylistRules.normalizeName(name)
         if (clean.isBlank()) return null
         val updated = load().map { playlist ->
-            if (playlist.id != playlistId) playlist
-            else playlist.copy(
+            if (playlist.id == playlistId) playlist.copy(
                 name = clean,
                 updatedAt = System.currentTimeMillis()
-            )
+            ) else playlist
         }
         save(updated)
         return updated.firstOrNull { it.id == playlistId }
     }
 
-    fun addSong(playlistId: String, uri: String): MusicPlaylist? =
-        addSongs(playlistId, listOf(uri))
+    fun addSong(playlistId: String, uri: String): MusicPlaylist? = addSongs(playlistId, listOf(uri))
 
-    /** Persist a whole queue in one preference write instead of saving once per track. */
+    /** Persist a batch once and append it to the canonical mixed-source order. */
     fun addSongs(playlistId: String, uris: List<String>): MusicPlaylist? {
         val current = load()
         var changed = false
         val updated = current.map { playlist ->
             if (playlist.id != playlistId) playlist
             else {
-                val merged = PlaylistRules.addSongs(playlist.songUris, uris)
-                if (merged == playlist.songUris) playlist
+                val incoming = uris.mapNotNull(PlaylistRules::songEntry)
+                val entries = PlaylistRules.addPlaylistEntries(playlist.entries, incoming)
+                if (entries == playlist.entries) playlist
                 else {
                     changed = true
-                    playlist.copy(
-                        songUris = merged,
-                        updatedAt = System.currentTimeMillis()
-                    )
+                    playlist.withEntries(entries)
                 }
             }
         }
@@ -140,50 +187,80 @@ class PlaylistStore(context: Context) {
         return updated.firstOrNull { it.id == playlistId }
     }
 
-    fun removeSong(playlistId: String, uri: String): MusicPlaylist? {
-        val updated = load().map { playlist ->
+    fun addYouTubeItems(playlistId: String, items: List<YouTubePlaylistItem>): MusicPlaylist? {
+        val current = load()
+        var changed = false
+        val updated = current.map { playlist ->
             if (playlist.id != playlistId) playlist
-            else playlist.copy(
-                songUris = PlaylistRules.removeSong(playlist.songUris, uri),
-                updatedAt = System.currentTimeMillis()
-            )
+            else {
+                val incoming = items.mapNotNull(PlaylistRules::youtubeEntry)
+                val entries = PlaylistRules.addPlaylistEntries(playlist.entries, incoming)
+                if (entries == playlist.entries) playlist
+                else {
+                    changed = true
+                    playlist.withEntries(entries)
+                }
+            }
         }
-        save(updated)
+        if (changed) save(updated)
         return updated.firstOrNull { it.id == playlistId }
     }
 
-    fun addYouTubeItems(
+    fun removeSong(playlistId: String, uri: String): MusicPlaylist? =
+        removeEntry(playlistId, PlaylistRules.songEntry(uri)?.stableKey.orEmpty())
+
+    fun removeYouTubeItem(playlistId: String, videoId: String): MusicPlaylist? =
+        removeEntry(
+            playlistId,
+            PlaylistEntry(
+                type = PlaylistEntry.TYPE_YOUTUBE,
+                videoId = PlaylistRules.sanitizeYouTubeVideoId(videoId)
+            ).stableKey
+        )
+
+    fun removeEntry(playlistId: String, stableKey: String): MusicPlaylist? {
+        val current = load()
+        var changed = false
+        val updated = current.map { playlist ->
+            if (playlist.id != playlistId) playlist
+            else {
+                val entries = PlaylistRules.removePlaylistEntry(playlist.entries, stableKey)
+                if (entries == playlist.entries) playlist
+                else {
+                    changed = true
+                    playlist.withEntries(entries)
+                }
+            }
+        }
+        if (changed) save(updated)
+        return updated.firstOrNull { it.id == playlistId }
+    }
+
+    fun moveEntry(
         playlistId: String,
-        items: List<YouTubePlaylistItem>
+        movingKey: String,
+        targetKey: String,
+        placeAfterTarget: Boolean
     ): MusicPlaylist? {
-        val updated = load().map { playlist ->
+        val current = load()
+        var changed = false
+        val updated = current.map { playlist ->
             if (playlist.id != playlistId) playlist
             else {
-                val merged = PlaylistRules.addYouTubeItems(playlist.youtubeItems, items)
-                if (merged == playlist.youtubeItems) playlist
-                else playlist.copy(
-                    youtubeItems = merged,
-                    updatedAt = System.currentTimeMillis()
+                val entries = PlaylistRules.movePlaylistEntry(
+                    playlist.entries,
+                    movingKey,
+                    targetKey,
+                    placeAfterTarget
                 )
+                if (entries == playlist.entries) playlist
+                else {
+                    changed = true
+                    playlist.withEntries(entries)
+                }
             }
         }
-        save(updated)
-        return updated.firstOrNull { it.id == playlistId }
-    }
-
-    fun removeYouTubeItem(playlistId: String, videoId: String): MusicPlaylist? {
-        val updated = load().map { playlist ->
-            if (playlist.id != playlistId) playlist
-            else {
-                val remaining = PlaylistRules.removeYouTubeItem(playlist.youtubeItems, videoId)
-                if (remaining == playlist.youtubeItems) playlist
-                else playlist.copy(
-                    youtubeItems = remaining,
-                    updatedAt = System.currentTimeMillis()
-                )
-            }
-        }
-        save(updated)
+        if (changed) save(updated)
         return updated.firstOrNull { it.id == playlistId }
     }
 
@@ -192,51 +269,34 @@ class PlaylistStore(context: Context) {
         movingVideoId: String,
         targetVideoId: String,
         placeAfterTarget: Boolean
-    ): MusicPlaylist? {
-        val updated = load().map { playlist ->
-            if (playlist.id != playlistId) playlist
-            else {
-                val reordered = PlaylistRules.moveYouTubeItem(
-                    playlist.youtubeItems,
-                    movingVideoId,
-                    targetVideoId,
-                    placeAfterTarget
-                )
-                if (reordered == playlist.youtubeItems) playlist
-                else playlist.copy(
-                    youtubeItems = reordered,
-                    updatedAt = System.currentTimeMillis()
-                )
-            }
-        }
-        save(updated)
-        return updated.firstOrNull { it.id == playlistId }
-    }
+    ): MusicPlaylist? = moveEntry(
+        playlistId,
+        PlaylistEntry(PlaylistEntry.TYPE_YOUTUBE, videoId = movingVideoId).stableKey,
+        PlaylistEntry(PlaylistEntry.TYPE_YOUTUBE, videoId = targetVideoId).stableKey,
+        placeAfterTarget
+    )
 
     fun moveSong(
         playlistId: String,
         movingUri: String,
         targetUri: String,
         placeAfterTarget: Boolean
-    ): MusicPlaylist? {
-        val updated = load().map { playlist ->
-            if (playlist.id != playlistId) playlist
-            else {
-                val reordered = PlaylistRules.moveSong(
-                    playlist.songUris,
-                    movingUri,
-                    targetUri,
-                    placeAfterTarget
-                )
-                if (reordered == playlist.songUris) playlist
-                else playlist.copy(
-                    songUris = reordered,
-                    updatedAt = System.currentTimeMillis()
-                )
-            }
-        }
-        save(updated)
-        return updated.firstOrNull { it.id == playlistId }
+    ): MusicPlaylist? = moveEntry(
+        playlistId,
+        PlaylistRules.songEntry(movingUri)?.stableKey.orEmpty(),
+        PlaylistRules.songEntry(targetUri)?.stableKey.orEmpty(),
+        placeAfterTarget
+    )
+
+    private fun MusicPlaylist.withEntries(entries: List<PlaylistEntry>): MusicPlaylist {
+        val normalized = PlaylistRules.addPlaylistEntries(emptyList(), entries)
+        return copy(
+            entries = normalized,
+            songUris = normalized.filter { it.type == PlaylistEntry.TYPE_SONG }.map { it.uri },
+            youtubeItems = normalized.filter { it.type == PlaylistEntry.TYPE_YOUTUBE }
+                .mapNotNull { it.toYouTubeItem() },
+            updatedAt = System.currentTimeMillis()
+        )
     }
 
     private fun save(playlists: List<MusicPlaylist>) {
@@ -247,9 +307,7 @@ class PlaylistStore(context: Context) {
                 put("name", playlist.name)
                 put("createdAt", playlist.createdAt)
                 put("updatedAt", playlist.updatedAt)
-                put("songUris", JSONArray().apply {
-                    playlist.songUris.forEach(::put)
-                })
+                put("songUris", JSONArray().apply { playlist.songUris.forEach(::put) })
                 put("youtubeItems", JSONArray().apply {
                     playlist.youtubeItems.forEach { item ->
                         put(JSONObject().apply {
@@ -260,8 +318,33 @@ class PlaylistStore(context: Context) {
                         })
                     }
                 })
+                put("entries", JSONArray().apply {
+                    playlist.entries.forEach { entry ->
+                        put(JSONObject().apply {
+                            put("type", entry.type)
+                            put("uri", entry.uri)
+                            put("videoId", entry.videoId)
+                            put("title", entry.title)
+                            put("artist", entry.artist)
+                            put("channelTitle", entry.channelTitle)
+                            put("thumbnailUrl", entry.thumbnailUrl)
+                        })
+                    }
+                })
             })
         }
         prefs.edit().putString(key, array.toString()).apply()
     }
+}
+
+internal fun PlaylistEntry.toYouTubeItem(): YouTubePlaylistItem? {
+    if (type != PlaylistEntry.TYPE_YOUTUBE) return null
+    val safeId = PlaylistRules.sanitizeYouTubeVideoId(videoId)
+    if (safeId.isBlank()) return null
+    return YouTubePlaylistItem(
+        videoId = safeId,
+        title = title.ifBlank { "Video YouTube" },
+        channelTitle = channelTitle.ifBlank { "YouTube" },
+        thumbnailUrl = thumbnailUrl.ifBlank { "https://i.ytimg.com/vi/$safeId/hqdefault.jpg" }
+    )
 }
