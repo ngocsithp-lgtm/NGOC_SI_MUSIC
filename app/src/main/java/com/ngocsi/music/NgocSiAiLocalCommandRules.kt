@@ -741,6 +741,9 @@ internal fun classifyNgocSiAiLocalCommand(
     if (extractNgocSiAiContextualYoutubeAutoPlayQuery(input, entryContext) != null) {
         return NgocSiAiLocalCommand.SEARCH_AND_PLAY_YOUTUBE
     }
+    if (extractNgocSiAiContextualDriveQuery(input, entryContext) != null) {
+        return NgocSiAiLocalCommand.SEARCH_DRIVE
+    }
 
     var phrase = Normalizer.normalize(input.trim().lowercase(Locale.ROOT), Normalizer.Form.NFD)
         .replace("\\p{Mn}+".toRegex(), "")
@@ -1356,6 +1359,50 @@ internal fun extractNgocSiAiDriveQuery(input: String): String? {
     val normalized = normalizeNgocSiAiVoicePhrase(query)
     if (normalized.isBlank() || normalized in setOf("nhac", "bai hat", "file", "tep", "cua toi")) return null
     return query.take(120)
+}
+
+/**
+ * Resolve a source-neutral search to Drive only when the assistant was opened from Drive.
+ * Explicit YouTube/Online source requests are never overridden by page context.
+ */
+internal fun extractNgocSiAiContextualDriveQuery(
+    input: String,
+    entryContext: String?
+): String? {
+    extractNgocSiAiDriveQuery(input)?.let { return it }
+    if (normalizeNgocSiAiEntryContext(entryContext) != "Google Drive") return null
+
+    var phrase = stripNgocSiAiOuterQuotationMarks(input).replace(
+        Regex("""^(?:(?:hey|ok|alo)\\s+)?(?:ai|ngọc sĩ|ngoc si)\\b[\\s,:-]*""", RegexOption.IGNORE_CASE),
+        ""
+    ).trim()
+    phrase = phrase.replace(Regex("""^(?:hãy|hay)\\s+""", RegexOption.IGNORE_CASE), "")
+
+    val match = Regex(
+        """^(?:tìm|tim|kiếm|kiem)\\s+(?:(?:bài hát|bai hat|ca khúc|ca khuc|nhạc|nhac|file|tệp|tep)\\s+)?(.+?)[.!?,;:]*$""",
+        RegexOption.IGNORE_CASE
+    ).matchEntire(phrase) ?: return null
+    var query = match.groupValues[1].trim()
+    // Keep a named source explicit: a Drive page must not hijack YouTube or Online searches.
+    val normalized = normalizeNgocSiAiVoicePhrase(query)
+    if (listOf("youtube", "audius", "jamendo", "online", "truc tuyen", "tren mang")
+            .any { normalized.contains(it) }
+    ) return null
+
+    query = query.replace(
+        Regex(
+            """\\s+(?:trong|ở|o)\\s+(?:thư mục này|thu muc nay|thư mục hiện tại|thu muc hien tai|đây|day)$""",
+            RegexOption.IGNORE_CASE
+        ),
+        ""
+    ).trim().trim(',', ':', '-', '.', '?', '!')
+    query = trimNgocSiAiExtractedQuery(query)
+    val normalizedQuery = normalizeNgocSiAiVoicePhrase(query)
+    if (normalizedQuery.isBlank() || normalizedQuery in setOf(
+            "nhac", "bai hat", "ca khuc", "file", "tep", "cua toi", "thu muc", "day"
+        )
+    ) return null
+    return query.take(120).takeIf { it.length >= 2 }
 }
 
 /**

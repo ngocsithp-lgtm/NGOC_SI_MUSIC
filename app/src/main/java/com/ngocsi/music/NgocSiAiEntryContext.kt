@@ -52,9 +52,10 @@ internal fun buildNgocSiAiEntryContextInstruction(rawContext: String?): String {
                 "dùng search_youtube và không tự phát. Các thao tác lên video YouTube đang phát phải " +
                 "dùng nhóm youtube_*; không dùng lệnh Media3 để điều khiển nhầm trình phát."
         "Google Drive" ->
-            " Đây là trang Google Drive: ưu tiên search_drive cho yêu cầu tìm tệp trên Drive; " +
-                "chỉ báo đã mở hoặc phát tệp khi app_feedback xác nhận. Không tự giả định " +
-                "người dùng đã đăng nhập, đã cấp quyền hoặc đang ở một thư mục cụ thể."
+            " Đây là trang Google Drive: khi người dùng nói tìm nhạc, bài hát, file hoặc tệp mà không nêu nguồn khác, " +
+                "mặc định tìm trong Drive đang mở bằng search_drive. Nếu họ nêu rõ YouTube hoặc Online thì giữ đúng nguồn đó. " +
+                "Chỉ báo đã mở hoặc phát tệp khi app_feedback xác nhận. Không tự giả định người dùng đã đăng nhập, " +
+                "đã cấp quyền hoặc đang ở một thư mục cụ thể."
         "Radio" ->
             " Đây là trang Radio: khi người dùng nêu tên đài, dùng play_radio_station. " +
                 "Các lệnh phát/tạm dừng/âm lượng phải áp dụng cho nguồn đang phát đã được xác nhận; " +

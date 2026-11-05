@@ -69,7 +69,16 @@ class NgocSiAiEntryContextTest {
     }
 
     @Test
-    fun wakeWordContextTracksTheMostRecentlyVisiblePage() {
+    fun driveGuidanceUsesDriveForSourceNeutralSearchesOnlyOnDrivePage() {
+        val drive = buildNgocSiAiEntryContextInstruction("Google Drive")
+        assertTrue(drive.contains("mặc định tìm trong Drive"))
+        assertTrue(drive.contains("Nếu họ nêu rõ YouTube hoặc Online thì giữ đúng nguồn đó"))
+
+        val radio = buildNgocSiAiEntryContextInstruction("Radio")
+        assertFalse(radio.contains("mặc định tìm trong Drive"))
+    }
+
+
         NgocSiMainActivityState.updateEntryContext("Radio")
         assertEquals("Radio", NgocSiMainActivityState.entryContextOr("YouTube"))
 

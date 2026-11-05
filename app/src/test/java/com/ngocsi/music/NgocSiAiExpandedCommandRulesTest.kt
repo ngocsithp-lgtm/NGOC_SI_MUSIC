@@ -25,6 +25,37 @@ class NgocSiAiExpandedCommandRulesTest {
     }
 
     @Test
+    fun sourceNeutralMusicSearchUsesDriveOnlyWhenAiOpenedFromDrive() {
+        val phrase = "AI, tìm nhạc Bolero"
+        assertEquals("Bolero", extractNgocSiAiContextualDriveQuery(phrase, "Google Drive"))
+        assertEquals(
+            NgocSiAiLocalCommand.SEARCH_DRIVE,
+            classifyNgocSiAiLocalCommand(phrase, "Google Drive")
+        )
+        assertEquals(
+            "Diễm xưa",
+            extractNgocSiAiContextualDriveQuery("Tìm bài hát Diễm xưa trong thư mục này", "Drive")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.SEARCH_DRIVE,
+            classifyNgocSiAiWakePhrase("AI, tìm bài hát Diễm xưa", "Drive")
+        )
+
+        // An explicit source always beats the page context.
+        assertNull(extractNgocSiAiContextualDriveQuery("Tìm nhạc Bolero trên YouTube", "Drive"))
+        assertNull(extractNgocSiAiContextualDriveQuery(phrase, "Radio"))
+        assertNull(extractNgocSiAiContextualDriveQuery(phrase, null))
+        assertEquals(
+            NgocSiAiLocalCommand.SEARCH_ONLINE_MUSIC,
+            classifyNgocSiAiLocalCommand(phrase, "Radio")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.SEARCH_ONLINE_MUSIC,
+            classifyNgocSiAiLocalCommand(phrase)
+        )
+    }
+
+    @Test
     fun nonActionsRemainQuestions() {
         assertNull(classifyNgocSiAiLocalCommand("Làm thế nào để tìm nhạc trong Drive?"))
         assertNull(extractNgocSiAiQueueTrackQuery("Tôi thích bài hát Diễm xưa"))

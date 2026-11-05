@@ -1511,7 +1511,7 @@ class NgocSiAiActivity : ComponentActivity() {
                 )
             }
             NgocSiAiLocalCommand.SEARCH_DRIVE -> {
-                val query = extractNgocSiAiDriveQuery(originalText)
+                val query = extractNgocSiAiContextualDriveQuery(originalText, entryContext)
                     ?: return "Hãy nói nội dung cần tìm, ví dụ: “Tìm bài hát Diễm xưa trong Drive”."
                 return openAppDestination(
                     "drive_search",
