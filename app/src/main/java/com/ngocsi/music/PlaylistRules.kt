@@ -148,6 +148,23 @@ internal object PlaylistRules {
     }
 
     /**
+     * Resolve the next canonical playlist entry at a segment boundary.
+     * Repeat-one replays the current entry; repeat-all wraps to the first entry.
+     */
+    fun nextMixedPlaylistEntryIndex(
+        currentEntryIndex: Int,
+        nextEntryIndex: Int,
+        entryCount: Int,
+        repeatOne: Boolean,
+        repeatAll: Boolean
+    ): Int? {
+        if (entryCount <= 0) return null
+        if (repeatOne && currentEntryIndex in 0 until entryCount) return currentEntryIndex
+        if (nextEntryIndex in 0 until entryCount) return nextEntryIndex
+        return if (repeatAll) 0 else null
+    }
+
+    /**
      * True only when playable entries span more than one playback engine/source.
      * Single-source playlists should retain the player's normal repeat and shuffle modes.
      */

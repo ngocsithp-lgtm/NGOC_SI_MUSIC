@@ -125,6 +125,30 @@ class PlaylistRulesTest {
     }
 
     @Test
+    fun nextMixedPlaylistEntryIndex_handlesNormalAdvanceAndRepeatModes() {
+        assertEquals(
+            3,
+            PlaylistRules.nextMixedPlaylistEntryIndex(1, 3, 5, repeatOne = false, repeatAll = false)
+        )
+        assertEquals(
+            1,
+            PlaylistRules.nextMixedPlaylistEntryIndex(1, 3, 5, repeatOne = true, repeatAll = false)
+        )
+        assertEquals(
+            0,
+            PlaylistRules.nextMixedPlaylistEntryIndex(4, 5, 5, repeatOne = false, repeatAll = true)
+        )
+        assertEquals(
+            null,
+            PlaylistRules.nextMixedPlaylistEntryIndex(4, 5, 5, repeatOne = false, repeatAll = false)
+        )
+        assertEquals(
+            null,
+            PlaylistRules.nextMixedPlaylistEntryIndex(-1, -1, 0, repeatOne = true, repeatAll = true)
+        )
+    }
+
+    @Test
     fun requiresOrderedMixedPlayback_onlyWhenPlayableEntriesSpanDifferentSources() {
         val deviceSong = PlaylistRules.songEntry("content://device-a")!!
         val driveSong = PlaylistRules.songEntry("content://drive-a")!!

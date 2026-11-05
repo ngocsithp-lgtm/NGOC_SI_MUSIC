@@ -836,6 +836,7 @@ class MainActivity : ComponentActivity() {
     // Named playlist commands may be delivered before Media3 is connected on cold launch.
     // Tracks one canonical playlist across Media3 and inline YouTube segment hand-offs.
     private var activeMixedPlaylist: MusicPlaylist? = null
+    private var activeMixedPlaylistCurrentEntryIndex = -1
     private var activeMixedPlaylistNextEntryIndex = -1
     private var activeMixedPlaylistAdvancePending = false
     private var activeMixedPlaylistSegmentIsYouTube = false
@@ -5100,6 +5101,7 @@ class MainActivity : ComponentActivity() {
 
     private fun clearActiveMixedPlaylistPlayback() {
         activeMixedPlaylist = null
+        activeMixedPlaylistCurrentEntryIndex = -1
         activeMixedPlaylistNextEntryIndex = -1
         activeMixedPlaylistAdvancePending = false
         activeMixedPlaylistSegmentIsYouTube = false
@@ -5129,8 +5131,13 @@ class MainActivity : ComponentActivity() {
         val playlist = activeMixedPlaylist ?: return false
         if (activeMixedPlaylistAdvancePending) return true
         activeMixedPlaylistAdvancePending = true
-        val nextIndex = activeMixedPlaylistNextEntryIndex
-        if (nextIndex !in playlist.entries.indices) {
+        val nextIndex = PlaylistRules.nextMixedPlaylistEntryIndex(
+            currentEntryIndex = activeMixedPlaylistCurrentEntryIndex,
+            nextEntryIndex = activeMixedPlaylistNextEntryIndex,
+            entryCount = playlist.entries.size,
+            repeatOne = repeatMode == Player.REPEAT_MODE_ONE,
+            repeatAll = repeatMode == Player.REPEAT_MODE_ALL
+        ) ?: run {
             clearActiveMixedPlaylistPlayback()
             return false
         }
@@ -5158,22 +5165,29 @@ class MainActivity : ComponentActivity() {
                     val typeRunEnd = PlaylistRules.contiguousPlaylistSegmentEnd(
                         playlist.entries, cursor, PlaylistEntry.TYPE_SONG
                     )
+                    activeMixedPlaylistCurrentEntryIndex = cursor
                     val segmentSongs = mutableListOf<Song>()
                     var segmentEnd = cursor
-                    while (segmentEnd < typeRunEnd) {
-                        val candidateEntry = playlist.entries[segmentEnd]
-                        val candidateSong = songs.firstOrNull {
-                            it.uri.toString() == candidateEntry.uri
-                        }
-                        if (candidateSong == null) {
-                            // Skip stale or permission-revoked entries without truncating
-                            // the rest of this same-source segment.
+                    if (activeMixedPlaylist != null && repeatMode == Player.REPEAT_MODE_ONE) {
+                        // Keep repeat-one scoped to the currently selected song.
+                        segmentSongs.add(requestedSong)
+                        segmentEnd = cursor + 1
+                    } else {
+                        while (segmentEnd < typeRunEnd) {
+                            val candidateEntry = playlist.entries[segmentEnd]
+                            val candidateSong = songs.firstOrNull {
+                                it.uri.toString() == candidateEntry.uri
+                            }
+                            if (candidateSong == null) {
+                                // Skip stale or permission-revoked entries without truncating
+                                // the rest of this same-source segment.
+                                segmentEnd++
+                                continue
+                            }
+                            if (candidateSong.source != requestedSong.source) break
+                            segmentSongs.add(candidateSong)
                             segmentEnd++
-                            continue
                         }
-                        if (candidateSong.source != requestedSong.source) break
-                        segmentSongs.add(candidateSong)
-                        segmentEnd++
                     }
                     if (segmentSongs.isEmpty()) {
                         cursor++
@@ -5220,9 +5234,17 @@ class MainActivity : ComponentActivity() {
                     return true
                 }
                 PlaylistEntry.TYPE_YOUTUBE -> {
-                    val segmentEnd = PlaylistRules.contiguousPlaylistSegmentEnd(
+                    activeMixedPlaylistCurrentEntryIndex = cursor
+                    val naturalSegmentEnd = PlaylistRules.contiguousPlaylistSegmentEnd(
                         playlist.entries, cursor, PlaylistEntry.TYPE_YOUTUBE
                     )
+                    val segmentEnd = if (
+                        activeMixedPlaylist != null && repeatMode == Player.REPEAT_MODE_ONE
+                    ) {
+                        cursor + 1
+                    } else {
+                        naturalSegmentEnd
+                    }
                     val items = playlist.entries.subList(cursor, segmentEnd)
                         .mapNotNull { it.toYouTubeItem() }
                     if (items.isEmpty()) {
