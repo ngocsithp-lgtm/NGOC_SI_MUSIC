@@ -1466,26 +1466,26 @@ internal fun extractNgocSiAiContextualYoutubeAutoPlayQuery(
     extractNgocSiAiYoutubeAutoPlayQuery(input)?.let { return it }
 
     var phrase = input.trim().replace(
-        Regex("""^(?:(?:hey|ok|alo)\\s+)?(?:ai|ngọc sĩ|ngoc si)\\b[\\s,:-]*""", RegexOption.IGNORE_CASE),
+        Regex("""^(?:(?:hey|ok|alo)\s+)?(?:ai|ngọc sĩ|ngoc si)\b[\s,:-]*""", RegexOption.IGNORE_CASE),
         ""
     )
     val normalized = normalizeNgocSiAiVoicePhrase(phrase)
     // An explicit but malformed YouTube request must not be silently rewritten.
     if (normalized.contains("youtube")) return null
     val explicitPlaySuffix = Regex(
-        """(?:\\b(?:roi|va|sau do|then)\\s+(?:phat|play)|\\b(?:phat|play)\\s+(?:luon|di))$"""
+        """(?:\b(?:roi|va|sau do|then)\s+(?:phat|play)|\b(?:phat|play)\s+(?:luon|di))$"""
     )
     if (!explicitPlaySuffix.containsMatchIn(normalized)) return null
 
     phrase = phrase.replace(
         Regex(
-            """\\s+(?:(?:rồi|roi|và|va|sau đó|sau do|then)\\s+)?(?:phát|phat|play)(?:\\s+(?:luôn|luon|đi|di))?[.!?,;:]*$""",
+            """\s+(?:(?:rồi|roi|và|va|sau đó|sau do|then)\s+)?(?:phát|phat|play)(?:\s+(?:luôn|luon|đi|di))?[.!?,;:]*$""",
             RegexOption.IGNORE_CASE
         ),
         ""
     ).trim()
     val searchPrefix = Regex(
-        """^(?:(?:hãy|hay)\\s+)?(?:tìm|tim|kiếm|kiem)\\s+(?:nhạc|nhac|bài hát|bai hat|ca khúc|ca khuc|video)\\s+""",
+        """^(?:(?:hãy|hay)\s+)?(?:tìm|tim|kiếm|kiem)\s+(?:nhạc|nhac|bài hát|bai hat|ca khúc|ca khuc|video)\s+""",
         RegexOption.IGNORE_CASE
     )
     if (!searchPrefix.containsMatchIn(phrase)) return null
