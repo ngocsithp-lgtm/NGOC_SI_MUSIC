@@ -148,6 +148,20 @@ internal object PlaylistRules {
     }
 
     /**
+     * Resolve the previous canonical playlist entry at a segment boundary.
+     * At the first entry, repeat-all wraps to the final entry.
+     */
+    fun previousMixedPlaylistEntryIndex(
+        segmentStartIndex: Int,
+        entryCount: Int,
+        repeatAll: Boolean
+    ): Int? {
+        if (entryCount <= 0 || segmentStartIndex !in 0 until entryCount) return null
+        if (segmentStartIndex > 0) return segmentStartIndex - 1
+        return if (repeatAll) entryCount - 1 else null
+    }
+
+    /**
      * Resolve the next canonical playlist entry at a segment boundary.
      * Repeat-one replays the current entry; repeat-all wraps to the first entry.
      */

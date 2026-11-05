@@ -125,6 +125,30 @@ class PlaylistRulesTest {
     }
 
     @Test
+    fun previousMixedPlaylistEntryIndex_movesBackwardAndWrapsOnlyWhenRepeatAll() {
+        assertEquals(
+            2,
+            PlaylistRules.previousMixedPlaylistEntryIndex(3, 5, repeatAll = false)
+        )
+        assertEquals(
+            4,
+            PlaylistRules.previousMixedPlaylistEntryIndex(0, 5, repeatAll = true)
+        )
+        assertEquals(
+            null,
+            PlaylistRules.previousMixedPlaylistEntryIndex(0, 5, repeatAll = false)
+        )
+        assertEquals(
+            null,
+            PlaylistRules.previousMixedPlaylistEntryIndex(0, 0, repeatAll = true)
+        )
+        assertEquals(
+            null,
+            PlaylistRules.previousMixedPlaylistEntryIndex(-1, 5, repeatAll = true)
+        )
+    }
+
+    @Test
     fun nextMixedPlaylistEntryIndex_handlesNormalAdvanceAndRepeatModes() {
         assertEquals(
             3,

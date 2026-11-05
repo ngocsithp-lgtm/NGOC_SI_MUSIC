@@ -663,8 +663,8 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
-                "next", "tiếp", "bài tiếp" -> playStoredYouTubeOffset(1)
-                "previous", "prev", "bài trước" -> playStoredYouTubeOffset(-1)
+                "next", "tiếp", "bài tiếp" -> next()
+                "previous", "prev", "bài trước" -> previous()
                 "seek_forward_10" -> {
                     if (YouTubePlayerActivity.hasLiveInstance()) return
                     seekInlineYouTubeBy(10_000L)
@@ -836,6 +836,7 @@ class MainActivity : ComponentActivity() {
     // Named playlist commands may be delivered before Media3 is connected on cold launch.
     // Tracks one canonical playlist across Media3 and inline YouTube segment hand-offs.
     private var activeMixedPlaylist: MusicPlaylist? = null
+    private var activeMixedPlaylistSegmentStartEntryIndex = -1
     private var activeMixedPlaylistCurrentEntryIndex = -1
     private var activeMixedPlaylistNextEntryIndex = -1
     private var activeMixedPlaylistAdvancePending = false
@@ -4495,6 +4496,31 @@ class MainActivity : ComponentActivity() {
 
     private fun next() {
         invalidatePendingPlaybackAuthorization()
+        val playlist = activeMixedPlaylist
+        if (playlist != null) {
+            if (activeMixedPlaylistSegmentIsYouTube) {
+                val queueSize = storedYouTubeQueueSize()
+                if (youtubeLastQueueIndex < queueSize - 1) {
+                    playStoredYouTubeOffset(1)
+                } else {
+                    advanceMixedPlaylistAfterSegment(forceAdvance = true)
+                }
+                return
+            }
+            val c = controller ?: return
+            if (!isControllerQueueInSync(c)) syncControllerQueue()
+            if (c.mediaItemCount > 0 && c.currentMediaItemIndex < c.mediaItemCount - 1) {
+                c.seekToNextMediaItem()
+                c.play()
+            } else {
+                advanceMixedPlaylistAfterSegment(forceAdvance = true)
+            }
+            return
+        }
+        if (youtubeIsActiveSource) {
+            playStoredYouTubeOffset(1)
+            return
+        }
         val c = controller ?: return
         if (queueSongs.isEmpty()) return
         if (!isControllerQueueInSync(c)) syncControllerQueue()
@@ -4502,8 +4528,63 @@ class MainActivity : ComponentActivity() {
         c.play()
     }
 
+    private fun previousMixedPlaylistSegment(): Boolean {
+        val playlist = activeMixedPlaylist ?: return false
+        val currentStart = activeMixedPlaylistSegmentStartEntryIndex
+        val targetIndex = if (repeatMode == Player.REPEAT_MODE_ONE) {
+            currentStart.takeIf { it in playlist.entries.indices }
+        } else {
+            PlaylistRules.previousMixedPlaylistEntryIndex(
+                segmentStartIndex = currentStart,
+                entryCount = playlist.entries.size,
+                repeatAll = repeatMode == Player.REPEAT_MODE_ALL
+            )
+        }
+        if (targetIndex == null) {
+            errorMessage = "Đã tới mục đầu tiên của Playlist."
+            return false
+        }
+        val moved = startMixedPlaylistAtOrAfter(playlist, targetIndex)
+        if (!moved) {
+            clearActiveMixedPlaylistPlayback()
+            errorMessage = "Không thể phát mục trước trong Playlist."
+        }
+        return moved
+    }
+
     private fun previous() {
         invalidatePendingPlaybackAuthorization()
+        val playlist = activeMixedPlaylist
+        if (playlist != null) {
+            if (activeMixedPlaylistSegmentIsYouTube) {
+                when {
+                    repeatMode == Player.REPEAT_MODE_ONE -> previousMixedPlaylistSegment()
+                    youtubeLastQueueIndex > 0 -> playStoredYouTubeOffset(-1)
+                    else -> previousMixedPlaylistSegment()
+                }
+                return
+            }
+            val c = controller ?: return
+            if (!isControllerQueueInSync(c)) syncControllerQueue()
+            when {
+                c.currentPosition > 3_000L -> {
+                    c.seekTo(0L)
+                    c.play()
+                }
+                c.currentMediaItemIndex > 0 -> {
+                    c.seekToPreviousMediaItem()
+                    c.play()
+                }
+                else -> previousMixedPlaylistSegment()
+            }
+            position = c.currentPosition.coerceAtLeast(0L)
+            savePlaybackState()
+            return
+        }
+        if (youtubeIsActiveSource) {
+            playStoredYouTubeOffset(-1)
+            return
+        }
         val c = controller ?: return
         if (queueSongs.isEmpty()) return
         if (!isControllerQueueInSync(c)) syncControllerQueue()
@@ -4518,6 +4599,14 @@ class MainActivity : ComponentActivity() {
         c.play()
         position = c.currentPosition.coerceAtLeast(0L)
         savePlaybackState()
+    }
+
+    private fun nextFromYouTubeControls() {
+        if (activeMixedPlaylist != null) next() else playStoredYouTubeOffset(1)
+    }
+
+    private fun previousFromYouTubeControls() {
+        if (activeMixedPlaylist != null) previous() else playStoredYouTubeOffset(-1)
     }
     private fun playNext(song: Song) {
         setYouTubeActiveSource(false)
@@ -5101,6 +5190,7 @@ class MainActivity : ComponentActivity() {
 
     private fun clearActiveMixedPlaylistPlayback() {
         activeMixedPlaylist = null
+        activeMixedPlaylistSegmentStartEntryIndex = -1
         activeMixedPlaylistCurrentEntryIndex = -1
         activeMixedPlaylistNextEntryIndex = -1
         activeMixedPlaylistAdvancePending = false
@@ -5127,7 +5217,7 @@ class MainActivity : ComponentActivity() {
      * Continues a mixed playlist when the current Media3 or YouTube source segment ends.
      * Returns true only when another segment was successfully started.
      */
-    private fun advanceMixedPlaylistAfterSegment(): Boolean {
+    private fun advanceMixedPlaylistAfterSegment(forceAdvance: Boolean = false): Boolean {
         val playlist = activeMixedPlaylist ?: return false
         if (activeMixedPlaylistAdvancePending) return true
         activeMixedPlaylistAdvancePending = true
@@ -5135,7 +5225,7 @@ class MainActivity : ComponentActivity() {
             currentEntryIndex = activeMixedPlaylistCurrentEntryIndex,
             nextEntryIndex = activeMixedPlaylistNextEntryIndex,
             entryCount = playlist.entries.size,
-            repeatOne = repeatMode == Player.REPEAT_MODE_ONE,
+            repeatOne = !forceAdvance && repeatMode == Player.REPEAT_MODE_ONE,
             repeatAll = repeatMode == Player.REPEAT_MODE_ALL
         ) ?: run {
             clearActiveMixedPlaylistPlayback()
@@ -5165,6 +5255,7 @@ class MainActivity : ComponentActivity() {
                     val typeRunEnd = PlaylistRules.contiguousPlaylistSegmentEnd(
                         playlist.entries, cursor, PlaylistEntry.TYPE_SONG
                     )
+                    activeMixedPlaylistSegmentStartEntryIndex = cursor
                     activeMixedPlaylistCurrentEntryIndex = cursor
                     val segmentSongs = mutableListOf<Song>()
                     var segmentEnd = cursor
@@ -5234,6 +5325,7 @@ class MainActivity : ComponentActivity() {
                     return true
                 }
                 PlaylistEntry.TYPE_YOUTUBE -> {
+                    activeMixedPlaylistSegmentStartEntryIndex = cursor
                     activeMixedPlaylistCurrentEntryIndex = cursor
                     val naturalSegmentEnd = PlaylistRules.contiguousPlaylistSegmentEnd(
                         playlist.entries, cursor, PlaylistEntry.TYPE_YOUTUBE
@@ -5837,13 +5929,9 @@ class MainActivity : ComponentActivity() {
                                     errorMessage = "Chưa có bài hát đang phát. Hãy chọn một bài hát để mở trình phát."
                                 }
                             },
-                            onPrevious = {
-                                if (youtubeIsActiveSource) playStoredYouTubeOffset(-1) else previous()
-                            },
+                            onPrevious = ::previous,
                             onTogglePlayback = ::togglePlayPause,
-                            onNext = {
-                                if (youtubeIsActiveSource) playStoredYouTubeOffset(1) else next()
-                            },
+                            onNext = ::next,
                             onSeek = { target -> controller?.seekTo(target.coerceAtLeast(0L)) },
                             onOpenSleepTimer = { showSleepTimer = true }
                         )
@@ -9727,11 +9815,11 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         // YouTubePlayerActivity from the compact player or AI play command.
         when (aiAction?.lowercase()) {
             "next", "tiếp", "bài tiếp" -> {
-                playStoredYouTubeOffset(1)
+                next()
                 return
             }
             "previous", "prev", "lùi", "bài trước" -> {
-                playStoredYouTubeOffset(-1)
+                previous()
                 return
             }
             "play", "resume", "phát", "tiếp tục" -> {
@@ -12655,7 +12743,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         )
                                     }
                                     IconButton(
-                                        onClick = { playStoredYouTubeOffset(-1) },
+                                        onClick = { previousFromYouTubeControls() },
                                         modifier = Modifier.size(34.dp),
                                         enabled = queuePosition > 1
                                     ) {
@@ -12689,7 +12777,7 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
                                         }
                                     }
                                     IconButton(
-                                        onClick = { playStoredYouTubeOffset(1) },
+                                        onClick = { nextFromYouTubeControls() },
                                         modifier = Modifier.size(34.dp),
                                         enabled = queuePosition < queueSize
                                     ) {
