@@ -889,8 +889,9 @@ class NgocSiAiActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val aiEntryContext = normalizeNgocSiAiEntryContext(
-            intent.getStringExtra(NGOC_SI_AI_ENTRY_CONTEXT_EXTRA)
+        val aiEntryContext = resolveNgocSiAiEntryContext(
+            intent.getStringExtra(NGOC_SI_AI_ENTRY_CONTEXT_EXTRA),
+            NgocSiMainActivityState.entryContextOr()
         )
         // Prefer the page that opened this AI screen; MainActivity will keep it current
         // as the user navigates after the AI UI has been closed.
