@@ -1471,7 +1471,7 @@ internal fun extractNgocSiAiContextualYoutubeAutoPlayQuery(
     extractNgocSiAiYoutubeAutoPlayQuery(input)?.let { return it }
     if (normalizeNgocSiAiEntryContext(entryContext) != "YouTube") return null
 
-    var phrase = input.trim().replace(
+    var phrase = stripNgocSiAiOuterQuotationMarks(input).replace(
         Regex("""^(?:(?:hey|ok|alo)\s+)?(?:ai|ngọc sĩ|ngoc si)\b[\s,:-]*""", RegexOption.IGNORE_CASE),
         ""
     )
