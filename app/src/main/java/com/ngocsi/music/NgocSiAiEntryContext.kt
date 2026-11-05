@@ -36,10 +36,11 @@ internal fun buildNgocSiAiEntryContextInstruction(rawContext: String?): String {
     val page = normalizeNgocSiAiEntryContext(rawContext) ?: return ""
     val sourceGuidance = when (page) {
         "YouTube" ->
-            " Đây là trang YouTube: khi người dùng yêu cầu vừa tìm vừa phát, ưu tiên " +
-                "search_and_play_youtube; nếu chỉ muốn tìm thì dùng search_youtube. " +
-                "Các thao tác lên video YouTube đang phát phải dùng nhóm youtube_*; " +
-                "không dùng lệnh Media3 để điều khiển nhầm trình phát."
+            " Đây là trang YouTube: nếu người dùng nói tìm nhạc hoặc bài hát rồi phát mà không nêu nguồn, " +
+                "mặc định mục tiêu là YouTube vì AI được mở từ trang này; phải dùng search_and_play_youtube. " +
+                "Chỉ áp dụng mặc định này ở trang YouTube. Nếu chỉ nói tìm nhạc mà không yêu cầu phát, " +
+                "dùng search_youtube và không tự phát. Các thao tác lên video YouTube đang phát phải " +
+                "dùng nhóm youtube_*; không dùng lệnh Media3 để điều khiển nhầm trình phát."
         "Google Drive" ->
             " Đây là trang Google Drive: ưu tiên search_drive cho yêu cầu tìm tệp trên Drive; " +
                 "chỉ báo đã mở hoặc phát tệp khi app_feedback xác nhận. Không tự giả định " +
