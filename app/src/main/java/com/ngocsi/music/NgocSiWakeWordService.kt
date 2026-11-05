@@ -652,6 +652,7 @@ class NgocSiWakeWordService : Service() {
             awaitingCommandUntilMillis = 0L
         }
         val wasAwaitingCommand = awaitingCommand || conversationActive
+        val activeEntryContext = NgocSiMainActivityState.entryContextOr(aiEntryContext)
         // Memory intents must outrank playback classification: “hãy nhớ tôi thích nghe
         // nhạc Bolero” contains words that can otherwise look like a request to play a track.
         // A fresh session still requires an explicit AI wake phrase; an active session does not.
@@ -662,11 +663,11 @@ class NgocSiWakeWordService : Service() {
         // Once awake, prefer an implemented command across all remaining recognition candidates.
         // Otherwise preserve the best natural-language candidate for conversation.
         val recognized = memoryCommandCandidate ?: (if (wasAwaitingCommand) {
-            selectNgocSiAiActivatedCommandCandidate(phrases)
+            selectNgocSiAiActivatedCommandCandidate(phrases, activeEntryContext)
                 ?: phrases.firstOrNull { it.isNotBlank() }?.trim()
-                ?: selectNgocSiAiWakePhraseCandidate(phrases)
+                ?: selectNgocSiAiWakePhraseCandidate(phrases, activeEntryContext)
         } else {
-            selectNgocSiAiWakePhraseCandidate(phrases)
+            selectNgocSiAiWakePhraseCandidate(phrases, activeEntryContext)
         }).orEmpty()
         val memoryCommandAuthorized = parseNgocSiAiMemoryCommand(recognized) != null &&
             (wasAwaitingCommand || isNgocSiAiExplicitMemoryCommand(recognized))
@@ -677,7 +678,7 @@ class NgocSiWakeWordService : Service() {
         val command = if (memoryCommandAuthorized) {
             null
         } else {
-            classifyNgocSiAiWakePhrase(recognized)
+            classifyNgocSiAiWakePhrase(recognized, activeEntryContext)
                 ?: if (wasAwaitingCommand) {
                     classifyNgocSiAiActivatedCommand(
                         if (normalizeNgocSiAiVoicePhrase(recognized).startsWith("ai ")) {
@@ -685,7 +686,7 @@ class NgocSiWakeWordService : Service() {
                         } else {
                             "AI, $recognized"
                         }
-                    )
+                    , activeEntryContext)
                 } else null
         }
 
@@ -1585,7 +1586,8 @@ class NgocSiWakeWordService : Service() {
         val route = resolveNgocSiAiToolCommand(
             action = action,
             query = query,
-            requireActivatedSession = true
+            requireActivatedSession = true,
+            entryContext = NgocSiMainActivityState.entryContextOr(aiEntryContext)
         ) ?: return NgocSiAiToolResult(
             routed = false,
             feedback = "Lệnh này thiếu thông tin hoặc không nằm trong danh sách được phép khi điều khiển rảnh tay. Chưa thực hiện thao tác."
@@ -1653,8 +1655,10 @@ class NgocSiWakeWordService : Service() {
         if (destination != null) {
             val query = when (command) {
                 NgocSiAiLocalCommand.SEARCH_AND_PLAY_YOUTUBE ->
-                    extractNgocSiAiYoutubeAutoPlayQuery(originalText)
-                        ?: return "Hãy nói rõ nội dung cần tìm rồi phát, ví dụ: AI, mở YouTube tìm nhạc Bolero rồi phát."
+                    extractNgocSiAiContextualYoutubeAutoPlayQuery(
+                        originalText,
+                        NgocSiMainActivityState.entryContextOr(aiEntryContext)
+                    ) ?: return "Hãy nói rõ nội dung cần tìm rồi phát. Ở trang YouTube, AI sẽ tự hiểu nguồn YouTube."
                 NgocSiAiLocalCommand.SEARCH_YOUTUBE ->
                     extractNgocSiAiYoutubeQuery(originalText)
                         ?: return "Hãy nói rõ nội dung cần tìm, ví dụ: AI, tìm YouTube nhạc Trịnh Công Sơn."
