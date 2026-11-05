@@ -6095,10 +6095,13 @@ class MainActivity : ComponentActivity() {
                     // Shared quick access to NGỌC SĨ AI on feature pages.
                     // Keep it above the mini-player and BottomNav, and hide it
                     // in YouTube's immersive fullscreen mode.
-                    if (selectedSection != "Trang chủ" && !youtubeInlineFullscreen) {
+                    if (!youtubeInlineFullscreen) {
+                        // The home page has no compact mini-player, so keep its AI
+                        // shortcut just above BottomNav without reserving mini-player space.
                         val hasCompactPlaybackBar =
-                            (youtubeIsActiveSource && youtubeLastPlayed != null) ||
-                                (!youtubeIsActiveSource && currentSong != null)
+                            selectedSection != "Trang chủ" &&
+                                ((youtubeIsActiveSource && youtubeLastPlayed != null) ||
+                                    (!youtubeIsActiveSource && currentSong != null))
                         Surface(
                             modifier = Modifier
                                 .align(Alignment.BottomEnd)
