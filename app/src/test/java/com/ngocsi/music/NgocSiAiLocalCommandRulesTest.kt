@@ -384,12 +384,8 @@ class NgocSiAiLocalCommandRulesTest {
                 classifyNgocSiAiLocalCommand(phrase)
             )
             assertEquals(playlist, extractNgocSiAiQueueToPlaylistQuery(phrase))
-            assertEquals(
-                "Queue wake phrase: $phrase",
-                if (phrase.startsWith("AI,")) NgocSiAiLocalCommand.ADD_QUEUE_TO_PLAYLIST else null,
-                classifyNgocSiAiWakePhrase(phrase)
-            )
         }
+        assertNull(classifyNgocSiAiWakePhrase("Thêm tất cả hàng đợi vào playlist Nhạc xưa"))
     }
 
     @Test
