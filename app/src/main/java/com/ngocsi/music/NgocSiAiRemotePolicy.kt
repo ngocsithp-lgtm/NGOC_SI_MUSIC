@@ -338,6 +338,77 @@ internal fun isNgocSiAiContextualSearchQuerySpecificEnough(query: String): Boole
     )
 }
 
+/**
+ * Preserve YouTube as the transport source for short follow-ups only when the
+ * immediately preceding assistant message confirms a single, currently playing
+ * or paused YouTube video. Search results and explanatory mentions are not enough.
+ */
+internal fun resolveNgocSiAiContextualYoutubeTransportAction(
+    prompt: String,
+    previousMessages: List<NgocSiAiMessage>
+): String? {
+    if (previousMessages.lastOrNull()?.role != "assistant") return null
+
+    val intent = stripNgocSiAiDirectIntentWakePrefix(
+        normalizeNgocSiAiVoicePhrase(prompt)
+    ).removePrefix("hay ").trim()
+    if (intent.isBlank() || intent.length > 100) return null
+
+    val assistant = normalizeNgocSiAiVoicePhrase(previousMessages.last().content)
+    fun hasToken(marker: String): Boolean =
+        Regex("""(?:^|\\s)${Regex.escape(marker)}(?:$|\\s|\\d)""")
+            .containsMatchIn(assistant)
+
+    if (!hasToken("youtube") || !hasToken("video")) return null
+
+    // Do not inherit YouTube when the same answer also points to another source.
+    val otherSources = listOf(
+        "google drive", "drive", "radio", "vov", "voh", "tv", "vtv",
+        "htv", "thvl", "audius", "jamendo", "online", "truc tuyen",
+        "trong dien thoai", "tren dien thoai", "thu vien", "media3", "mp3"
+    )
+    if (otherSources.any(::hasToken)) return null
+
+    // A search result is not necessarily the active player item. Only a confirmed
+    // playback/pause status authorizes transport-source inheritance.
+    val isPlaying = assistant.contains("dang phat")
+    val isPaused = assistant.contains("dang tam dung") || assistant.contains("da tam dung")
+    if (!isPlaying && !isPaused) return null
+    if (assistant.contains("chua phat") || assistant.contains("chua co video")) return null
+
+    val multipleResultMarkers = listOf(
+        "nhieu video", "cac video", "mot so video", "mot vai video",
+        "danh sach video", "nhung video", "nhieu ket qua"
+    )
+    val explicitMultipleCount = Regex(
+        """(?:^|\\s)(?:[2-9]|[1-9]\\d+|hai|ba|bon|tu|nam|sau|bay|tam|chin|muoi)\\s+video"""
+    ).containsMatchIn(assistant)
+    if (multipleResultMarkers.any(assistant::contains) || explicitMultipleCount) return null
+
+    val pauseIntent = listOf("tam dung", "pause", "ngung lai", "ngung video")
+        .any(intent::contains)
+    if (pauseIntent) return "youtube_pause"
+
+    val previousIntent = listOf(
+        "bai truoc", "video truoc", "quay lai video", "quay lai bai",
+        "tro ve bai truoc", "previous"
+    ).any(intent::contains)
+    if (previousIntent) return "youtube_previous"
+
+    val nextIntent = listOf(
+        "tiep theo", "ke tiep", "chuyen bai", "chuyen video",
+        "qua bai", "qua video", "bo qua video", "next", "skip"
+    ).any(intent::contains)
+    if (nextIntent) return "youtube_next"
+
+    val playIntent = listOf(
+        "phat ", "choi ", "nghe tiep", "tiep tuc phat", "resume", "play"
+    ).any(intent::contains)
+    if (playIntent && isPaused) return "youtube_play"
+
+    return null
+}
+
 private fun hasContextualNgocSiAiAppActionFollowUp(
     normalizedPrompt: String,
     previousMessages: List<NgocSiAiMessage>
