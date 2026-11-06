@@ -228,7 +228,10 @@ private fun hasContextualNgocSiAiAppActionFollowUp(
         "no", "cai do", "cai nay", "bai do", "bai nay", "bai vua roi",
         "video do", "video nay", "video vua roi", "noi dung do",
         "ket qua do", "lua chon do", "kenh do", "dai do",
-        "playlist do", "bai ay", "video ay"
+        "playlist do", "bai ay", "video ay",
+        "bai vua tim", "video vua tim", "ket qua vua tim",
+        "ket qua vua roi", "bai tuong tu", "video tuong tu",
+        "nhac tuong tu", "giong bai do", "giong vay"
     )
     val paddedPrompt = " $prompt "
     if (references.none { paddedPrompt.contains(" $it ") }) return false
