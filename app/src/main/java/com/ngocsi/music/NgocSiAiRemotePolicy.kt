@@ -194,7 +194,60 @@ internal fun shouldOfferNgocSiAiAppCommandTool(
     if (howToQuestionMarkers.any(intentText::contains)) return false
 
     if (hasDirectNgocSiAiAppActionIntent(intentText)) return true
-    return isConfirmedNgocSiAiContextualAction(normalized, previousMessages)
+    if (isConfirmedNgocSiAiContextualAction(normalized, previousMessages)) return true
+    return hasContextualNgocSiAiAppActionFollowUp(intentText, previousMessages)
+}
+
+private fun hasContextualNgocSiAiAppActionFollowUp(
+    normalizedPrompt: String,
+    previousMessages: List<NgocSiAiMessage>
+): Boolean {
+    if (previousMessages.lastOrNull()?.role != "assistant") return false
+    val prompt = normalizedPrompt.trim()
+    if (prompt.isBlank() || prompt.length > 120) return false
+
+    // Questions about a referenced item remain conversation, not permission to act.
+    val informationalPrefixes = listOf(
+        "vi sao ", "tai sao ", "lam sao ", "lam the nao ",
+        "giai thich ", "tim hieu ", "co nen ", "co phai ",
+        "no la gi", "cai do la gi", "bai do la gi"
+    )
+    if (informationalPrefixes.any(prompt::startsWith) || prompt.endsWith(" thi sao")) {
+        return false
+    }
+    if (
+        prompt.endsWith(" khong") &&
+        !prompt.startsWith("ban co the ") &&
+        !prompt.startsWith("co the ") &&
+        !prompt.startsWith("toi muon ") &&
+        !prompt.startsWith("minh muon ")
+    ) return false
+
+    // Only short, explicit references are resolved from the immediately recent transcript.
+    val references = listOf(
+        "no", "cai do", "cai nay", "bai do", "bai nay", "bai vua roi",
+        "video do", "video nay", "video vua roi", "noi dung do",
+        "ket qua do", "lua chon do", "kenh do", "dai do",
+        "playlist do", "bai ay", "video ay"
+    )
+    val paddedPrompt = " $prompt "
+    if (references.none { paddedPrompt.contains(" $it ") }) return false
+
+    val actionVerbs = listOf(
+        "phat", "choi", "mo", "tim", "them", "luu", "dua",
+        "chuyen", "tua", "tam dung", "dung lai", "bat", "tat",
+        "nghe", "tiep theo"
+    )
+    if (actionVerbs.none { paddedPrompt.contains(" $it ") }) return false
+
+    val recentContext = previousMessages.takeLast(4)
+        .joinToString(" ") { normalizeNgocSiAiVoicePhrase(it.content) }
+    val appContextMarkers = listOf(
+        "youtube", "video", "bai hat", "bai nhac", "nhac",
+        "radio", "google drive", "drive", "playlist", "hang doi",
+        "kenh", "dai", "trinh phat", "am luong", "hen gio"
+    )
+    return appContextMarkers.any(recentContext::contains)
 }
 
 /**
