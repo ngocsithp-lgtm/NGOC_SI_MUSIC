@@ -1873,4 +1873,46 @@ class NgocSiAiLocalCommandRulesTest {
         assertNull(classifyNgocSiAiWakePhrase("Tôi nghe thấy Al đang nói chuyện"))
     }
 
+
+    @Test
+    fun wakeWordAliasesAreStrippedBeforeContextualSearchExtraction() {
+        val addresses = listOf("AI,", "Al,", "A L,", "Hey Al,", "Ngọc Sĩ ơi,")
+        addresses.forEach { address ->
+            assertEquals(
+                "$address contextual YouTube search",
+                "Bolero",
+                extractNgocSiAiContextualYoutubeQuery("$address tìm nhạc Bolero", "YouTube")
+            )
+            assertEquals(
+                "$address contextual YouTube search-and-play",
+                "Bolero",
+                extractNgocSiAiContextualYoutubeAutoPlayQuery(
+                    "$address tìm nhạc Bolero rồi phát",
+                    "YouTube"
+                )
+            )
+            assertEquals(
+                "$address contextual Drive search",
+                "Bolero",
+                extractNgocSiAiContextualDriveQuery("$address tìm nhạc Bolero", "Google Drive")
+            )
+            assertEquals(
+                "$address Online search",
+                "Trịnh Công Sơn",
+                extractNgocSiAiOnlineQuery("$address tìm nhạc Trịnh Công Sơn")
+            )
+            assertEquals(
+                "$address named track",
+                "Diễm xưa",
+                extractNgocSiAiTrackQuery("$address phát bài hát Diễm xưa")
+            )
+        }
+        assertNull(
+            extractNgocSiAiContextualYoutubeQuery(
+                "Al, tìm nhạc Bolero trong Drive",
+                "YouTube"
+            )
+        )
+    }
+
 }
