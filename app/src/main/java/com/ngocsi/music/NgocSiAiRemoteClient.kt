@@ -162,6 +162,13 @@ internal class NgocSiAiRemoteClient(context: Context) {
             newestUserMessage.content,
             normalized.dropLast(1)
         )
+        // If the previous assistant turn confirms an active YouTube video, short
+        // transport follow-ups must keep using the YouTube player instead of a
+        // potentially stale Media3 source flag.
+        val contextualYoutubeTransportAction = resolveNgocSiAiContextualYoutubeTransportAction(
+            newestUserMessage.content,
+            normalized.dropLast(1)
+        )
 
         // Firebase AI Logic requires model-role history for assistant responses.
         val previousTurns = normalized.dropLast(1).map { message ->
@@ -229,6 +236,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 var contextualYoutubeSearchDispatched = false
                 var contextualDriveSearchDispatched = false
                 var contextualReferenceSearchDispatched = false
+                var contextualYoutubeTransportDispatched = false
                 while (response.functionCalls.isNotEmpty() && toolRound < MAX_TOOL_ROUNDS) {
                     // Select one valid action for this round. Other proposed actions are
                     // deferred until the model has read the result of the selected action.
@@ -269,6 +277,12 @@ internal class NgocSiAiRemoteClient(context: Context) {
                                     ?.takeIf { !contextualDriveSearchDispatched }
                                 val inferredReferenceSearchAction = contextualReferenceSearchAction
                                     ?.takeIf { !contextualReferenceSearchDispatched }
+                                val inferredYoutubeTransportAction = contextualYoutubeTransportAction
+                                    ?.takeIf { !contextualYoutubeTransportDispatched }
+                                val isTransportAction = action in setOf(
+                                    "play", "youtube_play", "pause", "youtube_pause",
+                                    "next", "youtube_next", "previous", "youtube_previous"
+                                )
                                 if (inferredYoutubeQuery != null) {
                                     contextualYoutubeAutoPlayDispatched = true
                                     effectiveAction = "search_and_play_youtube"
@@ -292,6 +306,10 @@ internal class NgocSiAiRemoteClient(context: Context) {
                                     } else {
                                         executeNgocSiAiToolSafely(executeTool, effectiveAction, query)
                                     }
+                                } else if (inferredYoutubeTransportAction != null && isTransportAction) {
+                                    contextualYoutubeTransportDispatched = true
+                                    effectiveAction = inferredYoutubeTransportAction
+                                    executeNgocSiAiToolSafely(executeTool, effectiveAction, "")
                                 } else if (action.isBlank()) {
                                     NgocSiAiToolResult(
                                         routed = false,
