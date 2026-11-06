@@ -330,7 +330,11 @@ internal fun isNgocSiAiContextualSearchQuerySpecificEnough(query: String): Boole
         "bai hat tuong tu", "nhac", "nhac tuong tu", "video",
         "video tuong tu", "bai vua tim", "bai vua roi",
         "video vua tim", "video vua roi", "ket qua vua tim",
-        "ket qua vua roi"
+        "ket qua vua roi", "tim bai tuong tu", "tim bai hat tuong tu",
+        "tim nhac tuong tu", "tim video tuong tu",
+        "similar song", "similar songs", "similar music", "similar video",
+        "similar videos", "find similar", "find similar songs",
+        "same song", "like this"
     )
 }
 
