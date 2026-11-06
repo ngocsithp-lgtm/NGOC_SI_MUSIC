@@ -177,6 +177,15 @@ internal fun shouldOfferNgocSiAiAppCommandTool(
     val normalized = normalizeNgocSiAiVoicePhrase(prompt)
     val intentText = stripNgocSiAiDirectIntentWakePrefix(normalized)
 
+    // Accent removal makes "đừng" and "dừng" identical. Reject clear negative
+    // navigation/search verbs here, while preserving "đừng phát nhạc nữa" as
+    // a possible explicit stop request handled by the command router.
+    val negativeImperativePrefixes = listOf(
+        "dung mo ", "dung vao ", "dung bat ", "dung tim ",
+        "dung chuyen ", "dung tua ", "dung lui ", "dung choi ", "dung tat "
+    )
+    if (negativeImperativePrefixes.any(intentText::startsWith)) return false
+
     // Negative preferences are not consent to control the player or navigate.
     val negativeStatementPrefixes = listOf(
         "toi khong muon ", "minh khong muon ", "khong muon ",
@@ -216,6 +225,11 @@ internal fun shouldOfferNgocSiAiAppCommandTool(
 
     if (isContextualNgocSiAiSearchOnlyFollowUp(intentText)) {
         return resolveNgocSiAiContextualSearchOnlyAction(intentText, previousMessages) != null
+    }
+    // A confirmed active YouTube item makes short transport aliases actionable.
+    // Resolve this before the generic direct-intent matcher, which needs a longer verb.
+    if (resolveNgocSiAiContextualYoutubeTransportAction(prompt, previousMessages) != null) {
+        return true
     }
     if (hasDirectNgocSiAiAppActionIntent(intentText)) return true
     if (isConfirmedNgocSiAiContextualAction(normalized, previousMessages)) return true
