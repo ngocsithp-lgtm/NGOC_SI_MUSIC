@@ -160,6 +160,21 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
+    fun directPauseAliasesExposeTheToolEvenWithoutConversationHistory() {
+        listOf(
+            "Dừng lại",
+            "Dừng video đi",
+            "Tạm ngưng video",
+            "Ngừng nhạc"
+        ).forEach { phrase ->
+            assertTrue(
+                "$phrase should expose a direct playback control",
+                shouldOfferNgocSiAiAppCommandTool(phrase)
+            )
+        }
+    }
+
+    @Test
     fun naturalPlaybackAndSeekPhrasesKeepTheAppCommandToolAvailable() {
         listOf(
             "AI, bấm phát video tiếp theo.",
