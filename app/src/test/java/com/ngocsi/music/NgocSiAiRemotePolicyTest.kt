@@ -886,6 +886,38 @@ class NgocSiAiRemotePolicyTest {
 
 
     @Test
+    fun agentFeedbackDistinguishesCompletedActionsFromPendingAndFailedActions() {
+        assertEquals(
+            NgocSiAiAgentFeedbackState.COMPLETED,
+            classifyNgocSiAiAgentFeedback(true, "Đã mở trang YouTube.", "open_youtube")
+        )
+        assertEquals(
+            NgocSiAiAgentFeedbackState.COMPLETED,
+            classifyNgocSiAiAgentFeedback(true, "Đã phát video Bolero.", "youtube_play")
+        )
+        assertEquals(
+            NgocSiAiAgentFeedbackState.COMPLETED,
+            classifyNgocSiAiAgentFeedback(true, "Đã tìm thấy 5 bài hát.", "search_online_music")
+        )
+        assertEquals(
+            NgocSiAiAgentFeedbackState.PENDING,
+            classifyNgocSiAiAgentFeedback(true, "Đang mở YouTube.", "open_youtube")
+        )
+        assertEquals(
+            NgocSiAiAgentFeedbackState.PENDING,
+            classifyNgocSiAiAgentFeedback(true, "Đang phát video.", "youtube_play")
+        )
+        assertEquals(
+            NgocSiAiAgentFeedbackState.FAILED,
+            classifyNgocSiAiAgentFeedback(true, "Không mở được YouTube.", "open_youtube")
+        )
+        assertEquals(
+            NgocSiAiAgentFeedbackState.FAILED,
+            classifyNgocSiAiAgentFeedback(false, "Đã mở YouTube.", "open_youtube")
+        )
+    }
+
+    @Test
     fun contextualYoutubeTransportFollowUpsKeepTheConfirmedActiveSource() {
         val playingYoutubeHistory = listOf(
             NgocSiAiMessage("user", "Phát video Bolero trên YouTube"),
