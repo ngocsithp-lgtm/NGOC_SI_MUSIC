@@ -266,7 +266,10 @@ private fun hasContextualNgocSiAiAppActionFollowUp(
     )
     val paddedAssistant = " $latestAssistantContext "
     val identifiedSourceFamilies = sourceFamilies.count { family ->
-        family.any { marker -> paddedAssistant.contains(" $marker ") }
+        family.any { marker ->
+            Regex("""(?:^|\\s)${Regex.escape(marker)}(?:$|\\s|\\d)""")
+                .containsMatchIn(latestAssistantContext)
+        }
     }
     // An old user request mentioning YouTube is not enough: the immediately
     // preceding assistant answer must itself identify one unambiguous source.
