@@ -785,7 +785,7 @@ internal fun classifyNgocSiAiAgentFeedback(
         "open_online", "open_youtube", "open_drive", "open_radio", "open_tv",
         "open_playlists", "open_queue", "open_player", "open_settings", "open_sleep_timer"
     )
-    if (action in immediateNavigationActions && normalized.startsWith("dang mo ")) {
+    if (action != null && action in immediateNavigationActions && normalized.startsWith("dang mo ")) {
         return NgocSiAiAgentFeedbackState.COMPLETED
     }
 
