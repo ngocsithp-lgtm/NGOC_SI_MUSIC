@@ -193,9 +193,124 @@ internal fun shouldOfferNgocSiAiAppCommandTool(
     val howToQuestionMarkers = listOf(" nhu the nao", " bang cach nao")
     if (howToQuestionMarkers.any(intentText::contains)) return false
 
+private fun isContextualNgocSiAiSearchOnlyFollowUp(normalizedPrompt: String): Boolean {
+    var phrase = stripNgocSiAiDirectIntentWakePrefix(normalizedPrompt).removePrefix("hay ").trim()
+    val prefix = listOf("tim kiem ", "tim ", "kiem ").firstOrNull(phrase::startsWith) ?: return false
+    phrase = phrase.removePrefix(prefix).trim()
+    val nonSearchSuffix = Regex(
+        """(?:^|\\s)(?:roi|va|sau do|then)\\s+(?:phat|play)(?:\\s|$)|(?:^|\\s)(?:phat|play)\\s+(?:luon|di)(?:$|\\s)"""
+    )
+    if (nonSearchSuffix.containsMatchIn(normalizedPrompt)) return false
+    return phrase in setOf(
+        "tuong tu", "giong vay", "giong nhu vay",
+        "bai tuong tu", "bai hat tuong tu", "nhac tuong tu", "video tuong tu",
+        "bai do", "bai hat do", "nhac do", "video do",
+        "bai vua tim", "bai vua roi", "video vua tim", "video vua roi",
+        "ket qua vua tim", "ket qua vua roi"
+    )
+}
+
+    if (isContextualNgocSiAiSearchOnlyFollowUp(intentText)) {
+        return resolveNgocSiAiContextualSearchOnlyAction(intentText, previousMessages) != null
+    }
     if (hasDirectNgocSiAiAppActionIntent(intentText)) return true
     if (isConfirmedNgocSiAiContextualAction(normalized, previousMessages)) return true
     return hasContextualNgocSiAiAppActionFollowUp(intentText, previousMessages)
+}
+
+/**
+ * Resolves a "find a similar / that one" follow-up to a source-specific SEARCH action.
+ * This intentionally returns only search actions: a search-only utterance can never
+ * be upgraded into autoplay just because the model selected a playback action.
+ *
+ * The latest assistant answer must name one supported source and one positive media
+ * result. Multi-result, cross-source, negative-result, and unsupported-source contexts
+ * remain conversational so the assistant can ask for clarification.
+ */
+internal fun resolveNgocSiAiContextualSearchOnlyAction(
+    prompt: String,
+    previousMessages: List<NgocSiAiMessage>
+): String? {
+    if (previousMessages.lastOrNull()?.role != "assistant") return null
+
+    var intent = stripNgocSiAiDirectIntentWakePrefix(normalizeNgocSiAiVoicePhrase(prompt))
+    intent = intent.removePrefix("hay ").trim()
+    val searchPrefix = listOf("tim kiem ", "tim ", "kiem ")
+        .firstOrNull(intent::startsWith) ?: return null
+    val target = intent.removePrefix(searchPrefix).trim()
+    if (target.isBlank()) return null
+
+    // Explicit "then play" wording is not search-only and must use the dedicated
+    // search-and-play flow instead of this source-preserving override.
+    val autoplaySuffix = Regex(
+        """(?:^|\\s)(?:roi|va|sau do|then)\\s+(?:phat|play)(?:\\s|$)|(?:^|\\s)(?:phat|play)\\s+(?:luon|di)(?:$|\\s)"""
+    )
+    if (autoplaySuffix.containsMatchIn(intent)) return null
+
+    val referenceTargets = setOf(
+        "tuong tu", "giong vay", "giong nhu vay",
+        "bai tuong tu", "bai hat tuong tu", "nhac tuong tu", "video tuong tu",
+        "bai giong vay", "bai hat giong vay", "nhac giong vay", "video giong vay",
+        "bai do", "bai hat do", "nhac do", "video do",
+        "bai ay", "bai hat ay", "video ay",
+        "bai vua tim", "bai vua roi", "video vua tim", "video vua roi",
+        "ket qua vua tim", "ket qua vua roi"
+    )
+    val matchesReference = target in referenceTargets || Regex(
+        """^(?:bai hat|bai|nhac|video)\\s+(?:tuong tu|giong vay|giong nhu vay)(?:\\s+(?:voi|nhu)\\s+(?:bai hat|bai|nhac|video)\\s+(?:do|ay|vua roi|vua tim))?$"""
+    ).matches(target)
+    if (!matchesReference) return null
+
+    val assistant = normalizeNgocSiAiVoicePhrase(previousMessages.last().content)
+    val recentContext = previousMessages.takeLast(4)
+        .joinToString(" ") { normalizeNgocSiAiVoicePhrase(it.content) }
+
+    val ambiguousMarkers = listOf(
+        "nhieu ket qua", "nhieu bai", "nhieu video", "nhieu lua chon",
+        "mot so bai", "mot vai bai", "mot so video", "mot vai video",
+        "cac bai hat", "cac video", "cac lua chon", "nhung bai hat",
+        "nhung video", "danh sach bai", "danh sach video", "ket qua gom"
+    )
+    val multipleCount = Regex(
+        """(?:^|\\s)(?:[2-9]|[1-9]\\d+|hai|ba|bon|tu|nam|sau|bay|tam|chin|muoi)\\s+(?:bai|video|ket qua|lua chon)"""
+    )
+    if (ambiguousMarkers.any(assistant::contains) || multipleCount.containsMatchIn(assistant)) return null
+
+    val negativeResultMarkers = listOf(
+        "khong tim thay", "khong co ket qua", "chua tim thay",
+        "khong co bai", "khong co video", "tim kiem that bai", "gap loi khi tim"
+    )
+    if (negativeResultMarkers.any(assistant::contains)) return null
+
+    val positiveResultMarkers = listOf("tim thay", "da tim", "dang phat", "dang mo", "ket qua la")
+    val mediaMarkers = listOf("video", "bai hat", "bai nhac", "nhac", "tep", "file", "playlist")
+    if (positiveResultMarkers.none(assistant::contains) ||
+        mediaMarkers.none(assistant::contains)
+    ) return null
+
+    val families = listOf(
+        "youtube" to listOf("youtube"),
+        "drive" to listOf("google drive", "drive"),
+        "online" to listOf("audius", "jamendo", "online", "truc tuyen", "tren mang")
+    )
+    val matches = families.filter { (_, markers) ->
+        markers.any { marker ->
+            Regex("""(?:^|\\s)${Regex.escape(marker)}(?:$|\\s|\\d)""")
+                .containsMatchIn(assistant)
+        }
+    }
+    if (matches.size != 1) return null
+
+    // The recent transcript must also be app/media-related; do not bind old topics.
+    val recentAppMarkers = listOf("youtube", "drive", "online", "audius", "jamendo", "video", "bai hat", "nhac")
+    if (recentAppMarkers.none(recentContext::contains)) return null
+
+    return when (matches.single().first) {
+        "youtube" -> "search_youtube"
+        "drive" -> "search_drive"
+        "online" -> "search_online_music"
+        else -> null
+    }
 }
 
 private fun hasContextualNgocSiAiAppActionFollowUp(
