@@ -803,6 +803,9 @@ internal fun classifyNgocSiAiLocalCommand(
     // A sentence asking the assistant to remember a music preference can also contain
     // words such as “nghe nhạc”; never reinterpret that sentence as a playback request.
     if (parseNgocSiAiMemoryCommand(input) != null) return null
+    // "Find a similar one / that one" depends on recent chat context. Never turn
+    // the reference words themselves into a literal Online, YouTube, or Drive query.
+    if (isNgocSiAiContextualMediaReferenceSearch(input)) return null
 
     // When AI is opened from YouTube, an otherwise source-neutral search-and-play
     // request belongs to the visible YouTube page. Outside that page, do not guess.
@@ -1439,6 +1442,7 @@ internal fun extractNgocSiAiContextualDriveQuery(
     input: String,
     entryContext: String?
 ): String? {
+    if (isNgocSiAiContextualMediaReferenceSearch(input)) return null
     extractNgocSiAiDriveQuery(input)?.let { return it }
     if (normalizeNgocSiAiEntryContext(entryContext) != "Google Drive") return null
 
@@ -1575,6 +1579,37 @@ internal fun extractNgocSiAiYoutubeAutoPlayQuery(input: String): String? {
 }
 
 /**
+ * Recognizes search requests whose target is an item already identified in chat.
+ * These must be resolved by the conversational agent, not searched literally as
+ * words such as "tương tự" or "bài đó".
+ */
+private fun isNgocSiAiContextualMediaReferenceSearch(input: String): Boolean {
+    var phrase = normalizeNgocSiAiVoicePhrase(stripNgocSiAiWakeAddressPrefix(input))
+    phrase = phrase.removePrefix("hay ").trim()
+    phrase = when {
+        phrase.startsWith("tim kiem ") -> phrase.removePrefix("tim kiem ").trim()
+        phrase.startsWith("tim ") -> phrase.removePrefix("tim ").trim()
+        phrase.startsWith("kiem ") -> phrase.removePrefix("kiem ").trim()
+        else -> return false
+    }
+    phrase = trimNgocSiAiNormalizedCommandFillers(phrase)
+    val referenceOnlyTargets = setOf(
+        "tuong tu", "giong vay", "giong nhu vay",
+        "bai tuong tu", "bai hat tuong tu", "nhac tuong tu", "video tuong tu",
+        "bai giong vay", "bai hat giong vay", "nhac giong vay", "video giong vay",
+        "bai do", "bai hat do", "nhac do", "video do",
+        "bai ay", "bai hat ay", "video ay",
+        "bai vua tim", "bai vua roi", "video vua tim", "video vua roi",
+        "ket qua vua tim", "ket qua vua roi",
+        "giong bai do", "giong video do"
+    )
+    if (phrase in referenceOnlyTargets) return true
+    return Regex(
+        """^(?:bai|bai hat|nhac|video) (?:tuong tu|giong vay)(?: (?:voi|nhu) (?:bai|bai hat|nhac|video) (?:do|ay|vua roi|vua tim))?$"""
+    ).matches(phrase)
+}
+
+/**
  * Resolve source-neutral search-and-play speech against the page that launched AI.
  * A plain search never autoplays; an explicit play suffix is required. This helper
  * is intentionally disabled outside the YouTube page to avoid guessing the source.
@@ -1627,6 +1662,7 @@ internal fun extractNgocSiAiContextualYoutubeQuery(
     input: String,
     entryContext: String?
 ): String? {
+    if (isNgocSiAiContextualMediaReferenceSearch(input)) return null
     extractNgocSiAiYoutubeQuery(input)?.let { return it }
     if (normalizeNgocSiAiEntryContext(entryContext) != "YouTube") return null
 
