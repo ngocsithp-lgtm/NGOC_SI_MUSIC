@@ -151,6 +151,23 @@ internal fun selectNgocSiAiMaxOutputTokens(prompt: String): Int = when (selectNg
  * Attach the large app-command tool schema only when the newest message appears to request
  * an app action. Ordinary knowledge questions can use streamed text generation directly.
  */
+private fun isContextualNgocSiAiSearchOnlyFollowUp(normalizedPrompt: String): Boolean {
+    var phrase = stripNgocSiAiDirectIntentWakePrefix(normalizedPrompt).removePrefix("hay ").trim()
+    val prefix = listOf("tim kiem ", "tim ", "kiem ").firstOrNull(phrase::startsWith) ?: return false
+    phrase = phrase.removePrefix(prefix).trim()
+    val nonSearchSuffix = Regex(
+        """(?:^|\s)(?:roi|va|sau do|then)\s+(?:phat|play)(?:\s|$)|(?:^|\s)(?:phat|play)\s+(?:luon|di)(?:$|\s)"""
+    )
+    if (nonSearchSuffix.containsMatchIn(normalizedPrompt)) return false
+    return phrase in setOf(
+        "tuong tu", "giong vay", "giong nhu vay",
+        "bai tuong tu", "bai hat tuong tu", "nhac tuong tu", "video tuong tu",
+        "bai do", "bai hat do", "nhac do", "video do",
+        "bai vua tim", "bai vua roi", "video vua tim", "video vua roi",
+        "ket qua vua tim", "ket qua vua roi"
+    )
+}
+
 internal fun shouldOfferNgocSiAiAppCommandTool(
     prompt: String,
     previousMessages: List<NgocSiAiMessage> = emptyList()
@@ -193,22 +210,7 @@ internal fun shouldOfferNgocSiAiAppCommandTool(
     val howToQuestionMarkers = listOf(" nhu the nao", " bang cach nao")
     if (howToQuestionMarkers.any(intentText::contains)) return false
 
-private fun isContextualNgocSiAiSearchOnlyFollowUp(normalizedPrompt: String): Boolean {
-    var phrase = stripNgocSiAiDirectIntentWakePrefix(normalizedPrompt).removePrefix("hay ").trim()
-    val prefix = listOf("tim kiem ", "tim ", "kiem ").firstOrNull(phrase::startsWith) ?: return false
-    phrase = phrase.removePrefix(prefix).trim()
-    val nonSearchSuffix = Regex(
-        """(?:^|\\s)(?:roi|va|sau do|then)\\s+(?:phat|play)(?:\\s|$)|(?:^|\\s)(?:phat|play)\\s+(?:luon|di)(?:$|\\s)"""
-    )
-    if (nonSearchSuffix.containsMatchIn(normalizedPrompt)) return false
-    return phrase in setOf(
-        "tuong tu", "giong vay", "giong nhu vay",
-        "bai tuong tu", "bai hat tuong tu", "nhac tuong tu", "video tuong tu",
-        "bai do", "bai hat do", "nhac do", "video do",
-        "bai vua tim", "bai vua roi", "video vua tim", "video vua roi",
-        "ket qua vua tim", "ket qua vua roi"
-    )
-}
+
 
     if (isContextualNgocSiAiSearchOnlyFollowUp(intentText)) {
         return resolveNgocSiAiContextualSearchOnlyAction(intentText, previousMessages) != null
@@ -243,7 +245,7 @@ internal fun resolveNgocSiAiContextualSearchOnlyAction(
     // Explicit "then play" wording is not search-only and must use the dedicated
     // search-and-play flow instead of this source-preserving override.
     val autoplaySuffix = Regex(
-        """(?:^|\\s)(?:roi|va|sau do|then)\\s+(?:phat|play)(?:\\s|$)|(?:^|\\s)(?:phat|play)\\s+(?:luon|di)(?:$|\\s)"""
+        """(?:^|\s)(?:roi|va|sau do|then)\s+(?:phat|play)(?:\s|$)|(?:^|\s)(?:phat|play)\s+(?:luon|di)(?:$|\s)"""
     )
     if (autoplaySuffix.containsMatchIn(intent)) return null
 
@@ -257,7 +259,7 @@ internal fun resolveNgocSiAiContextualSearchOnlyAction(
         "ket qua vua tim", "ket qua vua roi"
     )
     val matchesReference = target in referenceTargets || Regex(
-        """^(?:bai hat|bai|nhac|video)\\s+(?:tuong tu|giong vay|giong nhu vay)(?:\\s+(?:voi|nhu)\\s+(?:bai hat|bai|nhac|video)\\s+(?:do|ay|vua roi|vua tim))?$"""
+        """^(?:bai hat|bai|nhac|video)\s+(?:tuong tu|giong vay|giong nhu vay)(?:\s+(?:voi|nhu)\s+(?:bai hat|bai|nhac|video)\s+(?:do|ay|vua roi|vua tim))?$"""
     ).matches(target)
     if (!matchesReference) return null
 
@@ -272,7 +274,7 @@ internal fun resolveNgocSiAiContextualSearchOnlyAction(
         "nhung video", "danh sach bai", "danh sach video", "ket qua gom"
     )
     val multipleCount = Regex(
-        """(?:^|\\s)(?:[2-9]|[1-9]\\d+|hai|ba|bon|tu|nam|sau|bay|tam|chin|muoi)\\s+(?:bai|video|ket qua|lua chon)"""
+        """(?:^|\s)(?:[2-9]|[1-9]\d+|hai|ba|bon|tu|nam|sau|bay|tam|chin|muoi)\s+(?:bai|video|ket qua|lua chon)"""
     )
     if (ambiguousMarkers.any(assistant::contains) || multipleCount.containsMatchIn(assistant)) return null
 
@@ -295,7 +297,7 @@ internal fun resolveNgocSiAiContextualSearchOnlyAction(
     )
     val matches = families.filter { (_, markers) ->
         markers.any { marker ->
-            Regex("""(?:^|\\s)${Regex.escape(marker)}(?:$|\\s|\\d)""")
+            Regex("""(?:^|\s)${Regex.escape(marker)}(?:$|\s|\d)""")
                 .containsMatchIn(assistant)
         }
     }
