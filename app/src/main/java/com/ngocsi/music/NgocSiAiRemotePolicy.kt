@@ -362,7 +362,7 @@ internal fun resolveNgocSiAiContextualYoutubeTransportAction(
         "trong dien thoai", "tren dien thoai", "thu vien", "media3", "mp3"
     )
     if (explicitOtherSources.any { marker ->
-        Regex("""(?:^|\\s)${Regex.escape(marker)}(?:$|\\s|\\d)""")
+        Regex("""(?:^|\s)${Regex.escape(marker)}(?:$|\s|\d)""")
             .containsMatchIn(intent)
     }) return null
 
