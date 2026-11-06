@@ -370,9 +370,26 @@ internal fun resolveNgocSiAiContextualYoutubeTransportAction(
     // Negative phrasing is not permission to issue a playback command. Accent
     // normalization makes "đừng" and "dừng" identical, so reject negative verb
     // combinations rather than every phrase beginning with "dừng".
+    // Vietnamese ASR can collapse "dừng" (stop) and "đừng" (do not)
+    // into the same unaccented token. Inspect the original transcript first:
+    // explicit "đừng ..." is always negative; explicit "dừng phát/chơi" is a
+    // valid pause command; unaccented "dung ..." remains ambiguous and is rejected.
+    val rawPrompt = prompt.lowercase()
+    val explicitNegativePhrase = Regex(
+        """(?:^|[\\s,])đừng\\s+(?:phát|chơi|chuyển)(?:\\s|$)"""
+    ).containsMatchIn(rawPrompt)
+    if (explicitNegativePhrase) return null
+    val explicitStopPhrase = Regex(
+        """(?:^|[\\s,])dừng\\s+(?:phát|chơi)(?:\\s|$)"""
+    ).containsMatchIn(rawPrompt)
+    val ambiguousStopPrefixes = listOf("dung phat", "dung choi", "dung chuyen")
+    if (
+        ambiguousStopPrefixes.any(intent::startsWith) &&
+        !explicitStopPhrase
+    ) return null
+
     val negativeImperativePrefixes = listOf(
-        "khong ", "dung phat", "dung choi", "dung chuyen",
-        "dung mo", "dung tim", "dung bat", "dung tua", "dung lui"
+        "khong ", "dung mo", "dung tim", "dung bat", "dung tua", "dung lui"
     )
     if (negativeImperativePrefixes.any { intent == it.trim() || intent.startsWith(it) }) return null
 
@@ -419,7 +436,8 @@ internal fun resolveNgocSiAiContextualYoutubeTransportAction(
 
     val pauseIntent = listOf(
         "tam dung", "tam ngung", "pause", "ngung lai", "ngung video",
-        "ngung no", "dung lai", "dung video", "dung youtube", "dung no", "stop"
+        "ngung no", "dung lai", "dung video", "dung phat", "dung choi",
+        "dung youtube", "dung no", "stop"
     ).any(intent::contains)
     if (pauseIntent) return "youtube_pause"
 
