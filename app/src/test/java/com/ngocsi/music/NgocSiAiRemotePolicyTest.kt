@@ -630,5 +630,31 @@ class NgocSiAiRemotePolicyTest {
             selectNgocSiAiGenerationThinkingLevel("Mở YouTube", offersAppCommandTool = true)
         )
     }
+    @Test
+    fun shortPronounCommandsReuseOnlyRecentMediaContext() {
+        val mediaHistory = listOf(
+            NgocSiAiMessage("user", "Tìm nhạc Bolero trên YouTube"),
+            NgocSiAiMessage("assistant", "Mình vừa tìm thấy video nhạc Bolero trên YouTube.")
+        )
+        assertTrue(shouldOfferNgocSiAiAppCommandTool("Phát nó đi", mediaHistory))
+        assertTrue(shouldOfferNgocSiAiAppCommandTool("Bài đó phát đi", mediaHistory))
+        assertTrue(shouldOfferNgocSiAiAppCommandTool("Mở video đó", mediaHistory))
+        assertTrue(shouldOfferNgocSiAiAppCommandTool("Thêm nó vào hàng đợi", mediaHistory))
+        assertTrue(shouldOfferNgocSiAiAppCommandTool("Bạn có thể phát nó không?", mediaHistory))
+
+        assertFalse(shouldOfferNgocSiAiAppCommandTool("Phát nó đi"))
+        assertFalse(shouldOfferNgocSiAiAppCommandTool("Nó là gì?", mediaHistory))
+        assertFalse(shouldOfferNgocSiAiAppCommandTool("Tại sao nó dừng?", mediaHistory))
+        assertFalse(
+            shouldOfferNgocSiAiAppCommandTool(
+                "Phát nó đi",
+                listOf(
+                    NgocSiAiMessage("user", "Tôi đang hỏi về lịch sử Việt Nam."),
+                    NgocSiAiMessage("assistant", "Mình có thể giải thích thêm về giai đoạn đó.")
+                )
+            )
+        )
+    }
+
 }
 
