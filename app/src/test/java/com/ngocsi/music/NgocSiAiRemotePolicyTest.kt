@@ -683,6 +683,15 @@ class NgocSiAiRemotePolicyTest {
                 )
             )
         )
+        assertTrue(
+            shouldOfferNgocSiAiAppCommandTool(
+                "Mở kênh đó",
+                listOf(
+                    NgocSiAiMessage("user", "Tìm kênh truyền hình"),
+                    NgocSiAiMessage("assistant", "Mình tìm thấy kênh VTV1 trong danh sách TV.")
+                )
+            )
+        )
 
         assertFalse(shouldOfferNgocSiAiAppCommandTool("Tìm bài tương tự"))
         assertFalse(shouldOfferNgocSiAiAppCommandTool("Nó là gì?", mediaHistory))
