@@ -264,10 +264,9 @@ private fun hasContextualNgocSiAiAppActionFollowUp(
         listOf("audius", "jamendo", "online", "truc tuyen"),
         listOf("trong dien thoai", "tren dien thoai", "trong may", "thu vien", "media3", "local", "mp3")
     )
-    val paddedAssistant = " $latestAssistantContext "
     val identifiedSourceFamilies = sourceFamilies.count { family ->
         family.any { marker ->
-            Regex("""(?:^|\\s)${Regex.escape(marker)}(?:$|\\s|\\d)""")
+            Regex("""(?:^|\s)${Regex.escape(marker)}(?:$|\s|\d)""")
                 .containsMatchIn(latestAssistantContext)
         }
     }
