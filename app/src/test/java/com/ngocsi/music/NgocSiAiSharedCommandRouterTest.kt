@@ -13,6 +13,12 @@ class NgocSiAiSharedCommandRouterTest {
             "pause" to NgocSiAiLocalCommand.PAUSE,
             "next" to NgocSiAiLocalCommand.NEXT,
             "previous" to NgocSiAiLocalCommand.PREVIOUS,
+            // Contextual YouTube follow-ups must route to dedicated YouTube commands,
+            // never to the generic Media3 queue transport commands.
+            "youtube_play" to NgocSiAiLocalCommand.RESUME_YOUTUBE,
+            "youtube_pause" to NgocSiAiLocalCommand.PAUSE_YOUTUBE,
+            "youtube_next" to NgocSiAiLocalCommand.NEXT_YOUTUBE_VIDEO,
+            "youtube_previous" to NgocSiAiLocalCommand.PREVIOUS_YOUTUBE_VIDEO,
             "seek_forward_10" to NgocSiAiLocalCommand.SEEK_FORWARD_10,
             "seek_back_10" to NgocSiAiLocalCommand.SEEK_BACK_10,
             "shuffle_on" to NgocSiAiLocalCommand.SHUFFLE_ON,
