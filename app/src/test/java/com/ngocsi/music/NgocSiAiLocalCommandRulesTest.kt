@@ -857,6 +857,35 @@ class NgocSiAiLocalCommandRulesTest {
     }
 
     @Test
+    fun contextualSimilarMediaSearchUsesRecentConversationInsteadOfLiteralWords() {
+        val followUps = listOf(
+            "Tìm bài tương tự",
+            "Tìm bài hát tương tự",
+            "Tìm video tương tự",
+            "AI, tìm nhạc giống vậy",
+            "Tìm bài đó",
+            "Tìm video vừa tìm"
+        )
+
+        followUps.forEach { phrase ->
+            assertNull("YouTube: $phrase", extractNgocSiAiContextualYoutubeQuery(phrase, "YouTube"))
+            assertNull("Drive: $phrase", extractNgocSiAiContextualDriveQuery(phrase, "Google Drive"))
+            assertNull("Local classifier: $phrase", classifyNgocSiAiLocalCommand(phrase, "YouTube"))
+            assertNull("Local classifier without page context: $phrase", classifyNgocSiAiLocalCommand(phrase))
+        }
+
+        // Concrete search terms remain ordinary source-specific searches.
+        assertEquals(
+            "Bolero",
+            extractNgocSiAiContextualYoutubeQuery("Tìm nhạc Bolero", "YouTube")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.SEARCH_YOUTUBE,
+            classifyNgocSiAiLocalCommand("Tìm nhạc Bolero", "YouTube")
+        )
+    }
+
+    @Test
     fun sourceNeutralDriveSearchUsesDriveOnlyOnTheDrivePage() {
         val phrase = "AI, tìm nhạc Bolero"
 
