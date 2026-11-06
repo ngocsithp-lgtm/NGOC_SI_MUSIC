@@ -649,6 +649,7 @@ class NgocSiAiRemotePolicyTest {
         // Multiple candidates from the same source are still ambiguous.
         listOf(
             "Mình tìm thấy 3 video Bolero trên YouTube.",
+            "Mình tìm thấy hai video Bolero trên YouTube.",
             "Có nhiều bài hát Bolero trên YouTube.",
             "Đây là các video phù hợp trên YouTube."
         ).forEach { assistantAnswer ->
