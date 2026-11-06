@@ -853,6 +853,18 @@ class NgocSiAiRemotePolicyTest {
             resolveNgocSiAiContextualYoutubeTransportAction("Tạm dừng video đó", playingYoutubeHistory)
         )
         assertEquals(
+            "youtube_pause",
+            resolveNgocSiAiContextualYoutubeTransportAction("Dừng lại", playingYoutubeHistory)
+        )
+        assertEquals(
+            "youtube_pause",
+            resolveNgocSiAiContextualYoutubeTransportAction("Dừng video đi", playingYoutubeHistory)
+        )
+        assertEquals(
+            "youtube_pause",
+            resolveNgocSiAiContextualYoutubeTransportAction("Tạm ngưng video", playingYoutubeHistory)
+        )
+        assertEquals(
             "youtube_play",
             resolveNgocSiAiContextualYoutubeTransportAction("Phát nó đi", playingYoutubeHistory)
         )
@@ -881,6 +893,14 @@ class NgocSiAiRemotePolicyTest {
             "youtube_play",
             resolveNgocSiAiContextualYoutubeTransportAction("Tiếp tục", pausedYoutubeHistory)
         )
+        assertEquals(
+            "youtube_play",
+            resolveNgocSiAiContextualYoutubeTransportAction("Phát", pausedYoutubeHistory)
+        )
+        assertEquals(
+            "youtube_play",
+            resolveNgocSiAiContextualYoutubeTransportAction("Chơi tiếp", pausedYoutubeHistory)
+        )
 
         // Explicit alternate-source and negative requests must not inherit YouTube.
         assertNull(
@@ -888,6 +908,12 @@ class NgocSiAiRemotePolicyTest {
         )
         assertNull(
             resolveNgocSiAiContextualYoutubeTransportAction("Đừng phát nó", pausedYoutubeHistory)
+        )
+        assertNull(
+            resolveNgocSiAiContextualYoutubeTransportAction("Đừng chuyển bài", pausedYoutubeHistory)
+        )
+        assertNull(
+            resolveNgocSiAiContextualYoutubeTransportAction("Đừng mở YouTube", pausedYoutubeHistory)
         )
 
         // A search result is not proof that this video is the active player item.
