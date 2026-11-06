@@ -128,6 +128,38 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
+    fun confirmedYoutubeTransportAliasesExposeToolsButNegativeNavigationDoesNot() {
+        val playingYoutubeHistory = listOf(
+            NgocSiAiMessage("user", "Phát video Bolero trên YouTube"),
+            NgocSiAiMessage("assistant", "Đang phát video Bolero trên YouTube.")
+        )
+        listOf(
+            "Dừng lại",
+            "Dừng video đi",
+            "Tạm ngưng video",
+            "Tiếp tục",
+            "Phát"
+        ).forEach { phrase ->
+            assertTrue(
+                "$phrase should expose the contextual YouTube transport tool",
+                shouldOfferNgocSiAiAppCommandTool(phrase, playingYoutubeHistory)
+            )
+        }
+
+        listOf(
+            "Đừng mở YouTube",
+            "Đừng vào YouTube",
+            "Đừng chuyển sang Radio",
+            "Đừng tìm bài trên Drive"
+        ).forEach { phrase ->
+            assertFalse(
+                "$phrase is a negative instruction, not permission to act",
+                shouldOfferNgocSiAiAppCommandTool(phrase, playingYoutubeHistory)
+            )
+        }
+    }
+
+    @Test
     fun naturalPlaybackAndSeekPhrasesKeepTheAppCommandToolAvailable() {
         listOf(
             "AI, bấm phát video tiếp theo.",
