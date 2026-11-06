@@ -245,12 +245,23 @@ private fun hasContextualNgocSiAiAppActionFollowUp(
 
     val recentContext = previousMessages.takeLast(4)
         .joinToString(" ") { normalizeNgocSiAiVoicePhrase(it.content) }
-    val appContextMarkers = listOf(
-        "youtube", "video", "bai hat", "bai nhac", "nhac",
-        "radio", "google drive", "drive", "playlist", "hang doi",
-        "kenh", "dai", "trinh phat", "am luong", "hen gio"
+    val latestAssistantContext = normalizeNgocSiAiVoicePhrase(
+        previousMessages.last().content
     )
-    return appContextMarkers.any(recentContext::contains)
+    val appContextMarkers = listOf(
+        "youtube", "video", "bai hat", "bai nhac", "radio",
+        "google drive", "drive", "playlist", "hang doi",
+        "kenh", "vov", "voh", "vtv", "htv", "thvl"
+    )
+    val specificMediaMarkers = listOf(
+        "youtube", "video", "bai hat", "bai nhac", "radio",
+        "google drive", "drive", "playlist", "hang doi",
+        "vov", "voh", "vtv", "htv", "thvl"
+    )
+    // An old user request mentioning YouTube is not enough: the immediately
+    // preceding assistant answer must itself refer to a concrete media/source.
+    return appContextMarkers.any(recentContext::contains) &&
+        specificMediaMarkers.any(latestAssistantContext::contains)
 }
 
 /**
