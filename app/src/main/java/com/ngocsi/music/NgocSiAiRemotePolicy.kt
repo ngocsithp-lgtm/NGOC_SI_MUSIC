@@ -253,15 +253,25 @@ private fun hasContextualNgocSiAiAppActionFollowUp(
         "google drive", "drive", "playlist", "hang doi",
         "kenh", "vov", "voh", "vtv", "htv", "thvl"
     )
-    val specificMediaMarkers = listOf(
-        "youtube", "video", "bai hat", "bai nhac", "radio",
-        "google drive", "drive", "playlist", "hang doi",
-        "vov", "voh", "vtv", "htv", "thvl"
+    // A follow-up may inherit a source only when the immediately preceding
+    // assistant answer identifies exactly one source family. Generic words
+    // such as "bài hát" or "video" describe media, not its playback source.
+    val sourceFamilies = listOf(
+        listOf("youtube"),
+        listOf("google drive", "drive"),
+        listOf("radio", "vov", "voh"),
+        listOf("tv", "vtv", "htv", "thvl", "vtvgo", "htvm"),
+        listOf("audius", "jamendo", "online", "truc tuyen"),
+        listOf("trong dien thoai", "tren dien thoai", "trong may", "thu vien", "media3", "local", "mp3")
     )
+    val paddedAssistant = " $latestAssistantContext "
+    val identifiedSourceFamilies = sourceFamilies.count { family ->
+        family.any { marker -> paddedAssistant.contains(" $marker ") }
+    }
     // An old user request mentioning YouTube is not enough: the immediately
-    // preceding assistant answer must itself refer to a concrete media/source.
+    // preceding assistant answer must itself identify one unambiguous source.
     return appContextMarkers.any(recentContext::contains) &&
-        specificMediaMarkers.any(latestAssistantContext::contains)
+        identifiedSourceFamilies == 1
 }
 
 /**
