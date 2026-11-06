@@ -646,6 +646,44 @@ class NgocSiAiRemotePolicyTest {
         assertTrue(shouldOfferNgocSiAiAppCommandTool("Nghe bài vừa rồi", mediaHistory))
         assertTrue(shouldOfferNgocSiAiAppCommandTool("Tìm video tương tự", mediaHistory))
 
+        // The immediate assistant answer must resolve one source, not just mention media.
+        assertFalse(
+            shouldOfferNgocSiAiAppCommandTool(
+                "Phát nó đi",
+                listOf(
+                    NgocSiAiMessage("user", "Tìm một bài nhạc"),
+                    NgocSiAiMessage("assistant", "Mình tìm thấy bài hát Diễm xưa.")
+                )
+            )
+        )
+        assertFalse(
+            shouldOfferNgocSiAiAppCommandTool(
+                "Phát nó đi",
+                listOf(
+                    NgocSiAiMessage("user", "Tìm một bài nhạc"),
+                    NgocSiAiMessage("assistant", "Mình thấy video trên YouTube và một bản trong Google Drive.")
+                )
+            )
+        )
+        assertTrue(
+            shouldOfferNgocSiAiAppCommandTool(
+                "Phát nó đi",
+                listOf(
+                    NgocSiAiMessage("user", "Tìm bài trong thư viện"),
+                    NgocSiAiMessage("assistant", "Mình tìm thấy bài hát Diễm xưa trong thư viện nhạc trên điện thoại.")
+                )
+            )
+        )
+        assertTrue(
+            shouldOfferNgocSiAiAppCommandTool(
+                "Phát nó đi",
+                listOf(
+                    NgocSiAiMessage("user", "Tìm trên Google Drive"),
+                    NgocSiAiMessage("assistant", "Mình tìm thấy tệp nhạc Diễm xưa trong Google Drive.")
+                )
+            )
+        )
+
         assertFalse(shouldOfferNgocSiAiAppCommandTool("Tìm bài tương tự"))
         assertFalse(shouldOfferNgocSiAiAppCommandTool("Nó là gì?", mediaHistory))
         assertFalse(shouldOfferNgocSiAiAppCommandTool("Tại sao nó dừng?", mediaHistory))
