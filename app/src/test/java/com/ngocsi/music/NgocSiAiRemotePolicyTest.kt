@@ -653,6 +653,15 @@ class NgocSiAiRemotePolicyTest {
             shouldOfferNgocSiAiAppCommandTool(
                 "Phát nó đi",
                 listOf(
+                    NgocSiAiMessage("user", "Tìm nhạc Bolero trên YouTube"),
+                    NgocSiAiMessage("assistant", "Bolero là một thể loại nhạc trữ tình phổ biến.")
+                )
+            )
+        )
+        assertFalse(
+            shouldOfferNgocSiAiAppCommandTool(
+                "Phát nó đi",
+                listOf(
                     NgocSiAiMessage("user", "Tôi đang hỏi về lịch sử Việt Nam."),
                     NgocSiAiMessage("assistant", "Mình có thể giải thích thêm về giai đoạn đó.")
                 )
