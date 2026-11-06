@@ -909,6 +909,14 @@ class NgocSiAiRemotePolicyTest {
         )
         assertEquals(
             "youtube_pause",
+            resolveNgocSiAiContextualYoutubeTransportAction("Dừng phát video đi", playingYoutubeHistory)
+        )
+        assertEquals(
+            "youtube_pause",
+            resolveNgocSiAiContextualYoutubeTransportAction("AI, dừng phát video đó", playingYoutubeHistory)
+        )
+        assertEquals(
+            "youtube_pause",
             resolveNgocSiAiContextualYoutubeTransportAction("Tạm ngưng video", playingYoutubeHistory)
         )
         assertEquals(
@@ -955,6 +963,12 @@ class NgocSiAiRemotePolicyTest {
         )
         assertNull(
             resolveNgocSiAiContextualYoutubeTransportAction("Đừng phát nó", pausedYoutubeHistory)
+        )
+        assertNull(
+            resolveNgocSiAiContextualYoutubeTransportAction("AI, đừng phát video đó", pausedYoutubeHistory)
+        )
+        assertNull(
+            resolveNgocSiAiContextualYoutubeTransportAction("dung phat video di", pausedYoutubeHistory)
         )
         assertNull(
             resolveNgocSiAiContextualYoutubeTransportAction("Đừng chuyển bài", pausedYoutubeHistory)
