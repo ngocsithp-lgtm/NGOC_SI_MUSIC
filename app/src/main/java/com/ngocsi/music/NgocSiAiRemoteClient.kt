@@ -154,6 +154,14 @@ internal class NgocSiAiRemoteClient(context: Context) {
         // by the contextual query extractor and therefore remain untouched.
         val contextualDriveSearchQuery =
             extractNgocSiAiContextualDriveQuery(newestUserMessage.content, entryContext)
+        // For reference-only searches such as "Tìm bài tương tự", lock the
+        // action to the one unambiguous source identified by the latest assistant
+        // answer. The model may supply the search terms, but cannot switch sources
+        // or turn this search-only request into playback.
+        val contextualReferenceSearchAction = resolveNgocSiAiContextualSearchOnlyAction(
+            newestUserMessage.content,
+            normalized.dropLast(1)
+        )
 
         // Firebase AI Logic requires model-role history for assistant responses.
         val previousTurns = normalized.dropLast(1).map { message ->
@@ -220,6 +228,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 var contextualYoutubeAutoPlayDispatched = false
                 var contextualYoutubeSearchDispatched = false
                 var contextualDriveSearchDispatched = false
+                var contextualReferenceSearchDispatched = false
                 while (response.functionCalls.isNotEmpty() && toolRound < MAX_TOOL_ROUNDS) {
                     // Select one valid action for this round. Other proposed actions are
                     // deferred until the model has read the result of the selected action.
@@ -258,6 +267,8 @@ internal class NgocSiAiRemoteClient(context: Context) {
                                     ?.takeIf { !contextualYoutubeSearchDispatched }
                                 val inferredDriveQuery = contextualDriveSearchQuery
                                     ?.takeIf { !contextualDriveSearchDispatched }
+                                val inferredReferenceSearchAction = contextualReferenceSearchAction
+                                    ?.takeIf { !contextualReferenceSearchDispatched }
                                 if (inferredYoutubeQuery != null) {
                                     contextualYoutubeAutoPlayDispatched = true
                                     effectiveAction = "search_and_play_youtube"
@@ -270,6 +281,17 @@ internal class NgocSiAiRemoteClient(context: Context) {
                                     contextualDriveSearchDispatched = true
                                     effectiveAction = "search_drive"
                                     executeNgocSiAiToolSafely(executeTool, effectiveAction, inferredDriveQuery)
+                                } else if (inferredReferenceSearchAction != null) {
+                                    contextualReferenceSearchDispatched = true
+                                    effectiveAction = inferredReferenceSearchAction
+                                    if (query.isBlank()) {
+                                        NgocSiAiToolResult(
+                                            routed = false,
+                                            feedback = "Chưa xác định được từ khóa của bài vừa nhắc tới. Hãy hỏi người dùng để làm rõ trước khi tìm kiếm."
+                                        )
+                                    } else {
+                                        executeNgocSiAiToolSafely(executeTool, effectiveAction, query)
+                                    }
                                 } else if (action.isBlank()) {
                                     NgocSiAiToolResult(
                                         routed = false,
