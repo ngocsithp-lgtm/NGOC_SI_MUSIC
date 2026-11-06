@@ -837,5 +837,82 @@ class NgocSiAiRemotePolicyTest {
         assertTrue(isNgocSiAiContextualSearchQuerySpecificEnough("Diễm xưa Trịnh Công Sơn"))
     }
 
+
+    @Test
+    fun contextualYoutubeTransportFollowUpsKeepTheConfirmedActiveSource() {
+        val playingYoutubeHistory = listOf(
+            NgocSiAiMessage("user", "Phát video Bolero trên YouTube"),
+            NgocSiAiMessage("assistant", "Đang phát video Bolero trên YouTube.")
+        )
+        assertEquals(
+            "youtube_pause",
+            resolveNgocSiAiContextualYoutubeTransportAction("Tạm dừng nó", playingYoutubeHistory)
+        )
+        assertEquals(
+            "youtube_pause",
+            resolveNgocSiAiContextualYoutubeTransportAction("Tạm dừng video đó", playingYoutubeHistory)
+        )
+        assertEquals(
+            "youtube_next",
+            resolveNgocSiAiContextualYoutubeTransportAction("Tiếp theo", playingYoutubeHistory)
+        )
+        assertEquals(
+            "youtube_next",
+            resolveNgocSiAiContextualYoutubeTransportAction("Chuyển sang video tiếp theo", playingYoutubeHistory)
+        )
+        assertEquals(
+            "youtube_previous",
+            resolveNgocSiAiContextualYoutubeTransportAction("Bài trước", playingYoutubeHistory)
+        )
+
+        val pausedYoutubeHistory = listOf(
+            NgocSiAiMessage("user", "Tạm dừng YouTube"),
+            NgocSiAiMessage("assistant", "Đang tạm dừng video Bolero trên YouTube.")
+        )
+        assertEquals(
+            "youtube_play",
+            resolveNgocSiAiContextualYoutubeTransportAction("Phát tiếp nó đi", pausedYoutubeHistory)
+        )
+
+        // A search result is not proof that this video is the active player item.
+        val searchOnlyHistory = listOf(
+            NgocSiAiMessage("user", "Tìm video Bolero trên YouTube"),
+            NgocSiAiMessage("assistant", "Mình vừa tìm thấy video Bolero trên YouTube.")
+        )
+        assertNull(
+            resolveNgocSiAiContextualYoutubeTransportAction("Tạm dừng nó", searchOnlyHistory)
+        )
+
+        // Never infer YouTube when the latest answer contains another source or multiple videos.
+        val mixedSourceHistory = listOf(
+            NgocSiAiMessage("user", "Tìm video"),
+            NgocSiAiMessage("assistant", "Đang phát video trên YouTube và có bản nhạc trong Google Drive.")
+        )
+        assertNull(
+            resolveNgocSiAiContextualYoutubeTransportAction("Tạm dừng nó", mixedSourceHistory)
+        )
+
+        val multipleVideoHistory = listOf(
+            NgocSiAiMessage("user", "Tìm video YouTube"),
+            NgocSiAiMessage("assistant", "Đang phát một trong 3 video trên YouTube.")
+        )
+        assertNull(
+            resolveNgocSiAiContextualYoutubeTransportAction("Tiếp theo", multipleVideoHistory)
+        )
+
+        assertNull(
+            resolveNgocSiAiContextualYoutubeTransportAction(
+                "Tạm dừng nó",
+                listOf(NgocSiAiMessage("user", "Tìm video trên YouTube"))
+            )
+        )
+        assertNull(
+            resolveNgocSiAiContextualYoutubeTransportAction("Tìm bài tương tự", playingYoutubeHistory)
+        )
+        assertNull(
+            resolveNgocSiAiContextualYoutubeTransportAction("Tại sao video đó dừng?", playingYoutubeHistory)
+        )
+    }
+
 }
 
