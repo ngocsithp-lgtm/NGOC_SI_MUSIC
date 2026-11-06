@@ -356,7 +356,7 @@ internal fun resolveNgocSiAiContextualYoutubeTransportAction(
 
     val assistant = normalizeNgocSiAiVoicePhrase(previousMessages.last().content)
     fun hasToken(marker: String): Boolean =
-        Regex("""(?:^|\\s)${Regex.escape(marker)}(?:$|\\s|\\d)""")
+        Regex("""(?:^|\s)${Regex.escape(marker)}(?:$|\s|\d)""")
             .containsMatchIn(assistant)
 
     if (!hasToken("youtube") || !hasToken("video")) return null
@@ -381,7 +381,7 @@ internal fun resolveNgocSiAiContextualYoutubeTransportAction(
         "danh sach video", "nhung video", "nhieu ket qua"
     )
     val explicitMultipleCount = Regex(
-        """(?:^|\\s)(?:[2-9]|[1-9]\\d+|hai|ba|bon|tu|nam|sau|bay|tam|chin|muoi)\\s+video"""
+        """(?:^|\s)(?:[2-9]|[1-9]\d+|hai|ba|bon|tu|nam|sau|bay|tam|chin|muoi)\s+video"""
     ).containsMatchIn(assistant)
     if (multipleResultMarkers.any(assistant::contains) || explicitMultipleCount) return null
 
