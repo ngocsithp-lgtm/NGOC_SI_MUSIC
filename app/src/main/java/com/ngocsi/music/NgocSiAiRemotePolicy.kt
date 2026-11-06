@@ -353,6 +353,18 @@ internal fun resolveNgocSiAiContextualYoutubeTransportAction(
         normalizeNgocSiAiVoicePhrase(prompt)
     ).removePrefix("hay ").trim()
     if (intent.isBlank() || intent.length > 100) return null
+    // Negative phrasing is not permission to issue a playback command.
+    if (intent.startsWith("dung ") || intent.startsWith("khong ")) return null
+
+    val explicitOtherSources = listOf(
+        "google drive", "drive", "radio", "vov", "voh", "tv", "vtv",
+        "htv", "thvl", "audius", "jamendo", "online", "truc tuyen",
+        "trong dien thoai", "tren dien thoai", "thu vien", "media3", "mp3"
+    )
+    if (explicitOtherSources.any { marker ->
+        Regex("""(?:^|\\s)${Regex.escape(marker)}(?:$|\\s|\\d)""")
+            .containsMatchIn(intent)
+    }) return null
 
     val assistant = normalizeNgocSiAiVoicePhrase(previousMessages.last().content)
     fun hasToken(marker: String): Boolean =
@@ -402,9 +414,9 @@ internal fun resolveNgocSiAiContextualYoutubeTransportAction(
     if (nextIntent) return "youtube_next"
 
     val playIntent = listOf(
-        "phat ", "choi ", "nghe tiep", "tiep tuc phat", "resume", "play"
+        "phat ", "choi ", "nghe tiep", "tiep tuc phat", "tiep tuc", "resume", "play"
     ).any(intent::contains)
-    if (playIntent && isPaused) return "youtube_play"
+    if (playIntent && (isPaused || isPlaying)) return "youtube_play"
 
     return null
 }
