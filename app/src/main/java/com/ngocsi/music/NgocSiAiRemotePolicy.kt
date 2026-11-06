@@ -165,7 +165,9 @@ private fun isContextualNgocSiAiSearchOnlyFollowUp(normalizedPrompt: String): Bo
         "bai do", "bai hat do", "nhac do", "video do",
         "bai vua tim", "bai vua roi", "video vua tim", "video vua roi",
         "ket qua vua tim", "ket qua vua roi"
-    )
+    ) || Regex(
+        """^(?:bai hat|bai|nhac|video)\\s+(?:tuong tu|giong vay|giong nhu vay)(?:\\s+(?:voi|nhu)\\s+(?:bai hat|bai|nhac|video)\\s+(?:do|ay|vua roi|vua tim))?$"""
+    ).matches(phrase)
 }
 
 internal fun shouldOfferNgocSiAiAppCommandTool(
@@ -313,6 +315,23 @@ internal fun resolveNgocSiAiContextualSearchOnlyAction(
         "online" -> "search_online_music"
         else -> null
     }
+}
+
+/**
+ * Reject generic reference words as a search query. If Gemini cannot turn the recent
+ * item into a concrete title, artist, station or keyword, do not search for "bài tương tự".
+ */
+internal fun isNgocSiAiContextualSearchQuerySpecificEnough(query: String): Boolean {
+    val normalized = normalizeNgocSiAiVoicePhrase(query)
+    if (normalized.length < 3) return false
+    return normalized !in setOf(
+        "tuong tu", "giong vay", "giong nhu vay",
+        "bai", "bai hat", "bai nhac", "bai tuong tu",
+        "bai hat tuong tu", "nhac", "nhac tuong tu", "video",
+        "video tuong tu", "bai vua tim", "bai vua roi",
+        "video vua tim", "video vua roi", "ket qua vua tim",
+        "ket qua vua roi"
+    )
 }
 
 private fun hasContextualNgocSiAiAppActionFollowUp(
