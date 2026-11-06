@@ -166,7 +166,7 @@ private fun isContextualNgocSiAiSearchOnlyFollowUp(normalizedPrompt: String): Bo
         "bai vua tim", "bai vua roi", "video vua tim", "video vua roi",
         "ket qua vua tim", "ket qua vua roi"
     ) || Regex(
-        """^(?:bai hat|bai|nhac|video)\\s+(?:tuong tu|giong vay|giong nhu vay)(?:\\s+(?:voi|nhu)\\s+(?:bai hat|bai|nhac|video)\\s+(?:do|ay|vua roi|vua tim))?$"""
+        """^(?:bai hat|bai|nhac|video)\s+(?:tuong tu|giong vay|giong nhu vay)(?:\s+(?:voi|nhu)\s+(?:bai hat|bai|nhac|video)\s+(?:do|ay|vua roi|vua tim))?$"""
     ).matches(phrase)
 }
 
@@ -376,11 +376,11 @@ internal fun resolveNgocSiAiContextualYoutubeTransportAction(
     // valid pause command; unaccented "dung ..." remains ambiguous and is rejected.
     val rawPrompt = prompt.lowercase()
     val explicitNegativePhrase = Regex(
-        """(?:^|[\\s,])đừng\\s+(?:phát|chơi|chuyển)(?:\\s|$)"""
+        """(?:^|[\s,])đừng\s+(?:phát|chơi|chuyển)(?:\s|$)"""
     ).containsMatchIn(rawPrompt)
     if (explicitNegativePhrase) return null
     val explicitStopPhrase = Regex(
-        """(?:^|[\\s,])dừng\\s+(?:phát|chơi)(?:\\s|$)"""
+        """(?:^|[\s,])dừng\s+(?:phát|chơi)(?:\s|$)"""
     ).containsMatchIn(rawPrompt)
     val ambiguousStopPrefixes = listOf("dung phat", "dung choi", "dung chuyen")
     if (
