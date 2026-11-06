@@ -816,6 +816,25 @@ class NgocSiAiRemotePolicyTest {
 
         assertNull(resolveNgocSiAiContextualSearchOnlyAction("Tìm bài tương tự", emptyList()))
         assertNull(resolveNgocSiAiContextualSearchOnlyAction("Tìm Bolero", youtubeHistory))
+
+        assertEquals(
+            "search_youtube",
+            resolveNgocSiAiContextualSearchOnlyAction(
+                "Tìm bài hát tương tự với bài đó",
+                youtubeHistory
+            )
+        )
+        assertTrue(
+            shouldOfferNgocSiAiAppCommandTool(
+                "Tìm bài hát tương tự với bài đó",
+                youtubeHistory
+            )
+        )
+        assertFalse(isNgocSiAiContextualSearchQuerySpecificEnough("bài tương tự"))
+        assertFalse(isNgocSiAiContextualSearchQuerySpecificEnough("Tìm bài hát tương tự"))
+        assertFalse(isNgocSiAiContextualSearchQuerySpecificEnough("similar songs"))
+        assertTrue(isNgocSiAiContextualSearchQuerySpecificEnough("Bolero"))
+        assertTrue(isNgocSiAiContextualSearchQuerySpecificEnough("Diễm xưa Trịnh Công Sơn"))
     }
 
 }
