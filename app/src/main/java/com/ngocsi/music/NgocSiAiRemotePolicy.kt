@@ -270,8 +270,23 @@ private fun hasContextualNgocSiAiAppActionFollowUp(
                 .containsMatchIn(latestAssistantContext)
         }
     }
+    // A short reference is unsafe when the last answer lists multiple candidates,
+    // even if every candidate comes from the same source. Require clarification first.
+    val ambiguousResultMarkers = listOf(
+        "nhieu ket qua", "nhieu bai", "nhieu video", "nhieu lua chon",
+        "mot so bai", "mot vai bai", "mot so video", "mot vai video",
+        "cac bai hat", "cac video", "cac lua chon", "nhung bai hat",
+        "nhung video", "danh sach bai", "danh sach video", "ket qua gom"
+    )
+    val hasExplicitMultipleCount = Regex(
+        """(?:^|\\s)(?:[2-9]|[1-9]\\d+)\\s+(?:bai|video|ket qua|lua chon)"""
+    ).containsMatchIn(latestAssistantContext)
+    if (ambiguousResultMarkers.any(latestAssistantContext::contains) || hasExplicitMultipleCount) {
+        return false
+    }
+
     // An old user request mentioning YouTube is not enough: the immediately
-    // preceding assistant answer must itself identify one unambiguous source.
+    // preceding assistant answer must identify one source and one clear candidate.
     return appContextMarkers.any(recentContext::contains) &&
         identifiedSourceFamilies == 1
 }
