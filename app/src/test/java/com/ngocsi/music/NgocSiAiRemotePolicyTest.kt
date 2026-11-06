@@ -641,8 +641,12 @@ class NgocSiAiRemotePolicyTest {
         assertTrue(shouldOfferNgocSiAiAppCommandTool("Mở video đó", mediaHistory))
         assertTrue(shouldOfferNgocSiAiAppCommandTool("Thêm nó vào hàng đợi", mediaHistory))
         assertTrue(shouldOfferNgocSiAiAppCommandTool("Bạn có thể phát nó không?", mediaHistory))
+        assertTrue(shouldOfferNgocSiAiAppCommandTool("Tìm bài tương tự", mediaHistory))
+        assertTrue(shouldOfferNgocSiAiAppCommandTool("Phát bài vừa tìm", mediaHistory))
+        assertTrue(shouldOfferNgocSiAiAppCommandTool("Nghe bài vừa rồi", mediaHistory))
+        assertTrue(shouldOfferNgocSiAiAppCommandTool("Tìm video tương tự", mediaHistory))
 
-        assertFalse(shouldOfferNgocSiAiAppCommandTool("Phát nó đi"))
+        assertFalse(shouldOfferNgocSiAiAppCommandTool("Tìm bài tương tự"))
         assertFalse(shouldOfferNgocSiAiAppCommandTool("Nó là gì?", mediaHistory))
         assertFalse(shouldOfferNgocSiAiAppCommandTool("Tại sao nó dừng?", mediaHistory))
         assertFalse(
