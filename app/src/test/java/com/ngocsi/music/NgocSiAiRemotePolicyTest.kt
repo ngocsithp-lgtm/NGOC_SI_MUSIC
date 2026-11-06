@@ -646,6 +646,33 @@ class NgocSiAiRemotePolicyTest {
         assertTrue(shouldOfferNgocSiAiAppCommandTool("Nghe bài vừa rồi", mediaHistory))
         assertTrue(shouldOfferNgocSiAiAppCommandTool("Tìm video tương tự", mediaHistory))
 
+        // Multiple candidates from the same source are still ambiguous.
+        listOf(
+            "Mình tìm thấy 3 video Bolero trên YouTube.",
+            "Có nhiều bài hát Bolero trên YouTube.",
+            "Đây là các video phù hợp trên YouTube."
+        ).forEach { assistantAnswer ->
+            assertFalse(
+                assistantAnswer,
+                shouldOfferNgocSiAiAppCommandTool(
+                    "Phát nó đi",
+                    listOf(
+                        NgocSiAiMessage("user", "Tìm nhạc Bolero trên YouTube"),
+                        NgocSiAiMessage("assistant", assistantAnswer)
+                    )
+                )
+            )
+        }
+        assertTrue(
+            shouldOfferNgocSiAiAppCommandTool(
+                "Phát nó đi",
+                listOf(
+                    NgocSiAiMessage("user", "Tìm nhạc Bolero trên YouTube"),
+                    NgocSiAiMessage("assistant", "Mình tìm thấy một video Bolero trên YouTube.")
+                )
+            )
+        )
+
         // The immediate assistant answer must resolve one source, not just mention media.
         assertFalse(
             shouldOfferNgocSiAiAppCommandTool(
