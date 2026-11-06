@@ -284,10 +284,10 @@ internal class NgocSiAiRemoteClient(context: Context) {
                                 } else if (inferredReferenceSearchAction != null) {
                                     contextualReferenceSearchDispatched = true
                                     effectiveAction = inferredReferenceSearchAction
-                                    if (query.isBlank()) {
+                                    if (!isNgocSiAiContextualSearchQuerySpecificEnough(query)) {
                                         NgocSiAiToolResult(
                                             routed = false,
-                                            feedback = "Chưa xác định được từ khóa của bài vừa nhắc tới. Hãy hỏi người dùng để làm rõ trước khi tìm kiếm."
+                                            feedback = "Chưa xác định được tên bài, nghệ sĩ hoặc từ khóa cụ thể. Chưa tìm kiếm; hãy hỏi người dùng để làm rõ."
                                         )
                                     } else {
                                         executeNgocSiAiToolSafely(executeTool, effectiveAction, query)
