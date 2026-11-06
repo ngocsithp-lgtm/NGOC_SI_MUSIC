@@ -326,11 +326,22 @@ internal class NgocSiAiRemoteClient(context: Context) {
                         )
                     }
 
+                    // A pending or failed app result is already sufficient reason to stop.
+                    // Do not spend another Gemini request generating a response that will be
+                    // discarded below; this keeps command handling faster and saves quota.
+                    if (stopSequenceAfterFeedback) {
+                        stopSequenceFeedback?.let { safeStopMessage ->
+                            throw NgocSiAiRemoteException(safeStopMessage)
+                        }
+                        throw NgocSiAiRemoteException(
+                            "Ứng dụng chưa xác nhận bước vừa rồi hoàn tất; tôi đã dừng các bước phụ thuộc."
+                        )
+                    }
+
                     response = chat.sendMessage(content("user") {
                         functionResponses.forEach { functionResponse -> part(functionResponse) }
                     })
                     toolRound++
-                    if (stopSequenceAfterFeedback) break
                 }
 
                 stopSequenceFeedback?.let { safeStopMessage ->
