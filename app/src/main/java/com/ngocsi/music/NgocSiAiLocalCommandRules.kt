@@ -497,6 +497,18 @@ private fun normalizeNgocSiAiWakeWordAlias(input: String): String {
 }
 
 /**
+ * Strip a spoken assistant address before extracting a user-supplied name or search phrase.
+ * Preserve the remaining original Vietnamese spelling; normalize only the wake-word alias.
+ */
+private fun stripNgocSiAiWakeAddressPrefix(input: String): String {
+    val addressPrefix = Regex(
+        """^\s*(?:(?:hey|ok|alo)\s+)?(?:ai|a\s+i|al|a\s+l|ngọc\s+sĩ|ngoc\s+si)(?:\s+(?:ơi|oi))?[\s,:-]+""",
+        RegexOption.IGNORE_CASE
+    )
+    return addressPrefix.replaceFirst(input.trim(), "").trim()
+}
+
+/**
  * Removes only common speech fillers at the end of an explicit voice command.
  * This makes commands tolerant of conversational phrasing without broad fuzzy
  * matching that could accidentally trigger an unrelated request.
@@ -1304,7 +1316,7 @@ internal fun selectNgocSiAiWakePhraseCandidate(
  * "Mở playlist" remains generic navigation; "Phát playlist Nhạc Trịnh" targets a specific list.
  */
 internal fun extractNgocSiAiPlaylistQuery(input: String, create: Boolean): String? {
-    val raw = input.trim()
+    val raw = stripNgocSiAiWakeAddressPrefix(input)
     val prefixes = if (create) {
         listOf(
             Regex("""^(?:(?:ai)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:tạo|tao|lập|lap)\s+(?:(?:một|mot)\s+)?(?:playlist|danh sách phát|danh sach phat)\s+""", RegexOption.IGNORE_CASE)
@@ -1324,7 +1336,7 @@ internal fun extractNgocSiAiPlaylistQuery(input: String, create: Boolean): Strin
  * Extract a playlist name for saving the current queue.
  */
 internal fun extractNgocSiAiQueueToPlaylistQuery(input: String): String? {
-    val raw = input.trim()
+    val raw = stripNgocSiAiWakeAddressPrefix(input)
     val patterns = listOf(
         Regex("""^(?:(?:ai)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:thêm|them|lưu|luu)\s+(?:(?:toàn bộ|tất cả|tat ca)\s+)?(?:(?:bài trong|bai trong|video trong|video trong)\s+)?(?:hàng đợi|hang doi|queue)(?:\s+(?:youtube|video youtube))?\s+(?:(?:hiện tại|hien tai)\s+)?(?:(?:vào|vao)\s+)?(?:playlist|danh sách phát|danh sach phat)\s+""", RegexOption.IGNORE_CASE),
         Regex("""^(?:(?:ai)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:lưu|luu)\s+hàng đợi thành\s+(?:playlist|danh sách phát)\s+""", RegexOption.IGNORE_CASE)
@@ -1338,7 +1350,7 @@ internal fun extractNgocSiAiQueueToPlaylistQuery(input: String): String? {
  * Extract the destination playlist for the currently playing or currently selected track.
  */
 internal fun extractNgocSiAiAddToPlaylistQuery(input: String): String? {
-    val raw = input.trim()
+    val raw = stripNgocSiAiWakeAddressPrefix(input)
     val prefixes = listOf(
         Regex("""^(?:(?:ai)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:thêm|them|lưu|luu)\s+(?:bài đang phát|bai dang phat|bài hiện tại|bai hien tai|bài này|bai nay|bài đang nghe|bai dang nghe|video youtube đang phát|video youtube dang phat|video đang phát|video dang phat|video youtube hiện tại|video youtube hien tai|video hiện tại|video hien tai|video youtube này|video youtube nay|video này|video nay)\s+(?:(?:vào|vao)\s+)?(?:playlist|danh sách phát|danh sach phat)\s+""", RegexOption.IGNORE_CASE)
     )
@@ -1351,7 +1363,7 @@ internal fun extractNgocSiAiAddToPlaylistQuery(input: String): String? {
  * Extract an explicit radio-station request. Examples: "Phát Radio VOV3", "Mở Radio VOH FM 95.6".
  */
 internal fun extractNgocSiAiRadioStationQuery(input: String): String? {
-    val raw = input.trim()
+    val raw = stripNgocSiAiWakeAddressPrefix(input)
     val prefixes = listOf(
         Regex("""^(?:(?:ai)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:phát|phat|mở|mo|nghe|bật|bat)\s+(?:(?:đài|dai)\s+(?:phát|phat)\s+(?:thanh)|đài|dai|radio)\s+""", RegexOption.IGNORE_CASE),
         Regex("""^(?:(?:ai)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:phát|phat|mở|mo|nghe)\s+(?:vov|voh)\s*""", RegexOption.IGNORE_CASE)
@@ -1367,7 +1379,7 @@ internal fun extractNgocSiAiRadioStationQuery(input: String): String? {
  * Bare "Mở TV" remains the generic TV screen route.
  */
 internal fun extractNgocSiAiTvChannelQuery(input: String): String? {
-    val raw = input.trim()
+    val raw = stripNgocSiAiWakeAddressPrefix(input)
     val prefixes = listOf(
         Regex("""^(?:(?:ai)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:mở|mo|xem|bật|bat|phát|phat)\s+(?:(?:kênh|kenh)\s+)?(?:(?:tv)\s+)?""", RegexOption.IGNORE_CASE),
         Regex("""^(?:(?:ai)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:chuyển|chuyen)\s+(?:(?:sang|đến|den)\s+)?(?:(?:kênh|kenh)\s+)?""", RegexOption.IGNORE_CASE)
@@ -1384,7 +1396,7 @@ internal fun extractNgocSiAiTvChannelQuery(input: String): String? {
  * cannot silently change the queue.
  */
 internal fun extractNgocSiAiQueueTrackQuery(input: String): String? {
-    val raw = input.trim()
+    val raw = stripNgocSiAiWakeAddressPrefix(input)
     val pattern = Regex(
         """^(?:(?:ai)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:thêm|them|đưa|dua)\s+(?:bài hát|bai hat|bài|bai|ca khúc|ca khuc)\s+(.+?)\s+(?:vào|vao)\s+(?:hàng đợi|hang doi|queue)\s*[?!.,]*$""",
         RegexOption.IGNORE_CASE
@@ -1401,7 +1413,7 @@ internal fun extractNgocSiAiQueueTrackQuery(input: String): String? {
  * Search is constrained to the app's existing Drive browser; it does not edit cloud data.
  */
 internal fun extractNgocSiAiDriveQuery(input: String): String? {
-    val raw = input.trim()
+    val raw = stripNgocSiAiWakeAddressPrefix(input)
     val patterns = listOf(
         Regex(
             """^(?:(?:ai)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:tìm|tim|kiếm|kiem)\s+(?:bài hát|bai hat|nhạc|nhac|file|tệp|tep)\s+(.+?)\s+(?:trên|tren|trong)\s+(?:google\s+)?drive\s*[?!.,]*$""",
@@ -1430,7 +1442,7 @@ internal fun extractNgocSiAiContextualDriveQuery(
     extractNgocSiAiDriveQuery(input)?.let { return it }
     if (normalizeNgocSiAiEntryContext(entryContext) != "Google Drive") return null
 
-    var phrase = stripNgocSiAiOuterQuotationMarks(input).replace(
+    var phrase = stripNgocSiAiOuterQuotationMarks(stripNgocSiAiWakeAddressPrefix(input)).replace(
         Regex("""^(?:(?:hey|ok|alo)\s+)?(?:ai|ngọc sĩ|ngoc si)\b[\s,:-]*""", RegexOption.IGNORE_CASE),
         ""
     ).trim()
@@ -1468,7 +1480,7 @@ internal fun extractNgocSiAiContextualDriveQuery(
  * Short filler words are rejected so "Mở bài hát lên" remains a generic Play command.
  */
 internal fun extractNgocSiAiTrackQuery(input: String): String? {
-    val raw = input.trim()
+    val raw = stripNgocSiAiWakeAddressPrefix(input)
     val prefixes = listOf(
         Regex("""^(?:(?:ai)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:phát|phat|mở|mo|nghe)\s+(?:bài hát|bai hat|bài|bai|ca khúc|ca khuc)\s+""", RegexOption.IGNORE_CASE),
         Regex("""^(?:(?:ai)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:play|listen to)\s+(?:song|track)\s+""", RegexOption.IGNORE_CASE)
@@ -1494,7 +1506,7 @@ private fun stripNgocSiAiOuterQuotationMarks(input: String): String =
     input.trim().trim { it.isWhitespace() || it in "\"“”'‘’" }.trim()
 
 internal fun extractNgocSiAiOnlineQuery(input: String): String? {
-    var query = stripNgocSiAiOuterQuotationMarks(input)
+    var query = stripNgocSiAiOuterQuotationMarks(stripNgocSiAiWakeAddressPrefix(input))
     val prefixes = listOf(
         Regex("""^(?:(?:ai)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:tìm|tim|kiếm|kiem)\s+(?:bài hát|bai hat|ca khúc|ca khuc|nhạc|nhac)\s+""", RegexOption.IGNORE_CASE)
     )
@@ -1514,7 +1526,7 @@ internal fun extractNgocSiAiOnlineQuery(input: String): String? {
  * unexpected playback. The original spelling and accents are retained for the API query.
  */
 internal fun extractNgocSiAiYoutubeAutoPlayQuery(input: String): String? {
-    var phrase = stripNgocSiAiOuterQuotationMarks(input)
+    var phrase = stripNgocSiAiOuterQuotationMarks(stripNgocSiAiWakeAddressPrefix(input))
     phrase = phrase.replace(
         Regex("""^(?:(?:hey|ok|alo)\s+)?(?:ai|ngọc sĩ|ngoc si)\b[\s,:-]*""", RegexOption.IGNORE_CASE),
         ""
@@ -1576,7 +1588,7 @@ internal fun extractNgocSiAiContextualYoutubeAutoPlayQuery(
     extractNgocSiAiYoutubeAutoPlayQuery(input)?.let { return it }
     if (normalizeNgocSiAiEntryContext(entryContext) != "YouTube") return null
 
-    var phrase = stripNgocSiAiOuterQuotationMarks(input).replace(
+    var phrase = stripNgocSiAiOuterQuotationMarks(stripNgocSiAiWakeAddressPrefix(input)).replace(
         Regex("""^(?:(?:hey|ok|alo)\s+)?(?:ai|ngọc sĩ|ngoc si)\b[\s,:-]*""", RegexOption.IGNORE_CASE),
         ""
     )
@@ -1618,7 +1630,7 @@ internal fun extractNgocSiAiContextualYoutubeQuery(
     extractNgocSiAiYoutubeQuery(input)?.let { return it }
     if (normalizeNgocSiAiEntryContext(entryContext) != "YouTube") return null
 
-    var phrase = stripNgocSiAiOuterQuotationMarks(input).replace(
+    var phrase = stripNgocSiAiOuterQuotationMarks(stripNgocSiAiWakeAddressPrefix(input)).replace(
         Regex("""^(?:(?:hey|ok|alo)\s+)?(?:ai|ngọc sĩ|ngoc si)\b[\s,:-]*""", RegexOption.IGNORE_CASE),
         ""
     ).trim()
@@ -1651,7 +1663,7 @@ internal fun extractNgocSiAiContextualYoutubeQuery(
  * The caller sends it only to the app's existing YouTube search UI after an explicit request.
  */
 internal fun extractNgocSiAiYoutubeQuery(input: String): String? {
-    var query = input.trim()
+    var query = stripNgocSiAiWakeAddressPrefix(input)
     val prefixes = listOf(
         Regex("""^(?:(?:ai)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:tìm|tim|kiếm|kiem)\s+(?:video|bài hát|bai hat|nhạc|nhac)\s+(?:(?:trên|tren)\s+)?youtube\s*[:,\-]?\s*""", RegexOption.IGNORE_CASE),
         Regex("""^(?:(?:ai)[\s,:]+)?(?:(?:hãy|hay)\s+)?(?:tìm|tim|kiếm|kiem)\s+youtube\s*[:,\-]?\s*""", RegexOption.IGNORE_CASE),
