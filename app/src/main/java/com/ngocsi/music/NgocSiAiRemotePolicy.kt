@@ -353,8 +353,14 @@ internal fun resolveNgocSiAiContextualYoutubeTransportAction(
         normalizeNgocSiAiVoicePhrase(prompt)
     ).removePrefix("hay ").trim()
     if (intent.isBlank() || intent.length > 100) return null
-    // Negative phrasing is not permission to issue a playback command.
-    if (intent.startsWith("dung ") || intent.startsWith("khong ")) return null
+    // Negative phrasing is not permission to issue a playback command. Accent
+    // normalization makes "đừng" and "dừng" identical, so reject negative verb
+    // combinations rather than every phrase beginning with "dừng".
+    val negativeImperativePrefixes = listOf(
+        "khong ", "dung phat", "dung choi", "dung chuyen",
+        "dung mo", "dung tim", "dung bat", "dung tua", "dung lui"
+    )
+    if (negativeImperativePrefixes.any { intent == it.trim() || intent.startsWith(it) }) return null
 
     val explicitOtherSources = listOf(
         "google drive", "drive", "radio", "vov", "voh", "tv", "vtv",
@@ -397,8 +403,10 @@ internal fun resolveNgocSiAiContextualYoutubeTransportAction(
     ).containsMatchIn(assistant)
     if (multipleResultMarkers.any(assistant::contains) || explicitMultipleCount) return null
 
-    val pauseIntent = listOf("tam dung", "pause", "ngung lai", "ngung video")
-        .any(intent::contains)
+    val pauseIntent = listOf(
+        "tam dung", "tam ngung", "pause", "ngung lai", "ngung video",
+        "ngung no", "dung lai", "dung video", "dung youtube", "dung no", "stop"
+    ).any(intent::contains)
     if (pauseIntent) return "youtube_pause"
 
     val previousIntent = listOf(
@@ -413,9 +421,10 @@ internal fun resolveNgocSiAiContextualYoutubeTransportAction(
     ).any(intent::contains)
     if (nextIntent) return "youtube_next"
 
-    val playIntent = listOf(
-        "phat ", "choi ", "nghe tiep", "tiep tuc phat", "tiep tuc", "resume", "play"
-    ).any(intent::contains)
+    val playIntent = intent in setOf("phat", "choi", "tiep tuc", "resume", "play") ||
+        listOf(
+            "phat ", "choi ", "nghe tiep", "tiep tuc phat", "tiep tuc", "resume", "play"
+        ).any(intent::contains)
     if (playIntent && (isPaused || isPlaying)) return "youtube_play"
 
     return null
