@@ -744,5 +744,79 @@ class NgocSiAiRemotePolicyTest {
         )
     }
 
+
+    @Test
+    fun contextualSearchOnlyFollowUpsAreLockedToOneSupportedRecentSource() {
+        val youtubeHistory = listOf(
+            NgocSiAiMessage("user", "Tìm nhạc Bolero trên YouTube"),
+            NgocSiAiMessage("assistant", "Mình vừa tìm thấy video nhạc Bolero trên YouTube.")
+        )
+        assertEquals(
+            "search_youtube",
+            resolveNgocSiAiContextualSearchOnlyAction("Tìm bài tương tự", youtubeHistory)
+        )
+        assertTrue(shouldOfferNgocSiAiAppCommandTool("Tìm bài tương tự", youtubeHistory))
+
+        val driveHistory = listOf(
+            NgocSiAiMessage("user", "Tìm nhạc trên Google Drive"),
+            NgocSiAiMessage("assistant", "Mình tìm thấy tệp nhạc Diễm xưa trong Google Drive.")
+        )
+        assertEquals(
+            "search_drive",
+            resolveNgocSiAiContextualSearchOnlyAction("Tìm bài vừa tìm", driveHistory)
+        )
+        assertTrue(shouldOfferNgocSiAiAppCommandTool("Tìm bài vừa tìm", driveHistory))
+
+        val onlineHistory = listOf(
+            NgocSiAiMessage("user", "Tìm nhạc trên Audius"),
+            NgocSiAiMessage("assistant", "Mình tìm thấy bài nhạc Bolero trên Audius.")
+        )
+        assertEquals(
+            "search_online_music",
+            resolveNgocSiAiContextualSearchOnlyAction("Tìm bài tương tự", onlineHistory)
+        )
+
+        // A search-only follow-up never maps to a play/autoplay action.
+        assertNull(
+            resolveNgocSiAiContextualSearchOnlyAction(
+                "Tìm bài tương tự rồi phát",
+                youtubeHistory
+            )
+        )
+
+        val multipleYoutubeResults = listOf(
+            NgocSiAiMessage("user", "Tìm nhạc Bolero trên YouTube"),
+            NgocSiAiMessage("assistant", "Mình tìm thấy 3 video Bolero trên YouTube.")
+        )
+        assertNull(
+            resolveNgocSiAiContextualSearchOnlyAction("Tìm bài tương tự", multipleYoutubeResults)
+        )
+        assertFalse(shouldOfferNgocSiAiAppCommandTool("Tìm bài tương tự", multipleYoutubeResults))
+
+        val mixedSources = listOf(
+            NgocSiAiMessage("user", "Tìm nhạc"),
+            NgocSiAiMessage("assistant", "Mình tìm thấy video trên YouTube và tệp nhạc trong Google Drive.")
+        )
+        assertNull(resolveNgocSiAiContextualSearchOnlyAction("Tìm bài tương tự", mixedSources))
+        assertFalse(shouldOfferNgocSiAiAppCommandTool("Tìm bài tương tự", mixedSources))
+
+        val missingResult = listOf(
+            NgocSiAiMessage("user", "Tìm nhạc trên YouTube"),
+            NgocSiAiMessage("assistant", "Mình không tìm thấy video nào trên YouTube.")
+        )
+        assertNull(resolveNgocSiAiContextualSearchOnlyAction("Tìm bài tương tự", missingResult))
+        assertFalse(shouldOfferNgocSiAiAppCommandTool("Tìm bài tương tự", missingResult))
+
+        val unsupportedSource = listOf(
+            NgocSiAiMessage("user", "Mở Radio"),
+            NgocSiAiMessage("assistant", "Đang phát chương trình Radio VOV.")
+        )
+        assertNull(resolveNgocSiAiContextualSearchOnlyAction("Tìm bài tương tự", unsupportedSource))
+        assertFalse(shouldOfferNgocSiAiAppCommandTool("Tìm bài tương tự", unsupportedSource))
+
+        assertNull(resolveNgocSiAiContextualSearchOnlyAction("Tìm bài tương tự", emptyList()))
+        assertNull(resolveNgocSiAiContextualSearchOnlyAction("Tìm Bolero", youtubeHistory))
+    }
+
 }
 
