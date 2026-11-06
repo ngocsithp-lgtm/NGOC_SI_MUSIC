@@ -279,7 +279,7 @@ private fun hasContextualNgocSiAiAppActionFollowUp(
         "nhung video", "danh sach bai", "danh sach video", "ket qua gom"
     )
     val hasExplicitMultipleCount = Regex(
-        """(?:^|\s)(?:[2-9]|[1-9]\d+)\s+(?:bai|video|ket qua|lua chon)"""
+        """(?:^|\s)(?:[2-9]|[1-9]\d+|hai|ba|bon|tu|nam|sau|bay|tam|chin|muoi)\s+(?:bai|video|ket qua|lua chon)"""
     ).containsMatchIn(latestAssistantContext)
     if (ambiguousResultMarkers.any(latestAssistantContext::contains) || hasExplicitMultipleCount) {
         return false
