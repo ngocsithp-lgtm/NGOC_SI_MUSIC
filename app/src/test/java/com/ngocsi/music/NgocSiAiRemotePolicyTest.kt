@@ -915,6 +915,31 @@ class NgocSiAiRemotePolicyTest {
             NgocSiAiAgentFeedbackState.FAILED,
             classifyNgocSiAiAgentFeedback(false, "Đã mở YouTube.", "open_youtube")
         )
+
+        listOf(
+            "Đang mở trang chủ." to "open_home",
+            "Đang mở Thư viện nhạc." to "open_library",
+            "Đang mở YouTube." to "open_youtube",
+            "Đang mở Google Drive." to "open_drive",
+            "Đang mở Radio." to "open_radio",
+            "Đang mở Truyền hình." to "open_tv",
+            "Đang mở hẹn giờ tắt nhạc." to "open_sleep_timer"
+        ).forEach { (feedback, action) ->
+            assertEquals(
+                "$action should complete after its navigation Intent is accepted",
+                NgocSiAiAgentFeedbackState.COMPLETED,
+                classifyNgocSiAiAgentFeedback(true, feedback, action)
+            )
+        }
+
+        assertEquals(
+            NgocSiAiAgentFeedbackState.PENDING,
+            classifyNgocSiAiAgentFeedback(true, "Đang mở đài VOV3.", "play_radio_station")
+        )
+        assertEquals(
+            NgocSiAiAgentFeedbackState.PENDING,
+            classifyNgocSiAiAgentFeedback(true, "Đang tìm trên YouTube: Bolero", "search_youtube")
+        )
     }
 
     @Test

@@ -777,6 +777,18 @@ internal fun classifyNgocSiAiAgentFeedback(
     // current_track is read-only. Its "Đang phát" status is a completed lookup.
     if (action == "current_track") return NgocSiAiAgentFeedbackState.COMPLETED
 
+    // Opening a destination dispatches a navigation Intent synchronously. A returned
+    // "Đang mở…" message therefore confirms that the navigation request was accepted.
+    // Keep actual content loading and playback actions pending until they finish.
+    val immediateNavigationActions = setOf(
+        "open_home", "open_library", "open_favorites", "open_albums", "open_folders",
+        "open_online", "open_youtube", "open_drive", "open_radio", "open_tv",
+        "open_playlists", "open_queue", "open_player", "open_settings", "open_sleep_timer"
+    )
+    if (action in immediateNavigationActions && normalized.startsWith("dang mo ")) {
+        return NgocSiAiAgentFeedbackState.COMPLETED
+    }
+
     // Dispatch/ongoing messages are pending, not completion acknowledgements.
     val pendingMarkers = listOf(
         "dang mo ", "dang tim ", "dang nap ", "dang tai ", "dang chuyen ",
