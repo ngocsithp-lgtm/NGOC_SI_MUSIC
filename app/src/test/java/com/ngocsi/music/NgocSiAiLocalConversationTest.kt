@@ -177,7 +177,7 @@ class NgocSiAiLocalConversationTest {
         assertTrue(answer!!.contains("Cảm xúc"))
         assertTrue(answer.contains("ánh đèn vàng"))
         assertTrue(answer.contains("nhả chữ"))
-        assertTrue(answer.contains("chưa đọc được từng khung hình"))
+        assertTrue(answer.contains("chưa có dữ liệu từng khung hình"))
     }
 
     @Test
@@ -214,7 +214,7 @@ class NgocSiAiLocalConversationTest {
         )
         assertNotNull(answer)
         assertTrue(answer!!.contains("Cảm xúc"))
-        assertTrue(answer.contains("so sánh ca sĩ"))
+        assertTrue(answer.contains("So sánh ca sĩ"))
     }
 
     @Test

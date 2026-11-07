@@ -139,12 +139,14 @@ internal fun localConversationFallback(
 ): String? {
     localNgocSiAiAppHelpFallback(userText)?.let { return it }
 
-    val normalized = Normalizer.normalize(userText.lowercase(Locale.ROOT), Normalizer.Form.NFD)
-        .replace("\\p{Mn}+".toRegex(), "")
-        .replace('đ', 'd')
-        .replace(Regex("[^a-z0-9\\s]"), " ")
-        .replace(Regex("\\s+"), " ")
-        .trim()
+    val normalized = stripNgocSiAiDirectIntentWakePrefix(
+        Normalizer.normalize(userText.lowercase(Locale.ROOT), Normalizer.Form.NFD)
+            .replace("\\p{Mn}+".toRegex(), "")
+            .replace('đ', 'd')
+            .replace(Regex("[^a-z0-9\\s]"), " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+    )
 
     // Stable factual answers are centralized in one deterministic offline knowledge rule set.
     // Uncertain or time-sensitive questions continue to Gemini when online service is available.
