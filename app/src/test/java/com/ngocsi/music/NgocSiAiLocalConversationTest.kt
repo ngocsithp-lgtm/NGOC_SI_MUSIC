@@ -147,6 +147,8 @@ class NgocSiAiLocalConversationTest {
         assertNotNull(answer)
         assertTrue(answer!!.contains(previous))
         assertTrue(answer.contains("Gemini đang bị giới hạn hạn mức"))
+        assertTrue(answer.contains("ánh đèn vàng"))
+        assertTrue(answer.contains("nhả chữ"))
     }
 
     @Test
@@ -160,6 +162,8 @@ class NgocSiAiLocalConversationTest {
         assertNotNull(answer)
         assertTrue(answer!!.contains(previous))
         assertTrue(answer.contains("Gemini đang bị giới hạn hạn mức"))
+        assertTrue(answer.contains("Cảm xúc"))
+        assertTrue(answer.contains("ánh đèn vàng"))
     }
 
     @Test
@@ -174,6 +178,30 @@ class NgocSiAiLocalConversationTest {
         assertTrue(answer.contains("ánh đèn vàng"))
         assertTrue(answer.contains("nhả chữ"))
         assertTrue(answer.contains("chưa đọc được từng khung hình"))
+    }
+
+    @Test
+    fun continuationOnBoleroVideoContextProvidesUsefulOfflineAnalysis() {
+        val answer = localConversationFallback(
+            userText = "AI, tiếp tục.",
+            previousAssistantReply = "AI đang phân tích nội dung video Bolero để đưa ra ví dụ cụ thể hơn."
+        )
+        assertNotNull(answer)
+        assertTrue(answer!!.contains("Mình tiếp tục phần trước"))
+        assertTrue(answer.contains("ánh đèn vàng"))
+        assertTrue(answer.contains("khung hình"))
+    }
+
+    @Test
+    fun requestToExplainBoleroVideoMoreUsesOfflineAnalysisWhenQuotaFails() {
+        val answer = localConversationFallbackAfterRemoteError(
+            userText = "Nói rõ hơn về phần đó?",
+            previousAssistantReply = "Mình đang phân tích nội dung video Bolero.",
+            remoteError = "AI_QUOTA_429"
+        )
+        assertNotNull(answer)
+        assertTrue(answer!!.contains("Cảm xúc"))
+        assertTrue(answer.contains("so sánh ca sĩ"))
     }
 
     @Test
