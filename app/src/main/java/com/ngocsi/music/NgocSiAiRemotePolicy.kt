@@ -61,7 +61,9 @@ internal fun isNgocSiAiKnowledgeQuestion(prompt: String): Boolean {
         " vi sao", " tai sao", " nhu the nao", " the nao", " lam sao",
         " co nghia gi", " nghia la gi", " bao nhieu", " ai la "
     )
-    return normalized.endsWith("?") || markers.any(normalized::contains)
+    val padded = " $normalized "
+    val containsInterrogativeWord = listOf(" nao ", " gi ", " ai ").any(padded::contains)
+    return markers.any(normalized::contains) || containsInterrogativeWord
 }
 
 internal fun selectNgocSiAiModelName(

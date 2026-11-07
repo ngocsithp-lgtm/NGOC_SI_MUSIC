@@ -640,6 +640,24 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
+    fun naturalVietnameseInterrogativesAreRecognizedEvenWithoutSpeechPunctuation() {
+        val questions = listOf(
+            "Bạn thích ca sĩ nào?",
+            "Bạn thích ca sĩ nào",
+            "Tôi muốn biết ca sĩ nào nổi tiếng",
+            "Tôi thích thể loại nhạc gì",
+            "Ai là ca sĩ bạn yêu thích?"
+        )
+        questions.forEach { prompt ->
+            assertTrue("$prompt should use the substantive-question route", isNgocSiAiKnowledgeQuestion(prompt))
+            assertEquals(NGOC_SI_AI_REASONING_MODEL_NAME, selectNgocSiAiModelName(prompt))
+            assertEquals(NGOC_SI_AI_KNOWLEDGE_REPLY_MAX_OUTPUT_TOKENS, selectNgocSiAiMaxOutputTokens(prompt))
+        }
+        assertFalse(isNgocSiAiKnowledgeQuestion("Xin chào"))
+        assertFalse(isNgocSiAiKnowledgeQuestion("Thời tiết có ảnh hưởng đến pin điện thoại không?"))
+    }
+
+    @Test
     fun complexReasoningKeepsTheGeminiFlashModel() {
         assertEquals("gemini-3.8-flash", NGOC_SI_AI_REASONING_MODEL_NAME)
         assertEquals(
