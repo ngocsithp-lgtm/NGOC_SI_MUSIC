@@ -177,7 +177,7 @@ class NgocSiAiLocalConversationTest {
         assertTrue(answer!!.contains("Cảm xúc"))
         assertTrue(answer.contains("ánh đèn vàng"))
         assertTrue(answer.contains("nhả chữ"))
-        assertTrue(answer.contains("chưa có dữ liệu từng khung hình"))
+        assertTrue(answer.contains("chưa được cung cấp khung hình"))
     }
 
     @Test

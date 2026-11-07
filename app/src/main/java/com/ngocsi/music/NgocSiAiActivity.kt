@@ -123,7 +123,8 @@ private fun buildOfflineBoleroVideoAnalysis(
             "Hiện mình chỉ có ngữ cảnh hội thoại, chưa có dữ liệu từng khung hình hoặc lời bài hát để xác thực nội dung video."
     }
 
-    return "Mình tiếp tục phần trước: “${previous.take(150)}”. $limitation\n\n" +
+    return "Mình tiếp tục phần trước: “${previous.take(150)}”. $limitation " +
+        "Mình chưa được cung cấp khung hình hoặc lời ca thực tế của video, nên các gợi ý dưới đây chỉ là minh họa.\n\n" +
         "1. Cảm xúc: xác định đoạn nhạc đang nghiêng về nhớ nhung, tiếc nuối hay chia xa; chọn một cảm xúc chủ đạo cho mỗi phân cảnh.\n" +
         "2. Hình ảnh: với nỗi nhớ, thử ánh đèn vàng, mưa nhẹ và con đường vắng; với chia xa, dùng sân ga hoặc khung hình rộng để nhân vật nhỏ giữa không gian.\n" +
         "3. Nhịp dựng: giữ cảnh lâu ở câu hát ngân, chuyển cảnh tại điểm rơi của lời ca hoặc nhịp phách; hạn chế hiệu ứng dày làm mất chất trữ tình.\n" +
