@@ -72,7 +72,9 @@ internal fun isNgocSiAiKnowledgeQuestion(prompt: String): Boolean {
  * can interpret the conversation history instead of treating them as isolated chat.
  */
 internal fun isNgocSiAiContextualFollowUp(prompt: String): Boolean {
-    val normalized = normalizeNgocSiAiVoicePhrase(prompt).trim()
+    val normalized = stripNgocSiAiDirectIntentWakePrefix(
+        normalizeNgocSiAiVoicePhrase(prompt)
+    ).removePrefix("hay ").trim()
     if (normalized.isBlank()) return false
     val exactPhrases = setOf(
         "tiep tuc", "tiep nua", "lam tiep", "lam tiep di",
@@ -641,7 +643,7 @@ internal fun isNgocSiAiContextualActionConfirmation(
 /**
  * Removes a leading wake word before distinguishing a spoken preference from a command.
  */
-private fun stripNgocSiAiDirectIntentWakePrefix(normalized: String): String {
+internal fun stripNgocSiAiDirectIntentWakePrefix(normalized: String): String {
     val prefixes = listOf(
         "hey ngoc si ai ", "hey ai ", "ok ai ", "alo ai ",
         "ngoc si ai ", "ngoc si al ", "ai oi ", "ai ", "al ", "a l "

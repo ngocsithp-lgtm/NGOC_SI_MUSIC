@@ -476,6 +476,19 @@ class NgocSiAiLocalCommandRulesTest {
     }
 
     @Test
+    fun wakeWordPrefixedYouTubePauseTargetsVideoWithoutStoppingAiListening() {
+        assertEquals(
+            NgocSiAiLocalCommand.PAUSE_YOUTUBE,
+            classifyNgocSiAiLocalCommand("AI, tạm dừng YouTube.")
+        )
+        assertEquals(
+            NgocSiAiLocalCommand.PAUSE_YOUTUBE,
+            classifyNgocSiAiWakePhrase("AI, tạm dừng YouTube.")
+        )
+        assertEquals(false, isNgocSiAiStopVoiceControlPhrase("AI, tạm dừng YouTube."))
+    }
+
+    @Test
     fun recognizesNamedPlaylistCreateAndPlayCommandsWithAndWithoutAccents() {
         assertEquals(NgocSiAiLocalCommand.CREATE_PLAYLIST, classifyNgocSiAiLocalCommand("Tạo playlist Nhạc Trịnh"))
         assertEquals(NgocSiAiLocalCommand.PLAY_NAMED_PLAYLIST, classifyNgocSiAiWakePhrase("AI, phát playlist Nhạc Trịnh"))

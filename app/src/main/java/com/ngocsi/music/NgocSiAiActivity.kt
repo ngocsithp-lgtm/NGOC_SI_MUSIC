@@ -250,7 +250,11 @@ internal fun localConversationFallbackAfterRemoteError(
 
     val previous = previousAssistantReply?.trim().orEmpty()
     if (previous.isBlank()) return null
-    val normalized = normalizeNgocSiAiVoicePhrase(userText)
+    // Voice/chat users often include the wake word in typed or recognized speech.
+    // Normalize the same way as model routing so "AI, phân tích kỹ hơn" is still a follow-up.
+    val normalized = stripNgocSiAiDirectIntentWakePrefix(
+        normalizeNgocSiAiVoicePhrase(userText)
+    ).removePrefix("hay ").trim()
     val exactFollowUps = setOf(
         "tai sao", "vi sao", "sao vay", "tai sao vay", "vi sao vay",
         "giai thich them", "noi ro hon", "noi ro hon di",

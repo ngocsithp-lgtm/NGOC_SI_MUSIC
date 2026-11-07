@@ -182,6 +182,19 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
+    fun wakeWordPrefixedDetailedFollowUpUsesTheSameContextualRoute() {
+        val phrases = listOf(
+            "AI, phân tích kỹ hơn.",
+            "Ngọc Sĩ AI, nói rõ hơn về phần đó.",
+            "Hey AI, giải thích thêm ý này."
+        )
+        phrases.forEach { phrase ->
+            assertTrue("$phrase should be contextual", isNgocSiAiContextualFollowUp(phrase))
+            assertEquals(NGOC_SI_AI_REASONING_MODEL_NAME, selectNgocSiAiModelName(phrase))
+        }
+    }
+
+    @Test
     fun directPauseAliasesExposeTheToolEvenWithoutConversationHistory() {
         listOf(
             "Dừng lại",

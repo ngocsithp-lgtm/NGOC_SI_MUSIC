@@ -150,6 +150,19 @@ class NgocSiAiLocalConversationTest {
     }
 
     @Test
+    fun wakeWordPrefixedDetailedAnalysisStaysLinkedAfterGeminiQuotaFailure() {
+        val previous = "Ví dụ vừa rồi nói về cách hòa âm Bolero."
+        val answer = localConversationFallbackAfterRemoteError(
+            userText = "AI, phân tích kỹ hơn.",
+            previousAssistantReply = previous,
+            remoteError = "AI_QUOTA_429"
+        )
+        assertNotNull(answer)
+        assertTrue(answer!!.contains(previous))
+        assertTrue(answer.contains("Gemini đang bị giới hạn hạn mức"))
+    }
+
+    @Test
     fun unrelatedStatementDoesNotInheritThePreviousAnswerAsContext() {
         assertNull(
             localConversationFallbackAfterRemoteError(
