@@ -282,10 +282,8 @@ internal fun localConversationFallbackAfterRemoteError(
     previousAssistantReply: String?,
     remoteError: String?
 ): String? {
-    localConversationFallback(userText, previousAssistantReply)?.let { return it }
-
     val previous = previousAssistantReply?.trim().orEmpty()
-    if (previous.isBlank()) return null
+    if (previous.isBlank()) return localConversationFallback(userText, previousAssistantReply)
     // Voice/chat users often include the wake word in typed or recognized speech.
     // Normalize the same way as model routing so "AI, phân tích kỹ hơn" is still a follow-up.
     val normalized = stripNgocSiAiDirectIntentWakePrefix(
@@ -310,9 +308,22 @@ internal fun localConversationFallbackAfterRemoteError(
     )
     val asksForContext = normalized in exactFollowUps ||
         followUpPrefixes.any(normalized::startsWith)
-    if (!asksForContext) return null
+    val isContinuation = normalized in setOf(
+        "tiep tuc", "tiep tuc di", "tiep tuc nhe", "tiep di", "tiep nua",
+        "lam tiep", "lam tiep di", "lam tiep nhe", "noi tiep", "noi tiep di",
+        "noi tiep nhe", "ke tiep", "ke tiep di"
+    )
+    val asksForBoleroAnalysis = listOf(
+        "phan tich", "chi tiet hon", "noi ro hon", "vi du", "cu the hon"
+    ).any(normalized::contains)
+    if ((isContinuation || asksForBoleroAnalysis) &&
+        buildOfflineBoleroVideoAnalysis(previous, remoteError) != null
+    ) {
+        return buildOfflineBoleroVideoAnalysis(previous, remoteError)
+    }
 
-    buildOfflineBoleroVideoAnalysis(previous, remoteError)?.let { return it }
+    localConversationFallback(userText, previousAssistantReply)?.let { return it }
+    if (!asksForContext) return null
 
     val error = remoteError.orEmpty().lowercase(Locale.ROOT)
     val status = when {
