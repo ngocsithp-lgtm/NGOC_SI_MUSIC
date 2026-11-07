@@ -654,6 +654,7 @@ class NgocSiAiRemotePolicyTest {
             assertEquals(NGOC_SI_AI_KNOWLEDGE_REPLY_MAX_OUTPUT_TOKENS, selectNgocSiAiMaxOutputTokens(prompt))
         }
         assertFalse(isNgocSiAiKnowledgeQuestion("Xin chào"))
+        assertFalse(isNgocSiAiKnowledgeQuestion("Xin chào AI"))
         assertFalse(isNgocSiAiKnowledgeQuestion("Thời tiết có ảnh hưởng đến pin điện thoại không?"))
     }
 
