@@ -147,6 +147,7 @@ internal fun buildNgocSiAiCreativeMusicAnalysisInstruction(
             .trim()
 
     val latest = normalize(rawUserText)
+        .removePrefix("ngoc si ai ").removePrefix("ngoc si ").removePrefix("ai ").trim()
     val recent = normalize(
         (recentConversation.takeLast(6).joinToString(" ") + " " +
             mediaContextInstruction.orEmpty())
