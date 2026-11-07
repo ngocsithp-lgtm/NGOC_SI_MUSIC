@@ -198,7 +198,7 @@ class NgocSiAiEntryContextTest {
             recentConversation = listOf("Đang phân tích video Bolero.")
         )
 
-        assertTrue(instruction.contains("không được trả lời chung chung"))
+        assertTrue(instruction.contains("Không được trả lời chung chung"))
         assertTrue(instruction.contains("tiếng Việt tự nhiên, đúng chính tả và dấu câu"))
         assertTrue(instruction.contains("Bạn muốn so sánh ca sĩ đang hát với ca sĩ nào?"))
         assertTrue(instruction.contains("lập bảng"))

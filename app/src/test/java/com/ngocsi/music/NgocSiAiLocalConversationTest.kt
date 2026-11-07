@@ -258,7 +258,7 @@ class NgocSiAiLocalConversationTest {
         assertTrue(answer!!.contains("Bạn muốn so sánh ca sĩ đang hát với ca sĩ nào?"))
         assertTrue(answer.contains("màu giọng"))
         assertTrue(answer.contains("nhả chữ"))
-        assertTrue(answer.contains("không tự gán đặc điểm giọng"))
+        assertTrue(answer.contains("Mình sẽ không tự kết luận về chất giọng khi chưa có bản thu âm để nghe."))
         assertFalse(answer.contains("Lời ca Bolero"))
     }
 
