@@ -106,7 +106,7 @@ class NgocSiAiOnDeviceModelTest {
         )
 
         assertTrue(prompt.contains("YÊU CẦU CHO LƯỢT HỘI THOẠI NỐI TIẾP"))
-        assertTrue(prompt.contains("không mở đầu bằng lời hứa"))
+        assertTrue(prompt.contains("Không mở đầu bằng lời hứa"))
         assertTrue(prompt.contains("ít nhất 2 ví dụ cụ thể"))
         assertTrue(prompt.contains("ánh sáng, màu sắc, cỡ cảnh và nhịp dựng"))
         assertTrue(prompt.contains("nhả chữ, luyến láy"))
