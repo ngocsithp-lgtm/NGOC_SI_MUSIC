@@ -92,6 +92,56 @@ class NgocSiAiOnDeviceModelTest {
     }
 
     @Test
+    fun followUpPromptRequiresDirectConcreteAnalysisInsteadOfMetaPromises() {
+        val prompt = buildNgocSiAiOnDeviceTurnPrompt(
+            prompt = "AI, phân tích kỹ hơn.",
+            memories = emptyList(),
+            priorMessages = listOf(
+                NgocSiAiMessage("user", "Hãy phân tích video Bolero đang phát."),
+                NgocSiAiMessage(
+                    "assistant",
+                    "Có thể xem xét cảm xúc, hình ảnh và cách thể hiện của ca sĩ."
+                )
+            )
+        )
+
+        assertTrue(prompt.contains("YÊU CẦU CHO LƯỢT HỘI THOẠI NỐI TIẾP"))
+        assertTrue(prompt.contains("không mở đầu bằng lời hứa"))
+        assertTrue(prompt.contains("ít nhất 2 ví dụ cụ thể"))
+        assertTrue(prompt.contains("ánh sáng, màu sắc, cỡ cảnh và nhịp dựng"))
+        assertTrue(prompt.contains("nhả chữ, luyến láy"))
+        assertTrue(prompt.contains("không giả vờ đã xem"))
+        assertTrue(prompt.contains("CÂU HỎI HIỆN TẠI"))
+    }
+
+    @Test
+    fun generalContinuationGetsANewAnswerWithoutRepeatingThePreviousReply() {
+        val prompt = buildNgocSiAiOnDeviceTurnPrompt(
+            prompt = "AI, tiếp tục.",
+            memories = emptyList(),
+            priorMessages = listOf(
+                NgocSiAiMessage("user", "Nói về video Bolero."),
+                NgocSiAiMessage("assistant", "Video có thể dùng hình ảnh hoài niệm.")
+            )
+        )
+
+        assertTrue(prompt.contains("Tiếp tục bằng nội dung mới"))
+        assertTrue(prompt.contains("không chép lại câu trả lời trước"))
+        assertTrue(prompt.contains("Video có thể dùng hình ảnh hoài niệm."))
+    }
+
+    @Test
+    fun ordinaryFirstTurnDoesNotReceiveTheFollowUpContract() {
+        val prompt = buildNgocSiAiOnDeviceTurnPrompt(
+            prompt = "Xin chào",
+            memories = emptyList(),
+            priorMessages = emptyList()
+        )
+        assertTrue(prompt.contains("CÂU HỎI HIỆN TẠI"))
+        assertFalse(prompt.contains("YÊU CẦU CHO LƯỢT HỘI THOẠI NỐI TIẾP"))
+    }
+
+    @Test
     fun localModelUsesASeparateLargeFileOutsideTheApk() {
         assertEquals(613_722_264L, NgocSiAiOnDeviceModel.MODEL_SIZE_BYTES)
         assertTrue(NgocSiAiOnDeviceModel.MODEL_SIZE_BYTES > 500L * 1024L * 1024L)
