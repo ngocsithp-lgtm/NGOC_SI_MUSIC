@@ -109,11 +109,11 @@ private fun buildOfflineSingerComparisonClarification(previousAssistantReply: St
     if (previous.isBlank()) return null
     val context = previous.lowercase(Locale.ROOT)
     if (listOf("bolero", "video", "ca sĩ", "ca si").none(context::contains)) return null
-    return "Để so sánh cách hát chính xác, mình cần xác định người đối chiếu trước. " +
+    return "Để so sánh công bằng và chính xác, mình cần xác định ca sĩ đang hát và người đối chiếu. " +
         "Bạn muốn so sánh ca sĩ đang hát với ca sĩ nào? Hãy nêu tên ca sĩ còn lại nhé. " +
-        "Khi có đủ tên và đoạn thu âm phù hợp, mình sẽ đối chiếu màu giọng, độ dày và độ vang, " +
-        "nhả chữ, luyến láy, độ rung, hơi thở, nhịp phách và cách xử lý cao trào. " +
-        "Mình sẽ không tự gán đặc điểm giọng khi chưa có dữ liệu nghe."
+        "Khi có đủ tên và bản thu âm phù hợp, mình sẽ đối chiếu màu giọng, độ dày và độ vang, " +
+        "cách nhả chữ, luyến láy, độ rung, hơi thở, nhịp phách và cách xử lý cao trào. " +
+        "Mình sẽ không tự kết luận về chất giọng khi chưa có bản thu âm để nghe."
 }
 
 private fun buildOfflineBoleroVideoAnalysis(

@@ -181,7 +181,9 @@ internal fun buildNgocSiAiCreativeMusicAnalysisInstruction(
         "ai hay hơn khi chưa nghe cùng bài/đoạn có điều kiện tương đương. Nếu thiếu tên bài, lời ca hoặc ca sĩ cần đối chiếu, " +
         "vẫn đưa một gợi ý dựng cảnh hữu ích rồi hỏi đúng một dữ kiện còn thiếu." +
         if (asksForSingerComparison) {
-            " Với yêu cầu so sánh cách hát: không được trả lời chung chung về Bolero hoặc sở thích người dùng. " +
+            " Với yêu cầu so sánh cách hát: trả lời bằng tiếng Việt tự nhiên, đúng chính tả và dấu câu; " +
+                "viết đúng các thuật ngữ ca sĩ và giọng hát, không dùng từ gần âm sai nghĩa. " +
+                "Không được trả lời chung chung về Bolero hoặc sở thích người dùng. " +
                 "Trước hết xác định tên ca sĩ từ dữ liệu được gắn rõ là nghệ sĩ biểu diễn; không tự coi tên kênh là ca sĩ. " +
                 "Nếu đã biết ca sĩ đang phát nhưng thiếu người đối chiếu, chỉ hỏi: \"Bạn muốn so sánh ca sĩ đang hát với ca sĩ nào?\" " +
                 "Nếu chưa xác định được cả hai, hỏi tên hai ca sĩ trong một câu. " +

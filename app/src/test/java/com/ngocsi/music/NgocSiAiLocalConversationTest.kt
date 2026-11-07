@@ -269,6 +269,9 @@ class NgocSiAiLocalConversationTest {
             previousAssistantReply = "Đang phân tích video Bolero."
         )
         assertNotNull(answer)
-        assertTrue(answer!!.contains("Bạn muốn so sánh ca sĩ đang hát với ca sĩ nào?"))
+        assertTrue(answer!!.startsWith("Để so sánh công bằng và chính xác,"))
+        assertTrue(answer.contains("Bạn muốn so sánh ca sĩ đang hát với ca sĩ nào?"))
+        assertTrue(answer.contains("cách nhả chữ, luyến láy"))
+        assertTrue(answer.endsWith("Mình sẽ không tự kết luận về chất giọng khi chưa có bản thu âm để nghe."))
     }
 }
