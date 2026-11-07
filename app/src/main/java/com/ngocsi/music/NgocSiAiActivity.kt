@@ -276,6 +276,23 @@ internal fun localConversationFallbackAfterRemoteError(
         followUpPrefixes.any(normalized::startsWith)
     if (!asksForContext) return null
 
+    val previousLower = previous.lowercase(Locale.ROOT)
+    val isBoleroVideoContext = previousLower.contains("bolero") ||
+        previousLower.contains("video") || previousLower.contains("ca sĩ")
+    val asksForDeeperAnalysis = normalized.contains("phan tich") ||
+        normalized.contains("chi tiet hon") || normalized.contains("noi ro hon") ||
+        normalized.contains("vi du")
+    if (isBoleroVideoContext && asksForDeeperAnalysis) {
+        return "Mình có thể đào sâu theo hướng sản xuất video Bolero, nhưng cần nói rõ: hiện mình chỉ có phần hội thoại và mô tả ngữ cảnh, chưa đọc được từng khung hình hay lời bài hát của video đang phát. " +
+            "Gợi ý phân tích cụ thể:\\n" +
+            "1. Cảm xúc: xác định bài đang nghiêng về nhớ nhung, tiếc nuối hay chia xa; chọn một cảm xúc chủ đạo, tránh trộn quá nhiều sắc thái trong cùng đoạn.\\n" +
+            "2. Hình ảnh: với nỗi nhớ, thử ánh đèn vàng, mưa nhẹ, con đường vắng và chuyển động máy chậm; với chia xa, dùng sân ga hoặc khung hình rộng có nhân vật nhỏ trong không gian.\\n" +
+            "3. Nhịp dựng: giữ cảnh lâu ở câu hát ngân, cắt cảnh theo nhịp phách hoặc điểm rơi lời ca; tránh hiệu ứng chuyển cảnh dày làm mất chất trữ tình.\\n" +
+            "4. Giọng hát: khi so sánh ca sĩ, đối chiếu độ dày và màu giọng, cách nhả chữ, luyến láy, độ rung và cách xử lý câu cao trào; không kết luận ai hay hơn nếu chưa nghe cùng một đoạn thu âm.\\n" +
+            "5. Ví dụ: ở câu hát diễn tả nhớ người cũ, có thể giữ cận cảnh gương mặt và ánh mắt; đến điệp khúc, mở rộng sang bối cảnh mưa hoặc phố đêm để tăng cảm giác cô đơn.\\n" +
+            "Nếu bạn gửi tên bài hát hoặc lời một đoạn, mình có thể phân tích sát nội dung hơn."
+    }
+
     val error = remoteError.orEmpty().lowercase(Locale.ROOT)
     val status = when {
         "quota" in error || "429" in error || "han muc" in error ->
