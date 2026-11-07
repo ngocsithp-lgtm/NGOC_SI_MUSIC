@@ -257,6 +257,7 @@ internal fun localConversationFallbackAfterRemoteError(
         "y ban la gi", "y cua ban la gi", "cu the hon", "vi du di",
         "vi du cu the", "cho vi du", "cho minh vi du", "cho toi vi du",
         "y nay la gi", "y do la gi", "phan nay la gi", "phan do la gi",
+        "cho toi mot vi du", "cho minh mot vi du",
         "con ly do nao khac", "co ly do nao khac", "ly do gi nua",
         "why", "why is that", "what do you mean", "give an example"
     )
