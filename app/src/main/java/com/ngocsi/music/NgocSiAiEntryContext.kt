@@ -152,43 +152,61 @@ internal fun buildNgocSiAiCreativeMusicAnalysisInstruction(
         (recentConversation.takeLast(6).joinToString(" ") + " " +
             mediaContextInstruction.orEmpty())
     )
-    val hasMusicVideoContext = "bolero" in recent ||
-        (("ca si" in recent || "giong hat" in recent) &&
-            ("video" in recent || "bai hat" in recent || "nhac" in recent))
+    val musicTopicMarkers = listOf(
+        "bolero", "ca si", "nghe si", "giong hat", "giong ca",
+        "bai hat", "ca khuc", "nhac", "loi bai hat", "ban thu",
+        "trinh dien", "hoa am", "giai dieu"
+    )
+    val performanceContextMarkers = listOf(
+        "video", "clip", "youtube", "mv", "ban thu", "dang phat",
+        "trinh dien", "bieu dien", "bai hat", "ca khuc", "ghi am"
+    )
+    // Support every music genre, not only Bolero. Require recent music/performance
+    // context so a generic "analyze more" request does not activate this instruction.
+    val hasMusicPerformanceContext =
+        musicTopicMarkers.any(recent::contains) &&
+            performanceContextMarkers.any(recent::contains)
 
-    val asksForSingerComparison = listOf("so sanh", "doi chieu", "cach hat cua ca si")
-        .any(latest::contains)
+    val asksForSingerComparison = listOf(
+        "so sanh", "doi chieu", "cach hat cua ca si", "chat giong",
+        "giong ca", "ky thuat hat", "cach nhan chu"
+    ).any(latest::contains)
     val asksForAnalysis = listOf(
         "phan tich", "chi tiet hon", "noi ro hon", "vi du", "cam xuc",
-        "hinh anh", "so sanh", "goi y", "ket hop", "giong hat"
+        "hinh anh", "so sanh", "goi y", "ket hop", "giong hat",
+        "chat giong", "nhan chu", "luyen lai"
     ).any(latest::contains)
     val continuesAnalysis = latest in setOf(
         "tiep tuc", "tiep tuc di", "tiep tuc nhe", "lam tiep", "lam tiep di",
         "noi tiep", "noi tiep di", "tiep di"
     )
-    if (!hasMusicVideoContext || (!asksForAnalysis && !continuesAnalysis)) return ""
+    if (!hasMusicPerformanceContext || (!asksForAnalysis && !continuesAnalysis)) return ""
 
-    return " Khi tiếp tục hoặc phân tích video Bolero/ca khúc, hãy trả lời đúng yêu cầu mới nhất " +
-        "bằng nhận xét và đề xuất mới, không lặp lời dẫn chung hay chỉ nói rằng bạn đang phân tích. " +
-        "Trước hết phân biệt dữ kiện thực sự có trong hội thoại (tên bài, ca sĩ, kênh, đoạn lời ca người dùng gửi) " +
-        "với giả thuyết sáng tạo. Chỉ metadata tiêu đề/kênh không chứng minh được cảnh quay, lời ca, âm sắc hay cách hát; " +
-        "không nói như thể đã xem hoặc nghe nếu ứng dụng chưa cung cấp dữ liệu đó. " +
-        "Nếu có lời ca hoặc mốc thời gian, phân tích theo chuỗi: ý nghĩa câu hát → cảm xúc chủ đạo và chuyển biến → " +
-        "hình ảnh/đạo cụ phù hợp → cỡ cảnh, góc máy, ánh sáng và màu sắc → nhịp cắt dựng theo nhịp phách hoặc câu ngân. " +
-        "Đưa ít nhất một ví dụ phân cảnh cụ thể, nhưng ghi rõ đó là phương án minh họa khi chưa có bằng chứng từ video. " +
-        "Khi so sánh ca sĩ, chỉ so sánh những người hoặc bản thu có dữ liệu được nêu; tập trung vào màu và độ dày giọng, " +
-        "nhả chữ, luyến láy, độ rung, hơi thở, sắc thái và cách xử lý cao trào. Không bịa đặc điểm giọng, không xếp hạng " +
-        "ai hay hơn khi chưa nghe cùng bài/đoạn có điều kiện tương đương. Nếu thiếu tên bài, lời ca hoặc ca sĩ cần đối chiếu, " +
-        "vẫn đưa một gợi ý dựng cảnh hữu ích rồi hỏi đúng một dữ kiện còn thiếu." +
-        if (asksForSingerComparison) {
-            " Với yêu cầu so sánh cách hát: trả lời bằng tiếng Việt tự nhiên, đúng chính tả và dấu câu; " +
-                "viết đúng các thuật ngữ ca sĩ và giọng hát, không dùng từ gần âm sai nghĩa. " +
-                "Không được trả lời chung chung về Bolero hoặc sở thích người dùng. " +
-                "Trước hết xác định tên ca sĩ từ dữ liệu được gắn rõ là nghệ sĩ biểu diễn; không tự coi tên kênh là ca sĩ. " +
-                "Nếu đã biết ca sĩ đang phát nhưng thiếu người đối chiếu, chỉ hỏi: \"Bạn muốn so sánh ca sĩ đang hát với ca sĩ nào?\" " +
-                "Nếu chưa xác định được cả hai, hỏi tên hai ca sĩ trong một câu. " +
-                "Khi đủ tên và có âm thanh của cùng bài/đoạn, lập bảng theo màu và độ dày giọng, quãng/độ vang, nhả chữ, " +
-                "luyến láy, độ rung, hơi thở, nhịp phách và xử lý cao trào; kết luận ngắn gọn điểm khác biệt nghe được. " +
-                "Nếu chỉ có tiêu đề hoặc metadata, nói rõ chưa nghe được bản thu và không gán đặc điểm giọng cho bất kỳ ai."
-        } else ""
+    val evidenceGuidance =
+        " Khi tiếp tục phân tích video âm nhạc, bản thu hoặc phần trình diễn, hãy trả lời đúng yêu cầu mới nhất " +
+            "bằng nội dung mới, không lặp lời dẫn chung hay chỉ nói rằng bạn đang phân tích. " +
+            "Phân biệt dữ kiện thực sự có trong hội thoại (tên bài, nghệ sĩ được xác định rõ, lời ca, mốc thời gian, " +
+            "âm thanh hoặc hình ảnh được cung cấp) với suy luận và đề xuất sáng tạo. " +
+            "Chỉ tiêu đề và tên kênh không chứng minh được cảnh quay, lời ca, âm sắc hay cách hát; " +
+            "không nói như thể đã xem hoặc nghe nếu ứng dụng chưa cung cấp dữ liệu tương ứng. "
+
+    return evidenceGuidance + if (asksForSingerComparison) {
+        " Với yêu cầu so sánh cách hát: trả lời bằng tiếng Việt tự nhiên, đúng chính tả và dấu câu; " +
+            "xác định nghệ sĩ từ dữ liệu được ghi rõ là người biểu diễn, không tự coi tên kênh là tên ca sĩ. " +
+            "Nếu đã biết ca sĩ đang hát nhưng thiếu người đối chiếu, chỉ hỏi: \"Bạn muốn so sánh ca sĩ đang hát với ca sĩ nào?\" " +
+            "Nếu chưa xác định được cả hai, hỏi tên hai ca sĩ trong một câu. " +
+            "Khi đủ tên, có thể nêu nhận xét khái quát về phong cách dựa trên thông tin đáng tin cậy; " +
+            "chỉ kết luận điểm khác biệt nghe được khi có âm thanh của cùng bài hoặc đoạn tương đương. " +
+            "Khi đối chiếu bản thu, lập bảng theo màu và độ dày giọng, quãng/độ vang, nhả chữ, luyến láy, " +
+            "độ rung, hơi thở, nhịp phách, sắc thái và cách xử lý cao trào. " +
+            "Tách ảnh hưởng của bản phối, micro và chất lượng ghi âm khỏi kỹ thuật hát. " +
+            "Nếu chỉ có tiêu đề hoặc metadata, nói rõ chưa nghe được bản thu và không gán đặc điểm giọng cho bất kỳ ai; " +
+            "không xếp hạng ai hay hơn khi chưa có căn cứ so sánh tương đương."
+    } else {
+        " Với phân tích video âm nhạc: nếu có lời ca hoặc mốc thời gian, đi theo chuỗi ý nghĩa câu hát → " +
+            "cảm xúc chủ đạo và chuyển biến → hình ảnh/đạo cụ phù hợp → cỡ cảnh, góc máy, ánh sáng và màu sắc → " +
+            "nhịp cắt dựng theo nhịp phách hoặc câu ngân. " +
+            "Đưa ít nhất một ví dụ phân cảnh cụ thể và ghi rõ đó là phương án minh họa nếu chưa có dữ liệu video thực tế. " +
+            "Nếu thiếu lời ca, khung hình hoặc mốc thời gian, vẫn đưa một đề xuất sáng tạo hữu ích nhưng phải nêu rõ giới hạn."
+    }
 }
