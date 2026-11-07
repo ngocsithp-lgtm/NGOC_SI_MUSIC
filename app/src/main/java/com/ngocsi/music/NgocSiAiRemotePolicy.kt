@@ -78,7 +78,8 @@ internal fun isNgocSiAiContextualFollowUp(prompt: String): Boolean {
         "tiep tuc", "tiep nua", "lam tiep", "lam tiep di",
         "noi ro hon", "noi ro hon di", "giai thich them",
         "cu the hon", "vi du cu the", "cho vi du",
-        "cho minh vi du", "cho toi vi du"
+        "cho minh vi du", "cho toi vi du",
+        "cho toi mot vi du", "cho minh mot vi du"
     )
     val prefixes = listOf(
         "noi ro hon ", "giai thich them ", "cu the hon ",
