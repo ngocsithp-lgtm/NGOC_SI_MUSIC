@@ -192,7 +192,8 @@ internal fun buildNgocSiAiCreativeMusicAnalysisInstruction(
 
     return evidenceGuidance + if (asksForSingerComparison) {
         " Với yêu cầu so sánh cách hát: trả lời bằng tiếng Việt tự nhiên, đúng chính tả và dấu câu; " +
-            "xác định nghệ sĩ từ dữ liệu được ghi rõ là người biểu diễn, không tự coi tên kênh là tên ca sĩ. " +
+            "Không được trả lời chung chung về thể loại nhạc hoặc sở thích; hãy bám vào hai nghệ sĩ cụ thể. " +
+            "Xác định nghệ sĩ từ dữ liệu được ghi rõ là người biểu diễn, không tự coi tên kênh là tên ca sĩ. " +
             "Nếu đã biết ca sĩ đang hát nhưng thiếu người đối chiếu, chỉ hỏi: \"Bạn muốn so sánh ca sĩ đang hát với ca sĩ nào?\" " +
             "Nếu chưa xác định được cả hai, hỏi tên hai ca sĩ trong một câu. " +
             "Khi đủ tên, có thể nêu nhận xét khái quát về phong cách dựa trên thông tin đáng tin cậy; " +
@@ -207,6 +208,8 @@ internal fun buildNgocSiAiCreativeMusicAnalysisInstruction(
             "cảm xúc chủ đạo và chuyển biến → hình ảnh/đạo cụ phù hợp → cỡ cảnh, góc máy, ánh sáng và màu sắc → " +
             "nhịp cắt dựng theo nhịp phách hoặc câu ngân. " +
             "Đưa ít nhất một ví dụ phân cảnh cụ thể và ghi rõ đó là phương án minh họa nếu chưa có dữ liệu video thực tế. " +
+            "Nếu có âm thanh, có thể phân tích thêm màu và độ dày giọng, nhả chữ, luyến láy, độ rung và hơi thở; " +
+            "nếu chưa có âm thanh thì không khẳng định các đặc điểm này. " +
             "Nếu thiếu lời ca, khung hình hoặc mốc thời gian, vẫn đưa một đề xuất sáng tạo hữu ích nhưng phải nêu rõ giới hạn."
     }
 }
