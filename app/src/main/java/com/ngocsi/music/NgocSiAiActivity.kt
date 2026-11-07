@@ -425,6 +425,12 @@ class NgocSiAiActivity : ComponentActivity() {
             intent.getStringExtra(NGOC_SI_AI_ENTRY_CONTEXT_EXTRA),
             NgocSiMainActivityState.entryContextOr()
         )
+    private val entryMediaContextInstruction: String
+        get() = buildNgocSiAiMediaContextInstruction(
+            entryContext,
+            intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_TITLE_EXTRA),
+            intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_CHANNEL_EXTRA)
+        )
     private var recognizedSpeech by mutableStateOf("")
     private var recognizedSpeechShouldSend by mutableStateOf(false)
     // Show live partial transcription so voice chat visibly responds while the user speaks.
@@ -958,6 +964,7 @@ class NgocSiAiActivity : ComponentActivity() {
             intent.getStringExtra(NGOC_SI_AI_ENTRY_CONTEXT_EXTRA),
             NgocSiMainActivityState.entryContextOr()
         )
+        val aiEntryMediaContextInstruction = entryMediaContextInstruction
         // Prefer the page that opened this AI screen; MainActivity will keep it current
         // as the user navigates after the AI UI has been closed.
         NgocSiMainActivityState.updateEntryContext(aiEntryContext)
@@ -1064,7 +1071,8 @@ class NgocSiAiActivity : ComponentActivity() {
                         prompt,
                         memories,
                         priorMessages,
-                        entryContext = aiEntryContext
+                        entryContext = aiEntryContext,
+                        mediaContextInstruction = aiEntryMediaContextInstruction
                     )
                 },
                 onReleaseLocalModel = {
@@ -1075,6 +1083,7 @@ class NgocSiAiActivity : ComponentActivity() {
                         history,
                         executeTool,
                         entryContext = aiEntryContext,
+                        mediaContextInstruction = aiEntryMediaContextInstruction,
                         onPartialResponse = onPartialResponse
                     )
                 },

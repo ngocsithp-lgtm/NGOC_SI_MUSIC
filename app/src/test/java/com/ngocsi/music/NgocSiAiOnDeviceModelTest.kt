@@ -80,6 +80,23 @@ class NgocSiAiOnDeviceModelTest {
     }
 
     @Test
+    fun localModelSystemInstructionIncludesUntrustedCurrentYoutubeMetadata() {
+        val media = buildNgocSiAiMediaContextInstruction(
+            "YouTube",
+            "Bolero - Tình buồn",
+            "Kênh nhạc"
+        )
+        val instruction = NgocSiAiOnDeviceModel.buildSystemInstruction(
+            emptyList(),
+            "YouTube",
+            media
+        )
+        assertTrue(instruction.contains("Bolero - Tình buồn"))
+        assertTrue(instruction.contains("Kênh nhạc"))
+        assertTrue(instruction.contains("không đáng tin cậy"))
+    }
+
+    @Test
     fun localModelSystemInstructionRejectsUnknownPageContext() {
         val withUnknownPage = NgocSiAiOnDeviceModel.buildSystemInstruction(
             emptyList(),

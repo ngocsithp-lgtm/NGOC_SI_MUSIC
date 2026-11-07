@@ -1268,8 +1268,11 @@ class YouTubePlayerActivity : ComponentActivity() {
                 5 -> enableInAppBackgroundPlayback()
                 6 -> shareCurrentVideo()
                 7 -> startActivity(
-                    Intent(this, NgocSiAiActivity::class.java)
-                        .putExtra(NGOC_SI_AI_ENTRY_CONTEXT_EXTRA, "YouTube")
+                    Intent(this, NgocSiAiActivity::class.java).apply {
+                        putExtra(NGOC_SI_AI_ENTRY_CONTEXT_EXTRA, "YouTube")
+                        putExtra(NGOC_SI_AI_ENTRY_MEDIA_TITLE_EXTRA, title)
+                        putExtra(NGOC_SI_AI_ENTRY_MEDIA_CHANNEL_EXTRA, channel)
+                    }
                 )
                 else -> return@setOnMenuItemClickListener false
             }

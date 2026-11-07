@@ -285,7 +285,8 @@ internal object NgocSiAiOnDeviceModel {
         prompt: String,
         onDeviceMemories: List<String> = emptyList(),
         priorMessages: List<NgocSiAiMessage> = emptyList(),
-        entryContext: String? = null
+        entryContext: String? = null,
+        mediaContextInstruction: String? = null
     ): String = withContext(engineDispatcher) {
         val cleanPrompt = prompt.trim().take(MAX_LOCAL_PROMPT_CHARS)
         require(cleanPrompt.isNotBlank()) { "Câu hỏi không được để trống." }
@@ -296,7 +297,12 @@ internal object NgocSiAiOnDeviceModel {
             // Recreate the lightweight conversation from app-persisted history each turn.
             // The native Engine stays loaded; only the conversation state is rebuilt.
             resetConversation()
-            ensureEngine(context.applicationContext, onDeviceMemories, entryContext)
+            ensureEngine(
+                context.applicationContext,
+                onDeviceMemories,
+                entryContext,
+                mediaContextInstruction
+            )
             val activeConversation = checkNotNull(conversation) {
                 "Mô hình AI ngoại tuyến chưa sẵn sàng."
             }
@@ -328,12 +334,22 @@ internal object NgocSiAiOnDeviceModel {
      * The Qwen Engine stays loaded, but generate() rebuilds its Conversation each turn,
      * so page context can change without reloading the 586 MiB model.
      */
-    internal fun buildSystemInstruction(memories: List<String>, entryContext: String?): String =
+    internal fun buildSystemInstruction(
+        memories: List<String>,
+        entryContext: String?,
+        mediaContextInstruction: String? = null
+    ): String =
         LOCAL_MODEL_SYSTEM_INSTRUCTION +
             buildNgocSiAiMemorySystemInstruction(memories) +
-            buildNgocSiAiEntryContextInstruction(entryContext)
+            buildNgocSiAiEntryContextInstruction(entryContext) +
+            mediaContextInstruction.orEmpty().take(1_200)
 
-    private fun ensureEngine(context: Context, memories: List<String>, entryContext: String?) {
+    private fun ensureEngine(
+        context: Context,
+        memories: List<String>,
+        entryContext: String?,
+        mediaContextInstruction: String? = null
+    ) {
         val path = modelFile(context).absolutePath
         if (engine == null || loadedModelPath != path) {
             resetConversation()
@@ -355,7 +371,11 @@ internal object NgocSiAiOnDeviceModel {
             conversation = checkNotNull(engine).createConversation(
                 ConversationConfig(
                     systemInstruction = Contents.of(
-                        buildSystemInstruction(memories, entryContext)
+                        buildSystemInstruction(
+                            memories,
+                            entryContext,
+                            mediaContextInstruction
+                        )
                     ),
                     samplerConfig = SamplerConfig(
                         topK = 30,
