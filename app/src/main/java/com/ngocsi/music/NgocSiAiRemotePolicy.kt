@@ -63,7 +63,7 @@ internal fun isNgocSiAiKnowledgeQuestion(prompt: String): Boolean {
     )
     val padded = " $normalized "
     val containsInterrogativeWord = listOf(" nao ", " gi ").any(padded::contains)
-    return markers.any(normalized::contains) || containsInterrogativeWord
+    return markers.any(padded::contains) || containsInterrogativeWord
 }
 
 internal fun selectNgocSiAiModelName(
