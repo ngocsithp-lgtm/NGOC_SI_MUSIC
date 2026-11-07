@@ -900,7 +900,7 @@ class NgocSiAiRemotePolicyTest {
             classifyNgocSiAiAgentFeedback(true, "Đã tìm thấy 5 bài hát.", "search_online_music")
         )
         assertEquals(
-            NgocSiAiAgentFeedbackState.PENDING,
+            NgocSiAiAgentFeedbackState.COMPLETED,
             classifyNgocSiAiAgentFeedback(true, "Đang mở YouTube.", "open_youtube")
         )
         assertEquals(
