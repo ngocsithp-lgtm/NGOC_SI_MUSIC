@@ -182,6 +182,18 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
+    fun singerComparisonUsesReasoningModelAndMediumBudget() {
+        val prompt = "AI, so sánh cách hát của ca sĩ Tuấn Vũ với Chế Linh."
+
+        assertEquals(ThinkingLevel.MEDIUM, selectNgocSiAiThinkingLevel(prompt))
+        assertEquals(NGOC_SI_AI_REASONING_MODEL_NAME, selectNgocSiAiModelName(prompt))
+        assertEquals(
+            NGOC_SI_AI_COMPLEX_REPLY_MAX_OUTPUT_TOKENS,
+            selectNgocSiAiMaxOutputTokens(prompt)
+        )
+    }
+
+    @Test
     fun wakeWordPrefixedDetailedFollowUpUsesTheSameContextualRoute() {
         val phrases = listOf(
             "AI, phân tích kỹ hơn.",
