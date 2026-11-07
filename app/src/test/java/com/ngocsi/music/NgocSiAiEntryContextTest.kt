@@ -204,5 +204,48 @@ class NgocSiAiEntryContextTest {
         assertTrue(instruction.contains("lập bảng"))
         assertTrue(instruction.contains("nhả chữ"))
         assertTrue(instruction.contains("không gán đặc điểm giọng"))
+        assertFalse(instruction.contains("phương án dựng cảnh"))
+    }
+
+    @Test
+    fun generalMusicVideoAnalysisWorksForGenresBeyondBolero() {
+        val instruction = buildNgocSiAiCreativeMusicAnalysisInstruction(
+            rawUserText = "AI, phân tích cảm xúc và hình ảnh của MV này",
+            recentConversation = listOf(
+                "Đang xem MV nhạc Pop Việt Nam, ca khúc do một ca sĩ trình diễn."
+            )
+        )
+
+        assertTrue(instruction.contains("video âm nhạc"))
+        assertTrue(instruction.contains("ý nghĩa câu hát"))
+        assertTrue(instruction.contains("cỡ cảnh, góc máy"))
+        assertTrue(instruction.contains("phương án minh họa"))
+    }
+
+    @Test
+    fun singerComparisonGuidanceWorksForNonBoleroRecordings() {
+        val instruction = buildNgocSiAiCreativeMusicAnalysisInstruction(
+            rawUserText = "AI, so sánh chất giọng của hai ca sĩ này",
+            recentConversation = listOf(
+                "Đang phát bản thu acoustic của một ca khúc Việt Nam trên YouTube."
+            )
+        )
+
+        assertTrue(instruction.contains("so sánh cách hát"))
+        assertTrue(instruction.contains("Bạn muốn so sánh ca sĩ đang hát với ca sĩ nào?"))
+        assertTrue(instruction.contains("micro và chất lượng ghi âm"))
+        assertTrue(instruction.contains("chỉ kết luận điểm khác biệt nghe được"))
+    }
+
+    @Test
+    fun ordinaryNonMusicVideoDoesNotActivateMusicAnalysisGuidance() {
+        val instruction = buildNgocSiAiCreativeMusicAnalysisInstruction(
+            rawUserText = "AI, phân tích kỹ hơn",
+            recentConversation = listOf(
+                "Đang xem video hướng dẫn sửa cài đặt điện thoại Android."
+            )
+        )
+
+        assertEquals("", instruction)
     }
 }
