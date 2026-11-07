@@ -160,6 +160,28 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
+    fun bareContinueIsConversationUnlessThereIsAnExplicitActionContext() {
+        listOf("Tiếp tục", "AI, tiếp tục.", "Làm tiếp đi", "Tiếp nữa").forEach { phrase ->
+            assertFalse("$phrase alone should not require app-action tools", shouldOfferNgocSiAiAppCommandTool(phrase))
+        }
+        assertTrue(shouldOfferNgocSiAiAppCommandTool("Tiếp tục", listOf(
+            NgocSiAiMessage("assistant", "Bạn muốn mình mở Radio không?")
+        )))
+        assertTrue(shouldOfferNgocSiAiAppCommandTool("Tiếp tục", listOf(
+            NgocSiAiMessage("assistant", "Đang phát video Bolero trên YouTube.")
+        )))
+    }
+
+    @Test
+    fun detailedFollowUpPhraseGetsMediumReasoningAndFlashModel() {
+        val phrase = "AI, phân tích kỹ hơn."
+        assertEquals(ThinkingLevel.MEDIUM, selectNgocSiAiThinkingLevel(phrase))
+        assertEquals(NGOC_SI_AI_REASONING_MODEL_NAME, selectNgocSiAiModelName(phrase))
+        assertTrue(isNgocSiAiContextualFollowUp(phrase))
+        assertEquals(NGOC_SI_AI_COMPLEX_REPLY_MAX_OUTPUT_TOKENS, selectNgocSiAiMaxOutputTokens(phrase))
+    }
+
+    @Test
     fun directPauseAliasesExposeTheToolEvenWithoutConversationHistory() {
         listOf(
             "Dừng lại",

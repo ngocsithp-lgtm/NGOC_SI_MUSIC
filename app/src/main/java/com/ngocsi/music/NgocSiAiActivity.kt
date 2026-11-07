@@ -258,6 +258,7 @@ internal fun localConversationFallbackAfterRemoteError(
         "vi du cu the", "cho vi du", "cho minh vi du", "cho toi vi du",
         "y nay la gi", "y do la gi", "phan nay la gi", "phan do la gi",
         "cho toi mot vi du", "cho minh mot vi du",
+        "phan tich ky hon", "phan tich ky hon nua",
         "con ly do nao khac", "co ly do nao khac", "ly do gi nua",
         "why", "why is that", "what do you mean", "give an example"
     )
@@ -265,7 +266,7 @@ internal fun localConversationFallbackAfterRemoteError(
         "tai sao ", "vi sao ", "giai thich them ", "noi ro hon ",
         "cu the hon ", "vi du ", "cho vi du ", "y nay ", "y do ",
         "phan nay ", "phan do ", "con ly do nao ", "ly do gi nua ",
-        "chi tiet hon ", "noi them ve ", "explain ", "what about "
+        "chi tiet hon ", "noi them ve ", "phan tich ky ", "explain ", "what about "
     )
     val asksForContext = normalized in exactFollowUps ||
         followUpPrefixes.any(normalized::startsWith)

@@ -79,10 +79,12 @@ internal fun isNgocSiAiContextualFollowUp(prompt: String): Boolean {
         "noi ro hon", "noi ro hon di", "giai thich them",
         "cu the hon", "vi du cu the", "cho vi du",
         "cho minh vi du", "cho toi vi du",
-        "cho toi mot vi du", "cho minh mot vi du"
+        "cho toi mot vi du", "cho minh mot vi du",
+        "phan tich ky hon"
     )
     val prefixes = listOf(
         "noi ro hon ", "giai thich them ", "cu the hon ",
+        "phan tich ky ",
         "vi du ", "cho vi du ", "noi them ve ",
         "phan tich them ", "giai thich chi tiet ",
         "mo rong phan ", "y nay ", "y do ", "phan nay ",
@@ -163,7 +165,8 @@ internal fun selectNgocSiAiThinkingLevel(prompt: String): ThinkingLevel {
     }
 
     val mediumIntentMarkers = listOf(
-        "phan tich", "phan tich them", "giai thich chi tiet", "so sanh",
+        "phan tich", "phan tich them", "phan tich ky hon",
+        "giai thich chi tiet", "so sanh",
         "lap ke hoach", "chien luoc", "danh gia", "kiem tra ky",
         "tim nguyen nhan", "sua loi", "huong dan tung buoc",
         "bao cao", "tong hop", "lo trinh", "de xuat", "tu van"
@@ -279,6 +282,17 @@ internal fun shouldOfferNgocSiAiAppCommandTool(
     // Resolve this before the generic direct-intent matcher, which needs a longer verb.
     if (resolveNgocSiAiContextualYoutubeTransportAction(prompt, previousMessages) != null) {
         return true
+    }
+    // A bare "tiếp tục" is a conversational continuation unless the immediately
+    // preceding assistant offered one explicit app action or an active YouTube item
+    // resolved above. Do not attach the large app-tool schema to an ambiguous follow-up.
+    val continuationOnlyPhrases = setOf(
+        "tiep tuc", "tiep tuc di", "tiep tuc nhe",
+        "tiep nua", "lam tiep", "lam tiep di", "lam tiep nhe",
+        "noi tiep", "noi tiep di", "noi tiep nhe"
+    )
+    if (intentText in continuationOnlyPhrases) {
+        return isConfirmedNgocSiAiContextualAction(normalized, previousMessages)
     }
     if (hasDirectNgocSiAiAppActionIntent(intentText)) return true
     if (isConfirmedNgocSiAiContextualAction(normalized, previousMessages)) return true
