@@ -163,6 +163,20 @@ class NgocSiAiLocalConversationTest {
     }
 
     @Test
+    fun boleroDetailedFollowUpProvidesConcreteOfflineCreativeAnalysis() {
+        val answer = localConversationFallbackAfterRemoteError(
+            userText = "AI, phân tích kỹ hơn.",
+            previousAssistantReply = "Mình đang phân tích nội dung video Bolero.",
+            remoteError = "AI_QUOTA_429"
+        )
+        assertNotNull(answer)
+        assertTrue(answer!!.contains("Cảm xúc"))
+        assertTrue(answer.contains("ánh đèn vàng"))
+        assertTrue(answer.contains("nhả chữ"))
+        assertTrue(answer.contains("chưa đọc được từng khung hình"))
+    }
+
+    @Test
     fun unrelatedStatementDoesNotInheritThePreviousAnswerAsContext() {
         assertNull(
             localConversationFallbackAfterRemoteError(
