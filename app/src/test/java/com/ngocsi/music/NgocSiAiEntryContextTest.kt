@@ -155,4 +155,39 @@ class NgocSiAiEntryContextTest {
         assertTrue(player.contains("xác định nguồn đang phát"))
         assertTrue(player.contains("lệnh youtube_*"))
     }
+
+    @Test
+    fun boleroFollowUpsReceiveEvidenceAwareCreativeAnalysisGuidance() {
+        val instruction = buildNgocSiAiCreativeMusicAnalysisInstruction(
+            rawUserText = "AI, phân tích kỹ hơn và gợi ý cách kết hợp cảm xúc với hình ảnh",
+            recentConversation = listOf(
+                "Mình đang phân tích nội dung video Bolero."
+            )
+        )
+
+        assertTrue(instruction.contains("không lặp lời dẫn chung"))
+        assertTrue(instruction.contains("ý nghĩa câu hát"))
+        assertTrue(instruction.contains("cỡ cảnh, góc máy, ánh sáng"))
+        assertTrue(instruction.contains("nhả chữ, luyến láy"))
+        assertTrue(instruction.contains("không nói như thể đã xem hoặc nghe"))
+    }
+
+    @Test
+    fun simpleContinuationUsesBoleroGuidanceOnlyWhenRecentContextMatches() {
+        val bolero = buildNgocSiAiCreativeMusicAnalysisInstruction(
+            rawUserText = "AI, tiếp tục.",
+            recentConversation = listOf(
+                "Đang phân tích video Bolero và cách so sánh ca sĩ."
+            )
+        )
+        val unrelated = buildNgocSiAiCreativeMusicAnalysisInstruction(
+            rawUserText = "Tiếp tục.",
+            recentConversation = listOf(
+                "Đang hướng dẫn cách sửa kết nối Wi-Fi."
+            )
+        )
+
+        assertTrue(bolero.isNotBlank())
+        assertEquals("", unrelated)
+    }
 }

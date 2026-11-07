@@ -1,5 +1,8 @@
 package com.ngocsi.music
 
+import java.text.Normalizer
+import java.util.Locale
+
 /** Intent extra passed when the assistant is opened from a feature page. */
 internal const val NGOC_SI_AI_ENTRY_CONTEXT_EXTRA =
     "com.ngocsi.music.extra.NGOC_SI_AI_ENTRY_CONTEXT"
@@ -122,4 +125,56 @@ internal fun buildNgocSiAiEntryContextInstruction(rawContext: String?): String {
         "hãy ưu tiên trang này và trạng thái ứng dụng hiện tại. " +
         sourceGuidance +
         " Không tự suy đoán tên bài, đài, video, thư mục hay kết quả chưa được ứng dụng cung cấp."
+}
+
+
+/**
+ * Adds evidence-aware guidance only when the recent conversation is about music-video
+ * analysis. Recent text is inspected for topic routing, but is not copied into the
+ * system instruction; metadata remains untrusted and must never be treated as a command.
+ */
+internal fun buildNgocSiAiCreativeMusicAnalysisInstruction(
+    rawUserText: String,
+    recentConversation: List<String>,
+    mediaContextInstruction: String? = null
+): String {
+    fun normalize(value: String): String =
+        Normalizer.normalize(value.lowercase(Locale.ROOT), Normalizer.Form.NFD)
+            .replace("\\p{Mn}+".toRegex(), "")
+            .replace('đ', 'd')
+            .replace(Regex("[^a-z0-9\\s]"), " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+
+    val latest = normalize(rawUserText)
+    val recent = normalize(
+        (recentConversation.takeLast(6).joinToString(" ") + " " +
+            mediaContextInstruction.orEmpty())
+    )
+    val hasMusicVideoContext = "bolero" in recent ||
+        (("ca si" in recent || "giong hat" in recent) &&
+            ("video" in recent || "bai hat" in recent || "nhac" in recent))
+
+    val asksForAnalysis = listOf(
+        "phan tich", "chi tiet hon", "noi ro hon", "vi du", "cam xuc",
+        "hinh anh", "so sanh", "goi y", "ket hop", "giong hat"
+    ).any(latest::contains)
+    val continuesAnalysis = latest in setOf(
+        "tiep tuc", "tiep tuc di", "tiep tuc nhe", "lam tiep", "lam tiep di",
+        "noi tiep", "noi tiep di", "tiep di"
+    )
+    if (!hasMusicVideoContext || (!asksForAnalysis && !continuesAnalysis)) return ""
+
+    return " Khi tiếp tục hoặc phân tích video Bolero/ca khúc, hãy trả lời đúng yêu cầu mới nhất " +
+        "bằng nhận xét và đề xuất mới, không lặp lời dẫn chung hay chỉ nói rằng bạn đang phân tích. " +
+        "Trước hết phân biệt dữ kiện thực sự có trong hội thoại (tên bài, ca sĩ, kênh, đoạn lời ca người dùng gửi) " +
+        "với giả thuyết sáng tạo. Chỉ metadata tiêu đề/kênh không chứng minh được cảnh quay, lời ca, âm sắc hay cách hát; " +
+        "không nói như thể đã xem hoặc nghe nếu ứng dụng chưa cung cấp dữ liệu đó. " +
+        "Nếu có lời ca hoặc mốc thời gian, phân tích theo chuỗi: ý nghĩa câu hát → cảm xúc chủ đạo và chuyển biến → " +
+        "hình ảnh/đạo cụ phù hợp → cỡ cảnh, góc máy, ánh sáng và màu sắc → nhịp cắt dựng theo nhịp phách hoặc câu ngân. " +
+        "Đưa ít nhất một ví dụ phân cảnh cụ thể, nhưng ghi rõ đó là phương án minh họa khi chưa có bằng chứng từ video. " +
+        "Khi so sánh ca sĩ, chỉ so sánh những người hoặc bản thu có dữ liệu được nêu; tập trung vào màu và độ dày giọng, " +
+        "nhả chữ, luyến láy, độ rung, hơi thở, sắc thái và cách xử lý cao trào. Không bịa đặc điểm giọng, không xếp hạng " +
+        "ai hay hơn khi chưa nghe cùng bài/đoạn có điều kiện tương đương. Nếu thiếu tên bài, lời ca hoặc ca sĩ cần đối chiếu, " +
+        "vẫn đưa một gợi ý dựng cảnh hữu ích rồi hỏi đúng một dữ kiện còn thiếu."
 }

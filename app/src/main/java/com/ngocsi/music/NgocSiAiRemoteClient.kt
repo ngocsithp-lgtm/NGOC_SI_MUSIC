@@ -224,7 +224,12 @@ internal class NgocSiAiRemoteClient(context: Context) {
                         SYSTEM_INSTRUCTIONS +
                             buildNgocSiAiMemorySystemInstruction(savedMemories, newestUserMessage.content) +
                             buildNgocSiAiEntryContextInstruction(entryContext) +
-                            mediaContextInstruction.orEmpty().take(1_200)
+                            mediaContextInstruction.orEmpty().take(1_200) +
+                            buildNgocSiAiCreativeMusicAnalysisInstruction(
+                                rawUserText = newestUserMessage.content,
+                                recentConversation = normalized.dropLast(1).takeLast(6).map { it.content },
+                                mediaContextInstruction = mediaContextInstruction
+                            )
                     )
                 },
                 tools = if (offersAppCommandTool) {
