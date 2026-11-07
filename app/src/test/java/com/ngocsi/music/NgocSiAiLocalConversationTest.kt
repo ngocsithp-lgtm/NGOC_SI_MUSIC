@@ -193,6 +193,19 @@ class NgocSiAiLocalConversationTest {
     }
 
     @Test
+    fun continuationOnBoleroVideoContextStaysUsefulAfterGeminiQuotaFailure() {
+        val answer = localConversationFallbackAfterRemoteError(
+            userText = "AI, tiếp tục.",
+            previousAssistantReply = "AI đang phân tích nội dung video Bolero để đưa ra ví dụ cụ thể hơn.",
+            remoteError = "AI_QUOTA_429"
+        )
+        assertNotNull(answer)
+        assertTrue(answer!!.contains("Gemini đang bị giới hạn hạn mức"))
+        assertTrue(answer.contains("ánh đèn vàng"))
+        assertTrue(answer.contains("nhả chữ"))
+    }
+
+    @Test
     fun requestToExplainBoleroVideoMoreUsesOfflineAnalysisWhenQuotaFails() {
         val answer = localConversationFallbackAfterRemoteError(
             userText = "Nói rõ hơn về phần đó?",
