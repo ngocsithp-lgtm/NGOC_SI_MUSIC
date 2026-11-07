@@ -190,4 +190,18 @@ class NgocSiAiEntryContextTest {
         assertTrue(bolero.isNotBlank())
         assertEquals("", unrelated)
     }
+
+    @Test
+    fun boleroSingerComparisonRequiresNamedArtistsAndEvidenceBasedCriteria() {
+        val instruction = buildNgocSiAiCreativeMusicAnalysisInstruction(
+            rawUserText = "AI, so sánh cách hát của ca sĩ này với ca sĩ khác",
+            recentConversation = listOf("Đang phân tích video Bolero.")
+        )
+
+        assertTrue(instruction.contains("không được trả lời chung chung"))
+        assertTrue(instruction.contains("Bạn muốn so sánh ca sĩ đang hát với ca sĩ nào?"))
+        assertTrue(instruction.contains("lập bảng"))
+        assertTrue(instruction.contains("nhả chữ"))
+        assertTrue(instruction.contains("không gán đặc điểm giọng"))
+    }
 }

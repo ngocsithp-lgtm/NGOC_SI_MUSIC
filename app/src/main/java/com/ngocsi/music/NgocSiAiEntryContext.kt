@@ -156,6 +156,8 @@ internal fun buildNgocSiAiCreativeMusicAnalysisInstruction(
         (("ca si" in recent || "giong hat" in recent) &&
             ("video" in recent || "bai hat" in recent || "nhac" in recent))
 
+    val asksForSingerComparison = listOf("so sanh", "doi chieu", "cach hat cua ca si")
+        .any(latest::contains)
     val asksForAnalysis = listOf(
         "phan tich", "chi tiet hon", "noi ro hon", "vi du", "cam xuc",
         "hinh anh", "so sanh", "goi y", "ket hop", "giong hat"
@@ -177,5 +179,14 @@ internal fun buildNgocSiAiCreativeMusicAnalysisInstruction(
         "Khi so sánh ca sĩ, chỉ so sánh những người hoặc bản thu có dữ liệu được nêu; tập trung vào màu và độ dày giọng, " +
         "nhả chữ, luyến láy, độ rung, hơi thở, sắc thái và cách xử lý cao trào. Không bịa đặc điểm giọng, không xếp hạng " +
         "ai hay hơn khi chưa nghe cùng bài/đoạn có điều kiện tương đương. Nếu thiếu tên bài, lời ca hoặc ca sĩ cần đối chiếu, " +
-        "vẫn đưa một gợi ý dựng cảnh hữu ích rồi hỏi đúng một dữ kiện còn thiếu."
+        "vẫn đưa một gợi ý dựng cảnh hữu ích rồi hỏi đúng một dữ kiện còn thiếu." +
+        if (asksForSingerComparison) {
+            " Với yêu cầu so sánh cách hát: không được trả lời chung chung về Bolero hoặc sở thích người dùng. " +
+                "Trước hết xác định tên ca sĩ từ dữ liệu được gắn rõ là nghệ sĩ biểu diễn; không tự coi tên kênh là ca sĩ. " +
+                "Nếu đã biết ca sĩ đang phát nhưng thiếu người đối chiếu, chỉ hỏi: \"Bạn muốn so sánh ca sĩ đang hát với ca sĩ nào?\" " +
+                "Nếu chưa xác định được cả hai, hỏi tên hai ca sĩ trong một câu. " +
+                "Khi đủ tên và có âm thanh của cùng bài/đoạn, lập bảng theo màu và độ dày giọng, quãng/độ vang, nhả chữ, " +
+                "luyến láy, độ rung, hơi thở, nhịp phách và xử lý cao trào; kết luận ngắn gọn điểm khác biệt nghe được. " +
+                "Nếu chỉ có tiêu đề hoặc metadata, nói rõ chưa nghe được bản thu và không gán đặc điểm giọng cho bất kỳ ai."
+        } else ""
 }

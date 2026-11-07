@@ -104,6 +104,18 @@ private const val AI_WAKEWORD_LAST_CONTEXT_TURN_KEY = "wake_word_last_context_tu
 private const val MAX_SAVED_AI_UI_MESSAGES = 60
 private const val MAX_SAVED_AI_MESSAGE_CHARS = 4_000
 
+private fun buildOfflineSingerComparisonClarification(previousAssistantReply: String?): String? {
+    val previous = previousAssistantReply?.trim().orEmpty()
+    if (previous.isBlank()) return null
+    val context = previous.lowercase(Locale.ROOT)
+    if (listOf("bolero", "video", "ca sĩ", "ca si").none(context::contains)) return null
+    return "Để so sánh cách hát chính xác, mình cần xác định người đối chiếu trước. " +
+        "Bạn muốn so sánh ca sĩ đang hát với ca sĩ nào? Hãy nêu tên ca sĩ còn lại nhé. " +
+        "Khi có đủ tên và đoạn thu âm phù hợp, mình sẽ đối chiếu màu giọng, độ dày và độ vang, " +
+        "nhả chữ, luyến láy, độ rung, hơi thở, nhịp phách và cách xử lý cao trào. " +
+        "Mình sẽ không tự gán đặc điểm giọng khi chưa có dữ liệu nghe."
+}
+
 private fun buildOfflineBoleroVideoAnalysis(
     previousAssistantReply: String?,
     remoteError: String? = null
@@ -252,6 +264,12 @@ internal fun localConversationFallback(
         }
     }
 
+    val asksForSingerComparison = listOf("so sanh", "doi chieu", "cach hat cua ca si")
+        .any(normalized::contains)
+    if (asksForSingerComparison) {
+        buildOfflineSingerComparisonClarification(previousAssistantReply)?.let { return it }
+    }
+
     val asksForBoleroAnalysis = normalized.contains("phan tich") ||
         normalized.contains("chi tiet hon") || normalized.contains("noi ro hon") ||
         normalized.contains("vi du")
@@ -316,6 +334,12 @@ internal fun localConversationFallbackAfterRemoteError(
         "lam tiep", "lam tiep di", "lam tiep nhe", "noi tiep", "noi tiep di",
         "noi tiep nhe", "ke tiep", "ke tiep di"
     )
+    val asksForSingerComparison = listOf("so sanh", "doi chieu", "cach hat cua ca si")
+        .any(normalized::contains)
+    if (asksForSingerComparison) {
+        buildOfflineSingerComparisonClarification(previous)?.let { return it }
+    }
+
     val asksForBoleroAnalysis = listOf(
         "phan tich", "chi tiet hon", "noi ro hon", "vi du", "cu the hon"
     ).any(normalized::contains)

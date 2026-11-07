@@ -243,4 +243,31 @@ class NgocSiAiLocalConversationTest {
     fun unsupportedFactualQuestionIsNotGivenAnInventedOfflineAnswer() {
         assertNull(localConversationFallback("Thủ đô của Pháp là gì?"))
     }
+
+    @Test
+    fun singerComparisonFollowUpAsksForTheMissingArtistInsteadOfGenericBoleroText() {
+        val previous = "AI đang phân tích nội dung video Bolero."
+        val answer = localConversationFallbackAfterRemoteError(
+            userText = "AI, so sánh cách hát của ca sĩ này với ca sĩ khác.",
+            previousAssistantReply = previous,
+            remoteError = "AI_QUOTA_429"
+        )
+
+        assertNotNull(answer)
+        assertTrue(answer!!.contains("Bạn muốn so sánh ca sĩ đang hát với ca sĩ nào?"))
+        assertTrue(answer.contains("màu giọng"))
+        assertTrue(answer.contains("nhả chữ"))
+        assertTrue(answer.contains("không tự gán đặc điểm giọng"))
+        assertFalse(answer.contains("Lời ca Bolero"))
+    }
+
+    @Test
+    fun offlineSingerComparisonUsesOneFocusedClarifyingQuestion() {
+        val answer = localConversationFallback(
+            userText = "So sánh cách hát của ca sĩ này với ca sĩ khác",
+            previousAssistantReply = "Đang phân tích video Bolero."
+        )
+        assertNotNull(answer)
+        assertTrue(answer!!.contains("Bạn muốn so sánh ca sĩ đang hát với ca sĩ nào?"))
+    }
 }
