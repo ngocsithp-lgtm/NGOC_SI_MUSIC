@@ -659,6 +659,36 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
+    fun shortNaturalContinuationsUseFlashAndKeepTheContextAnswerBudget() {
+        val prompts = listOf(
+            "Tiếp tục",
+            "Làm tiếp đi",
+            "Nói rõ hơn về phần đó",
+            "Ví dụ cụ thể?",
+            "Cho tôi một ví dụ",
+            "Giải thích thêm ý này"
+        )
+        prompts.forEach { prompt ->
+            assertTrue("$prompt should be treated as a contextual follow-up", isNgocSiAiContextualFollowUp(prompt))
+            assertEquals(NGOC_SI_AI_REASONING_MODEL_NAME, selectNgocSiAiModelName(prompt))
+            assertEquals(ThinkingLevel.LOW, selectNgocSiAiThinkingLevel(prompt))
+            assertEquals(NGOC_SI_AI_KNOWLEDGE_REPLY_MAX_OUTPUT_TOKENS, selectNgocSiAiMaxOutputTokens(prompt))
+        }
+        assertFalse(isNgocSiAiContextualFollowUp("Xin chào AI"))
+        assertEquals(NGOC_SI_AI_FAST_CHAT_MODEL_NAME, selectNgocSiAiModelName("Xin chào AI"))
+    }
+
+    @Test
+    fun detailedContinuationRequestsUseMediumReasoningAndLargerBudget() {
+        listOf("Phân tích thêm phần đó", "Giải thích chi tiết hơn").forEach { prompt ->
+            assertTrue(isNgocSiAiContextualFollowUp(prompt))
+            assertEquals(ThinkingLevel.MEDIUM, selectNgocSiAiThinkingLevel(prompt))
+            assertEquals(NGOC_SI_AI_REASONING_MODEL_NAME, selectNgocSiAiModelName(prompt))
+            assertEquals(NGOC_SI_AI_COMPLEX_REPLY_MAX_OUTPUT_TOKENS, selectNgocSiAiMaxOutputTokens(prompt))
+        }
+    }
+
+    @Test
     fun complexReasoningKeepsTheGeminiFlashModel() {
         assertEquals("gemini-3.8-flash", NGOC_SI_AI_REASONING_MODEL_NAME)
         assertEquals(

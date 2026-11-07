@@ -66,13 +66,38 @@ internal fun isNgocSiAiKnowledgeQuestion(prompt: String): Boolean {
     return markers.any(padded::contains) || containsInterrogativeWord
 }
 
+/**
+ * Short natural continuations depend on the preceding turns even when the newest
+ * message contains no explicit question word. Route them through Flash so the model
+ * can interpret the conversation history instead of treating them as isolated chat.
+ */
+internal fun isNgocSiAiContextualFollowUp(prompt: String): Boolean {
+    val normalized = normalizeNgocSiAiVoicePhrase(prompt).trim()
+    if (normalized.isBlank()) return false
+    val exactPhrases = setOf(
+        "tiep tuc", "tiep nua", "lam tiep", "lam tiep di",
+        "noi ro hon", "noi ro hon di", "giai thich them",
+        "cu the hon", "vi du cu the", "cho vi du",
+        "cho minh vi du", "cho toi vi du"
+    )
+    val prefixes = listOf(
+        "noi ro hon ", "giai thich them ", "cu the hon ",
+        "vi du ", "cho vi du ", "noi them ve ",
+        "phan tich them ", "giai thich chi tiet ",
+        "mo rong phan ", "y nay ", "y do ", "phan nay ",
+        "phan do ", "what about ", "explain "
+    )
+    return normalized in exactPhrases || prefixes.any(normalized::startsWith)
+}
+
 internal fun selectNgocSiAiModelName(
     prompt: String,
     offersAppCommandTool: Boolean = false
 ): String = if (
     offersAppCommandTool ||
     selectNgocSiAiThinkingLevel(prompt) != ThinkingLevel.LOW ||
-    isNgocSiAiKnowledgeQuestion(prompt)
+    isNgocSiAiKnowledgeQuestion(prompt) ||
+    isNgocSiAiContextualFollowUp(prompt)
 ) {
     NGOC_SI_AI_REASONING_MODEL_NAME
 } else {
@@ -137,9 +162,10 @@ internal fun selectNgocSiAiThinkingLevel(prompt: String): ThinkingLevel {
     }
 
     val mediumIntentMarkers = listOf(
-        "phan tich", "so sanh", "lap ke hoach", "chien luoc", "danh gia",
-        "kiem tra ky", "tim nguyen nhan", "sua loi", "huong dan tung buoc",
-        "bao cao", "tong hop", "lo trinh", "de xuat", "tu van", "kiem tra ky"
+        "phan tich", "phan tich them", "giai thich chi tiet", "so sanh",
+        "lap ke hoach", "chien luoc", "danh gia", "kiem tra ky",
+        "tim nguyen nhan", "sua loi", "huong dan tung buoc",
+        "bao cao", "tong hop", "lo trinh", "de xuat", "tu van"
     )
     // Multi-action requests need planning, even when the sentence is short.
     // Count distinct app-action categories so a single command such as "mở YouTube"
@@ -164,7 +190,8 @@ internal fun selectNgocSiAiThinkingLevel(prompt: String): ThinkingLevel {
 internal fun selectNgocSiAiMaxOutputTokens(prompt: String): Int = when {
     selectNgocSiAiThinkingLevel(prompt) == ThinkingLevel.HIGH -> NGOC_SI_AI_DEEP_REPLY_MAX_OUTPUT_TOKENS
     selectNgocSiAiThinkingLevel(prompt) == ThinkingLevel.MEDIUM -> NGOC_SI_AI_COMPLEX_REPLY_MAX_OUTPUT_TOKENS
-    isNgocSiAiKnowledgeQuestion(prompt) -> NGOC_SI_AI_KNOWLEDGE_REPLY_MAX_OUTPUT_TOKENS
+    isNgocSiAiKnowledgeQuestion(prompt) || isNgocSiAiContextualFollowUp(prompt) ->
+        NGOC_SI_AI_KNOWLEDGE_REPLY_MAX_OUTPUT_TOKENS
     else -> NGOC_SI_AI_SHORT_REPLY_MAX_OUTPUT_TOKENS
 }
 
