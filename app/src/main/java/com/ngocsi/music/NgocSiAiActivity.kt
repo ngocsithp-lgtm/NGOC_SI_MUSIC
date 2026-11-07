@@ -104,6 +104,34 @@ private const val AI_WAKEWORD_LAST_CONTEXT_TURN_KEY = "wake_word_last_context_tu
 private const val MAX_SAVED_AI_UI_MESSAGES = 60
 private const val MAX_SAVED_AI_MESSAGE_CHARS = 4_000
 
+private fun buildOfflineBoleroVideoAnalysis(
+    previousAssistantReply: String?,
+    remoteError: String? = null
+): String? {
+    val previous = previousAssistantReply?.trim().orEmpty()
+    if (previous.isBlank()) return null
+    val context = previous.lowercase(Locale.ROOT)
+    if (listOf("bolero", "video", "ca sĩ", "ca si").none(context::contains)) return null
+
+    val error = remoteError.orEmpty().lowercase(Locale.ROOT)
+    val limitation = when {
+        "quota" in error || "429" in error || "hạn mức" in error ->
+            "Gemini đang bị giới hạn hạn mức nên phần dưới đây là gợi ý sáng tạo dựa trên ngữ cảnh, chưa phải nhận xét xác thực từng cảnh."
+        "network" in error || "timeout" in error || "mạng" in error ->
+            "Chat trực tuyến đang gặp sự cố; mình sẽ đưa ra gợi ý chung từ phần hội thoại đã có."
+        else ->
+            "Hiện mình chỉ có ngữ cảnh hội thoại, chưa có dữ liệu từng khung hình hoặc lời bài hát để xác thực nội dung video."
+    }
+
+    return "Mình tiếp tục phần trước: “${previous.take(150)}”. $limitation\n\n" +
+        "1. Cảm xúc: xác định đoạn nhạc đang nghiêng về nhớ nhung, tiếc nuối hay chia xa; chọn một cảm xúc chủ đạo cho mỗi phân cảnh.\n" +
+        "2. Hình ảnh: với nỗi nhớ, thử ánh đèn vàng, mưa nhẹ và con đường vắng; với chia xa, dùng sân ga hoặc khung hình rộng để nhân vật nhỏ giữa không gian.\n" +
+        "3. Nhịp dựng: giữ cảnh lâu ở câu hát ngân, chuyển cảnh tại điểm rơi của lời ca hoặc nhịp phách; hạn chế hiệu ứng dày làm mất chất trữ tình.\n" +
+        "4. So sánh ca sĩ: đối chiếu màu và độ dày giọng, cách nhả chữ, luyến láy, độ rung và xử lý cao trào; chỉ kết luận khi có cùng bài hoặc cùng đoạn thu âm để so sánh công bằng.\n" +
+        "5. Ví dụ dựng cảnh: ở câu hát diễn tả nhớ người cũ, dùng cận cảnh ánh mắt; đến điệp khúc, mở rộng sang phố đêm hoặc con đường mưa để tăng cảm giác cô đơn.\n\n" +
+        "Đây là hướng dựng minh họa, không phải mô tả những gì chắc chắn xuất hiện trong video. Gửi tên bài hát hoặc vài câu lời ca, mình sẽ phân tích sát hơn."
+}
+
 internal fun localConversationFallback(
     userText: String,
     previousAssistantReply: String? = null,
@@ -212,12 +240,20 @@ internal fun localConversationFallback(
             "ke tiep", "ke tiep di"
         ) && allowContinuationFallback -> {
             val previous = previousAssistantReply?.trim().orEmpty()
+            buildOfflineBoleroVideoAnalysis(previous)?.let { return it }
             return if (previous.isNotBlank()) {
                 "Mình theo mạch vừa trao đổi nhé. Ý gần nhất là: “" + previous.take(220) + "”. Khi chat trực tuyến đang bị giới hạn, mình không muốn tự đoán thêm rồi làm sai ý bạn; bạn nói phần muốn đào sâu, mình sẽ bám đúng phần đó."
             } else {
                 "Mình sẵn sàng tiếp tục. Bạn nhắc ngắn gọn chủ đề đang làm dở để mình không đoán sai ý nhé."
             }
         }
+    }
+
+    val asksForBoleroAnalysis = normalized.contains("phan tich") ||
+        normalized.contains("chi tiet hon") || normalized.contains("noi ro hon") ||
+        normalized.contains("vi du")
+    if (asksForBoleroAnalysis) {
+        buildOfflineBoleroVideoAnalysis(previousAssistantReply)?.let { return it }
     }
 
     val asksForAppDirection =
@@ -276,22 +312,7 @@ internal fun localConversationFallbackAfterRemoteError(
         followUpPrefixes.any(normalized::startsWith)
     if (!asksForContext) return null
 
-    val previousLower = previous.lowercase(Locale.ROOT)
-    val isBoleroVideoContext = previousLower.contains("bolero") ||
-        previousLower.contains("video") || previousLower.contains("ca sĩ")
-    val asksForDeeperAnalysis = normalized.contains("phan tich") ||
-        normalized.contains("chi tiet hon") || normalized.contains("noi ro hon") ||
-        normalized.contains("vi du")
-    if (isBoleroVideoContext && asksForDeeperAnalysis) {
-        return "Mình có thể đào sâu theo hướng sản xuất video Bolero, nhưng cần nói rõ: hiện mình chỉ có phần hội thoại và mô tả ngữ cảnh, chưa đọc được từng khung hình hay lời bài hát của video đang phát. " +
-            "Gợi ý phân tích cụ thể:\\n" +
-            "1. Cảm xúc: xác định bài đang nghiêng về nhớ nhung, tiếc nuối hay chia xa; chọn một cảm xúc chủ đạo, tránh trộn quá nhiều sắc thái trong cùng đoạn.\\n" +
-            "2. Hình ảnh: với nỗi nhớ, thử ánh đèn vàng, mưa nhẹ, con đường vắng và chuyển động máy chậm; với chia xa, dùng sân ga hoặc khung hình rộng có nhân vật nhỏ trong không gian.\\n" +
-            "3. Nhịp dựng: giữ cảnh lâu ở câu hát ngân, cắt cảnh theo nhịp phách hoặc điểm rơi lời ca; tránh hiệu ứng chuyển cảnh dày làm mất chất trữ tình.\\n" +
-            "4. Giọng hát: khi so sánh ca sĩ, đối chiếu độ dày và màu giọng, cách nhả chữ, luyến láy, độ rung và cách xử lý câu cao trào; không kết luận ai hay hơn nếu chưa nghe cùng một đoạn thu âm.\\n" +
-            "5. Ví dụ: ở câu hát diễn tả nhớ người cũ, có thể giữ cận cảnh gương mặt và ánh mắt; đến điệp khúc, mở rộng sang bối cảnh mưa hoặc phố đêm để tăng cảm giác cô đơn.\\n" +
-            "Nếu bạn gửi tên bài hát hoặc lời một đoạn, mình có thể phân tích sát nội dung hơn."
-    }
+    buildOfflineBoleroVideoAnalysis(previous, remoteError)?.let { return it }
 
     val error = remoteError.orEmpty().lowercase(Locale.ROOT)
     val status = when {
