@@ -106,7 +106,8 @@ private const val MAX_SAVED_AI_MESSAGE_CHARS = 4_000
 
 internal fun localConversationFallback(
     userText: String,
-    previousAssistantReply: String? = null
+    previousAssistantReply: String? = null,
+    allowContinuationFallback: Boolean = true
 ): String? {
     localNgocSiAiAppHelpFallback(userText)?.let { return it }
 
@@ -209,7 +210,7 @@ internal fun localConversationFallback(
             "tiep di", "tiep nua", "lam tiep", "lam tiep di", "lam tiep nhe",
             "noi tiep", "noi tiep di", "noi tiep nhe",
             "ke tiep", "ke tiep di"
-        ) -> {
+        ) && allowContinuationFallback -> {
             val previous = previousAssistantReply?.trim().orEmpty()
             return if (previous.isNotBlank()) {
                 "Mình theo mạch vừa trao đổi nhé. Ý gần nhất là: “" + previous.take(220) + "”. Khi chat trực tuyến đang bị giới hạn, mình không muốn tự đoán thêm rồi làm sai ý bạn; bạn nói phần muốn đào sâu, mình sẽ bám đúng phần đó."
@@ -2334,7 +2335,13 @@ private fun NgocSiAiPreviewScreen(
         val localReply = localMemoryReply
             ?: localMemoryQuestionReply
             ?: if (localCommand == null && !contextualActionConfirmation) {
-                localConversationFallback(clean, messages.lastOrNull { !it.isUser }?.text)
+                localConversationFallback(
+                    userText = clean,
+                    previousAssistantReply = messages.lastOrNull { !it.isUser }?.text,
+                    // When a real model is available, let it continue the conversation from history.
+                    // Keep the short offline explanation only when neither remote nor on-device AI exists.
+                    allowContinuationFallback = !isOnlineConfigured && !localModelInstalled
+                )
             } else null
         if (isSending && localCommand == null && localReply == null) return
 

@@ -43,6 +43,29 @@ class NgocSiAiLocalConversationTest {
     }
 
     @Test
+    fun configuredAiDoesNotConsumeNaturalContinuationWithTheOfflineTemplate() {
+        assertNull(
+            localConversationFallback(
+                userText = "Tiếp tục",
+                previousAssistantReply = "Ưu tiên kiểm tra chất lượng AI.",
+                allowContinuationFallback = false
+            )
+        )
+        assertNull(
+            localConversationFallback(
+                userText = "Làm tiếp đi",
+                previousAssistantReply = "Ưu tiên kiểm tra chất lượng AI.",
+                allowContinuationFallback = false
+            )
+        )
+        // Offline callers retain the deterministic explanation by default.
+        assertTrue(
+            requireNotNull(localConversationFallback("Tiếp tục", "Kiểm tra lệnh giọng nói."))
+                .contains("Kiểm tra lệnh giọng nói.")
+        )
+    }
+
+    @Test
     fun continuationUsesPreviousReplyWithoutPretendingToReasonFurther() {
         val answer = localConversationFallback("Tiếp tục", "Ưu tiên kiểm tra lệnh dừng nhạc.")
         assertNotNull(answer)
