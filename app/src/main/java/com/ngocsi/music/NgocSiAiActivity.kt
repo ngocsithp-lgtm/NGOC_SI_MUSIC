@@ -251,14 +251,23 @@ internal fun localConversationFallbackAfterRemoteError(
     val previous = previousAssistantReply?.trim().orEmpty()
     if (previous.isBlank()) return null
     val normalized = normalizeNgocSiAiVoicePhrase(userText)
-    val asksForContext = normalized in setOf(
+    val exactFollowUps = setOf(
         "tai sao", "vi sao", "sao vay", "tai sao vay", "vi sao vay",
         "giai thich them", "noi ro hon", "noi ro hon di",
         "y ban la gi", "y cua ban la gi", "cu the hon", "vi du di",
-        "why", "why is that", "what do you mean"
-    ) || normalized.startsWith("tai sao ") ||
-        normalized.startsWith("vi sao ") ||
-        normalized.startsWith("giai thich them ")
+        "vi du cu the", "cho vi du", "cho minh vi du", "cho toi vi du",
+        "y nay la gi", "y do la gi", "phan nay la gi", "phan do la gi",
+        "con ly do nao khac", "co ly do nao khac", "ly do gi nua",
+        "why", "why is that", "what do you mean", "give an example"
+    )
+    val followUpPrefixes = listOf(
+        "tai sao ", "vi sao ", "giai thich them ", "noi ro hon ",
+        "cu the hon ", "vi du ", "cho vi du ", "y nay ", "y do ",
+        "phan nay ", "phan do ", "con ly do nao ", "ly do gi nua ",
+        "chi tiet hon ", "noi them ve ", "explain ", "what about "
+    )
+    val asksForContext = normalized in exactFollowUps ||
+        followUpPrefixes.any(normalized::startsWith)
     if (!asksForContext) return null
 
     val error = remoteError.orEmpty().lowercase(Locale.ROOT)

@@ -111,6 +111,43 @@ class NgocSiAiLocalConversationTest {
     }
 
     @Test
+    fun naturalFollowUpVariantsStayLinkedToThePreviousAnswerAfterRemoteFailure() {
+        val previous = "Mình đề xuất kiểm tra lịch sử hội thoại trước."
+        val followUps = listOf(
+            "Nói rõ hơn về phần đó?",
+            "Ví dụ cụ thể?",
+            "Cho tôi một ví dụ",
+            "Giải thích thêm ý này",
+            "Cụ thể hơn nữa",
+            "Còn lý do nào khác?",
+            "Ý này là gì?",
+            "Nói thêm về bước trước"
+        )
+
+        followUps.forEach { phrase ->
+            val answer = localConversationFallbackAfterRemoteError(
+                userText = phrase,
+                previousAssistantReply = previous,
+                remoteError = "NETWORK"
+            )
+            assertNotNull("$phrase should keep the previous turn as context", answer)
+            assertTrue("$phrase should quote the previous answer", answer!!.contains(previous))
+            assertTrue("$phrase should identify the network problem", answer.contains("Kết nối chat trực tuyến"))
+        }
+    }
+
+    @Test
+    fun unrelatedStatementDoesNotInheritThePreviousAnswerAsContext() {
+        assertNull(
+            localConversationFallbackAfterRemoteError(
+                userText = "Tôi thích màu xanh.",
+                previousAssistantReply = "Mình đề xuất kiểm tra lịch sử hội thoại trước.",
+                remoteError = "NETWORK"
+            )
+        )
+    }
+
+    @Test
     fun unsupportedFollowUpDoesNotReceiveInventedContextWhenNoPreviousAnswerExists() {
         assertNull(
             localConversationFallbackAfterRemoteError(
