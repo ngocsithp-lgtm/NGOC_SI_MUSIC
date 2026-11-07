@@ -4,7 +4,7 @@
 
 ## What the preview uses
 
-- Free-form chat is sent directly from the preview app through the Firebase AI Logic SDK using the Gemini Developer API backend. Ordinary non-tool questions use `gemini-3.5-flash-lite` with `MINIMAL` thinking for lower latency; complex reasoning and app-tool requests use `gemini-3.8-flash` with the policy-selected `LOW` or `MEDIUM` level. This is intent-based primary-model routing, not a quota fallback. No automatic switch to a paid model is performed.
+- Free-form chat is sent directly from the preview app through the Firebase AI Logic SDK using the Gemini Developer API backend. Greetings and very lightweight chat use `gemini-3.5-flash-lite` with `MINIMAL` thinking; substantive factual questions, complex reasoning, and app-tool requests use `gemini-3.8-flash`. Factual questions keep `LOW` thinking and a 768-token answer budget so the stronger model does not automatically add the long reasoning delay; complex requests use the policy-selected `MEDIUM`/`HIGH` level and larger bounded budgets. This is intent-based primary-model routing, not a quota fallback. No automatic switch to a paid model is performed.
 - Debug Preview builds install the Firebase App Check Debug provider and require the exact debug token to be registered for the `com.ngocsi.music.aipreview` app. Non-debug variants use Play Integrity. Keep enforcement enabled and never substitute a debug token for release attestation.
 - No Gemini API key is embedded in the Android app. Firebase AI Logic uses the Firebase client configuration. Do not add the Gemini Developer API to the Firebase API key's allowed API list.
 - If Firebase client settings are missing or point to a different project, the preview remains offline rather than sending a request.

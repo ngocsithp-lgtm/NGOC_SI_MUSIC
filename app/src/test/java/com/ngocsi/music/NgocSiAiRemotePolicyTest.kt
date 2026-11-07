@@ -623,15 +623,19 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
-    fun ordinaryChatUsesTheFasterFlashLiteModel() {
-        assertEquals("gemini-3.5-flash-lite", NGOC_SI_AI_FAST_CHAT_MODEL_NAME)
+    fun substantiveKnowledgeQuestionsUseFlashWithoutIncreasingThinkingLatency() {
+        assertEquals("gemini-3.8-flash", NGOC_SI_AI_REASONING_MODEL_NAME)
+        assertTrue(isNgocSiAiKnowledgeQuestion("Thủ đô Việt Nam là gì?"))
         assertEquals(
-            NGOC_SI_AI_FAST_CHAT_MODEL_NAME,
+            NGOC_SI_AI_REASONING_MODEL_NAME,
             selectNgocSiAiModelName("Thủ đô Việt Nam là gì?")
         )
+        assertEquals(ThinkingLevel.LOW, selectNgocSiAiGenerationThinkingLevel("Thủ đô Việt Nam là gì?"))
+        assertEquals(NGOC_SI_AI_KNOWLEDGE_REPLY_MAX_OUTPUT_TOKENS, selectNgocSiAiMaxOutputTokens("Thủ đô Việt Nam là gì?"))
+        assertFalse(isNgocSiAiKnowledgeQuestion("Xin chào"))
         assertEquals(
             NGOC_SI_AI_FAST_CHAT_MODEL_NAME,
-            selectNgocSiAiModelName("Xin chào, bạn khỏe không?")
+            selectNgocSiAiModelName("Xin chào")
         )
     }
 
@@ -653,14 +657,14 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
-    fun ordinaryFlashLiteChatUsesMinimalThinkingForLowerLatency() {
+    fun greetingsKeepMinimalThinkingAndKnowledgeQuestionsUseFlashLowThinking() {
         assertEquals(
             ThinkingLevel.MINIMAL,
-            selectNgocSiAiGenerationThinkingLevel("Thủ đô Việt Nam là gì?")
+            selectNgocSiAiGenerationThinkingLevel("Xin chào")
         )
         assertEquals(
-            ThinkingLevel.MINIMAL,
-            selectNgocSiAiGenerationThinkingLevel("Xin chào, bạn khỏe không?")
+            ThinkingLevel.LOW,
+            selectNgocSiAiGenerationThinkingLevel("Thủ đô Việt Nam là gì?")
         )
     }
 

@@ -187,21 +187,21 @@ internal class NgocSiAiRemoteClient(context: Context) {
             )
             val offersAppCommandTool =
                 shouldOfferNgocSiAiAppCommandTool(newestUserMessage.content, normalized.dropLast(1))
-            val responseConfig = generationConfig {
-                maxOutputTokens = selectNgocSiAiMaxOutputTokens(newestUserMessage.content)
-                thinkingConfig = thinkingConfig {
-                    // Use Flash-Lite's supported MINIMAL level for simple chat;
-                    // keep LOW/MEDIUM on the reasoning/tool-capable Flash path.
-                    thinkingLevel = selectNgocSiAiGenerationThinkingLevel(
-                        newestUserMessage.content,
-                        offersAppCommandTool
-                    )
-                }
-            }
             val selectedModelName = selectNgocSiAiModelName(
                 newestUserMessage.content,
                 offersAppCommandTool
             )
+            val responseConfig = generationConfig {
+                maxOutputTokens = selectNgocSiAiMaxOutputTokens(newestUserMessage.content)
+                thinkingConfig = thinkingConfig {
+                    // Flash-Lite uses MINIMAL for simple chat; Flash uses LOW for factual questions.
+                    thinkingLevel = selectNgocSiAiGenerationThinkingLevel(
+                        newestUserMessage.content,
+                        offersAppCommandTool,
+                        selectedModelName
+                    )
+                }
+            }
             val model = firebaseAi.generativeModel(
                 modelName = selectedModelName,
                 generationConfig = responseConfig,

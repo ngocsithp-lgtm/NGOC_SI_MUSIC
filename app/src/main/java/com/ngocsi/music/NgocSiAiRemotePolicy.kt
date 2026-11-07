@@ -52,11 +52,25 @@ internal const val NGOC_SI_AI_REASONING_MODEL_NAME = "gemini-3.8-flash"
  * on Flash so multi-step app actions retain the stronger planning path.
  * This selects a primary model by intent; it is not a quota/error fallback.
  */
+/** Route substantive questions to the stronger Flash model without raising their latency tier. */
+internal fun isNgocSiAiKnowledgeQuestion(prompt: String): Boolean {
+    val normalized = normalizeNgocSiAiVoicePhrase(prompt).trim()
+    if (normalized.isBlank()) return false
+    val markers = listOf(
+        " la gi", " la ai", " la bao nhieu", " o dau", " khi nao",
+        " vi sao", " tai sao", " nhu the nao", " the nao", " lam sao",
+        " co nghia gi", " nghia la gi", " bao nhieu", " ai la "
+    )
+    return normalized.endsWith("?") || markers.any(normalized::contains)
+}
+
 internal fun selectNgocSiAiModelName(
     prompt: String,
     offersAppCommandTool: Boolean = false
 ): String = if (
-    offersAppCommandTool || selectNgocSiAiThinkingLevel(prompt) != ThinkingLevel.LOW
+    offersAppCommandTool ||
+    selectNgocSiAiThinkingLevel(prompt) != ThinkingLevel.LOW ||
+    isNgocSiAiKnowledgeQuestion(prompt)
 ) {
     NGOC_SI_AI_REASONING_MODEL_NAME
 } else {
@@ -69,10 +83,13 @@ internal fun selectNgocSiAiModelName(
  */
 internal fun selectNgocSiAiGenerationThinkingLevel(
     prompt: String,
-    offersAppCommandTool: Boolean = false
+    offersAppCommandTool: Boolean = false,
+    modelName: String = selectNgocSiAiModelName(prompt, offersAppCommandTool)
 ): ThinkingLevel {
     val requestedLevel = selectNgocSiAiThinkingLevel(prompt)
+    // Flash-Lite uses MINIMAL for speed; Flash uses LOW for factual questions.
     return if (
+        modelName == NGOC_SI_AI_FAST_CHAT_MODEL_NAME &&
         !offersAppCommandTool &&
         requestedLevel == ThinkingLevel.LOW
     ) {
@@ -83,6 +100,7 @@ internal fun selectNgocSiAiGenerationThinkingLevel(
 }
 
 internal const val NGOC_SI_AI_SHORT_REPLY_MAX_OUTPUT_TOKENS = 384
+internal const val NGOC_SI_AI_KNOWLEDGE_REPLY_MAX_OUTPUT_TOKENS = 768
 internal const val NGOC_SI_AI_COMPLEX_REPLY_MAX_OUTPUT_TOKENS = 1_024
 internal const val NGOC_SI_AI_DEEP_REPLY_MAX_OUTPUT_TOKENS = 2_048
 
@@ -141,9 +159,10 @@ internal fun selectNgocSiAiThinkingLevel(prompt: String): ThinkingLevel {
 }
 
 /** Use a compact token budget for everyday chat and retain capacity for complex requests. */
-internal fun selectNgocSiAiMaxOutputTokens(prompt: String): Int = when (selectNgocSiAiThinkingLevel(prompt)) {
-    ThinkingLevel.HIGH -> NGOC_SI_AI_DEEP_REPLY_MAX_OUTPUT_TOKENS
-    ThinkingLevel.MEDIUM -> NGOC_SI_AI_COMPLEX_REPLY_MAX_OUTPUT_TOKENS
+internal fun selectNgocSiAiMaxOutputTokens(prompt: String): Int = when {
+    selectNgocSiAiThinkingLevel(prompt) == ThinkingLevel.HIGH -> NGOC_SI_AI_DEEP_REPLY_MAX_OUTPUT_TOKENS
+    selectNgocSiAiThinkingLevel(prompt) == ThinkingLevel.MEDIUM -> NGOC_SI_AI_COMPLEX_REPLY_MAX_OUTPUT_TOKENS
+    isNgocSiAiKnowledgeQuestion(prompt) -> NGOC_SI_AI_KNOWLEDGE_REPLY_MAX_OUTPUT_TOKENS
     else -> NGOC_SI_AI_SHORT_REPLY_MAX_OUTPUT_TOKENS
 }
 
