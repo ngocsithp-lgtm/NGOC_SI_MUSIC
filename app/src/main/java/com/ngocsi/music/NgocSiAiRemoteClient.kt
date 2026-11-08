@@ -179,9 +179,14 @@ internal class NgocSiAiRemoteClient(context: Context) {
             newestUserMessage.content,
             normalized.dropLast(1)
         )
-        // Never downgrade a requested YouTube evidence analysis to text-only chat.
+        // A deliberately requested Google-hosted MP4 canary separates Firebase/model
+        // ingestion failures from restrictions on the currently playing YouTube URL.
+        val videoCapabilityDiagnosticRequested =
+            isNgocSiAiVideoCapabilityDiagnosticRequest(newestUserMessage.content)
+        // Never downgrade a YouTube evidence-analysis request to text-only chat.
         // Missing video context is a blocker, not permission to guess from metadata.
         if (
+            !videoCapabilityDiagnosticRequested &&
             isNgocSiAiYoutubeVideoAttachmentMissing(
                 pageContext = entryContext,
                 currentVideoId = youtubeVideoId,
@@ -198,18 +203,27 @@ internal class NgocSiAiRemoteClient(context: Context) {
             prompt = newestUserMessage.content,
             previousMessages = normalized.dropLast(1)
         )
-        val forceMultimodalReasoning = youtubeVideoAnalysisUri != null
-        val multimodalUserMessage = youtubeVideoAnalysisUri?.let { videoUri ->
+        val videoInputUri = if (videoCapabilityDiagnosticRequested) {
+            NGOC_SI_AI_VIDEO_DIAGNOSTIC_SAMPLE_URI
+        } else {
+            youtubeVideoAnalysisUri
+        }
+        val forceMultimodalReasoning = videoInputUri != null
+        val multimodalUserMessage = videoInputUri?.let { videoUri ->
             content("user") {
-                // Firebase AI Logic accepts one public/unlisted YouTube URL per request.
+                // Firebase AI Logic accepts one public YouTube URL or a supported MP4 URL.
                 // Put the video before the compact text prompt, as recommended by Firebase.
                 fileData(uri = videoUri, mimeType = "video/mp4")
                 text(
-                    buildNgocSiAiVideoAnalysisRequestText(
-                        userPrompt = newestUserMessage.content,
-                        recentMessages = normalized.dropLast(1),
-                        mediaContextInstruction = mediaContextInstruction
-                    )
+                    if (videoCapabilityDiagnosticRequested) {
+                        buildNgocSiAiVideoCapabilityDiagnosticPrompt(newestUserMessage.content)
+                    } else {
+                        buildNgocSiAiVideoAnalysisRequestText(
+                            userPrompt = newestUserMessage.content,
+                            recentMessages = normalized.dropLast(1),
+                            mediaContextInstruction = mediaContextInstruction
+                        )
+                    }
                 )
             }
         }
@@ -501,7 +515,11 @@ internal class NgocSiAiRemoteClient(context: Context) {
         } catch (error: NgocSiAiRemoteException) {
             throw error
         } catch (error: Exception) {
-            val safeMessage = toSafeMessage(error)
+            val safeMessage = toSafeMessage(
+                error,
+                isVideoCapabilityDiagnostic = videoCapabilityDiagnosticRequested,
+                isYoutubeVideoInput = youtubeVideoAnalysisUri != null && !videoCapabilityDiagnosticRequested
+            )
             persistQuotaCooldownIfNeeded(safeMessage, selectedModelName)
             throw NgocSiAiRemoteException(safeMessage)
         }
@@ -608,7 +626,11 @@ internal class NgocSiAiRemoteClient(context: Context) {
         }
     }
 
-    private fun toSafeMessage(error: Exception): String {
+    private fun toSafeMessage(
+        error: Exception,
+        isVideoCapabilityDiagnostic: Boolean = false,
+        isYoutubeVideoInput: Boolean = false
+    ): String {
         // Keep diagnostics useful without exposing API keys, tokens, URLs, or raw server text.
         // Include exception superclasses as well as causes: some SDK transport wrappers
         // have very short names (for example "S"), while their superclass identifies Firebase AI Logic.
@@ -687,6 +709,10 @@ internal class NgocSiAiRemoteClient(context: Context) {
             "servicedisabledexception" in exceptionTypeDetails ||
                 "apinotconfiguredexception" in exceptionTypeDetails ->
                 "Firebase AI Logic chưa được bật hoặc cấu hình đúng cho dự án Preview. Mã chẩn đoán: FIREBASE_CONFIG."
+            "serverexception" in exceptionTypeDetails && isVideoCapabilityDiagnostic ->
+                "Firebase AI Logic trả về ServerException khi gửi video MP4 mẫu công khai. Lỗi này không phụ thuộc URL YouTube đang phát; cần kiểm tra quyền App Check, trạng thái Firebase AI Logic hoặc model của dự án. Mã chẩn đoán: VIDEO_SAMPLE_SERVER_ERROR."
+            "serverexception" in exceptionTypeDetails && isYoutubeVideoInput ->
+                "Firebase AI Logic trả về ServerException khi gửi URL YouTube. Chưa có mã HTTP để xác định nguyên nhân; hãy thử lệnh 'AI, kiểm tra kết nối video mẫu' để phân biệt lỗi dịch vụ với hạn chế của video YouTube. Mã chẩn đoán: YOUTUBE_VIDEO_SERVER_ERROR."
             "serverexception" in exceptionTypeDetails ->
                 "Máy chủ Firebase AI Logic trả về lỗi nhưng SDK không cung cấp mã HTTP trong ngoại lệ. Mã chẩn đoán: REMOTE_SERVER_ERROR."
             "contentblockedexception" in exceptionTypeDetails ||
