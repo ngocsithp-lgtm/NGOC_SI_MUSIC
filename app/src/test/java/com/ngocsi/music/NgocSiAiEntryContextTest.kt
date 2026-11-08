@@ -236,6 +236,12 @@ class NgocSiAiEntryContextTest {
         assertTrue(networkReply.contains("Không kết nối được máy chủ AI"))
         assertTrue(networkReply.contains("NETWORK"))
 
+        val timeoutReply = buildNgocSiAiLocalMediaAnalysisUnavailableReply(
+            "Máy chủ Gemini chưa hoàn tất câu trả lời sau 60 giây."
+        )
+        assertTrue(timeoutReply.contains("thời gian chờ 60 giây"))
+        assertTrue(timeoutReply.contains("VIDEO_ANALYSIS_TIMEOUT"))
+
         val unknownReply = buildNgocSiAiLocalMediaAnalysisUnavailableReply(null)
         assertTrue(unknownReply.contains("chưa thể kết luận"))
     }
