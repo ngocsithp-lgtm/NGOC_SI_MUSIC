@@ -225,8 +225,10 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 text(buildNgocSiAiVideoCapabilityDiagnosticPrompt(newestUserMessage.content))
             }
             videoInputUri != null -> content("user") {
-                // Gemini Developer API supports one public or unlisted YouTube URL per request.
-                fileData(uri = videoInputUri, mimeType = "video/mp4")
+                // This is a YouTube watch URL, not a direct MP4 download. Use the URL-input
+                // MIME type separately from the concrete video/mp4 bytes used by the sample test.
+                // Gemini Developer API accepts one public or unlisted YouTube URL per request.
+                fileData(uri = videoInputUri, mimeType = NGOC_SI_AI_YOUTUBE_URL_MIME_TYPE)
                 text(
                     buildNgocSiAiVideoAnalysisRequestText(
                         userPrompt = newestUserMessage.content,

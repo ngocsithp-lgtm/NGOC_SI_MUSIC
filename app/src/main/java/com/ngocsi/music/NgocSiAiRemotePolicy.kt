@@ -85,6 +85,10 @@ internal const val NGOC_SI_AI_VIDEO_ANALYSIS_TIMEOUT_MILLIS = 120_000L
 internal const val NGOC_SI_AI_VIDEO_DIAGNOSTIC_SAMPLE_URI =
     "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"
 
+// Gemini's YouTube URL input is a provider-resolved video, not a direct .mp4 asset.
+// Keep its MIME separate from inline MP4 bytes used by the public sample diagnostic.
+internal const val NGOC_SI_AI_YOUTUBE_URL_MIME_TYPE = "video/*"
+
 /**
  * Convert the MP4 canary's transport failure into a safe, actionable diagnostic.
  * Do not expose raw URLs, proxy details, certificates, or arbitrary exception text.

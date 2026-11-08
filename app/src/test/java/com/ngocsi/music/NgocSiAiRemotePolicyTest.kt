@@ -268,6 +268,13 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
+    fun youtubeUrlInputUsesWildcardVideoMimeAndKeepsSampleMp4Separate() {
+        assertEquals("video/*", NGOC_SI_AI_YOUTUBE_URL_MIME_TYPE)
+        assertTrue(NGOC_SI_AI_VIDEO_DIAGNOSTIC_SAMPLE_URI.endsWith(".mp4"))
+        assertFalse(NGOC_SI_AI_VIDEO_DIAGNOSTIC_SAMPLE_URI.contains("youtube.com"))
+    }
+
+    @Test
     fun explicitVideoCapabilityDiagnosticUsesOnlyThePublicSampleUrl() {
         assertEquals(
             "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
