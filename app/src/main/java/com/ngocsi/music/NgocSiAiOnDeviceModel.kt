@@ -389,7 +389,6 @@ internal object NgocSiAiOnDeviceModel {
                     entryContext = entryContext,
                     mediaContextInstruction = mediaContextInstruction,
                     prompt = cleanPrompt,
-                    gpuError = gpuError
                 )
                 val cpuConversation = checkNotNull(conversation) {
                     "Mô hình AI dự phòng CPU chưa sẵn sàng."
@@ -403,6 +402,7 @@ internal object NgocSiAiOnDeviceModel {
                     runCatching { cpuConversation.cancelProcess() }
                     throw cancelled
                 }
+                reply.setLength(0)
                 reply.append(cpuReply)
             }
 
@@ -467,7 +467,6 @@ internal object NgocSiAiOnDeviceModel {
                     entryContext,
                     mediaContextInstruction,
                     prompt,
-                    gpuError
                 )
             }
         }
@@ -515,11 +514,16 @@ internal object NgocSiAiOnDeviceModel {
             gpuFallbackUsed = false
         } catch (gpuError: Throwable) {
             if (isFatalLocalBackendError(gpuError)) throw gpuError
-            val cpuEngine = createInitializedEngine(
-                context,
-                modelPath,
-                NgocSiAiLocalBackend.CPU
-            )
+            val cpuEngine = try {
+                createInitializedEngine(
+                    context,
+                    modelPath,
+                    NgocSiAiLocalBackend.CPU
+                )
+            } catch (cpuError: Throwable) {
+                cpuError.addSuppressed(gpuError)
+                throw cpuError
+            }
             engine = cpuEngine
             loadedModelPath = modelPath
             activeBackend = NgocSiAiLocalBackend.CPU
@@ -559,8 +563,7 @@ internal object NgocSiAiOnDeviceModel {
         memories: List<String>,
         entryContext: String?,
         mediaContextInstruction: String?,
-        prompt: String,
-        gpuError: Throwable
+        prompt: String
     ) {
         resetConversation()
         closeCurrentEngine()
