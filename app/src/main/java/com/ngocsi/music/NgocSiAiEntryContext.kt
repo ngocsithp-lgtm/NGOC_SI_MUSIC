@@ -197,6 +197,45 @@ internal fun buildNgocSiAiMediaContextInstruction(
 }
 
 /**
+ * Prefer the process-wide active YouTube item over launch-time metadata.
+ * The active player can advance its queue while the AI screen remains open.
+ */
+internal fun resolveNgocSiAiCurrentYoutubeVideoId(
+    pageContext: String?,
+    activeVideoId: String?,
+    launchVideoId: String?
+): String? {
+    if (normalizeNgocSiAiEntryContext(pageContext) != "YouTube") return null
+    return normalizeNgocSiAiYoutubeVideoId(activeVideoId)
+        ?: normalizeNgocSiAiYoutubeVideoId(launchVideoId)
+}
+
+/**
+ * Keep chat metadata aligned with the same active player snapshot used by voice AI.
+ * A stale launch title must never override the newly selected queue item.
+ */
+internal fun buildNgocSiAiCurrentYoutubeMediaContextInstruction(
+    pageContext: String?,
+    activeMedia: NgocSiAiYoutubeMediaContextSnapshot?,
+    launchTitle: String?,
+    launchChannel: String?
+): String {
+    if (normalizeNgocSiAiEntryContext(pageContext) != "YouTube") return ""
+    val validActiveMedia = activeMedia?.takeIf {
+        normalizeNgocSiAiYoutubeVideoId(it.videoId) != null
+    }
+    return if (validActiveMedia != null) {
+        buildNgocSiAiMediaContextInstruction(
+            "YouTube",
+            validActiveMedia.title,
+            validActiveMedia.channel
+        )
+    } else {
+        buildNgocSiAiMediaContextInstruction("YouTube", launchTitle, launchChannel)
+    }
+}
+
+/**
  * The page hint is system context only: it is never inserted into the user's
  * visible transcript or persisted conversation history.
  */
