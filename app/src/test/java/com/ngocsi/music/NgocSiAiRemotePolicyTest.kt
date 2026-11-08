@@ -48,13 +48,13 @@ class NgocSiAiRemotePolicyTest {
 
 
     @Test
-    fun complexRequestsKeepMediumIntentButUseFlashLiteSupportedThinkingLevel() {
+    fun mediumReasoningUsesGeminiFlashWithSupportedMediumThinking() {
         val prompt = "Hãy phân tích kỹ, tìm nguyên nhân và lập kế hoạch nâng cấp AI từng bước."
         assertEquals(ThinkingLevel.MEDIUM, selectNgocSiAiThinkingLevel(prompt))
-        assertEquals(NGOC_SI_AI_FAST_CHAT_MODEL_NAME, selectNgocSiAiModelName(prompt))
+        assertEquals(NGOC_SI_AI_REASONING_MODEL_NAME, selectNgocSiAiModelName(prompt))
         assertEquals(
-            ThinkingLevel.MINIMAL,
-            selectNgocSiAiGenerationThinkingLevel(prompt, modelName = NGOC_SI_AI_FAST_CHAT_MODEL_NAME)
+            ThinkingLevel.MEDIUM,
+            selectNgocSiAiGenerationThinkingLevel(prompt)
         )
         assertEquals(NGOC_SI_AI_COMPLEX_REPLY_MAX_OUTPUT_TOKENS, selectNgocSiAiMaxOutputTokens(prompt))
     }
@@ -66,10 +66,10 @@ class NgocSiAiRemotePolicyTest {
         val prompt = "AI, phân tích kỹ video YouTube này và chỉ ra các đoạn cảm xúc thay đổi."
 
         assertEquals(ThinkingLevel.MEDIUM, selectNgocSiAiThinkingLevel(prompt))
-        assertEquals(NGOC_SI_AI_FAST_CHAT_MODEL_NAME, selectNgocSiAiModelName(prompt))
+        assertEquals(NGOC_SI_AI_REASONING_MODEL_NAME, selectNgocSiAiModelName(prompt))
         assertEquals(
-            ThinkingLevel.MINIMAL,
-            selectNgocSiAiGenerationThinkingLevel(prompt, modelName = NGOC_SI_AI_FAST_CHAT_MODEL_NAME)
+            ThinkingLevel.MEDIUM,
+            selectNgocSiAiGenerationThinkingLevel(prompt)
         )
         assertTrue(isNgocSiAiMultimodalVideoAnalysisRequest(prompt))
         assertEquals(
@@ -151,6 +151,13 @@ class NgocSiAiRemotePolicyTest {
             ThinkingLevel.MEDIUM,
             selectNgocSiAiThinkingLevel("Mở Radio rồi phát đài VOV và hẹn giờ 20 phút.")
         )
+        listOf(
+            "AI, tìm bài bolero trên YouTube rồi phát và hẹn giờ 30 phút.",
+            "Mở Radio rồi phát đài VOV và hẹn giờ 20 phút."
+        ).forEach { prompt ->
+            assertEquals(NGOC_SI_AI_REASONING_MODEL_NAME, selectNgocSiAiModelName(prompt))
+            assertEquals(ThinkingLevel.MEDIUM, selectNgocSiAiGenerationThinkingLevel(prompt))
+        }
     }
 
     @Test
@@ -233,20 +240,22 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
-    fun detailedFollowUpPhraseGetsMediumReasoningAndFlashLiteModel() {
+    fun detailedFollowUpPhraseGetsMediumReasoningAndGeminiFlashModel() {
         val phrase = "AI, phân tích kỹ hơn."
         assertEquals(ThinkingLevel.MEDIUM, selectNgocSiAiThinkingLevel(phrase))
-        assertEquals(NGOC_SI_AI_FAST_CHAT_MODEL_NAME, selectNgocSiAiModelName(phrase))
+        assertEquals(NGOC_SI_AI_REASONING_MODEL_NAME, selectNgocSiAiModelName(phrase))
+        assertEquals(ThinkingLevel.MEDIUM, selectNgocSiAiGenerationThinkingLevel(phrase))
         assertTrue(isNgocSiAiContextualFollowUp(phrase))
         assertEquals(NGOC_SI_AI_COMPLEX_REPLY_MAX_OUTPUT_TOKENS, selectNgocSiAiMaxOutputTokens(phrase))
     }
 
     @Test
-    fun singerComparisonUsesFlashLiteAndMediumBudget() {
+    fun singerComparisonUsesGeminiFlashWithMediumBudget() {
         val prompt = "AI, so sánh cách hát của ca sĩ Tuấn Vũ với Chế Linh."
 
         assertEquals(ThinkingLevel.MEDIUM, selectNgocSiAiThinkingLevel(prompt))
-        assertEquals(NGOC_SI_AI_FAST_CHAT_MODEL_NAME, selectNgocSiAiModelName(prompt))
+        assertEquals(NGOC_SI_AI_REASONING_MODEL_NAME, selectNgocSiAiModelName(prompt))
+        assertEquals(ThinkingLevel.MEDIUM, selectNgocSiAiGenerationThinkingLevel(prompt))
         assertEquals(
             NGOC_SI_AI_COMPLEX_REPLY_MAX_OUTPUT_TOKENS,
             selectNgocSiAiMaxOutputTokens(prompt)
@@ -262,8 +271,10 @@ class NgocSiAiRemotePolicyTest {
         )
         phrases.forEach { phrase ->
             assertTrue("$phrase should be contextual", isNgocSiAiContextualFollowUp(phrase))
-            assertEquals(NGOC_SI_AI_FAST_CHAT_MODEL_NAME, selectNgocSiAiModelName(phrase))
         }
+        assertEquals(NGOC_SI_AI_REASONING_MODEL_NAME, selectNgocSiAiModelName(phrases.first()))
+        assertEquals(NGOC_SI_AI_FAST_CHAT_MODEL_NAME, selectNgocSiAiModelName(phrases[1]))
+        assertEquals(NGOC_SI_AI_FAST_CHAT_MODEL_NAME, selectNgocSiAiModelName(phrases[2]))
     }
 
     @Test
@@ -790,17 +801,21 @@ class NgocSiAiRemotePolicyTest {
         listOf("Phân tích thêm phần đó", "Giải thích chi tiết hơn").forEach { prompt ->
             assertTrue(isNgocSiAiContextualFollowUp(prompt))
             assertEquals(ThinkingLevel.MEDIUM, selectNgocSiAiThinkingLevel(prompt))
-            assertEquals(NGOC_SI_AI_FAST_CHAT_MODEL_NAME, selectNgocSiAiModelName(prompt))
+            assertEquals(NGOC_SI_AI_REASONING_MODEL_NAME, selectNgocSiAiModelName(prompt))
+            assertEquals(ThinkingLevel.MEDIUM, selectNgocSiAiGenerationThinkingLevel(prompt))
             assertEquals(NGOC_SI_AI_COMPLEX_REPLY_MAX_OUTPUT_TOKENS, selectNgocSiAiMaxOutputTokens(prompt))
         }
     }
 
     @Test
-    fun mediumReasoningUsesFlashLiteToPreserveFlashQuota() {
+    fun mediumReasoningUsesGeminiFlashAndSingleActionsKeepFlashLite() {
         assertEquals("gemini-3.8-flash", NGOC_SI_AI_REASONING_MODEL_NAME)
+        val mediumPrompt = "Hãy phân tích kỹ nguyên nhân và lập kế hoạch khắc phục."
+        assertEquals(NGOC_SI_AI_REASONING_MODEL_NAME, selectNgocSiAiModelName(mediumPrompt))
+        assertEquals(ThinkingLevel.MEDIUM, selectNgocSiAiGenerationThinkingLevel(mediumPrompt))
         assertEquals(
             NGOC_SI_AI_FAST_CHAT_MODEL_NAME,
-            selectNgocSiAiModelName("Hãy phân tích kỹ nguyên nhân và lập kế hoạch khắc phục.")
+            selectNgocSiAiModelName("Mở YouTube", offersAppCommandTool = true)
         )
     }
 
@@ -813,24 +828,34 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
-    fun onlyDeliberateHighDepthRequestsUseGemini38() {
-        val commonRequests = listOf(
+    fun lowIntentRequestsUseFlashLiteAndMediumOrDeepTasksUseGemini38() {
+        val lowIntentRequests = listOf(
             "Thủ đô Việt Nam là gì?",
             "Mở YouTube",
-            "Phân tích thêm phần đó",
-            "Phân tích video YouTube này",
-            "So sánh cách hát của hai ca sĩ"
+            "Tiếp tục",
+            "Tại sao video YouTube này bị dừng?"
         )
-        commonRequests.forEach { prompt ->
+        lowIntentRequests.forEach { prompt ->
             assertEquals(
-                "$prompt should preserve the Flash quota pool",
+                "$prompt should stay on the fast Flash-Lite model",
                 NGOC_SI_AI_FAST_CHAT_MODEL_NAME,
                 selectNgocSiAiModelName(prompt, offersAppCommandTool = prompt == "Mở YouTube")
             )
         }
+        val mediumRequests = listOf(
+            "Phân tích thêm phần đó",
+            "Phân tích video YouTube này",
+            "So sánh cách hát của hai ca sĩ"
+        )
+        mediumRequests.forEach { prompt ->
+            assertEquals(ThinkingLevel.MEDIUM, selectNgocSiAiThinkingLevel(prompt))
+            assertEquals(NGOC_SI_AI_REASONING_MODEL_NAME, selectNgocSiAiModelName(prompt))
+            assertEquals(ThinkingLevel.MEDIUM, selectNgocSiAiGenerationThinkingLevel(prompt))
+        }
         val deepPrompt = "Hãy kiểm tra toàn diện mã nguồn, phân tích chuyên sâu và tìm nguyên nhân gốc."
         assertEquals(ThinkingLevel.HIGH, selectNgocSiAiThinkingLevel(deepPrompt))
         assertEquals(NGOC_SI_AI_REASONING_MODEL_NAME, selectNgocSiAiModelName(deepPrompt))
+        assertEquals(ThinkingLevel.MEDIUM, selectNgocSiAiGenerationThinkingLevel(deepPrompt))
     }
 
     @Test

@@ -43,13 +43,13 @@ internal fun shouldRetryNgocSiAiRemoteRequest(
     return transientMarkers.any(details::contains)
 }
 
-/** Model routing keeps everyday chat on the faster, higher-volume Flash-Lite tier. */
+/** Model routing keeps quick LOW-intent requests on Flash-Lite and sends MEDIUM/deep work to Flash. */
 internal const val NGOC_SI_AI_FAST_CHAT_MODEL_NAME = "gemini-3.5-flash-lite"
 internal const val NGOC_SI_AI_REASONING_MODEL_NAME = "gemini-3.8-flash"
 
 /**
- * Flash-Lite handles ordinary chat, knowledge questions, contextual follow-ups,
- * app tool calls, and multimodal media. Reserve Flash for deliberate HIGH-depth work.
+ * Flash-Lite handles LOW-intent chat, knowledge questions, short follow-ups, and
+ * single app actions. MEDIUM/HIGH reasoning tasks use Gemini Flash.
  * This selects a primary model by intent; it is not a quota/error fallback.
  */
 
@@ -67,9 +67,9 @@ internal fun isNgocSiAiKnowledgeQuestion(prompt: String): Boolean {
 }
 
 /**
- * Short natural continuations depend on the preceding turns even when the newest
- * message contains no explicit question word. Keep them on Flash-Lite so the model
- * can interpret conversation history without consuming the smaller Flash quota pool.
+ * Short, low-intent continuations rely on preceding turns even without an explicit
+ * question word and stay on Flash-Lite. Analytical follow-ups are classified MEDIUM
+ * separately and use Gemini Flash.
  */
 internal fun isNgocSiAiContextualFollowUp(prompt: String): Boolean {
     val normalized = stripNgocSiAiDirectIntentWakePrefix(
@@ -99,19 +99,15 @@ internal fun isNgocSiAiContextualFollowUp(prompt: String): Boolean {
 internal fun selectNgocSiAiModelName(
     prompt: String,
     offersAppCommandTool: Boolean = false
-): String = if (
-    selectNgocSiAiThinkingLevel(prompt) == ThinkingLevel.HIGH
-) {
-    NGOC_SI_AI_REASONING_MODEL_NAME
-} else {
-    NGOC_SI_AI_FAST_CHAT_MODEL_NAME
+): String = when (selectNgocSiAiThinkingLevel(prompt)) {
+    ThinkingLevel.MEDIUM, ThinkingLevel.HIGH -> NGOC_SI_AI_REASONING_MODEL_NAME
+    else -> NGOC_SI_AI_FAST_CHAT_MODEL_NAME
 }
 
 /**
- * gemini-3.5-flash-lite only accepts MINIMAL thinking. Route every request to
- * that model with its supported level, including function calls and medium tasks.
- * The 3.8 Flash route uses MEDIUM by default for deep work; reserve HIGH for
- * prompts that explicitly ask for maximum reasoning effort.
+ * Flash-Lite accepts only MINIMAL thinking. Gemini Flash accepts LOW/MEDIUM/HIGH;
+ * medium tasks use MEDIUM, while high-intent tasks default to MEDIUM unless the
+ * prompt explicitly requests maximum reasoning effort.
  */
 internal fun selectNgocSiAiGenerationThinkingLevel(
     prompt: String,
