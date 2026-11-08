@@ -78,6 +78,7 @@ internal fun isNgocSiAiContextualFollowUp(prompt: String): Boolean {
     if (normalized.isBlank()) return false
     val exactPhrases = setOf(
         "tiep tuc", "tiep nua", "lam tiep", "lam tiep di",
+        "tiep tuc phan truoc", "minh tiep tuc phan truoc",
         "noi ro hon", "noi ro hon di", "giai thich them",
         "cu the hon", "vi du cu the", "cho vi du",
         "cho minh vi du", "cho toi vi du",
@@ -85,6 +86,7 @@ internal fun isNgocSiAiContextualFollowUp(prompt: String): Boolean {
         "phan tich ky hon"
     )
     val prefixes = listOf(
+        "minh tiep tuc phan truoc ", "tiep tuc phan truoc ",
         "noi ro hon ", "giai thich them ", "cu the hon ",
         "phan tich ky ",
         "vi du ", "cho vi du ", "noi them ve ",
