@@ -590,15 +590,34 @@ internal class NgocSiAiRemoteClient(context: Context) {
 
     private fun toSafeMessage(error: Exception): String {
         // Keep diagnostics useful without exposing API keys, tokens, URLs, or raw server text.
-        val details = generateSequence<Throwable>(error) { it.cause }
-            .take(6)
-            .joinToString(" ") { it.message.orEmpty() }
-            .lowercase(Locale.ROOT)
-        val errorCode = Regex("\\b(400|401|403|404|408|429|500|502|503|504)\\b")
+        // Include exception superclasses as well as causes: some SDK transport wrappers
+        // have very short names (for example "S"), while their superclass identifies Firebase AI Logic.
+        val exceptionChain = generateSequence<Throwable>(error) { it.cause }
+            .take(8)
+            .toList()
+        val exceptionClassNames = exceptionChain.flatMap { throwable ->
+            buildList {
+                var current: Class<*>? = throwable.javaClass
+                var depth = 0
+                while (current != null && depth < 6) {
+                    add(current.name)
+                    current = current.superclass
+                    depth++
+                }
+            }
+        }.distinct()
+        val exceptionTypeDetails = exceptionClassNames.joinToString(" ").lowercase(Locale.ROOT)
+        val details = (
+            exceptionClassNames.joinToString(" ") + " " +
+                exceptionChain.joinToString(" ") { it.message.orEmpty() }
+            ).lowercase(Locale.ROOT)
+        val errorCode = Regex("\\b(400|401|403|404|408|413|415|429|500|502|503|504)\\b")
             .find(details)
             ?.value
 
         val quotaDiagnosticCode = ngocSiAiQuotaDiagnosticCode(details)
+        val diagnosticExceptionType =
+            ngocSiAiRemoteDiagnosticExceptionType(exceptionClassNames)
 
         return when {
             quotaDiagnosticCode == "AI_FREE_TIER_PROJECT_RESTRICTED" ->
@@ -625,11 +644,27 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 "Firebase từ chối quyền truy cập. Mã chẩn đoán: ACCESS_DENIED_403. Cần kiểm tra App Check và quyền dịch vụ."
             errorCode == "401" || "unauthenticated" in details ->
                 "Firebase không xác thực được yêu cầu. Mã chẩn đoán: AUTH_401. Cần kiểm tra cấu hình Firebase của bản thử."
+            errorCode == "400" ->
+                "Gemini từ chối nội dung yêu cầu (HTTP 400). Với phân tích YouTube, hãy kiểm tra video ở chế độ công khai/không công khai và URL còn hợp lệ. Mã chẩn đoán: INVALID_REQUEST_400."
             errorCode == "404" || "model not found" in details || "not found" in details ->
                 "Không tìm thấy model hoặc endpoint AI. Mã chẩn đoán: MODEL_OR_ENDPOINT_404."
             errorCode in setOf("408", "500", "502", "503", "504") ->
                 "Máy chủ Gemini đang tạm thời bận hoặc kết nối bị gián đoạn (HTTP $errorCode). " +
                     "Ứng dụng chỉ tự thử lại một lần cho câu chat thông thường; lệnh điều khiển không tự gửi lại."
+            "requesttimeoutexception" in exceptionTypeDetails ->
+                "Yêu cầu Gemini đã quá thời gian chờ. Mã chẩn đoán: REMOTE_TIMEOUT. Hãy thử lại sau khi mạng ổn định."
+            "invalidapikeyexception" in exceptionTypeDetails ->
+                "Firebase AI Logic từ chối API key của cấu hình Preview. Mã chẩn đoán: FIREBASE_API_KEY."
+            "servicedisabledexception" in exceptionTypeDetails ||
+                "apinotconfiguredexception" in exceptionTypeDetails ->
+                "Firebase AI Logic chưa được bật hoặc cấu hình đúng cho dự án Preview. Mã chẩn đoán: FIREBASE_CONFIG."
+            "serverexception" in exceptionTypeDetails ->
+                "Máy chủ Firebase AI Logic trả về lỗi nhưng SDK không cung cấp mã HTTP trong ngoại lệ. Mã chẩn đoán: REMOTE_SERVER_ERROR."
+            "contentblockedexception" in exceptionTypeDetails ||
+                "promptblockedexception" in exceptionTypeDetails ->
+                "Yêu cầu bị bộ lọc an toàn của Gemini chặn. Mã chẩn đoán: CONTENT_BLOCKED."
+            "firebaseaiexception" in exceptionTypeDetails ->
+                "Firebase AI Logic SDK phát sinh ngoại lệ trong lúc gửi hoặc nhận video. Mã chẩn đoán: FIREBASE_AI_SDK_ERROR."
             "api key" in details || "api has not been used" in details ||
                 "service disabled" in details || "not enabled" in details ->
                 "Firebase AI Logic chưa được bật hoặc cấu hình đúng. Mã chẩn đoán: FIREBASE_CONFIG."
@@ -637,12 +672,9 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 "network" in details || "timeout" in details || "timed out" in details ->
                 "Không kết nối được mạng. Mã chẩn đoán: NETWORK. Hãy kiểm tra Internet rồi thử lại."
             else -> {
-                val exceptionType = error.javaClass.simpleName
-                    .filter { it.isLetterOrDigit() }
-                    .take(24)
-                    .ifBlank { "UnknownException" }
                 "Firebase AI Logic chưa phản hồi thành công. Mã chẩn đoán: REMOTE_ERROR_" +
-                    exceptionType + (errorCode?.let { "_$it" } ?: "") + ". Hãy gửi lại đúng mã này để kiểm tra tiếp."
+                    diagnosticExceptionType + (errorCode?.let { "_$it" } ?: "") +
+                    ". Loại ngoại lệ đã được chuẩn hóa từ toàn bộ chuỗi lỗi; hãy gửi đúng mã này để kiểm tra tiếp."
             }
         }
     }
