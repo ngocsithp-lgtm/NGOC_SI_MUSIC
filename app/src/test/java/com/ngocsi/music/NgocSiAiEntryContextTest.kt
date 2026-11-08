@@ -148,6 +148,19 @@ class NgocSiAiEntryContextTest {
     }
 
     @Test
+    fun textOnlyLocalFallbackIsBlockedForYoutubeAudioEvidenceAnalysis() {
+        val prompt = "AI, chỉ ra những dấu hiệu nghe được trong bản thu và phân biệt điều gì chưa thể xác minh."
+        assertTrue(isNgocSiAiYoutubeMultimodalAnalysisRequest("YouTube", prompt, emptyList()))
+        assertFalse(isNgocSiAiYoutubeMultimodalAnalysisRequest("Radio", prompt, emptyList()))
+        assertFalse(isNgocSiAiYoutubeMultimodalAnalysisRequest("YouTube", "AI, tạm dừng video", emptyList()))
+
+        val reply = buildNgocSiAiLocalMediaAnalysisUnavailableReply()
+        assertTrue(reply.contains("Qwen3-0.6B chỉ xử lý văn bản"))
+        assertTrue(reply.contains("không nhận được âm thanh hay hình ảnh"))
+        assertTrue(reply.contains("sẽ không tự đoán"))
+    }
+
+    @Test
     fun ordinaryYoutubePlaybackCommandsNeverAttachVideoForAnalysis() {
         listOf(
             "AI, tạm dừng video",
