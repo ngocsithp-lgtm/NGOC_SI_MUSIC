@@ -7,7 +7,32 @@ import com.google.firebase.ai.type.ThinkingLevel
  * transport class. Prefer the SDK's documented exception types over one-letter wrappers.
  */
 internal fun ngocSiAiRemoteDiagnosticExceptionType(classNames: List<String>): String {
-    val simpleNames = classNames.map { it.substringAfterLast('.').substringAfterLast('
+    val simpleNames = classNames.map {
+        it.substringAfterLast('.').substringAfterLast(36.toChar())
+    }
+    val preferredTypes = listOf(
+        "QuotaExceededException",
+        "ServerException",
+        "RequestTimeoutException",
+        "InvalidAPIKeyException",
+        "ServiceDisabledException",
+        "APINotConfiguredException",
+        "PermissionMissingException",
+        "ContentBlockedException",
+        "PromptBlockedException",
+        "ServiceConnectionHandshakeFailedException",
+        "SerializationException",
+        "UnknownException",
+        "FirebaseAIException"
+    )
+    val selected = preferredTypes.firstOrNull { preferred ->
+        simpleNames.any { it.equals(preferred, ignoreCase = true) }
+    } ?: simpleNames.firstOrNull {
+        it.length > 1 && it !in setOf("Exception", "RuntimeException", "Throwable", "Object")
+    } ?: "UnknownException"
+    return selected.filter { it.isLetterOrDigit() }.take(48).ifBlank { "UnknownException" }
+}
+
 /** Ordinary questions should fail fast; longer reasoning receives a separate bounded window. */
 internal const val NGOC_SI_AI_REMOTE_CONVERSATION_TIMEOUT_MILLIS = 25_000L
 internal const val NGOC_SI_AI_COMPLEX_REMOTE_CONVERSATION_TIMEOUT_MILLIS = 40_000L
