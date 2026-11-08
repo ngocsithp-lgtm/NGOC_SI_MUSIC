@@ -139,6 +139,12 @@ class NgocSiAiEntryContextTest {
         assertTrue(isNgocSiAiContextualFollowUp(prompt))
         assertTrue(shouldAttachNgocSiAiYoutubeVideo(prompt, history))
         assertTrue(isNgocSiAiYoutubeMultimodalAnalysisRequest("YouTube", prompt, history))
+        val creativeGuidance = buildNgocSiAiCreativeMusicAnalysisInstruction(
+            rawUserText = prompt,
+            recentConversation = history.map { it.content }
+        )
+        assertTrue(creativeGuidance.contains("không lặp lời dẫn chung"))
+        assertTrue(creativeGuidance.contains("ý nghĩa câu hát"))
         assertEquals(
             "https://www.youtube.com/watch?v=a1b2c3d4e5F",
             resolveNgocSiAiYoutubeVideoAnalysisUri(
