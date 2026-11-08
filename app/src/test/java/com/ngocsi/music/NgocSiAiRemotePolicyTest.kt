@@ -196,7 +196,7 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
-    fun detailedFollowUpPhraseGetsMediumReasoningAndFlashModel() {
+    fun detailedFollowUpPhraseGetsMediumReasoningAndFlashLiteModel() {
         val phrase = "AI, phân tích kỹ hơn."
         assertEquals(ThinkingLevel.MEDIUM, selectNgocSiAiThinkingLevel(phrase))
         assertEquals(NGOC_SI_AI_FAST_CHAT_MODEL_NAME, selectNgocSiAiModelName(phrase))
@@ -205,7 +205,7 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
-    fun singerComparisonUsesReasoningModelAndMediumBudget() {
+    fun singerComparisonUsesFlashLiteAndMediumBudget() {
         val prompt = "AI, so sánh cách hát của ca sĩ Tuấn Vũ với Chế Linh."
 
         assertEquals(ThinkingLevel.MEDIUM, selectNgocSiAiThinkingLevel(prompt))
@@ -700,7 +700,7 @@ class NgocSiAiRemotePolicyTest {
             NGOC_SI_AI_FAST_CHAT_MODEL_NAME,
             selectNgocSiAiModelName("Thủ đô Việt Nam là gì?")
         )
-        assertEquals(ThinkingLevel.LOW, selectNgocSiAiGenerationThinkingLevel("Thủ đô Việt Nam là gì?"))
+        assertEquals(ThinkingLevel.MINIMAL, selectNgocSiAiGenerationThinkingLevel("Thủ đô Việt Nam là gì?"))
         assertEquals(NGOC_SI_AI_KNOWLEDGE_REPLY_MAX_OUTPUT_TOKENS, selectNgocSiAiMaxOutputTokens("Thủ đô Việt Nam là gì?"))
         assertFalse(isNgocSiAiKnowledgeQuestion("Xin chào"))
         assertEquals(
@@ -729,7 +729,7 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
-    fun shortNaturalContinuationsUseFlashAndKeepTheContextAnswerBudget() {
+    fun shortNaturalContinuationsUseFlashLiteAndKeepTheContextAnswerBudget() {
         val prompts = listOf(
             "Tiếp tục",
             "Làm tiếp đi",
@@ -753,7 +753,7 @@ class NgocSiAiRemotePolicyTest {
         listOf("Phân tích thêm phần đó", "Giải thích chi tiết hơn").forEach { prompt ->
             assertTrue(isNgocSiAiContextualFollowUp(prompt))
             assertEquals(ThinkingLevel.MEDIUM, selectNgocSiAiThinkingLevel(prompt))
-            assertEquals(NGOC_SI_AI_REASONING_MODEL_NAME, selectNgocSiAiModelName(prompt))
+            assertEquals(NGOC_SI_AI_FAST_CHAT_MODEL_NAME, selectNgocSiAiModelName(prompt))
             assertEquals(NGOC_SI_AI_COMPLEX_REPLY_MAX_OUTPUT_TOKENS, selectNgocSiAiMaxOutputTokens(prompt))
         }
     }
@@ -768,7 +768,7 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
-    fun appToolRequestsAlwaysKeepTheGeminiFlashModel() {
+    fun appToolRequestsUseFlashLiteToPreserveFlashQuota() {
         assertEquals(
             NGOC_SI_AI_FAST_CHAT_MODEL_NAME,
             selectNgocSiAiModelName("Mở YouTube", offersAppCommandTool = true)
@@ -803,7 +803,7 @@ class NgocSiAiRemotePolicyTest {
             selectNgocSiAiGenerationThinkingLevel("Xin chào")
         )
         assertEquals(
-            ThinkingLevel.LOW,
+            ThinkingLevel.MINIMAL,
             selectNgocSiAiGenerationThinkingLevel("Thủ đô Việt Nam là gì?")
         )
     }
