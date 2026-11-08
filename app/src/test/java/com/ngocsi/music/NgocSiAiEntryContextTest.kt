@@ -221,7 +221,7 @@ class NgocSiAiEntryContextTest {
         val quotaReply = buildNgocSiAiLocalMediaAnalysisUnavailableReply(
             "Hạn mức miễn phí có thể đã hết. Mã chẩn đoán: AI_QUOTA_429_FREE_TIER."
         )
-        assertTrue(quotaReply.contains("hạn mức hoặc quyền Free Tier"))
+        assertTrue(quotaReply.contains("hạn mức Gemini Free Tier"))
         assertTrue(quotaReply.contains("AI_QUOTA_429_FREE_TIER"))
 
         val appCheckReply = buildNgocSiAiLocalMediaAnalysisUnavailableReply(
