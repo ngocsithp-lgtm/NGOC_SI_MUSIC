@@ -236,6 +236,12 @@ class NgocSiAiEntryContextTest {
         assertTrue(networkReply.contains("Không kết nối được máy chủ AI"))
         assertTrue(networkReply.contains("NETWORK"))
 
+        val cooldownReply = buildNgocSiAiLocalMediaAnalysisUnavailableReply(
+            "NGỌC SĨ AI đang tạm ngưng gửi yêu cầu trực tuyến do hạn mức miễn phí của Gemini. Mã: AI_QUOTA_COOLDOWN."
+        )
+        assertTrue(cooldownReply.contains("hạn mức hoặc quyền Free Tier"))
+        assertTrue(cooldownReply.contains("AI_QUOTA_COOLDOWN"))
+
         val timeoutReply = buildNgocSiAiLocalMediaAnalysisUnavailableReply(
             "Máy chủ Gemini chưa hoàn tất câu trả lời sau 60 giây."
         )
