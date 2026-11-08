@@ -98,10 +98,15 @@ internal fun isNgocSiAiContextualFollowUp(prompt: String): Boolean {
 @Suppress("UNUSED_PARAMETER")
 internal fun selectNgocSiAiModelName(
     prompt: String,
-    offersAppCommandTool: Boolean = false
-): String = when (selectNgocSiAiThinkingLevel(prompt)) {
-    ThinkingLevel.MEDIUM, ThinkingLevel.HIGH -> NGOC_SI_AI_REASONING_MODEL_NAME
-    else -> NGOC_SI_AI_FAST_CHAT_MODEL_NAME
+    offersAppCommandTool: Boolean = false,
+    forceMultimodalReasoning: Boolean = false
+): String = if (forceMultimodalReasoning) {
+    NGOC_SI_AI_REASONING_MODEL_NAME
+} else {
+    when (selectNgocSiAiThinkingLevel(prompt)) {
+        ThinkingLevel.MEDIUM, ThinkingLevel.HIGH -> NGOC_SI_AI_REASONING_MODEL_NAME
+        else -> NGOC_SI_AI_FAST_CHAT_MODEL_NAME
+    }
 }
 
 /**
@@ -112,11 +117,15 @@ internal fun selectNgocSiAiModelName(
 internal fun selectNgocSiAiGenerationThinkingLevel(
     prompt: String,
     offersAppCommandTool: Boolean = false,
-    modelName: String = selectNgocSiAiModelName(prompt, offersAppCommandTool)
+    modelName: String = selectNgocSiAiModelName(prompt, offersAppCommandTool),
+    forceMultimodalReasoning: Boolean = false
 ): ThinkingLevel {
     val requestedLevel = selectNgocSiAiThinkingLevel(prompt)
     return when {
         modelName == NGOC_SI_AI_FAST_CHAT_MODEL_NAME -> ThinkingLevel.MINIMAL
+        modelName == NGOC_SI_AI_REASONING_MODEL_NAME &&
+            forceMultimodalReasoning &&
+            requestedLevel != ThinkingLevel.HIGH -> ThinkingLevel.MEDIUM
         modelName == NGOC_SI_AI_REASONING_MODEL_NAME &&
             requestedLevel == ThinkingLevel.HIGH &&
             !requiresMaximumNgocSiAiThinking(prompt) -> ThinkingLevel.MEDIUM
@@ -163,13 +172,16 @@ internal fun isNgocSiAiMultimodalVideoAnalysisRequest(prompt: String): Boolean {
 }
 
 /** Video ingestion may take longer; extend only its deadline, not its reasoning tier. */
-internal fun selectNgocSiAiRemoteTimeoutMillis(prompt: String): Long {
+internal fun selectNgocSiAiRemoteTimeoutMillis(
+    prompt: String,
+    forceMultimodalReasoning: Boolean = false
+): Long {
     val normalBudget = when (selectNgocSiAiThinkingLevel(prompt)) {
         ThinkingLevel.HIGH -> NGOC_SI_AI_DEEP_REMOTE_CONVERSATION_TIMEOUT_MILLIS
         ThinkingLevel.MEDIUM -> NGOC_SI_AI_COMPLEX_REMOTE_CONVERSATION_TIMEOUT_MILLIS
         else -> NGOC_SI_AI_REMOTE_CONVERSATION_TIMEOUT_MILLIS
     }
-    return if (isNgocSiAiMultimodalVideoAnalysisRequest(prompt)) {
+    return if (forceMultimodalReasoning || isNgocSiAiMultimodalVideoAnalysisRequest(prompt)) {
         maxOf(normalBudget, NGOC_SI_AI_DEEP_REMOTE_CONVERSATION_TIMEOUT_MILLIS)
     } else {
         normalBudget
@@ -230,9 +242,13 @@ internal fun selectNgocSiAiThinkingLevel(prompt: String): ThinkingLevel {
 }
 
 /** Use a compact token budget for everyday chat and retain capacity for complex requests. */
-internal fun selectNgocSiAiMaxOutputTokens(prompt: String): Int = when {
+internal fun selectNgocSiAiMaxOutputTokens(
+    prompt: String,
+    forceMultimodalReasoning: Boolean = false
+): Int = when {
     selectNgocSiAiThinkingLevel(prompt) == ThinkingLevel.HIGH -> NGOC_SI_AI_DEEP_REPLY_MAX_OUTPUT_TOKENS
-    selectNgocSiAiThinkingLevel(prompt) == ThinkingLevel.MEDIUM -> NGOC_SI_AI_COMPLEX_REPLY_MAX_OUTPUT_TOKENS
+    selectNgocSiAiThinkingLevel(prompt) == ThinkingLevel.MEDIUM || forceMultimodalReasoning ->
+        NGOC_SI_AI_COMPLEX_REPLY_MAX_OUTPUT_TOKENS
     isNgocSiAiKnowledgeQuestion(prompt) || isNgocSiAiContextualFollowUp(prompt) ->
         NGOC_SI_AI_KNOWLEDGE_REPLY_MAX_OUTPUT_TOKENS
     else -> NGOC_SI_AI_SHORT_REPLY_MAX_OUTPUT_TOKENS

@@ -179,7 +179,18 @@ internal class NgocSiAiRemoteClient(context: Context) {
             newestUserMessage.content,
             normalized.dropLast(1)
         )
-        // Only attach the current player video for actual video/music analysis.
+        // Never downgrade a requested YouTube evidence analysis to text-only chat.
+        // Missing video context is a blocker, not permission to guess from metadata.
+        if (
+            isNgocSiAiYoutubeVideoAttachmentMissing(
+                pageContext = entryContext,
+                currentVideoId = youtubeVideoId,
+                prompt = newestUserMessage.content,
+                previousMessages = normalized.dropLast(1)
+            )
+        ) {
+            throw NgocSiAiRemoteException(buildNgocSiAiYoutubeVideoUnavailableReply())
+        }
         // Playback commands and ordinary chat retain the lightweight text-only path.
         val youtubeVideoAnalysisUri = resolveNgocSiAiYoutubeVideoAnalysisUri(
             pageContext = entryContext,
@@ -187,6 +198,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
             prompt = newestUserMessage.content,
             previousMessages = normalized.dropLast(1)
         )
+        val forceMultimodalReasoning = youtubeVideoAnalysisUri != null
         val multimodalUserMessage = youtubeVideoAnalysisUri?.let { videoUri ->
             content("user") {
                 // Firebase AI Logic accepts a single public/unlisted YouTube URL per request.
@@ -206,7 +218,8 @@ internal class NgocSiAiRemoteClient(context: Context) {
             shouldOfferNgocSiAiAppCommandTool(newestUserMessage.content, normalized.dropLast(1))
         val selectedModelName = selectNgocSiAiModelName(
             newestUserMessage.content,
-            offersAppCommandTool
+            offersAppCommandTool,
+            forceMultimodalReasoning = forceMultimodalReasoning
         )
         activeQuotaCooldownMessage(selectedModelName)?.let {
             throw NgocSiAiRemoteException(it)
@@ -221,13 +234,17 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 /* useLimitedUseAppCheckTokens = */ true
             )
             val responseConfig = generationConfig {
-                maxOutputTokens = selectNgocSiAiMaxOutputTokens(newestUserMessage.content)
+                maxOutputTokens = selectNgocSiAiMaxOutputTokens(
+                    newestUserMessage.content,
+                    forceMultimodalReasoning = forceMultimodalReasoning
+                )
                 thinkingConfig = thinkingConfig {
-                    // Flash-Lite is MINIMAL-only; MEDIUM reasoning runs on Gemini Flash.
+                    // Flash-Lite is MINIMAL-only; attached video analysis stays on Gemini Flash MEDIUM.
                     thinkingLevel = selectNgocSiAiGenerationThinkingLevel(
                         newestUserMessage.content,
                         offersAppCommandTool,
-                        selectedModelName
+                        selectedModelName,
+                        forceMultimodalReasoning = forceMultimodalReasoning
                     )
                 }
             }

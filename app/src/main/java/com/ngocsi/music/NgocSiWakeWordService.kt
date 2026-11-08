@@ -55,6 +55,8 @@ class NgocSiWakeWordService : Service() {
         NgocSiAiRemoteClient(applicationContext)
     }
     private var aiEntryContext: String? = null
+    private var aiEntryYoutubeVideoId: String? = null
+    private var aiEntryMediaContextInstruction: String = ""
     private var answeringQuestion = false
     // Once "AI" wakes the assistant, keep a hands-free conversation session open until idle.
     private var conversationActive = false
@@ -187,6 +189,14 @@ class NgocSiWakeWordService : Service() {
         if (intent?.action == ACTION_START) {
             aiEntryContext = normalizeNgocSiAiEntryContext(
                 intent.getStringExtra(NGOC_SI_AI_ENTRY_CONTEXT_EXTRA)
+            )
+            aiEntryYoutubeVideoId = normalizeNgocSiAiYoutubeVideoId(
+                intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_VIDEO_ID_EXTRA)
+            ).takeIf { aiEntryContext == "YouTube" }
+            aiEntryMediaContextInstruction = buildNgocSiAiMediaContextInstruction(
+                aiEntryContext,
+                intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_TITLE_EXTRA),
+                intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_CHANNEL_EXTRA)
             )
         }
         if (intent?.action == ACTION_STOP) {
@@ -747,9 +757,17 @@ class NgocSiWakeWordService : Service() {
             return
         }
 
-        // MainActivity can change pages while this foreground service remains active.
-        // Read the latest page for every turn; fall back to the page used to start listening.
+        // Keep the YouTube source and current video supplied by the AI screen that started
+        // this hands-free session. Other pages remain text/local-command contexts.
         val requestEntryContext = NgocSiMainActivityState.entryContextOr(aiEntryContext)
+        val requestYoutubeVideoId = aiEntryYoutubeVideoId.takeIf { requestEntryContext == "YouTube" }
+        val requestMediaContextInstruction = aiEntryMediaContextInstruction
+            .takeIf { requestEntryContext == "YouTube" }.orEmpty()
+        val requiresMultimodalYoutubeAnalysis = isNgocSiAiYoutubeMultimodalAnalysisRequest(
+            pageContext = requestEntryContext,
+            prompt = cleanQuestion,
+            previousMessages = conversationHistory.toList()
+        )
         answeringQuestion = true
         cancelConversationTimeout()
         val conversationTurnId = nextConversationTurnId()
@@ -781,7 +799,7 @@ class NgocSiWakeWordService : Service() {
                 val preferLocalModel = chatPreferences.getBoolean(
                     NGOC_SI_AI_PREFER_LOCAL_MODEL_KEY,
                     false
-                )
+                ) && !requiresMultimodalYoutubeAnalysis
                 // Match screen chat: saved music/app preferences are answered from the
                 // same private on-device memory before considering Gemini.
                 val localPreferenceReply = answerNgocSiAiSavedPreferenceQuestion(
@@ -790,9 +808,13 @@ class NgocSiWakeWordService : Service() {
                 )
                 // Handle common turns on-device first; this avoids spending the free
                 // Gemini allowance for greetings, quick help and known local responses.
-                val localFallback = memoryReply
-                    ?: localPreferenceReply
-                    ?: localConversationFallback(cleanQuestion, previousAssistantReply)
+                val localFallback = if (requiresMultimodalYoutubeAnalysis) {
+                    null
+                } else {
+                    memoryReply
+                        ?: localPreferenceReply
+                        ?: localConversationFallback(cleanQuestion, previousAssistantReply)
+                }
                 val localModelNeedsAppTools =
                     shouldOfferNgocSiAiAppCommandTool(cleanQuestion, conversationHistory)
                 val userMessage = NgocSiAiMessage(role = "user", content = cleanQuestion)
@@ -868,16 +890,25 @@ class NgocSiWakeWordService : Service() {
                     // Initialize Firebase AI only for turns that truly need Gemini.
                     // Local memory, local-first chat, and deterministic offline replies skip Firebase setup.
                     val client = remoteAiClient
-                    if (!client.isConfigured) {
+                    if (requiresMultimodalYoutubeAnalysis && requestYoutubeVideoId == null) {
+                        remoteError = buildNgocSiAiYoutubeVideoUnavailableReply()
+                    } else if (!client.isConfigured) {
                         remoteError =
                             "Tôi nghe được câu hỏi, nhưng chat trực tuyến chưa được cấu hình trong bản Preview này. Các lệnh ứng dụng được hỗ trợ vẫn có thể chạy trên điện thoại."
                     } else {
                         try {
-                            remoteAnswer = withTimeoutOrNull(selectNgocSiAiRemoteTimeoutMillis(cleanQuestion)) {
+                            remoteAnswer = withTimeoutOrNull(
+                                selectNgocSiAiRemoteTimeoutMillis(
+                                    cleanQuestion,
+                                    forceMultimodalReasoning = requiresMultimodalYoutubeAnalysis
+                                )
+                            ) {
                                 client.send(
                                     messages = requestHistory,
                                     executeTool = { action, query -> executeAiAppCommand(action, query) },
                                     entryContext = requestEntryContext,
+                                    mediaContextInstruction = requestMediaContextInstruction,
+                                    youtubeVideoId = requestYoutubeVideoId,
                                     onPartialResponse = { partialResponse ->
                                         // Begin speaking each complete sentence while the next one is
                                         // still generating; subsequent chunks are queued in order.
@@ -910,6 +941,7 @@ class NgocSiWakeWordService : Service() {
                     remoteError != null &&
                     !preferLocalModel &&
                     !localModelNeedsAppTools &&
+                    !requiresMultimodalYoutubeAnalysis &&
                     NgocSiAiOnDeviceModel.isInstalled(applicationContext)
                 ) {
                     try {
@@ -939,15 +971,31 @@ class NgocSiWakeWordService : Service() {
                 }
                 if (stopping) return@launch
 
-                val errorFallback = if (remoteAnswer.isNullOrBlank() && remoteError != null) {
+                val errorFallback = if (
+                    !requiresMultimodalYoutubeAnalysis &&
+                    remoteAnswer.isNullOrBlank() &&
+                    remoteError != null
+                ) {
                     localConversationFallbackAfterRemoteError(
                         userText = cleanQuestion,
                         previousAssistantReply = previousAssistantReply,
                         remoteError = remoteError
                     )
                 } else null
+                val mediaAnalysisUnavailableReply = if (
+                    requiresMultimodalYoutubeAnalysis &&
+                    remoteAnswer.isNullOrBlank() &&
+                    remoteError != null
+                ) {
+                    if (NGOC_SI_AI_YOUTUBE_VIDEO_CONTEXT_MISSING_CODE in remoteError.orEmpty()) {
+                        buildNgocSiAiYoutubeVideoUnavailableReply()
+                    } else {
+                        buildNgocSiAiLocalMediaAnalysisUnavailableReply()
+                    }
+                } else null
                 val answer = localFallback
                     ?: remoteAnswer?.trim()?.takeIf { it.isNotBlank() }
+                    ?: mediaAnalysisUnavailableReply
                     ?: errorFallback
                     ?: remoteError?.takeIf { it.isNotBlank() }
                     ?: "Tôi đã nghe câu hỏi nhưng hiện chưa lấy được câu trả lời. Hãy thử lại sau."
@@ -2050,10 +2098,26 @@ class NgocSiWakeWordService : Service() {
         private const val KEY_WAKE_API_CONVERSATION = "wake_api_conversation_v1"
         private const val KEY_WAKE_LAST_FALLBACK_REPLY = "wake_last_fallback_reply_v1"
 
-        fun start(context: Context, entryContext: String? = null) {
+        fun start(
+            context: Context,
+            entryContext: String? = null,
+            youtubeVideoId: String? = null,
+            mediaTitle: String? = null,
+            mediaChannel: String? = null
+        ) {
             val intent = Intent(context, NgocSiWakeWordService::class.java).setAction(ACTION_START)
-            normalizeNgocSiAiEntryContext(entryContext)?.let { page ->
-                intent.putExtra(NGOC_SI_AI_ENTRY_CONTEXT_EXTRA, page)
+            val page = normalizeNgocSiAiEntryContext(entryContext)
+            page?.let { intent.putExtra(NGOC_SI_AI_ENTRY_CONTEXT_EXTRA, it) }
+            if (page == "YouTube") {
+                normalizeNgocSiAiYoutubeVideoId(youtubeVideoId)?.let {
+                    intent.putExtra(NGOC_SI_AI_ENTRY_MEDIA_VIDEO_ID_EXTRA, it)
+                }
+                mediaTitle?.takeIf { it.isNotBlank() }?.let {
+                    intent.putExtra(NGOC_SI_AI_ENTRY_MEDIA_TITLE_EXTRA, it.take(160))
+                }
+                mediaChannel?.takeIf { it.isNotBlank() }?.let {
+                    intent.putExtra(NGOC_SI_AI_ENTRY_MEDIA_CHANNEL_EXTRA, it.take(100))
+                }
             }
             ContextCompat.startForegroundService(context, intent)
         }

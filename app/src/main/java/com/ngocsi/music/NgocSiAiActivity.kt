@@ -941,7 +941,13 @@ class NgocSiAiActivity : ComponentActivity() {
                 else Toast.makeText(this, "Cần quyền micro để đăng ký giọng nói.", Toast.LENGTH_LONG).show()
             } else if (granted) {
                 try {
-                    NgocSiWakeWordService.start(this, entryContext)
+                    NgocSiWakeWordService.start(
+                        this,
+                        entryContext,
+                        youtubeVideoId = entryYoutubeVideoId,
+                        mediaTitle = intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_TITLE_EXTRA),
+                        mediaChannel = intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_CHANNEL_EXTRA)
+                    )
                     wakeWordListening = true
                     monitorWakeWordStatus()
                 } catch (_: Exception) {
@@ -1913,7 +1919,13 @@ class NgocSiAiActivity : ComponentActivity() {
             ) == PackageManager.PERMISSION_GRANTED
         ) {
             try {
-                NgocSiWakeWordService.start(this, entryContext)
+                NgocSiWakeWordService.start(
+                        this,
+                        entryContext,
+                        youtubeVideoId = entryYoutubeVideoId,
+                        mediaTitle = intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_TITLE_EXTRA),
+                        mediaChannel = intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_CHANNEL_EXTRA)
+                    )
                 wakeWordListening = true
                 monitorWakeWordStatus()
             } catch (_: Exception) {
@@ -2624,7 +2636,15 @@ private fun NgocSiAiPreviewScreen(
             }
 
             try {
-                val requestTimeoutMillis = selectNgocSiAiRemoteTimeoutMillis(clean)
+                val forceMultimodalReasoning = isNgocSiAiYoutubeMultimodalAnalysisRequest(
+                    entryContext,
+                    clean,
+                    history
+                )
+                val requestTimeoutMillis = selectNgocSiAiRemoteTimeoutMillis(
+                    clean,
+                    forceMultimodalReasoning = forceMultimodalReasoning
+                )
                 val reply = kotlinx.coroutines.withTimeoutOrNull(
                     requestTimeoutMillis
                 ) {
@@ -2708,7 +2728,11 @@ private fun NgocSiAiPreviewScreen(
                     ?.let { partial -> "$partial\n\n$errorReply" }
                     ?: localModelReply
                     ?: if (requiresMultimodalYoutubeAnalysis) {
-                        buildNgocSiAiLocalMediaAnalysisUnavailableReply()
+                        if (NGOC_SI_AI_YOUTUBE_VIDEO_CONTEXT_MISSING_CODE in errorReply) {
+                            buildNgocSiAiYoutubeVideoUnavailableReply()
+                        } else {
+                            buildNgocSiAiLocalMediaAnalysisUnavailableReply()
+                        }
                     } else if (localModelNeedsAppTools) {
                         "Gemini đang bị giới hạn. Ứng dụng chưa thực hiện lệnh nhiều bước này; " +
                             "hãy chia thành từng lệnh đơn hoặc thử lại khi Gemini hoạt động."

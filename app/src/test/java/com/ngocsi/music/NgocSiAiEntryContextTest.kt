@@ -161,6 +161,34 @@ class NgocSiAiEntryContextTest {
     }
 
     @Test
+    fun missingYoutubeVideoIdIsReportedInsteadOfSendingTextOnlyAnalysis() {
+        val prompt =
+            "AI, chỉ ra những dấu hiệu nghe được trong bản thu và phân biệt điều gì chưa thể xác minh."
+
+        assertTrue(isNgocSiAiYoutubeVideoAttachmentMissing("YouTube", null, prompt, emptyList()))
+        assertTrue(
+            isNgocSiAiYoutubeVideoAttachmentMissing(
+                "YouTube",
+                "invalid-video-id",
+                prompt,
+                emptyList()
+            )
+        )
+        assertFalse(
+            isNgocSiAiYoutubeVideoAttachmentMissing(
+                "YouTube",
+                "dQw4w9WgXcQ",
+                prompt,
+                emptyList()
+            )
+        )
+        assertFalse(isNgocSiAiYoutubeVideoAttachmentMissing("Radio", null, prompt, emptyList()))
+        val reply = buildNgocSiAiYoutubeVideoUnavailableReply()
+        assertTrue(reply.contains("AI_YOUTUBE_VIDEO_CONTEXT_MISSING"))
+        assertTrue(reply.contains("không suy đoán"))
+    }
+
+    @Test
     fun ordinaryYoutubePlaybackCommandsNeverAttachVideoForAnalysis() {
         listOf(
             "AI, tạm dừng video",

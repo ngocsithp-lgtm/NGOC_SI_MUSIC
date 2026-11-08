@@ -103,6 +103,31 @@ internal fun resolveNgocSiAiYoutubeVideoAnalysisUri(
     return buildNgocSiAiYoutubeVideoUri(currentVideoId)
 }
 
+internal const val NGOC_SI_AI_YOUTUBE_VIDEO_CONTEXT_MISSING_CODE =
+    "AI_YOUTUBE_VIDEO_CONTEXT_MISSING"
+
+/** Never silently downgrade a video-analysis question to text-only generation. */
+internal fun isNgocSiAiYoutubeVideoAttachmentMissing(
+    pageContext: String?,
+    currentVideoId: String?,
+    prompt: String,
+    previousMessages: List<NgocSiAiMessage>
+): Boolean = isNgocSiAiYoutubeMultimodalAnalysisRequest(
+    pageContext,
+    prompt,
+    previousMessages
+) && resolveNgocSiAiYoutubeVideoAnalysisUri(
+    pageContext,
+    currentVideoId,
+    prompt,
+    previousMessages
+) == null
+
+internal fun buildNgocSiAiYoutubeVideoUnavailableReply(): String =
+    "Chưa lấy được mã video YouTube hiện đang mở nên Gemini chưa nhận được âm thanh và hình ảnh để phân tích. " +
+        "Mình sẽ không suy đoán nội dung chỉ từ tiêu đề hoặc ngữ cảnh. Hãy mở NGỌC SĨ AI từ menu của trình phát " +
+        "YouTube đang phát rồi gửi lại yêu cầu. Mã: $NGOC_SI_AI_YOUTUBE_VIDEO_CONTEXT_MISSING_CODE."
+
 /**
  * Convert app-owned navigation state into a small allowlisted page label.
  * Unknown values are discarded rather than forwarded as arbitrary instructions.

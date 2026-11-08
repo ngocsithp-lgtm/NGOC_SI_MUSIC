@@ -98,6 +98,34 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
+    fun shortFollowUpsKeepGeminiFlashWhenTheyCarryCurrentVideoContext() {
+        val prompt = "Tiếp tục"
+
+        assertEquals(ThinkingLevel.LOW, selectNgocSiAiThinkingLevel(prompt))
+        assertEquals(NGOC_SI_AI_FAST_CHAT_MODEL_NAME, selectNgocSiAiModelName(prompt))
+        assertEquals(
+            NGOC_SI_AI_REASONING_MODEL_NAME,
+            selectNgocSiAiModelName(prompt, forceMultimodalReasoning = true)
+        )
+        assertEquals(
+            ThinkingLevel.MEDIUM,
+            selectNgocSiAiGenerationThinkingLevel(
+                prompt,
+                modelName = NGOC_SI_AI_REASONING_MODEL_NAME,
+                forceMultimodalReasoning = true
+            )
+        )
+        assertEquals(
+            NGOC_SI_AI_COMPLEX_REPLY_MAX_OUTPUT_TOKENS,
+            selectNgocSiAiMaxOutputTokens(prompt, forceMultimodalReasoning = true)
+        )
+        assertEquals(
+            NGOC_SI_AI_DEEP_REMOTE_CONVERSATION_TIMEOUT_MILLIS,
+            selectNgocSiAiRemoteTimeoutMillis(prompt, forceMultimodalReasoning = true)
+        )
+    }
+
+    @Test
     fun ordinaryPlaybackAndChatKeepTheirExistingRemoteDeadlines() {
         assertFalse(isNgocSiAiMultimodalVideoAnalysisRequest("AI, tua tới 10 giây"))
         assertFalse(isNgocSiAiMultimodalVideoAnalysisRequest("Xin chào, bạn khỏe không?"))
