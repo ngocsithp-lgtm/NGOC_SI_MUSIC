@@ -17,6 +17,7 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -100,35 +101,96 @@ jobs:
         with:
           gradle-version: "8.11.1"
 
-      - name: Prepare offline Vietnamese ASR runtime and model
+      - name: Cache sherpa-onnx Vietnamese runtime and model
+        uses: actions/cache@v4
+        with:
+          path: |
+            app/libs/sherpa-onnx-1.13.8.aar
+            app/src/main/assets/sherpa-onnx-zipformer-vi-30M-int8-2026-02-09
+          key: ngocsi-sherpa-onnx-vi-30m-int8-2026-02-09-v1
+
+      - name: Prepare sherpa-onnx runtime
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p app/libs app/src/main/assets
+          mkdir -p app/libs
           AAR="app/libs/sherpa-onnx-1.13.8.aar"
-          curl --fail --location --retry 3 --retry-delay 2 --connect-timeout 30 --max-time 600 \
-            "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-1.13.8.aar" \
-            --output "$AAR"
+          if [[ ! -s "$AAR" ]]; then
+            curl --fail --location --retry 5 --retry-all-errors --retry-delay 5 \
+              --connect-timeout 30 --max-time 600 \
+              "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-1.13.8.aar" \
+              --output "$AAR"
+          fi
           test "$(stat -c%s "$AAR")" -gt 40000000
           unzip -tq "$AAR"
           unzip -l "$AAR" | grep -F "jni/arm64-v8a/libsherpa-onnx-jni.so" >/dev/null
+          unzip -l "$AAR" | grep -F "classes.jar" >/dev/null
+
+      - name: Prepare offline Vietnamese ASR model
+        id: vietnamese-asr-model
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
           ASR_MODEL_NAME="sherpa-onnx-zipformer-vi-30M-int8-2026-02-09"
           ASR_MODEL_DIR="app/src/main/assets/${ASR_MODEL_NAME}"
           mkdir -p "$ASR_MODEL_DIR"
-          # Use the Hugging Face mirror for the four runtime assets required by the app.
-          # The upstream GitHub release endpoint has intermittently returned HTTP 504.
-          for MODEL_FILE in encoder.int8.onnx decoder.onnx joiner.int8.onnx tokens.txt; do
-            curl --fail --location --retry 6 --retry-all-errors --retry-delay 5 \
-              --connect-timeout 30 --max-time 600 \
-              "https://huggingface.co/csukuangfj2/${ASR_MODEL_NAME}/resolve/main/${MODEL_FILE}" \
-              --output "$ASR_MODEL_DIR/$MODEL_FILE"
-          done
+          if [[ -s "$ASR_MODEL_DIR/encoder.int8.onnx" && \
+                -s "$ASR_MODEL_DIR/decoder.onnx" && \
+                -s "$ASR_MODEL_DIR/joiner.int8.onnx" && \
+                -s "$ASR_MODEL_DIR/tokens.txt" ]]; then
+            echo "Reusing cached Vietnamese ASR model."
+          else
+            # Prefer the Hugging Face mirror; the upstream GitHub release endpoint has
+            # intermittently returned HTTP 504 in hosted runners.
+            for MODEL_FILE in encoder.int8.onnx decoder.onnx joiner.int8.onnx tokens.txt; do
+              curl --fail --location --retry 6 --retry-all-errors --retry-delay 5 \
+                --connect-timeout 30 --max-time 600 \
+                "https://huggingface.co/csukuangfj2/${ASR_MODEL_NAME}/resolve/main/${MODEL_FILE}" \
+                --output "$ASR_MODEL_DIR/$MODEL_FILE"
+            done
+          fi
           test "$(stat -c%s "$ASR_MODEL_DIR/encoder.int8.onnx")" -gt 20000000
           test "$(stat -c%s "$ASR_MODEL_DIR/decoder.onnx")" -gt 4000000
           test "$(stat -c%s "$ASR_MODEL_DIR/joiner.int8.onnx")" -gt 500000
           test "$(stat -c%s "$ASR_MODEL_DIR/tokens.txt")" -gt 10000
-          echo "Prepared on-device Vietnamese ASR model."
-          unzip -l "$AAR" | grep -F "classes.jar" >/dev/null
+
+      - name: Download model source from last successful Preview APK
+        if: steps.vietnamese-asr-model.outcome == 'failure'
+        uses: actions/download-artifact@v5
+        with:
+          name: NGOC_SI_AI_FIREBASE_PREVIEW_DEBUG_APK
+          path: ${{ runner.temp }}/previous-preview
+          repository: ${{ github.repository }}
+          run-id: 42463688374
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Restore offline Vietnamese ASR model from Preview APK
+        if: steps.vietnamese-asr-model.outcome == 'failure'
+        shell: bash
+        run: |
+          set -euo pipefail
+          ASR_MODEL_NAME="sherpa-onnx-zipformer-vi-30M-int8-2026-02-09"
+          ASR_MODEL_DIR="app/src/main/assets/${ASR_MODEL_NAME}"
+          APK="${RUNNER_TEMP}/previous-preview/app-debug.apk"
+          test -s "$APK"
+          mkdir -p "$ASR_MODEL_DIR"
+          for MODEL_FILE in encoder.int8.onnx decoder.onnx joiner.int8.onnx tokens.txt; do
+            unzip -p "$APK" "assets/${ASR_MODEL_NAME}/${MODEL_FILE}" > "$ASR_MODEL_DIR/$MODEL_FILE"
+            test -s "$ASR_MODEL_DIR/$MODEL_FILE"
+          done
+          echo "Restored Vietnamese ASR model from the previously verified Preview APK."
+
+      - name: Verify offline Vietnamese ASR runtime and model
+        shell: bash
+        run: |
+          set -euo pipefail
+          ASR_MODEL_DIR="app/src/main/assets/sherpa-onnx-zipformer-vi-30M-int8-2026-02-09"
+          test "$(stat -c%s "$ASR_MODEL_DIR/encoder.int8.onnx")" -gt 20000000
+          test "$(stat -c%s "$ASR_MODEL_DIR/decoder.onnx")" -gt 4000000
+          test "$(stat -c%s "$ASR_MODEL_DIR/joiner.int8.onnx")" -gt 500000
+          test "$(stat -c%s "$ASR_MODEL_DIR/tokens.txt")" -gt 10000
+          unzip -l app/libs/sherpa-onnx-1.13.8.aar | grep -F "classes.jar" >/dev/null
           echo "Prepared local Vietnamese ASR runtime and model; owner voice verification remains disabled in Preview."
 
       - name: Android lint
