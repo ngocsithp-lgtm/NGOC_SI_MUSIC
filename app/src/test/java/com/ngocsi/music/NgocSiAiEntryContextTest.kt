@@ -671,4 +671,22 @@ class NgocSiAiEntryContextTest {
 
         assertEquals("", instruction)
     }
+    @Test
+    fun multimodalServerErrorsExplainWhetherTheGoogleSampleOrYoutubeUrlFailed() {
+        val sampleReply = buildNgocSiAiLocalMediaAnalysisUnavailableReply(
+            "Mã chẩn đoán: VIDEO_SAMPLE_SERVER_ERROR.",
+            videoContextAvailable = true
+        )
+        assertTrue(sampleReply.contains("video MP4 mẫu công khai"))
+        assertTrue(sampleReply.contains("không phụ thuộc URL YouTube"))
+        assertTrue(sampleReply.contains("VIDEO_SAMPLE_SERVER_ERROR"))
+
+        val youtubeReply = buildNgocSiAiLocalMediaAnalysisUnavailableReply(
+            "Mã chẩn đoán: YOUTUBE_VIDEO_SERVER_ERROR.",
+            videoContextAvailable = true
+        )
+        assertTrue(youtubeReply.contains("AI, kiểm tra kết nối video mẫu"))
+        assertTrue(youtubeReply.contains("YOUTUBE_VIDEO_SERVER_ERROR"))
+    }
+
 }
