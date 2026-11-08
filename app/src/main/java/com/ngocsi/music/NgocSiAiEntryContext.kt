@@ -95,10 +95,22 @@ internal fun buildNgocSiAiLocalMediaAnalysisUnavailableReply(remoteError: String
             "Firebase báo lỗi xác minh App Check. Kiểm tra debug token của đúng bản Preview và trạng thái App Check cho Firebase AI Logic. Mã: APP_CHECK_TOKEN."
         diagnosticCode == "ACCESS_DENIED_403" ->
             "Firebase từ chối quyền truy cập (403). Cần kiểm tra App Check và quyền của Firebase AI Logic. Mã: ACCESS_DENIED_403."
-        diagnosticCode?.startsWith("AI_QUOTA_") == true ||
-            diagnosticCode == "AI_PAID_TIER_REQUIRED" ||
-            diagnosticCode == "AI_FREE_TIER_PROJECT_RESTRICTED" ->
-            "Gemini trả về lỗi hạn mức hoặc quyền Free Tier. Ứng dụng không tự bật thanh toán. Mã: $diagnosticCode."
+        diagnosticCode == "AI_PAID_TIER_REQUIRED" ||
+            diagnosticCode == "AI_QUOTA_429_PAID_TIER" ->
+            "Model hoặc tính năng Gemini này yêu cầu quyền trả phí. Bản Preview không bật thanh toán và không tự chuyển sang model tính phí. Mã: $diagnosticCode."
+        diagnosticCode == "AI_FREE_TIER_PROJECT_RESTRICTED" ||
+            diagnosticCode == "AI_QUOTA_429_FREE_TIER" ->
+            "Quyền hoặc hạn mức Gemini Free Tier của dự án đang bị giới hạn. Ứng dụng vẫn giữ chế độ không thanh toán. Mã: $diagnosticCode."
+        diagnosticCode == "AI_QUOTA_COOLDOWN" ->
+            "Ứng dụng đang chờ cooldown sau lỗi quota đã ghi nhận trước đó; request mới chưa được gửi lên Gemini. Mã: AI_QUOTA_COOLDOWN."
+        diagnosticCode == "AI_QUOTA_429_DAILY" ->
+            "Hạn mức Gemini trong ngày đã hết. Mã: AI_QUOTA_429_DAILY."
+        diagnosticCode == "AI_QUOTA_429_RATE" ->
+            "Đã chạm giới hạn request trong thời gian ngắn. Mã: AI_QUOTA_429_RATE."
+        diagnosticCode == "AI_QUOTA_429_PROJECT_OR_CAPACITY" ->
+            "Google trả về giới hạn chung của dự án hoặc tình trạng model quá tải. Mã: AI_QUOTA_429_PROJECT_OR_CAPACITY."
+        diagnosticCode?.startsWith("AI_QUOTA_429") == true ->
+            "Google trả về lỗi quota 429 hoặc quá tải model. Ứng dụng không tự bật thanh toán. Mã: $diagnosticCode."
         diagnosticCode == "NETWORK" ->
             "Không kết nối được máy chủ AI qua mạng hiện tại. Mã: NETWORK."
         diagnosticCode == "FIREBASE_CONFIG" ->
