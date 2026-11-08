@@ -225,9 +225,9 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 text(buildNgocSiAiVideoCapabilityDiagnosticPrompt(newestUserMessage.content))
             }
             videoInputUri != null -> content("user") {
-                // This is a YouTube watch URL, not a direct MP4 download. Use the URL-input
-                // MIME type separately from the concrete video/mp4 bytes used by the sample test.
-                // Gemini Developer API accepts one public or unlisted YouTube URL per request.
+                // The YouTube watch URL is resolved by Gemini as a video source. Keep the MIME
+                // type within Firebase AI Logic's documented video MIME types; the public sample
+                // still uses video/mp4 inline bytes through its separate branch.
                 fileData(uri = videoInputUri, mimeType = NGOC_SI_AI_YOUTUBE_URL_MIME_TYPE)
                 text(
                     buildNgocSiAiVideoAnalysisRequestText(
