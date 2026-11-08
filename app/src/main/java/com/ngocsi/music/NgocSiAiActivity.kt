@@ -466,23 +466,61 @@ private fun saveAiApiConversation(
 class NgocSiAiActivity : ComponentActivity() {
     // Preserve the allowlisted page context when wake-word listening is enabled.
     private val entryContext: String?
-        get() = resolveNgocSiAiEntryContext(
-            intent.getStringExtra(NGOC_SI_AI_ENTRY_CONTEXT_EXTRA),
-            NgocSiMainActivityState.entryContextOr()
-        )
+        get() {
+            val page = resolveNgocSiAiEntryContext(
+                intent.getStringExtra(NGOC_SI_AI_ENTRY_CONTEXT_EXTRA),
+                NgocSiMainActivityState.entryContextOr()
+            )
+            val preferences = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+            val youtubeSourceActive = preferences.getBoolean("youtube_active_source", false)
+            val activeMedia = NgocSiMainActivityState.youtubeMediaContextOrNull()
+            val persistedVideoId = if (youtubeSourceActive) {
+                preferences.getString("youtube_last_played_video_id", null)
+            } else {
+                null
+            }
+            return resolveNgocSiAiEntryContextForActiveYoutubePlayback(
+                page,
+                activeMedia?.videoId ?: persistedVideoId
+                    ?: intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_VIDEO_ID_EXTRA),
+                youtubeSourceActive
+            )
+        }
     private val entryMediaContextInstruction: String
-        get() = buildNgocSiAiCurrentYoutubeMediaContextInstruction(
-            entryContext,
-            NgocSiMainActivityState.youtubeMediaContextOrNull(),
-            intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_TITLE_EXTRA),
-            intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_CHANNEL_EXTRA)
-        )
+        get() {
+            val preferences = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+            val usePersistedYoutubeMetadata =
+                preferences.getBoolean("youtube_active_source", false)
+            return buildNgocSiAiCurrentYoutubeMediaContextInstruction(
+                entryContext,
+                NgocSiMainActivityState.youtubeMediaContextOrNull(),
+                intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_TITLE_EXTRA)
+                    ?: if (usePersistedYoutubeMetadata) {
+                        preferences.getString("youtube_last_played_title", null)
+                    } else null,
+                intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_CHANNEL_EXTRA)
+                    ?: if (usePersistedYoutubeMetadata) {
+                        preferences.getString("youtube_last_played_channel", null)
+                    } else null
+            )
+        }
     private val entryYoutubeVideoId: String?
-        get() = resolveNgocSiAiCurrentYoutubeVideoId(
-            entryContext,
-            NgocSiMainActivityState.youtubeMediaContextOrNull()?.videoId,
-            intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_VIDEO_ID_EXTRA)
-        )
+        get() {
+            val preferences = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+            val persistedVideoId = if (
+                preferences.getBoolean("youtube_active_source", false)
+            ) {
+                preferences.getString("youtube_last_played_video_id", null)
+            } else {
+                null
+            }
+            return resolveNgocSiAiCurrentYoutubeVideoId(
+                entryContext,
+                NgocSiMainActivityState.youtubeMediaContextOrNull()?.videoId
+                    ?: persistedVideoId,
+                intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_VIDEO_ID_EXTRA)
+            )
+        }
     private var recognizedSpeech by mutableStateOf("")
     private var recognizedSpeechShouldSend by mutableStateOf(false)
     // Show live partial transcription so voice chat visibly responds while the user speaks.
@@ -1018,10 +1056,7 @@ class NgocSiAiActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val aiEntryContext = resolveNgocSiAiEntryContext(
-            intent.getStringExtra(NGOC_SI_AI_ENTRY_CONTEXT_EXTRA),
-            NgocSiMainActivityState.entryContextOr()
-        )
+        val aiEntryContext = entryContext
         // Prefer the page that opened this AI screen; MainActivity will keep it current
         // as the user navigates after the AI UI has been closed.
         NgocSiMainActivityState.updateEntryContext(aiEntryContext)
@@ -1139,7 +1174,7 @@ class NgocSiAiActivity : ComponentActivity() {
                     aiClient.send(
                         history,
                         executeTool,
-                        entryContext = aiEntryContext,
+                        entryContext = entryContext,
                         mediaContextInstruction = entryMediaContextInstruction,
                         youtubeVideoId = entryYoutubeVideoId,
                         onPartialResponse = onPartialResponse
@@ -2733,7 +2768,12 @@ private fun NgocSiAiPreviewScreen(
                         if (NGOC_SI_AI_YOUTUBE_VIDEO_CONTEXT_MISSING_CODE in errorReply) {
                             buildNgocSiAiYoutubeVideoUnavailableReply()
                         } else {
-                            buildNgocSiAiLocalMediaAnalysisUnavailableReply(errorReply)
+                            buildNgocSiAiLocalMediaAnalysisUnavailableReply(
+                                errorReply,
+                                videoContextAvailable =
+                                    normalizeNgocSiAiEntryContext(entryContext) == "YouTube" &&
+                                        NGOC_SI_AI_YOUTUBE_VIDEO_CONTEXT_MISSING_CODE !in errorReply
+                            )
                         }
                     } else if (localModelNeedsAppTools) {
                         "Gemini đang bị giới hạn. Ứng dụng chưa thực hiện lệnh nhiều bước này; " +
