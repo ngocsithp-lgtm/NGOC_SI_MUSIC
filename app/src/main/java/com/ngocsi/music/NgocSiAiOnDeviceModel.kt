@@ -319,21 +319,22 @@ internal object NgocSiAiOnDeviceModel {
             }
             // Recreate the lightweight conversation from app-persisted history each turn.
             // The native Engine stays loaded; only the conversation state is rebuilt.
-            resetConversation()
-            ensureEngine(
-                context.applicationContext,
-                onDeviceMemories,
-                entryContext,
-                mediaContextInstruction
-            )
-            val activeConversation = checkNotNull(conversation) {
-                "Mô hình AI ngoại tuyến chưa sẵn sàng."
-            }
             val promptWithMemory = buildPromptWithMemories(
                 cleanPrompt,
                 onDeviceMemories,
                 priorMessages
             )
+            resetConversation()
+            ensureEngine(
+                context.applicationContext,
+                onDeviceMemories,
+                entryContext,
+                mediaContextInstruction,
+                cleanPrompt
+            )
+            val activeConversation = checkNotNull(conversation) {
+                "Mô hình AI ngoại tuyến chưa sẵn sàng."
+            }
             val reply = StringBuilder()
             try {
                 activeConversation.sendMessageAsync(promptWithMemory).collect { chunk ->
@@ -371,7 +372,8 @@ internal object NgocSiAiOnDeviceModel {
         context: Context,
         memories: List<String>,
         entryContext: String?,
-        mediaContextInstruction: String? = null
+        mediaContextInstruction: String? = null,
+        prompt: String
     ) {
         val path = modelFile(context).absolutePath
         if (engine == null || loadedModelPath != path) {
@@ -411,9 +413,7 @@ internal object NgocSiAiOnDeviceModel {
                         enableThinking = false,
                         thinkingTokenBudget = 0
                     ),
-                    maxOutputToken = selectNgocSiAiLocalMaxOutputTokens(
-                        buildPromptWithMemories("", memories, emptyList())
-                    )
+                    maxOutputToken = selectNgocSiAiLocalMaxOutputTokens(prompt)
                 )
             )
         }
