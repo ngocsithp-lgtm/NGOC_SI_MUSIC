@@ -327,7 +327,7 @@ class NgocSiAiEntryContextTest {
         assertTrue(instruction.contains("Chưa thể xác minh"))
         assertTrue(instruction.contains("độ rõ phụ âm/nguyên âm"))
         assertTrue(instruction.contains("không yêu cầu người dùng gửi lại khung hình hay lời ca"))
-        assertTrue(instruction.contains("chưa thể kết luận từ dữ liệu hiện có"))
+        assertTrue(instruction.contains("không thể kết luận từ dữ liệu hiện có"))
     }
 
     @Test
