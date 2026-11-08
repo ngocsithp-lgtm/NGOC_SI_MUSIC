@@ -491,17 +491,21 @@ class NgocSiAiActivity : ComponentActivity() {
             val preferences = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
             val usePersistedYoutubeMetadata =
                 preferences.getBoolean("youtube_active_source", false)
+            val youtubePlayerActivityActive =
+                preferences.getBoolean("youtube_player_activity_active", false)
             return buildNgocSiAiCurrentYoutubeMediaContextInstruction(
                 entryContext,
-                NgocSiMainActivityState.youtubeMediaContextOrNull(),
+                if (youtubePlayerActivityActive) null
+                else NgocSiMainActivityState.youtubeMediaContextOrNull(),
                 intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_TITLE_EXTRA)
-                    ?: if (usePersistedYoutubeMetadata) {
+                    ?: if (usePersistedYoutubeMetadata || youtubePlayerActivityActive) {
                         preferences.getString("youtube_last_played_title", null)
                     } else null,
                 intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_CHANNEL_EXTRA)
-                    ?: if (usePersistedYoutubeMetadata) {
+                    ?: if (usePersistedYoutubeMetadata || youtubePlayerActivityActive) {
                         preferences.getString("youtube_last_played_channel", null)
-                    } else null
+                    } else null,
+                preferLaunchMetadata = youtubePlayerActivityActive
             )
         }
     private val entryYoutubeVideoId: String?
@@ -514,11 +518,14 @@ class NgocSiAiActivity : ComponentActivity() {
             } else {
                 null
             }
+            val youtubePlayerActivityActive =
+                preferences.getBoolean("youtube_player_activity_active", false)
             return resolveNgocSiAiCurrentYoutubeVideoId(
                 entryContext,
                 NgocSiMainActivityState.youtubeMediaContextOrNull()?.videoId
                     ?: persistedVideoId,
-                intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_VIDEO_ID_EXTRA)
+                intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_VIDEO_ID_EXTRA),
+                preferLaunchVideoId = youtubePlayerActivityActive
             )
         }
     private var recognizedSpeech by mutableStateOf("")

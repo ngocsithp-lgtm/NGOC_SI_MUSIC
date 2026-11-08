@@ -272,11 +272,14 @@ internal fun buildNgocSiAiMediaContextInstruction(
 internal fun resolveNgocSiAiCurrentYoutubeVideoId(
     pageContext: String?,
     activeVideoId: String?,
-    launchVideoId: String?
+    launchVideoId: String?,
+    preferLaunchVideoId: Boolean = false
 ): String? {
     if (normalizeNgocSiAiEntryContext(pageContext) != "YouTube") return null
-    return normalizeNgocSiAiYoutubeVideoId(activeVideoId)
-        ?: normalizeNgocSiAiYoutubeVideoId(launchVideoId)
+    val preferredId = if (preferLaunchVideoId) launchVideoId else activeVideoId
+    val fallbackId = if (preferLaunchVideoId) activeVideoId else launchVideoId
+    return normalizeNgocSiAiYoutubeVideoId(preferredId)
+        ?: normalizeNgocSiAiYoutubeVideoId(fallbackId)
 }
 
 /**
@@ -307,12 +310,13 @@ internal fun buildNgocSiAiCurrentYoutubeMediaContextInstruction(
     pageContext: String?,
     activeMedia: NgocSiAiYoutubeMediaContextSnapshot?,
     launchTitle: String?,
-    launchChannel: String?
+    launchChannel: String?,
+    preferLaunchMetadata: Boolean = false
 ): String {
     if (normalizeNgocSiAiEntryContext(pageContext) != "YouTube") return ""
     val validActiveMedia = activeMedia?.takeIf {
         normalizeNgocSiAiYoutubeVideoId(it.videoId) != null
-    }
+    }?.takeUnless { preferLaunchMetadata }
     return if (validActiveMedia != null) {
         buildNgocSiAiMediaContextInstruction(
             "YouTube",
