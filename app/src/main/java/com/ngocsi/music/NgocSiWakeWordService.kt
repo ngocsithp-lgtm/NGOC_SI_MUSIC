@@ -761,19 +761,34 @@ class NgocSiWakeWordService : Service() {
         // Service starts. The main page and dedicated player publish queue selections
         // into this process-wide snapshot, so an already-running session follows Next
         // and newly selected videos instead of reusing its launch-time video ID.
-        val requestEntryContext = NgocSiMainActivityState.entryContextOr(aiEntryContext)
-        val activeYoutubeMediaContext = if (requestEntryContext == "YouTube") {
-            NgocSiMainActivityState.youtubeMediaContextOrNull()
+        val activeYoutubeMediaContext = NgocSiMainActivityState.youtubeMediaContextOrNull()
+        val playbackPreferences = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+        val youtubeSourceActive = playbackPreferences.getBoolean("youtube_active_source", false)
+        val persistedVideoId = if (youtubeSourceActive) {
+            playbackPreferences.getString("youtube_last_played_video_id", null)
         } else {
             null
         }
+        val requestEntryContext = resolveNgocSiAiEntryContextForActiveYoutubePlayback(
+            NgocSiMainActivityState.entryContextOr(aiEntryContext),
+            activeYoutubeMediaContext?.videoId ?: persistedVideoId ?: aiEntryYoutubeVideoId,
+            youtubeSourceActive
+        )
         val requestYoutubeVideoId = normalizeNgocSiAiYoutubeVideoId(
-            activeYoutubeMediaContext?.videoId ?: aiEntryYoutubeVideoId
+            activeYoutubeMediaContext?.videoId ?: persistedVideoId ?: aiEntryYoutubeVideoId
         ).takeIf { requestEntryContext == "YouTube" }
         val requestMediaContextInstruction = activeYoutubeMediaContext?.let { media ->
             buildNgocSiAiMediaContextInstruction("YouTube", media.title, media.channel)
-        } ?: aiEntryMediaContextInstruction
-            .takeIf { requestEntryContext == "YouTube" }.orEmpty()
+        } ?: if (youtubeSourceActive && requestEntryContext == "YouTube") {
+            buildNgocSiAiMediaContextInstruction(
+                "YouTube",
+                playbackPreferences.getString("youtube_last_played_title", null),
+                playbackPreferences.getString("youtube_last_played_channel", null)
+            )
+        } else {
+            aiEntryMediaContextInstruction
+                .takeIf { requestEntryContext == "YouTube" }.orEmpty()
+        }
         val requiresMultimodalYoutubeAnalysis = isNgocSiAiYoutubeMultimodalAnalysisRequest(
             pageContext = requestEntryContext,
             prompt = cleanQuestion,
@@ -1001,7 +1016,12 @@ class NgocSiWakeWordService : Service() {
                     if (NGOC_SI_AI_YOUTUBE_VIDEO_CONTEXT_MISSING_CODE in remoteError.orEmpty()) {
                         buildNgocSiAiYoutubeVideoUnavailableReply()
                     } else {
-                        buildNgocSiAiLocalMediaAnalysisUnavailableReply(remoteError)
+                        buildNgocSiAiLocalMediaAnalysisUnavailableReply(
+                            remoteError,
+                            videoContextAvailable =
+                                requestYoutubeVideoId != null &&
+                                    NGOC_SI_AI_YOUTUBE_VIDEO_CONTEXT_MISSING_CODE !in remoteError.orEmpty()
+                        )
                     }
                 } else null
                 val answer = localFallback
