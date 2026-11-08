@@ -37,6 +37,7 @@ internal fun ngocSiAiRemoteDiagnosticExceptionType(classNames: List<String>): St
 internal const val NGOC_SI_AI_REMOTE_CONVERSATION_TIMEOUT_MILLIS = 25_000L
 internal const val NGOC_SI_AI_COMPLEX_REMOTE_CONVERSATION_TIMEOUT_MILLIS = 40_000L
 internal const val NGOC_SI_AI_DEEP_REMOTE_CONVERSATION_TIMEOUT_MILLIS = 60_000L
+internal const val NGOC_SI_AI_VIDEO_ANALYSIS_TIMEOUT_MILLIS = 120_000L
 
 
 /** Retry only a safe, pre-output text request after a transient transport/server failure. */
@@ -246,16 +247,29 @@ internal fun selectNgocSiAiRemoteTimeoutMillis(
         else -> NGOC_SI_AI_REMOTE_CONVERSATION_TIMEOUT_MILLIS
     }
     return if (forceMultimodalReasoning || isNgocSiAiMultimodalVideoAnalysisRequest(prompt)) {
-        maxOf(normalBudget, NGOC_SI_AI_DEEP_REMOTE_CONVERSATION_TIMEOUT_MILLIS)
+        maxOf(normalBudget, NGOC_SI_AI_VIDEO_ANALYSIS_TIMEOUT_MILLIS)
     } else {
         normalBudget
     }
 }
 
-internal fun ngocSiAiRemoteTimeoutMessage(prompt: String): String {
-    val seconds = selectNgocSiAiRemoteTimeoutMillis(prompt) / 1_000L
-    return "Máy chủ Gemini chưa hoàn tất câu trả lời sau $seconds giây. " +
-        "Hãy thử câu hỏi ngắn hơn hoặc kiểm tra Internet; các lệnh điều khiển trên điện thoại vẫn hoạt động."
+internal fun ngocSiAiRemoteTimeoutMessage(
+    prompt: String,
+    forceMultimodalReasoning: Boolean = false
+): String {
+    val isVideoAnalysis =
+        forceMultimodalReasoning || isNgocSiAiMultimodalVideoAnalysisRequest(prompt)
+    val seconds = selectNgocSiAiRemoteTimeoutMillis(
+        prompt,
+        forceMultimodalReasoning = forceMultimodalReasoning
+    ) / 1_000L
+    return if (isVideoAnalysis) {
+        "Gemini chưa hoàn tất phân tích video sau $seconds giây. Mã: VIDEO_ANALYSIS_TIMEOUT. " +
+            "Chưa đủ bằng chứng để kết luận lỗi quota hay mạng; video YouTube hiện tại vẫn có thể tiếp tục phát."
+    } else {
+        "Máy chủ Gemini chưa hoàn tất câu trả lời sau $seconds giây. " +
+            "Hãy thử câu hỏi ngắn hơn hoặc kiểm tra Internet; các lệnh điều khiển trên điện thoại vẫn hoạt động."
+    }
 }
 
 /**

@@ -2700,7 +2700,12 @@ private fun NgocSiAiPreviewScreen(
                             latestPartialReply = partial
                         }
                     }
-                } ?: throw NgocSiAiRemoteException(ngocSiAiRemoteTimeoutMessage(clean))
+                } ?: throw NgocSiAiRemoteException(
+                    ngocSiAiRemoteTimeoutMessage(
+                        clean,
+                        forceMultimodalReasoning = forceMultimodalReasoning
+                    )
+                )
                 conversation.add(NgocSiAiMessage(role = "assistant", content = reply.answer))
                 finishRemoteReply(reply.answer)
                 persistChatState()

@@ -73,7 +73,7 @@ class NgocSiAiRemotePolicyTest {
         )
         assertTrue(isNgocSiAiMultimodalVideoAnalysisRequest(prompt))
         assertEquals(
-            NGOC_SI_AI_DEEP_REMOTE_CONVERSATION_TIMEOUT_MILLIS,
+            NGOC_SI_AI_VIDEO_ANALYSIS_TIMEOUT_MILLIS,
             selectNgocSiAiRemoteTimeoutMillis(prompt)
         )
     }
@@ -104,7 +104,7 @@ class NgocSiAiRemotePolicyTest {
                 selectNgocSiAiMaxOutputTokens(prompt, forceMultimodalReasoning = true)
             )
             assertEquals(
-                NGOC_SI_AI_DEEP_REMOTE_CONVERSATION_TIMEOUT_MILLIS,
+                NGOC_SI_AI_VIDEO_ANALYSIS_TIMEOUT_MILLIS,
                 selectNgocSiAiRemoteTimeoutMillis(prompt, forceMultimodalReasoning = true)
             )
         }
@@ -193,9 +193,28 @@ class NgocSiAiRemotePolicyTest {
             selectNgocSiAiMaxOutputTokens(prompt, forceMultimodalReasoning = true)
         )
         assertEquals(
-            NGOC_SI_AI_DEEP_REMOTE_CONVERSATION_TIMEOUT_MILLIS,
+            NGOC_SI_AI_VIDEO_ANALYSIS_TIMEOUT_MILLIS,
             selectNgocSiAiRemoteTimeoutMillis(prompt, forceMultimodalReasoning = true)
         )
+    }
+
+
+    @Test
+    fun videoAnalysisGetsDedicatedTwoMinuteDeadlineAndSpecificTimeoutDiagnostic() {
+        val prompt = "AI, phân tích video đang phát."
+        assertEquals(120_000L, NGOC_SI_AI_VIDEO_ANALYSIS_TIMEOUT_MILLIS)
+        assertEquals(120_000L, selectNgocSiAiRemoteTimeoutMillis(prompt))
+        assertEquals(
+            120_000L,
+            selectNgocSiAiRemoteTimeoutMillis("Tiếp tục", forceMultimodalReasoning = true)
+        )
+        val timeoutMessage = ngocSiAiRemoteTimeoutMessage(
+            "Tiếp tục",
+            forceMultimodalReasoning = true
+        )
+        assertTrue(timeoutMessage.contains("120 giây"))
+        assertTrue(timeoutMessage.contains("VIDEO_ANALYSIS_TIMEOUT"))
+        assertTrue(timeoutMessage.contains("Chưa đủ bằng chứng"))
     }
 
     @Test
