@@ -284,6 +284,41 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
+    fun videoSampleDownloadFailuresReportSafeSpecificCauses() {
+        assertTrue(
+            describeNgocSiAiVideoSampleDownloadFailure(java.io.IOException("HTTP 403"))
+                .contains("VIDEO_SAMPLE_HTTP_403")
+        )
+        assertTrue(
+            describeNgocSiAiVideoSampleDownloadFailure(java.io.IOException("HTTP 404"))
+                .contains("VIDEO_SAMPLE_HTTP_404")
+        )
+        assertTrue(
+            describeNgocSiAiVideoSampleDownloadFailure(java.net.SocketTimeoutException("timeout"))
+                .contains("VIDEO_SAMPLE_TIMEOUT")
+        )
+        val dnsFailure = describeNgocSiAiVideoSampleDownloadFailure(
+            java.io.IOException("transport", java.net.UnknownHostException("private-host"))
+        )
+        assertTrue(dnsFailure.contains("VIDEO_SAMPLE_DNS"))
+        assertFalse(dnsFailure.contains("private-host"))
+        assertTrue(
+            describeNgocSiAiVideoSampleDownloadFailure(
+                java.io.IOException("Video sample exceeds inline request limit")
+            ).contains("VIDEO_SAMPLE_TOO_LARGE")
+        )
+        assertTrue(
+            describeNgocSiAiVideoSampleDownloadFailure(java.io.IOException("Empty video sample"))
+                .contains("VIDEO_SAMPLE_EMPTY_RESPONSE")
+        )
+        assertTrue(
+            describeNgocSiAiVideoSampleDownloadFailure(
+                javax.net.ssl.SSLHandshakeException("certificate detail")
+            ).contains("VIDEO_SAMPLE_TLS")
+        )
+    }
+
+    @Test
     fun ordinaryPlaybackAndChatKeepTheirExistingRemoteDeadlines() {
         assertFalse(isNgocSiAiMultimodalVideoAnalysisRequest("AI, tua tới 10 giây"))
         assertFalse(isNgocSiAiMultimodalVideoAnalysisRequest("Xin chào, bạn khỏe không?"))

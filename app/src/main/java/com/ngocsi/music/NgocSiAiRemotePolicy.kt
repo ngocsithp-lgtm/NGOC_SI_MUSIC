@@ -85,6 +85,57 @@ internal const val NGOC_SI_AI_VIDEO_ANALYSIS_TIMEOUT_MILLIS = 120_000L
 internal const val NGOC_SI_AI_VIDEO_DIAGNOSTIC_SAMPLE_URI =
     "https://storage.googleapis.com/cloud-samples-data/video/animals.mp4"
 
+/**
+ * Convert the MP4 canary's transport failure into a safe, actionable diagnostic.
+ * Do not expose raw URLs, proxy details, certificates, or arbitrary exception text.
+ */
+internal fun describeNgocSiAiVideoSampleDownloadFailure(error: Throwable): String {
+    val chain = generateSequence(error) { it.cause }.take(8).toList()
+    val details = chain.joinToString(" ") { it.message.orEmpty() }.lowercase()
+    val httpStatus = Regex("""(?i)\bHTTP\s+([1-5]\d{2})\b""")
+        .find(details)
+        ?.groupValues
+        ?.getOrNull(1)
+
+    val tooLarge = details.contains("video sample exceeds inline request limit")
+    val emptyResponse = details.contains("empty video sample") ||
+        details.contains("missing video body")
+    val timedOut = chain.any { it is java.net.SocketTimeoutException } ||
+        details.contains("timed out") || details.contains("timeout")
+    val unknownHost = chain.any { it is java.net.UnknownHostException }
+    val tlsFailure = chain.any { it is javax.net.ssl.SSLException }
+    val connectionFailure = chain.any { it is java.net.ConnectException }
+
+    val diagnosticCode = when {
+        httpStatus != null -> "VIDEO_SAMPLE_HTTP_$httpStatus"
+        tooLarge -> "VIDEO_SAMPLE_TOO_LARGE"
+        emptyResponse -> "VIDEO_SAMPLE_EMPTY_RESPONSE"
+        timedOut -> "VIDEO_SAMPLE_TIMEOUT"
+        unknownHost -> "VIDEO_SAMPLE_DNS"
+        tlsFailure -> "VIDEO_SAMPLE_TLS"
+        connectionFailure -> "VIDEO_SAMPLE_CONNECTION"
+        chain.any { it is java.io.IOException } -> "VIDEO_SAMPLE_IO"
+        else -> "VIDEO_SAMPLE_DOWNLOAD_ERROR"
+    }
+    val reason = when {
+        httpStatus != null -> when (httpStatus) {
+            "403" -> "máy chủ mẫu từ chối quyền đọc (HTTP 403)."
+            "404" -> "không tìm thấy tệp mẫu (HTTP 404)."
+            "429" -> "máy chủ mẫu đang giới hạn lượt tải (HTTP 429)."
+            else -> "máy chủ mẫu trả về HTTP $httpStatus."
+        }
+        tooLarge -> "tệp mẫu vượt giới hạn 14 MiB của trình kiểm tra."
+        emptyResponse -> "máy chủ không trả về dữ liệu video hợp lệ."
+        timedOut -> "kết nối tải video đã quá thời gian chờ."
+        unknownHost -> "điện thoại không phân giải được tên miền máy chủ mẫu (kiểm tra DNS/Private DNS)."
+        tlsFailure -> "kết nối HTTPS gặp lỗi chứng chỉ hoặc TLS."
+        connectionFailure -> "điện thoại không mở được kết nối tới máy chủ mẫu."
+        chain.any { it is java.io.IOException } -> "có lỗi khi đọc dữ liệu từ máy chủ mẫu."
+        else -> "đã xảy ra lỗi tải video chưa xác định."
+    }
+    return "Không tải được video MP4 mẫu: $reason Mã chẩn đoán: $diagnosticCode."
+}
+
 internal fun isNgocSiAiVideoCapabilityDiagnosticRequest(prompt: String): Boolean {
     val normalized = normalizeNgocSiAiVoicePhrase(prompt)
     val asksForTest = listOf(

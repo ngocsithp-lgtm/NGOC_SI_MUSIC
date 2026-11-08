@@ -624,10 +624,11 @@ internal class NgocSiAiRemoteClient(context: Context) {
                         }
                     }
                 }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (error: Exception) {
                 throw NgocSiAiRemoteException(
-                    "Không tải được video MP4 mẫu để kiểm tra. Hãy thử lại khi kết nối mạng ổn định. " +
-                        "Mã chẩn đoán: VIDEO_SAMPLE_DOWNLOAD_ERROR."
+                    describeNgocSiAiVideoSampleDownloadFailure(error)
                 )
             }
         }
