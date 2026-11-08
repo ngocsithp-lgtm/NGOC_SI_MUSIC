@@ -85,7 +85,10 @@ internal fun isNgocSiAiYoutubeMultimodalAnalysisRequest(
     shouldAttachNgocSiAiYoutubeVideo(prompt, previousMessages)
 
 /** Qwen3-0.6B is text-only; never imply it listened to the active YouTube recording. */
-internal fun buildNgocSiAiLocalMediaAnalysisUnavailableReply(remoteError: String? = null): String {
+internal fun buildNgocSiAiLocalMediaAnalysisUnavailableReply(
+    remoteError: String? = null,
+    videoContextAvailable: Boolean = false
+): String {
     val diagnosticCode = Regex("(?:Mã chẩn đoán|Mã):\\s*([A-Z0-9_]+)")
         .find(remoteError.orEmpty())
         ?.groupValues
@@ -128,10 +131,16 @@ internal fun buildNgocSiAiLocalMediaAnalysisUnavailableReply(remoteError: String
         else ->
             "Ứng dụng chưa nhận được mã lỗi chi tiết từ Firebase; chưa thể kết luận là hết quota, App Check hay lỗi mạng."
     }
+    val videoContextGuidance = if (videoContextAvailable) {
+        "Ứng dụng đã nhận diện được video YouTube hiện tại và xác định URL để đưa vào yêu cầu Gemini. " +
+            "Bạn không cần mở lại NGỌC SĨ AI từ trang YouTube. Hãy giữ video hiện tại; khi Gemini hoạt động lại, gửi lại câu hỏi. "
+    } else {
+        "Ứng dụng chưa xác nhận được video đang phát. Hãy mở NGỌC SĨ AI từ trang YouTube đang phát rồi gửi lại câu hỏi. "
+    }
     return "Gemini trực tuyến chưa phân tích được video. $diagnostic " +
         "AI tại máy Qwen3-0.6B chỉ xử lý văn bản, không nhận được âm thanh hay hình ảnh từ video YouTube đang phát, " +
         "nên mình chưa thể chỉ ra dấu hiệu nghe được trong bản thu và sẽ không tự đoán. Video hiện tại vẫn có thể tiếp tục phát bình thường. " +
-        "Khi lỗi được xử lý, hãy giữ video đang mở, mở NGỌC SĨ AI từ trang YouTube và gửi lại câu hỏi."
+        videoContextGuidance
 }
 
 internal fun resolveNgocSiAiYoutubeVideoAnalysisUri(
@@ -250,6 +259,26 @@ internal fun resolveNgocSiAiCurrentYoutubeVideoId(
     if (normalizeNgocSiAiEntryContext(pageContext) != "YouTube") return null
     return normalizeNgocSiAiYoutubeVideoId(activeVideoId)
         ?: normalizeNgocSiAiYoutubeVideoId(launchVideoId)
+}
+
+/**
+ * If YouTube is the selected playback source, keep video-analysis requests connected
+ * to that player even when the AI screen was opened from a generic app page.
+ * Explicit Radio, Drive, and TV pages remain authoritative.
+ */
+internal fun resolveNgocSiAiEntryContextForActiveYoutubePlayback(
+    pageContext: String?,
+    activeVideoId: String?,
+    youtubeSourceActive: Boolean
+): String? {
+    val page = normalizeNgocSiAiEntryContext(pageContext)
+    if (!youtubeSourceActive || normalizeNgocSiAiYoutubeVideoId(activeVideoId) == null) {
+        return page
+    }
+    return when (page) {
+        "Radio", "Google Drive", "TV" -> page
+        else -> "YouTube"
+    }
 }
 
 /**
