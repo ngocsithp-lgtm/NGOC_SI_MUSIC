@@ -51,6 +51,22 @@ Quota cooldowns are stored per model. A limit reached by `gemini-3.8-flash` must
 
 The optional local Qwen3-0.6B fallback runs through LiteRT-LM on the phone and is never uploaded to a cloud provider. It is deliberately skipped for YouTube video/audio evidence analysis in both screen chat and hands-free wake-word sessions, because the local model is text-only; the active video ID and metadata are passed from the YouTube page into the hands-free service before each Gemini request. Its conversation disables Qwen3's default thinking mode and caps output at 384 tokens for simple replies or 640 tokens for contextual follow-ups/explicit analysis, keeping the small local model focused and limiting unnecessary decode time. These are response-generation limits, not a claim that local Qwen3 has Gemini-level reasoning quality. The model must first be explicitly downloaded by the user; local fallback is skipped for app-control tool actions and multimodal YouTube analysis.\n\nSince November 2, 2026, Firebase AI Logic requires App Check enforcement. The debug Preview therefore also needs a valid Debug App Check token registered for the exact `com.ngocsi.music.aipreview` Firebase app. If App Check rejects the request, switching models will not fix it; inspect Firebase Console → App Check → Firebase AI Logic metrics and use the error diagnostic shown by the app. Never share the debug token in chat.
 
+## Video-path diagnostic added in Preview 6.11
+
+From the YouTube page or any NGỌC SĨ AI chat, send this exact request:
+
+`AI, kiểm tra kết nối video mẫu.`
+
+The app sends Google's public MP4 sample (`animals.mp4`) through the same Firebase AI Logic multimodal request path. It does not pause, replace, or otherwise control the YouTube player.
+
+Interpret the result:
+
+- If the sample video is analyzed and NGỌC SĨ AI describes what is actually visible, Firebase AI Logic, the selected Gemini model, App Check, and the MP4 URL path are working. If a YouTube video still fails, check that the individual YouTube video is public or unlisted and available to Google's processing service.
+- If the sample returns `VIDEO_SAMPLE_SERVER_ERROR`, the problem is not specific to the active YouTube URL. Check Firebase AI Logic availability, App Check verification for the exact Preview app, and model access/quota.
+- If only a YouTube URL returns `YOUTUBE_VIDEO_SERVER_ERROR`, the server did not expose an HTTP status; run the sample test before drawing conclusions.
+
+This diagnostic is explicit opt-in and does not run on ordinary chat or playback commands. It does not enable billing or change the production app.
+
 ## 6. Test only after a preview is built intentionally
 
 The latest Preview commit before this update passed GitHub Actions Android lint, unit tests, debug APK packaging, 16 KB native-library alignment checks, Preview-package isolation checks, and APK-signature verification. This does not prove live Firebase/App Check access or real-device speech and background behavior. On the phone, verify in order: install the Preview alongside the stable app; open the AI screen; submit one short typed question; verify TTS; test local media commands; test YouTube while foregrounded and with the screen off; then test quota/network failure behavior. A local-command success does not prove the online model works.
