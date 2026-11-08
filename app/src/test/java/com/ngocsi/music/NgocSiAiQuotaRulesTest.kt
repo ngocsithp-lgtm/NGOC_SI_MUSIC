@@ -166,6 +166,18 @@ class NgocSiAiQuotaRulesTest {
             )
         )
         assertEquals(
+            NgocSiAiQuotaCooldownKind.FREE_TIER,
+            classifyNgocSiAiQuotaErrorDetails("GenerateContent_Free_Tier")
+        )
+        assertEquals(
+            NgocSiAiQuotaCooldownKind.FREE_TIER,
+            classifyNgocSiAiQuotaErrorDetails("limit: 0")
+        )
+        assertEquals(
+            "AI_QUOTA_429_FREE_TIER",
+            ngocSiAiQuotaDiagnosticCode("GenerateContent_Free_Tier")
+        )
+        assertEquals(
             NgocSiAiQuotaCooldownKind.TEMPORARY,
             classifyNgocSiAiQuotaErrorDetails("The model is overloaded; HTTP 429")
         )
