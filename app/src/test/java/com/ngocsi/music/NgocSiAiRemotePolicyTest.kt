@@ -871,11 +871,17 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
-    fun flashLiteUsesOnlySupportedMinimalThinkingForReasoningAndToolRequests() {
+    fun modelSpecificThinkingLevelsStaySupportedForReasoningAndToolRequests() {
+        val mediumPrompt = "Hãy phân tích kỹ nguyên nhân và lập kế hoạch khắc phục."
+        assertEquals(
+            ThinkingLevel.MEDIUM,
+            selectNgocSiAiGenerationThinkingLevel(mediumPrompt)
+        )
         assertEquals(
             ThinkingLevel.MINIMAL,
             selectNgocSiAiGenerationThinkingLevel(
-                "Hãy phân tích kỹ nguyên nhân và lập kế hoạch khắc phục."
+                mediumPrompt,
+                modelName = NGOC_SI_AI_FAST_CHAT_MODEL_NAME
             )
         )
         assertEquals(

@@ -223,7 +223,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
             val responseConfig = generationConfig {
                 maxOutputTokens = selectNgocSiAiMaxOutputTokens(newestUserMessage.content)
                 thinkingConfig = thinkingConfig {
-                    // Flash-Lite uses MINIMAL for simple chat; app tool calls retain LOW.
+                    // Flash-Lite is MINIMAL-only; MEDIUM reasoning runs on Gemini Flash.
                     thinkingLevel = selectNgocSiAiGenerationThinkingLevel(
                         newestUserMessage.content,
                         offersAppCommandTool,
