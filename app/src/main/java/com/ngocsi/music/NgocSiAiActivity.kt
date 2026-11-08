@@ -2728,11 +2728,19 @@ private fun NgocSiAiPreviewScreen(
             } catch (error: NgocSiAiRemoteException) {
                 if (conversation.lastOrNull() == userTurn) conversation.removeAt(conversation.lastIndex)
                 val errorReply = error.message ?: "Không thể kết nối NGỌC SĨ AI. Vui lòng thử lại."
-                val fallbackReply = localConversationFallbackAfterRemoteError(
-                    userText = clean,
-                    previousAssistantReply = messages.dropLast(1).lastOrNull { !it.isUser }?.text,
-                    remoteError = errorReply
-                )
+                // The sample test must expose the real Firebase result, not an
+                // unrelated conversational fallback based on the previous greeting.
+                val videoCapabilityDiagnosticRequested =
+                    isNgocSiAiVideoCapabilityDiagnosticRequest(clean)
+                val fallbackReply = if (videoCapabilityDiagnosticRequested) {
+                    errorReply
+                } else {
+                    localConversationFallbackAfterRemoteError(
+                        userText = clean,
+                        previousAssistantReply = messages.dropLast(1).lastOrNull { !it.isUser }?.text,
+                        remoteError = errorReply
+                    )
+                }
                 val requiresMultimodalVideoAnalysis =
                     isNgocSiAiYoutubeMultimodalAnalysisRequest(
                         pageContext = entryContext,
@@ -2755,7 +2763,7 @@ private fun NgocSiAiPreviewScreen(
                         fallbackReply = it,
                         hasEmittedPartialResponse = latestPartialReply.isNotBlank(),
                         isToolRequest = localModelNeedsAppTools,
-                        requiresMultimodalAnalysis = requiresMultimodalYoutubeAnalysis
+                        requiresMultimodalAnalysis = requiresMultimodalVideoAnalysis
                     )
                 }
                 if (completedLocalAnswer != null) {
@@ -2771,7 +2779,7 @@ private fun NgocSiAiPreviewScreen(
                     .takeIf { it.isNotBlank() }
                     ?.let { partial -> "$partial\n\n$errorReply" }
                     ?: localModelReply
-                    ?: if (requiresMultimodalYoutubeAnalysis) {
+                    ?: if (requiresMultimodalVideoAnalysis) {
                         if (NGOC_SI_AI_YOUTUBE_VIDEO_CONTEXT_MISSING_CODE in errorReply) {
                             buildNgocSiAiYoutubeVideoUnavailableReply()
                         } else {
