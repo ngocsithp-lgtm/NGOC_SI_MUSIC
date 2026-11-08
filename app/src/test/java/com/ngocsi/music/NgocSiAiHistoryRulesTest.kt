@@ -7,6 +7,50 @@ import org.junit.Test
 
 class NgocSiAiHistoryRulesTest {
     @Test
+    fun persistsOnlyCompleteSafeRuleBasedOfflineFallbackTurns() {
+        assertTrue(
+            shouldPersistNgocSiAiOfflineFallbackTurn(
+                fallbackReply = "Câu trả lời cục bộ",
+                hasEmittedPartialResponse = false,
+                isToolRequest = false,
+                requiresMultimodalAnalysis = false
+            )
+        )
+        assertFalse(
+            shouldPersistNgocSiAiOfflineFallbackTurn(
+                fallbackReply = " ",
+                hasEmittedPartialResponse = false,
+                isToolRequest = false,
+                requiresMultimodalAnalysis = false
+            )
+        )
+        assertFalse(
+            shouldPersistNgocSiAiOfflineFallbackTurn(
+                fallbackReply = "Câu trả lời cục bộ",
+                hasEmittedPartialResponse = true,
+                isToolRequest = false,
+                requiresMultimodalAnalysis = false
+            )
+        )
+        assertFalse(
+            shouldPersistNgocSiAiOfflineFallbackTurn(
+                fallbackReply = "Câu trả lời cục bộ",
+                hasEmittedPartialResponse = false,
+                isToolRequest = true,
+                requiresMultimodalAnalysis = false
+            )
+        )
+        assertFalse(
+            shouldPersistNgocSiAiOfflineFallbackTurn(
+                fallbackReply = "Câu trả lời cục bộ",
+                hasEmittedPartialResponse = false,
+                isToolRequest = false,
+                requiresMultimodalAnalysis = true
+            )
+        )
+    }
+
+    @Test
     fun restoreDropsAnInterruptedTrailingUserTurn() {
         val restored = restoreCompletedNgocSiAiConversation(
             listOf(

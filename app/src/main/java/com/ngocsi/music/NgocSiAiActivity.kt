@@ -2686,9 +2686,22 @@ private fun NgocSiAiPreviewScreen(
                     isSendingLocalModel = true
                     runCatching { onGenerateLocalModel(clean, conversation.toList()) }.getOrNull()
                 } else null
-                if (localModelReply != null) {
-                    conversation.add(userTurn)
-                    conversation.add(NgocSiAiMessage(role = "assistant", content = localModelReply))
+                val completedLocalAnswer = localModelReply ?: fallbackReply?.takeIf {
+                    shouldPersistNgocSiAiOfflineFallbackTurn(
+                        fallbackReply = it,
+                        hasEmittedPartialResponse = latestPartialReply.isNotBlank(),
+                        isToolRequest = localModelNeedsAppTools,
+                        requiresMultimodalAnalysis = requiresMultimodalYoutubeAnalysis
+                    )
+                }
+                if (completedLocalAnswer != null) {
+                    val completedHistory = appendCompletedNgocSiAiTurn(
+                        history = conversation.toList(),
+                        userText = clean,
+                        assistantText = completedLocalAnswer
+                    )
+                    conversation.clear()
+                    conversation.addAll(completedHistory)
                 }
                 val visibleReply = latestPartialReply.trim()
                     .takeIf { it.isNotBlank() }

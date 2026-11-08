@@ -5,6 +5,22 @@ internal const val NGOC_SI_AI_MAX_MESSAGE_CHARS = 2_000
 internal const val NGOC_SI_AI_MAX_TOTAL_CHARS = 3_200
 internal const val NGOC_SI_AI_MAX_CONTEXT_MESSAGE_CHARS = 700
 
+
+/**
+ * Rule-based offline answers are safe to add to conversation context only when
+ * they form a complete text-only turn. Never store an error suffix, a partial
+ * Gemini stream, or a reply that could imply an unexecuted app/media action.
+ */
+internal fun shouldPersistNgocSiAiOfflineFallbackTurn(
+    fallbackReply: String?,
+    hasEmittedPartialResponse: Boolean,
+    isToolRequest: Boolean,
+    requiresMultimodalAnalysis: Boolean
+): Boolean = !fallbackReply.isNullOrBlank() &&
+    !hasEmittedPartialResponse &&
+    !isToolRequest &&
+    !requiresMultimodalAnalysis
+
 /**
  * Appends a completed hands-free turn only after the current history ends in an
  * assistant answer. This prevents a second input source from splitting a pending
