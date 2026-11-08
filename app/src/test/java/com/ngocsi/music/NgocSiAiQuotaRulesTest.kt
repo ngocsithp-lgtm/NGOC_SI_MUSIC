@@ -307,4 +307,45 @@ class NgocSiAiQuotaRulesTest {
         org.junit.Assert.assertFalse(shouldTryNgocSiAiFallbackModel("Network timeout"))
     }
 
+
+    @Test
+    fun remoteErrorDiagnosticsPreferFirebaseExceptionTypesOverObfuscatedWrappers() {
+        assertEquals(
+            "ServerException",
+            ngocSiAiRemoteDiagnosticExceptionType(
+                listOf(
+                    "com.google.firebase.ai.internal.S",
+                    "com.google.firebase.ai.type.ServerException",
+                    "java.lang.RuntimeException"
+                )
+            )
+        )
+        assertEquals(
+            "QuotaExceededException",
+            ngocSiAiRemoteDiagnosticExceptionType(
+                listOf(
+                    "com.google.firebase.ai.internal.S",
+                    "com.google.firebase.ai.type.QuotaExceededException",
+                    "java.lang.RuntimeException"
+                )
+            )
+        )
+        assertEquals(
+            "FirebaseAIException",
+            ngocSiAiRemoteDiagnosticExceptionType(
+                listOf(
+                    "com.google.firebase.ai.internal.S",
+                    "com.google.firebase.ai.type.FirebaseAIException",
+                    "java.lang.RuntimeException"
+                )
+            )
+        )
+        assertEquals(
+            "UnknownException",
+            ngocSiAiRemoteDiagnosticExceptionType(
+                listOf("com.example.S", "java.lang.Exception", "java.lang.Throwable")
+            )
+        )
+    }
+
 }
