@@ -91,6 +91,12 @@ internal const val NGOC_SI_AI_VIDEO_DIAGNOSTIC_MAX_INLINE_BYTES = 14L * 1024L * 
 // Keep its MIME separate from inline MP4 bytes used by the public sample diagnostic.
 internal const val NGOC_SI_AI_YOUTUBE_URL_MIME_TYPE = "video/mp4"
 
+/** Do not download the public MP4 canary while a persistent model cooldown blocks Gemini. */
+internal fun shouldDownloadNgocSiAiDiagnosticVideoSample(
+    videoCapabilityDiagnosticRequested: Boolean,
+    hasActiveQuotaCooldown: Boolean
+): Boolean = videoCapabilityDiagnosticRequested && !hasActiveQuotaCooldown
+
 /**
  * Convert the MP4 canary's transport failure into a safe, actionable diagnostic.
  * Do not expose raw URLs, proxy details, certificates, or arbitrary exception text.

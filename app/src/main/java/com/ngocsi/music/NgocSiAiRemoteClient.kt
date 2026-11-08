@@ -209,16 +209,32 @@ internal class NgocSiAiRemoteClient(context: Context) {
             prompt = newestUserMessage.content,
             previousMessages = normalized.dropLast(1)
         )
+        val videoInputUri = if (videoCapabilityDiagnosticRequested) null else youtubeVideoAnalysisUri
+        val forceMultimodalReasoning = videoCapabilityDiagnosticRequested || videoInputUri != null
+        val offersAppCommandTool =
+            shouldOfferNgocSiAiAppCommandTool(newestUserMessage.content, normalized.dropLast(1))
+        val selectedModelName = selectNgocSiAiModelName(
+            newestUserMessage.content,
+            offersAppCommandTool,
+            forceMultimodalReasoning = forceMultimodalReasoning
+        )
+        // Check the persistent quota gate before downloading the MP4 canary. A blocked
+        // diagnostic must not consume mobile data on every repeated user attempt.
+        val activeCooldownMessage = activeQuotaCooldownMessage(selectedModelName)
+        val shouldDownloadDiagnosticSample = shouldDownloadNgocSiAiDiagnosticVideoSample(
+            videoCapabilityDiagnosticRequested = videoCapabilityDiagnosticRequested,
+            hasActiveQuotaCooldown = activeCooldownMessage != null
+        )
+        activeCooldownMessage?.let { throw NgocSiAiRemoteException(it) }
+
         // Gemini Developer API accepts YouTube URLs, but not arbitrary Cloud Storage
-        // URLs. Download the small public MP4 canary and send it as inlineData instead.
+        // URLs. Download the small public MP4 canary only after the quota gate passes.
         // The inline payload is capped below the 20 MB total request limit.
-        val diagnosticVideoBytes = if (videoCapabilityDiagnosticRequested) {
+        val diagnosticVideoBytes = if (shouldDownloadDiagnosticSample) {
             downloadNgocSiAiDiagnosticVideoSample()
         } else {
             null
         }
-        val videoInputUri = if (videoCapabilityDiagnosticRequested) null else youtubeVideoAnalysisUri
-        val forceMultimodalReasoning = videoCapabilityDiagnosticRequested || videoInputUri != null
         val multimodalUserMessage = when {
             diagnosticVideoBytes != null -> content("user") {
                 inlineData(diagnosticVideoBytes, "video/mp4")
@@ -245,17 +261,6 @@ internal class NgocSiAiRemoteClient(context: Context) {
             content(role = if (message.role == "assistant") "model" else "user") {
                 text(message.content)
             }
-        }
-
-        val offersAppCommandTool =
-            shouldOfferNgocSiAiAppCommandTool(newestUserMessage.content, normalized.dropLast(1))
-        val selectedModelName = selectNgocSiAiModelName(
-            newestUserMessage.content,
-            offersAppCommandTool,
-            forceMultimodalReasoning = forceMultimodalReasoning
-        )
-        activeQuotaCooldownMessage(selectedModelName)?.let {
-            throw NgocSiAiRemoteException(it)
         }
 
         return try {

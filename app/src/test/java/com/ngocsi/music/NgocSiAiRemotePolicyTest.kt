@@ -300,6 +300,34 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
+    fun quotaCooldownPreventsUnnecessaryDiagnosticVideoDownload() {
+        assertTrue(
+            shouldDownloadNgocSiAiDiagnosticVideoSample(
+                videoCapabilityDiagnosticRequested = true,
+                hasActiveQuotaCooldown = false
+            )
+        )
+        assertFalse(
+            shouldDownloadNgocSiAiDiagnosticVideoSample(
+                videoCapabilityDiagnosticRequested = true,
+                hasActiveQuotaCooldown = true
+            )
+        )
+        assertFalse(
+            shouldDownloadNgocSiAiDiagnosticVideoSample(
+                videoCapabilityDiagnosticRequested = false,
+                hasActiveQuotaCooldown = false
+            )
+        )
+        assertFalse(
+            shouldDownloadNgocSiAiDiagnosticVideoSample(
+                videoCapabilityDiagnosticRequested = false,
+                hasActiveQuotaCooldown = true
+            )
+        )
+    }
+
+    @Test
     fun videoSampleDownloadFailuresReportSafeSpecificCauses() {
         assertTrue(
             describeNgocSiAiVideoSampleDownloadFailure(java.io.IOException("HTTP 403"))
