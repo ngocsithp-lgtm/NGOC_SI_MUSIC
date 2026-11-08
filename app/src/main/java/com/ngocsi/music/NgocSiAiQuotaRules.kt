@@ -89,7 +89,9 @@ internal fun classifyNgocSiAiQuotaErrorDetails(message: String): NgocSiAiQuotaCo
         "generate_content_free_tier", "free_tier", "free tier quota",
         "free-tier quota", "limit: 0"
     ).any { it in details || it in normalized }
-    val quotaOrCapacity = minuteLimit || dailyLimit || listOf(
+    // Some Gemini responses identify a Free Tier metric directly without including
+    // the words "quota" or "429". Treat that provider signal as quota evidence too.
+    val quotaOrCapacity = minuteLimit || dailyLimit || freeTierQuota || listOf(
         "429", "resource_exhausted", "quota", "rate limit",
         "too many requests", "overloaded", "capacity"
     ).any { it in details }
