@@ -14,7 +14,7 @@ internal fun localNgocSiAiMusicKnowledgeFallback(userText: String): String? {
     val refersToSpecificMedia = listOf(
         "video dang phat", "video nay", "clip nay", "clip dang phat",
         "ban thu nay", "ban thu dang phat", "ca si nay", "ca si dang hat",
-        "nguoi dang hat", "dang hat", "trong video", "trong clip",
+        "nguoi dang hat", "dang hat", "dang phat", "trong video", "trong clip",
         "trong ban thu", "doan nhac nay", "doan hat nay", "bai dang phat",
         "hien tai dang nghe", "dang nghe", "dang xem", "canh quay nay",
         "youtube nay", "video youtube"

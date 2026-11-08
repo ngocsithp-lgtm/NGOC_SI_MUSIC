@@ -63,6 +63,7 @@ class NgocSiAiLocalMusicKnowledgeRulesTest {
     @Test
     fun doesNotInventEvidenceAboutTheCurrentlyPlayingVideoOrRecording() {
         assertNull(localNgocSiAiMusicKnowledgeFallback("AI, phân tích video Bolero đang phát."))
+        assertNull(localNgocSiAiMusicKnowledgeFallback("AI, phân tích Bolero đang phát."))
         assertNull(localNgocSiAiMusicKnowledgeFallback("AI, ca sĩ này đang luyến láy thế nào trong bản thu?"))
         assertNull(localNgocSiAiMusicKnowledgeFallback("AI, rung giọng ở đoạn nhạc này ra sao?"))
     }
