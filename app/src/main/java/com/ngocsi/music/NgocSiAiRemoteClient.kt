@@ -201,9 +201,16 @@ internal class NgocSiAiRemoteClient(context: Context) {
         val forceMultimodalReasoning = youtubeVideoAnalysisUri != null
         val multimodalUserMessage = youtubeVideoAnalysisUri?.let { videoUri ->
             content("user") {
-                // Firebase AI Logic accepts a single public/unlisted YouTube URL per request.
+                // Firebase AI Logic accepts one public/unlisted YouTube URL per request.
+                // Put the video before the compact text prompt, as recommended by Firebase.
                 fileData(uri = videoUri, mimeType = "video/mp4")
-                text(newestUserMessage.content)
+                text(
+                    buildNgocSiAiVideoAnalysisRequestText(
+                        userPrompt = newestUserMessage.content,
+                        recentMessages = normalized.dropLast(1),
+                        mediaContextInstruction = mediaContextInstruction
+                    )
+                )
             }
         }
 
@@ -251,30 +258,37 @@ internal class NgocSiAiRemoteClient(context: Context) {
             val model = firebaseAi.generativeModel(
                 modelName = selectedModelName,
                 generationConfig = responseConfig,
-                systemInstruction = content {
-                    val savedMemories = decodeNgocSiAiMemory(
-                        appContext.getSharedPreferences(
-                            NGOC_SI_AI_CHAT_PREFERENCES_NAME,
-                            Context.MODE_PRIVATE
-                        ).getString(NGOC_SI_AI_LONG_TERM_MEMORY_KEY, null)
-                    )
-                    text(
-                        SYSTEM_INSTRUCTIONS +
-                            buildNgocSiAiMemorySystemInstruction(savedMemories, newestUserMessage.content) +
-                            buildNgocSiAiEntryContextInstruction(entryContext) +
-                            mediaContextInstruction.orEmpty().take(1_200) +
-                            buildNgocSiAiCreativeMusicAnalysisInstruction(
-                                rawUserText = newestUserMessage.content,
-                                recentConversation = normalized.dropLast(1).takeLast(6).map { it.content },
-                                mediaContextInstruction = mediaContextInstruction
-                            ) +
-                            if (multimodalUserMessage != null) {
-                                " VIDEO ĐÃ ĐƯỢC ĐÍNH KÈM: hãy phân tích cả hình ảnh và âm thanh thực sự nhận được, " +
-                                    "nêu mốc thời gian cho nhận xét quan trọng khi phù hợp. Video được lấy mẫu hình ảnh " +
-                                    "xấp xỉ 1 khung hình/giây nên có thể bỏ lỡ cảnh chuyển nhanh; không khẳng định chi tiết " +
-                                    "không xuất hiện trong dữ liệu đã xử lý."
-                            } else ""
-                    )
+                systemInstruction = if (multimodalUserMessage != null && !offersAppCommandTool) {
+                    // A video-analysis turn is stateless at the Gemini chat layer:
+                    // compact context is placed beside the video, avoiding a long
+                    // transcript and the general-purpose app-agent instruction bundle.
+                    content { text(VIDEO_ANALYSIS_SYSTEM_INSTRUCTIONS) }
+                } else {
+                    content {
+                        val savedMemories = decodeNgocSiAiMemory(
+                            appContext.getSharedPreferences(
+                                NGOC_SI_AI_CHAT_PREFERENCES_NAME,
+                                Context.MODE_PRIVATE
+                            ).getString(NGOC_SI_AI_LONG_TERM_MEMORY_KEY, null)
+                        )
+                        text(
+                            SYSTEM_INSTRUCTIONS +
+                                buildNgocSiAiMemorySystemInstruction(savedMemories, newestUserMessage.content) +
+                                buildNgocSiAiEntryContextInstruction(entryContext) +
+                                mediaContextInstruction.orEmpty().take(1_200) +
+                                buildNgocSiAiCreativeMusicAnalysisInstruction(
+                                    rawUserText = newestUserMessage.content,
+                                    recentConversation = normalized.dropLast(1).takeLast(6).map { it.content },
+                                    mediaContextInstruction = mediaContextInstruction
+                                ) +
+                                if (multimodalUserMessage != null) {
+                                    " VIDEO ĐÃ ĐƯỢC ĐÍNH KÈM: hãy phân tích cả hình ảnh và âm thanh thực sự nhận được, " +
+                                        "nêu mốc thời gian cho nhận xét quan trọng khi phù hợp. Video được lấy mẫu hình ảnh " +
+                                        "xấp xỉ 1 khung hình/giây nên có thể bỏ lỡ cảnh chuyển nhanh; không khẳng định chi tiết " +
+                                        "không xuất hiện trong dữ liệu đã xử lý."
+                                } else ""
+                        )
+                    }
                 },
                 tools = if (offersAppCommandTool) {
                     listOf(Tool.functionDeclarations(listOf(APP_COMMAND_TOOL)))
@@ -439,9 +453,15 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 while (completedStream == null) {
                     val streamedAnswer = StringBuilder()
                     try {
-                        val chat = model.startChat(history = previousTurns)
-                        val responseStream = multimodalUserMessage?.let { chat.sendMessageStream(it) }
-                            ?: chat.sendMessageStream(newestUserMessage.content)
+                        val responseStream = if (multimodalUserMessage != null && !offersAppCommandTool) {
+                            // Use the documented single-turn multimodal streaming API.
+                            // Compact context is included with the video; full chat history is skipped.
+                            model.generateContentStream(multimodalUserMessage)
+                        } else {
+                            val chat = model.startChat(history = previousTurns)
+                            multimodalUserMessage?.let { chat.sendMessageStream(it) }
+                                ?: chat.sendMessageStream(newestUserMessage.content)
+                        }
                         responseStream.collect { chunk ->
                                 val textChunk = chunk.text.orEmpty()
                                 if (textChunk.isNotEmpty()) {
@@ -811,6 +831,15 @@ internal class NgocSiAiRemoteClient(context: Context) {
             ),
             optionalParameters = listOf("query")
         )
+        private const val VIDEO_ANALYSIS_SYSTEM_INSTRUCTIONS =
+            "Bạn là NGỌC SĨ AI, trợ lý phân tích âm thanh và hình ảnh video bằng tiếng Việt. " +
+                "Phân tích trực tiếp video được đính kèm, bao gồm khung hình và âm thanh khi dữ liệu thực sự được cung cấp. " +
+                "Tách rõ quan sát hình ảnh, dấu hiệu nghe được và phần diễn giải; không biến tiêu đề, tên kênh hoặc metadata thành bằng chứng đã quan sát. " +
+                "Chỉ nêu lời ca, nhạc cụ, nhịp, màu giọng hoặc cách hát khi có dấu hiệu âm thanh đủ rõ. " +
+                "Nếu video hoặc âm thanh không tải được hay không thể xác minh, nói chính xác giới hạn đó và không suy đoán. " +
+                "Nêu mốc thời gian khi có thể; khung hình có thể được lấy mẫu khoảng 1 lần mỗi giây nên không khẳng định chi tiết của chuyển động nhanh. " +
+                "Trả lời ngắn gọn nhưng đủ căn cứ, không tiết lộ chuỗi suy luận nội bộ. "
+
         private const val SYSTEM_INSTRUCTIONS =
             "Bạn là NGỌC SĨ AI, trợ lý tiếng Việt gần gũi, bình tĩnh và biết lắng nghe; đừng giả vờ là người thật. " +
             "Hiểu ý định từ ngữ cảnh, cách nói đời thường, lỗi nhận dạng và các đại từ như 'nó', 'bài vừa rồi'; tiếp nối đúng mạch, không chào lại hay nhắc lại câu người dùng ở mỗi lượt. " +

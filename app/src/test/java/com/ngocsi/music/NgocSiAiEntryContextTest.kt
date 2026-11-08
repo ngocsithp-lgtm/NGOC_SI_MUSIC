@@ -249,10 +249,13 @@ class NgocSiAiEntryContextTest {
         assertTrue(paidTierReply.contains("không tự chuyển sang model tính phí"))
 
         val timeoutReply = buildNgocSiAiLocalMediaAnalysisUnavailableReply(
-            "Máy chủ Gemini chưa hoàn tất câu trả lời sau 60 giây."
+            "Gemini chưa hoàn tất phân tích video sau 120 giây. Mã: VIDEO_ANALYSIS_TIMEOUT. " +
+                "Ứng dụng chưa nhận được token trả lời đầu tiên; chưa xác minh được Gemini đã đọc xong video hay chưa."
         )
-        assertTrue(timeoutReply.contains("thời gian chờ 60 giây"))
+        assertTrue(timeoutReply.contains("trong 120 giây"))
+        assertTrue(timeoutReply.contains("chưa nhận được token trả lời đầu tiên"))
         assertTrue(timeoutReply.contains("VIDEO_ANALYSIS_TIMEOUT"))
+        assertTrue(timeoutReply.contains("chưa xác minh được"))
 
         val unknownReply = buildNgocSiAiLocalMediaAnalysisUnavailableReply(null)
         assertTrue(unknownReply.contains("chưa thể kết luận"))

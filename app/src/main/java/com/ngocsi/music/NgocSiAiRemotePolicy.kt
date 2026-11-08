@@ -255,7 +255,8 @@ internal fun selectNgocSiAiRemoteTimeoutMillis(
 
 internal fun ngocSiAiRemoteTimeoutMessage(
     prompt: String,
-    forceMultimodalReasoning: Boolean = false
+    forceMultimodalReasoning: Boolean = false,
+    hasEmittedPartialResponse: Boolean = false
 ): String {
     val isVideoAnalysis =
         forceMultimodalReasoning || isNgocSiAiMultimodalVideoAnalysisRequest(prompt)
@@ -264,11 +265,65 @@ internal fun ngocSiAiRemoteTimeoutMessage(
         forceMultimodalReasoning = forceMultimodalReasoning
     ) / 1_000L
     return if (isVideoAnalysis) {
+        val stageMessage = if (hasEmittedPartialResponse) {
+            "Gemini đã gửi một phần câu trả lời nhưng chưa hoàn tất."
+        } else {
+            "Ứng dụng chưa nhận được token trả lời đầu tiên; chưa xác minh được Gemini đã đọc xong video hay chưa."
+        }
         "Gemini chưa hoàn tất phân tích video sau $seconds giây. Mã: VIDEO_ANALYSIS_TIMEOUT. " +
-            "Chưa đủ bằng chứng để kết luận lỗi quota hay mạng; video YouTube hiện tại vẫn có thể tiếp tục phát."
+            "$stageMessage Chưa đủ bằng chứng để kết luận lỗi quota hay mạng; video YouTube hiện tại vẫn có thể tiếp tục phát."
     } else {
         "Máy chủ Gemini chưa hoàn tất câu trả lời sau $seconds giây. " +
             "Hãy thử câu hỏi ngắn hơn hoặc kiểm tra Internet; các lệnh điều khiển trên điện thoại vẫn hoạt động."
+    }
+}
+
+internal const val NGOC_SI_AI_VIDEO_HISTORY_TURNS = 3
+internal const val NGOC_SI_AI_VIDEO_HISTORY_MESSAGE_MAX_CHARS = 420
+internal const val NGOC_SI_AI_VIDEO_USER_PROMPT_MAX_CHARS = 1_200
+internal const val NGOC_SI_AI_VIDEO_METADATA_MAX_CHARS = 400
+
+/**
+ * Keeps video analysis requests compact: use only a few relevant turns, discard
+ * previous failure notices, and keep player metadata clearly separate from evidence.
+ */
+internal fun buildNgocSiAiVideoAnalysisRequestText(
+    userPrompt: String,
+    recentMessages: List<NgocSiAiMessage>,
+    mediaContextInstruction: String? = null
+): String {
+    val compactHistory = recentMessages
+        .filterNot { message ->
+            message.content.contains("VIDEO_ANALYSIS_TIMEOUT", ignoreCase = true) ||
+                (
+                    message.role == "assistant" && (
+                        message.content.contains("Gemini trực tuyến chưa phân tích được video", ignoreCase = true) ||
+                            message.content.contains("Qwen3-0.6B", ignoreCase = true)
+                        )
+                    )
+        }
+        .takeLast(NGOC_SI_AI_VIDEO_HISTORY_TURNS)
+        .joinToString("\n") { message ->
+            val speaker = if (message.role == "assistant") "NGỌC SĨ AI" else "Người dùng"
+            "${speaker}: ${message.content.trim().takeLast(NGOC_SI_AI_VIDEO_HISTORY_MESSAGE_MAX_CHARS)}"
+        }
+
+    return buildString {
+        if (compactHistory.isNotBlank()) {
+            append("Ngữ cảnh hội thoại gần đây (chỉ để hiểu câu tiếp diễn, không phải bằng chứng về nội dung video):\n")
+            append(compactHistory)
+            append("\n\n")
+        }
+        mediaContextInstruction.orEmpty().trim()
+            .take(NGOC_SI_AI_VIDEO_METADATA_MAX_CHARS)
+            .takeIf { it.isNotBlank() }
+            ?.let {
+                append("Metadata từ trình phát (chỉ tham khảo, không dùng làm bằng chứng quan sát): ")
+                append(it)
+                append("\n\n")
+            }
+        append("Yêu cầu hiện tại: ")
+        append(userPrompt.trim().take(NGOC_SI_AI_VIDEO_USER_PROMPT_MAX_CHARS))
     }
 }
 

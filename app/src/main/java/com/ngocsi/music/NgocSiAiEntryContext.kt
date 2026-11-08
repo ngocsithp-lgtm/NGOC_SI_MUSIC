@@ -122,8 +122,22 @@ internal fun buildNgocSiAiLocalMediaAnalysisUnavailableReply(
             "Firebase không xác thực được yêu cầu. Mã: AUTH_401."
         diagnosticCode == "MODEL_OR_ENDPOINT_404" ->
             "Không tìm thấy model hoặc endpoint AI. Mã: MODEL_OR_ENDPOINT_404."
-        remoteError.orEmpty().contains("chưa hoàn tất câu trả lời sau", ignoreCase = true) ->
-            "Yêu cầu phân tích video đã vượt quá thời gian chờ 60 giây; chưa đủ bằng chứng để kết luận là lỗi quota hay mạng. Mã: VIDEO_ANALYSIS_TIMEOUT."
+        diagnosticCode == "VIDEO_ANALYSIS_TIMEOUT" -> {
+            val timeoutSeconds = Regex("""sau\s+(\d+)\s+giây""")
+                .find(remoteError.orEmpty())
+                ?.groupValues
+                ?.getOrNull(1)
+                ?: (NGOC_SI_AI_VIDEO_ANALYSIS_TIMEOUT_MILLIS / 1_000L).toString()
+            val stageMessage = when {
+                remoteError.orEmpty().contains("token trả lời đầu tiên", ignoreCase = true) ->
+                    "Ứng dụng chưa nhận được token trả lời đầu tiên; chưa xác minh được Gemini đã đọc xong video hay chưa."
+                remoteError.orEmpty().contains("đã gửi một phần", ignoreCase = true) ->
+                    "Gemini đã gửi một phần câu trả lời nhưng chưa hoàn tất."
+                else ->
+                    "Chưa đủ bằng chứng để kết luận lỗi quota hay mạng."
+            }
+            "Gemini chưa hoàn tất phân tích video trong $timeoutSeconds giây. $stageMessage Mã: VIDEO_ANALYSIS_TIMEOUT."
+        }
         diagnosticCode?.startsWith("REMOTE_ERROR_") == true ->
             "Firebase AI Logic trả về lỗi kỹ thuật chưa được phân loại. Hãy gửi đúng mã này để kiểm tra: $diagnosticCode."
         diagnosticCode != null ->
@@ -132,8 +146,8 @@ internal fun buildNgocSiAiLocalMediaAnalysisUnavailableReply(
             "Ứng dụng chưa nhận được mã lỗi chi tiết từ Firebase; chưa thể kết luận là hết quota, App Check hay lỗi mạng."
     }
     val videoContextGuidance = if (videoContextAvailable) {
-        "Ứng dụng đã nhận diện được video YouTube hiện tại và xác định URL để đưa vào yêu cầu Gemini. " +
-            "Bạn không cần mở lại NGỌC SĨ AI từ trang YouTube. Hãy giữ video hiện tại; khi Gemini hoạt động lại, gửi lại câu hỏi. "
+        "Ứng dụng đã nhận diện và chuẩn bị URL video YouTube cho yêu cầu Gemini; điều này chưa xác nhận Gemini đã tải được nội dung video. " +
+            "Bạn không cần mở lại NGỌC SĨ AI từ trang YouTube. Có thể thử lại với video công khai hoặc không công khai. "
     } else {
         "Ứng dụng chưa xác nhận được video đang phát. Hãy mở NGỌC SĨ AI từ trang YouTube đang phát rồi gửi lại câu hỏi. "
     }

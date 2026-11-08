@@ -215,7 +215,36 @@ class NgocSiAiRemotePolicyTest {
         )
         assertTrue(timeoutMessage.contains("120 giây"))
         assertTrue(timeoutMessage.contains("VIDEO_ANALYSIS_TIMEOUT"))
-        assertTrue(timeoutMessage.contains("Chưa đủ bằng chứng"))
+        assertTrue(timeoutMessage.contains("chưa nhận được token trả lời đầu tiên"))
+        val partialTimeoutMessage = ngocSiAiRemoteTimeoutMessage(
+            prompt,
+            forceMultimodalReasoning = true,
+            hasEmittedPartialResponse = true
+        )
+        assertTrue(partialTimeoutMessage.contains("đã gửi một phần câu trả lời"))
+    }
+
+
+    @Test
+    fun videoPromptUsesOnlyCompactRecentContextAndDropsPreviousFailureNotices() {
+        val messages = listOf(
+            NgocSiAiMessage("user", "Phân tích video."),
+            NgocSiAiMessage("assistant", "Video có cảnh quay sân khấu và nhạc Bolero."),
+            NgocSiAiMessage("user", "Gemini trực tuyến chưa phân tích được video. Mã: VIDEO_ANALYSIS_TIMEOUT."),
+            NgocSiAiMessage("assistant", "Qwen3-0.6B chỉ xử lý văn bản; chưa thể phân tích."),
+            NgocSiAiMessage("user", "AI, phân tích video đang phát.")
+        )
+        val requestText = buildNgocSiAiVideoAnalysisRequestText(
+            userPrompt = "AI, phân tích video đang phát.",
+            recentMessages = messages,
+            mediaContextInstruction = "Tiêu đề video: Bolero Live"
+        )
+        assertTrue(requestText.contains("Video có cảnh quay sân khấu"))
+        assertTrue(requestText.contains("AI, phân tích video đang phát."))
+        assertTrue(requestText.contains("Bolero Live"))
+        assertFalse(requestText.contains("VIDEO_ANALYSIS_TIMEOUT"))
+        assertFalse(requestText.contains("Qwen3-0.6B"))
+        assertTrue(requestText.contains("không phải bằng chứng về nội dung video"))
     }
 
     @Test

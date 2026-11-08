@@ -2703,7 +2703,8 @@ private fun NgocSiAiPreviewScreen(
                 } ?: throw NgocSiAiRemoteException(
                     ngocSiAiRemoteTimeoutMessage(
                         clean,
-                        forceMultimodalReasoning = forceMultimodalReasoning
+                        forceMultimodalReasoning = forceMultimodalReasoning,
+                        hasEmittedPartialResponse = latestPartialReply.isNotBlank()
                     )
                 )
                 conversation.add(NgocSiAiMessage(role = "assistant", content = reply.answer))
