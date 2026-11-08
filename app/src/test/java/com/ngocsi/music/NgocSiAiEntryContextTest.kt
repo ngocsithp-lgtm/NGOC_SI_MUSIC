@@ -422,7 +422,7 @@ class NgocSiAiEntryContextTest {
             "Hạn mức miễn phí có thể đã hết. Mã chẩn đoán: AI_QUOTA_429_FREE_TIER.",
             videoContextAvailable = true
         )
-        assertTrue(reply.contains("đã nhận diện được video YouTube hiện tại"))
+        assertTrue(reply.contains("đã nhận diện và chuẩn bị URL video YouTube"))
         assertTrue(reply.contains("không cần mở lại NGỌC SĨ AI"))
         assertTrue(reply.contains("AI_QUOTA_429_FREE_TIER"))
 
