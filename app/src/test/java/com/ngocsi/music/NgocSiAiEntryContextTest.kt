@@ -288,6 +288,70 @@ class NgocSiAiEntryContextTest {
     }
 
     @Test
+    fun currentYoutubeVideoIdPrefersTheLatestActivePlayerItem() {
+        assertEquals(
+            "a1b2c3d4e5F",
+            resolveNgocSiAiCurrentYoutubeVideoId(
+                "YouTube",
+                "a1b2c3d4e5F",
+                "dQw4w9WgXcQ"
+            )
+        )
+        assertEquals(
+            "dQw4w9WgXcQ",
+            resolveNgocSiAiCurrentYoutubeVideoId(
+                "YouTube",
+                "invalid",
+                "dQw4w9WgXcQ"
+            )
+        )
+        assertNull(
+            resolveNgocSiAiCurrentYoutubeVideoId(
+                "Radio",
+                "a1b2c3d4e5F",
+                "dQw4w9WgXcQ"
+            )
+        )
+    }
+
+    @Test
+    fun currentYoutubeMetadataPrefersTheLatestActivePlayerItem() {
+        val active = NgocSiAiYoutubeMediaContextSnapshot(
+            videoId = "a1b2c3d4e5F",
+            title = "Video đang phát mới",
+            channel = "Kênh mới"
+        )
+        val instruction = buildNgocSiAiCurrentYoutubeMediaContextInstruction(
+            "YouTube",
+            active,
+            "Video cũ",
+            "Kênh cũ"
+        )
+        assertTrue(instruction.contains("Video đang phát mới"))
+        assertTrue(instruction.contains("Kênh mới"))
+        assertFalse(instruction.contains("Video cũ"))
+
+        val fallback = buildNgocSiAiCurrentYoutubeMediaContextInstruction(
+            "YouTube",
+            null,
+            "Video lúc mở AI",
+            "Kênh lúc mở AI"
+        )
+        assertTrue(fallback.contains("Video lúc mở AI"))
+        assertTrue(fallback.contains("Kênh lúc mở AI"))
+
+        assertEquals(
+            "",
+            buildNgocSiAiCurrentYoutubeMediaContextInstruction(
+                "Radio",
+                active,
+                "Video cũ",
+                "Kênh cũ"
+            )
+        )
+    }
+
+    @Test
     fun wakeWordContextFallsBackToItsStartPageWhenNoMainPageIsPublished() {
         NgocSiMainActivityState.updateEntryContext(null)
         assertEquals("Google Drive", NgocSiMainActivityState.entryContextOr("Drive"))
