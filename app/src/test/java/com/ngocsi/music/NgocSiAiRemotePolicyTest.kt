@@ -268,7 +268,7 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
-    fun youtubeUrlInputUsesWildcardVideoMimeAndKeepsSampleMp4Separate() {
+    fun youtubeUrlInputUsesSupportedVideoMimeAndKeepsSampleMp4Separate() {
         assertEquals("video/mp4", NGOC_SI_AI_YOUTUBE_URL_MIME_TYPE)
         assertTrue(NGOC_SI_AI_VIDEO_DIAGNOSTIC_SAMPLE_URI.endsWith(".mp4"))
         assertFalse(NGOC_SI_AI_VIDEO_DIAGNOSTIC_SAMPLE_URI.contains("youtube.com"))
@@ -277,7 +277,7 @@ class NgocSiAiRemotePolicyTest {
     @Test
     fun explicitVideoCapabilityDiagnosticUsesOnlyThePublicSampleUrl() {
         assertEquals(
-            "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
+            "https://storage.googleapis.com/cloud-samples-data/video/animals.mp4",
             NGOC_SI_AI_VIDEO_DIAGNOSTIC_SAMPLE_URI
         )
         assertTrue(isNgocSiAiVideoCapabilityDiagnosticRequest("AI, kiểm tra kết nối video mẫu."))
@@ -293,7 +293,7 @@ class NgocSiAiRemotePolicyTest {
     @Test
     fun videoDiagnosticUsesACompactPublicMp4Sample() {
         assertEquals(
-            "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
+            "https://storage.googleapis.com/cloud-samples-data/video/animals.mp4",
             NGOC_SI_AI_VIDEO_DIAGNOSTIC_SAMPLE_URI
         )
     }
