@@ -2673,11 +2673,11 @@ private fun NgocSiAiPreviewScreen(
             }
 
             try {
-                val forceMultimodalReasoning = isNgocSiAiYoutubeMultimodalAnalysisRequest(
-                    entryContext,
-                    clean,
-                    history
-                )
+                val videoCapabilityDiagnosticRequested =
+                    isNgocSiAiVideoCapabilityDiagnosticRequest(clean)
+                val forceMultimodalReasoning =
+                    isNgocSiAiYoutubeMultimodalAnalysisRequest(entryContext, clean, history) ||
+                        videoCapabilityDiagnosticRequested
                 val requestTimeoutMillis = selectNgocSiAiRemoteTimeoutMillis(
                     clean,
                     forceMultimodalReasoning = forceMultimodalReasoning
@@ -2733,18 +2733,19 @@ private fun NgocSiAiPreviewScreen(
                     previousAssistantReply = messages.dropLast(1).lastOrNull { !it.isUser }?.text,
                     remoteError = errorReply
                 )
-                val requiresMultimodalYoutubeAnalysis = isNgocSiAiYoutubeMultimodalAnalysisRequest(
-                    pageContext = entryContext,
-                    prompt = clean,
-                    previousMessages = conversation.toList()
-                )
-                // The installed Qwen3-0.6B fallback is text-only. Never pass a YouTube
-                // audio/video analysis request to it as if it could inspect the active player.
+                val requiresMultimodalVideoAnalysis =
+                    isNgocSiAiYoutubeMultimodalAnalysisRequest(
+                        pageContext = entryContext,
+                        prompt = clean,
+                        previousMessages = conversation.toList()
+                    ) || isNgocSiAiVideoCapabilityDiagnosticRequest(clean)
+                // Qwen3-0.6B is text-only. Never route either the active YouTube video
+                // or the MP4 canary to it as if it could inspect audio/video evidence.
                 val localModelReply = if (
                     localModelInstalled &&
                     latestPartialReply.isBlank() &&
                     !localModelNeedsAppTools &&
-                    !requiresMultimodalYoutubeAnalysis
+                    !requiresMultimodalVideoAnalysis
                 ) {
                     isSendingLocalModel = true
                     runCatching { onGenerateLocalModel(clean, conversation.toList()) }.getOrNull()
