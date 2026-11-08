@@ -474,8 +474,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
 
     private fun activeQuotaCooldownMessage(modelName: String): String? {
         migrateLegacyQuotaCooldownToReasoningModel()
-        val untilKey = quotaCooldownUntilKey(modelName)
-        val kindKey = quotaCooldownKindKey(modelName)
+        val (untilKey, kindKey) = ngocSiAiQuotaCooldownPreferenceKeys(modelName)
         val until = quotaPreferences.getLong(untilKey, 0L)
         val now = System.currentTimeMillis()
         if (until <= now) {
@@ -502,12 +501,13 @@ internal class NgocSiAiRemoteClient(context: Context) {
         val legacyUntil = quotaPreferences.getLong(KEY_QUOTA_COOLDOWN_UNTIL, 0L)
         val legacyKind = quotaPreferences.getString(KEY_QUOTA_COOLDOWN_KIND, null)
         if (legacyUntil > System.currentTimeMillis() && !legacyKind.isNullOrBlank()) {
-            val reasoningUntilKey = quotaCooldownUntilKey(NGOC_SI_AI_REASONING_MODEL_NAME)
+            val (reasoningUntilKey, reasoningKindKey) =
+                ngocSiAiQuotaCooldownPreferenceKeys(NGOC_SI_AI_REASONING_MODEL_NAME)
             if (!quotaPreferences.contains(reasoningUntilKey)) {
                 quotaPreferences.edit()
                     .putLong(reasoningUntilKey, legacyUntil)
                     .putString(
-                        quotaCooldownKindKey(NGOC_SI_AI_REASONING_MODEL_NAME),
+                        reasoningKindKey,
                         runCatching { NgocSiAiQuotaCooldownKind.valueOf(legacyKind) }
                             .getOrDefault(NgocSiAiQuotaCooldownKind.TEMPORARY).name
                     )
@@ -521,12 +521,6 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 .apply()
         }
     }
-
-    private fun quotaCooldownUntilKey(modelName: String): String =
-        KEY_QUOTA_COOLDOWN_UNTIL_PREFIX + modelName.replace(Regex("[^A-Za-z0-9._-]"), "_")
-
-    private fun quotaCooldownKindKey(modelName: String): String =
-        KEY_QUOTA_COOLDOWN_KIND_PREFIX + modelName.replace(Regex("[^A-Za-z0-9._-]"), "_")
 
     private fun createFirebaseApp(context: Context): FirebaseApp? {
         val apiKey = BuildConfig.FIREBASE_API_KEY
@@ -646,8 +640,6 @@ internal class NgocSiAiRemoteClient(context: Context) {
         // Legacy global keys are read once and migrated to the previous default model.
         private const val KEY_QUOTA_COOLDOWN_UNTIL = "cooldown_until_millis"
         private const val KEY_QUOTA_COOLDOWN_KIND = "cooldown_kind"
-        private const val KEY_QUOTA_COOLDOWN_UNTIL_PREFIX = "cooldown_until_millis_"
-        private const val KEY_QUOTA_COOLDOWN_KIND_PREFIX = "cooldown_kind_"
         private const val EXPECTED_FIREBASE_PROJECT_ID = "ngoc-si-music-ai"
         // Primary model routing is deterministic in NgocSiAiRemotePolicy.
         // Quota errors trigger a cooldown; there is no automatic model fallback.
