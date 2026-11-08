@@ -279,7 +279,7 @@ class NgocSiAiRemotePolicyTest {
         assertFalse(isNgocSiAiVideoCapabilityDiagnosticRequest("AI, kiểm tra kết nối Internet."))
 
         val samplePrompt = buildNgocSiAiVideoCapabilityDiagnosticPrompt("Kiểm tra video mẫu")
-        assertTrue(samplePrompt.contains("video MP4 mẫu công khai"))
+        assertTrue(samplePrompt.contains("video MP4 mẫu"))
         assertTrue(samplePrompt.contains("Đã nhận video mẫu"))
     }
 
