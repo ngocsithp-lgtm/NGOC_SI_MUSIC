@@ -129,6 +129,36 @@ class NgocSiAiEntryContextTest {
     }
 
     @Test
+    fun naturalContinuationOfPreviousYoutubeAnalysisAttachesTheNextActiveVideo() {
+        val history = listOf(
+            NgocSiAiMessage("user", "Phân tích video Bolero đang phát"),
+            NgocSiAiMessage("assistant", "Mình đã phân tích video; có thể tiếp tục đối chiếu cảm xúc và cách hát.")
+        )
+        val prompt = "Mình tiếp tục phần trước: Đang chuyển sang video YouTube tiếp theo."
+
+        assertTrue(isNgocSiAiContextualFollowUp(prompt))
+        assertTrue(shouldAttachNgocSiAiYoutubeVideo(prompt, history))
+        assertTrue(isNgocSiAiYoutubeMultimodalAnalysisRequest("YouTube", prompt, history))
+        assertEquals(
+            "https://www.youtube.com/watch?v=a1b2c3d4e5F",
+            resolveNgocSiAiYoutubeVideoAnalysisUri(
+                "YouTube",
+                "a1b2c3d4e5F",
+                prompt,
+                history
+            )
+        )
+        assertTrue(
+            isNgocSiAiYoutubeVideoAttachmentMissing(
+                "YouTube",
+                null,
+                prompt,
+                history
+            )
+        )
+    }
+
+    @Test
     fun audibleEvidenceAndUnverifiedDetailsRequestAttachesCurrentYoutubeVideo() {
         val prompt =
             "AI, chỉ ra những dấu hiệu nghe được trong bản thu và phân biệt điều gì chưa thể xác minh."
