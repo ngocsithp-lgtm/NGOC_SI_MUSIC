@@ -14,6 +14,12 @@ internal enum class NgocSiAiQuotaCooldownKind {
     TEMPORARY
 }
 
+/** Keep provider cooldowns isolated so one model's quota never blocks another model. */
+internal fun ngocSiAiQuotaCooldownPreferenceKeys(modelName: String): Pair<String, String> {
+    val safeModelName = modelName.replace(Regex("[^A-Za-z0-9._-]"), "_")
+    return "cooldown_until_millis_$safeModelName" to "cooldown_kind_$safeModelName"
+}
+
 internal fun classifyNgocSiAiQuotaCooldown(message: String): NgocSiAiQuotaCooldownKind? {
     val upper = message.uppercase()
     return when {
