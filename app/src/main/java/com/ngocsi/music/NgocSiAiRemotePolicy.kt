@@ -108,8 +108,10 @@ internal fun selectNgocSiAiModelName(
 }
 
 /**
- * Flash-Lite uses MINIMAL for ordinary low-complexity requests. The 3.8 Flash
- * model is reserved for HIGH-depth requests and receives HIGH thinking.
+ * gemini-3.5-flash-lite only accepts MINIMAL thinking. Route every request to
+ * that model with its supported level, including function calls and medium tasks.
+ * The 3.8 Flash route uses MEDIUM by default for deep work; reserve HIGH for
+ * prompts that explicitly ask for maximum reasoning effort.
  */
 internal fun selectNgocSiAiGenerationThinkingLevel(
     prompt: String,
@@ -117,16 +119,30 @@ internal fun selectNgocSiAiGenerationThinkingLevel(
     modelName: String = selectNgocSiAiModelName(prompt, offersAppCommandTool)
 ): ThinkingLevel {
     val requestedLevel = selectNgocSiAiThinkingLevel(prompt)
-    // Flash-Lite uses MINIMAL for low-complexity chat; tool calls retain LOW for reliable action planning.
-    return if (
-        modelName == NGOC_SI_AI_FAST_CHAT_MODEL_NAME &&
-        !offersAppCommandTool &&
-        requestedLevel == ThinkingLevel.LOW
-    ) {
-        ThinkingLevel.MINIMAL
-    } else {
-        requestedLevel
+    return when {
+        modelName == NGOC_SI_AI_FAST_CHAT_MODEL_NAME -> ThinkingLevel.MINIMAL
+        modelName == NGOC_SI_AI_REASONING_MODEL_NAME &&
+            requestedLevel == ThinkingLevel.HIGH &&
+            !requiresMaximumNgocSiAiThinking(prompt) -> ThinkingLevel.MEDIUM
+        else -> requestedLevel
     }
+}
+
+/** Maximum thinking is opt-in; generic "deep" or "finish the task" wording uses MEDIUM. */
+internal fun requiresMaximumNgocSiAiThinking(prompt: String): Boolean {
+    val normalized = normalizeNgocSiAiVoicePhrase(prompt)
+    val explicitMaximumMarkers = listOf(
+        "suy nghi that sau",
+        "suy nghi toi da",
+        "suy luan toi da",
+        "muc suy luan cao nhat",
+        "phan tich o muc toi da",
+        "bai toan rat phuc tap",
+        "chung minh toan hoc phuc tap",
+        "maximum reasoning",
+        "deepest reasoning"
+    )
+    return explicitMaximumMarkers.any(normalized::contains)
 }
 
 internal const val NGOC_SI_AI_SHORT_REPLY_MAX_OUTPUT_TOKENS = 384

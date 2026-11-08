@@ -48,9 +48,14 @@ class NgocSiAiRemotePolicyTest {
 
 
     @Test
-    fun complexRequestsKeepMediumReasoningAndLargerAnswerBudget() {
+    fun complexRequestsKeepMediumIntentButUseFlashLiteSupportedThinkingLevel() {
         val prompt = "Hãy phân tích kỹ, tìm nguyên nhân và lập kế hoạch nâng cấp AI từng bước."
         assertEquals(ThinkingLevel.MEDIUM, selectNgocSiAiThinkingLevel(prompt))
+        assertEquals(NGOC_SI_AI_FAST_CHAT_MODEL_NAME, selectNgocSiAiModelName(prompt))
+        assertEquals(
+            ThinkingLevel.MINIMAL,
+            selectNgocSiAiGenerationThinkingLevel(prompt, modelName = NGOC_SI_AI_FAST_CHAT_MODEL_NAME)
+        )
         assertEquals(NGOC_SI_AI_COMPLEX_REPLY_MAX_OUTPUT_TOKENS, selectNgocSiAiMaxOutputTokens(prompt))
     }
 
@@ -62,6 +67,10 @@ class NgocSiAiRemotePolicyTest {
 
         assertEquals(ThinkingLevel.MEDIUM, selectNgocSiAiThinkingLevel(prompt))
         assertEquals(NGOC_SI_AI_FAST_CHAT_MODEL_NAME, selectNgocSiAiModelName(prompt))
+        assertEquals(
+            ThinkingLevel.MINIMAL,
+            selectNgocSiAiGenerationThinkingLevel(prompt, modelName = NGOC_SI_AI_FAST_CHAT_MODEL_NAME)
+        )
         assertTrue(isNgocSiAiMultimodalVideoAnalysisRequest(prompt))
         assertEquals(
             NGOC_SI_AI_DEEP_REMOTE_CONVERSATION_TIMEOUT_MILLIS,
@@ -84,7 +93,8 @@ class NgocSiAiRemotePolicyTest {
         val prompt = "Hãy kiểm tra toàn diện mã nguồn, phân tích chuyên sâu và tìm nguyên nhân gốc."
         assertEquals(ThinkingLevel.HIGH, selectNgocSiAiThinkingLevel(prompt))
         assertEquals(NGOC_SI_AI_REASONING_MODEL_NAME, selectNgocSiAiModelName(prompt))
-        assertEquals(ThinkingLevel.HIGH, selectNgocSiAiGenerationThinkingLevel(prompt))
+        assertEquals(ThinkingLevel.MEDIUM, selectNgocSiAiGenerationThinkingLevel(prompt))
+        assertFalse(requiresMaximumNgocSiAiThinking(prompt))
         assertEquals(60_000L, NGOC_SI_AI_DEEP_REMOTE_CONVERSATION_TIMEOUT_MILLIS)
         assertEquals(60_000L, selectNgocSiAiRemoteTimeoutMillis(prompt))
         assertTrue(ngocSiAiRemoteTimeoutMessage(prompt).contains("60 giây"))
@@ -92,15 +102,42 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
-    fun explicitCompletionRequestsCanUseDeepReasoningWithoutSlowingOrdinaryUpgradeRequests() {
-        assertEquals(
-            ThinkingLevel.HIGH,
-            selectNgocSiAiThinkingLevel("Hãy nâng cấp và hoàn thiện đến khi hoàn thành, kiểm tra toàn diện.")
+    fun explicitCompletionRequestsUseBalancedReasoningByDefault() {
+        val prompt = "Hãy nâng cấp và hoàn thiện đến khi hoàn thành, kiểm tra toàn diện."
+        assertEquals(ThinkingLevel.HIGH, selectNgocSiAiThinkingLevel(prompt))
+        assertEquals(NGOC_SI_AI_REASONING_MODEL_NAME, selectNgocSiAiModelName(prompt))
+        assertEquals(ThinkingLevel.MEDIUM, selectNgocSiAiGenerationThinkingLevel(prompt))
+        assertEquals(ThinkingLevel.LOW, selectNgocSiAiThinkingLevel("Nâng cấp AI"))
+    }
+
+    @Test
+    fun explicitMaximumReasoningCanStillUseHighThinking() {
+        val prompt = "Suy nghĩ thật sâu ở mức tối đa và chứng minh bài toán rất phức tạp."
+        assertTrue(requiresMaximumNgocSiAiThinking(prompt))
+        assertEquals(ThinkingLevel.HIGH, selectNgocSiAiThinkingLevel(prompt))
+        assertEquals(NGOC_SI_AI_REASONING_MODEL_NAME, selectNgocSiAiModelName(prompt))
+        assertEquals(ThinkingLevel.HIGH, selectNgocSiAiGenerationThinkingLevel(prompt))
+    }
+
+    @Test
+    fun flashLiteAlwaysReceivesMinimalThinkingForChatAndAppTools() {
+        val prompts = listOf(
+            "Xin chào",
+            "Hãy phân tích kỹ nội dung này",
+            "AI, mở YouTube",
+            "AI, tìm bài Bolero rồi phát và hẹn giờ 30 phút"
         )
-        assertEquals(
-            ThinkingLevel.LOW,
-            selectNgocSiAiThinkingLevel("Nâng cấp AI")
-        )
+        prompts.forEach { prompt ->
+            assertEquals(
+                "$prompt must use Flash-Lite's supported MINIMAL level",
+                ThinkingLevel.MINIMAL,
+                selectNgocSiAiGenerationThinkingLevel(
+                    prompt = prompt,
+                    offersAppCommandTool = shouldOfferNgocSiAiAppCommandTool(prompt),
+                    modelName = NGOC_SI_AI_FAST_CHAT_MODEL_NAME
+                )
+            )
+        }
     }
 
     @Test
