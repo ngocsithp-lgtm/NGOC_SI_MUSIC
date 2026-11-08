@@ -77,6 +77,21 @@ internal fun shouldAttachNgocSiAiYoutubeVideo(
  * Resolve a trusted current-player video into a Gemini YouTube URL. Firebase AI
  * Logic accepts one public/unlisted YouTube video URL per request.
  */
+internal fun isNgocSiAiYoutubeMultimodalAnalysisRequest(
+    pageContext: String?,
+    prompt: String,
+    previousMessages: List<NgocSiAiMessage>
+): Boolean = normalizeNgocSiAiEntryContext(pageContext) == "YouTube" &&
+    shouldAttachNgocSiAiYoutubeVideo(prompt, previousMessages)
+
+/** Qwen3-0.6B is text-only; never imply it listened to the active YouTube recording. */
+internal fun buildNgocSiAiLocalMediaAnalysisUnavailableReply(): String =
+    "Gemini trực tuyến hiện đang bị giới hạn hoặc không kết nối được. AI tại máy Qwen3-0.6B chỉ xử lý văn bản, " +
+        "không nhận được âm thanh hay hình ảnh từ video YouTube đang phát, nên mình chưa thể chỉ ra dấu hiệu " +
+        "nghe được trong bản thu và sẽ không tự đoán. Video hiện tại vẫn có thể tiếp tục phát bình thường. " +
+        "Khi Gemini hoạt động lại, hãy giữ nguyên video đang mở, mở NGỌC SĨ AI từ trang YouTube và gửi lại câu hỏi; " +
+        "lúc đó ứng dụng mới có thể gửi video cho mô hình trực tuyến để phân tích."
+
 internal fun resolveNgocSiAiYoutubeVideoAnalysisUri(
     pageContext: String?,
     currentVideoId: String?,
