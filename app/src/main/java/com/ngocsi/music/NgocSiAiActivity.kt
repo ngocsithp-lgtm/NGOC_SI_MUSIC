@@ -2733,7 +2733,7 @@ private fun NgocSiAiPreviewScreen(
                         if (NGOC_SI_AI_YOUTUBE_VIDEO_CONTEXT_MISSING_CODE in errorReply) {
                             buildNgocSiAiYoutubeVideoUnavailableReply()
                         } else {
-                            buildNgocSiAiLocalMediaAnalysisUnavailableReply()
+                            buildNgocSiAiLocalMediaAnalysisUnavailableReply(errorReply)
                         }
                     } else if (localModelNeedsAppTools) {
                         "Gemini đang bị giới hạn. Ứng dụng chưa thực hiện lệnh nhiều bước này; " +
