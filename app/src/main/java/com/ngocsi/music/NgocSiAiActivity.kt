@@ -2779,7 +2779,11 @@ private fun NgocSiAiPreviewScreen(
                     .takeIf { it.isNotBlank() }
                     ?.let { partial -> "$partial\n\n$errorReply" }
                     ?: localModelReply
-                    ?: if (requiresMultimodalVideoAnalysis) {
+                    ?: if (videoCapabilityDiagnosticRequested) {
+                        // Show the actual sample-test failure; do not replace it with a
+                        // misleading notice about the currently playing YouTube URL.
+                        errorReply
+                    } else if (requiresMultimodalVideoAnalysis) {
                         if (NGOC_SI_AI_YOUTUBE_VIDEO_CONTEXT_MISSING_CODE in errorReply) {
                             buildNgocSiAiYoutubeVideoUnavailableReply()
                         } else {
@@ -2801,7 +2805,7 @@ private fun NgocSiAiPreviewScreen(
                 // Keep the failed analysis request and this explicit limitation in API history.
                 // The next natural follow-up can then still be recognized as a YouTube
                 // analysis turn and will attach the newly active queue item (for example B).
-                if (requiresMultimodalYoutubeAnalysis) {
+                if (isNgocSiAiYoutubeMultimodalAnalysisRequest(entryContext, clean, conversation.toList())) {
                     val retainedHistory = appendCompletedNgocSiAiTurn(
                         history = conversation.toList(),
                         userText = clean,
