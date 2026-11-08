@@ -44,6 +44,10 @@
         android:supportsRtl="true"
         android:usesCleartextTraffic="false">
 
+        <!-- Optional Qualcomm/Android GPU libraries for LiteRT-LM; CPU fallback remains available. -->
+        <uses-native-library android:name="libvndksupport.so" android:required="false" />
+        <uses-native-library android:name="libOpenCL.so" android:required="false" />
+
         <!-- In-app YouTube browser/player. PiP is intentionally disabled; background playback
              uses the dedicated media foreground service and notification controls. -->
         <activity

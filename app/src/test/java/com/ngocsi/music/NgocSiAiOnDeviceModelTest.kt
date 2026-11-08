@@ -7,6 +7,16 @@ import org.junit.Test
 
 class NgocSiAiOnDeviceModelTest {
     @Test
+    fun localBackendPrefersGpuAndAlwaysKeepsCpuAsFallback() {
+        assertEquals(
+            listOf(NgocSiAiLocalBackend.GPU, NgocSiAiLocalBackend.CPU),
+            ngocSiAiLocalBackendAttemptOrder()
+        )
+        assertEquals("GPU/OpenCL", NgocSiAiLocalBackend.GPU.displayName)
+        assertEquals("CPU", NgocSiAiLocalBackend.CPU.displayName)
+    }
+
+    @Test
     fun removesQwenThinkingBlockBeforeShowingOrSpeakingTheAnswer() {
         assertEquals(
             "Hà Nội là thủ đô của Việt Nam.",

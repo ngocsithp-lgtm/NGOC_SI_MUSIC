@@ -1178,6 +1178,9 @@ class NgocSiAiActivity : ComponentActivity() {
                 onReleaseLocalModel = {
                     NgocSiAiOnDeviceModel.release()
                 },
+                onLocalModelBackendStatus = {
+                    NgocSiAiOnDeviceModel.backendStatusLabel()
+                },
                 onSendOnline = { history, executeTool, onPartialResponse ->
                     aiClient.send(
                         history,
@@ -2303,6 +2306,7 @@ private fun NgocSiAiPreviewScreen(
     onDownloadLocalModel: suspend (onProgress: (Long, Long) -> Unit) -> Unit,
     onGenerateLocalModel: suspend (String, List<NgocSiAiMessage>) -> String,
     onReleaseLocalModel: suspend () -> Unit,
+    onLocalModelBackendStatus: () -> String,
     onSendOnline: NgocSiAiRequest,
     onExecuteAppCommand: NgocSiAiToolExecutor,
     onLocalCommand: (NgocSiAiLocalCommand, String) -> String,
@@ -2618,7 +2622,7 @@ private fun NgocSiAiPreviewScreen(
                     saveAiApiConversation(chatPreferences, conversation)
                     messages.add(AiPreviewMessage(false, localAnswer))
                     while (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
-                    quotaNote = "Trả lời tại máy · không gửi câu hỏi lên Gemini"
+                    quotaNote = "Trả lời tại máy · ${onLocalModelBackendStatus()} · không gửi câu hỏi lên Gemini"
                     persistChatState()
                     onVoiceReply(localAnswer)
                 } catch (error: Exception) {
@@ -2823,7 +2827,7 @@ private fun NgocSiAiPreviewScreen(
                     conversation.addAll(retainedHistory)
                 }
                 quotaNote = if (localModelReply != null) {
-                    "Gemini đang bị giới hạn · đã trả lời bằng AI tại máy"
+                    "Gemini đang bị giới hạn · đã trả lời bằng AI tại máy (${onLocalModelBackendStatus()})"
                 } else {
                     ngocSiAiQuotaUiNotice(
                         errorReply,

@@ -26,6 +26,15 @@ import java.util.concurrent.TimeUnit
 
 internal const val NGOC_SI_AI_PREFER_LOCAL_MODEL_KEY = "prefer_on_device_ai_v1"
 
+internal enum class NgocSiAiLocalBackend(val displayName: String) {
+    GPU("GPU/OpenCL"),
+    CPU("CPU")
+}
+
+/** GPU is preferred for supported devices; CPU remains the mandatory fallback. */
+internal fun ngocSiAiLocalBackendAttemptOrder(): List<NgocSiAiLocalBackend> =
+    listOf(NgocSiAiLocalBackend.GPU, NgocSiAiLocalBackend.CPU)
+
 internal fun stripNgocSiAiOnDeviceThinkingContent(text: String): String =
     text.replace(Regex("<think>.*?</think>", setOf(RegexOption.DOT_MATCHES_ALL)), "")
         .replace("</think>", "")
@@ -184,6 +193,23 @@ internal object NgocSiAiOnDeviceModel {
     private var engine: Engine? = null
     private var conversation: Conversation? = null
     private var loadedModelPath: String? = null
+
+    @Volatile
+    private var activeBackend: NgocSiAiLocalBackend? = null
+
+    @Volatile
+    private var gpuFallbackUsed: Boolean = false
+
+    /** Current local inference path, shown next to offline replies for transparent diagnostics. */
+    fun backendStatusLabel(): String = when (activeBackend) {
+        NgocSiAiLocalBackend.GPU -> NgocSiAiLocalBackend.GPU.displayName
+        NgocSiAiLocalBackend.CPU -> if (gpuFallbackUsed) {
+            "CPU dự phòng (GPU không khả dụng)"
+        } else {
+            NgocSiAiLocalBackend.CPU.displayName
+        }
+        null -> "chưa khởi tạo"
+    }
 
     fun modelFile(context: Context): File =
         File(context.applicationContext.filesDir, MODEL_FILE_NAME)
@@ -345,6 +371,39 @@ internal object NgocSiAiOnDeviceModel {
             } catch (cancelled: CancellationException) {
                 runCatching { activeConversation.cancelProcess() }
                 throw cancelled
+            } catch (gpuError: Throwable) {
+                if (
+                    activeBackend != NgocSiAiLocalBackend.GPU ||
+                    isFatalLocalBackendError(gpuError)
+                ) {
+                    throw gpuError
+                }
+
+                // A GPU kernel may initialize successfully but fail on a real prompt.
+                // Discard partial GPU output, rebuild on CPU, and retry this turn once.
+                runCatching { activeConversation.cancelProcess() }
+                switchToCpuEngine(
+                    context = context.applicationContext,
+                    modelPath = modelFile(context).absolutePath,
+                    memories = onDeviceMemories,
+                    entryContext = entryContext,
+                    mediaContextInstruction = mediaContextInstruction,
+                    prompt = cleanPrompt,
+                    gpuError = gpuError
+                )
+                val cpuConversation = checkNotNull(conversation) {
+                    "Mô hình AI dự phòng CPU chưa sẵn sàng."
+                }
+                val cpuReply = StringBuilder()
+                try {
+                    cpuConversation.sendMessageAsync(promptWithMemory).collect { chunk ->
+                        cpuReply.append(chunk.toString())
+                    }
+                } catch (cancelled: CancellationException) {
+                    runCatching { cpuConversation.cancelProcess() }
+                    throw cancelled
+                }
+                reply.append(cpuReply)
             }
 
             val cleanReply = stripNgocSiAiOnDeviceThinkingContent(reply.toString())
@@ -380,46 +439,161 @@ internal object NgocSiAiOnDeviceModel {
         val path = modelFile(context).absolutePath
         if (engine == null || loadedModelPath != path) {
             resetConversation()
-            val newEngine = Engine(
-                EngineConfig(
-                    modelPath = path,
-                    backend = Backend.CPU(),
-                    cacheDir = context.cacheDir.absolutePath
-                )
-            )
-            // Engine.initialize may take several seconds. This function always runs
-            // on the single background engine executor, never on Android's main thread.
-            newEngine.initialize()
-            engine = newEngine
-            loadedModelPath = path
+            closeCurrentEngine()
+            initializeEngineWithFallback(context, path)
         }
 
         if (conversation == null) {
-            conversation = checkNotNull(engine).createConversation(
-                ConversationConfig(
-                    systemInstruction = Contents.of(
-                        buildSystemInstruction(
-                            memories,
-                            entryContext,
-                            mediaContextInstruction
-                        )
-                    ),
-                    samplerConfig = SamplerConfig(
-                        topK = 30,
-                        topP = 0.85,
-                        temperature = 0.65
-                    ),
-                    // Qwen3-0.6B defaults to thinking mode. Disable hidden reasoning for
-                    // the offline fallback so its small token budget goes to the user answer.
-                    thinkingConfig = ThinkingConfig(
-                        enableThinking = NGOC_SI_AI_LOCAL_THINKING_ENABLED,
-                        thinkingTokenBudget = NGOC_SI_AI_LOCAL_THINKING_TOKEN_BUDGET
-                    ),
-                    maxOutputToken = selectNgocSiAiLocalMaxOutputTokens(prompt)
+            try {
+                conversation = createConfiguredConversation(
+                    memories,
+                    entryContext,
+                    mediaContextInstruction,
+                    prompt
                 )
-            )
+            } catch (gpuError: Throwable) {
+                if (
+                    activeBackend != NgocSiAiLocalBackend.GPU ||
+                    isFatalLocalBackendError(gpuError)
+                ) {
+                    throw gpuError
+                }
+                // Some OpenCL devices fail while compiling the first conversation graph,
+                // even when Engine.initialize() succeeded. Switch to CPU before replying.
+                switchToCpuEngine(
+                    context,
+                    path,
+                    memories,
+                    entryContext,
+                    mediaContextInstruction,
+                    prompt,
+                    gpuError
+                )
+            }
         }
     }
+
+    private fun createConfiguredConversation(
+        memories: List<String>,
+        entryContext: String?,
+        mediaContextInstruction: String?,
+        prompt: String
+    ): Conversation = checkNotNull(engine).createConversation(
+        ConversationConfig(
+            systemInstruction = Contents.of(
+                buildSystemInstruction(
+                    memories,
+                    entryContext,
+                    mediaContextInstruction
+                )
+            ),
+            samplerConfig = SamplerConfig(
+                topK = 30,
+                topP = 0.85,
+                temperature = 0.65
+            ),
+            // Qwen3-0.6B defaults to thinking mode. Disable hidden reasoning for
+            // the offline fallback so its small token budget goes to the user answer.
+            thinkingConfig = ThinkingConfig(
+                enableThinking = NGOC_SI_AI_LOCAL_THINKING_ENABLED,
+                thinkingTokenBudget = NGOC_SI_AI_LOCAL_THINKING_TOKEN_BUDGET
+            ),
+            maxOutputToken = selectNgocSiAiLocalMaxOutputTokens(prompt)
+        )
+    )
+
+    private fun initializeEngineWithFallback(context: Context, modelPath: String) {
+        try {
+            val gpuEngine = createInitializedEngine(
+                context,
+                modelPath,
+                NgocSiAiLocalBackend.GPU
+            )
+            engine = gpuEngine
+            loadedModelPath = modelPath
+            activeBackend = NgocSiAiLocalBackend.GPU
+            gpuFallbackUsed = false
+        } catch (gpuError: Throwable) {
+            if (isFatalLocalBackendError(gpuError)) throw gpuError
+            val cpuEngine = createInitializedEngine(
+                context,
+                modelPath,
+                NgocSiAiLocalBackend.CPU
+            )
+            engine = cpuEngine
+            loadedModelPath = modelPath
+            activeBackend = NgocSiAiLocalBackend.CPU
+            gpuFallbackUsed = true
+        }
+    }
+
+    private fun createInitializedEngine(
+        context: Context,
+        modelPath: String,
+        backend: NgocSiAiLocalBackend
+    ): Engine {
+        val candidate = Engine(
+            EngineConfig(
+                modelPath = modelPath,
+                backend = when (backend) {
+                    NgocSiAiLocalBackend.GPU -> Backend.GPU()
+                    NgocSiAiLocalBackend.CPU -> Backend.CPU()
+                },
+                cacheDir = context.cacheDir.absolutePath
+            )
+        )
+        try {
+            // Native initialization is blocking and may take several seconds. It always
+            // runs on engineDispatcher, never on Android's main thread.
+            candidate.initialize()
+            return candidate
+        } catch (error: Throwable) {
+            runCatching { candidate.close() }
+            throw error
+        }
+    }
+
+    private fun switchToCpuEngine(
+        context: Context,
+        modelPath: String,
+        memories: List<String>,
+        entryContext: String?,
+        mediaContextInstruction: String?,
+        prompt: String,
+        gpuError: Throwable
+    ) {
+        resetConversation()
+        closeCurrentEngine()
+        val cpuEngine = createInitializedEngine(
+            context,
+            modelPath,
+            NgocSiAiLocalBackend.CPU
+        )
+        engine = cpuEngine
+        loadedModelPath = modelPath
+        activeBackend = NgocSiAiLocalBackend.CPU
+        gpuFallbackUsed = true
+        conversation = createConfiguredConversation(
+            memories,
+            entryContext,
+            mediaContextInstruction,
+            prompt
+        )
+    }
+
+    private fun closeCurrentEngine() {
+        val previousEngine = engine
+        engine = null
+        if (previousEngine != null) {
+            runCatching {
+                if (previousEngine.isInitialized()) previousEngine.close()
+            }
+        }
+        loadedModelPath = null
+    }
+
+    private fun isFatalLocalBackendError(error: Throwable): Boolean =
+        error is VirtualMachineError || error is ThreadDeath
 
     private fun buildPromptWithMemories(
         prompt: String,
@@ -436,13 +610,9 @@ internal object NgocSiAiOnDeviceModel {
     suspend fun release() = withContext(engineDispatcher) {
         operationMutex.withLock {
             resetConversation()
-            engine?.let { loadedEngine ->
-                if (loadedEngine.isInitialized()) {
-                    loadedEngine.close()
-                }
-            }
-            engine = null
-            loadedModelPath = null
+            closeCurrentEngine()
+            activeBackend = null
+            gpuFallbackUsed = false
         }
     }
 
