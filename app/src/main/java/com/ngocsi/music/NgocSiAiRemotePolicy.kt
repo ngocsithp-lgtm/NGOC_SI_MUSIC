@@ -133,8 +133,12 @@ internal fun selectNgocSiAiModelName(
     prompt: String,
     offersAppCommandTool: Boolean = false,
     forceMultimodalReasoning: Boolean = false
-): String = if (forceMultimodalReasoning) {
+): String = if (forceMultimodalReasoning && !isNgocSiAiQuickVideoOverviewRequest(prompt)) {
     NGOC_SI_AI_REASONING_MODEL_NAME
+} else if (forceMultimodalReasoning) {
+    // The broad first-pass overview uses multimodal Flash-Lite for lower latency.
+    // Explicit evidence, vocal, comparison and deep requests stay on Gemini Flash.
+    NGOC_SI_AI_FAST_CHAT_MODEL_NAME
 } else {
     when (selectNgocSiAiThinkingLevel(prompt)) {
         ThinkingLevel.MEDIUM, ThinkingLevel.HIGH -> NGOC_SI_AI_REASONING_MODEL_NAME
@@ -184,6 +188,7 @@ internal fun requiresMaximumNgocSiAiThinking(prompt: String): Boolean {
 }
 
 internal const val NGOC_SI_AI_SHORT_REPLY_MAX_OUTPUT_TOKENS = 384
+internal const val NGOC_SI_AI_VIDEO_OVERVIEW_MAX_OUTPUT_TOKENS = 768
 internal const val NGOC_SI_AI_KNOWLEDGE_REPLY_MAX_OUTPUT_TOKENS = 768
 internal const val NGOC_SI_AI_COMPLEX_REPLY_MAX_OUTPUT_TOKENS = 1_024
 internal const val NGOC_SI_AI_DEEP_REPLY_MAX_OUTPUT_TOKENS = 2_048
@@ -202,6 +207,29 @@ internal fun isNgocSiAiMultimodalVideoAnalysisRequest(prompt: String): Boolean {
         "giong hat", "ban thu", "loi bai hat"
     ).any(normalized::contains)
     return analysisIntent && mediaContext
+}
+
+/**
+ * A broad first-pass request can use multimodal Flash-Lite. Requests that ask for
+ * audible evidence, vocal technique, comparisons, timestamps or deeper analysis
+ * remain on Gemini Flash to preserve the stronger reasoning path.
+ */
+internal fun isNgocSiAiQuickVideoOverviewRequest(prompt: String): Boolean {
+    if (!isNgocSiAiMultimodalVideoAnalysisRequest(prompt)) return false
+    val normalized = stripNgocSiAiDirectIntentWakePrefix(
+        normalizeNgocSiAiVoicePhrase(prompt)
+    )
+    val detailedEvidenceMarkers = listOf(
+        "phan tich ky", "phan tich sau", "phan tich chuyen sau",
+        "suy nghi that sau", "suy nghi that ky", "suy nghi toi da",
+        "suy luan toi da", "muc suy luan cao nhat", "phan tich o muc toi da",
+        "maximum reasoning", "deepest reasoning", "kiem tra toan dien",
+        "dau hieu nghe duoc", "nghe duoc", "ban thu",
+        "cach hat", "chat giong", "giong hat", "loi bai hat",
+        "so sanh", "cam xuc", "canh quay", "hinh anh",
+        "moc thoi gian", "timestamp", "chi tiet", "chi ra"
+    )
+    return detailedEvidenceMarkers.none(normalized::contains)
 }
 
 /** Video ingestion may take longer; extend only its deadline, not its reasoning tier. */
@@ -279,6 +307,8 @@ internal fun selectNgocSiAiMaxOutputTokens(
     prompt: String,
     forceMultimodalReasoning: Boolean = false
 ): Int = when {
+    forceMultimodalReasoning && isNgocSiAiQuickVideoOverviewRequest(prompt) ->
+        NGOC_SI_AI_VIDEO_OVERVIEW_MAX_OUTPUT_TOKENS
     selectNgocSiAiThinkingLevel(prompt) == ThinkingLevel.HIGH -> NGOC_SI_AI_DEEP_REPLY_MAX_OUTPUT_TOKENS
     selectNgocSiAiThinkingLevel(prompt) == ThinkingLevel.MEDIUM || forceMultimodalReasoning ->
         NGOC_SI_AI_COMPLEX_REPLY_MAX_OUTPUT_TOKENS

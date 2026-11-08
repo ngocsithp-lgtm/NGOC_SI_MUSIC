@@ -79,6 +79,79 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
+    fun broadCurrentYoutubeVideoOverviewUsesMultimodalFlashLiteForTheFirstPass() {
+        val prompts = listOf(
+            "AI, phân tích video đang phát.",
+            "AI, phân tích video ca nhạc đang phát."
+        )
+        prompts.forEach { prompt ->
+            assertTrue(isNgocSiAiMultimodalVideoAnalysisRequest(prompt))
+            assertTrue(isNgocSiAiQuickVideoOverviewRequest(prompt))
+            assertEquals(
+                NGOC_SI_AI_FAST_CHAT_MODEL_NAME,
+                selectNgocSiAiModelName(prompt, forceMultimodalReasoning = true)
+            )
+            assertEquals(
+                ThinkingLevel.MINIMAL,
+                selectNgocSiAiGenerationThinkingLevel(
+                    prompt,
+                    modelName = NGOC_SI_AI_FAST_CHAT_MODEL_NAME,
+                    forceMultimodalReasoning = true
+                )
+            )
+            assertEquals(
+                NGOC_SI_AI_VIDEO_OVERVIEW_MAX_OUTPUT_TOKENS,
+                selectNgocSiAiMaxOutputTokens(prompt, forceMultimodalReasoning = true)
+            )
+            assertEquals(
+                NGOC_SI_AI_DEEP_REMOTE_CONVERSATION_TIMEOUT_MILLIS,
+                selectNgocSiAiRemoteTimeoutMillis(prompt, forceMultimodalReasoning = true)
+            )
+        }
+    }
+
+    @Test
+    fun detailedAndAudibleVideoRequestsStayOnGeminiFlash() {
+        val prompts = listOf(
+            "AI, chỉ ra những dấu hiệu nghe được trong bản thu.",
+            "AI, phân tích kỹ video đang phát.",
+            "AI, so sánh cách hát của ca sĩ trong video."
+        )
+        prompts.forEach { prompt ->
+            assertTrue(isNgocSiAiMultimodalVideoAnalysisRequest(prompt))
+            assertFalse(isNgocSiAiQuickVideoOverviewRequest(prompt))
+            assertEquals(
+                NGOC_SI_AI_REASONING_MODEL_NAME,
+                selectNgocSiAiModelName(prompt, forceMultimodalReasoning = true)
+            )
+            assertEquals(
+                ThinkingLevel.MEDIUM,
+                selectNgocSiAiGenerationThinkingLevel(
+                    prompt,
+                    modelName = NGOC_SI_AI_REASONING_MODEL_NAME,
+                    forceMultimodalReasoning = true
+                )
+            )
+        }
+
+        val maximumPrompt = "AI, phân tích video đang phát và suy nghĩ thật sâu."
+        assertFalse(isNgocSiAiQuickVideoOverviewRequest(maximumPrompt))
+        assertEquals(
+            NGOC_SI_AI_REASONING_MODEL_NAME,
+            selectNgocSiAiModelName(maximumPrompt, forceMultimodalReasoning = true)
+        )
+        assertTrue(requiresMaximumNgocSiAiThinking(maximumPrompt))
+        assertEquals(
+            ThinkingLevel.HIGH,
+            selectNgocSiAiGenerationThinkingLevel(
+                maximumPrompt,
+                modelName = NGOC_SI_AI_REASONING_MODEL_NAME,
+                forceMultimodalReasoning = true
+            )
+        )
+    }
+
+    @Test
     fun audibleEvidenceAndUnverifiedAnalysisGetsGeminiFlashAndMultimodalBudget() {
         val prompt =
             "AI, chỉ ra những dấu hiệu nghe được trong bản thu và phân biệt điều gì chưa thể xác minh."
