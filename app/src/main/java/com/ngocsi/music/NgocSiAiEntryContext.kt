@@ -86,7 +86,7 @@ internal fun isNgocSiAiYoutubeMultimodalAnalysisRequest(
 
 /** Qwen3-0.6B is text-only; never imply it listened to the active YouTube recording. */
 internal fun buildNgocSiAiLocalMediaAnalysisUnavailableReply(remoteError: String? = null): String {
-    val diagnosticCode = Regex("Mã chẩn đoán:\\s*([A-Z0-9_]+)")
+    val diagnosticCode = Regex("(?:Mã chẩn đoán|Mã):\\s*([A-Z0-9_]+)")
         .find(remoteError.orEmpty())
         ?.groupValues
         ?.getOrNull(1)
