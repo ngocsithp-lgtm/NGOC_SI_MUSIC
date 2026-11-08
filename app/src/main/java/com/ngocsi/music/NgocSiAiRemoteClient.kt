@@ -631,9 +631,10 @@ internal class NgocSiAiRemoteClient(context: Context) {
             exceptionClassNames.joinToString(" ") + " " +
                 exceptionChain.joinToString(" ") { it.message.orEmpty() }
             ).lowercase(Locale.ROOT)
-        val errorCode = Regex("\\b(400|401|403|404|408|413|415|429|500|502|503|504)\\b")
-            .find(details)
-            ?.value
+        val errorCode = extractNgocSiAiRemoteHttpStatusCode(details)
+            ?: Regex("\\b(400|401|403|404|408|413|415|422|429|500|501|502|503|504)\\b")
+                .find(details)
+                ?.value
 
         val quotaDiagnosticCode = ngocSiAiQuotaDiagnosticCode(details)
         val diagnosticExceptionType =
@@ -668,7 +669,15 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 "Gemini từ chối nội dung yêu cầu (HTTP 400). Với phân tích YouTube, hãy kiểm tra video ở chế độ công khai/không công khai và URL còn hợp lệ. Mã chẩn đoán: INVALID_REQUEST_400."
             errorCode == "404" || "model not found" in details || "not found" in details ->
                 "Không tìm thấy model hoặc endpoint AI. Mã chẩn đoán: MODEL_OR_ENDPOINT_404."
-            errorCode in setOf("408", "500", "502", "503", "504") ->
+            errorCode == "413" ->
+                "Máy chủ từ chối yêu cầu vì dữ liệu đầu vào quá lớn. Mã chẩn đoán: REQUEST_TOO_LARGE_413."
+            errorCode == "415" ->
+                "Máy chủ không chấp nhận định dạng media của yêu cầu. Mã chẩn đoán: UNSUPPORTED_MEDIA_TYPE_415."
+            errorCode == "422" ->
+                "Máy chủ không xử lý được cấu trúc yêu cầu video. Mã chẩn đoán: INVALID_REQUEST_422."
+            errorCode == "429" ->
+                "Google trả về HTTP 429 nhưng phần thông điệp không nêu rõ cửa sổ quota. Mã chẩn đoán: AI_QUOTA_429_PROJECT_OR_CAPACITY."
+            errorCode in setOf("408", "500", "501", "502", "503", "504") ->
                 "Máy chủ Gemini đang tạm thời bận hoặc kết nối bị gián đoạn (HTTP $errorCode). " +
                     "Ứng dụng chỉ tự thử lại một lần cho câu chat thông thường; lệnh điều khiển không tự gửi lại."
             "requesttimeoutexception" in exceptionTypeDetails ->

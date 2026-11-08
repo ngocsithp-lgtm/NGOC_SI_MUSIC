@@ -33,6 +33,45 @@ internal fun ngocSiAiRemoteDiagnosticExceptionType(classNames: List<String>): St
     return selected.filter { it.isLetterOrDigit() }.take(48).ifBlank { "UnknownException" }
 }
 
+/**
+ * Recover an HTTP status from a Firebase ServerException message when the SDK's
+ * public exception wrapper has preserved the raw Google error payload. The SDK
+ * does not expose the HTTP status as a property, so only explicit status fields
+ * are accepted; unrelated numbers in prompts or stack traces are ignored.
+ */
+internal fun extractNgocSiAiRemoteHttpStatusCode(details: String): String? {
+    val supportedCodes = "400|401|403|404|408|413|415|422|429|500|501|502|503|504"
+    val explicitHttp = Regex(
+        """(?i)\bHTTP(?:/\d(?:\.\d)?)?\s+($supportedCodes)\b"""
+    ).find(details)?.groupValues?.getOrNull(1)
+    if (explicitHttp != null) return explicitHttp
+
+    val explicitStatus = Regex(
+        """(?i)\bstatus(?:\s+code)?\s*[:=]\s*($supportedCodes)\b"""
+    ).find(details)?.groupValues?.getOrNull(1)
+    if (explicitStatus != null) return explicitStatus
+
+    val structuredCode = Regex(
+        """(?i)["'](?:code|httpCode|http_status)["']\s*:\s*["']?($supportedCodes)["']?"""
+    ).find(details)?.groupValues?.getOrNull(1)
+    if (structuredCode != null) return structuredCode
+
+    val grpcStatus = Regex(
+        """(?i)["']status["']\s*:\s*["'](INVALID_ARGUMENT|UNAUTHENTICATED|PERMISSION_DENIED|NOT_FOUND|RESOURCE_EXHAUSTED|DEADLINE_EXCEEDED|UNAVAILABLE|INTERNAL|FAILED_PRECONDITION)["']"""
+    ).find(details)?.groupValues?.getOrNull(1)?.uppercase()
+    return when (grpcStatus) {
+        "INVALID_ARGUMENT", "FAILED_PRECONDITION" -> "400"
+        "UNAUTHENTICATED" -> "401"
+        "PERMISSION_DENIED" -> "403"
+        "NOT_FOUND" -> "404"
+        "RESOURCE_EXHAUSTED" -> "429"
+        "DEADLINE_EXCEEDED" -> "504"
+        "UNAVAILABLE" -> "503"
+        "INTERNAL" -> "500"
+        else -> null
+    }
+}
+
 /** Ordinary questions should fail fast; longer reasoning receives a separate bounded window. */
 internal const val NGOC_SI_AI_REMOTE_CONVERSATION_TIMEOUT_MILLIS = 25_000L
 internal const val NGOC_SI_AI_COMPLEX_REMOTE_CONVERSATION_TIMEOUT_MILLIS = 40_000L

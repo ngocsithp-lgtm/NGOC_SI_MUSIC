@@ -9,6 +9,26 @@ import org.junit.Test
 
 class NgocSiAiRemotePolicyTest {
     @Test
+    fun extractsOnlyExplicitHttpOrGoogleRpcStatusesFromServerErrors() {
+        assertEquals(
+            "503",
+            extractNgocSiAiRemoteHttpStatusCode("""{"error":{"code":503,"status":"UNAVAILABLE","message":"temporarily unavailable"}}""")
+        )
+        assertEquals(
+            "403",
+            extractNgocSiAiRemoteHttpStatusCode("""{"error":{"status":"PERMISSION_DENIED","message":"access denied"}}""")
+        )
+        assertEquals(
+            "429",
+            extractNgocSiAiRemoteHttpStatusCode("""{"error":{"status":"RESOURCE_EXHAUSTED","message":"request limit"}}""")
+        )
+        assertEquals("400", extractNgocSiAiRemoteHttpStatusCode("HTTP 400 invalid argument"))
+        assertNull(
+            extractNgocSiAiRemoteHttpStatusCode("video is 120 seconds; model generation uses 3.5")
+        )
+    }
+
+    @Test
     fun ordinaryQuestionsUseAResponsiveSharedDeadline() {
         assertEquals(25_000L, NGOC_SI_AI_REMOTE_CONVERSATION_TIMEOUT_MILLIS)
         assertEquals(25_000L, selectNgocSiAiRemoteTimeoutMillis("Bạn có khỏe không?"))
