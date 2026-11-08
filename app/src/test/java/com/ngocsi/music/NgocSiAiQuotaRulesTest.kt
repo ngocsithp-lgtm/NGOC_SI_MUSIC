@@ -239,6 +239,19 @@ class NgocSiAiQuotaRulesTest {
     }
 
     @Test
+    fun quotaCooldownPreferenceKeysAreIsolatedPerGeminiModel() {
+        val flashLite = ngocSiAiQuotaCooldownPreferenceKeys("gemini-3.5-flash-lite")
+        val flash = ngocSiAiQuotaCooldownPreferenceKeys("gemini-3.8-flash")
+
+        assertEquals("cooldown_until_millis_gemini-3.5-flash-lite", flashLite.first)
+        assertEquals("cooldown_kind_gemini-3.5-flash-lite", flashLite.second)
+        assertEquals("cooldown_until_millis_gemini-3.8-flash", flash.first)
+        assertEquals("cooldown_kind_gemini-3.8-flash", flash.second)
+        org.junit.Assert.assertNotEquals(flashLite.first, flash.first)
+        org.junit.Assert.assertNotEquals(flashLite.second, flash.second)
+    }
+
+    @Test
     fun cooldownNoticeMentionsLocalCommandsStillWork() {
         val message = ngocSiAiQuotaCooldownNotice(NgocSiAiQuotaCooldownKind.RATE, 60_000L)
         org.junit.Assert.assertTrue(message.contains("Lệnh nhạc trên thiết bị vẫn hoạt động"))
