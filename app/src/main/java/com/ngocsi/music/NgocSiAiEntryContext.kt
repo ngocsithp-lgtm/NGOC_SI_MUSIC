@@ -85,12 +85,40 @@ internal fun isNgocSiAiYoutubeMultimodalAnalysisRequest(
     shouldAttachNgocSiAiYoutubeVideo(prompt, previousMessages)
 
 /** Qwen3-0.6B is text-only; never imply it listened to the active YouTube recording. */
-internal fun buildNgocSiAiLocalMediaAnalysisUnavailableReply(): String =
-    "Gemini trực tuyến hiện đang bị giới hạn hoặc không kết nối được. AI tại máy Qwen3-0.6B chỉ xử lý văn bản, " +
-        "không nhận được âm thanh hay hình ảnh từ video YouTube đang phát, nên mình chưa thể chỉ ra dấu hiệu " +
-        "nghe được trong bản thu và sẽ không tự đoán. Video hiện tại vẫn có thể tiếp tục phát bình thường. " +
-        "Khi Gemini hoạt động lại, hãy giữ nguyên video đang mở, mở NGỌC SĨ AI từ trang YouTube và gửi lại câu hỏi; " +
-        "lúc đó ứng dụng mới có thể gửi video cho mô hình trực tuyến để phân tích."
+internal fun buildNgocSiAiLocalMediaAnalysisUnavailableReply(remoteError: String? = null): String {
+    val diagnosticCode = Regex("Mã chẩn đoán:\\s*([A-Z0-9_]+)")
+        .find(remoteError.orEmpty())
+        ?.groupValues
+        ?.getOrNull(1)
+    val diagnostic = when {
+        diagnosticCode == "APP_CHECK_TOKEN" ->
+            "Firebase báo lỗi xác minh App Check. Kiểm tra debug token của đúng bản Preview và trạng thái App Check cho Firebase AI Logic. Mã: APP_CHECK_TOKEN."
+        diagnosticCode == "ACCESS_DENIED_403" ->
+            "Firebase từ chối quyền truy cập (403). Cần kiểm tra App Check và quyền của Firebase AI Logic. Mã: ACCESS_DENIED_403."
+        diagnosticCode?.startsWith("AI_QUOTA_") == true ||
+            diagnosticCode == "AI_PAID_TIER_REQUIRED" ||
+            diagnosticCode == "AI_FREE_TIER_PROJECT_RESTRICTED" ->
+            "Gemini trả về lỗi hạn mức hoặc quyền Free Tier. Ứng dụng không tự bật thanh toán. Mã: $diagnosticCode."
+        diagnosticCode == "NETWORK" ->
+            "Không kết nối được máy chủ AI qua mạng hiện tại. Mã: NETWORK."
+        diagnosticCode == "FIREBASE_CONFIG" ->
+            "Firebase AI Logic chưa được cấu hình hoặc khởi tạo đúng. Mã: FIREBASE_CONFIG."
+        diagnosticCode == "AUTH_401" ->
+            "Firebase không xác thực được yêu cầu. Mã: AUTH_401."
+        diagnosticCode == "MODEL_OR_ENDPOINT_404" ->
+            "Không tìm thấy model hoặc endpoint AI. Mã: MODEL_OR_ENDPOINT_404."
+        diagnosticCode?.startsWith("REMOTE_ERROR_") == true ->
+            "Firebase AI Logic trả về lỗi kỹ thuật chưa được phân loại. Hãy gửi đúng mã này để kiểm tra: $diagnosticCode."
+        diagnosticCode != null ->
+            "Mã lỗi Firebase nhận được: $diagnosticCode."
+        else ->
+            "Ứng dụng chưa nhận được mã lỗi chi tiết từ Firebase; chưa thể kết luận là hết quota, App Check hay lỗi mạng."
+    }
+    return "Gemini trực tuyến chưa phân tích được video. $diagnostic " +
+        "AI tại máy Qwen3-0.6B chỉ xử lý văn bản, không nhận được âm thanh hay hình ảnh từ video YouTube đang phát, " +
+        "nên mình chưa thể chỉ ra dấu hiệu nghe được trong bản thu và sẽ không tự đoán. Video hiện tại vẫn có thể tiếp tục phát bình thường. " +
+        "Khi lỗi được xử lý, hãy giữ video đang mở, mở NGỌC SĨ AI từ trang YouTube và gửi lại câu hỏi."
+}
 
 internal fun resolveNgocSiAiYoutubeVideoAnalysisUri(
     pageContext: String?,
