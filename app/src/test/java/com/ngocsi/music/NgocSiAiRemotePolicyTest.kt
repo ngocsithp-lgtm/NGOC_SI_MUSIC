@@ -165,9 +165,10 @@ class NgocSiAiRemotePolicyTest {
             selectNgocSiAiMaxOutputTokens(prompt)
         )
         assertEquals(
-            NGOC_SI_AI_DEEP_REMOTE_CONVERSATION_TIMEOUT_MILLIS,
+            NGOC_SI_AI_VIDEO_ANALYSIS_TIMEOUT_MILLIS,
             selectNgocSiAiRemoteTimeoutMillis(prompt)
         )
+        assertTrue(ngocSiAiRemoteTimeoutMessage(prompt).contains("VIDEO_ANALYSIS_TIMEOUT"))
     }
 
     @Test
