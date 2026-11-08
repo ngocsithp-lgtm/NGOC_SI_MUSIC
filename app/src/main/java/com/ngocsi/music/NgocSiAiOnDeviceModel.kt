@@ -99,6 +99,8 @@ internal const val NGOC_SI_AI_LOCAL_HISTORY_MAX_MESSAGE_CHARS = 320
 internal const val NGOC_SI_AI_LOCAL_HISTORY_MAX_CONTEXT_CHARS = 2_200
 internal const val NGOC_SI_AI_LOCAL_SHORT_REPLY_MAX_OUTPUT_TOKENS = 384
 internal const val NGOC_SI_AI_LOCAL_CONTEXT_REPLY_MAX_OUTPUT_TOKENS = 640
+internal const val NGOC_SI_AI_LOCAL_THINKING_ENABLED = false
+internal const val NGOC_SI_AI_LOCAL_THINKING_TOKEN_BUDGET = 0
 
 /**
  * Keep Qwen3's local fallback responsive: short requests use a compact answer cap,
@@ -410,8 +412,8 @@ internal object NgocSiAiOnDeviceModel {
                     // Qwen3-0.6B defaults to thinking mode. Disable hidden reasoning for
                     // the offline fallback so its small token budget goes to the user answer.
                     thinkingConfig = ThinkingConfig(
-                        enableThinking = false,
-                        thinkingTokenBudget = 0
+                        enableThinking = NGOC_SI_AI_LOCAL_THINKING_ENABLED,
+                        thinkingTokenBudget = NGOC_SI_AI_LOCAL_THINKING_TOKEN_BUDGET
                     ),
                     maxOutputToken = selectNgocSiAiLocalMaxOutputTokens(prompt)
                 )

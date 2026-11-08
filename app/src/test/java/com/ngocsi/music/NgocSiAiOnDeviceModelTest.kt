@@ -160,6 +160,8 @@ class NgocSiAiOnDeviceModelTest {
 
     @Test
     fun localGenerationDisablesThinkingAndUsesBoundedTaskAwareOutputBudgets() {
+        assertFalse(NGOC_SI_AI_LOCAL_THINKING_ENABLED)
+        assertEquals(0, NGOC_SI_AI_LOCAL_THINKING_TOKEN_BUDGET)
         assertEquals(
             NGOC_SI_AI_LOCAL_SHORT_REPLY_MAX_OUTPUT_TOKENS,
             selectNgocSiAiLocalMaxOutputTokens("Xin chào")
