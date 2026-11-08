@@ -45,7 +45,11 @@ Do not send these values in chat. The preview app ID is not the same as the prod
 
 ## 5. Model and quota protection
 
-The Android preview currently uses `gemini-3.8-flash` as its only remote model. Automatic model fallback is deliberately disabled, so a quota or capacity error does not trigger an extra request to another model. Ordinary questions use LOW thinking with a 384-token output cap; requests classified as complex use MEDIUM thinking with a 1,024-token output cap. Conversation history and saved-memory context are bounded before sending. These limits reduce typical usage but cannot guarantee unlimited free requests: RPM, input-token limits, daily quotas, project-wide restrictions, and model capacity still apply. Do not enable billing simply to bypass `AI_QUOTA_429`.
+The Android preview uses `gemini-3.5-flash-lite` by default for ordinary chat, factual/knowledge questions, conversational follow-ups, app function calls, and multimodal YouTube analysis. Firebase documents Flash-Lite as a high-volume, cost-sensitive model that supports function calling and multimodal input. Only deliberate HIGH-depth requests (for example, a full code audit or root-cause investigation) use `gemini-3.8-flash`. This keeps everyday traffic away from the smaller Flash quota pool without silently changing models after an error. Automatic error fallback remains disabled.
+
+Quota cooldowns are stored per model. A limit reached by `gemini-3.8-flash` must not block a later request to `gemini-3.5-flash-lite`. The previous global cooldown from older Preview versions is migrated to the old default model only. Everyday questions use a 384-token output cap; medium tasks use 1,024 tokens; high-depth tasks use 2,048 tokens. Conversation history and saved-memory context are bounded. These optimizations do not create unlimited quota: RPM, RPD, TPM, TPD, model capacity, and project-level limits still apply across all apps using the same Firebase project. Inspect the active limits for the exact model in AI Studio. Do not enable billing simply to bypass `AI_QUOTA_429`.
+
+Since November 2, 2026, Firebase AI Logic requires App Check enforcement. The debug Preview therefore also needs a valid Debug App Check token registered for the exact `com.ngocsi.music.aipreview` Firebase app. If App Check rejects the request, switching models will not fix it; inspect Firebase Console → App Check → Firebase AI Logic metrics and use the error diagnostic shown by the app. Never share the debug token in chat.
 
 ## 6. Test only after a preview is built intentionally
 
