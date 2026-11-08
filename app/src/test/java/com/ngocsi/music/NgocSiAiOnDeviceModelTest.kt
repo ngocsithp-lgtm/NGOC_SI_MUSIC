@@ -159,6 +159,26 @@ class NgocSiAiOnDeviceModelTest {
     }
 
     @Test
+    fun localGenerationDisablesThinkingAndUsesBoundedTaskAwareOutputBudgets() {
+        assertEquals(
+            NGOC_SI_AI_LOCAL_SHORT_REPLY_MAX_OUTPUT_TOKENS,
+            selectNgocSiAiLocalMaxOutputTokens("Xin chào")
+        )
+        assertEquals(
+            NGOC_SI_AI_LOCAL_CONTEXT_REPLY_MAX_OUTPUT_TOKENS,
+            selectNgocSiAiLocalMaxOutputTokens("AI, phân tích kỹ hơn.")
+        )
+        assertEquals(
+            NGOC_SI_AI_LOCAL_CONTEXT_REPLY_MAX_OUTPUT_TOKENS,
+            selectNgocSiAiLocalMaxOutputTokens("AI, tiếp tục.")
+        )
+        assertTrue(
+            NGOC_SI_AI_LOCAL_CONTEXT_REPLY_MAX_OUTPUT_TOKENS >
+                NGOC_SI_AI_LOCAL_SHORT_REPLY_MAX_OUTPUT_TOKENS
+        )
+    }
+
+    @Test
     fun localModelUsesASeparateLargeFileOutsideTheApk() {
         assertEquals(613_722_264L, NgocSiAiOnDeviceModel.MODEL_SIZE_BYTES)
         assertTrue(NgocSiAiOnDeviceModel.MODEL_SIZE_BYTES > 500L * 1024L * 1024L)

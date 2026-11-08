@@ -9,6 +9,7 @@ import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
 import com.google.ai.edge.litertlm.SamplerConfig
+import com.google.ai.edge.litertlm.ThinkingConfig
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asCoroutineDispatcher
@@ -96,6 +97,28 @@ internal data class NgocSiAiLocalModelDownloadProgress(
 internal const val NGOC_SI_AI_LOCAL_HISTORY_MAX_MESSAGES = 8
 internal const val NGOC_SI_AI_LOCAL_HISTORY_MAX_MESSAGE_CHARS = 320
 internal const val NGOC_SI_AI_LOCAL_HISTORY_MAX_CONTEXT_CHARS = 2_200
+internal const val NGOC_SI_AI_LOCAL_SHORT_REPLY_MAX_OUTPUT_TOKENS = 384
+internal const val NGOC_SI_AI_LOCAL_CONTEXT_REPLY_MAX_OUTPUT_TOKENS = 640
+
+/**
+ * Keep Qwen3's local fallback responsive: short requests use a compact answer cap,
+ * while contextual continuations and explicit analysis requests get more room.
+ */
+internal fun selectNgocSiAiLocalMaxOutputTokens(prompt: String): Int {
+    val normalized = normalizeNgocSiAiVoicePhrase(prompt).lowercase(java.util.Locale.ROOT)
+    val detailedMarkers = listOf(
+        "phan tich", "so sanh", "giai thich chi tiet", "phan tich ky",
+        "vi du cu the", "theo tung buoc", "lap ke hoach", "danh gia"
+    )
+    return if (
+        isNgocSiAiContextualFollowUp(prompt) ||
+        detailedMarkers.any(normalized::contains)
+    ) {
+        NGOC_SI_AI_LOCAL_CONTEXT_REPLY_MAX_OUTPUT_TOKENS
+    } else {
+        NGOC_SI_AI_LOCAL_SHORT_REPLY_MAX_OUTPUT_TOKENS
+    }
+}
 
 /**
  * Rebuilds a small, chronological context from persisted completed turns.
@@ -381,6 +404,15 @@ internal object NgocSiAiOnDeviceModel {
                         topK = 30,
                         topP = 0.85,
                         temperature = 0.65
+                    ),
+                    // Qwen3-0.6B defaults to thinking mode. Disable hidden reasoning for
+                    // the offline fallback so its small token budget goes to the user answer.
+                    thinkingConfig = ThinkingConfig(
+                        enableThinking = false,
+                        thinkingTokenBudget = 0
+                    ),
+                    maxOutputToken = selectNgocSiAiLocalMaxOutputTokens(
+                        buildPromptWithMemories("", memories, emptyList())
                     )
                 )
             )
