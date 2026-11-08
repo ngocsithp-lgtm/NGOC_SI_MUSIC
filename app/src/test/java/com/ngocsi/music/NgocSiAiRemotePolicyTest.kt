@@ -795,6 +795,14 @@ class NgocSiAiRemotePolicyTest {
         )
         assertTrue(
             shouldRetryNgocSiAiRemoteRequest(
+                "com.google.firebase.ai.ServerException: remote server error",
+                isToolRequest = false,
+                hasEmittedPartialResponse = false,
+                attempt = 0
+            )
+        )
+        assertTrue(
+            shouldRetryNgocSiAiRemoteRequest(
                 "SocketTimeoutException: read timed out",
                 isToolRequest = false,
                 hasEmittedPartialResponse = false,
@@ -810,7 +818,9 @@ class NgocSiAiRemotePolicyTest {
             "HTTP 400 invalid argument",
             "HTTP 401 unauthenticated",
             "HTTP 403 permission denied",
-            "HTTP 404 model not found"
+            "HTTP 404 model not found",
+            "ServerException HTTP 403 permission denied",
+            "ServerException HTTP 429 RESOURCE_EXHAUSTED quota exceeded"
         ).forEach { error ->
             assertFalse(
                 error,

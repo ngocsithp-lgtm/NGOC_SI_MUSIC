@@ -66,6 +66,9 @@ internal fun shouldRetryNgocSiAiRemoteRequest(
 
     if (Regex("\\b(408|500|502|503|504)\\b").containsMatchIn(details)) return true
     val transientMarkers = listOf(
+        // Firebase's ServerException is returned for remote server failures when the
+        // SDK wrapper omits the HTTP status from its public exception message.
+        "serverexception",
         "sockettimeout", "socket timeout", "read timed out",
         "connection reset", "connection closed", "eofexception",
         "temporarily unavailable", "service unavailable",
