@@ -137,7 +137,6 @@ internal class NgocSiAiRemoteClient(context: Context) {
                     ?: "Firebase AI Logic chưa được cấu hình cho bản thử này. Mã chẩn đoán: FIREBASE_CONFIG."
             )
 
-            // (model-specific cooldown is checked after intent routing below)
 
         val normalized = try {
             normalizeNgocSiAiHistory(messages)
@@ -224,7 +223,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
             val responseConfig = generationConfig {
                 maxOutputTokens = selectNgocSiAiMaxOutputTokens(newestUserMessage.content)
                 thinkingConfig = thinkingConfig {
-                    // Flash-Lite uses MINIMAL for simple chat; Flash uses LOW for factual questions.
+                    // Flash-Lite uses MINIMAL for simple chat; app tool calls retain LOW.
                     thinkingLevel = selectNgocSiAiGenerationThinkingLevel(
                         newestUserMessage.content,
                         offersAppCommandTool,
@@ -490,9 +489,10 @@ internal class NgocSiAiRemoteClient(context: Context) {
     private fun persistQuotaCooldownIfNeeded(message: String, modelName: String) {
         val kind = classifyNgocSiAiQuotaCooldown(message) ?: return
         val until = ngocSiAiQuotaCooldownUntilMillis(kind, System.currentTimeMillis())
+        val (untilKey, kindKey) = ngocSiAiQuotaCooldownPreferenceKeys(modelName)
         quotaPreferences.edit()
-            .putLong(quotaCooldownUntilKey(modelName), until)
-            .putString(quotaCooldownKindKey(modelName), kind.name)
+            .putLong(untilKey, until)
+            .putString(kindKey, kind.name)
             .apply()
     }
 
