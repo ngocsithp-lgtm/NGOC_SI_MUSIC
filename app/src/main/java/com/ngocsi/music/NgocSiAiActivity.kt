@@ -471,13 +471,16 @@ class NgocSiAiActivity : ComponentActivity() {
             NgocSiMainActivityState.entryContextOr()
         )
     private val entryMediaContextInstruction: String
-        get() = buildNgocSiAiMediaContextInstruction(
+        get() = buildNgocSiAiCurrentYoutubeMediaContextInstruction(
             entryContext,
+            NgocSiMainActivityState.youtubeMediaContextOrNull(),
             intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_TITLE_EXTRA),
             intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_CHANNEL_EXTRA)
         )
     private val entryYoutubeVideoId: String?
-        get() = normalizeNgocSiAiYoutubeVideoId(
+        get() = resolveNgocSiAiCurrentYoutubeVideoId(
+            entryContext,
+            NgocSiMainActivityState.youtubeMediaContextOrNull()?.videoId,
             intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_VIDEO_ID_EXTRA)
         )
     private var recognizedSpeech by mutableStateOf("")
@@ -1019,7 +1022,6 @@ class NgocSiAiActivity : ComponentActivity() {
             intent.getStringExtra(NGOC_SI_AI_ENTRY_CONTEXT_EXTRA),
             NgocSiMainActivityState.entryContextOr()
         )
-        val aiEntryMediaContextInstruction = entryMediaContextInstruction
         // Prefer the page that opened this AI screen; MainActivity will keep it current
         // as the user navigates after the AI UI has been closed.
         NgocSiMainActivityState.updateEntryContext(aiEntryContext)
@@ -1127,7 +1129,7 @@ class NgocSiAiActivity : ComponentActivity() {
                         memories,
                         priorMessages,
                         entryContext = aiEntryContext,
-                        mediaContextInstruction = aiEntryMediaContextInstruction
+                        mediaContextInstruction = entryMediaContextInstruction
                     )
                 },
                 onReleaseLocalModel = {
@@ -1138,7 +1140,7 @@ class NgocSiAiActivity : ComponentActivity() {
                         history,
                         executeTool,
                         entryContext = aiEntryContext,
-                        mediaContextInstruction = aiEntryMediaContextInstruction,
+                        mediaContextInstruction = entryMediaContextInstruction,
                         youtubeVideoId = entryYoutubeVideoId,
                         onPartialResponse = onPartialResponse
                     )
