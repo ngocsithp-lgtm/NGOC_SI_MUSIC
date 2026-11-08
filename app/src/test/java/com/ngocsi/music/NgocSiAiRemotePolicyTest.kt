@@ -268,6 +268,22 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
+    fun explicitVideoCapabilityDiagnosticUsesOnlyThePublicSampleUrl() {
+        assertEquals(
+            "https://storage.googleapis.com/cloud-samples-data/video/animals.mp4",
+            NGOC_SI_AI_VIDEO_DIAGNOSTIC_SAMPLE_URI
+        )
+        assertTrue(isNgocSiAiVideoCapabilityDiagnosticRequest("AI, kiểm tra kết nối video mẫu."))
+        assertTrue(isNgocSiAiVideoCapabilityDiagnosticRequest("Kiểm tra khả năng phân tích video mẫu"))
+        assertFalse(isNgocSiAiVideoCapabilityDiagnosticRequest("AI, phân tích video đang phát."))
+        assertFalse(isNgocSiAiVideoCapabilityDiagnosticRequest("AI, kiểm tra kết nối Internet."))
+
+        val samplePrompt = buildNgocSiAiVideoCapabilityDiagnosticPrompt("Kiểm tra video mẫu")
+        assertTrue(samplePrompt.contains("video MP4 mẫu công khai"))
+        assertTrue(samplePrompt.contains("Đã nhận video mẫu"))
+    }
+
+    @Test
     fun ordinaryPlaybackAndChatKeepTheirExistingRemoteDeadlines() {
         assertFalse(isNgocSiAiMultimodalVideoAnalysisRequest("AI, tua tới 10 giây"))
         assertFalse(isNgocSiAiMultimodalVideoAnalysisRequest("Xin chào, bạn khỏe không?"))
