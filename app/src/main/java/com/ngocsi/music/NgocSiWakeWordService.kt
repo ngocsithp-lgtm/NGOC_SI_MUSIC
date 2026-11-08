@@ -1016,8 +1016,12 @@ class NgocSiWakeWordService : Service() {
                 lastAssistantReplyForFallback = answer
                 persistWakeFallbackReply(answer)
 
+                // Preserve failed multimodal requests with their limitation reply. Without
+                // this turn, a later "continue" loses the video-analysis topic and may be
+                // misrouted as generic text-only chat.
                 val keepTurnInHistory =
-                    localFallback != null || !remoteAnswer.isNullOrBlank() || errorFallback != null
+                    localFallback != null || !remoteAnswer.isNullOrBlank() ||
+                        errorFallback != null || requiresMultimodalYoutubeAnalysis
                 if (keepTurnInHistory) {
                     conversationHistory.clear()
                     conversationHistory.addAll(requestHistory)
