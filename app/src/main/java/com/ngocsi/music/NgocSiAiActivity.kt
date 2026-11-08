@@ -476,6 +476,10 @@ class NgocSiAiActivity : ComponentActivity() {
             intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_TITLE_EXTRA),
             intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_CHANNEL_EXTRA)
         )
+    private val entryYoutubeVideoId: String?
+        get() = normalizeNgocSiAiYoutubeVideoId(
+            intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_VIDEO_ID_EXTRA)
+        )
     private var recognizedSpeech by mutableStateOf("")
     private var recognizedSpeechShouldSend by mutableStateOf(false)
     // Show live partial transcription so voice chat visibly responds while the user speaks.
@@ -1129,6 +1133,7 @@ class NgocSiAiActivity : ComponentActivity() {
                         executeTool,
                         entryContext = aiEntryContext,
                         mediaContextInstruction = aiEntryMediaContextInstruction,
+                        youtubeVideoId = entryYoutubeVideoId,
                         onPartialResponse = onPartialResponse
                     )
                 },

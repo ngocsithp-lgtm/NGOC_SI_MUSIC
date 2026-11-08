@@ -101,6 +101,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
         executeTool: NgocSiAiToolExecutor,
         entryContext: String? = null,
         mediaContextInstruction: String? = null,
+        youtubeVideoId: String? = null,
         onPartialResponse: (String) -> Unit = {}
     ): NgocSiAiReply {
         if (!REMOTE_REQUEST_MUTEX.tryLock()) {
@@ -114,7 +115,8 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 executeTool,
                 onPartialResponse,
                 entryContext,
-                mediaContextInstruction
+                mediaContextInstruction,
+                youtubeVideoId
             )
         } finally {
             REMOTE_REQUEST_MUTEX.unlock()
@@ -126,7 +128,8 @@ internal class NgocSiAiRemoteClient(context: Context) {
         executeTool: NgocSiAiToolExecutor,
         onPartialResponse: (String) -> Unit,
         entryContext: String?,
-        mediaContextInstruction: String?
+        mediaContextInstruction: String?,
+        youtubeVideoId: String?
     ): NgocSiAiReply {
         val app = firebaseApp
             ?: throw NgocSiAiRemoteException(
@@ -177,6 +180,21 @@ internal class NgocSiAiRemoteClient(context: Context) {
             newestUserMessage.content,
             normalized.dropLast(1)
         )
+        // Only attach the current player video for actual video/music analysis.
+        // Playback commands and ordinary chat retain the lightweight text-only path.
+        val youtubeVideoAnalysisUri = resolveNgocSiAiYoutubeVideoAnalysisUri(
+            pageContext = entryContext,
+            currentVideoId = youtubeVideoId,
+            prompt = newestUserMessage.content,
+            previousMessages = normalized.dropLast(1)
+        )
+        val multimodalUserMessage = youtubeVideoAnalysisUri?.let { videoUri ->
+            content("user") {
+                // Firebase AI Logic accepts a single public/unlisted YouTube URL per request.
+                fileData(uri = videoUri, mimeType = "video/mp4")
+                text(newestUserMessage.content)
+            }
+        }
 
         // Firebase AI Logic requires model-role history for assistant responses.
         val previousTurns = normalized.dropLast(1).map { message ->
@@ -229,7 +247,13 @@ internal class NgocSiAiRemoteClient(context: Context) {
                                 rawUserText = newestUserMessage.content,
                                 recentConversation = normalized.dropLast(1).takeLast(6).map { it.content },
                                 mediaContextInstruction = mediaContextInstruction
-                            )
+                            ) +
+                            if (multimodalUserMessage != null) {
+                                " VIDEO ĐÃ ĐƯỢC ĐÍNH KÈM: hãy phân tích cả hình ảnh và âm thanh thực sự nhận được, " +
+                                    "nêu mốc thời gian cho nhận xét quan trọng khi phù hợp. Video được lấy mẫu hình ảnh " +
+                                    "xấp xỉ 1 khung hình/giây nên có thể bỏ lỡ cảnh chuyển nhanh; không khẳng định chi tiết " +
+                                    "không xuất hiện trong dữ liệu đã xử lý."
+                            } else ""
                     )
                 },
                 tools = if (offersAppCommandTool) {
@@ -243,7 +267,8 @@ internal class NgocSiAiRemoteClient(context: Context) {
             if (offersAppCommandTool) {
                 val chat = model.startChat(history = previousTurns)
                 // Explicit app actions retain structured tool calling and allowlist validation.
-                var response = chat.sendMessage(newestUserMessage.content)
+                var response = multimodalUserMessage?.let { chat.sendMessage(it) }
+                    ?: chat.sendMessage(newestUserMessage.content)
                 var toolRound = 0
                 var stopSequenceFeedback: String? = null
                 var contextualYoutubeAutoPlayDispatched = false
@@ -394,9 +419,10 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 while (completedStream == null) {
                     val streamedAnswer = StringBuilder()
                     try {
-                        model.startChat(history = previousTurns)
-                            .sendMessageStream(newestUserMessage.content)
-                            .collect { chunk ->
+                        val chat = model.startChat(history = previousTurns)
+                        val responseStream = multimodalUserMessage?.let { chat.sendMessageStream(it) }
+                            ?: chat.sendMessageStream(newestUserMessage.content)
+                        responseStream.collect { chunk ->
                                 val textChunk = chunk.text.orEmpty()
                                 if (textChunk.isNotEmpty()) {
                                     streamedAnswer.append(textChunk)

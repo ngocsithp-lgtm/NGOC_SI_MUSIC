@@ -70,6 +70,80 @@ class NgocSiAiEntryContextTest {
     }
 
     @Test
+    fun youtubeVideoIdMustBeAnExactElevenCharacterIdentifier() {
+        assertEquals("dQw4w9WgXcQ", normalizeNgocSiAiYoutubeVideoId("dQw4w9WgXcQ"))
+        assertEquals(
+            "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            buildNgocSiAiYoutubeVideoUri("dQw4w9WgXcQ")
+        )
+        listOf("", "not-a-video-id", "dQw4w9WgXcQ&autoplay=1", "dQw4w9WgXc", "dQw4w9WgXcQextra")
+            .forEach { invalid ->
+                assertNull(normalizeNgocSiAiYoutubeVideoId(invalid))
+                assertNull(buildNgocSiAiYoutubeVideoUri(invalid))
+            }
+    }
+
+    @Test
+    fun multimodalVideoIsAttachedOnlyForAnalysisRequestsFromYoutube() {
+        val history = emptyList<NgocSiAiMessage>()
+        assertEquals(
+            "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            resolveNgocSiAiYoutubeVideoAnalysisUri(
+                "YouTube", "dQw4w9WgXcQ", "AI, phân tích video này", history
+            )
+        )
+        assertNull(
+            resolveNgocSiAiYoutubeVideoAnalysisUri(
+                "Radio", "dQw4w9WgXcQ", "AI, phân tích video này", history
+            )
+        )
+        assertNull(
+            resolveNgocSiAiYoutubeVideoAnalysisUri(
+                "YouTube", "dQw4w9WgXcQ", "AI, mở YouTube", history
+            )
+        )
+        assertNull(
+            resolveNgocSiAiYoutubeVideoAnalysisUri(
+                "YouTube", "invalid-id", "AI, phân tích video này", history
+            )
+        )
+    }
+
+    @Test
+    fun contextualVideoFollowUpsReuseOnlyRecentMusicAnalysisContext() {
+        val history = listOf(
+            NgocSiAiMessage("user", "Phân tích video Bolero này"),
+            NgocSiAiMessage("assistant", "Video có giai điệu Bolero; ta có thể xem cách hát và cảm xúc.")
+        )
+        assertTrue(shouldAttachNgocSiAiYoutubeVideo("AI, tiếp tục", history))
+        assertTrue(shouldAttachNgocSiAiYoutubeVideo("Nói rõ hơn", history))
+        assertFalse(
+            shouldAttachNgocSiAiYoutubeVideo(
+                "Tiếp tục",
+                listOf(
+                    NgocSiAiMessage("user", "Cách sửa Wi-Fi"),
+                    NgocSiAiMessage("assistant", "Đây là hướng dẫn cài đặt mạng.")
+                )
+            )
+        )
+    }
+
+    @Test
+    fun ordinaryYoutubePlaybackCommandsNeverAttachVideoForAnalysis() {
+        listOf(
+            "AI, tạm dừng video",
+            "AI, tua tới 10 giây",
+            "AI, chuyển video tiếp theo",
+            "AI, mở YouTube"
+        ).forEach { prompt ->
+            assertFalse(
+                "$prompt is a playback/navigation command",
+                shouldAttachNgocSiAiYoutubeVideo(prompt, emptyList())
+            )
+        }
+    }
+
+    @Test
     fun youtubeMediaContextIncludesCurrentTitleAndChannelAsUntrustedMetadata() {
         val instruction = buildNgocSiAiMediaContextInstruction(
             rawPageContext = "YouTube",

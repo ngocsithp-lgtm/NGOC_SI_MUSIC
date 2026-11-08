@@ -136,10 +136,31 @@ internal const val NGOC_SI_AI_KNOWLEDGE_REPLY_MAX_OUTPUT_TOKENS = 768
 internal const val NGOC_SI_AI_COMPLEX_REPLY_MAX_OUTPUT_TOKENS = 1_024
 internal const val NGOC_SI_AI_DEEP_REPLY_MAX_OUTPUT_TOKENS = 2_048
 
-internal fun selectNgocSiAiRemoteTimeoutMillis(prompt: String): Long = when (selectNgocSiAiThinkingLevel(prompt)) {
-    ThinkingLevel.HIGH -> NGOC_SI_AI_DEEP_REMOTE_CONVERSATION_TIMEOUT_MILLIS
-    ThinkingLevel.MEDIUM -> NGOC_SI_AI_COMPLEX_REMOTE_CONVERSATION_TIMEOUT_MILLIS
-    else -> NGOC_SI_AI_REMOTE_CONVERSATION_TIMEOUT_MILLIS
+internal fun isNgocSiAiMultimodalVideoAnalysisRequest(prompt: String): Boolean {
+    val normalized = normalizeNgocSiAiVoicePhrase(prompt)
+    val analysisIntent = listOf(
+        "phan tich", "mo ta", "so sanh", "cach hat", "chat giong",
+        "giong hat", "loi bai hat", "cam xuc", "canh quay", "noi dung video"
+    ).any(normalized::contains)
+    val mediaContext = listOf(
+        "video", "youtube", "mv", "bai hat", "ca khuc", "ca si",
+        "giong hat", "ban thu", "loi bai hat"
+    ).any(normalized::contains)
+    return analysisIntent && mediaContext
+}
+
+/** Video ingestion may take longer; extend only its deadline, not its reasoning tier. */
+internal fun selectNgocSiAiRemoteTimeoutMillis(prompt: String): Long {
+    val normalBudget = when (selectNgocSiAiThinkingLevel(prompt)) {
+        ThinkingLevel.HIGH -> NGOC_SI_AI_DEEP_REMOTE_CONVERSATION_TIMEOUT_MILLIS
+        ThinkingLevel.MEDIUM -> NGOC_SI_AI_COMPLEX_REMOTE_CONVERSATION_TIMEOUT_MILLIS
+        else -> NGOC_SI_AI_REMOTE_CONVERSATION_TIMEOUT_MILLIS
+    }
+    return if (isNgocSiAiMultimodalVideoAnalysisRequest(prompt)) {
+        maxOf(normalBudget, NGOC_SI_AI_DEEP_REMOTE_CONVERSATION_TIMEOUT_MILLIS)
+    } else {
+        normalBudget
+    }
 }
 
 internal fun ngocSiAiRemoteTimeoutMessage(prompt: String): String {

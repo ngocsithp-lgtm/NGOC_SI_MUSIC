@@ -57,6 +57,29 @@ class NgocSiAiRemotePolicyTest {
 
 
     @Test
+    fun youtubeVideoAnalysisGetsMoreTimeWithoutEscalatingEverydayReasoning() {
+        val prompt = "AI, phân tích kỹ video YouTube này và chỉ ra các đoạn cảm xúc thay đổi."
+
+        assertEquals(ThinkingLevel.MEDIUM, selectNgocSiAiThinkingLevel(prompt))
+        assertEquals(NGOC_SI_AI_REASONING_MODEL_NAME, selectNgocSiAiModelName(prompt))
+        assertTrue(isNgocSiAiMultimodalVideoAnalysisRequest(prompt))
+        assertEquals(
+            NGOC_SI_AI_DEEP_REMOTE_CONVERSATION_TIMEOUT_MILLIS,
+            selectNgocSiAiRemoteTimeoutMillis(prompt)
+        )
+    }
+
+    @Test
+    fun ordinaryPlaybackAndChatKeepTheirExistingRemoteDeadlines() {
+        assertFalse(isNgocSiAiMultimodalVideoAnalysisRequest("AI, tua tới 10 giây"))
+        assertFalse(isNgocSiAiMultimodalVideoAnalysisRequest("Xin chào, bạn khỏe không?"))
+        assertEquals(
+            NGOC_SI_AI_REMOTE_CONVERSATION_TIMEOUT_MILLIS,
+            selectNgocSiAiRemoteTimeoutMillis("AI, mở YouTube")
+        )
+    }
+
+    @Test
     fun deliberateDeepAnalysisUsesHighThinkingAndASeparateBoundedBudget() {
         val prompt = "Hãy kiểm tra toàn diện mã nguồn, phân tích chuyên sâu và tìm nguyên nhân gốc."
         assertEquals(ThinkingLevel.HIGH, selectNgocSiAiThinkingLevel(prompt))

@@ -11,6 +11,78 @@ internal const val NGOC_SI_AI_ENTRY_MEDIA_TITLE_EXTRA =
     "com.ngocsi.music.extra.NGOC_SI_AI_ENTRY_MEDIA_TITLE"
 internal const val NGOC_SI_AI_ENTRY_MEDIA_CHANNEL_EXTRA =
     "com.ngocsi.music.extra.NGOC_SI_AI_ENTRY_MEDIA_CHANNEL"
+internal const val NGOC_SI_AI_ENTRY_MEDIA_VIDEO_ID_EXTRA =
+    "com.ngocsi.music.extra.NGOC_SI_AI_ENTRY_MEDIA_VIDEO_ID"
+
+/**
+ * Accept only a bare YouTube video ID supplied by the app's active player.
+ * Never turn arbitrary user text or a channel URL into a multimodal file input.
+ */
+internal fun normalizeNgocSiAiYoutubeVideoId(rawVideoId: String?): String? =
+    rawVideoId?.trim()?.takeIf { Regex("^[A-Za-z0-9_-]{11}$").matches(it) }
+
+internal fun buildNgocSiAiYoutubeVideoUri(rawVideoId: String?): String? {
+    val videoId = normalizeNgocSiAiYoutubeVideoId(rawVideoId) ?: return null
+    return "https://www.youtube.com/watch?v=$videoId"
+}
+
+/**
+ * Attach the currently playing YouTube video only for an explicit media-analysis
+ * request, or a short follow-up to a recent music/video-analysis conversation.
+ * Playback controls, ordinary chat, and requests from other pages never attach media.
+ */
+internal fun shouldAttachNgocSiAiYoutubeVideo(
+    prompt: String,
+    previousMessages: List<NgocSiAiMessage>
+): Boolean {
+    val latest = stripNgocSiAiDirectIntentWakePrefix(
+        normalizeNgocSiAiVoicePhrase(prompt)
+    ).removePrefix("hay ").trim()
+    if (latest.isBlank()) return false
+
+    val directAnalysisMarkers = listOf(
+        "phan tich", "noi dung video", "mo ta video", "dieu gi xay ra trong video",
+        "cach hat", "so sanh ca si", "chat giong", "giong hat",
+        "loi bai hat", "cau hat", "cam xuc", "canh quay", "hinh anh trong video",
+        "doan nhac", "phan trinh dien", "nghe thay gi", "nhin thay gi"
+    )
+    if (directAnalysisMarkers.any(latest::contains)) return true
+
+    val isShortFollowUp = latest in setOf(
+        "tiep tuc", "tiep tuc di", "tiep tuc nhe", "tiep nua",
+        "noi ro hon", "noi ro hon di", "giai thich them",
+        "phan tich ky hon", "cu the hon", "cho vi du", "vi du cu the"
+    ) || isNgocSiAiContextualFollowUp(prompt)
+    if (!isShortFollowUp) return false
+
+    val recentContext = previousMessages.takeLast(6)
+        .joinToString(" ") { normalizeNgocSiAiVoicePhrase(it.content) }
+    val recentMediaMarkers = listOf(
+        "youtube", "video", "mv", "bai hat", "ca khuc", "ca si",
+        "giong hat", "ban thu", "loi bai hat", "phan trinh dien", "bolero"
+    )
+    val recentAnalysisMarkers = listOf(
+        "phan tich", "so sanh", "noi ro", "giong hat", "loi bai hat",
+        "cam xuc", "canh quay", "noi dung video"
+    )
+    return recentMediaMarkers.any(recentContext::contains) &&
+        recentAnalysisMarkers.any(recentContext::contains)
+}
+
+/**
+ * Resolve a trusted current-player video into a Gemini YouTube URL. Firebase AI
+ * Logic accepts one public/unlisted YouTube video URL per request.
+ */
+internal fun resolveNgocSiAiYoutubeVideoAnalysisUri(
+    pageContext: String?,
+    currentVideoId: String?,
+    prompt: String,
+    previousMessages: List<NgocSiAiMessage>
+): String? {
+    if (normalizeNgocSiAiEntryContext(pageContext) != "YouTube") return null
+    if (!shouldAttachNgocSiAiYoutubeVideo(prompt, previousMessages)) return null
+    return buildNgocSiAiYoutubeVideoUri(currentVideoId)
+}
 
 /**
  * Convert app-owned navigation state into a small allowlisted page label.
