@@ -327,6 +327,29 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
+    fun videoConnectivityDiagnosticUsesFastMultimodalModelAndMinimalBudget() {
+        val prompt = "AI, kiểm tra kết nối video mẫu."
+        assertTrue(isNgocSiAiVideoCapabilityDiagnosticRequest(prompt))
+        assertEquals(
+            NGOC_SI_AI_FAST_CHAT_MODEL_NAME,
+            selectNgocSiAiModelName(prompt, forceMultimodalReasoning = true)
+        )
+        assertEquals(
+            ThinkingLevel.MINIMAL,
+            selectNgocSiAiGenerationThinkingLevel(
+                prompt,
+                modelName = NGOC_SI_AI_FAST_CHAT_MODEL_NAME,
+                forceMultimodalReasoning = true
+            )
+        )
+        assertEquals(
+            NGOC_SI_AI_VIDEO_DIAGNOSTIC_MAX_OUTPUT_TOKENS,
+            selectNgocSiAiMaxOutputTokens(prompt, forceMultimodalReasoning = true)
+        )
+        assertFalse(isNgocSiAiVideoCapabilityDiagnosticRequest("AI, phân tích video đang phát."))
+    }
+
+    @Test
     fun ordinaryPlaybackAndChatKeepTheirExistingRemoteDeadlines() {
         assertFalse(isNgocSiAiMultimodalVideoAnalysisRequest("AI, tua tới 10 giây"))
         assertFalse(isNgocSiAiMultimodalVideoAnalysisRequest("Xin chào, bạn khỏe không?"))

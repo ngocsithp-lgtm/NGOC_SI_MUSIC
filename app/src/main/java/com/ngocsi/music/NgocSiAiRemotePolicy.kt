@@ -148,12 +148,11 @@ internal fun isNgocSiAiVideoCapabilityDiagnosticRequest(prompt: String): Boolean
 }
 
 internal fun buildNgocSiAiVideoCapabilityDiagnosticPrompt(userPrompt: String): String =
-    "ĐÂY LÀ PHÉP KIỂM TRA ĐƯỜNG TRUYỀN VIDEO CỦA NGỌC SĨ AI, KHÔNG PHẢI VIDEO YOUTUBE ĐANG PHÁT. " +
-        "Nguồn vào là video MP4 mẫu công khai do Google cung cấp. " +
-        "Hãy mô tả ngắn gọn những gì thực sự nhìn thấy trong video; nếu âm thanh có thể nghe và xác minh được, " +
-        "nêu riêng dấu hiệu âm thanh. Không suy đoán chi tiết không có trong video. " +
-        "Mở đầu bằng 'Đã nhận video mẫu' nếu thực sự phân tích được nội dung. " +
-        "Yêu cầu kiểm tra của người dùng: " + userPrompt.take(400)
+    "Đây là phép thử kỹ thuật với một video MP4 mẫu, không phải video YouTube đang phát. " +
+        "Hãy xác nhận bạn thực sự đọc được video bằng một câu ngắn mô tả cảnh nhìn thấy. " +
+        "Chỉ nêu âm thanh nếu đã thực sự nghe và xác minh; không suy đoán. " +
+        "Bắt đầu bằng 'Đã nhận video mẫu' chỉ khi nội dung video đã được đọc. " +
+        "Yêu cầu: " + userPrompt.take(160)
 
 
 /** Retry only a safe, pre-output text request after a transient transport/server failure. */
@@ -253,7 +252,11 @@ internal fun selectNgocSiAiModelName(
     prompt: String,
     offersAppCommandTool: Boolean = false,
     forceMultimodalReasoning: Boolean = false
-): String = if (forceMultimodalReasoning && !isNgocSiAiQuickVideoOverviewRequest(prompt)) {
+): String = if (isNgocSiAiVideoCapabilityDiagnosticRequest(prompt)) {
+    // A connectivity canary is not a reasoning task: use the supported multimodal
+    // Flash-Lite path so the diagnostic does not wait for unnecessary MEDIUM thinking.
+    NGOC_SI_AI_FAST_CHAT_MODEL_NAME
+} else if (forceMultimodalReasoning && !isNgocSiAiQuickVideoOverviewRequest(prompt)) {
     NGOC_SI_AI_REASONING_MODEL_NAME
 } else if (forceMultimodalReasoning) {
     // The broad first-pass overview uses multimodal Flash-Lite for lower latency.
@@ -308,6 +311,7 @@ internal fun requiresMaximumNgocSiAiThinking(prompt: String): Boolean {
 }
 
 internal const val NGOC_SI_AI_SHORT_REPLY_MAX_OUTPUT_TOKENS = 384
+internal const val NGOC_SI_AI_VIDEO_DIAGNOSTIC_MAX_OUTPUT_TOKENS = 128
 internal const val NGOC_SI_AI_VIDEO_OVERVIEW_MAX_OUTPUT_TOKENS = 768
 internal const val NGOC_SI_AI_KNOWLEDGE_REPLY_MAX_OUTPUT_TOKENS = 768
 internal const val NGOC_SI_AI_COMPLEX_REPLY_MAX_OUTPUT_TOKENS = 1_024
@@ -495,6 +499,8 @@ internal fun selectNgocSiAiMaxOutputTokens(
     prompt: String,
     forceMultimodalReasoning: Boolean = false
 ): Int = when {
+    isNgocSiAiVideoCapabilityDiagnosticRequest(prompt) ->
+        NGOC_SI_AI_VIDEO_DIAGNOSTIC_MAX_OUTPUT_TOKENS
     forceMultimodalReasoning && isNgocSiAiQuickVideoOverviewRequest(prompt) ->
         NGOC_SI_AI_VIDEO_OVERVIEW_MAX_OUTPUT_TOKENS
     selectNgocSiAiThinkingLevel(prompt) == ThinkingLevel.HIGH -> NGOC_SI_AI_DEEP_REPLY_MAX_OUTPUT_TOKENS
