@@ -44,7 +44,10 @@ internal fun shouldAttachNgocSiAiYoutubeVideo(
         "phan tich", "noi dung video", "mo ta video", "dieu gi xay ra trong video",
         "cach hat", "so sanh ca si", "chat giong", "giong hat",
         "loi bai hat", "cau hat", "cam xuc", "canh quay", "hinh anh trong video",
-        "doan nhac", "phan trinh dien", "nghe thay gi", "nhin thay gi"
+        "doan nhac", "phan trinh dien", "nghe thay gi", "nhin thay gi",
+        "dau hieu nghe duoc", "nghe duoc trong ban thu", "nhung gi nghe duoc",
+        "dieu gi nghe duoc", "ban thu nay", "phan biet dieu gi chua the xac minh",
+        "chua the xac minh"
     )
     if (directAnalysisMarkers.any(latest::contains)) return true
 
@@ -63,7 +66,8 @@ internal fun shouldAttachNgocSiAiYoutubeVideo(
     )
     val recentAnalysisMarkers = listOf(
         "phan tich", "so sanh", "noi ro", "giong hat", "loi bai hat",
-        "cam xuc", "canh quay", "noi dung video"
+        "cam xuc", "canh quay", "noi dung video",
+        "dau hieu nghe duoc", "nghe duoc trong ban thu", "chua the xac minh"
     )
     return recentMediaMarkers.any(recentContext::contains) &&
         recentAnalysisMarkers.any(recentContext::contains)
@@ -246,7 +250,9 @@ internal fun buildNgocSiAiCreativeMusicAnalysisInstruction(
     val asksForVocalAnalysis = listOf(
         "cach hat", "nha chu", "nhan chu", "luyen lay", "luyen la",
         "cam xuc cua ca si", "phan tich giong", "giong hat",
-        "ky thuat hat", "xu ly cau hat", "cach hat cua"
+        "ky thuat hat", "xu ly cau hat", "cach hat cua",
+        "dau hieu nghe duoc", "nghe duoc trong ban thu", "nhung gi nghe duoc",
+        "dieu gi nghe duoc", "phan biet dieu gi chua the xac minh", "chua the xac minh"
     ).any(latest::contains)
     val asksForAnalysis = listOf(
         "phan tich", "chi tiet hon", "noi ro hon", "vi du", "cam xuc",
@@ -261,8 +267,11 @@ internal fun buildNgocSiAiCreativeMusicAnalysisInstruction(
     // conversation has no earlier video context (for example, "phân tích cách
     // hát, nhả chữ, luyến láy của ca sĩ Tuấn Vũ").
     val directVocalAnalysisRequest = asksForVocalAnalysis &&
-        (listOf("ca si", "nghe si", "giong hat", "nha chu", "luyen lay", "cach hat")
-            .any(latest::contains))
+        (listOf(
+            "ca si", "nghe si", "giong hat", "nha chu", "luyen lay", "cach hat",
+            "dau hieu nghe duoc", "nghe duoc trong ban thu", "nhung gi nghe duoc",
+            "dieu gi nghe duoc", "chua the xac minh"
+        ).any(latest::contains))
     if ((!hasMusicPerformanceContext && !directVocalAnalysisRequest) ||
         (!asksForAnalysis && !asksForVocalAnalysis && !continuesAnalysis)
     ) return ""
@@ -300,6 +309,14 @@ internal fun buildNgocSiAiCreativeMusicAnalysisInstruction(
             "Không lặp từ vô nghĩa như 'nhạc ca'; dùng tiếng Việt chuẩn, câu hoàn chỉnh, dấu tiếng Việt chính xác. " +
             "Nếu video/âm thanh thực sự được đính kèm và đọc được, phân tích bản trình diễn đang phát; " +
             "nếu không nhận được âm thanh, nói thẳng chưa thể đánh giá nhả chữ, luyến láy hay màu giọng từ bản thu này. " +
+            "Với yêu cầu chỉ ra dấu hiệu nghe được và điều chưa thể xác minh, chia câu trả lời rõ thành " +
+            "'Nghe được trong bản thu' và 'Chưa thể xác minh'. Ở mục đầu, chỉ nêu dấu hiệu thực sự nghe thấy " +
+            "như độ rõ phụ âm/nguyên âm, cách nối chữ, độ ngân/rung, luyến nốt, hơi thở, nhịp vào câu, " +
+            "sắc thái và thay đổi cường độ; mô tả dấu hiệu cụ thể, không dùng lời khen chung chung. " +
+            "Ở mục sau, ghi rõ điều không thể kết luận từ dữ liệu hiện có, chẳng hạn lời ca nghe không rõ, " +
+            "danh tính ca sĩ chưa được xác nhận, nốt/quãng hoặc mốc thời gian chưa đủ căn cứ. " +
+            "Nếu video đã được đính kèm, không yêu cầu người dùng gửi lại khung hình hay lời ca để thay cho " +
+            "việc kiểm tra âm thanh; chỉ nêu giới hạn đúng với loại dữ liệu thực sự không đọc được. " +
             "Khi thiếu âm thanh, có thể nêu đặc điểm phong cách chung đã biết của nghệ sĩ nhưng phải ghi rõ đó là " +
             "nhận định khái quát, không phải kết quả nghe trực tiếp đoạn nhạc hiện tại. " +
             "Không bịa tên bài, lời ca, nốt nhạc, mốc thời gian hoặc chi tiết biểu diễn; không suy ra chất giọng " +
