@@ -61,7 +61,7 @@ class NgocSiAiRemotePolicyTest {
         val prompt = "AI, phân tích kỹ video YouTube này và chỉ ra các đoạn cảm xúc thay đổi."
 
         assertEquals(ThinkingLevel.MEDIUM, selectNgocSiAiThinkingLevel(prompt))
-        assertEquals(NGOC_SI_AI_REASONING_MODEL_NAME, selectNgocSiAiModelName(prompt))
+        assertEquals(NGOC_SI_AI_FAST_CHAT_MODEL_NAME, selectNgocSiAiModelName(prompt))
         assertTrue(isNgocSiAiMultimodalVideoAnalysisRequest(prompt))
         assertEquals(
             NGOC_SI_AI_DEEP_REMOTE_CONVERSATION_TIMEOUT_MILLIS,
@@ -199,7 +199,7 @@ class NgocSiAiRemotePolicyTest {
     fun detailedFollowUpPhraseGetsMediumReasoningAndFlashModel() {
         val phrase = "AI, phân tích kỹ hơn."
         assertEquals(ThinkingLevel.MEDIUM, selectNgocSiAiThinkingLevel(phrase))
-        assertEquals(NGOC_SI_AI_REASONING_MODEL_NAME, selectNgocSiAiModelName(phrase))
+        assertEquals(NGOC_SI_AI_FAST_CHAT_MODEL_NAME, selectNgocSiAiModelName(phrase))
         assertTrue(isNgocSiAiContextualFollowUp(phrase))
         assertEquals(NGOC_SI_AI_COMPLEX_REPLY_MAX_OUTPUT_TOKENS, selectNgocSiAiMaxOutputTokens(phrase))
     }
@@ -209,7 +209,7 @@ class NgocSiAiRemotePolicyTest {
         val prompt = "AI, so sánh cách hát của ca sĩ Tuấn Vũ với Chế Linh."
 
         assertEquals(ThinkingLevel.MEDIUM, selectNgocSiAiThinkingLevel(prompt))
-        assertEquals(NGOC_SI_AI_REASONING_MODEL_NAME, selectNgocSiAiModelName(prompt))
+        assertEquals(NGOC_SI_AI_FAST_CHAT_MODEL_NAME, selectNgocSiAiModelName(prompt))
         assertEquals(
             NGOC_SI_AI_COMPLEX_REPLY_MAX_OUTPUT_TOKENS,
             selectNgocSiAiMaxOutputTokens(prompt)
@@ -225,7 +225,7 @@ class NgocSiAiRemotePolicyTest {
         )
         phrases.forEach { phrase ->
             assertTrue("$phrase should be contextual", isNgocSiAiContextualFollowUp(phrase))
-            assertEquals(NGOC_SI_AI_REASONING_MODEL_NAME, selectNgocSiAiModelName(phrase))
+            assertEquals(NGOC_SI_AI_FAST_CHAT_MODEL_NAME, selectNgocSiAiModelName(phrase))
         }
     }
 
@@ -697,7 +697,7 @@ class NgocSiAiRemotePolicyTest {
         assertEquals("gemini-3.8-flash", NGOC_SI_AI_REASONING_MODEL_NAME)
         assertTrue(isNgocSiAiKnowledgeQuestion("Thủ đô Việt Nam là gì?"))
         assertEquals(
-            NGOC_SI_AI_REASONING_MODEL_NAME,
+            NGOC_SI_AI_FAST_CHAT_MODEL_NAME,
             selectNgocSiAiModelName("Thủ đô Việt Nam là gì?")
         )
         assertEquals(ThinkingLevel.LOW, selectNgocSiAiGenerationThinkingLevel("Thủ đô Việt Nam là gì?"))
@@ -720,7 +720,7 @@ class NgocSiAiRemotePolicyTest {
         )
         questions.forEach { prompt ->
             assertTrue("$prompt should use the substantive-question route", isNgocSiAiKnowledgeQuestion(prompt))
-            assertEquals(NGOC_SI_AI_REASONING_MODEL_NAME, selectNgocSiAiModelName(prompt))
+            assertEquals(NGOC_SI_AI_FAST_CHAT_MODEL_NAME, selectNgocSiAiModelName(prompt))
             assertEquals(NGOC_SI_AI_KNOWLEDGE_REPLY_MAX_OUTPUT_TOKENS, selectNgocSiAiMaxOutputTokens(prompt))
         }
         assertFalse(isNgocSiAiKnowledgeQuestion("Xin chào"))
@@ -740,7 +740,7 @@ class NgocSiAiRemotePolicyTest {
         )
         prompts.forEach { prompt ->
             assertTrue("$prompt should be treated as a contextual follow-up", isNgocSiAiContextualFollowUp(prompt))
-            assertEquals(NGOC_SI_AI_REASONING_MODEL_NAME, selectNgocSiAiModelName(prompt))
+            assertEquals(NGOC_SI_AI_FAST_CHAT_MODEL_NAME, selectNgocSiAiModelName(prompt))
             assertEquals(ThinkingLevel.LOW, selectNgocSiAiThinkingLevel(prompt))
             assertEquals(NGOC_SI_AI_KNOWLEDGE_REPLY_MAX_OUTPUT_TOKENS, selectNgocSiAiMaxOutputTokens(prompt))
         }
@@ -759,10 +759,10 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
-    fun complexReasoningKeepsTheGeminiFlashModel() {
+    fun mediumReasoningUsesFlashLiteToPreserveFlashQuota() {
         assertEquals("gemini-3.8-flash", NGOC_SI_AI_REASONING_MODEL_NAME)
         assertEquals(
-            NGOC_SI_AI_REASONING_MODEL_NAME,
+            NGOC_SI_AI_FAST_CHAT_MODEL_NAME,
             selectNgocSiAiModelName("Hãy phân tích kỹ nguyên nhân và lập kế hoạch khắc phục.")
         )
     }
@@ -770,9 +770,30 @@ class NgocSiAiRemotePolicyTest {
     @Test
     fun appToolRequestsAlwaysKeepTheGeminiFlashModel() {
         assertEquals(
-            NGOC_SI_AI_REASONING_MODEL_NAME,
+            NGOC_SI_AI_FAST_CHAT_MODEL_NAME,
             selectNgocSiAiModelName("Mở YouTube", offersAppCommandTool = true)
         )
+    }
+
+    @Test
+    fun onlyDeliberateHighDepthRequestsUseGemini38() {
+        val commonRequests = listOf(
+            "Thủ đô Việt Nam là gì?",
+            "Mở YouTube",
+            "Phân tích thêm phần đó",
+            "Phân tích video YouTube này",
+            "So sánh cách hát của hai ca sĩ"
+        )
+        commonRequests.forEach { prompt ->
+            assertEquals(
+                "$prompt should preserve the Flash quota pool",
+                NGOC_SI_AI_FAST_CHAT_MODEL_NAME,
+                selectNgocSiAiModelName(prompt, offersAppCommandTool = prompt == "Mở YouTube")
+            )
+        }
+        val deepPrompt = "Hãy kiểm tra toàn diện mã nguồn, phân tích chuyên sâu và tìm nguyên nhân gốc."
+        assertEquals(ThinkingLevel.HIGH, selectNgocSiAiThinkingLevel(deepPrompt))
+        assertEquals(NGOC_SI_AI_REASONING_MODEL_NAME, selectNgocSiAiModelName(deepPrompt))
     }
 
     @Test
