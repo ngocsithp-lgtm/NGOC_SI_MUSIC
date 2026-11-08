@@ -107,6 +107,8 @@ internal fun buildNgocSiAiLocalMediaAnalysisUnavailableReply(remoteError: String
             "Firebase không xác thực được yêu cầu. Mã: AUTH_401."
         diagnosticCode == "MODEL_OR_ENDPOINT_404" ->
             "Không tìm thấy model hoặc endpoint AI. Mã: MODEL_OR_ENDPOINT_404."
+        remoteError.orEmpty().contains("chưa hoàn tất câu trả lời sau", ignoreCase = true) ->
+            "Yêu cầu phân tích video đã vượt quá thời gian chờ 60 giây; chưa đủ bằng chứng để kết luận là lỗi quota hay mạng. Mã: VIDEO_ANALYSIS_TIMEOUT."
         diagnosticCode?.startsWith("REMOTE_ERROR_") == true ->
             "Firebase AI Logic trả về lỗi kỹ thuật chưa được phân loại. Hãy gửi đúng mã này để kiểm tra: $diagnosticCode."
         diagnosticCode != null ->
