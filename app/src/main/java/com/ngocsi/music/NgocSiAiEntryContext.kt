@@ -243,6 +243,11 @@ internal fun buildNgocSiAiCreativeMusicAnalysisInstruction(
         "so sanh", "doi chieu", "cach hat cua ca si", "chat giong",
         "giong ca", "ky thuat hat", "cach nhan chu"
     ).any(latest::contains)
+    val asksForVocalAnalysis = listOf(
+        "cach hat", "nha chu", "nhan chu", "luyen lay", "luyen la",
+        "cam xuc cua ca si", "phan tich giong", "giong hat",
+        "ky thuat hat", "xu ly cau hat", "cach hat cua"
+    ).any(latest::contains)
     val asksForAnalysis = listOf(
         "phan tich", "chi tiet hon", "noi ro hon", "vi du", "cam xuc",
         "hinh anh", "so sanh", "goi y", "ket hop", "giong hat",
@@ -252,7 +257,15 @@ internal fun buildNgocSiAiCreativeMusicAnalysisInstruction(
         "tiep tuc", "tiep tuc di", "tiep tuc nhe", "lam tiep", "lam tiep di",
         "noi tiep", "noi tiep di", "tiep di"
     )
-    if (!hasMusicPerformanceContext || (!asksForAnalysis && !continuesAnalysis)) return ""
+    // A direct request naming vocal techniques must activate even when the
+    // conversation has no earlier video context (for example, "phân tích cách
+    // hát, nhả chữ, luyến láy của ca sĩ Tuấn Vũ").
+    val directVocalAnalysisRequest = asksForVocalAnalysis &&
+        (listOf("ca si", "nghe si", "giong hat", "nha chu", "luyen lay", "cach hat")
+            .any(latest::contains))
+    if ((!hasMusicPerformanceContext && !directVocalAnalysisRequest) ||
+        (!asksForAnalysis && !asksForVocalAnalysis && !continuesAnalysis)
+    ) return ""
 
     val evidenceGuidance =
         " Khi tiếp tục phân tích video âm nhạc, bản thu hoặc phần trình diễn, hãy trả lời đúng yêu cầu mới nhất " +
@@ -275,6 +288,22 @@ internal fun buildNgocSiAiCreativeMusicAnalysisInstruction(
             "Tách ảnh hưởng của bản phối, micro và chất lượng ghi âm khỏi kỹ thuật hát. " +
             "Nếu chỉ có tiêu đề hoặc metadata, nói rõ chưa nghe được bản thu và không gán đặc điểm giọng cho bất kỳ ai; " +
             "không xếp hạng ai hay hơn khi chưa có căn cứ so sánh tương đương."
+    } else if (asksForVocalAnalysis) {
+        " Với yêu cầu phân tích một ca sĩ cụ thể: phải tập trung vào kỹ thuật biểu diễn của chính giọng hát, " +
+            "không chuyển câu trả lời thành mô tả chung về thể loại nhạc, nhịp điệu bài hát hoặc sở thích người nghe. " +
+            "Trình bày theo các mục: (1) màu giọng và độ dày/độ sáng; (2) nhả chữ, độ rõ phụ âm, cách mở nguyên âm " +
+            "và nối tiếng; (3) luyến láy, rung giọng, vuốt nốt và cách kết câu; (4) hơi thở, độ dài câu hát, " +
+            "nhịp vào câu và độ bám phách; (5) sắc thái, cường độ và cách đẩy cảm xúc ở cao trào. " +
+            "Phải phân biệt nhịp điệu/hoà âm của bản nhạc với nhịp nhả chữ và phrasing của ca sĩ. " +
+            "Mỗi nhận xét quan trọng phải gắn với dấu hiệu nghe được hoặc câu hát/mốc thời gian cụ thể nếu dữ liệu có. " +
+            "Không tự gán các mô tả như giọng cao, hiện đại, tự hào, mạnh mẽ hoặc nhẹ nhàng nếu không có bằng chứng âm thanh. " +
+            "Không lặp từ vô nghĩa như 'nhạc ca'; dùng tiếng Việt chuẩn, câu hoàn chỉnh, dấu tiếng Việt chính xác. " +
+            "Nếu video/âm thanh thực sự được đính kèm và đọc được, phân tích bản trình diễn đang phát; " +
+            "nếu không nhận được âm thanh, nói thẳng chưa thể đánh giá nhả chữ, luyến láy hay màu giọng từ bản thu này. " +
+            "Khi thiếu âm thanh, có thể nêu đặc điểm phong cách chung đã biết của nghệ sĩ nhưng phải ghi rõ đó là " +
+            "nhận định khái quát, không phải kết quả nghe trực tiếp đoạn nhạc hiện tại. " +
+            "Không bịa tên bài, lời ca, nốt nhạc, mốc thời gian hoặc chi tiết biểu diễn; không suy ra chất giọng " +
+            "từ việc người dùng yêu thích nghệ sĩ đó. Kết thúc bằng 1-2 nhận xét có căn cứ và nêu rõ điều gì chưa xác minh."
     } else {
         " Với phân tích video âm nhạc: nếu có lời ca hoặc mốc thời gian, đi theo chuỗi ý nghĩa câu hát → " +
             "cảm xúc chủ đạo và chuyển biến → hình ảnh/đạo cụ phù hợp → cỡ cảnh, góc máy, ánh sáng và màu sắc → " +

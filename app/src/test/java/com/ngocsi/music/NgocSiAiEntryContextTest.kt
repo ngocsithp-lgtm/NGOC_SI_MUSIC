@@ -266,6 +266,37 @@ class NgocSiAiEntryContextTest {
     }
 
     @Test
+    fun directSingerVocalAnalysisGetsSpecificEvidenceBasedGuidanceWithoutPriorVideoContext() {
+        val instruction = buildNgocSiAiCreativeMusicAnalysisInstruction(
+            rawUserText = "AI, phân tích cách hát, nhả chữ, luyến láy và cảm xúc của ca sĩ Tuấn Vũ",
+            recentConversation = emptyList()
+        )
+
+        assertTrue(instruction.contains("kỹ thuật biểu diễn của chính giọng hát"))
+        assertTrue(instruction.contains("màu giọng và độ dày"))
+        assertTrue(instruction.contains("nhả chữ, độ rõ phụ âm"))
+        assertTrue(instruction.contains("luyến láy, rung giọng"))
+        assertTrue(instruction.contains("hơi thở"))
+        assertTrue(instruction.contains("dấu hiệu nghe được"))
+        assertTrue(instruction.contains("Không tự gán các mô tả"))
+        assertTrue(instruction.contains("chưa thể đánh giá nhả chữ"))
+        assertTrue(instruction.contains("không phải kết quả nghe trực tiếp"))
+        assertFalse(instruction.contains("phương án minh họa"))
+    }
+
+    @Test
+    fun vocalAnalysisDoesNotInventAudioDetailsWhenOnlyArtistNameIsKnown() {
+        val instruction = buildNgocSiAiCreativeMusicAnalysisInstruction(
+            rawUserText = "Phân tích giọng hát và cách nhả chữ của Tuấn Vũ",
+            recentConversation = listOf("Người dùng thích nghe Bolero.")
+        )
+
+        assertTrue(instruction.contains("không nhận được âm thanh"))
+        assertTrue(instruction.contains("Không bịa tên bài, lời ca, nốt nhạc"))
+        assertTrue(instruction.contains("không suy ra chất giọng"))
+    }
+
+    @Test
     fun boleroSingerComparisonRequiresNamedArtistsAndEvidenceBasedCriteria() {
         val instruction = buildNgocSiAiCreativeMusicAnalysisInstruction(
             rawUserText = "AI, so sánh cách hát của ca sĩ này với ca sĩ khác",
