@@ -79,6 +79,25 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
+    fun audibleEvidenceAndUnverifiedAnalysisGetsGeminiFlashAndMultimodalBudget() {
+        val prompt =
+            "AI, chỉ ra những dấu hiệu nghe được trong bản thu và phân biệt điều gì chưa thể xác minh."
+
+        assertTrue(isNgocSiAiMultimodalVideoAnalysisRequest(prompt))
+        assertEquals(ThinkingLevel.MEDIUM, selectNgocSiAiThinkingLevel(prompt))
+        assertEquals(NGOC_SI_AI_REASONING_MODEL_NAME, selectNgocSiAiModelName(prompt))
+        assertEquals(ThinkingLevel.MEDIUM, selectNgocSiAiGenerationThinkingLevel(prompt))
+        assertEquals(
+            NGOC_SI_AI_COMPLEX_REPLY_MAX_OUTPUT_TOKENS,
+            selectNgocSiAiMaxOutputTokens(prompt)
+        )
+        assertEquals(
+            NGOC_SI_AI_DEEP_REMOTE_CONVERSATION_TIMEOUT_MILLIS,
+            selectNgocSiAiRemoteTimeoutMillis(prompt)
+        )
+    }
+
+    @Test
     fun ordinaryPlaybackAndChatKeepTheirExistingRemoteDeadlines() {
         assertFalse(isNgocSiAiMultimodalVideoAnalysisRequest("AI, tua tới 10 giây"))
         assertFalse(isNgocSiAiMultimodalVideoAnalysisRequest("Xin chào, bạn khỏe không?"))

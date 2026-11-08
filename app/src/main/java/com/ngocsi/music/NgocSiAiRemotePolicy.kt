@@ -150,7 +150,10 @@ internal fun isNgocSiAiMultimodalVideoAnalysisRequest(prompt: String): Boolean {
     val normalized = normalizeNgocSiAiVoicePhrase(prompt)
     val analysisIntent = listOf(
         "phan tich", "mo ta", "so sanh", "cach hat", "chat giong",
-        "giong hat", "loi bai hat", "cam xuc", "canh quay", "noi dung video"
+        "giong hat", "loi bai hat", "cam xuc", "canh quay", "noi dung video",
+        "dau hieu nghe duoc", "nghe duoc trong ban thu", "nhung gi nghe duoc",
+        "dieu gi nghe duoc", "phan biet dieu gi chua the xac minh",
+        "chua the xac minh"
     ).any(normalized::contains)
     val mediaContext = listOf(
         "video", "youtube", "mv", "bai hat", "ca khuc", "ca si",
@@ -216,9 +219,12 @@ internal fun selectNgocSiAiThinkingLevel(prompt: String): ThinkingLevel {
     val distinctAppActionCount = appActionCategories.count { category ->
         category.any { marker -> normalized.contains(marker) }
     }
+    // Evidence-based video/audio questions need the multimodal reasoning path even
+    // when the Vietnamese wording does not contain the generic word "phân tích".
     val needsMediumReasoning =
         normalized.length >= 180 ||
             mediumIntentMarkers.any { marker -> normalized.contains(marker) } ||
+            isNgocSiAiMultimodalVideoAnalysisRequest(prompt) ||
             distinctAppActionCount >= 2
     return if (needsMediumReasoning) ThinkingLevel.MEDIUM else ThinkingLevel.LOW
 }
