@@ -386,6 +386,51 @@ class NgocSiAiEntryContextTest {
     }
 
     @Test
+    fun activeYoutubePlaybackCanSupplyContextWhenAiWasOpenedFromHome() {
+        assertEquals(
+            "YouTube",
+            resolveNgocSiAiEntryContextForActiveYoutubePlayback(
+                "Trang chủ", "a1b2c3d4e5F", youtubeSourceActive = true
+            )
+        )
+        assertEquals(
+            "Trang chủ",
+            resolveNgocSiAiEntryContextForActiveYoutubePlayback(
+                "Trang chủ", "a1b2c3d4e5F", youtubeSourceActive = false
+            )
+        )
+        assertEquals(
+            "Radio",
+            resolveNgocSiAiEntryContextForActiveYoutubePlayback(
+                "Radio", "a1b2c3d4e5F", youtubeSourceActive = true
+            )
+        )
+        assertEquals(
+            "Trang chủ",
+            resolveNgocSiAiEntryContextForActiveYoutubePlayback(
+                "Trang chủ", "invalid-video-id", youtubeSourceActive = true
+            )
+        )
+    }
+
+    @Test
+    fun videoAnalysisFailureDoesNotAskToReopenAiWhenCurrentYoutubeContextExists() {
+        val reply = buildNgocSiAiLocalMediaAnalysisUnavailableReply(
+            "Hạn mức miễn phí có thể đã hết. Mã chẩn đoán: AI_QUOTA_429_FREE_TIER.",
+            videoContextAvailable = true
+        )
+        assertTrue(reply.contains("đã nhận diện được video YouTube hiện tại"))
+        assertTrue(reply.contains("không cần mở lại NGỌC SĨ AI"))
+        assertTrue(reply.contains("AI_QUOTA_429_FREE_TIER"))
+
+        val missingContextReply = buildNgocSiAiLocalMediaAnalysisUnavailableReply(
+            "Mã: AI_YOUTUBE_VIDEO_CONTEXT_MISSING."
+        )
+        assertTrue(missingContextReply.contains("chưa xác nhận được video đang phát"))
+        assertTrue(missingContextReply.contains("mở NGỌC SĨ AI từ trang YouTube"))
+    }
+
+    @Test
     fun currentYoutubeVideoIdPrefersTheLatestActivePlayerItem() {
         assertEquals(
             "a1b2c3d4e5F",
