@@ -137,7 +137,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
                     ?: "Firebase AI Logic chưa được cấu hình cho bản thử này. Mã chẩn đoán: FIREBASE_CONFIG."
             )
 
-        activeQuotaCooldownMessage()?.let { throw NgocSiAiRemoteException(it) }
+            // (model-specific cooldown is checked after intent routing below)
 
         val normalized = try {
             normalizeNgocSiAiHistory(messages)
@@ -203,6 +203,16 @@ internal class NgocSiAiRemoteClient(context: Context) {
             }
         }
 
+        val offersAppCommandTool =
+            shouldOfferNgocSiAiAppCommandTool(newestUserMessage.content, normalized.dropLast(1))
+        val selectedModelName = selectNgocSiAiModelName(
+            newestUserMessage.content,
+            offersAppCommandTool
+        )
+        activeQuotaCooldownMessage(selectedModelName)?.let {
+            throw NgocSiAiRemoteException(it)
+        }
+
         return try {
             // Use only the explicitly configured Gemini model. Never silently switch
             // to a different or potentially billable model when quota is reached.
@@ -210,12 +220,6 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 app,
                 GenerativeBackend.googleAI(),
                 /* useLimitedUseAppCheckTokens = */ true
-            )
-            val offersAppCommandTool =
-                shouldOfferNgocSiAiAppCommandTool(newestUserMessage.content, normalized.dropLast(1))
-            val selectedModelName = selectNgocSiAiModelName(
-                newestUserMessage.content,
-                offersAppCommandTool
             )
             val responseConfig = generationConfig {
                 maxOutputTokens = selectNgocSiAiMaxOutputTokens(newestUserMessage.content)
@@ -462,36 +466,67 @@ internal class NgocSiAiRemoteClient(context: Context) {
             throw error
         } catch (error: Exception) {
             val safeMessage = toSafeMessage(error)
-            persistQuotaCooldownIfNeeded(safeMessage)
+            persistQuotaCooldownIfNeeded(safeMessage, selectedModelName)
             throw NgocSiAiRemoteException(safeMessage)
         }
     }
 
 
-    private fun activeQuotaCooldownMessage(): String? {
-        val until = quotaPreferences.getLong(KEY_QUOTA_COOLDOWN_UNTIL, 0L)
+    private fun activeQuotaCooldownMessage(modelName: String): String? {
+        migrateLegacyQuotaCooldownToReasoningModel()
+        val untilKey = quotaCooldownUntilKey(modelName)
+        val kindKey = quotaCooldownKindKey(modelName)
+        val until = quotaPreferences.getLong(untilKey, 0L)
         val now = System.currentTimeMillis()
         if (until <= now) {
-            quotaPreferences.edit()
-                .remove(KEY_QUOTA_COOLDOWN_UNTIL)
-                .remove(KEY_QUOTA_COOLDOWN_KIND)
-                .apply()
+            quotaPreferences.edit().remove(untilKey).remove(kindKey).apply()
             return null
         }
-        val kind = quotaPreferences.getString(KEY_QUOTA_COOLDOWN_KIND, null)
+        val kind = quotaPreferences.getString(kindKey, null)
             ?.let { runCatching { NgocSiAiQuotaCooldownKind.valueOf(it) }.getOrNull() }
             ?: NgocSiAiQuotaCooldownKind.TEMPORARY
         return ngocSiAiQuotaCooldownNotice(kind, until - now)
     }
 
-    private fun persistQuotaCooldownIfNeeded(message: String) {
+    private fun persistQuotaCooldownIfNeeded(message: String, modelName: String) {
         val kind = classifyNgocSiAiQuotaCooldown(message) ?: return
         val until = ngocSiAiQuotaCooldownUntilMillis(kind, System.currentTimeMillis())
         quotaPreferences.edit()
-            .putLong(KEY_QUOTA_COOLDOWN_UNTIL, until)
-            .putString(KEY_QUOTA_COOLDOWN_KIND, kind.name)
+            .putLong(quotaCooldownUntilKey(modelName), until)
+            .putString(quotaCooldownKindKey(modelName), kind.name)
             .apply()
     }
+
+    /** Older versions stored one global cooldown. Attribute it to the old default model only. */
+    private fun migrateLegacyQuotaCooldownToReasoningModel() {
+        val legacyUntil = quotaPreferences.getLong(KEY_QUOTA_COOLDOWN_UNTIL, 0L)
+        val legacyKind = quotaPreferences.getString(KEY_QUOTA_COOLDOWN_KIND, null)
+        if (legacyUntil > System.currentTimeMillis() && !legacyKind.isNullOrBlank()) {
+            val reasoningUntilKey = quotaCooldownUntilKey(NGOC_SI_AI_REASONING_MODEL_NAME)
+            if (!quotaPreferences.contains(reasoningUntilKey)) {
+                quotaPreferences.edit()
+                    .putLong(reasoningUntilKey, legacyUntil)
+                    .putString(
+                        quotaCooldownKindKey(NGOC_SI_AI_REASONING_MODEL_NAME),
+                        runCatching { NgocSiAiQuotaCooldownKind.valueOf(legacyKind) }
+                            .getOrDefault(NgocSiAiQuotaCooldownKind.TEMPORARY).name
+                    )
+                    .apply()
+            }
+        }
+        if (legacyUntil > 0L || legacyKind != null) {
+            quotaPreferences.edit()
+                .remove(KEY_QUOTA_COOLDOWN_UNTIL)
+                .remove(KEY_QUOTA_COOLDOWN_KIND)
+                .apply()
+        }
+    }
+
+    private fun quotaCooldownUntilKey(modelName: String): String =
+        KEY_QUOTA_COOLDOWN_UNTIL_PREFIX + modelName.replace(Regex("[^A-Za-z0-9._-]"), "_")
+
+    private fun quotaCooldownKindKey(modelName: String): String =
+        KEY_QUOTA_COOLDOWN_KIND_PREFIX + modelName.replace(Regex("[^A-Za-z0-9._-]"), "_")
 
     private fun createFirebaseApp(context: Context): FirebaseApp? {
         val apiKey = BuildConfig.FIREBASE_API_KEY
@@ -608,8 +643,11 @@ internal class NgocSiAiRemoteClient(context: Context) {
 
         private const val FIREBASE_APP_NAME = "ngocSiAi"
         private const val QUOTA_PREFERENCES = "ngoc_si_ai_quota_cooldown"
+        // Legacy global keys are read once and migrated to the previous default model.
         private const val KEY_QUOTA_COOLDOWN_UNTIL = "cooldown_until_millis"
         private const val KEY_QUOTA_COOLDOWN_KIND = "cooldown_kind"
+        private const val KEY_QUOTA_COOLDOWN_UNTIL_PREFIX = "cooldown_until_millis_"
+        private const val KEY_QUOTA_COOLDOWN_KIND_PREFIX = "cooldown_kind_"
         private const val EXPECTED_FIREBASE_PROJECT_ID = "ngoc-si-music-ai"
         // Primary model routing is deterministic in NgocSiAiRemotePolicy.
         // Quota errors trigger a cooldown; there is no automatic model fallback.
