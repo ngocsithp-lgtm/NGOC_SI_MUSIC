@@ -79,11 +79,11 @@ internal const val NGOC_SI_AI_DEEP_REMOTE_CONVERSATION_TIMEOUT_MILLIS = 60_000L
 internal const val NGOC_SI_AI_VIDEO_ANALYSIS_TIMEOUT_MILLIS = 120_000L
 
 /**
- * Public Google-hosted MP4 used only when the user explicitly asks for a video-path
+ * Official Firebase-documented Google-hosted MP4 used only when the user explicitly asks for a video-path
  * diagnostic. It isolates Firebase/model/media ingestion from the active YouTube URL.
  */
 internal const val NGOC_SI_AI_VIDEO_DIAGNOSTIC_SAMPLE_URI =
-    "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"
+    "https://storage.googleapis.com/cloud-samples-data/video/animals.mp4"
 
 // Gemini's YouTube URL input is a provider-resolved video, not a direct .mp4 asset.
 // Keep its MIME separate from inline MP4 bytes used by the public sample diagnostic.
