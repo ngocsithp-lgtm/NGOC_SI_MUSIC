@@ -239,8 +239,14 @@ class NgocSiAiEntryContextTest {
         val cooldownReply = buildNgocSiAiLocalMediaAnalysisUnavailableReply(
             "NGỌC SĨ AI đang tạm ngưng gửi yêu cầu trực tuyến do hạn mức miễn phí của Gemini. Mã: AI_QUOTA_COOLDOWN."
         )
-        assertTrue(cooldownReply.contains("hạn mức hoặc quyền Free Tier"))
+        assertTrue(cooldownReply.contains("request mới chưa được gửi lên Gemini"))
         assertTrue(cooldownReply.contains("AI_QUOTA_COOLDOWN"))
+
+        val paidTierReply = buildNgocSiAiLocalMediaAnalysisUnavailableReply(
+            "Mô hình hoặc tính năng này yêu cầu gói trả phí. Mã chẩn đoán: AI_QUOTA_429_PAID_TIER."
+        )
+        assertTrue(paidTierReply.contains("yêu cầu quyền trả phí"))
+        assertTrue(paidTierReply.contains("không tự chuyển sang model tính phí"))
 
         val timeoutReply = buildNgocSiAiLocalMediaAnalysisUnavailableReply(
             "Máy chủ Gemini chưa hoàn tất câu trả lời sau 60 giây."
