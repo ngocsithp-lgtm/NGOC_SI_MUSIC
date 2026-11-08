@@ -678,7 +678,7 @@ class NgocSiAiEntryContextTest {
             videoContextAvailable = true
         )
         assertTrue(sampleReply.contains("video MP4 mẫu công khai"))
-        assertTrue(sampleReply.contains("không phụ thuộc URL YouTube"))
+        assertTrue(sampleReply.contains("chưa nằm riêng ở URL YouTube"))
         assertTrue(sampleReply.contains("VIDEO_SAMPLE_SERVER_ERROR"))
 
         val youtubeReply = buildNgocSiAiLocalMediaAnalysisUnavailableReply(
