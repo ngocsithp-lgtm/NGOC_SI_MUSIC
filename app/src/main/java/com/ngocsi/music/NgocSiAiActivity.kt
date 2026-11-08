@@ -2742,6 +2742,19 @@ private fun NgocSiAiPreviewScreen(
                         fallbackReply
                     }
                     ?: errorReply
+
+                // Keep the failed analysis request and this explicit limitation in API history.
+                // The next natural follow-up can then still be recognized as a YouTube
+                // analysis turn and will attach the newly active queue item (for example B).
+                if (requiresMultimodalYoutubeAnalysis) {
+                    val retainedHistory = appendCompletedNgocSiAiTurn(
+                        history = conversation.toList(),
+                        userText = clean,
+                        assistantText = visibleReply
+                    )
+                    conversation.clear()
+                    conversation.addAll(retainedHistory)
+                }
                 quotaNote = if (localModelReply != null) {
                     "Gemini đang bị giới hạn · đã trả lời bằng AI tại máy"
                 } else {
