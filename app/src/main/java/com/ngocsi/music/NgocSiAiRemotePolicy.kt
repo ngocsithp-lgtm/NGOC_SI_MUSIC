@@ -68,8 +68,8 @@ internal fun isNgocSiAiKnowledgeQuestion(prompt: String): Boolean {
 
 /**
  * Short natural continuations depend on the preceding turns even when the newest
- * message contains no explicit question word. Route them through Flash so the model
- * can interpret the conversation history instead of treating them as isolated chat.
+ * message contains no explicit question word. Keep them on Flash-Lite so the model
+ * can interpret conversation history without consuming the smaller Flash quota pool.
  */
 internal fun isNgocSiAiContextualFollowUp(prompt: String): Boolean {
     val normalized = stripNgocSiAiDirectIntentWakePrefix(
@@ -108,8 +108,8 @@ internal fun selectNgocSiAiModelName(
 }
 
 /**
- * Flash-Lite supports MINIMAL thinking and uses it by default. Keep the 3.8 Flash
- * path at LOW or MEDIUM because that model does not accept MINIMAL.
+ * Flash-Lite uses MINIMAL for ordinary low-complexity requests. The 3.8 Flash
+ * model is reserved for HIGH-depth requests and receives HIGH thinking.
  */
 internal fun selectNgocSiAiGenerationThinkingLevel(
     prompt: String,
@@ -117,7 +117,7 @@ internal fun selectNgocSiAiGenerationThinkingLevel(
     modelName: String = selectNgocSiAiModelName(prompt, offersAppCommandTool)
 ): ThinkingLevel {
     val requestedLevel = selectNgocSiAiThinkingLevel(prompt)
-    // Flash-Lite uses MINIMAL for speed; Flash uses LOW for factual questions.
+    // Flash-Lite uses MINIMAL for low-complexity chat; tool calls retain LOW for reliable action planning.
     return if (
         modelName == NGOC_SI_AI_FAST_CHAT_MODEL_NAME &&
         !offersAppCommandTool &&
