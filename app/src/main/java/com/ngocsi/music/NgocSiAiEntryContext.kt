@@ -122,6 +122,10 @@ internal fun buildNgocSiAiLocalMediaAnalysisUnavailableReply(
             "Firebase không xác thực được yêu cầu. Mã: AUTH_401."
         diagnosticCode == "MODEL_OR_ENDPOINT_404" ->
             "Không tìm thấy model hoặc endpoint AI. Mã: MODEL_OR_ENDPOINT_404."
+        diagnosticCode == "VIDEO_SAMPLE_SERVER_ERROR" ->
+            "Ngay cả video MP4 mẫu công khai của Google cũng gặp lỗi máy chủ Firebase AI Logic. Vấn đề chưa nằm riêng ở URL YouTube; cần kiểm tra App Check của ứng dụng Preview, quyền Firebase AI Logic và model. Bản Preview vẫn không bật thanh toán. Mã: VIDEO_SAMPLE_SERVER_ERROR."
+        diagnosticCode == "YOUTUBE_VIDEO_SERVER_ERROR" ->
+            "Lỗi máy chủ xuất hiện khi gửi URL YouTube nhưng chưa có mã HTTP để xác định nguyên nhân. Hãy chạy 'AI, kiểm tra kết nối video mẫu': nếu video mẫu chạy được, cần khoanh vùng quyền công khai/không công khai hoặc giới hạn của video YouTube. Mã: YOUTUBE_VIDEO_SERVER_ERROR."
         diagnosticCode == "VIDEO_ANALYSIS_TIMEOUT" -> {
             val timeoutSeconds = Regex("""sau\s+(\d+)\s+giây""")
                 .find(remoteError.orEmpty())
