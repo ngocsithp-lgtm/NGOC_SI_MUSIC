@@ -43,16 +43,16 @@ internal fun shouldRetryNgocSiAiRemoteRequest(
     return transientMarkers.any(details::contains)
 }
 
-/** Model routing keeps everyday chat on the faster, no-billing Flash-Lite tier. */
+/** Model routing keeps everyday chat on the faster, higher-volume Flash-Lite tier. */
 internal const val NGOC_SI_AI_FAST_CHAT_MODEL_NAME = "gemini-3.5-flash-lite"
 internal const val NGOC_SI_AI_REASONING_MODEL_NAME = "gemini-3.8-flash"
 
 /**
- * Use Flash-Lite for ordinary text chat. Keep reasoning and tool-calling requests
- * on Flash so multi-step app actions retain the stronger planning path.
+ * Flash-Lite handles ordinary chat, knowledge questions, contextual follow-ups,
+ * app tool calls, and multimodal media. Reserve Flash for deliberate HIGH-depth work.
  * This selects a primary model by intent; it is not a quota/error fallback.
  */
-/** Route substantive questions to the stronger Flash model without raising their latency tier. */
+
 internal fun isNgocSiAiKnowledgeQuestion(prompt: String): Boolean {
     val normalized = normalizeNgocSiAiVoicePhrase(prompt).trim()
     if (normalized.isBlank()) return false
@@ -95,14 +95,12 @@ internal fun isNgocSiAiContextualFollowUp(prompt: String): Boolean {
     return normalized in exactPhrases || prefixes.any(normalized::startsWith)
 }
 
+@Suppress("UNUSED_PARAMETER")
 internal fun selectNgocSiAiModelName(
     prompt: String,
     offersAppCommandTool: Boolean = false
 ): String = if (
-    offersAppCommandTool ||
-    selectNgocSiAiThinkingLevel(prompt) != ThinkingLevel.LOW ||
-    isNgocSiAiKnowledgeQuestion(prompt) ||
-    isNgocSiAiContextualFollowUp(prompt)
+    selectNgocSiAiThinkingLevel(prompt) == ThinkingLevel.HIGH
 ) {
     NGOC_SI_AI_REASONING_MODEL_NAME
 } else {
