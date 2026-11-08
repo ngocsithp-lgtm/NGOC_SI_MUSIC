@@ -21,6 +21,12 @@ import com.google.firebase.appcheck.FirebaseAppCheck
 import com.google.firebase.appcheck.debug.DebugAppCheckProviderFactory
 import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import java.io.ByteArrayOutputStream
+import java.io.IOException
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
@@ -203,29 +209,33 @@ internal class NgocSiAiRemoteClient(context: Context) {
             prompt = newestUserMessage.content,
             previousMessages = normalized.dropLast(1)
         )
-        val videoInputUri = if (videoCapabilityDiagnosticRequested) {
-            NGOC_SI_AI_VIDEO_DIAGNOSTIC_SAMPLE_URI
+        // Gemini Developer API accepts YouTube URLs, but not arbitrary Cloud Storage
+        // URLs. Download the small public MP4 canary and send it as inlineData instead.
+        // The inline payload is capped below the 20 MB total request limit.
+        val diagnosticVideoBytes = if (videoCapabilityDiagnosticRequested) {
+            downloadNgocSiAiDiagnosticVideoSample()
         } else {
-            youtubeVideoAnalysisUri
+            null
         }
-        val forceMultimodalReasoning = videoInputUri != null
-        val multimodalUserMessage = videoInputUri?.let { videoUri ->
-            content("user") {
-                // Firebase AI Logic accepts one public YouTube URL or a supported MP4 URL.
-                // Put the video before the compact text prompt, as recommended by Firebase.
-                fileData(uri = videoUri, mimeType = "video/mp4")
+        val videoInputUri = if (videoCapabilityDiagnosticRequested) null else youtubeVideoAnalysisUri
+        val forceMultimodalReasoning = videoCapabilityDiagnosticRequested || videoInputUri != null
+        val multimodalUserMessage = when {
+            diagnosticVideoBytes != null -> content("user") {
+                inlineData(diagnosticVideoBytes, "video/mp4")
+                text(buildNgocSiAiVideoCapabilityDiagnosticPrompt(newestUserMessage.content))
+            }
+            videoInputUri != null -> content("user") {
+                // Gemini Developer API supports one public or unlisted YouTube URL per request.
+                fileData(uri = videoInputUri, mimeType = "video/mp4")
                 text(
-                    if (videoCapabilityDiagnosticRequested) {
-                        buildNgocSiAiVideoCapabilityDiagnosticPrompt(newestUserMessage.content)
-                    } else {
-                        buildNgocSiAiVideoAnalysisRequestText(
-                            userPrompt = newestUserMessage.content,
-                            recentMessages = normalized.dropLast(1),
-                            mediaContextInstruction = mediaContextInstruction
-                        )
-                    }
+                    buildNgocSiAiVideoAnalysisRequestText(
+                        userPrompt = newestUserMessage.content,
+                        recentMessages = normalized.dropLast(1),
+                        mediaContextInstruction = mediaContextInstruction
+                    )
                 )
             }
+            else -> null
         }
 
         // Firebase AI Logic requires model-role history for assistant responses.
@@ -576,6 +586,51 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 .apply()
         }
     }
+
+    private suspend fun downloadNgocSiAiDiagnosticVideoSample(): ByteArray =
+        withContext(Dispatchers.IO) {
+            val request = Request.Builder()
+                .url(NGOC_SI_AI_VIDEO_DIAGNOSTIC_SAMPLE_URI)
+                .get()
+                .build()
+            val client = OkHttpClient.Builder()
+                .callTimeout(java.time.Duration.ofSeconds(35))
+                .build()
+            try {
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        throw IOException("HTTP ${response.code}")
+                    }
+                    val body = response.body ?: throw IOException("Missing video body")
+                    val maxInlineBytes = 14 * 1024 * 1024L
+                    if (body.contentLength() > maxInlineBytes) {
+                        throw IOException("Video sample exceeds inline request limit")
+                    }
+                    body.byteStream().use { input ->
+                        ByteArrayOutputStream().use { output ->
+                            val buffer = ByteArray(16 * 1024)
+                            var total = 0L
+                            while (true) {
+                                val count = input.read(buffer)
+                                if (count < 0) break
+                                total += count
+                                if (total > maxInlineBytes) {
+                                    throw IOException("Video sample exceeds inline request limit")
+                                }
+                                output.write(buffer, 0, count)
+                            }
+                            if (total == 0L) throw IOException("Empty video sample")
+                            output.toByteArray()
+                        }
+                    }
+                }
+            } catch (error: Exception) {
+                throw NgocSiAiRemoteException(
+                    "Không tải được video MP4 mẫu để kiểm tra. Hãy thử lại khi kết nối mạng ổn định. " +
+                        "Mã chẩn đoán: VIDEO_SAMPLE_DOWNLOAD_ERROR."
+                )
+            }
+        }
 
     private fun createFirebaseApp(context: Context): FirebaseApp? {
         val apiKey = BuildConfig.FIREBASE_API_KEY
