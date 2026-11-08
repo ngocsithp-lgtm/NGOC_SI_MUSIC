@@ -846,16 +846,31 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
-    fun reasoningAndToolRequestsNeverUseUnsupportedMinimalThinking() {
+    fun flashLiteUsesOnlySupportedMinimalThinkingForReasoningAndToolRequests() {
         assertEquals(
-            ThinkingLevel.MEDIUM,
+            ThinkingLevel.MINIMAL,
             selectNgocSiAiGenerationThinkingLevel(
                 "Hãy phân tích kỹ nguyên nhân và lập kế hoạch khắc phục."
             )
         )
         assertEquals(
-            ThinkingLevel.LOW,
+            ThinkingLevel.MINIMAL,
             selectNgocSiAiGenerationThinkingLevel("Mở YouTube", offersAppCommandTool = true)
+        )
+        assertEquals(
+            ThinkingLevel.MEDIUM,
+            selectNgocSiAiGenerationThinkingLevel(
+                "Hãy phân tích kỹ nguyên nhân và lập kế hoạch khắc phục.",
+                modelName = NGOC_SI_AI_REASONING_MODEL_NAME
+            )
+        )
+        assertEquals(
+            ThinkingLevel.LOW,
+            selectNgocSiAiGenerationThinkingLevel(
+                "Mở YouTube",
+                offersAppCommandTool = true,
+                modelName = NGOC_SI_AI_REASONING_MODEL_NAME
+            )
         )
     }
     @Test
