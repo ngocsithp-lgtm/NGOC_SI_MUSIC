@@ -78,6 +78,32 @@ internal const val NGOC_SI_AI_COMPLEX_REMOTE_CONVERSATION_TIMEOUT_MILLIS = 40_00
 internal const val NGOC_SI_AI_DEEP_REMOTE_CONVERSATION_TIMEOUT_MILLIS = 60_000L
 internal const val NGOC_SI_AI_VIDEO_ANALYSIS_TIMEOUT_MILLIS = 120_000L
 
+/**
+ * Public Google-hosted MP4 used only when the user explicitly asks for a video-path
+ * diagnostic. It isolates Firebase/model/media ingestion from the active YouTube URL.
+ */
+internal const val NGOC_SI_AI_VIDEO_DIAGNOSTIC_SAMPLE_URI =
+    "https://storage.googleapis.com/cloud-samples-data/video/animals.mp4"
+
+internal fun isNgocSiAiVideoCapabilityDiagnosticRequest(prompt: String): Boolean {
+    val normalized = normalizeNgocSiAiVoicePhrase(prompt)
+    val asksForTest = listOf(
+        "kiem tra ket noi", "kiem tra kha nang", "kiem tra duong truyen",
+        "chan doan video", "thu video mau"
+    ).any(normalized::contains)
+    val mentionsSample = listOf("video mau", "video thu", "video kiem tra")
+        .any(normalized::contains)
+    return asksForTest && mentionsSample
+}
+
+internal fun buildNgocSiAiVideoCapabilityDiagnosticPrompt(userPrompt: String): String =
+    "ĐÂY LÀ PHÉP KIỂM TRA ĐƯỜNG TRUYỀN VIDEO CỦA NGỌC SĨ AI, KHÔNG PHẢI VIDEO YOUTUBE ĐANG PHÁT. " +
+        "Nguồn vào là video MP4 mẫu công khai do Google cung cấp. " +
+        "Hãy mô tả ngắn gọn những gì thực sự nhìn thấy trong video; nếu âm thanh có thể nghe và xác minh được, " +
+        "nêu riêng dấu hiệu âm thanh. Không suy đoán chi tiết không có trong video. " +
+        "Mở đầu bằng 'Đã nhận video mẫu' nếu thực sự phân tích được nội dung. " +
+        "Yêu cầu kiểm tra của người dùng: " + userPrompt.take(400)
+
 
 /** Retry only a safe, pre-output text request after a transient transport/server failure. */
 internal const val NGOC_SI_AI_MAX_TRANSIENT_REMOTE_RETRIES = 1
