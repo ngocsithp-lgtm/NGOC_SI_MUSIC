@@ -341,7 +341,7 @@ internal fun buildNgocSiAiCreativeMusicAnalysisInstruction(
     val continuesAnalysis = latest in setOf(
         "tiep tuc", "tiep tuc di", "tiep tuc nhe", "lam tiep", "lam tiep di",
         "noi tiep", "noi tiep di", "tiep di"
-    )
+    ) || isNgocSiAiContextualFollowUp(rawUserText)
     // A direct request naming vocal techniques must activate even when the
     // conversation has no earlier video context (for example, "phân tích cách
     // hát, nhả chữ, luyến láy của ca sĩ Tuấn Vũ").
