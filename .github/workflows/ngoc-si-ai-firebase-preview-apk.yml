@@ -116,11 +116,19 @@ jobs:
           mkdir -p app/libs
           AAR="app/libs/sherpa-onnx-1.13.8.aar"
           if [[ ! -s "$AAR" ]]; then
-            curl --fail --location --retry 5 --retry-all-errors --retry-delay 5 \
-              --connect-timeout 30 --max-time 600 \
-              "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-1.13.8.aar" \
-              --output "$AAR"
+            # SourceForge mirror avoids intermittent GitHub release HTTP 504 responses.
+            curl --fail --location --retry 6 --retry-all-errors --retry-delay 5 \
+              --connect-timeout 30 --max-time 900 \
+              "https://sourceforge.net/projects/sherpa-onnx.mirror/files/v1.13.8/sherpa-onnx-1.13.8.aar/download" \
+              --output "$AAR" || {
+                rm -f "$AAR"
+                curl --fail --location --retry 4 --retry-all-errors --retry-delay 5 \
+                  --connect-timeout 30 --max-time 900 \
+                  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-1.13.8.aar" \
+                  --output "$AAR"
+              }
           fi
+          echo "633c24321e06b1fe79feafa03ea16cbc0f8a286641e2da3559bac91bdb13bd96  $AAR" | sha256sum --check -
           test "$(stat -c%s "$AAR")" -gt 40000000
           unzip -tq "$AAR"
           unzip -l "$AAR" | grep -F "jni/arm64-v8a/libsherpa-onnx-jni.so" >/dev/null
