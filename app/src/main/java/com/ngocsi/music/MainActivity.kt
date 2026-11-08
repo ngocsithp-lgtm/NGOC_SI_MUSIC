@@ -5851,8 +5851,19 @@ class MainActivity : ComponentActivity() {
             ?: "Trang chủ"
         NgocSiMainActivityState.updateEntryContext(entryPage)
         startActivity(
-            Intent(this, NgocSiAiActivity::class.java)
-                .putExtra(NGOC_SI_AI_ENTRY_CONTEXT_EXTRA, entryPage)
+            Intent(this, NgocSiAiActivity::class.java).apply {
+                putExtra(NGOC_SI_AI_ENTRY_CONTEXT_EXTRA, entryPage)
+                // The main AI shortcut on the YouTube page must pass the active
+                // inline player item too; otherwise Gemini receives only text and
+                // cannot inspect the video the user is currently watching.
+                if (entryPage == "YouTube") {
+                    youtubeInlineTrack?.let { track ->
+                        putExtra(NGOC_SI_AI_ENTRY_MEDIA_VIDEO_ID_EXTRA, track.videoId)
+                        putExtra(NGOC_SI_AI_ENTRY_MEDIA_TITLE_EXTRA, track.title)
+                        putExtra(NGOC_SI_AI_ENTRY_MEDIA_CHANNEL_EXTRA, track.channelTitle)
+                    }
+                }
+            }
         )
     }
 
