@@ -708,6 +708,8 @@ class YouTubePlayerActivity : ComponentActivity() {
             finish()
             return
         }
+        NgocSiMainActivityState.updateEntryContext("YouTube")
+        NgocSiMainActivityState.updateYoutubeMediaContext(videoId, title, channel)
         prefs.edit().putBoolean("youtube_player_activity_active", true).apply()
 
         WindowCompat.setDecorFitsSystemWindows(window, true)
@@ -777,6 +779,13 @@ class YouTubePlayerActivity : ComponentActivity() {
                     title = incomingTitle.ifBlank { selected.title },
                     channelTitle = incomingChannel.ifBlank { selected.channelTitle }
                 )
+                val activeSelection = queue[queueIndex]
+                NgocSiMainActivityState.updateEntryContext("YouTube")
+                NgocSiMainActivityState.updateYoutubeMediaContext(
+                    activeSelection.videoId,
+                    activeSelection.title,
+                    activeSelection.channelTitle
+                )
                 updateQueueButton()
                 updateQueueModeButtons()
                 if (youtubePlayerReady && webView != null &&
@@ -791,6 +800,7 @@ class YouTubePlayerActivity : ComponentActivity() {
                     videoId = next.videoId
                     title = next.title
                     channel = next.channelTitle
+                    NgocSiMainActivityState.updateYoutubeMediaContext(videoId, title, channel)
                     titleView.text = title
                     channelView.text = channel
                     updateActionState()
@@ -1790,6 +1800,8 @@ class YouTubePlayerActivity : ComponentActivity() {
             videoId = selected.videoId
             title = selected.title
             channel = selected.channelTitle
+            NgocSiMainActivityState.updateEntryContext("YouTube")
+            NgocSiMainActivityState.updateYoutubeMediaContext(videoId, title, channel)
             createPlayer()
             return
         }
@@ -1824,6 +1836,8 @@ class YouTubePlayerActivity : ComponentActivity() {
                 lastUnexpectedPlaybackRecoveryAtMs = 0L
                 title = target.title
                 channel = target.channelTitle
+                NgocSiMainActivityState.updateEntryContext("YouTube")
+                NgocSiMainActivityState.updateYoutubeMediaContext(videoId, title, channel)
                 restoredPositionVideoId = null
                 positionRestoreAttempts = 0
                 lastHandledEndedVideoId = null

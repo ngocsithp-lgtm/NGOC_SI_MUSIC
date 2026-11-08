@@ -757,11 +757,22 @@ class NgocSiWakeWordService : Service() {
             return
         }
 
-        // Keep the YouTube source and current video supplied by the AI screen that started
-        // this hands-free session. Other pages remain text/local-command contexts.
+        // Resolve the active YouTube item for every turn, not only when the wake-word
+        // Service starts. The main page and dedicated player publish queue selections
+        // into this process-wide snapshot, so an already-running session follows Next
+        // and newly selected videos instead of reusing its launch-time video ID.
         val requestEntryContext = NgocSiMainActivityState.entryContextOr(aiEntryContext)
-        val requestYoutubeVideoId = aiEntryYoutubeVideoId.takeIf { requestEntryContext == "YouTube" }
-        val requestMediaContextInstruction = aiEntryMediaContextInstruction
+        val activeYoutubeMediaContext = if (requestEntryContext == "YouTube") {
+            NgocSiMainActivityState.youtubeMediaContextOrNull()
+        } else {
+            null
+        }
+        val requestYoutubeVideoId = normalizeNgocSiAiYoutubeVideoId(
+            activeYoutubeMediaContext?.videoId ?: aiEntryYoutubeVideoId
+        ).takeIf { requestEntryContext == "YouTube" }
+        val requestMediaContextInstruction = activeYoutubeMediaContext?.let { media ->
+            buildNgocSiAiMediaContextInstruction("YouTube", media.title, media.channel)
+        } ?: aiEntryMediaContextInstruction
             .takeIf { requestEntryContext == "YouTube" }.orEmpty()
         val requiresMultimodalYoutubeAnalysis = isNgocSiAiYoutubeMultimodalAnalysisRequest(
             pageContext = requestEntryContext,

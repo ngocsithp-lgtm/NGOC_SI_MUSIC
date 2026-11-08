@@ -255,6 +255,39 @@ class NgocSiAiEntryContextTest {
     }
 
     @Test
+    fun activeYoutubeMediaSnapshotTracksLatestSelectionAndRejectsInvalidIds() {
+        NgocSiMainActivityState.updateYoutubeMediaContext(null, null, null)
+        assertNull(NgocSiMainActivityState.youtubeMediaContextOrNull())
+
+        NgocSiMainActivityState.updateYoutubeMediaContext(
+            "dQw4w9WgXcQ",
+            "Video Bolero đầu tiên",
+            "Kênh nhạc"
+        )
+        val first = NgocSiMainActivityState.youtubeMediaContextOrNull()
+        assertEquals("dQw4w9WgXcQ", first?.videoId)
+        assertEquals("Video Bolero đầu tiên", first?.title)
+        assertEquals("Kênh nhạc", first?.channel)
+
+        NgocSiMainActivityState.updateYoutubeMediaContext(
+            "a1b2c3d4e5F",
+            "Video tiếp theo",
+            "Kênh khác"
+        )
+        val next = NgocSiMainActivityState.youtubeMediaContextOrNull()
+        assertEquals("a1b2c3d4e5F", next?.videoId)
+        assertEquals("Video tiếp theo", next?.title)
+        assertEquals("Kênh khác", next?.channel)
+
+        NgocSiMainActivityState.updateYoutubeMediaContext(
+            "invalid-video-id",
+            "Không hợp lệ",
+            "Không hợp lệ"
+        )
+        assertNull(NgocSiMainActivityState.youtubeMediaContextOrNull())
+    }
+
+    @Test
     fun wakeWordContextFallsBackToItsStartPageWhenNoMainPageIsPublished() {
         NgocSiMainActivityState.updateEntryContext(null)
         assertEquals("Google Drive", NgocSiMainActivityState.entryContextOr("Drive"))

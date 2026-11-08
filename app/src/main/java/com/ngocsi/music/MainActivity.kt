@@ -1608,6 +1608,12 @@ class MainActivity : ComponentActivity() {
         if (youtubeInlineTrack?.videoId != track.videoId) {
             youtubeInlineTrack = track
         }
+        NgocSiMainActivityState.updateEntryContext("YouTube")
+        NgocSiMainActivityState.updateYoutubeMediaContext(
+            track.videoId,
+            track.title,
+            track.channelTitle
+        )
         youtubeInlineOpenGeneration++
     }
 
@@ -5672,6 +5678,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        // Restore the actual underlying feature page after returning from the
+        // dedicated YouTube player, which temporarily publishes its own context.
+        NgocSiMainActivityState.updateEntryContext(currentNgocSiAiEntryContext())
 
         startSleepTimerUiTicker()
 
@@ -9726,6 +9735,12 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
         } else {
             youtubeInlineTrack = track
         }
+        NgocSiMainActivityState.updateEntryContext("YouTube")
+        NgocSiMainActivityState.updateYoutubeMediaContext(
+            track.videoId,
+            track.title,
+            track.channelTitle
+        )
         // Reveal the inline player even when the user selects a result far down the list.
         youtubeInlineOpenGeneration++
         if (inlineBackgroundPlaybackEnabled) {
@@ -10149,6 +10164,12 @@ val verifiedStreams = RadioCatalog.stations.associate { it.title to it.streamUrl
             .putBoolean("youtube_playback_is_playing", true)
             .apply()
         youtubeInlineTrack = track
+        NgocSiMainActivityState.updateEntryContext("YouTube")
+        NgocSiMainActivityState.updateYoutubeMediaContext(
+            track.videoId,
+            track.title,
+            track.channelTitle
+        )
         youtubeInlineOpenGeneration++
 
         // loadVideoById() is an explicit play request and keeps the current WebView/IFrame
