@@ -1001,7 +1001,7 @@ class NgocSiWakeWordService : Service() {
                     if (NGOC_SI_AI_YOUTUBE_VIDEO_CONTEXT_MISSING_CODE in remoteError.orEmpty()) {
                         buildNgocSiAiYoutubeVideoUnavailableReply()
                     } else {
-                        buildNgocSiAiLocalMediaAnalysisUnavailableReply()
+                        buildNgocSiAiLocalMediaAnalysisUnavailableReply(remoteError)
                     }
                 } else null
                 val answer = localFallback
