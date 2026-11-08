@@ -129,6 +129,26 @@ class NgocSiAiEntryContextTest {
     }
 
     @Test
+    fun quotaFailureReplyStillKeepsYoutubeAnalysisContextForNextVideo() {
+        val failedAnalysisHistory = listOf(
+            NgocSiAiMessage("user", "Phân tích video Bolero đang phát"),
+            NgocSiAiMessage("assistant", buildNgocSiAiLocalMediaAnalysisUnavailableReply())
+        )
+        val prompt = "Mình tiếp tục phần trước: Đang chuyển sang video YouTube tiếp theo."
+
+        assertTrue(shouldAttachNgocSiAiYoutubeVideo(prompt, failedAnalysisHistory))
+        assertTrue(
+            isNgocSiAiYoutubeMultimodalAnalysisRequest("YouTube", prompt, failedAnalysisHistory)
+        )
+        assertEquals(
+            "https://www.youtube.com/watch?v=a1b2c3d4e5F",
+            resolveNgocSiAiYoutubeVideoAnalysisUri(
+                "YouTube", "a1b2c3d4e5F", prompt, failedAnalysisHistory
+            )
+        )
+    }
+
+    @Test
     fun naturalContinuationOfPreviousYoutubeAnalysisAttachesTheNextActiveVideo() {
         val history = listOf(
             NgocSiAiMessage("user", "Phân tích video Bolero đang phát"),
