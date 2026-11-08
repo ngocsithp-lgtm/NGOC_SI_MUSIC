@@ -2670,10 +2670,18 @@ private fun NgocSiAiPreviewScreen(
                     previousAssistantReply = messages.dropLast(1).lastOrNull { !it.isUser }?.text,
                     remoteError = errorReply
                 )
+                val requiresMultimodalYoutubeAnalysis = isNgocSiAiYoutubeMultimodalAnalysisRequest(
+                    pageContext = entryContext,
+                    prompt = clean,
+                    previousMessages = conversation.toList()
+                )
+                // The installed Qwen3-0.6B fallback is text-only. Never pass a YouTube
+                // audio/video analysis request to it as if it could inspect the active player.
                 val localModelReply = if (
                     localModelInstalled &&
                     latestPartialReply.isBlank() &&
-                    !localModelNeedsAppTools
+                    !localModelNeedsAppTools &&
+                    !requiresMultimodalYoutubeAnalysis
                 ) {
                     isSendingLocalModel = true
                     runCatching { onGenerateLocalModel(clean, conversation.toList()) }.getOrNull()
@@ -2686,7 +2694,9 @@ private fun NgocSiAiPreviewScreen(
                     .takeIf { it.isNotBlank() }
                     ?.let { partial -> "$partial\n\n$errorReply" }
                     ?: localModelReply
-                    ?: if (localModelNeedsAppTools) {
+                    ?: if (requiresMultimodalYoutubeAnalysis) {
+                        buildNgocSiAiLocalMediaAnalysisUnavailableReply()
+                    } else if (localModelNeedsAppTools) {
                         "Gemini đang bị giới hạn. Ứng dụng chưa thực hiện lệnh nhiều bước này; " +
                             "hãy chia thành từng lệnh đơn hoặc thử lại khi Gemini hoạt động."
                     } else {
