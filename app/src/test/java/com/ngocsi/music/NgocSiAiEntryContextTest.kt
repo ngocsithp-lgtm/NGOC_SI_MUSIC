@@ -129,6 +129,25 @@ class NgocSiAiEntryContextTest {
     }
 
     @Test
+    fun audibleEvidenceAndUnverifiedDetailsRequestAttachesCurrentYoutubeVideo() {
+        val prompt =
+            "AI, chỉ ra những dấu hiệu nghe được trong bản thu và phân biệt điều gì chưa thể xác minh."
+
+        assertTrue(shouldAttachNgocSiAiYoutubeVideo(prompt, emptyList()))
+        assertEquals(
+            "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            resolveNgocSiAiYoutubeVideoAnalysisUri(
+                "YouTube", "dQw4w9WgXcQ", prompt, emptyList()
+            )
+        )
+        assertNull(
+            resolveNgocSiAiYoutubeVideoAnalysisUri(
+                "Radio", "dQw4w9WgXcQ", prompt, emptyList()
+            )
+        )
+    }
+
+    @Test
     fun ordinaryYoutubePlaybackCommandsNeverAttachVideoForAnalysis() {
         listOf(
             "AI, tạm dừng video",
@@ -294,6 +313,21 @@ class NgocSiAiEntryContextTest {
         assertTrue(instruction.contains("không nhận được âm thanh"))
         assertTrue(instruction.contains("Không bịa tên bài, lời ca, nốt nhạc"))
         assertTrue(instruction.contains("không suy ra chất giọng"))
+    }
+
+    @Test
+    fun audibleEvidenceRequestGetsSpecificListeningAndVerificationGuidanceWithoutHistory() {
+        val instruction = buildNgocSiAiCreativeMusicAnalysisInstruction(
+            rawUserText =
+                "AI, chỉ ra những dấu hiệu nghe được trong bản thu và phân biệt điều gì chưa thể xác minh.",
+            recentConversation = emptyList()
+        )
+
+        assertTrue(instruction.contains("Nghe được trong bản thu"))
+        assertTrue(instruction.contains("Chưa thể xác minh"))
+        assertTrue(instruction.contains("độ rõ phụ âm/nguyên âm"))
+        assertTrue(instruction.contains("không yêu cầu người dùng gửi lại khung hình hay lời ca"))
+        assertTrue(instruction.contains("chưa thể kết luận từ dữ liệu hiện có"))
     }
 
     @Test
