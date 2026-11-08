@@ -389,6 +389,7 @@ internal object NgocSiAiOnDeviceModel {
                     entryContext = entryContext,
                     mediaContextInstruction = mediaContextInstruction,
                     prompt = cleanPrompt,
+                    gpuError = gpuError
                 )
                 val cpuConversation = checkNotNull(conversation) {
                     "Mô hình AI dự phòng CPU chưa sẵn sàng."
@@ -467,6 +468,7 @@ internal object NgocSiAiOnDeviceModel {
                     entryContext,
                     mediaContextInstruction,
                     prompt,
+                    gpuError
                 )
             }
         }
@@ -502,33 +504,26 @@ internal object NgocSiAiOnDeviceModel {
     )
 
     private fun initializeEngineWithFallback(context: Context, modelPath: String) {
-        try {
-            val gpuEngine = createInitializedEngine(
-                context,
-                modelPath,
-                NgocSiAiLocalBackend.GPU
-            )
-            engine = gpuEngine
-            loadedModelPath = modelPath
-            activeBackend = NgocSiAiLocalBackend.GPU
-            gpuFallbackUsed = false
-        } catch (gpuError: Throwable) {
-            if (isFatalLocalBackendError(gpuError)) throw gpuError
-            val cpuEngine = try {
-                createInitializedEngine(
-                    context,
-                    modelPath,
-                    NgocSiAiLocalBackend.CPU
-                )
-            } catch (cpuError: Throwable) {
-                cpuError.addSuppressed(gpuError)
-                throw cpuError
+        var gpuFailure: Throwable? = null
+        for (backend in ngocSiAiLocalBackendAttemptOrder()) {
+            try {
+                val initializedEngine = createInitializedEngine(context, modelPath, backend)
+                engine = initializedEngine
+                loadedModelPath = modelPath
+                activeBackend = backend
+                gpuFallbackUsed = backend == NgocSiAiLocalBackend.CPU && gpuFailure != null
+                return
+            } catch (error: Throwable) {
+                if (isFatalLocalBackendError(error)) throw error
+                if (backend == NgocSiAiLocalBackend.GPU) {
+                    gpuFailure = error
+                } else {
+                    gpuFailure?.let(error::addSuppressed)
+                    throw error
+                }
             }
-            engine = cpuEngine
-            loadedModelPath = modelPath
-            activeBackend = NgocSiAiLocalBackend.CPU
-            gpuFallbackUsed = true
         }
+        throw IllegalStateException("Không có backend AI ngoại tuyến khả dụng.")
     }
 
     private fun createInitializedEngine(
@@ -563,25 +558,38 @@ internal object NgocSiAiOnDeviceModel {
         memories: List<String>,
         entryContext: String?,
         mediaContextInstruction: String?,
-        prompt: String
+        prompt: String,
+        gpuError: Throwable
     ) {
         resetConversation()
         closeCurrentEngine()
-        val cpuEngine = createInitializedEngine(
-            context,
-            modelPath,
-            NgocSiAiLocalBackend.CPU
-        )
+        val cpuEngine = try {
+            createInitializedEngine(
+                context,
+                modelPath,
+                NgocSiAiLocalBackend.CPU
+            )
+        } catch (cpuError: Throwable) {
+            cpuError.addSuppressed(gpuError)
+            throw cpuError
+        }
         engine = cpuEngine
         loadedModelPath = modelPath
         activeBackend = NgocSiAiLocalBackend.CPU
         gpuFallbackUsed = true
-        conversation = createConfiguredConversation(
-            memories,
-            entryContext,
-            mediaContextInstruction,
-            prompt
-        )
+        conversation = try {
+            createConfiguredConversation(
+                memories,
+                entryContext,
+                mediaContextInstruction,
+                prompt
+            )
+        } catch (cpuError: Throwable) {
+            closeCurrentEngine()
+            activeBackend = null
+            cpuError.addSuppressed(gpuError)
+            throw cpuError
+        }
     }
 
     private fun closeCurrentEngine() {
