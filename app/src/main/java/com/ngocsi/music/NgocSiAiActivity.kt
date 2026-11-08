@@ -164,6 +164,7 @@ internal fun localConversationFallback(
     // Stable factual answers are centralized in one deterministic offline knowledge rule set.
     // Uncertain or time-sensitive questions continue to Gemini when online service is available.
     localNgocSiAiKnowledgeFallback(userText)?.let { return it }
+    localNgocSiAiMusicKnowledgeFallback(userText)?.let { return it }
 
     fun matchesAny(vararg phrases: String): Boolean =
         phrases.any { normalized == it || normalized.startsWith("$it ") }
