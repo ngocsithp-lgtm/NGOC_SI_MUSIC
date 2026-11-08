@@ -604,7 +604,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
                         throw IOException("HTTP ${response.code}")
                     }
                     val body = response.body ?: throw IOException("Missing video body")
-                    val maxInlineBytes = 14 * 1024 * 1024L
+                    val maxInlineBytes = NGOC_SI_AI_VIDEO_DIAGNOSTIC_MAX_INLINE_BYTES
                     if (body.contentLength() > maxInlineBytes) {
                         throw IOException("Video sample exceeds inline request limit")
                     }
