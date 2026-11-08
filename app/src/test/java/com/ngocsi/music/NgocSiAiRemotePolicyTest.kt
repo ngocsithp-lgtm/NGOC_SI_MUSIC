@@ -284,6 +284,14 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
+    fun videoDiagnosticUsesACompactPublicMp4Sample() {
+        assertEquals(
+            "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
+            NGOC_SI_AI_VIDEO_DIAGNOSTIC_SAMPLE_URI
+        )
+    }
+
+    @Test
     fun videoSampleDownloadFailuresReportSafeSpecificCauses() {
         assertTrue(
             describeNgocSiAiVideoSampleDownloadFailure(java.io.IOException("HTTP 403"))

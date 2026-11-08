@@ -83,7 +83,7 @@ internal const val NGOC_SI_AI_VIDEO_ANALYSIS_TIMEOUT_MILLIS = 120_000L
  * diagnostic. It isolates Firebase/model/media ingestion from the active YouTube URL.
  */
 internal const val NGOC_SI_AI_VIDEO_DIAGNOSTIC_SAMPLE_URI =
-    "https://storage.googleapis.com/cloud-samples-data/video/animals.mp4"
+    "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"
 
 /**
  * Convert the MP4 canary's transport failure into a safe, actionable diagnostic.
