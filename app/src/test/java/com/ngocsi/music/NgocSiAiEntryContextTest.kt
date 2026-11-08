@@ -217,6 +217,30 @@ class NgocSiAiEntryContextTest {
     }
 
     @Test
+    fun videoAnalysisFailureShowsSpecificSafeFirebaseDiagnostic() {
+        val quotaReply = buildNgocSiAiLocalMediaAnalysisUnavailableReply(
+            "Hạn mức miễn phí có thể đã hết. Mã chẩn đoán: AI_QUOTA_429_FREE_TIER."
+        )
+        assertTrue(quotaReply.contains("hạn mức hoặc quyền Free Tier"))
+        assertTrue(quotaReply.contains("AI_QUOTA_429_FREE_TIER"))
+
+        val appCheckReply = buildNgocSiAiLocalMediaAnalysisUnavailableReply(
+            "App Check chưa xác minh được ứng dụng thử. Mã chẩn đoán: APP_CHECK_TOKEN."
+        )
+        assertTrue(appCheckReply.contains("xác minh App Check"))
+        assertTrue(appCheckReply.contains("APP_CHECK_TOKEN"))
+
+        val networkReply = buildNgocSiAiLocalMediaAnalysisUnavailableReply(
+            "Không kết nối được mạng. Mã chẩn đoán: NETWORK."
+        )
+        assertTrue(networkReply.contains("Không kết nối được máy chủ AI"))
+        assertTrue(networkReply.contains("NETWORK"))
+
+        val unknownReply = buildNgocSiAiLocalMediaAnalysisUnavailableReply(null)
+        assertTrue(unknownReply.contains("chưa thể kết luận"))
+    }
+
+    @Test
     fun missingYoutubeVideoIdIsReportedInsteadOfSendingTextOnlyAnalysis() {
         val prompt =
             "AI, chỉ ra những dấu hiệu nghe được trong bản thu và phân biệt điều gì chưa thể xác minh."
