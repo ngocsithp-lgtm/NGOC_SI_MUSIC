@@ -335,18 +335,18 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
-    fun videoConnectivityDiagnosticUsesFastMultimodalModelAndMinimalBudget() {
+    fun videoConnectivityDiagnosticUsesSameGeminiFlashModelAsYoutubeAnalysis() {
         val prompt = "AI, kiểm tra kết nối video mẫu."
         assertTrue(isNgocSiAiVideoCapabilityDiagnosticRequest(prompt))
         assertEquals(
-            NGOC_SI_AI_FAST_CHAT_MODEL_NAME,
+            NGOC_SI_AI_REASONING_MODEL_NAME,
             selectNgocSiAiModelName(prompt, forceMultimodalReasoning = true)
         )
         assertEquals(
-            ThinkingLevel.MINIMAL,
+            ThinkingLevel.MEDIUM,
             selectNgocSiAiGenerationThinkingLevel(
                 prompt,
-                modelName = NGOC_SI_AI_FAST_CHAT_MODEL_NAME,
+                modelName = NGOC_SI_AI_REASONING_MODEL_NAME,
                 forceMultimodalReasoning = true
             )
         )

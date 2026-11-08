@@ -259,9 +259,9 @@ internal fun selectNgocSiAiModelName(
     offersAppCommandTool: Boolean = false,
     forceMultimodalReasoning: Boolean = false
 ): String = if (isNgocSiAiVideoCapabilityDiagnosticRequest(prompt)) {
-    // A connectivity canary is not a reasoning task: use the supported multimodal
-    // Flash-Lite path so the diagnostic does not wait for unnecessary MEDIUM thinking.
-    NGOC_SI_AI_FAST_CHAT_MODEL_NAME
+    // Use the same Gemini Flash model as YouTube analysis so the inline MP4 canary
+    // also verifies that model's video access before isolating YouTube URL ingestion.
+    NGOC_SI_AI_REASONING_MODEL_NAME
 } else if (forceMultimodalReasoning && !isNgocSiAiQuickVideoOverviewRequest(prompt)) {
     NGOC_SI_AI_REASONING_MODEL_NAME
 } else if (forceMultimodalReasoning) {
