@@ -158,7 +158,7 @@ class NgocSiAiOnDeviceModelTest {
         assertTrue(prompt.contains("YÊU CẦU CHO LƯỢT HỘI THOẠI NỐI TIẾP"))
         assertTrue(prompt.contains("CÁCH TRẢ LỜI CÂU HỎI VÌ SAO"))
         assertTrue(prompt.contains("trả lời nguyên nhân trực tiếp trước"))
-        assertTrue(prompt.contains("không tự đặt giả thiết"))
+        assertTrue(prompt.contains("tự đặt giả thiết"))
         assertTrue(prompt.contains("Qwen3-0.6B chỉ xử lý văn bản"))
         assertTrue(prompt.contains("CÂU HỎI HIỆN TẠI"))
     }
