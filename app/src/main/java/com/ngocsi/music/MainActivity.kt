@@ -249,6 +249,7 @@ class MainActivity : ComponentActivity() {
                 duration = c.duration.takeIf { it > 0L } ?: duration
                 syncPlaybackModesFromController(c)
             }
+            refreshNgocSiAiPlaybackContext()
         }
 
         override fun onMediaItemTransition(
@@ -275,6 +276,7 @@ class MainActivity : ComponentActivity() {
                 duration = c.duration.takeIf { it > 0L } ?: 0L
             }
             errorMessage = null
+            refreshNgocSiAiPlaybackContext()
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
@@ -309,6 +311,7 @@ class MainActivity : ComponentActivity() {
                 // has already handed playback over to the inline YouTube player.
                 advanceMixedPlaylistAfterSegment()
             }
+            refreshNgocSiAiPlaybackContext()
         }
 
         override fun onPositionDiscontinuity(
@@ -331,6 +334,7 @@ class MainActivity : ComponentActivity() {
             } else {
                 errorMessage = "Lỗi phát nhạc: " + playbackErrorSummary(error)
             }
+            refreshNgocSiAiPlaybackContext()
         }
     }
 
@@ -1739,6 +1743,7 @@ class MainActivity : ComponentActivity() {
                             playVerifiedRadio(station.title, station.streamUrls)
                         }
                     }
+                    refreshNgocSiAiPlaybackContext()
                 }
             } catch (e: Exception) {
                 errorMessage = "Không kết nối được trình phát."
@@ -5678,6 +5683,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        refreshNgocSiAiPlaybackContext()
         // Restore the actual underlying feature page after returning from the
         // dedicated YouTube player, which temporarily publishes its own context.
         NgocSiMainActivityState.updateEntryContext(currentNgocSiAiEntryContext())
@@ -5838,6 +5844,76 @@ class MainActivity : ComponentActivity() {
     }
 
 
+    /**
+     * Publish only the active playback label and bounded display metadata for NGỌC SĨ AI.
+     * Local file URIs and stream URLs are never copied into the assistant context.
+     */
+    private fun refreshNgocSiAiPlaybackContext() {
+        val mediaController = controller
+        if (mediaController == null) {
+            NgocSiMainActivityState.updatePlaybackContext(null)
+            return
+        }
+
+        val preferences = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+        if (preferences.getBoolean("youtube_active_source", false)) {
+            // YouTube has its own trusted video/title/channel context and player state.
+            NgocSiMainActivityState.updatePlaybackContext(null)
+            return
+        }
+
+        val item = mediaController.currentMediaItem
+        val uri = item?.localConfiguration?.uri?.toString()
+        val matchingSong = uri?.let { activeUri ->
+            queueSongs.firstOrNull { it.uri.toString() == activeUri }
+                ?: songs.firstOrNull { it.uri.toString() == activeUri }
+        }
+        val radioStation = activeRadioTitle
+            ?.takeIf { activeRadioStreams.isNotEmpty() }
+        val rawSource = matchingSong?.source.orEmpty()
+        val source = when {
+            radioStation != null || rawSource.contains("Radio", ignoreCase = true) -> "Radio"
+            rawSource.contains("Google Drive", ignoreCase = true) -> "Google Drive"
+            rawSource.contains("Online", ignoreCase = true) -> "Online"
+            rawSource.contains("YouTube", ignoreCase = true) -> "YouTube"
+            else -> "Thiết bị"
+        }
+        val title = radioStation
+            ?: item?.mediaMetadata?.title?.toString()?.trim()?.takeIf { it.isNotBlank() }
+            ?: matchingSong?.title?.trim()?.takeIf { it.isNotBlank() }
+            .orEmpty()
+        if (title.isBlank()) {
+            NgocSiMainActivityState.updatePlaybackContext(null)
+            return
+        }
+
+        val artistOrStation = if (radioStation != null) {
+            "Đài Radio"
+        } else {
+            item?.mediaMetadata?.artist?.toString()?.trim()
+                ?.takeIf { it.isNotBlank() }
+                ?: matchingSong?.artist.orEmpty()
+        }
+        val playbackStatus = when {
+            mediaController.isPlaying -> "Đang phát"
+            mediaController.playbackState == Player.STATE_BUFFERING && mediaController.playWhenReady -> "Đang tải"
+            mediaController.playbackState == Player.STATE_ENDED -> "Đã phát hết"
+            else -> "Đang tạm dừng"
+        }
+
+        NgocSiMainActivityState.updatePlaybackContext(
+            NgocSiAiPlaybackContextSnapshot(
+                source = source,
+                title = title.take(140),
+                artistOrStation = artistOrStation.take(100),
+                playbackStatus = playbackStatus,
+                queueCount = mediaController.mediaItemCount,
+                shuffleEnabled = mediaController.shuffleModeEnabled,
+                repeatMode = mediaController.repeatMode
+            )
+        )
+    }
+
     private fun currentNgocSiAiEntryContext(): String? = normalizeNgocSiAiEntryContext(
         when {
             selectedSection == "Online" && onlineHubTab == "YouTube" -> "YouTube"
@@ -5859,6 +5935,7 @@ class MainActivity : ComponentActivity() {
             ?: currentNgocSiAiEntryContext()
             ?: "Trang chủ"
         NgocSiMainActivityState.updateEntryContext(entryPage)
+        refreshNgocSiAiPlaybackContext()
         startActivity(
             Intent(this, NgocSiAiActivity::class.java).apply {
                 putExtra(NGOC_SI_AI_ENTRY_CONTEXT_EXTRA, entryPage)
