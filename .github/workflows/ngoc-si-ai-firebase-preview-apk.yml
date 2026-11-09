@@ -1,7 +1,7 @@
 name: NGOC SI AI Firebase Preview APK (Debug Only)
 
 on:
-  # Build only the isolated debug preview. Lint and unit tests must pass before APK packaging.
+  # Build the isolated debug Preview on ngocsiAI too; lint and unit tests must pass before APK packaging.
   push:
     branches:
       - "feature/ngoc-si-ai-firebase-ai-logic-preview"
