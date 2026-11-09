@@ -10,11 +10,13 @@ class DriveAudioMetadataRulesTest {
             fallbackFileName = "001 Anh Da Thay Long.mp3",
             embeddedTitle = "Anh Đã Thay Lòng",
             embeddedArtist = "Tuấn Vũ",
-            embeddedAlbumArtist = "Nghệ sĩ khác"
+            embeddedAlbumArtist = "Nghệ sĩ khác",
+            embeddedGenre = "Bolero"
         )
 
         assertEquals("Anh Đã Thay Lòng", result.title)
         assertEquals("Tuấn Vũ", result.artist)
+        assertEquals("Bolero", result.genre)
     }
 
     @Test
@@ -28,6 +30,7 @@ class DriveAudioMetadataRulesTest {
 
         assertEquals("001 Anh Da Thay Long", result.title)
         assertEquals("Tuấn Vũ", result.artist)
+        assertEquals(null, result.genre)
     }
 
     @Test

@@ -93,7 +93,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.math.max
 
-data class Song(val id: Long, val title: String, val artist: String, val duration: Long, val uri: Uri, val source: String = "Thiết bị", val albumId: Long = -1L, val artworkUri: Uri? = null, val folder: String = "")
+data class Song(val id: Long, val title: String, val artist: String, val duration: Long, val uri: Uri, val source: String = "Thiết bị", val albumId: Long = -1L, val artworkUri: Uri? = null, val folder: String = "", val genre: String? = null)
 
 private fun isRetainedMusicSource(source: String): Boolean {
     val normalized = source.trim()
@@ -2227,6 +2227,7 @@ class MainActivity : ComponentActivity() {
                 androidx.media3.common.MediaMetadata.Builder()
                     .setTitle(song.title)
                     .setArtist(song.artist)
+                    .setGenre(song.genre)
                     .apply {
                         if (song.artworkUri != null) {
                             setArtworkUri(song.artworkUri)
@@ -2347,12 +2348,13 @@ class MainActivity : ComponentActivity() {
     private data class EmbeddedAudioMetadata(
         val title: String?,
         val artist: String?,
-        val albumArtist: String?
+        val albumArtist: String?,
+        val genre: String?
     )
 
     private fun extractEmbeddedAudioMetadata(audioUri: Uri): EmbeddedAudioMetadata {
         if (!audioUri.scheme.equals("file", ignoreCase = true)) {
-            return EmbeddedAudioMetadata(null, null, null)
+            return EmbeddedAudioMetadata(null, null, null, null)
         }
         return runCatching {
             val retriever = MediaMetadataRetriever()
@@ -2364,6 +2366,8 @@ class MainActivity : ComponentActivity() {
                     artist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
                         ?.trim()?.takeIf { it.isNotBlank() },
                     albumArtist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST)
+                        ?.trim()?.takeIf { it.isNotBlank() },
+                    genre = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_GENRE)
                         ?.trim()?.takeIf { it.isNotBlank() }
                 )
             } finally {
@@ -2445,7 +2449,8 @@ class MainActivity : ComponentActivity() {
             fallbackFileName = title,
             embeddedTitle = embeddedMetadata.title,
             embeddedArtist = embeddedMetadata.artist,
-            embeddedAlbumArtist = embeddedMetadata.albumArtist
+            embeddedAlbumArtist = embeddedMetadata.albumArtist,
+            embeddedGenre = embeddedMetadata.genre
         )
         val artworkUri = extractEmbeddedArtworkUri(playbackUri)
 
@@ -2457,7 +2462,8 @@ class MainActivity : ComponentActivity() {
             uri = playbackUri,
             source = "Google Drive",
             artworkUri = artworkUri,
-            folder = "Google Drive"
+            folder = "Google Drive",
+            genre = resolvedMetadata.genre
         )
     }
 
@@ -5930,6 +5936,9 @@ class MainActivity : ComponentActivity() {
                 ?.takeIf { it.isNotBlank() }
                 ?: matchingSong?.artist.orEmpty()
         }
+        val genre = item?.mediaMetadata?.genre?.toString()?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?: matchingSong?.genre?.trim()?.takeIf { it.isNotBlank() }
         val playbackStatus = when {
             mediaController.isPlaying -> "Đang phát"
             mediaController.playbackState == Player.STATE_BUFFERING && mediaController.playWhenReady -> "Đang tải"
@@ -5942,6 +5951,7 @@ class MainActivity : ComponentActivity() {
                 source = source,
                 title = title.take(140),
                 artistOrStation = artistOrStation.take(100),
+                genre = genre,
                 playbackStatus = playbackStatus,
                 queueCount = mediaController.mediaItemCount,
                 shuffleEnabled = mediaController.shuffleModeEnabled,

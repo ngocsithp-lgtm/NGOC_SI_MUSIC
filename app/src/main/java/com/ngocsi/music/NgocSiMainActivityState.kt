@@ -16,7 +16,8 @@ internal data class NgocSiAiPlaybackContextSnapshot(
     val playbackStatus: String,
     val queueCount: Int,
     val shuffleEnabled: Boolean,
-    val repeatMode: Int
+    val repeatMode: Int,
+    val genre: String? = null
 )
 
 /**

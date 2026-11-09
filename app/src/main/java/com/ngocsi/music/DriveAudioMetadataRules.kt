@@ -2,7 +2,8 @@ package com.ngocsi.music
 
 internal data class ResolvedDriveAudioMetadata(
     val title: String,
-    val artist: String
+    val artist: String,
+    val genre: String?
 )
 
 /**
@@ -13,7 +14,8 @@ internal fun resolveDriveAudioMetadata(
     fallbackFileName: String,
     embeddedTitle: String?,
     embeddedArtist: String?,
-    embeddedAlbumArtist: String?
+    embeddedAlbumArtist: String?,
+    embeddedGenre: String? = null
 ): ResolvedDriveAudioMetadata {
     val fallbackTitle = fallbackFileName.substringAfterLast('/')
         .substringBeforeLast('.')
@@ -23,5 +25,6 @@ internal fun resolveDriveAudioMetadata(
     val artist = embeddedArtist?.trim()?.takeIf { it.isNotBlank() }
         ?: embeddedAlbumArtist?.trim()?.takeIf { it.isNotBlank() }
         ?: "Nghệ sĩ chưa xác định"
-    return ResolvedDriveAudioMetadata(title = title, artist = artist)
+    val genre = embeddedGenre?.trim()?.takeIf { it.isNotBlank() }
+    return ResolvedDriveAudioMetadata(title = title, artist = artist, genre = genre)
 }
