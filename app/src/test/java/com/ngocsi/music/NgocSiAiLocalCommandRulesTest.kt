@@ -529,9 +529,35 @@ class NgocSiAiLocalCommandRulesTest {
 
     @Test
     fun recognizesCurrentTrackStatusQuestions() {
-        assertEquals(NgocSiAiLocalCommand.CURRENT_TRACK, classifyNgocSiAiLocalCommand("Đang phát bài gì?"))
-        assertEquals(NgocSiAiLocalCommand.CURRENT_TRACK, classifyNgocSiAiLocalCommand("Ngọc Sĩ, bài gì đang phát"))
-        assertEquals(NgocSiAiLocalCommand.CURRENT_TRACK, classifyNgocSiAiLocalCommand("What is playing"))
+        val currentTrackQuestions = listOf(
+            "Đang phát bài gì?",
+            "Ngọc Sĩ, bài gì đang phát",
+            "Tên bài hát đang nghe là gì?",
+            "Đang nghe bài nào?",
+            "Bài này tên gì?",
+            "AI, cho tôi biết tên ca khúc đang phát",
+            "Ai đang hát bài này?",
+            "What is playing"
+        )
+        currentTrackQuestions.forEach { phrase ->
+            assertEquals(
+                "Should identify current-track question: $phrase",
+                NgocSiAiLocalCommand.CURRENT_TRACK,
+                classifyNgocSiAiLocalCommand(phrase)
+            )
+        }
+
+        listOf(
+            "Tôi muốn nghe bài gì đó vui",
+            "Bài hát nào hay nhất?",
+            "Làm thế nào để phát nhạc?"
+        ).forEach { phrase ->
+            assertEquals(
+                "Must not misclassify general question: $phrase",
+                null,
+                classifyNgocSiAiLocalCommand(phrase)
+            )
+        }
     }
 
     @Test
