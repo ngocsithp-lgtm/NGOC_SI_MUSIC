@@ -91,6 +91,11 @@ internal const val NGOC_SI_AI_VIDEO_DIAGNOSTIC_MAX_INLINE_BYTES = 14L * 1024L * 
 // Keep its MIME separate from inline MP4 bytes used by the public sample diagnostic.
 internal const val NGOC_SI_AI_YOUTUBE_URL_MIME_TYPE = "video/mp4"
 
+// Public YouTube canary used only after an explicit diagnostic request. The URL is
+// Google's sample video referenced by the Gemini video-understanding documentation.
+internal const val NGOC_SI_AI_YOUTUBE_DIAGNOSTIC_SAMPLE_URI =
+    "https://www.youtube.com/watch?v=9hE5-98ZeCg"
+
 /** Do not download the public MP4 canary while a persistent model cooldown blocks Gemini. */
 internal fun shouldDownloadNgocSiAiDiagnosticVideoSample(
     videoCapabilityDiagnosticRequested: Boolean,
@@ -166,6 +171,26 @@ internal fun buildNgocSiAiVideoCapabilityDiagnosticPrompt(userPrompt: String): S
         "Bắt đầu bằng 'Đã nhận video mẫu' chỉ khi nội dung video đã được đọc. " +
         "Yêu cầu: " + userPrompt.take(160)
 
+/** Detect a deliberate check of the public YouTube URL ingestion path. */
+internal fun isNgocSiAiYoutubeUrlCapabilityDiagnosticRequest(prompt: String): Boolean {
+    val normalized = normalizeNgocSiAiVoicePhrase(prompt)
+    val asksForTest = listOf(
+        "kiem tra ket noi", "kiem tra kha nang", "kiem tra duong truyen", "chan doan"
+    ).any(normalized::contains)
+    val mentionsYoutubeSample = listOf(
+        "youtube mau", "mau youtube", "youtube thu", "youtube kiem tra"
+    ).any(normalized::contains)
+    return asksForTest && mentionsYoutubeSample
+}
+
+internal fun buildNgocSiAiYoutubeUrlCapabilityDiagnosticPrompt(userPrompt: String): String =
+    "Đây là phép thử kỹ thuật với URL YouTube mẫu công khai được Google dùng trong tài liệu. " +
+        "Chỉ xác nhận đã đọc video nếu thực sự truy cập được nội dung. " +
+        "Hãy mô tả một chi tiết hình ảnh hoặc diễn biến cụ thể; chỉ mô tả âm thanh nếu thực sự nghe được. " +
+        "Không dựa vào URL, tiêu đề hay kiến thức có sẵn để đoán nội dung. " +
+        "Bắt đầu bằng 'Đã đọc được YouTube mẫu' chỉ khi đã đọc được nội dung video. " +
+        "Yêu cầu: " + userPrompt.take(160)
+
 
 /** Retry only a safe, pre-output text request after a transient transport/server failure. */
 internal const val NGOC_SI_AI_MAX_TRANSIENT_REMOTE_RETRIES = 1
@@ -175,10 +200,12 @@ internal fun shouldRetryNgocSiAiRemoteRequest(
     errorDetails: String,
     isToolRequest: Boolean,
     hasEmittedPartialResponse: Boolean,
-    attempt: Int
+    attempt: Int,
+    isMultimodalRequest: Boolean = false
 ): Boolean {
     if (
         isToolRequest ||
+        isMultimodalRequest ||
         hasEmittedPartialResponse ||
         attempt >= NGOC_SI_AI_MAX_TRANSIENT_REMOTE_RETRIES
     ) return false
@@ -381,7 +408,11 @@ internal fun selectNgocSiAiRemoteTimeoutMillis(
         ThinkingLevel.MEDIUM -> NGOC_SI_AI_COMPLEX_REMOTE_CONVERSATION_TIMEOUT_MILLIS
         else -> NGOC_SI_AI_REMOTE_CONVERSATION_TIMEOUT_MILLIS
     }
-    return if (forceMultimodalReasoning || isNgocSiAiMultimodalVideoAnalysisRequest(prompt)) {
+    return if (
+        forceMultimodalReasoning ||
+        isNgocSiAiYoutubeUrlCapabilityDiagnosticRequest(prompt) ||
+        isNgocSiAiMultimodalVideoAnalysisRequest(prompt)
+    ) {
         maxOf(normalBudget, NGOC_SI_AI_VIDEO_ANALYSIS_TIMEOUT_MILLIS)
     } else {
         normalBudget
@@ -394,7 +425,9 @@ internal fun ngocSiAiRemoteTimeoutMessage(
     hasEmittedPartialResponse: Boolean = false
 ): String {
     val isVideoAnalysis =
-        forceMultimodalReasoning || isNgocSiAiMultimodalVideoAnalysisRequest(prompt)
+        forceMultimodalReasoning ||
+            isNgocSiAiYoutubeUrlCapabilityDiagnosticRequest(prompt) ||
+            isNgocSiAiMultimodalVideoAnalysisRequest(prompt)
     val seconds = selectNgocSiAiRemoteTimeoutMillis(
         prompt,
         forceMultimodalReasoning = forceMultimodalReasoning
@@ -514,7 +547,8 @@ internal fun selectNgocSiAiMaxOutputTokens(
     prompt: String,
     forceMultimodalReasoning: Boolean = false
 ): Int = when {
-    isNgocSiAiVideoCapabilityDiagnosticRequest(prompt) ->
+    isNgocSiAiVideoCapabilityDiagnosticRequest(prompt) ||
+        isNgocSiAiYoutubeUrlCapabilityDiagnosticRequest(prompt) ->
         NGOC_SI_AI_VIDEO_DIAGNOSTIC_MAX_OUTPUT_TOKENS
     forceMultimodalReasoning && isNgocSiAiQuickVideoOverviewRequest(prompt) ->
         NGOC_SI_AI_VIDEO_OVERVIEW_MAX_OUTPUT_TOKENS
