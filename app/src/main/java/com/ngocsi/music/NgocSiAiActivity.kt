@@ -2809,9 +2809,13 @@ private fun NgocSiAiPreviewScreen(
                 onVoiceReply(reply.answer)
                 val userRemaining = reply.remainingToday?.let { "Còn $it lượt/tài khoản hôm nay" }
                 val globalRemaining = reply.remainingGlobalToday?.let { "Còn $it lượt toàn hệ thống hôm nay" }
-                quotaNote = listOfNotNull(userRemaining, globalRemaining)
+                val quotaDetails = listOfNotNull(userRemaining, globalRemaining)
                     .joinToString(" • ")
-                    .ifBlank { "Gemini đã trả lời thành công ở lượt gần nhất." }
+                quotaNote = if (quotaDetails.isBlank()) {
+                    "Gemini đã trả lời thành công ở lượt gần nhất."
+                } else {
+                    "Gemini đã trả lời thành công · $quotaDetails"
+                }
             } catch (cancelled: CancellationException) {
                 if (conversation.lastOrNull() == userTurn) conversation.removeAt(conversation.lastIndex)
                 if (
@@ -3332,7 +3336,14 @@ private fun NgocSiAiPreviewScreen(
                     modifier = Modifier
                         .size(7.dp)
                         .clip(CircleShape)
-                        .background(if (isOnlineConfigured) NgocSiVisuals.Success else NgocSiVisuals.TextMuted)
+                        .background(
+                            when {
+                                quotaNote.startsWith("Gemini đã trả lời thành công") ->
+                                    NgocSiVisuals.Success
+                                isOnlineConfigured -> Color(0xFFE6B65C)
+                                else -> NgocSiVisuals.TextMuted
+                            }
+                        )
                 )
                 Spacer(Modifier.width(8.dp))
                 Column(Modifier.weight(1f)) {
