@@ -535,7 +535,7 @@ class NgocSiAiActivity : ComponentActivity() {
             val playbackContext = buildNgocSiAiActivePlaybackContextInstruction(
                 NgocSiMainActivityState.playbackContextOrNull()
             )
-            listOf(youtubeContext, playbackContext)
+            return listOf(youtubeContext, playbackContext)
                 .filter { it.isNotBlank() }
                 .joinToString(" ")
         }
