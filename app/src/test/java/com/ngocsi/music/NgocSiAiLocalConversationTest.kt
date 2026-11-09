@@ -67,6 +67,31 @@ class NgocSiAiLocalConversationTest {
     }
 
     @Test
+    fun configuredAiDoesNotInterceptActiveVideoAnalysisWithOfflineCreativeTemplate() {
+        assertNull(
+            localConversationFallback(
+                userText = "AI, phân tích video đang phát.",
+                previousAssistantReply = "Mình đang phân tích nội dung video Bolero.",
+                allowContinuationFallback = false
+            )
+        )
+    }
+
+    @Test
+    fun activeVideoAnalysisRemoteFailureReportsDiagnosticInsteadOfGenericSceneIdeas() {
+        val answer = localConversationFallbackAfterRemoteError(
+            userText = "AI, phân tích video đang phát.",
+            previousAssistantReply = "Gemini chưa phân tích được video đang phát.",
+            remoteError = "Mã chẩn đoán: YOUTUBE_VIDEO_SERVER_ERROR"
+        )
+        assertNotNull(answer)
+        assertTrue(answer!!.contains("YOUTUBE_VIDEO_SERVER_ERROR"))
+        assertTrue(answer.contains("chưa xác nhận Gemini đã tải được nội dung video"))
+        assertFalse(answer.contains("ánh đèn vàng"))
+        assertFalse(answer.contains("sân ga"))
+    }
+
+    @Test
     fun continuationUsesPreviousReplyWithoutPretendingToReasonFurther() {
         val answer = localConversationFallback("Tiếp tục", "Ưu tiên kiểm tra lệnh dừng nhạc.")
         assertNotNull(answer)
