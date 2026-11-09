@@ -518,7 +518,7 @@ class NgocSiAiActivity : ComponentActivity() {
                 preferences.getBoolean("youtube_active_source", false)
             val youtubePlayerActivityActive =
                 preferences.getBoolean("youtube_player_activity_active", false)
-            return buildNgocSiAiCurrentYoutubeMediaContextInstruction(
+            val youtubeContext = buildNgocSiAiCurrentYoutubeMediaContextInstruction(
                 entryContext,
                 if (youtubePlayerActivityActive) null
                 else NgocSiMainActivityState.youtubeMediaContextOrNull(),
@@ -532,6 +532,12 @@ class NgocSiAiActivity : ComponentActivity() {
                     } else null,
                 preferLaunchMetadata = youtubePlayerActivityActive
             )
+            val playbackContext = buildNgocSiAiActivePlaybackContextInstruction(
+                NgocSiMainActivityState.playbackContextOrNull()
+            )
+            listOf(youtubeContext, playbackContext)
+                .filter { it.isNotBlank() }
+                .joinToString(" ")
         }
     private val entryYoutubeVideoId: String?
         get() {
