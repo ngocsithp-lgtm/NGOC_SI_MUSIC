@@ -11,6 +11,7 @@ on:
     branches:
       - "feature/ngoc-si-ai-complete-preview"
       - "feature/ngoc-si-ai-firebase-ai-logic-preview"
+      - "ngocsiAI"
     paths:
       - "app/src/main/**"
       - "app/src/test/**"
