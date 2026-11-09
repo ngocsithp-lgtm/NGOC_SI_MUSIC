@@ -50,7 +50,11 @@ class NgocSiAiRemotePolicyTest {
 
     @Test
     fun shortFollowUpsStayLowThinkingRegardlessOfPreviousContext() {
-        assertEquals(ThinkingLevel.LOW, selectNgocSiAiThinkingLevel("Tại sao?"))
+        val prompts = listOf("Tại sao?", "Vì sao?", "Sao vậy?", "Ý đó là gì?")
+        prompts.forEach { prompt ->
+            assertEquals(ThinkingLevel.LOW, selectNgocSiAiThinkingLevel(prompt))
+            assertTrue("$prompt should reuse the recent conversation", isNgocSiAiContextualFollowUp(prompt))
+        }
     }
 
     @Test
