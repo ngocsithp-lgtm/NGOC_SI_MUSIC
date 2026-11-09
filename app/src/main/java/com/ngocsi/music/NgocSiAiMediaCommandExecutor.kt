@@ -8,6 +8,21 @@ internal data class NgocSiAiTrackCandidate(
     val artist: String
 )
 
+internal fun formatNgocSiAiYoutubeCurrentVideoSummary(
+    status: String,
+    videoTitle: String,
+    channelTitle: String?
+): String {
+    val safeStatus = status.trim().ifBlank { "Trạng thái chưa xác định" }
+    val safeTitle = videoTitle.trim().ifBlank { "Chưa rõ tên video" }
+    val safeChannel = channelTitle?.trim()?.takeIf { it.isNotBlank() }
+    return if (safeChannel == null) {
+        "$safeStatus: $safeTitle"
+    } else {
+        "$safeStatus: $safeTitle • Kênh YouTube: $safeChannel"
+    }
+}
+
 private val NGOC_SI_AI_KNOWN_CHANNEL_LABELS = setOf(
     "yeu nhac vang", "yeu nhac", "official", "official music",
     "music channel", "youtube", "youtube music", "official channel"

@@ -1587,7 +1587,7 @@ class NgocSiAiActivity : ComponentActivity() {
             } else {
                 "Đang tạm dừng hoặc chưa phát"
             }
-            if (channel.isNullOrBlank()) "$status: $title" else "$status: $title — $channel"
+            formatNgocSiAiYoutubeCurrentVideoSummary(status, title, channel)
         }
         "current_artist" -> {
             val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)

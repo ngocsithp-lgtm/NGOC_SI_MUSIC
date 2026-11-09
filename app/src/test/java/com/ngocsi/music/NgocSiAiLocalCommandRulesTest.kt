@@ -560,6 +560,26 @@ class NgocSiAiLocalCommandRulesTest {
     }
 
     @Test
+    fun keepsYoutubeVideoTitleAndUploaderChannelClearlySeparated() {
+        assertEquals(
+            "Đang phát: Liên Khúc Tuấn Vũ • Kênh YouTube: Mr.H",
+            formatNgocSiAiYoutubeCurrentVideoSummary(
+                status = "Đang phát",
+                videoTitle = "Liên Khúc Tuấn Vũ",
+                channelTitle = "Mr.H"
+            )
+        )
+        assertEquals(
+            "Đang phát: Liên Khúc Tuấn Vũ",
+            formatNgocSiAiYoutubeCurrentVideoSummary(
+                status = "Đang phát",
+                videoTitle = "Liên Khúc Tuấn Vũ",
+                channelTitle = null
+            )
+        )
+    }
+
+    @Test
     fun recognizesCurrentArtistQuestionsSeparatelyFromCurrentSongTitle() {
         val phrases = listOf(
             "AI, ai đang hát bài này?",
