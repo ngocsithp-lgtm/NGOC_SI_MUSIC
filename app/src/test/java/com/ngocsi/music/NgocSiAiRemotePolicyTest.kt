@@ -295,6 +295,35 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
+    fun publicYoutubeUrlCanaryIsSeparateFromTheInlineMp4Diagnostic() {
+        val prompt = "AI, kiểm tra kết nối YouTube mẫu."
+        assertEquals(
+            "https://www.youtube.com/watch?v=9hE5-98ZeCg",
+            NGOC_SI_AI_YOUTUBE_DIAGNOSTIC_SAMPLE_URI
+        )
+        assertTrue(isNgocSiAiYoutubeUrlCapabilityDiagnosticRequest(prompt))
+        assertFalse(isNgocSiAiVideoCapabilityDiagnosticRequest(prompt))
+        assertFalse(
+            isNgocSiAiYoutubeUrlCapabilityDiagnosticRequest("AI, phân tích video đang phát.")
+        )
+        val requestText = buildNgocSiAiYoutubeUrlCapabilityDiagnosticPrompt(prompt)
+        assertTrue(requestText.contains("URL YouTube mẫu công khai"))
+        assertTrue(requestText.contains("Đã đọc được YouTube mẫu"))
+        assertEquals(
+            NGOC_SI_AI_REASONING_MODEL_NAME,
+            selectNgocSiAiModelName(prompt, forceMultimodalReasoning = true)
+        )
+        assertEquals(
+            NGOC_SI_AI_VIDEO_ANALYSIS_TIMEOUT_MILLIS,
+            selectNgocSiAiRemoteTimeoutMillis(prompt, forceMultimodalReasoning = true)
+        )
+        assertEquals(
+            NGOC_SI_AI_VIDEO_DIAGNOSTIC_MAX_OUTPUT_TOKENS,
+            selectNgocSiAiMaxOutputTokens(prompt, forceMultimodalReasoning = true)
+        )
+    }
+
+    @Test
     fun videoDiagnosticUsesACompactPublicMp4Sample() {
         assertEquals(
             "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
@@ -1033,6 +1062,15 @@ class NgocSiAiRemotePolicyTest {
                 isToolRequest = true,
                 hasEmittedPartialResponse = false,
                 attempt = 0
+            )
+        )
+        assertFalse(
+            shouldRetryNgocSiAiRemoteRequest(
+                "HTTP 503 service unavailable",
+                isToolRequest = false,
+                hasEmittedPartialResponse = false,
+                attempt = 0,
+                isMultimodalRequest = true
             )
         )
         assertFalse(
