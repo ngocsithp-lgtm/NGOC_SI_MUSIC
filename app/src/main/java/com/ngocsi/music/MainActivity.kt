@@ -2344,6 +2344,31 @@ class MainActivity : ComponentActivity() {
         }.getOrNull()
     }
 
+    private data class EmbeddedAudioMetadata(
+        val title: String?,
+        val artist: String?
+    )
+
+    private fun extractEmbeddedAudioMetadata(audioUri: Uri): EmbeddedAudioMetadata {
+        if (!audioUri.scheme.equals("file", ignoreCase = true)) {
+            return EmbeddedAudioMetadata(null, null)
+        }
+        return runCatching {
+            val retriever = MediaMetadataRetriever()
+            try {
+                retriever.setDataSource(audioUri.path)
+                EmbeddedAudioMetadata(
+                    title = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
+                        ?.trim()?.takeIf { it.isNotBlank() },
+                    artist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
+                        ?.trim()?.takeIf { it.isNotBlank() }
+                )
+            } finally {
+                retriever.release()
+            }
+        }.getOrDefault(EmbeddedAudioMetadata(null, null))
+    }
+
     private fun songFromUri(uri: Uri): Song? {
         var title = "Nhạc Google Drive"
         var displayName = "drive_audio_" + kotlin.math.abs(uri.toString().hashCode())
@@ -2412,12 +2437,13 @@ class MainActivity : ComponentActivity() {
 
         if (playbackUri == null) return null
 
+        val embeddedMetadata = extractEmbeddedAudioMetadata(playbackUri)
         val artworkUri = extractEmbeddedArtworkUri(playbackUri)
 
         return Song(
             id = -kotlin.math.abs(uri.toString().hashCode().toLong()),
-            title = title,
-            artist = "Google Drive",
+            title = embeddedMetadata.title ?: title,
+            artist = embeddedMetadata.artist ?: "Nghệ sĩ chưa xác định",
             duration = 0L,
             uri = playbackUri,
             source = "Google Drive",
