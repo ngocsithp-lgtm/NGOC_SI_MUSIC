@@ -274,7 +274,10 @@ internal fun localConversationFallback(
     val asksForBoleroAnalysis = normalized.contains("phan tich") ||
         normalized.contains("chi tiet hon") || normalized.contains("noi ro hon") ||
         normalized.contains("vi du")
-    if (asksForBoleroAnalysis) {
+    // Do not let an offline creative template intercept an analysis request when
+    // Gemini or the on-device model is available. In that case the caller must
+    // continue to the multimodal model path with the active YouTube video attached.
+    if (allowContinuationFallback && asksForBoleroAnalysis) {
         buildOfflineBoleroVideoAnalysis(previousAssistantReply)?.let { return it }
     }
 
@@ -339,6 +342,25 @@ internal fun localConversationFallbackAfterRemoteError(
         .any(normalized::contains)
     if (asksForSingerComparison) {
         buildOfflineSingerComparisonClarification(previous)?.let { return it }
+    }
+
+    // A request to analyze the currently playing video must never be replaced by
+    // generic scene-editing ideas after Gemini fails. Report the real media limitation
+    // and diagnostic instead, so the user can distinguish an AI failure from evidence.
+    val asksForCurrentVideoAnalysis =
+        (normalized.contains("phan tich") || normalized.contains("mo ta") ||
+            normalized.contains("danh gia")) &&
+            listOf(
+                "video dang phat", "video nay", "video hien tai",
+                "video dang chay", "video youtube dang phat"
+            ).any(normalized::contains)
+    if (asksForCurrentVideoAnalysis) {
+        val videoUrlWasPrepared = remoteError.orEmpty()
+            .contains("YOUTUBE_VIDEO_SERVER_ERROR", ignoreCase = true)
+        return buildNgocSiAiLocalMediaAnalysisUnavailableReply(
+            remoteError = remoteError,
+            videoContextAvailable = videoUrlWasPrepared
+        )
     }
 
     val asksForBoleroAnalysis = listOf(
