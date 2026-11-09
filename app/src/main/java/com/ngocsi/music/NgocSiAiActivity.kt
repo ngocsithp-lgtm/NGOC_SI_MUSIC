@@ -2381,6 +2381,7 @@ private fun NgocSiAiPreviewScreen(
     var isSendingLocalModel by remember { mutableStateOf(false) }
     var quotaNote by remember { mutableStateOf("") }
     var showClearConfirm by remember { mutableStateOf(false) }
+    var showDiagnostics by remember { mutableStateOf(false) }
     var showVoicePicker by remember { mutableStateOf(false) }
     var localModelInstalled by remember { mutableStateOf(onIsLocalModelInstalled()) }
     var localModelDownloading by remember { mutableStateOf(false) }
@@ -3018,6 +3019,69 @@ private fun NgocSiAiPreviewScreen(
         )
     }
 
+    if (showDiagnostics) {
+        val playbackSnapshot = NgocSiMainActivityState.playbackContextOrNull()
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showDiagnostics = false },
+            title = { Text("Chẩn đoán NGỌC SĨ AI") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "Giao diện hiện tại: " + (normalizeNgocSiAiEntryContext(entryContext) ?: "Chưa xác định"),
+                        color = NgocSiVisuals.Text
+                    )
+                    Text(
+                        "Gemini: " + if (isOnlineConfigured) {
+                            "Đã nạp cấu hình; chưa xác nhận kết nối mới nếu chưa gửi câu hỏi thành công."
+                        } else {
+                            "Chưa có đủ cấu hình Firebase AI Logic."
+                        },
+                        color = NgocSiVisuals.TextSecondary
+                    )
+                    Text(
+                        "AI tại máy: " + when {
+                            !localModelInstalled -> "Chưa cài mô hình Qwen3."
+                            preferLocalModel -> "Đã cài và đang được ưu tiên."
+                            else -> "Đã cài, dùng làm dự phòng văn bản."
+                        },
+                        color = NgocSiVisuals.TextSecondary
+                    )
+                    Text(
+                        "Đang phát: " + (playbackSnapshot?.let { snapshot ->
+                            "${snapshot.title} · ${snapshot.source} · ${snapshot.playbackStatus}"
+                        } ?: if (
+                            normalizeNgocSiAiEntryContext(entryContext) == "YouTube"
+                        ) {
+                            "YouTube có ngữ cảnh video riêng."
+                        } else {
+                            "Chưa có snapshot Media3."
+                        }),
+                        color = NgocSiVisuals.TextSecondary
+                    )
+                    Text(
+                        "Lần kiểm tra gần nhất: " + quotaNote.ifBlank {
+                            "Chưa có kết quả mới trong phiên chat này."
+                        },
+                        color = NgocSiVisuals.TextSecondary
+                    )
+                    Text(
+                        "Màn hình này chỉ đọc trạng thái cục bộ. Không gửi request thử lên Gemini và không tiêu hao quota.",
+                        color = NgocSiVisuals.Secondary,
+                        fontSize = 12.sp
+                    )
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = { showDiagnostics = false }) {
+                    Text("Đóng", color = NgocSiVisuals.TextSecondary)
+                }
+            },
+            containerColor = NgocSiVisuals.SurfaceSoft,
+            titleContentColor = Color.White,
+            textContentColor = NgocSiVisuals.TextSecondary
+        )
+    }
+
     if (showClearConfirm) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { showClearConfirm = false },
@@ -3244,7 +3308,9 @@ private fun NgocSiAiPreviewScreen(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 3.dp),
+                .padding(horizontal = 12.dp, vertical = 3.dp)
+                .clickable { showDiagnostics = true }
+                .semantics { contentDescription = "Mở chẩn đoán NGỌC SĨ AI" },
             shape = RoundedCornerShape(14.dp),
             color = NgocSiVisuals.Surface,
             border = androidx.compose.foundation.BorderStroke(1.dp, NgocSiVisuals.Border)
