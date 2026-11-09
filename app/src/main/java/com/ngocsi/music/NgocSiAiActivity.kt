@@ -3370,6 +3370,42 @@ private fun NgocSiAiPreviewScreen(
                                 lineHeight = 21.sp
                             )
                         }
+                        val videoDiagnosticActions = if (message.isUser) {
+                            emptyList()
+                        } else {
+                            ngocSiAiVideoDiagnosticActionsForError(message.text)
+                        }
+                        if (videoDiagnosticActions.isNotEmpty()) {
+                            Spacer(Modifier.height(6.dp))
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                videoDiagnosticActions.forEach { (label, prompt) ->
+                                    Surface(
+                                        modifier = Modifier.clickable(enabled = !isSending) {
+                                            sendMessage(prompt)
+                                        },
+                                        shape = RoundedCornerShape(50),
+                                        color = Color(0xFF20283A),
+                                        border = androidx.compose.foundation.BorderStroke(
+                                            1.dp,
+                                            NgocSiVisuals.Primary.copy(alpha = 0.55f)
+                                        )
+                                    ) {
+                                        Text(
+                                            label,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                                            color = NgocSiVisuals.Primary,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                }
+                            }
+                        }
                         if (!message.isUser) {
                             Spacer(Modifier.height(4.dp))
                             Row(
