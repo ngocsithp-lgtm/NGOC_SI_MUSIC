@@ -189,10 +189,13 @@ internal class NgocSiAiRemoteClient(context: Context) {
         // ingestion failures from restrictions on the currently playing YouTube URL.
         val videoCapabilityDiagnosticRequested =
             isNgocSiAiVideoCapabilityDiagnosticRequest(newestUserMessage.content)
+        val youtubeUrlCapabilityDiagnosticRequested =
+            isNgocSiAiYoutubeUrlCapabilityDiagnosticRequest(newestUserMessage.content)
         // Never downgrade a YouTube evidence-analysis request to text-only chat.
         // Missing video context is a blocker, not permission to guess from metadata.
         if (
             !videoCapabilityDiagnosticRequested &&
+            !youtubeUrlCapabilityDiagnosticRequested &&
             isNgocSiAiYoutubeVideoAttachmentMissing(
                 pageContext = entryContext,
                 currentVideoId = youtubeVideoId,
@@ -203,15 +206,19 @@ internal class NgocSiAiRemoteClient(context: Context) {
             throw NgocSiAiRemoteException(buildNgocSiAiYoutubeVideoUnavailableReply())
         }
         // Playback commands and ordinary chat retain the lightweight text-only path.
-        val youtubeVideoAnalysisUri = resolveNgocSiAiYoutubeVideoAnalysisUri(
-            pageContext = entryContext,
-            currentVideoId = youtubeVideoId,
-            prompt = newestUserMessage.content,
-            previousMessages = normalized.dropLast(1)
-        )
+        val youtubeVideoAnalysisUri = if (youtubeUrlCapabilityDiagnosticRequested) {
+            NGOC_SI_AI_YOUTUBE_DIAGNOSTIC_SAMPLE_URI
+        } else {
+            resolveNgocSiAiYoutubeVideoAnalysisUri(
+                pageContext = entryContext,
+                currentVideoId = youtubeVideoId,
+                prompt = newestUserMessage.content,
+                previousMessages = normalized.dropLast(1)
+            )
+        }
         val videoInputUri = if (videoCapabilityDiagnosticRequested) null else youtubeVideoAnalysisUri
         val forceMultimodalReasoning = videoCapabilityDiagnosticRequested || videoInputUri != null
-        val offersAppCommandTool =
+        val offersAppCommandTool = !youtubeUrlCapabilityDiagnosticRequested &&
             shouldOfferNgocSiAiAppCommandTool(newestUserMessage.content, normalized.dropLast(1))
         val selectedModelName = selectNgocSiAiModelName(
             newestUserMessage.content,
@@ -246,11 +253,15 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 // still uses video/mp4 inline bytes through its separate branch.
                 fileData(uri = videoInputUri, mimeType = NGOC_SI_AI_YOUTUBE_URL_MIME_TYPE)
                 text(
-                    buildNgocSiAiVideoAnalysisRequestText(
-                        userPrompt = newestUserMessage.content,
-                        recentMessages = normalized.dropLast(1),
-                        mediaContextInstruction = mediaContextInstruction
-                    )
+                    if (youtubeUrlCapabilityDiagnosticRequested) {
+                        buildNgocSiAiYoutubeUrlCapabilityDiagnosticPrompt(newestUserMessage.content)
+                    } else {
+                        buildNgocSiAiVideoAnalysisRequestText(
+                            userPrompt = newestUserMessage.content,
+                            recentMessages = normalized.dropLast(1),
+                            mediaContextInstruction = mediaContextInstruction
+                        )
+                    }
                 )
             }
             else -> null
@@ -513,7 +524,8 @@ internal class NgocSiAiRemoteClient(context: Context) {
                             errorDetails = errorDetails,
                             isToolRequest = offersAppCommandTool,
                             hasEmittedPartialResponse = streamedAnswer.isNotBlank(),
-                            attempt = attempt
+                            attempt = attempt,
+                            isMultimodalRequest = multimodalUserMessage != null
                         )
                         if (!mayRetry) throw error
                         attempt++
@@ -535,7 +547,8 @@ internal class NgocSiAiRemoteClient(context: Context) {
             val safeMessage = toSafeMessage(
                 error,
                 isVideoCapabilityDiagnostic = videoCapabilityDiagnosticRequested,
-                isYoutubeVideoInput = youtubeVideoAnalysisUri != null && !videoCapabilityDiagnosticRequested
+                isYoutubeVideoInput = youtubeVideoAnalysisUri != null && !videoCapabilityDiagnosticRequested,
+                isYoutubeUrlCapabilityDiagnostic = youtubeUrlCapabilityDiagnosticRequested
             )
             persistQuotaCooldownIfNeeded(safeMessage, selectedModelName)
             throw NgocSiAiRemoteException(safeMessage)
@@ -692,7 +705,8 @@ internal class NgocSiAiRemoteClient(context: Context) {
     private fun toSafeMessage(
         error: Exception,
         isVideoCapabilityDiagnostic: Boolean = false,
-        isYoutubeVideoInput: Boolean = false
+        isYoutubeVideoInput: Boolean = false,
+        isYoutubeUrlCapabilityDiagnostic: Boolean = false
     ): String {
         // Keep diagnostics useful without exposing API keys, tokens, URLs, or raw server text.
         // Include exception superclasses as well as causes: some SDK transport wrappers
@@ -774,6 +788,10 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 "Firebase AI Logic chưa được bật hoặc cấu hình đúng cho dự án Preview. Mã chẩn đoán: FIREBASE_CONFIG."
             "serverexception" in exceptionTypeDetails && isVideoCapabilityDiagnostic ->
                 "Firebase AI Logic trả về ServerException khi gửi video MP4 mẫu công khai. Lỗi này không phụ thuộc URL YouTube đang phát; cần kiểm tra quyền App Check, trạng thái Firebase AI Logic hoặc model của dự án. Mã chẩn đoán: VIDEO_SAMPLE_SERVER_ERROR."
+            "serverexception" in exceptionTypeDetails && isYoutubeUrlCapabilityDiagnostic ->
+                "Firebase AI Logic trả về ServerException khi xử lý URL YouTube mẫu công khai. " +
+                    "Đường nạp video YouTube đang lỗi; kết quả này chưa đủ để quy kết lỗi cho video hiện tại. " +
+                    "Mã chẩn đoán: YOUTUBE_SAMPLE_SERVER_ERROR."
             "serverexception" in exceptionTypeDetails && isYoutubeVideoInput ->
                 "Firebase AI Logic trả về ServerException khi gửi URL YouTube. Chưa có mã HTTP để xác định nguyên nhân; hãy thử lệnh 'AI, kiểm tra kết nối video mẫu' để phân biệt lỗi dịch vụ với hạn chế của video YouTube. Mã chẩn đoán: YOUTUBE_VIDEO_SERVER_ERROR."
             "serverexception" in exceptionTypeDetails ->
