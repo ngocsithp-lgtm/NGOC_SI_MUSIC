@@ -73,6 +73,26 @@ internal fun shouldAttachNgocSiAiYoutubeVideo(
         recentAnalysisMarkers.any(recentContext::contains)
 }
 
+/** Recognize explicit requests about the currently playing YouTube video. */
+internal fun isNgocSiAiCurrentYoutubeVideoAnalysisPrompt(prompt: String): Boolean {
+    val normalized = stripNgocSiAiDirectIntentWakePrefix(
+        normalizeNgocSiAiVoicePhrase(prompt)
+    ).removePrefix("hay ").trim()
+    val asksForAnalysis = listOf("phan tich", "mo ta", "danh gia")
+        .any(normalized::contains)
+    val refersToCurrentVideo = listOf(
+        "video dang phat", "video dang chay", "video hien tai",
+        "video nay", "video youtube dang phat", "mv dang phat", "mv nay"
+    ).any(normalized::contains)
+    return asksForAnalysis && refersToCurrentVideo
+}
+
+internal fun buildNgocSiAiVideoAnalysisRequiresGeminiReply(): String =
+    "Yêu cầu phân tích video đang phát cần Gemini trực tuyến có khả năng xử lý hình ảnh và âm thanh. " +
+        "Qwen3 chạy tại máy chỉ xử lý văn bản nên không thể xem hoặc nghe video YouTube. " +
+        "Gemini chưa được cấu hình trong bản ứng dụng này, vì vậy video chưa được phân tích. " +
+        "Mình sẽ không đưa ra cảnh quay, lời ca hoặc nhận xét minh họa như thể đã xem video."
+
 /**
  * Resolve a trusted current-player video into a Gemini YouTube URL. Firebase AI
  * Logic accepts one public/unlisted YouTube video URL per request.
