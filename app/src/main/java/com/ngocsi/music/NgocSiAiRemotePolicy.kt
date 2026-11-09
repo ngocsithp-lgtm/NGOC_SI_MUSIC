@@ -245,7 +245,10 @@ internal fun isNgocSiAiContextualFollowUp(prompt: String): Boolean {
         "cu the hon", "vi du cu the", "cho vi du",
         "cho minh vi du", "cho toi vi du",
         "cho toi mot vi du", "cho minh mot vi du",
-        "phan tich ky hon"
+        "phan tich ky hon",
+        // Short causal questions usually refer to the immediately preceding answer.
+        "tai sao", "vi sao", "sao vay", "tai sao vay", "vi sao vay",
+        "y do la gi", "y nay la gi", "phan nay la gi", "phan do la gi"
     )
     val prefixes = listOf(
         "minh tiep tuc phan truoc ", "tiep tuc phan truoc ",
