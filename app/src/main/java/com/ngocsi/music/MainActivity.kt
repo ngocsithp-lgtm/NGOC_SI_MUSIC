@@ -5869,7 +5869,10 @@ class MainActivity : ComponentActivity() {
                 ?: songs.firstOrNull { it.uri.toString() == activeUri }
         }
         val radioStation = activeRadioTitle
-            ?.takeIf { activeRadioStreams.isNotEmpty() }
+            ?.takeIf { stationTitle ->
+                val activeUri = uri ?: return@takeIf false
+                activeRadioStreams.isNotEmpty() && activeRadioStreams.contains(activeUri)
+            }
         val rawSource = matchingSong?.source.orEmpty()
         val source = when {
             radioStation != null || rawSource.contains("Radio", ignoreCase = true) -> "Radio"
