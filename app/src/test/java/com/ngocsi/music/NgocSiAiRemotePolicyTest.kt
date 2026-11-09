@@ -324,6 +324,29 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
+    fun videoServerErrorsExposeOnlyTheRelevantManualDiagnosticActions() {
+        assertEquals(
+            listOf(
+                "Kiểm tra YouTube mẫu" to "AI, kiểm tra kết nối YouTube mẫu.",
+                "Kiểm tra MP4 mẫu" to "AI, kiểm tra kết nối video mẫu."
+            ),
+            ngocSiAiVideoDiagnosticActionsForError(
+                "Firebase AI Logic returned ServerException. YOUTUBE_VIDEO_SERVER_ERROR"
+            )
+        )
+        assertEquals(
+            listOf("Kiểm tra MP4 mẫu" to "AI, kiểm tra kết nối video mẫu."),
+            ngocSiAiVideoDiagnosticActionsForError("YOUTUBE_SAMPLE_SERVER_ERROR")
+        )
+        assertEquals(
+            listOf("Kiểm tra YouTube mẫu" to "AI, kiểm tra kết nối YouTube mẫu."),
+            ngocSiAiVideoDiagnosticActionsForError("VIDEO_SAMPLE_SERVER_ERROR")
+        )
+        assertTrue(ngocSiAiVideoDiagnosticActionsForError("AI_QUOTA_429_DAILY").isEmpty())
+        assertTrue(ngocSiAiVideoDiagnosticActionsForError("REMOTE_TIMEOUT").isEmpty())
+    }
+
+    @Test
     fun videoDiagnosticUsesACompactPublicMp4Sample() {
         assertEquals(
             "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
