@@ -8,6 +8,17 @@ internal data class NgocSiAiYoutubeMediaContextSnapshot(
     val channel: String
 )
 
+/** Lightweight, in-memory snapshot of the active Media3 source for contextual AI. */
+internal data class NgocSiAiPlaybackContextSnapshot(
+    val source: String,
+    val title: String,
+    val artistOrStation: String,
+    val playbackStatus: String,
+    val queueCount: Int,
+    val shuffleEnabled: Boolean,
+    val repeatMode: Int
+)
+
 /**
  * Exposes whether MainActivity's inline YouTube control receiver is registered
  * in this process. The reference is cleared at onDestroy and is never persisted.
@@ -25,6 +36,10 @@ internal object NgocSiMainActivityState {
     // It is deliberately volatile and in-memory: no playback metadata is persisted here.
     @Volatile
     private var activeYoutubeMediaContext: NgocSiAiYoutubeMediaContextSnapshot? = null
+
+    // Contains display metadata only: never a local file URI or stream URL.
+    @Volatile
+    private var activePlaybackContext: NgocSiAiPlaybackContextSnapshot? = null
 
     fun updateEntryContext(rawContext: String?) {
         activeEntryContext = normalizeNgocSiAiEntryContext(rawContext)
@@ -46,6 +61,14 @@ internal object NgocSiMainActivityState {
 
     fun youtubeMediaContextOrNull(): NgocSiAiYoutubeMediaContextSnapshot? =
         activeYoutubeMediaContext
+
+
+    fun updatePlaybackContext(snapshot: NgocSiAiPlaybackContextSnapshot?) {
+        activePlaybackContext = snapshot
+    }
+
+    fun playbackContextOrNull(): NgocSiAiPlaybackContextSnapshot? =
+        activePlaybackContext
 
     @Synchronized
     fun attach(activity: MainActivity) {
