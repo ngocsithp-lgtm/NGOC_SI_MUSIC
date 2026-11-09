@@ -1832,6 +1832,33 @@ class NgocSiAiLocalCommandRulesTest {
 
 
     @Test
+    fun currentTrackArtistAndGenreQueriesFollowTheResolvedYouTubePageSource() {
+        val youtubeSource = isNgocSiAiYoutubePlaybackSource(
+            youtubeActiveSource = false,
+            pageContext = "YouTube",
+            savedVideoId = "dQw4w9WgXcQ"
+        )
+        assertEquals(
+            "current_track",
+            ngocSiAiYouTubeActionForCommand(NgocSiAiLocalCommand.CURRENT_TRACK, youtubeSource)
+        )
+        assertEquals(
+            "current_artist",
+            ngocSiAiYouTubeActionForCommand(NgocSiAiLocalCommand.CURRENT_ARTIST, youtubeSource)
+        )
+        assertEquals(
+            "current_genre",
+            ngocSiAiYouTubeActionForCommand(NgocSiAiLocalCommand.CURRENT_GENRE, youtubeSource)
+        )
+        assertNull(
+            ngocSiAiYouTubeActionForCommand(
+                NgocSiAiLocalCommand.CURRENT_ARTIST,
+                isNgocSiAiYoutubePlaybackSource(false, "Trình phát", "dQw4w9WgXcQ")
+            )
+        )
+    }
+
+    @Test
     fun genericCurrentTrackQueryFollowsTheActiveYouTubeSource() {
         assertEquals(
             "current_track",

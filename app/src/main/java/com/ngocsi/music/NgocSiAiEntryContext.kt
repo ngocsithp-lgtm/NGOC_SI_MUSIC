@@ -251,6 +251,22 @@ internal fun resolveNgocSiAiEntryContext(
 ): String? = normalizeNgocSiAiEntryContext(intentContext)
     ?: normalizeNgocSiAiEntryContext(activePageContext)
 
+/**
+ * Select YouTube for current-media questions when the AI was explicitly opened
+ * from the YouTube page, even if the persisted source flag was briefly lost.
+ * A valid saved video ID is required for this page-context fallback so stale
+ * YouTube history cannot hijack generic music-player questions.
+ */
+internal fun isNgocSiAiYoutubePlaybackSource(
+    youtubeActiveSource: Boolean,
+    pageContext: String?,
+    savedVideoId: String?
+): Boolean {
+    if (youtubeActiveSource) return true
+    return normalizeNgocSiAiEntryContext(pageContext) == "YouTube" &&
+        normalizeNgocSiAiYoutubeVideoId(savedVideoId) != null
+}
+
 
 /**
  * Converts the currently selected YouTube title/channel into bounded, non-executable

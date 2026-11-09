@@ -1674,7 +1674,12 @@ class NgocSiAiActivity : ComponentActivity() {
         val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
         val youtubeAction = ngocSiAiYouTubeActionForCommand(
             command,
-            youtubeActiveSource = prefs.getBoolean("youtube_active_source", false)
+            youtubeActiveSource = isNgocSiAiYoutubePlaybackSource(
+                youtubeActiveSource = prefs.getBoolean("youtube_active_source", false),
+                pageContext = entryContext,
+                savedVideoId = prefs.getString("youtube_last_played_video_id", null)
+                    ?: NgocSiMainActivityState.youtubeMediaContextOrNull()?.videoId
+            )
         )
         if (youtubeAction != null) {
             return runYouTubeControl(youtubeAction, youtubeControlResponse(youtubeAction))

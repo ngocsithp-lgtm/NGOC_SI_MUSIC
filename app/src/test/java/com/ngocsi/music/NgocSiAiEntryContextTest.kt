@@ -51,6 +51,38 @@ class NgocSiAiEntryContextTest {
     }
 
     @Test
+    fun currentMediaQuestionsUseYouTubeWhenOpenedFromYouTubeWithAValidVideo() {
+        assertTrue(
+            isNgocSiAiYoutubePlaybackSource(
+                youtubeActiveSource = false,
+                pageContext = "YouTube",
+                savedVideoId = "dQw4w9WgXcQ"
+            )
+        )
+        assertTrue(
+            isNgocSiAiYoutubePlaybackSource(
+                youtubeActiveSource = true,
+                pageContext = "Trình phát",
+                savedVideoId = null
+            )
+        )
+        assertFalse(
+            isNgocSiAiYoutubePlaybackSource(
+                youtubeActiveSource = false,
+                pageContext = "Trình phát",
+                savedVideoId = "dQw4w9WgXcQ"
+            )
+        )
+        assertFalse(
+            isNgocSiAiYoutubePlaybackSource(
+                youtubeActiveSource = false,
+                pageContext = "YouTube",
+                savedVideoId = "invalid-id"
+            )
+        )
+    }
+
+    @Test
     fun unknownOrInstructionLikePageValuesAreRejected() {
         assertNull(normalizeNgocSiAiEntryContext(null))
         assertNull(normalizeNgocSiAiEntryContext(""))
