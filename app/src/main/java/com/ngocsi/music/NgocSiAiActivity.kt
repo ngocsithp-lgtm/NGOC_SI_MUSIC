@@ -150,6 +150,8 @@ internal fun localConversationFallback(
     previousAssistantReply: String? = null,
     allowContinuationFallback: Boolean = true
 ): String? {
+    // An active-video request must never be answered with offline scene suggestions.
+    if (isNgocSiAiCurrentYoutubeVideoAnalysisPrompt(userText)) return null
     localNgocSiAiAppHelpFallback(userText)?.let { return it }
 
     val normalized = stripNgocSiAiDirectIntentWakePrefix(
@@ -2485,6 +2487,48 @@ private fun NgocSiAiPreviewScreen(
     fun sendMessage(text: String) {
         val clean = text.trim()
         if (clean.isBlank()) return
+
+        val currentVideoAnalysisRequest =
+            isNgocSiAiCurrentYoutubeVideoAnalysisPrompt(clean)
+        if (
+            currentVideoAnalysisRequest &&
+            normalizeNgocSiAiEntryContext(entryContext) != "YouTube"
+        ) {
+            val unavailableReply = buildNgocSiAiYoutubeVideoUnavailableReply()
+            messages.add(AiPreviewMessage(true, clean))
+            messages.add(AiPreviewMessage(false, unavailableReply))
+            while (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
+            input = ""
+            if (!isSending) {
+                conversation.add(NgocSiAiMessage(role = "user", content = clean))
+                conversation.add(NgocSiAiMessage(role = "assistant", content = unavailableReply))
+                while (conversation.size > NGOC_SI_AI_MAX_HISTORY_MESSAGES) {
+                    conversation.removeAt(0)
+                    if (conversation.firstOrNull()?.role == "assistant") conversation.removeAt(0)
+                }
+            }
+            persistChatState()
+            onVoiceReply(unavailableReply)
+            return
+        }
+        if (currentVideoAnalysisRequest && !isOnlineConfigured) {
+            val unavailableReply = buildNgocSiAiVideoAnalysisRequiresGeminiReply()
+            messages.add(AiPreviewMessage(true, clean))
+            messages.add(AiPreviewMessage(false, unavailableReply))
+            while (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
+            input = ""
+            if (!isSending) {
+                conversation.add(NgocSiAiMessage(role = "user", content = clean))
+                conversation.add(NgocSiAiMessage(role = "assistant", content = unavailableReply))
+                while (conversation.size > NGOC_SI_AI_MAX_HISTORY_MESSAGES) {
+                    conversation.removeAt(0)
+                    if (conversation.firstOrNull()?.role == "assistant") conversation.removeAt(0)
+                }
+            }
+            persistChatState()
+            onVoiceReply(unavailableReply)
+            return
+        }
         // Voice-control exit phrases are handled before music-command classification
         // or Gemini so "AI, tạm dừng giọng nói" never becomes a music-pause request.
         if (isNgocSiAiStopVoiceControlPhrase(clean)) {
@@ -2625,6 +2669,7 @@ private fun NgocSiAiPreviewScreen(
 
         if (localModelInstalled &&
             !localModelNeedsAppTools &&
+            !currentVideoAnalysisRequest &&
             (preferLocalModel || !isOnlineConfigured)
         ) {
             val userTurn = NgocSiAiMessage(role = "user", content = clean)
