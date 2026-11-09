@@ -191,6 +191,26 @@ internal fun buildNgocSiAiYoutubeUrlCapabilityDiagnosticPrompt(userPrompt: Strin
         "Bắt đầu bằng 'Đã đọc được YouTube mẫu' chỉ khi đã đọc được nội dung video. " +
         "Yêu cầu: " + userPrompt.take(160)
 
+/**
+ * Offer a targeted diagnostic action below a failed video-analysis response.
+ * These buttons never retry automatically, avoiding surprise Gemini requests or quota use.
+ */
+internal fun ngocSiAiVideoDiagnosticActionsForError(
+    errorMessage: String
+): List<Pair<String, String>> = when {
+    "YOUTUBE_VIDEO_SERVER_ERROR" in errorMessage -> listOf(
+        "Kiểm tra YouTube mẫu" to "AI, kiểm tra kết nối YouTube mẫu.",
+        "Kiểm tra MP4 mẫu" to "AI, kiểm tra kết nối video mẫu."
+    )
+    "YOUTUBE_SAMPLE_SERVER_ERROR" in errorMessage -> listOf(
+        "Kiểm tra MP4 mẫu" to "AI, kiểm tra kết nối video mẫu."
+    )
+    "VIDEO_SAMPLE_SERVER_ERROR" in errorMessage -> listOf(
+        "Kiểm tra YouTube mẫu" to "AI, kiểm tra kết nối YouTube mẫu."
+    )
+    else -> emptyList()
+}
+
 
 /** Retry only a safe, pre-output text request after a transient transport/server failure. */
 internal const val NGOC_SI_AI_MAX_TRANSIENT_REMOTE_RETRIES = 1
