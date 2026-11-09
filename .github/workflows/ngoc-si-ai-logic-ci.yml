@@ -85,21 +85,16 @@ jobs:
           unzip -tq app/libs/sherpa-onnx-1.13.8.aar
           unzip -l app/libs/sherpa-onnx-1.13.8.aar | grep -F "jni/arm64-v8a/libsherpa-onnx-jni.so" >/dev/null
           ASR_MODEL_NAME="sherpa-onnx-zipformer-vi-30M-int8-2026-02-09"
-          ASR_ARCHIVE="$RUNNER_TEMP/${ASR_MODEL_NAME}.tar.bz2"
           ASR_MODEL_DIR="app/src/main/assets/${ASR_MODEL_NAME}"
-          curl --fail --location --retry 3 --retry-delay 2 --connect-timeout 30 --max-time 600 \
-            "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/${ASR_MODEL_NAME}.tar.bz2" \
-            --output "$ASR_ARCHIVE"
           mkdir -p "$ASR_MODEL_DIR"
-          tar -xjf "$ASR_ARCHIVE" -C "$RUNNER_TEMP" \
-            "$ASR_MODEL_NAME/encoder.int8.onnx" \
-            "$ASR_MODEL_NAME/decoder.onnx" \
-            "$ASR_MODEL_NAME/joiner.int8.onnx" \
-            "$ASR_MODEL_NAME/tokens.txt"
-          cp "$RUNNER_TEMP/$ASR_MODEL_NAME/encoder.int8.onnx" "$ASR_MODEL_DIR/"
-          cp "$RUNNER_TEMP/$ASR_MODEL_NAME/decoder.onnx" "$ASR_MODEL_DIR/"
-          cp "$RUNNER_TEMP/$ASR_MODEL_NAME/joiner.int8.onnx" "$ASR_MODEL_DIR/"
-          cp "$RUNNER_TEMP/$ASR_MODEL_NAME/tokens.txt" "$ASR_MODEL_DIR/"
+          # Use the same Hugging Face mirror as the Preview APK workflow. The upstream
+          # GitHub release archive intermittently returns HTTP 504 on hosted runners.
+          for MODEL_FILE in encoder.int8.onnx decoder.onnx joiner.int8.onnx tokens.txt; do
+            curl --fail --location --retry 6 --retry-all-errors --retry-delay 5 \
+              --connect-timeout 30 --max-time 600 \
+              "https://huggingface.co/csukuangfj2/${ASR_MODEL_NAME}/resolve/main/${MODEL_FILE}" \
+              --output "$ASR_MODEL_DIR/$MODEL_FILE"
+          done
           test "$(stat -c%s "$ASR_MODEL_DIR/encoder.int8.onnx")" -gt 20000000
           test "$(stat -c%s "$ASR_MODEL_DIR/decoder.onnx")" -gt 4000000
           test "$(stat -c%s "$ASR_MODEL_DIR/joiner.int8.onnx")" -gt 500000
