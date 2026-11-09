@@ -14,8 +14,20 @@ internal fun formatNgocSiAiYoutubeCurrentVideoSummary(
     channelTitle: String?
 ): String {
     val safeStatus = status.trim().ifBlank { "Trạng thái chưa xác định" }
-    val safeTitle = videoTitle.trim().ifBlank { "Chưa rõ tên video" }
+    val rawTitle = videoTitle.trim().ifBlank { "Chưa rõ tên video" }
     val safeChannel = channelTitle?.trim()?.takeIf { it.isNotBlank() }
+    val titleParts = rawTitle.split(Regex("\\s*[-–—|•]\\s*"))
+        .map(String::trim)
+        .filter(String::isNotBlank)
+    val safeTitle = if (
+        safeChannel != null && titleParts.size > 1 &&
+        normalizeNgocSiAiVoicePhrase(titleParts.last()) ==
+            normalizeNgocSiAiVoicePhrase(safeChannel)
+    ) {
+        titleParts.dropLast(1).joinToString(" - ").ifBlank { rawTitle }
+    } else {
+        rawTitle
+    }
     return if (safeChannel == null) {
         "$safeStatus: $safeTitle"
     } else {

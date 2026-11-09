@@ -570,6 +570,14 @@ class NgocSiAiLocalCommandRulesTest {
             )
         )
         assertEquals(
+            "Đang phát: Liên Khúc Tuấn Vũ - Ông vua Nhạc Vàng Trữ Tình, Nhạc Lính • Kênh YouTube: Mr.H",
+            formatNgocSiAiYoutubeCurrentVideoSummary(
+                status = "Đang phát",
+                videoTitle = "Liên Khúc Tuấn Vũ -Ông vua Nhạc Vàng Trữ Tình, Nhạc Lính - Mr.H",
+                channelTitle = "Mr.H"
+            )
+        )
+        assertEquals(
             "Đang phát: Liên Khúc Tuấn Vũ",
             formatNgocSiAiYoutubeCurrentVideoSummary(
                 status = "Đang phát",
