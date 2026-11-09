@@ -78,6 +78,16 @@ class NgocSiAiLocalConversationTest {
     }
 
     @Test
+    fun explicitCurrentVideoAnalysisNeverUsesOfflineCreativeSceneTemplate() {
+        val answer = localConversationFallback(
+            userText = "AI, phân tích video đang phát.",
+            previousAssistantReply = "Mình đang phân tích nội dung video Bolero.",
+            allowContinuationFallback = true
+        )
+        assertNull(answer)
+    }
+
+    @Test
     fun activeVideoAnalysisRemoteFailureReportsDiagnosticInsteadOfGenericSceneIdeas() {
         val answer = localConversationFallbackAfterRemoteError(
             userText = "AI, phân tích video đang phát.",
