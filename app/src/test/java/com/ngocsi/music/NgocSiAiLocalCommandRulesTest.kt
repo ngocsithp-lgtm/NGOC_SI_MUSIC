@@ -624,7 +624,17 @@ class NgocSiAiLocalCommandRulesTest {
             "Trường Vũ",
             normalizeNgocSiAiCurrentTrackArtist("Trường Vũ - Yêu Nhạc Vàng")
         )
+        assertEquals(
+            "Trường Vũ",
+            normalizeNgocSiAiCurrentTrackArtist("Trường Vũ-Yêu Nhạc Vàng 8 Dọc")
+        )
+        assertEquals(
+            "Trường Vũ",
+            normalizeNgocSiAiCurrentTrackArtist("Trường Vũ - Yêu Nhạc Vàng 8 Dọc")
+        )
         assertNull(normalizeNgocSiAiCurrentTrackGenre("Yêu Nhạc Vàng"))
+        assertNull(normalizeNgocSiAiCurrentTrackGenre("nhạc yêu nhạc"))
+        assertNull(normalizeNgocSiAiCurrentTrackGenre("nhạc yêu nhạc vàng 8 dọc"))
         assertEquals("Bolero", normalizeNgocSiAiCurrentTrackGenre("Bolero"))
         assertEquals(
             "Trường Vũ",

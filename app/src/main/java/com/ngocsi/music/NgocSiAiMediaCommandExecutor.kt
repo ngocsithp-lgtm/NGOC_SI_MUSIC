@@ -28,6 +28,15 @@ private val NGOC_SI_AI_KNOWN_CHANNEL_LABELS = setOf(
     "music channel", "youtube", "youtube music", "official channel"
 )
 
+/** Match channel branding with harmless trailing labels such as a station number or "doc". */
+private fun isNgocSiAiKnownChannelBranding(value: String?): Boolean {
+    val normalized = normalizeNgocSiAiVoicePhrase(value.orEmpty())
+    if (normalized.isBlank()) return false
+    return NGOC_SI_AI_KNOWN_CHANNEL_LABELS.any { label ->
+        normalized == label || normalized.startsWith("$label ")
+    }
+}
+
 /** Removes a recognized channel/branding suffix without guessing a singer name. */
 internal fun normalizeNgocSiAiCurrentTrackArtist(rawArtist: String?): String? {
     val raw = rawArtist?.trim()?.replace(Regex("\\s+"), " ")
@@ -41,9 +50,7 @@ internal fun normalizeNgocSiAiCurrentTrackArtist(rawArtist: String?): String? {
         .map(String::trim)
         .filter(String::isNotBlank)
     var keepCount = parts.size
-    while (keepCount > 1 &&
-        normalizeNgocSiAiVoicePhrase(parts[keepCount - 1]) in NGOC_SI_AI_KNOWN_CHANNEL_LABELS
-    ) {
+    while (keepCount > 1 && isNgocSiAiKnownChannelBranding(parts[keepCount - 1])) {
         keepCount--
     }
     return parts.take(keepCount).joinToString(" - ").takeIf { it.isNotBlank() }
@@ -54,7 +61,10 @@ internal fun normalizeNgocSiAiCurrentTrackGenre(rawGenre: String?): String? {
     val raw = rawGenre?.trim()?.replace(Regex("\\s+"), " ")
         ?.takeIf { it.isNotBlank() } ?: return null
     val normalized = normalizeNgocSiAiVoicePhrase(raw)
-    if (normalized in NGOC_SI_AI_KNOWN_CHANNEL_LABELS ||
+    // Some players prefix a channel label with the generic word "nhạc".
+    val withoutMusicPrefix = normalized.removePrefix("nhac ").trim()
+    if (isNgocSiAiKnownChannelBranding(normalized) ||
+        isNgocSiAiKnownChannelBranding(withoutMusicPrefix) ||
         normalized in setOf("chua co metadata", "khong ro", "unknown", "unknown genre")
     ) return null
     return raw
