@@ -2687,9 +2687,12 @@ private fun NgocSiAiPreviewScreen(
             try {
                 val videoCapabilityDiagnosticRequested =
                     isNgocSiAiVideoCapabilityDiagnosticRequest(clean)
+                val youtubeUrlCapabilityDiagnosticRequested =
+                    isNgocSiAiYoutubeUrlCapabilityDiagnosticRequest(clean)
                 val forceMultimodalReasoning =
                     isNgocSiAiYoutubeMultimodalAnalysisRequest(entryContext, clean, history) ||
-                        videoCapabilityDiagnosticRequested
+                        videoCapabilityDiagnosticRequested ||
+                        youtubeUrlCapabilityDiagnosticRequested
                 val requestTimeoutMillis = selectNgocSiAiRemoteTimeoutMillis(
                     clean,
                     forceMultimodalReasoning = forceMultimodalReasoning
@@ -2744,7 +2747,11 @@ private fun NgocSiAiPreviewScreen(
                 // unrelated conversational fallback based on the previous greeting.
                 val videoCapabilityDiagnosticRequested =
                     isNgocSiAiVideoCapabilityDiagnosticRequest(clean)
-                val fallbackReply = if (videoCapabilityDiagnosticRequested) {
+                val youtubeUrlCapabilityDiagnosticRequested =
+                    isNgocSiAiYoutubeUrlCapabilityDiagnosticRequest(clean)
+                val fallbackReply = if (
+                    videoCapabilityDiagnosticRequested || youtubeUrlCapabilityDiagnosticRequested
+                ) {
                     errorReply
                 } else {
                     localConversationFallbackAfterRemoteError(
@@ -2758,9 +2765,10 @@ private fun NgocSiAiPreviewScreen(
                         pageContext = entryContext,
                         prompt = clean,
                         previousMessages = conversation.toList()
-                    ) || isNgocSiAiVideoCapabilityDiagnosticRequest(clean)
-                // Qwen3-0.6B is text-only. Never route either the active YouTube video
-                // or the MP4 canary to it as if it could inspect audio/video evidence.
+                    ) || videoCapabilityDiagnosticRequested ||
+                        youtubeUrlCapabilityDiagnosticRequested
+                // Qwen3-0.6B is text-only. Never route the active YouTube video,
+                // MP4 canary, or public YouTube URL canary to text-only inference.
                 val localModelReply = if (
                     localModelInstalled &&
                     latestPartialReply.isBlank() &&
@@ -2791,7 +2799,7 @@ private fun NgocSiAiPreviewScreen(
                     .takeIf { it.isNotBlank() }
                     ?.let { partial -> "$partial\n\n$errorReply" }
                     ?: localModelReply
-                    ?: if (videoCapabilityDiagnosticRequested) {
+                    ?: if (videoCapabilityDiagnosticRequested || youtubeUrlCapabilityDiagnosticRequested) {
                         // Show the actual sample-test failure; do not replace it with a
                         // misleading notice about the currently playing YouTube URL.
                         errorReply
