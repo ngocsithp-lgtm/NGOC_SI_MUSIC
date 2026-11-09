@@ -2346,12 +2346,13 @@ class MainActivity : ComponentActivity() {
 
     private data class EmbeddedAudioMetadata(
         val title: String?,
-        val artist: String?
+        val artist: String?,
+        val albumArtist: String?
     )
 
     private fun extractEmbeddedAudioMetadata(audioUri: Uri): EmbeddedAudioMetadata {
         if (!audioUri.scheme.equals("file", ignoreCase = true)) {
-            return EmbeddedAudioMetadata(null, null)
+            return EmbeddedAudioMetadata(null, null, null)
         }
         return runCatching {
             val retriever = MediaMetadataRetriever()
@@ -2361,6 +2362,8 @@ class MainActivity : ComponentActivity() {
                     title = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
                         ?.trim()?.takeIf { it.isNotBlank() },
                     artist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
+                        ?.trim()?.takeIf { it.isNotBlank() },
+                    albumArtist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST)
                         ?.trim()?.takeIf { it.isNotBlank() }
                 )
             } finally {
@@ -2438,12 +2441,18 @@ class MainActivity : ComponentActivity() {
         if (playbackUri == null) return null
 
         val embeddedMetadata = extractEmbeddedAudioMetadata(playbackUri)
+        val resolvedMetadata = resolveDriveAudioMetadata(
+            fallbackFileName = title,
+            embeddedTitle = embeddedMetadata.title,
+            embeddedArtist = embeddedMetadata.artist,
+            embeddedAlbumArtist = embeddedMetadata.albumArtist
+        )
         val artworkUri = extractEmbeddedArtworkUri(playbackUri)
 
         return Song(
             id = -kotlin.math.abs(uri.toString().hashCode().toLong()),
-            title = embeddedMetadata.title ?: title,
-            artist = embeddedMetadata.artist ?: "Nghệ sĩ chưa xác định",
+            title = resolvedMetadata.title,
+            artist = resolvedMetadata.artist,
             duration = 0L,
             uri = playbackUri,
             source = "Google Drive",

@@ -482,6 +482,19 @@ internal fun selectNgocSiAiRelevantMemories(
     if (safeMemories.isEmpty()) return emptyList()
 
     val query = normalizeNgocSiAiVoicePhrase(userText.orEmpty())
+    // A factual question about the item currently playing must not inherit the user's
+    // personal genre/artist preferences as though they described that specific recording.
+    val currentMediaReference = listOf(
+        "bai nay", "bai hat nay", "ca khuc nay", "bai dang phat", "bai dang nghe",
+        "video nay", "video dang phat", "track nay", "this song", "current song"
+    ).any(query::contains)
+    val explicitlyPersonalizedCurrentMediaQuestion = listOf(
+        "theo so thich cua toi", "theo so thich cua minh",
+        "theo gu cua toi", "theo gu cua minh",
+        "hop voi gu cua toi", "hop voi so thich cua toi"
+    ).any(query::contains)
+    if (currentMediaReference && !explicitlyPersonalizedCurrentMediaQuestion) return emptyList()
+
     val ignoredTokens = setOf(
         "toi", "minh", "ban", "cua", "ve", "gi", "dang", "hay", "nho", "ghi",
         "the", "nao", "sao", "co", "khong", "la", "va", "mot", "cho", "voi",
