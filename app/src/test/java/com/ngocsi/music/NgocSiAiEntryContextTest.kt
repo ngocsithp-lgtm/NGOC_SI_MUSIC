@@ -84,6 +84,25 @@ class NgocSiAiEntryContextTest {
     }
 
     @Test
+    fun activeYoutubeVideoAnalysisPromptIsRecognizedWithoutAcceptingPlaybackCommands() {
+        assertTrue(isNgocSiAiCurrentYoutubeVideoAnalysisPrompt("AI, phân tích video đang phát."))
+        assertTrue(isNgocSiAiCurrentYoutubeVideoAnalysisPrompt("Mô tả video này"))
+        assertFalse(isNgocSiAiCurrentYoutubeVideoAnalysisPrompt("AI, tạm dừng video"))
+        assertFalse(isNgocSiAiCurrentYoutubeVideoAnalysisPrompt("Phân tích cách hát của Tuấn Vũ"))
+    }
+
+    @Test
+    fun unconfiguredGeminiDoesNotPretendLocalQwenCanAnalyzeVideo() {
+        val reply = buildNgocSiAiVideoAnalysisRequiresGeminiReply()
+        assertTrue(reply.contains("cần Gemini trực tuyến"))
+        assertTrue(reply.contains("Qwen3 chạy tại máy chỉ xử lý văn bản"))
+        assertTrue(reply.contains("video chưa được phân tích"))
+        assertTrue(reply.contains("không đưa ra cảnh quay"))
+        assertFalse(reply.contains("ánh đèn vàng"))
+        assertFalse(reply.contains("sân ga"))
+    }
+
+    @Test
     fun multimodalVideoIsAttachedOnlyForAnalysisRequestsFromYoutube() {
         val history = emptyList<NgocSiAiMessage>()
         assertEquals(
