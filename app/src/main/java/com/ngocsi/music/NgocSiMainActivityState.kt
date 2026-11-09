@@ -79,6 +79,7 @@ internal object NgocSiMainActivityState {
     fun detach(activity: MainActivity) {
         if (currentActivity?.get() === activity) {
             currentActivity = null
+            activePlaybackContext = null
         }
     }
 
