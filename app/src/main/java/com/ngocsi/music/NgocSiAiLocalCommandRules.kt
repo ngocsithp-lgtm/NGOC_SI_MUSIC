@@ -34,6 +34,8 @@ internal enum class NgocSiAiLocalCommand {
     NEXT,
     PREVIOUS,
     CURRENT_TRACK,
+    CURRENT_ARTIST,
+    CURRENT_GENRE,
     VOLUME_UP,
     VOLUME_DOWN,
     MUTE,
@@ -150,6 +152,8 @@ private val NGOC_SI_AI_PLAYER_CONNECTION_COMMANDS = setOf(
     NgocSiAiLocalCommand.PREVIOUS,
     NgocSiAiLocalCommand.PLAY_SECOND,
     NgocSiAiLocalCommand.CURRENT_TRACK,
+    NgocSiAiLocalCommand.CURRENT_ARTIST,
+    NgocSiAiLocalCommand.CURRENT_GENRE,
     NgocSiAiLocalCommand.SET_PLAYBACK_SPEED,
     NgocSiAiLocalCommand.SEEK_FORWARD_10,
     NgocSiAiLocalCommand.SEEK_BACK_10,
@@ -274,6 +278,8 @@ internal fun ngocSiAiYouTubeActionForCommand(
     NgocSiAiLocalCommand.NEXT -> if (youtubeActiveSource) "next" else null
     NgocSiAiLocalCommand.PREVIOUS -> if (youtubeActiveSource) "previous" else null
     NgocSiAiLocalCommand.CURRENT_TRACK -> if (youtubeActiveSource) "current_track" else null
+    NgocSiAiLocalCommand.CURRENT_ARTIST -> if (youtubeActiveSource) "current_artist" else null
+    NgocSiAiLocalCommand.CURRENT_GENRE -> if (youtubeActiveSource) "current_genre" else null
     NgocSiAiLocalCommand.FAVORITE_CURRENT_TRACK -> if (youtubeActiveSource) "favorite" else null
     // Generic shuffle/repeat remain bound to Media3. Inline YouTube gets these
     // controls only through explicit YouTube commands; its dedicated player has
@@ -1094,6 +1100,26 @@ internal fun classifyNgocSiAiLocalCommand(
         ) -> NgocSiAiLocalCommand.PREVIOUS
 
         isAnyOf(
+            "ai dang hat bai nay", "dang hat bai nay", "dang hat bai gi",
+            "ca si nao dang hat", "ca si nao dang hat bai nay",
+            "ca si dang hat bai nay", "nguoi hat bai nay la ai",
+            "bai nay do ai hat", "ai hat bai nay", "ten ca si bai nay",
+            "who is singing this song", "who sings this song"
+        ) ->
+            NgocSiAiLocalCommand.CURRENT_ARTIST
+
+        isAnyOf(
+            "bai nay thuoc the loai gi", "bai nay thuoc the loai nhac nao",
+            "bai hat nay thuoc the loai gi", "bai hat nay thuoc the loai nhac nao",
+            "the loai cua bai nay la gi", "the loai nhac cua bai nay",
+            "dong nhac cua bai nay la gi", "bai nay la nhac gi",
+            "bai dang phat thuoc the loai gi", "bai dang nghe thuoc the loai gi",
+            "nhac dang phat thuoc the loai nao", "the loai bai dang phat",
+            "what genre is this song", "what genre is playing"
+        ) ->
+            NgocSiAiLocalCommand.CURRENT_GENRE
+
+        isAnyOf(
             "dang phat bai gi", "bai gi dang phat", "ten bai hat hien tai",
             "bai dang phat la gi", "bai nao dang phat", "ten bai dang phat",
             "bai hat nao dang phat", "ten bai dang nghe", "ten bai hat dang nghe", "ten bai hat dang nghe la gi",
@@ -1102,9 +1128,7 @@ internal fun classifyNgocSiAiLocalCommand(
             "bai nhac nao dang phat", "ten ca khuc dang phat",
             "ca khuc dang phat la gi", "cho toi biet dang phat bai gi",
             "cho toi biet ten ca khuc dang phat", "cho biet ten bai dang phat",
-            "bai nay ten gi", "bai hat nay ten gi",
-            "bai nay la bai gi", "ai dang hat bai nay", "dang hat bai nay", "dang hat bai gi",
-            "ca si nao dang hat", "ca si nao dang hat bai nay",
+            "bai nay ten gi", "bai hat nay ten gi", "bai nay la bai gi",
             "what is playing", "current song", "what song is playing"
         ) ->
             NgocSiAiLocalCommand.CURRENT_TRACK

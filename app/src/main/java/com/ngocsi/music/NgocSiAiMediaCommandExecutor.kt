@@ -8,6 +8,51 @@ internal data class NgocSiAiTrackCandidate(
     val artist: String
 )
 
+private val NGOC_SI_AI_KNOWN_CHANNEL_LABELS = setOf(
+    "yeu nhac vang", "yeu nhac", "official", "official music",
+    "music channel", "youtube", "youtube music", "official channel"
+)
+
+/** Removes a recognized channel/branding suffix without guessing a singer name. */
+internal fun normalizeNgocSiAiCurrentTrackArtist(rawArtist: String?): String? {
+    val raw = rawArtist?.trim()?.replace(Regex("\\s+"), " ")
+        ?.takeIf { it.isNotBlank() } ?: return null
+    if (normalizeNgocSiAiVoicePhrase(raw) in setOf(
+            "nghe si chua xac dinh", "nghe si khong ro", "unknown artist", "chua ro"
+        )
+    ) return null
+
+    val parts = raw.split(Regex("\\s*[-–—|•]\\s*"))
+        .map(String::trim)
+        .filter(String::isNotBlank)
+    var keepCount = parts.size
+    while (keepCount > 1 &&
+        normalizeNgocSiAiVoicePhrase(parts[keepCount - 1]) in NGOC_SI_AI_KNOWN_CHANNEL_LABELS
+    ) {
+        keepCount--
+    }
+    return parts.take(keepCount).joinToString(" - ").takeIf { it.isNotBlank() }
+}
+
+/** Channel branding is not a musical genre and must not be returned as one. */
+internal fun normalizeNgocSiAiCurrentTrackGenre(rawGenre: String?): String? {
+    val raw = rawGenre?.trim()?.replace(Regex("\\s+"), " ")
+        ?.takeIf { it.isNotBlank() } ?: return null
+    val normalized = normalizeNgocSiAiVoicePhrase(raw)
+    if (normalized in NGOC_SI_AI_KNOWN_CHANNEL_LABELS ||
+        normalized in setOf("chua co metadata", "khong ro", "unknown", "unknown genre")
+    ) return null
+    return raw
+}
+
+/** Extract only an explicitly appended performer label from a YouTube video title. */
+internal fun extractNgocSiAiArtistFromVideoTitle(videoTitle: String?): String? {
+    val title = videoTitle?.trim()?.takeIf { it.isNotBlank() } ?: return null
+    val parts = title.split(Regex("\\s+[-–—|•]\\s+")).map(String::trim)
+    if (parts.size < 2) return null
+    return normalizeNgocSiAiCurrentTrackArtist(parts.last())
+}
+
 /** Exact title matches win over earlier partial-title or artist matches. */
 internal fun selectNgocSiAiTrackMatchIndex(
     candidates: List<NgocSiAiTrackCandidate>,
@@ -122,8 +167,11 @@ internal fun executeNgocSiAiMediaCommand(
         }
         NgocSiAiLocalCommand.CURRENT_TRACK -> {
             val item = player.currentMediaItem
-            val title = item?.mediaMetadata?.title?.toString()?.takeIf { it.isNotBlank() } ?: "Chưa rõ tên bài hát"
-            val artist = item?.mediaMetadata?.artist?.toString()?.takeIf { it.isNotBlank() }
+            val title = item?.mediaMetadata?.title?.toString()?.takeIf { it.isNotBlank() }
+                ?: "Chưa rõ tên bài hát"
+            val artist = normalizeNgocSiAiCurrentTrackArtist(
+                item?.mediaMetadata?.artist?.toString()
+            )
             val status = when {
                 player.isPlaying -> "Đang phát"
                 player.playbackState == Player.STATE_BUFFERING && player.playWhenReady -> "Đang tải"
@@ -131,6 +179,26 @@ internal fun executeNgocSiAiMediaCommand(
                 else -> "Đang tạm dừng"
             }
             if (artist == null) "$status: $title" else "$status: $title — $artist"
+        }
+        NgocSiAiLocalCommand.CURRENT_ARTIST -> {
+            val artist = normalizeNgocSiAiCurrentTrackArtist(
+                player.currentMediaItem?.mediaMetadata?.artist?.toString()
+            )
+            if (artist == null) {
+                "Chưa xác định được ca sĩ từ metadata của bài đang phát. Tên nguồn hoặc tên kênh không được xem là tên ca sĩ."
+            } else {
+                "Ca sĩ được ghi trong metadata của bài đang phát: $artist. Đây là thông tin metadata, chưa phải nhận diện giọng hát trực tiếp."
+            }
+        }
+        NgocSiAiLocalCommand.CURRENT_GENRE -> {
+            val genre = normalizeNgocSiAiCurrentTrackGenre(
+                player.currentMediaItem?.mediaMetadata?.genre?.toString()
+            )
+            if (genre == null) {
+                "Chưa có metadata thể loại cho bài đang phát. Tôi không thể xác nhận thể loại chỉ từ tên bài hoặc tên kênh."
+            } else {
+                "Thể loại được ghi trong metadata của bài đang phát: $genre."
+            }
         }
         NgocSiAiLocalCommand.SHUFFLE_ON -> {
             player.shuffleModeEnabled = true

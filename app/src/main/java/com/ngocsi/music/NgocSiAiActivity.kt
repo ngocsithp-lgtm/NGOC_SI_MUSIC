@@ -1540,7 +1540,7 @@ class NgocSiAiActivity : ComponentActivity() {
     }
 
     private fun runYouTubeControl(action: String, response: String): String {
-        if (action == "current_track") return response
+        if (action in setOf("current_track", "current_artist", "current_genre")) return response
         val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
         val hasSavedVideo = !prefs.getString("youtube_last_played_video_id", null).isNullOrBlank()
         return when (
@@ -1589,6 +1589,18 @@ class NgocSiAiActivity : ComponentActivity() {
             }
             if (channel.isNullOrBlank()) "$status: $title" else "$status: $title — $channel"
         }
+        "current_artist" -> {
+            val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+            val title = prefs.getString("youtube_last_played_title", null)
+            val artist = extractNgocSiAiArtistFromVideoTitle(title)
+            if (artist == null) {
+                "Tiêu đề video hiện không ghi rõ tên ca sĩ. Tên kênh YouTube không đủ để xác nhận người hát."
+            } else {
+                "Theo tiêu đề video, nghệ sĩ được ghi là $artist. Đây chưa phải kết quả nhận diện giọng hát từ âm thanh."
+            }
+        }
+        "current_genre" ->
+            "YouTube chưa cung cấp metadata thể loại đáng tin cậy cho video này. Không thể lấy tên kênh làm thể loại nhạc."
         "play" -> "Đang phát tiếp video YouTube."
         "pause" -> "Đang tạm dừng video YouTube."
         "stop" -> "Đang dừng video YouTube."

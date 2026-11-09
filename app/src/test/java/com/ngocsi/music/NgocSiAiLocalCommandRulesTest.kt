@@ -536,7 +536,6 @@ class NgocSiAiLocalCommandRulesTest {
             "Đang nghe bài nào?",
             "Bài này tên gì?",
             "AI, cho tôi biết tên ca khúc đang phát",
-            "Ai đang hát bài này?",
             "What is playing"
         )
         currentTrackQuestions.forEach { phrase ->
@@ -558,6 +557,60 @@ class NgocSiAiLocalCommandRulesTest {
                 classifyNgocSiAiLocalCommand(phrase)
             )
         }
+    }
+
+    @Test
+    fun recognizesCurrentArtistQuestionsSeparatelyFromCurrentSongTitle() {
+        val phrases = listOf(
+            "AI, ai đang hát bài này?",
+            "Ai đang hát bài này?",
+            "AI, ca sĩ nào đang hát bài này?",
+            "AI, bài này do ai hát?"
+        )
+        phrases.forEach { phrase ->
+            assertEquals(
+                "Should identify current-artist question: $phrase",
+                NgocSiAiLocalCommand.CURRENT_ARTIST,
+                classifyNgocSiAiLocalCommand(phrase)
+            )
+        }
+    }
+
+    @Test
+    fun recognizesCurrentTrackGenreQuestionsWithoutConfusingPersonalMusicTaste() {
+        val phrases = listOf(
+            "AI, bài này thuộc thể loại nhạc nào?",
+            "Bài hát này thuộc thể loại gì?",
+            "Thể loại của bài này là gì?",
+            "Bài đang phát thuộc thể loại gì?"
+        )
+        phrases.forEach { phrase ->
+            assertEquals(
+                "Should identify current-genre question: $phrase",
+                NgocSiAiLocalCommand.CURRENT_GENRE,
+                classifyNgocSiAiLocalCommand(phrase)
+            )
+        }
+        assertNull(classifyNgocSiAiLocalCommand("Tôi thích thể loại nhạc nào?"))
+    }
+
+    @Test
+    fun removesKnownYoutubeChannelBrandingFromArtistMetadataAndRejectsItAsGenre() {
+        assertEquals(
+            "Trường Vũ",
+            normalizeNgocSiAiCurrentTrackArtist("Trường Vũ-Yêu Nhạc Vàng")
+        )
+        assertEquals(
+            "Trường Vũ",
+            normalizeNgocSiAiCurrentTrackArtist("Trường Vũ - Yêu Nhạc Vàng")
+        )
+        assertNull(normalizeNgocSiAiCurrentTrackGenre("Yêu Nhạc Vàng"))
+        assertEquals("Bolero", normalizeNgocSiAiCurrentTrackGenre("Bolero"))
+        assertEquals(
+            "Trường Vũ",
+            extractNgocSiAiArtistFromVideoTitle("Ngày Sau Sẽ Ra Sao - Trường Vũ")
+        )
+        assertNull(extractNgocSiAiArtistFromVideoTitle("Ngày Sau Sẽ Ra Sao"))
     }
 
     @Test
