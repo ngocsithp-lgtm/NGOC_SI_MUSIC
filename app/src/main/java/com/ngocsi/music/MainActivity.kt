@@ -5878,10 +5878,11 @@ class MainActivity : ComponentActivity() {
             rawSource.contains("YouTube", ignoreCase = true) -> "YouTube"
             else -> "Thiết bị"
         }
-        val title = radioStation
-            ?: item?.mediaMetadata?.title?.toString()?.trim()?.takeIf { it.isNotBlank() }
-            ?: matchingSong?.title?.trim()?.takeIf { it.isNotBlank() }
-            .orEmpty()
+        val title = (
+            radioStation
+                ?: item?.mediaMetadata?.title?.toString()?.trim()?.takeIf { it.isNotBlank() }
+                ?: matchingSong?.title?.trim()?.takeIf { it.isNotBlank() }
+            ).orEmpty()
         if (title.isBlank()) {
             NgocSiMainActivityState.updatePlaybackContext(null)
             return
