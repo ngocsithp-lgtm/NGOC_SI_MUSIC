@@ -250,6 +250,33 @@ class NgocSiAiMemoryRulesTest {
     }
 
     @Test
+    fun genericMusicSearchUsesSavedGenreArtistAndSourcePreferences() {
+        val memories = listOf(
+            "tôi thích nghe nhạc Bolero",
+            "tôi thích ca sĩ Tuấn Vũ",
+            "tôi ưu tiên nghe YouTube",
+            "tôi muốn mini player nhỏ gọn"
+        )
+
+        val relevant = selectNgocSiAiRelevantMemories(
+            memories,
+            "AI, tìm nhạc cho tôi nghe"
+        )
+
+        assertTrue(relevant.contains("tôi thích nghe nhạc Bolero"))
+        assertTrue(relevant.contains("tôi thích ca sĩ Tuấn Vũ"))
+        assertTrue(relevant.contains("tôi ưu tiên nghe YouTube"))
+        assertFalse(relevant.contains("tôi muốn mini player nhỏ gọn"))
+
+        val instruction = buildNgocSiAiMemorySystemInstruction(
+            memories,
+            "AI, tìm nhạc cho tôi nghe"
+        )
+        assertTrue(instruction.contains("ưu tiên sở thích thể loại, nghệ sĩ và nguồn phát"))
+        assertTrue(instruction.contains("không tự phát nhạc"))
+    }
+
+    @Test
     fun recallsOlderMusicGenrePreferenceFromNaturalTasteQuestions() {
         val memories = buildList {
             add("tôi thích nghe nhạc Bolero")
