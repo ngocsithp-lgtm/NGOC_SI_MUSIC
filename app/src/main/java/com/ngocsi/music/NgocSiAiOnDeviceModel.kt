@@ -60,6 +60,9 @@ internal fun buildNgocSiAiOnDeviceTurnPrompt(
     val asksForConcreteAnalysis = listOf(
         "phan tich", "giai thich", "noi ro", "vi du", "cu the", "so sanh"
     ).any(normalizedPrompt::contains)
+    val asksForCausalExplanation = listOf(
+        "tai sao", "vi sao", "sao vay", "ly do"
+    ).any(normalizedPrompt::contains)
 
     return buildString {
         if (history.isNotBlank()) {
@@ -81,6 +84,12 @@ internal fun buildNgocSiAiOnDeviceTurnPrompt(
                     "- Không chỉ nêu những việc bạn có thể làm hoặc hỏi người dùng muốn chọn hướng nào; hãy đưa ra kết quả cụ thể trước.\n" +
                     "- Nếu thiếu dữ liệu thực tế, phân biệt rõ điều đã biết với ví dụ minh họa; không giả vờ đã xem hình, nghe âm thanh hay đọc lời bài hát.\n"
             )
+            if (asksForCausalExplanation && history.isNotBlank()) {
+                append(
+                    "CÁCH TRẢ LỜI CÂU HỎI VÌ SAO: trả lời nguyên nhân trực tiếp trước; phân biệt nguyên nhân chính với yếu tố phụ; " +
+                        "liên hệ đúng luận điểm gần nhất trong lịch sử; nếu lịch sử chưa đủ dữ liệu, nêu rõ phần chưa thể kết luận thay vì tự đặt giả thiết.\n"
+                )
+            }
             if (asksForConcreteAnalysis) {
                 append(
                     "CÁCH TRẢ LỜI PHÂN TÍCH: nêu luận điểm ngắn, sau đó đưa ít nhất 2 ví dụ cụ thể và giải thích vì sao ví dụ phù hợp.\n" +
