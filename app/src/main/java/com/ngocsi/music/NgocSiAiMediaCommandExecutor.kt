@@ -107,8 +107,24 @@ internal fun extractNgocSiAiNamedPerformerFromYoutubeTitle(
 }
 
 /** Read explicit genre/style labels from a title without treating them as audio analysis. */
-internal fun extractNgocSiAiGenreHintsFromTitle(videoTitle: String?): List<String> {
-    val title = " ${normalizeNgocSiAiVoicePhrase(videoTitle.orEmpty())} "
+internal fun extractNgocSiAiGenreHintsFromTitle(
+    videoTitle: String?,
+    channelTitle: String? = null
+): List<String> {
+    val rawTitle = videoTitle?.trim()?.takeIf { it.isNotBlank() } ?: return emptyList()
+    val parts = rawTitle.split(Regex("\\s*[-–—|•]\\s*"))
+        .map(String::trim)
+        .filter(String::isNotBlank)
+    val channel = normalizeNgocSiAiVoicePhrase(channelTitle.orEmpty())
+    val titleWithoutChannel = if (
+        parts.size > 1 && channel.isNotBlank() &&
+        normalizeNgocSiAiVoicePhrase(parts.last()) == channel
+    ) {
+        parts.dropLast(1).joinToString(" ")
+    } else {
+        rawTitle
+    }
+    val title = " ${normalizeNgocSiAiVoicePhrase(titleWithoutChannel)} "
     if (title.isBlank()) return emptyList()
     val labels = listOf(
         "bolero" to "Bolero",

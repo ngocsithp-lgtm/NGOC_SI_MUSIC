@@ -1607,7 +1607,7 @@ class NgocSiAiActivity : ComponentActivity() {
         "current_genre" -> {
             val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
             val title = prefs.getString("youtube_last_played_title", null)
-            val hints = extractNgocSiAiGenreHintsFromTitle(title)
+            val hints = extractNgocSiAiGenreHintsFromTitle(title, channel)
             if (hints.isEmpty()) {
                 "YouTube chưa cung cấp metadata thể loại đáng tin cậy cho video này. Chưa đủ dữ liệu để xác nhận thể loại."
             } else {

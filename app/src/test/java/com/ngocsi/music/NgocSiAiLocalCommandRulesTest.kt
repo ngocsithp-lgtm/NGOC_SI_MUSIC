@@ -663,6 +663,20 @@ class NgocSiAiLocalCommandRulesTest {
             )
         )
         assertEquals(
+            listOf("nhạc vàng", "trữ tình", "nhạc lính"),
+            extractNgocSiAiGenreHintsFromTitle(
+                "Liên Khúc Tuấn Vũ Ông vua Nhạc Vàng Trữ Tình, Nhạc Lính- Mr.H",
+                "Mr.H"
+            )
+        )
+        assertEquals(
+            emptyList<String>(),
+            extractNgocSiAiGenreHintsFromTitle(
+                "Ngày Sau Sẽ Ra Sao - Trường Vũ-Yêu Nhạc Vàng 8 Dọc",
+                "Yêu Nhạc Vàng 8 Dọc"
+            )
+        )
+        assertEquals(
             listOf("Bolero", "trữ tình"),
             extractNgocSiAiGenreHintsFromTitle("Bolero trữ tình")
         )
