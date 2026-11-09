@@ -2802,7 +2802,9 @@ private fun NgocSiAiPreviewScreen(
                 onVoiceReply(reply.answer)
                 val userRemaining = reply.remainingToday?.let { "Còn $it lượt/tài khoản hôm nay" }
                 val globalRemaining = reply.remainingGlobalToday?.let { "Còn $it lượt toàn hệ thống hôm nay" }
-                quotaNote = listOfNotNull(userRemaining, globalRemaining).joinToString(" • ")
+                quotaNote = listOfNotNull(userRemaining, globalRemaining)
+                    .joinToString(" • ")
+                    .ifBlank { "Gemini đã trả lời thành công ở lượt gần nhất." }
             } catch (cancelled: CancellationException) {
                 if (conversation.lastOrNull() == userTurn) conversation.removeAt(conversation.lastIndex)
                 if (
