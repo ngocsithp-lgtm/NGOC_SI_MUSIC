@@ -2373,7 +2373,7 @@ class MainActivity : ComponentActivity() {
             } finally {
                 retriever.release()
             }
-        }.getOrDefault(EmbeddedAudioMetadata(null, null))
+        }.getOrDefault(EmbeddedAudioMetadata(null, null, null, null))
     }
 
     private fun songFromUri(uri: Uri): Song? {
