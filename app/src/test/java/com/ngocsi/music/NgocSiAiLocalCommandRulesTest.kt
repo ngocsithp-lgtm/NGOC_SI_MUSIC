@@ -608,9 +608,35 @@ class NgocSiAiLocalCommandRulesTest {
         assertEquals("Bolero", normalizeNgocSiAiCurrentTrackGenre("Bolero"))
         assertEquals(
             "Trường Vũ",
-            extractNgocSiAiArtistFromVideoTitle("Ngày Sau Sẽ Ra Sao - Trường Vũ")
+            extractNgocSiAiNamedPerformerFromYoutubeTitle(
+                "Ngày Sau Sẽ Ra Sao - Trường Vũ",
+                "Kênh Nhạc Xưa"
+            )
         )
-        assertNull(extractNgocSiAiArtistFromVideoTitle("Ngày Sau Sẽ Ra Sao"))
+        assertNull(
+            extractNgocSiAiNamedPerformerFromYoutubeTitle(
+                "Ngày Sau Sẽ Ra Sao - Mr.H",
+                "Mr.H"
+            )
+        )
+        assertEquals(
+            "Tuấn Vũ",
+            extractNgocSiAiNamedPerformerFromYoutubeTitle(
+                "Liên Khúc Tuấn Vũ Ông vua Nhạc Vàng Trữ Tình, Nhạc Lính- Mr.H",
+                "Mr.H"
+            )
+        )
+        assertEquals(
+            listOf("nhạc vàng", "trữ tình", "nhạc lính"),
+            extractNgocSiAiGenreHintsFromTitle(
+                "Liên Khúc Tuấn Vũ Ông vua Nhạc Vàng Trữ Tình, Nhạc Lính- Mr.H"
+            )
+        )
+        assertEquals(
+            listOf("Bolero", "trữ tình"),
+            extractNgocSiAiGenreHintsFromTitle("Bolero trữ tình")
+        )
+        assertNull(extractNgocSiAiNamedPerformerFromYoutubeTitle("Ngày Sau Sẽ Ra Sao", "Mr.H"))
     }
 
     @Test

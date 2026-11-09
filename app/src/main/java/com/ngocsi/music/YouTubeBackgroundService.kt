@@ -320,7 +320,9 @@ class YouTubeBackgroundService : Service() {
         if (session != null) {
             val metadata = android.media.MediaMetadata.Builder()
                 .putString(android.media.MediaMetadata.METADATA_KEY_TITLE, title)
-                .putString(android.media.MediaMetadata.METADATA_KEY_ARTIST, channel)
+                // YouTube channel/uploader is not the singer. Keep it in the album-artist
+                // field so consumers do not mistake channel branding for performer metadata.
+                .putString(android.media.MediaMetadata.METADATA_KEY_ALBUM_ARTIST, channel)
                 .putString(android.media.MediaMetadata.METADATA_KEY_ALBUM, "YouTube • NGỌC SĨ MUSIC")
                 .putString(android.media.MediaMetadata.METADATA_KEY_MEDIA_ID, videoId)
                 .apply {

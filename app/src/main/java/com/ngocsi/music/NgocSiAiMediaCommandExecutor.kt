@@ -45,12 +45,62 @@ internal fun normalizeNgocSiAiCurrentTrackGenre(rawGenre: String?): String? {
     return raw
 }
 
-/** Extract only an explicitly appended performer label from a YouTube video title. */
-internal fun extractNgocSiAiArtistFromVideoTitle(videoTitle: String?): String? {
+private val NGOC_SI_AI_RECOGNIZED_VIETNAMESE_PERFORMERS = listOf(
+    "Tuấn Vũ", "Trường Vũ", "Chế Linh", "Duy Khánh", "Thanh Tuyền",
+    "Như Quỳnh", "Phi Nhung", "Mạnh Quỳnh", "Quang Lê", "Hương Lan",
+    "Lệ Quyên", "Đan Nguyên", "Giao Linh", "Hoàng Oanh", "Phương Dung",
+    "Thái Châu", "Cẩm Ly", "Vũ Khanh", "Elvis Phương", "Bằng Kiều",
+    "Tuấn Ngọc", "Khánh Ly", "Sơn Tuyền", "Ngọc Sơn", "Anh Khoa"
+)
+
+/**
+ * Return only a known performer explicitly named in the video title. The channel
+ * is separate YouTube metadata and is removed before matching; a title mention is
+ * reported as a mention, never as proof that the person is singing the recording.
+ */
+internal fun extractNgocSiAiNamedPerformerFromYoutubeTitle(
+    videoTitle: String?,
+    channelTitle: String?
+): String? {
     val title = videoTitle?.trim()?.takeIf { it.isNotBlank() } ?: return null
-    val parts = title.split(Regex("\\s+[-–—|•]\\s+")).map(String::trim)
-    if (parts.size < 2) return null
-    return normalizeNgocSiAiCurrentTrackArtist(parts.last())
+    val parts = title.split(Regex("\\s*[-–—|•]\\s*"))
+        .map(String::trim)
+        .filter(String::isNotBlank)
+    val channel = normalizeNgocSiAiVoicePhrase(channelTitle.orEmpty())
+    val titleWithoutChannel = if (
+        parts.size > 1 && channel.isNotBlank() &&
+        normalizeNgocSiAiVoicePhrase(parts.last()) == channel
+    ) {
+        parts.dropLast(1).joinToString(" ")
+    } else {
+        title
+    }
+    val normalizedTitle = " ${normalizeNgocSiAiVoicePhrase(titleWithoutChannel)} "
+    return NGOC_SI_AI_RECOGNIZED_VIETNAMESE_PERFORMERS.firstOrNull { performer ->
+        " ${normalizeNgocSiAiVoicePhrase(performer)} " in normalizedTitle
+    }
+}
+
+/** Read explicit genre/style labels from a title without treating them as audio analysis. */
+internal fun extractNgocSiAiGenreHintsFromTitle(videoTitle: String?): List<String> {
+    val title = " ${normalizeNgocSiAiVoicePhrase(videoTitle.orEmpty())} "
+    if (title.isBlank()) return emptyList()
+    val labels = listOf(
+        "bolero" to "Bolero",
+        "nhac vang" to "nhạc vàng",
+        "tru tinh" to "trữ tình",
+        "nhac linh" to "nhạc lính",
+        "nhac que huong" to "nhạc quê hương",
+        "dan ca" to "dân ca",
+        "nhac thieu nhi" to "nhạc thiếu nhi",
+        "nhac rock" to "rock",
+        "nhac pop" to "pop",
+        "nhac jazz" to "jazz",
+        "nhac rap" to "rap"
+    )
+    return labels.filter { (needle, _) ->
+        " $needle " in title
+    }.map { it.second }
 }
 
 /** Exact title matches win over earlier partial-title or artist matches. */

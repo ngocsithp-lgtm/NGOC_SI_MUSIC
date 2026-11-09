@@ -1592,15 +1592,28 @@ class NgocSiAiActivity : ComponentActivity() {
         "current_artist" -> {
             val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
             val title = prefs.getString("youtube_last_played_title", null)
-            val artist = extractNgocSiAiArtistFromVideoTitle(title)
-            if (artist == null) {
-                "Tiêu đề video hiện không ghi rõ tên ca sĩ. Tên kênh YouTube không đủ để xác nhận người hát."
+            val channel = prefs.getString("youtube_last_played_channel", null)
+            val namedPerformer = extractNgocSiAiNamedPerformerFromYoutubeTitle(title, channel)
+            if (namedPerformer == null) {
+                val sourceLabel = channel?.takeIf { it.isNotBlank() }
+                    ?.let { " Kênh đăng video: $it." }.orEmpty()
+                "Chưa xác định được người hát từ dữ liệu hiện có. Tên kênh không được xem là tên ca sĩ.$sourceLabel"
             } else {
-                "Theo tiêu đề video, nghệ sĩ được ghi là $artist. Đây chưa phải kết quả nhận diện giọng hát từ âm thanh."
+                val sourceLabel = channel?.takeIf { it.isNotBlank() }
+                    ?.let { " Kênh đăng video: $it." }.orEmpty()
+                "Tiêu đề video có nhắc đến nghệ sĩ $namedPerformer; điều này chưa xác nhận người đó trực tiếp hát bản thu.$sourceLabel"
             }
         }
-        "current_genre" ->
-            "YouTube chưa cung cấp metadata thể loại đáng tin cậy cho video này. Không thể lấy tên kênh làm thể loại nhạc."
+        "current_genre" -> {
+            val prefs = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+            val title = prefs.getString("youtube_last_played_title", null)
+            val hints = extractNgocSiAiGenreHintsFromTitle(title)
+            if (hints.isEmpty()) {
+                "YouTube chưa cung cấp metadata thể loại đáng tin cậy cho video này. Chưa đủ dữ liệu để xác nhận thể loại."
+            } else {
+                "Theo tiêu đề video, nội dung được gắn nhãn: ${hints.joinToString(", ")}. Đây là mô tả trong tiêu đề, chưa phải kết quả phân tích âm thanh."
+            }
+        }
         "play" -> "Đang phát tiếp video YouTube."
         "pause" -> "Đang tạm dừng video YouTube."
         "stop" -> "Đang dừng video YouTube."
