@@ -1096,7 +1096,14 @@ internal fun classifyNgocSiAiLocalCommand(
         isAnyOf(
             "dang phat bai gi", "bai gi dang phat", "ten bai hat hien tai",
             "bai dang phat la gi", "bai nao dang phat", "ten bai dang phat",
-            "bai hat nao dang phat", "what is playing", "current song", "what song is playing"
+            "bai hat nao dang phat", "ten bai dang nghe", "ten bai hat dang nghe",
+            "bai dang nghe ten gi", "dang nghe bai gi", "dang nghe bai nao",
+            "bay gio dang nghe bai gi", "hien tai dang phat bai nao",
+            "bai nhac nao dang phat", "ten ca khuc dang phat",
+            "ca khuc dang phat la gi", "cho toi biet dang phat bai gi",
+            "cho biet ten bai dang phat", "bai nay ten gi", "bai hat nay ten gi",
+            "bai nay la bai gi", "ai dang hat bai nay", "ca si nao dang hat",
+            "what is playing", "current song", "what song is playing"
         ) ->
             NgocSiAiLocalCommand.CURRENT_TRACK
 
