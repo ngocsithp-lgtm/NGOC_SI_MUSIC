@@ -532,9 +532,16 @@ class NgocSiAiActivity : ComponentActivity() {
                     } else null,
                 preferLaunchMetadata = youtubePlayerActivityActive
             )
-            val playbackContext = buildNgocSiAiActivePlaybackContextInstruction(
-                NgocSiMainActivityState.playbackContextOrNull()
-            )
+            val playbackContext = if (
+                normalizeNgocSiAiEntryContext(entryContext) == "YouTube"
+            ) {
+                // YouTube has its own trusted video context; never mix a stale Media3 item into it.
+                ""
+            } else {
+                buildNgocSiAiActivePlaybackContextInstruction(
+                    NgocSiMainActivityState.playbackContextOrNull()
+                )
+            }
             return listOf(youtubeContext, playbackContext)
                 .filter { it.isNotBlank() }
                 .joinToString(" ")
