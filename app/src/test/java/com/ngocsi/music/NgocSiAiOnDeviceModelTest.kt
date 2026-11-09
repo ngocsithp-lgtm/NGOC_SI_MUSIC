@@ -142,6 +142,28 @@ class NgocSiAiOnDeviceModelTest {
     }
 
     @Test
+    fun shortWhyFollowUpUsesRecentContextAndRequestsEvidenceGroundedReasons() {
+        val prompt = buildNgocSiAiOnDeviceTurnPrompt(
+            prompt = "AI, tại sao?",
+            memories = emptyList(),
+            priorMessages = listOf(
+                NgocSiAiMessage("user", "Vì sao Qwen3 không thể phân tích video YouTube?"),
+                NgocSiAiMessage(
+                    "assistant",
+                    "Qwen3-0.6B chỉ xử lý văn bản, không nhận được khung hình hoặc âm thanh video."
+                )
+            )
+        )
+
+        assertTrue(prompt.contains("YÊU CẦU CHO LƯỢT HỘI THOẠI NỐI TIẾP"))
+        assertTrue(prompt.contains("CÁCH TRẢ LỜI CÂU HỎI VÌ SAO"))
+        assertTrue(prompt.contains("trả lời nguyên nhân trực tiếp trước"))
+        assertTrue(prompt.contains("không tự đặt giả thiết"))
+        assertTrue(prompt.contains("Qwen3-0.6B chỉ xử lý văn bản"))
+        assertTrue(prompt.contains("CÂU HỎI HIỆN TẠI"))
+    }
+
+    @Test
     fun generalContinuationGetsANewAnswerWithoutRepeatingThePreviousReply() {
         val prompt = buildNgocSiAiOnDeviceTurnPrompt(
             prompt = "AI, tiếp tục.",
@@ -183,6 +205,10 @@ class NgocSiAiOnDeviceModelTest {
         assertEquals(
             NGOC_SI_AI_LOCAL_CONTEXT_REPLY_MAX_OUTPUT_TOKENS,
             selectNgocSiAiLocalMaxOutputTokens("AI, tiếp tục.")
+        )
+        assertEquals(
+            NGOC_SI_AI_LOCAL_CONTEXT_REPLY_MAX_OUTPUT_TOKENS,
+            selectNgocSiAiLocalMaxOutputTokens("AI, tại sao?")
         )
         assertTrue(
             NGOC_SI_AI_LOCAL_CONTEXT_REPLY_MAX_OUTPUT_TOKENS >
