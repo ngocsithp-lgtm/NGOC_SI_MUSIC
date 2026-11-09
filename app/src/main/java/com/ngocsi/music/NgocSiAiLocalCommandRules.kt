@@ -1103,7 +1103,7 @@ internal fun classifyNgocSiAiLocalCommand(
             "ca khuc dang phat la gi", "cho toi biet dang phat bai gi",
             "cho toi biet ten ca khuc dang phat", "cho biet ten bai dang phat",
             "bai nay ten gi", "bai hat nay ten gi",
-            "bai nay la bai gi", "dang hat bai nay", "dang hat bai gi",
+            "bai nay la bai gi", "ai dang hat bai nay", "dang hat bai nay", "dang hat bai gi",
             "ca si nao dang hat", "ca si nao dang hat bai nay",
             "what is playing", "current song", "what song is playing"
         ) ->
