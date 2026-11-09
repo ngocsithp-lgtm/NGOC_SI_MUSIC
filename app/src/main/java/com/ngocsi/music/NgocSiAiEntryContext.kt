@@ -311,6 +311,7 @@ internal fun buildNgocSiAiActivePlaybackContextInstruction(
         .trim()
         .replace('<', '‹')
         .replace('>', '›')
+        .replace('\\'', '’')
         .replace(Regex("\\s+"), " ")
         .take(limit)
 
