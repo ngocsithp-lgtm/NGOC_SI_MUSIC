@@ -1276,6 +1276,7 @@ class NgocSiAiActivity : ComponentActivity() {
                 onLocalCommand = { command, phrase -> runLocalCommand(command, phrase) },
                 onCurrentTrackQuestion = { currentTrackQuestionAnswer() },
                 onCurrentArtistMetadataQuestion = { currentArtistMetadataQuestionAnswer() },
+                onCurrentGenreQuestion = { currentGenreQuestionAnswer() },
                 onVoiceReply = { message -> speakVoiceReply(message) },
                 onSpeakMessage = { message -> speakVoiceReply(message, force = true) },
                 voiceRepliesEnabled = voiceRepliesEnabled,
@@ -1675,6 +1676,21 @@ class NgocSiAiActivity : ComponentActivity() {
             .takeIf { it.isNotBlank() && !it.equals("<unknown>", ignoreCase = true) }
             ?: return "Bài “${snapshot.title}” chưa có tên nghệ sĩ trong metadata."
         return "Nghệ sĩ được ghi trong metadata của bài “${snapshot.title}” là $artist. Đây là metadata của tệp phát, chưa phải kết quả nhận diện giọng hát trực tiếp."
+    }
+
+    private fun currentGenreQuestionAnswer(): String {
+        if (isYoutubePlaybackContextActiveForAi()) {
+            return youtubeControlResponse("current_genre")
+        }
+
+        val snapshot = currentPlaybackSnapshotForAi()
+            ?: return "Hiện chưa đọc được metadata thể loại của bài đang phát."
+        if (snapshot.source.equals("Radio", ignoreCase = true)) {
+            return "Đây là luồng Radio “${snapshot.title}”; metadata luồng không xác định thể loại của một bài hát cụ thể."
+        }
+        val genre = snapshot.genre?.trim()?.takeIf { it.isNotBlank() }
+            ?: return "Bài “${snapshot.title}” chưa có metadata thể loại. Mình chưa đủ dữ liệu để khẳng định đây là Bolero, nhạc vàng hay thể loại khác."
+        return "Thể loại được ghi trong metadata của bài “${snapshot.title}” là $genre. Đây là nhãn metadata, chưa phải kết quả phân tích âm thanh độc lập."
     }
 
     private fun runYouTubeControl(action: String, response: String): String {
@@ -2518,6 +2534,7 @@ private fun NgocSiAiPreviewScreen(
     onLocalCommand: (NgocSiAiLocalCommand, String) -> String,
     onCurrentTrackQuestion: () -> String,
     onCurrentArtistMetadataQuestion: () -> String,
+    onCurrentGenreQuestion: () -> String,
     onVoiceReply: (String) -> Unit,
     onSpeakMessage: (String) -> Unit,
     voiceRepliesEnabled: Boolean,
@@ -2725,6 +2742,8 @@ private fun NgocSiAiPreviewScreen(
             !youtubeSingerIdentificationQuestion &&
                 NgocSiAiPlaybackQuestionRules.isCurrentArtistMetadataQuestion(clean) ->
                 onCurrentArtistMetadataQuestion()
+            NgocSiAiPlaybackQuestionRules.isCurrentGenreQuestion(clean) ->
+                onCurrentGenreQuestion()
             else -> null
         }
         if (currentPlaybackMetadataReply != null) {
