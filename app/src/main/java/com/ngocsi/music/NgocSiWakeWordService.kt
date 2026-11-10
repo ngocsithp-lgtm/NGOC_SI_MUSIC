@@ -777,13 +777,19 @@ class NgocSiWakeWordService : Service() {
         val requestYoutubeVideoId = normalizeNgocSiAiYoutubeVideoId(
             activeYoutubeMediaContext?.videoId ?: persistedVideoId ?: aiEntryYoutubeVideoId
         ).takeIf { requestEntryContext == "YouTube" }
+        val requestPlaybackPositionMs = requestYoutubeVideoId?.let { currentVideoId ->
+            playbackPreferences.getLong("youtube_position_ms_$currentVideoId", -1L)
+        }
         val requestMediaContextInstruction = activeYoutubeMediaContext?.let { media ->
-            buildNgocSiAiMediaContextInstruction("YouTube", media.title, media.channel)
+            buildNgocSiAiMediaContextInstruction(
+                "YouTube", media.title, media.channel, requestPlaybackPositionMs
+            )
         } ?: if (youtubeSourceActive && requestEntryContext == "YouTube") {
             buildNgocSiAiMediaContextInstruction(
                 "YouTube",
                 playbackPreferences.getString("youtube_last_played_title", null),
-                playbackPreferences.getString("youtube_last_played_channel", null)
+                playbackPreferences.getString("youtube_last_played_channel", null),
+                requestPlaybackPositionMs
             )
         } else {
             aiEntryMediaContextInstruction

@@ -473,6 +473,33 @@ class NgocSiAiEntryContextTest {
     }
 
     @Test
+    fun savedYoutubePlaybackPositionFormatsAsGeminiTimestamp() {
+        assertNull(formatNgocSiAiVideoTimestamp(null))
+        assertNull(formatNgocSiAiVideoTimestamp(0L))
+        assertNull(formatNgocSiAiVideoTimestamp(-1L))
+        assertEquals("00:01", formatNgocSiAiVideoTimestamp(1_900L))
+        assertEquals("01:30", formatNgocSiAiVideoTimestamp(90_000L))
+        assertEquals("61:01", formatNgocSiAiVideoTimestamp(3_661_000L))
+        assertNull(formatNgocSiAiVideoTimestamp(7L * 24L * 60L * 60L * 1_000L + 1L))
+    }
+
+    @Test
+    fun youtubeMediaContextIncludesApproximateSavedPlaybackPositionWithoutTreatingItAsEvidence() {
+        val instruction = buildNgocSiAiMediaContextInstruction(
+            rawPageContext = "YouTube",
+            rawTitle = "Bolero - Tình buồn",
+            rawChannel = "Kênh nhạc trữ tình",
+            playbackPositionMs = 92_000L
+        )
+
+        assertTrue(instruction.contains("Bolero - Tình buồn"))
+        assertTrue(instruction.contains("Kênh nhạc trữ tình"))
+        assertTrue(instruction.contains("01:32"))
+        assertTrue(instruction.contains("có thể trễ vài giây"))
+        assertTrue(instruction.contains("không phải bằng chứng đã quan sát khung hình"))
+    }
+
+    @Test
     fun youtubeMediaContextIncludesCurrentTitleAndChannelAsUntrustedMetadata() {
         val instruction = buildNgocSiAiMediaContextInstruction(
             rawPageContext = "YouTube",
@@ -658,10 +685,12 @@ class NgocSiAiEntryContextTest {
             "YouTube",
             active,
             "Video cũ",
-            "Kênh cũ"
+            "Kênh cũ",
+            playbackPositionMs = 125_000L
         )
         assertTrue(instruction.contains("Video đang phát mới"))
         assertTrue(instruction.contains("Kênh mới"))
+        assertTrue(instruction.contains("02:05"))
         assertFalse(instruction.contains("Video cũ"))
 
         val fallback = buildNgocSiAiCurrentYoutubeMediaContextInstruction(

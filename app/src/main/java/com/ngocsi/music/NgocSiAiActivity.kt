@@ -532,11 +532,15 @@ class NgocSiAiActivity : ComponentActivity() {
                 } else {
                     intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_CHANNEL_EXTRA)
                 }
+            val playbackPositionMs = entryYoutubeVideoId?.let { currentVideoId ->
+                preferences.getLong("youtube_position_ms_$currentVideoId", -1L)
+            }
             val youtubeContext = buildNgocSiAiCurrentYoutubeMediaContextInstruction(
                 entryContext,
                 NgocSiMainActivityState.youtubeMediaContextOrNull(),
                 persistedOrLaunchTitle,
-                persistedOrLaunchChannel
+                persistedOrLaunchChannel,
+                playbackPositionMs
             )
             val playbackContext = if (
                 normalizeNgocSiAiEntryContext(entryContext) == "YouTube"
