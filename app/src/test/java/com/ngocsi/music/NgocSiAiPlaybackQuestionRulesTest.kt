@@ -81,6 +81,16 @@ class NgocSiAiPlaybackQuestionRulesTest {
     }
 
     @Test
+    fun recognizesWhoIsTheSingerWording() {
+        assertTrue(
+            NgocSiAiPlaybackQuestionRules.isYoutubeSingerIdentificationQuestion(
+                "Ai là người hát bài này?",
+                "YouTube"
+            )
+        )
+    }
+
+    @Test
     fun doesNotTreatGeneralArtistQuestionAsCurrentYoutubeSingerRequest() {
         assertFalse(
             NgocSiAiPlaybackQuestionRules.isYoutubeSingerIdentificationQuestion(
