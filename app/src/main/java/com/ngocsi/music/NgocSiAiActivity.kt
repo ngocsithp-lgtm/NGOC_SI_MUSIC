@@ -1597,11 +1597,20 @@ class NgocSiAiActivity : ComponentActivity() {
      * source-aware snapshot, then fall back to the Media3 session connected by Preview.
      */
     private fun currentPlaybackSnapshotForAi(): NgocSiAiPlaybackContextSnapshot? {
-        NgocSiMainActivityState.playbackContextOrNull()
+        val activeController = preferredPlaybackController()
+        val mainActivitySnapshot = NgocSiMainActivityState.playbackContextOrNull()
             ?.takeIf { it.title.isNotBlank() }
-            ?.let { return it }
 
-        val activeController = preferredPlaybackController() ?: return null
+        // The shared Activity snapshot belongs to this Preview package's own Media3
+        // session. Do not let an old Preview title hide an actively playing stable PRO
+        // session connected through productionMusicController.
+        if (activeController == null) return mainActivitySnapshot
+        if (activeController === musicController && mainActivitySnapshot != null) {
+            return mainActivitySnapshot
+        }
+        if (activeController !== productionMusicController && mainActivitySnapshot != null) {
+            return mainActivitySnapshot
+        }
         val item = activeController.currentMediaItem ?: return null
         val title = item.mediaMetadata.title?.toString()?.trim()
             ?.takeIf { it.isNotBlank() } ?: return null
