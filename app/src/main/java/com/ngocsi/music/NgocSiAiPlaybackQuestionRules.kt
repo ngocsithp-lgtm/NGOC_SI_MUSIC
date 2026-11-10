@@ -96,6 +96,22 @@ internal object NgocSiAiPlaybackQuestionRules {
         ).any(question::contains)
     }
 
+
+    internal fun isCurrentGenreQuestion(text: String): Boolean {
+        val question = stripWakePrefix(normalize(text), includeBareAi = true)
+        if (question.isBlank()) return false
+        val asksGenre = listOf(
+            "the loai", "thuoc the loai", "dong nhac", "the loai nhac",
+            "genre", "style of music"
+        ).any(question::contains)
+        val refersToCurrentTrack = listOf(
+            "bai nay", "bai hat nay", "ca khuc nay", "ban nhac nay",
+            "dang nghe", "dang phat", "bai dang nghe", "bai dang phat",
+            "video nay", "hien tai"
+        ).any(question::contains)
+        return asksGenre && refersToCurrentTrack
+    }
+
     internal fun isCurrentArtistMetadataQuestion(text: String): Boolean {
         val question = stripWakePrefix(normalize(text), includeBareAi = false)
         if (question.isBlank()) return false
