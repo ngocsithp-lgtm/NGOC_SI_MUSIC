@@ -521,24 +521,22 @@ class NgocSiAiActivity : ComponentActivity() {
                 preferences.getBoolean("youtube_active_source", false)
             val youtubePlayerActivityActive =
                 preferences.getBoolean("youtube_player_activity_active", false)
-            val persistedOrLaunchTitle =
-                if (usePersistedYoutubeMetadata || youtubePlayerActivityActive) {
-                    preferences.getString("youtube_last_played_title", null)
-                        ?: intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_TITLE_EXTRA)
-                } else {
-                    intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_TITLE_EXTRA)
-                }
-            val persistedOrLaunchChannel =
-                if (usePersistedYoutubeMetadata || youtubePlayerActivityActive) {
-                    preferences.getString("youtube_last_played_channel", null)
-                        ?: intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_CHANNEL_EXTRA)
-                } else {
-                    intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_CHANNEL_EXTRA)
-                }
             val activeMedia = NgocSiMainActivityState.youtubeMediaContextOrNull()
             val launchVideoId = intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_VIDEO_ID_EXTRA)
             val launchTitle = intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_TITLE_EXTRA)
             val launchChannel = intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_CHANNEL_EXTRA)
+            val persistedTitle = if (usePersistedYoutubeMetadata || youtubePlayerActivityActive) {
+                preferences.getString("youtube_last_played_title", null)
+            } else {
+                null
+            }
+            val persistedChannel = if (usePersistedYoutubeMetadata || youtubePlayerActivityActive) {
+                preferences.getString("youtube_last_played_channel", null)
+            } else {
+                null
+            }
+            val persistedOrLaunchTitle = persistedTitle ?: launchTitle
+            val persistedOrLaunchChannel = persistedChannel ?: launchChannel
             val persistedVideoId = if (usePersistedYoutubeMetadata || youtubePlayerActivityActive) {
                 preferences.getString("youtube_last_played_video_id", null)
             } else {
@@ -554,8 +552,8 @@ class NgocSiAiActivity : ComponentActivity() {
                 expectedVideoId = currentVideoId,
                 activeMedia = activeMedia,
                 persistedVideoId = persistedVideoId,
-                persistedTitle = persistedOrLaunchTitle,
-                persistedChannel = persistedOrLaunchChannel,
+                persistedTitle = persistedTitle,
+                persistedChannel = persistedChannel,
                 launchVideoId = launchVideoId,
                 launchTitle = launchTitle,
                 launchChannel = launchChannel
