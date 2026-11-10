@@ -304,7 +304,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
                     // A video-analysis turn is stateless at the Gemini chat layer:
                     // compact context is placed beside the video, avoiding a long
                     // transcript and the general-purpose app-agent instruction bundle.
-                    content { text(VIDEO_ANALYSIS_SYSTEM_INSTRUCTIONS) }
+                    content { text(NGOC_SI_AI_VIDEO_ANALYSIS_SYSTEM_INSTRUCTIONS) }
                 } else {
                     content {
                         val savedMemories = decodeNgocSiAiMemory(
@@ -949,14 +949,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
             ),
             optionalParameters = listOf("query")
         )
-        private const val VIDEO_ANALYSIS_SYSTEM_INSTRUCTIONS =
-            "Bạn là NGỌC SĨ AI, trợ lý phân tích âm thanh và hình ảnh video bằng tiếng Việt. " +
-                "Phân tích trực tiếp video được đính kèm, bao gồm khung hình và âm thanh khi dữ liệu thực sự được cung cấp. " +
-                "Tách rõ quan sát hình ảnh, dấu hiệu nghe được và phần diễn giải; không biến tiêu đề, tên kênh hoặc metadata thành bằng chứng đã quan sát. " +
-                "Chỉ nêu lời ca, nhạc cụ, nhịp, màu giọng hoặc cách hát khi có dấu hiệu âm thanh đủ rõ. " +
-                "Nếu video hoặc âm thanh không tải được hay không thể xác minh, nói chính xác giới hạn đó và không suy đoán. " +
-                "Nêu mốc thời gian khi có thể; khung hình có thể được lấy mẫu khoảng 1 lần mỗi giây nên không khẳng định chi tiết của chuyển động nhanh. " +
-                "Trả lời ngắn gọn nhưng đủ căn cứ, không tiết lộ chuỗi suy luận nội bộ. "
+
 
         private const val SYSTEM_INSTRUCTIONS =
             "Bạn là NGỌC SĨ AI, trợ lý tiếng Việt gần gũi, bình tĩnh và biết lắng nghe; đừng giả vờ là người thật. " +

@@ -706,6 +706,30 @@ class NgocSiAiEntryContextTest {
     }
 
     @Test
+    fun youtubeHttp400KeepsThePreparedVideoContextAndExplainsTheUncertainty() {
+        val error = "Gemini trả về HTTP 400 khi tiếp nhận URL YouTube. Mã: YOUTUBE_VIDEO_HTTP_400."
+        assertTrue(isNgocSiAiYoutubeVideoRequestPrepared(error))
+        val reply = buildNgocSiAiLocalMediaAnalysisUnavailableReply(
+            error,
+            videoContextAvailable = isNgocSiAiYoutubeVideoRequestPrepared(error)
+        )
+        assertTrue(reply.contains("chưa đủ để kết luận URL sai hoặc video riêng tư"))
+        assertTrue(reply.contains("có thể gặp lỗi tạm thời"))
+        assertTrue(reply.contains("đã nhận diện và chuẩn bị URL video YouTube"))
+        assertTrue(reply.contains("không cần mở lại NGỌC SĨ AI"))
+        assertTrue(reply.contains("YOUTUBE_VIDEO_HTTP_400"))
+    }
+
+    @Test
+    fun preparedYoutubeVideoContextRecognizesOnlyUrlIngestionFailures() {
+        assertTrue(isNgocSiAiYoutubeVideoRequestPrepared("Mã: YOUTUBE_VIDEO_SERVER_ERROR."))
+        assertTrue(isNgocSiAiYoutubeVideoRequestPrepared("Mã: YOUTUBE_VIDEO_HTTP_400."))
+        assertFalse(isNgocSiAiYoutubeVideoRequestPrepared("Mã: AI_QUOTA_429_DAILY."))
+        assertFalse(isNgocSiAiYoutubeVideoRequestPrepared("Mã: AI_YOUTUBE_VIDEO_CONTEXT_MISSING."))
+        assertFalse(isNgocSiAiYoutubeVideoRequestPrepared(null))
+    }
+
+    @Test
     fun currentYoutubeVideoIdPrefersTheLatestActivePlayerItem() {
         assertEquals(
             "a1b2c3d4e5F",

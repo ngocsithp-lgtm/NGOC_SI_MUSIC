@@ -357,8 +357,7 @@ internal fun localConversationFallbackAfterRemoteError(
                 "video dang chay", "video youtube dang phat"
             ).any(normalized::contains)
     if (asksForCurrentVideoAnalysis) {
-        val videoUrlWasPrepared = remoteError.orEmpty()
-            .contains("YOUTUBE_VIDEO_SERVER_ERROR", ignoreCase = true)
+        val videoUrlWasPrepared = isNgocSiAiYoutubeVideoRequestPrepared(remoteError)
         return buildNgocSiAiLocalMediaAnalysisUnavailableReply(
             remoteError = remoteError,
             videoContextAvailable = videoUrlWasPrepared

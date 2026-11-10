@@ -105,6 +105,16 @@ internal fun isNgocSiAiYoutubeMultimodalAnalysisRequest(
     shouldAttachNgocSiAiYoutubeVideo(prompt, previousMessages)
 
 /** Qwen3-0.6B is text-only; never imply it listened to the active YouTube recording. */
+/**
+ * A recognized HTTP response means the app successfully assembled the active
+ * YouTube video request, even when Google's media-ingestion step then rejected it.
+ */
+internal fun isNgocSiAiYoutubeVideoRequestPrepared(remoteError: String?): Boolean {
+    val details = remoteError.orEmpty()
+    return details.contains("YOUTUBE_VIDEO_SERVER_ERROR", ignoreCase = true) ||
+        details.contains("YOUTUBE_VIDEO_HTTP_400", ignoreCase = true)
+}
+
 internal fun buildNgocSiAiLocalMediaAnalysisUnavailableReply(
     remoteError: String? = null,
     videoContextAvailable: Boolean = false
@@ -144,6 +154,8 @@ internal fun buildNgocSiAiLocalMediaAnalysisUnavailableReply(
             "Không tìm thấy model hoặc endpoint AI. Mã: MODEL_OR_ENDPOINT_404."
         diagnosticCode == "VIDEO_SAMPLE_SERVER_ERROR" ->
             "Ngay cả video MP4 mẫu công khai của Google cũng gặp lỗi máy chủ Firebase AI Logic. Vấn đề chưa nằm riêng ở URL YouTube; cần kiểm tra App Check của ứng dụng Preview, quyền Firebase AI Logic và model. Bản Preview vẫn không bật thanh toán. Mã: VIDEO_SAMPLE_SERVER_ERROR."
+        diagnosticCode == "YOUTUBE_VIDEO_HTTP_400" ->
+            "Gemini trả về HTTP 400 khi tiếp nhận URL YouTube. Mã này chưa đủ để kết luận URL sai hoặc video riêng tư; quá trình tiếp nhận video cũng có thể gặp lỗi tạm thời. Hãy kiểm tra URL còn hiệu lực và video có thể xem công khai hoặc không công khai. Hai phép thử YouTube mẫu và MP4 mẫu giúp phân biệt đường tiếp nhận YouTube với lỗi dịch vụ; ứng dụng không tự gửi lại video. Mã: YOUTUBE_VIDEO_HTTP_400."
         diagnosticCode == "YOUTUBE_VIDEO_SERVER_ERROR" ->
             "Lỗi máy chủ xuất hiện khi gửi URL YouTube nhưng chưa có mã HTTP để xác định nguyên nhân. Hãy chạy 'AI, kiểm tra kết nối video mẫu': nếu video mẫu chạy được, cần khoanh vùng quyền công khai/không công khai hoặc giới hạn của video YouTube. Mã: YOUTUBE_VIDEO_SERVER_ERROR."
         diagnosticCode == "VIDEO_ANALYSIS_TIMEOUT" -> {
