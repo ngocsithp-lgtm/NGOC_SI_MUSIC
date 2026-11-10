@@ -2712,7 +2712,12 @@ private fun NgocSiAiPreviewScreen(
                     if (conversation.firstOrNull()?.role == "assistant") conversation.removeAt(0)
                 }
             }
-            persistChatState()
+            if (isSending) {
+                // Keep an in-flight remote user turn out of persisted API history.
+                saveAiPreviewMessages(chatPreferences, messages)
+            } else {
+                persistChatState()
+            }
             onVoiceReply(unavailableReply)
             return
         }
@@ -2730,7 +2735,12 @@ private fun NgocSiAiPreviewScreen(
                     if (conversation.firstOrNull()?.role == "assistant") conversation.removeAt(0)
                 }
             }
-            persistChatState()
+            if (isSending) {
+                // The active Gemini turn is incomplete; persist only visible transcript state.
+                saveAiPreviewMessages(chatPreferences, messages)
+            } else {
+                persistChatState()
+            }
             onVoiceReply(unavailableReply)
             return
         }
@@ -2760,7 +2770,12 @@ private fun NgocSiAiPreviewScreen(
                 }
                 saveAiApiConversation(chatPreferences, conversation)
             }
-            persistChatState()
+            if (isSending) {
+                // Do not save an unmatched remote user turn into API history.
+                saveAiPreviewMessages(chatPreferences, messages)
+            } else {
+                persistChatState()
+            }
             onVoiceReply(currentPlaybackMetadataReply)
             return
         }
@@ -2788,7 +2803,11 @@ private fun NgocSiAiPreviewScreen(
                     if (conversation.firstOrNull()?.role == "assistant") conversation.removeAt(0)
                 }
             }
-            persistChatState()
+            if (isSending) {
+                saveAiPreviewMessages(chatPreferences, messages)
+            } else {
+                persistChatState()
+            }
             onVoiceReply(voiceControlReply)
             return
         }
