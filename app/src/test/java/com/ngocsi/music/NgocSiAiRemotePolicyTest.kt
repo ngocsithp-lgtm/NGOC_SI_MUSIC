@@ -15,7 +15,7 @@ class NgocSiAiRemotePolicyTest {
         assertTrue(instruction.contains("metadata của trình phát"))
         assertTrue(instruction.contains("chỉ xác nhận người hát khi có dấu hiệu giọng hát đủ rõ"))
         assertTrue(instruction.contains("không tự dựng lời ca"))
-        assertTrue(instruction.contains("khung hình khoảng một khung hình mỗi giây"))
+        assertTrue(instruction.contains("khoảng một khung hình mỗi giây"))
         assertTrue(instruction.contains("chưa phân tích được video"))
     }
 

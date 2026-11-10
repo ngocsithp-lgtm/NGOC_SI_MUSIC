@@ -104,7 +104,6 @@ internal fun isNgocSiAiYoutubeMultimodalAnalysisRequest(
 ): Boolean = normalizeNgocSiAiEntryContext(pageContext) == "YouTube" &&
     shouldAttachNgocSiAiYoutubeVideo(prompt, previousMessages)
 
-/** Qwen3-0.6B is text-only; never imply it listened to the active YouTube recording. */
 /**
  * A recognized HTTP response means the app successfully assembled the active
  * YouTube video request, even when Google's media-ingestion step then rejected it.
@@ -115,6 +114,7 @@ internal fun isNgocSiAiYoutubeVideoRequestPrepared(remoteError: String?): Boolea
         details.contains("YOUTUBE_VIDEO_HTTP_400", ignoreCase = true)
 }
 
+/** Qwen3-0.6B is text-only; never imply it listened to the active YouTube recording. */
 internal fun buildNgocSiAiLocalMediaAnalysisUnavailableReply(
     remoteError: String? = null,
     videoContextAvailable: Boolean = false

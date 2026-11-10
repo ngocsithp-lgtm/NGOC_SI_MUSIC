@@ -105,9 +105,7 @@ internal const val NGOC_SI_AI_VIDEO_ANALYSIS_SYSTEM_INSTRUCTIONS =
         "Nếu nội dung video không được đọc thành công, nói thẳng chưa phân tích được video và nêu giới hạn cụ thể; không tạo ví dụ minh họa như thể đó là sự thật. " +
         "Trả lời tiếng Việt ngắn gọn nhưng có căn cứ, thể hiện mức độ chắc chắn, không tiết lộ chuỗi suy luận nội bộ. ";
 
-/**
- * Gemini's YouTube URL input uses the provider's generic video MIME type.
- */
+// Gemini's YouTube URL input uses the provider's generic video MIME type.
 // Keep it separate from the direct MP4 sample diagnostic, which remains video/mp4.
 internal const val NGOC_SI_AI_YOUTUBE_URL_MIME_TYPE = "video/*"
 
