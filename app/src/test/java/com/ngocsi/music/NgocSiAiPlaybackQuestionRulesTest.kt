@@ -157,6 +157,15 @@ class NgocSiAiPlaybackQuestionRulesTest {
     }
 
     @Test
+    fun doesNotMisrouteGenreQuestionAsTrackTitleLookup() {
+        assertFalse(
+            NgocSiAiPlaybackQuestionRules.isCurrentTrackQuestion(
+                "Bài này thuộc thể loại gì?"
+            )
+        )
+    }
+
+    @Test
     fun recognizesCurrentArtistMetadataQuestion() {
         assertTrue(
             NgocSiAiPlaybackQuestionRules.isCurrentArtistMetadataQuestion(
