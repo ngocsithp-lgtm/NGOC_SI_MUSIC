@@ -148,6 +148,15 @@ class NgocSiAiPlaybackQuestionRulesTest {
     }
 
     @Test
+    fun recognizesBoleroVerificationQuestionForCurrentTrack() {
+        assertTrue(
+            NgocSiAiPlaybackQuestionRules.isCurrentGenreQuestion(
+                "Bài này có phải Bolero không?"
+            )
+        )
+    }
+
+    @Test
     fun doesNotTreatGeneralGenreQuestionAsCurrentTrackLookup() {
         assertFalse(
             NgocSiAiPlaybackQuestionRules.isCurrentGenreQuestion(
