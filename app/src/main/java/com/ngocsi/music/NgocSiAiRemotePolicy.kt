@@ -87,9 +87,9 @@ internal const val NGOC_SI_AI_VIDEO_DIAGNOSTIC_SAMPLE_URI =
 
 internal const val NGOC_SI_AI_VIDEO_DIAGNOSTIC_MAX_INLINE_BYTES = 14L * 1024L * 1024L
 
-// Gemini's YouTube URL input is a provider-resolved video, not a direct .mp4 asset.
-// Keep its MIME separate from inline MP4 bytes used by the public sample diagnostic.
-internal const val NGOC_SI_AI_YOUTUBE_URL_MIME_TYPE = "video/mp4"
+// Gemini's YouTube URL input uses the provider's generic video MIME type.
+// Keep it separate from the direct MP4 sample diagnostic, which remains video/mp4.
+internal const val NGOC_SI_AI_YOUTUBE_URL_MIME_TYPE = "video/*"
 
 // Public YouTube canary used only after an explicit diagnostic request. The URL is
 // Google's sample video referenced by the Gemini video-understanding documentation.
