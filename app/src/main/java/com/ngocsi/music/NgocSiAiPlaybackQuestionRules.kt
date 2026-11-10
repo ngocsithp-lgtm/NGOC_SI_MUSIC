@@ -50,7 +50,7 @@ internal object NgocSiAiPlaybackQuestionRules {
             "video", "ban nhac", "ca khuc"
         ).any(question::contains)
         val asksForIdentity = listOf(
-            "la gi", "ten gi", "bai gi", "video gi",
+            "la gi", "ten gi", "ten bai", "bai gi", "video gi",
             "what song", "what is playing", "what's playing"
         ).any(question::contains)
         val refersToCurrentPlayback = listOf(
