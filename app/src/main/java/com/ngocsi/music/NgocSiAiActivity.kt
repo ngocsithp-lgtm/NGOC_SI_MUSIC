@@ -2952,6 +2952,12 @@ private fun NgocSiAiPreviewScreen(
                     quotaNote = "Trả lời tại máy · ${onLocalModelBackendStatus()} · không gửi câu hỏi lên Gemini"
                     persistChatState()
                     onVoiceReply(localAnswer)
+                } catch (cancelled: CancellationException) {
+                    // Cancellation is lifecycle control, not an inference failure.
+                    // Remove the unmatched user turn and let structured cancellation propagate.
+                    if (conversation.lastOrNull() == userTurn) conversation.removeAt(conversation.lastIndex)
+                    persistChatState()
+                    throw cancelled
                 } catch (error: Exception) {
                     if (conversation.lastOrNull() == userTurn) conversation.removeAt(conversation.lastIndex)
                     val errorReply = "AI ngoại tuyến chưa xử lý được câu hỏi này: " +
