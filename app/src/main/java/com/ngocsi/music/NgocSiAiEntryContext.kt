@@ -27,11 +27,6 @@ internal fun buildNgocSiAiYoutubeVideoUri(rawVideoId: String?): String? {
 }
 
 /**
- * Attach the currently playing YouTube video only for an explicit media-analysis
- * request, or a short follow-up to a recent music/video-analysis conversation.
- * Playback controls, ordinary chat, and requests from other pages never attach media.
- */
-/**
  * Song-title and singer-identification questions refer to the active media when
  * asked from the YouTube page. Keep this intent separate from ordinary artist
  * knowledge questions so those do not trigger video ingestion.
@@ -64,7 +59,7 @@ internal fun shouldAttachNgocSiAiYoutubeVideo(
     ).removePrefix("hay ").trim()
     if (latest.isBlank()) return false
 
-    if (isNgocSiAiSongOrSingerIdentificationRequest(latest)) return true
+    if (isNgocSiAiSongOrSingerIdentificationRequest(prompt)) return true
 
     val directAnalysisMarkers = listOf(
         "phan tich", "noi dung video", "mo ta video", "dieu gi xay ra trong video",
@@ -115,7 +110,7 @@ internal fun isNgocSiAiCurrentYoutubeVideoAnalysisPrompt(
     ).any(normalized::contains)
     val asksToIdentifyCurrentTrackOrSinger =
         normalizeNgocSiAiEntryContext(pageContext) == "YouTube" &&
-            isNgocSiAiSongOrSingerIdentificationRequest(normalized)
+            isNgocSiAiSongOrSingerIdentificationRequest(prompt)
     return (asksForAnalysis && refersToCurrentVideo) || asksToIdentifyCurrentTrackOrSinger
 }
 internal fun buildNgocSiAiVideoAnalysisRequiresGeminiReply(): String =
