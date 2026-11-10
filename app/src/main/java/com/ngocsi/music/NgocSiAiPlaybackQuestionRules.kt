@@ -42,6 +42,9 @@ internal object NgocSiAiPlaybackQuestionRules {
     }
 
     internal fun isCurrentTrackQuestion(text: String): Boolean {
+        // A genre question can contain "bài này" and "là gì" too; never
+        // let the title lookup consume it before the genre metadata route.
+        if (isCurrentGenreQuestion(text)) return false
         val question = stripWakePrefix(normalize(text), includeBareAi = true)
         if (question.isBlank()) return false
 
