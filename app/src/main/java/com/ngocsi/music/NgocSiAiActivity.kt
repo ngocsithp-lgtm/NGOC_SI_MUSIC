@@ -1274,6 +1274,8 @@ class NgocSiAiActivity : ComponentActivity() {
                 },
                 onExecuteAppCommand = { action, query -> executeAiAppCommand(action, query) },
                 onLocalCommand = { command, phrase -> runLocalCommand(command, phrase) },
+                onCurrentTrackQuestion = { currentTrackQuestionAnswer() },
+                onCurrentArtistMetadataQuestion = { currentArtistMetadataQuestionAnswer() },
                 onVoiceReply = { message -> speakVoiceReply(message) },
                 onSpeakMessage = { message -> speakVoiceReply(message, force = true) },
                 voiceRepliesEnabled = voiceRepliesEnabled,
@@ -1581,6 +1583,89 @@ class NgocSiAiActivity : ComponentActivity() {
         }.getOrElse {
             "Không thể dừng nhạc lúc này. Nhạc chưa được xác nhận là đã dừng; hãy thử lại."
         }
+    }
+
+    private fun isYoutubePlaybackContextActiveForAi(): Boolean {
+        val preferences = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
+        return normalizeNgocSiAiEntryContext(entryContext) == "YouTube" ||
+            preferences.getBoolean("youtube_active_source", false) ||
+            preferences.getBoolean("youtube_player_activity_active", false)
+    }
+
+    /**
+     * Reads only display metadata from the active player. Prefer MainActivity's
+     * source-aware snapshot, then fall back to the Media3 session connected by Preview.
+     */
+    private fun currentPlaybackSnapshotForAi(): NgocSiAiPlaybackContextSnapshot? {
+        NgocSiMainActivityState.playbackContextOrNull()
+            ?.takeIf { it.title.isNotBlank() }
+            ?.let { return it }
+
+        val activeController = preferredPlaybackController() ?: return null
+        val item = activeController.currentMediaItem ?: return null
+        val title = item.mediaMetadata.title?.toString()?.trim()
+            ?.takeIf { it.isNotBlank() } ?: return null
+        val artist = item.mediaMetadata.artist?.toString()?.trim().orEmpty()
+        val status = when {
+            activeController.isPlaying -> "Đang phát"
+            activeController.playbackState == androidx.media3.common.Player.STATE_BUFFERING &&
+                activeController.playWhenReady -> "Đang tải"
+            activeController.playbackState == androidx.media3.common.Player.STATE_ENDED -> "Đã phát hết"
+            else -> "Đang tạm dừng"
+        }
+        return NgocSiAiPlaybackContextSnapshot(
+            source = if (activeController === productionMusicController) {
+                "NGỌC SĨ MUSIC"
+            } else {
+                "NGỌC SĨ AI Preview"
+            },
+            title = title.take(140),
+            artistOrStation = artist.take(100),
+            playbackStatus = status,
+            queueCount = activeController.mediaItemCount,
+            shuffleEnabled = activeController.shuffleModeEnabled,
+            repeatMode = activeController.repeatMode,
+            genre = item.mediaMetadata.genre?.toString()?.trim()?.takeIf { it.isNotBlank() }
+        )
+    }
+
+    private fun currentTrackQuestionAnswer(): String {
+        if (isYoutubePlaybackContextActiveForAi()) {
+            // YouTube title/channel are metadata; no inference from the channel name.
+            return youtubeControlResponse("current_track")
+        }
+
+        val snapshot = currentPlaybackSnapshotForAi()
+            ?: return "Hiện chưa đọc được thông tin bài đang phát. Hãy mở NGỌC SĨ MUSIC và phát một bài rồi hỏi lại."
+        val title = snapshot.title.trim()
+        if (title.isBlank()) {
+            return "Trình phát chưa cung cấp tên bài hát trong metadata."
+        }
+        if (snapshot.source.equals("Radio", ignoreCase = true)) {
+            return "Bạn đang nghe đài ${title}. Trạng thái: ${snapshot.playbackStatus}."
+        }
+        val artist = snapshot.artistOrStation.trim()
+            .takeIf { it.isNotBlank() && !it.equals("<unknown>", ignoreCase = true) }
+        val artistText = artist?.let { " Nghệ sĩ ghi trong metadata: $it." }.orEmpty()
+        val genreText = snapshot.genre?.takeIf { it.isNotBlank() }
+            ?.let { " Thể loại ghi trong metadata: $it." }.orEmpty()
+        return "Bài đang phát: “$title”.$artistText$genreText Nguồn: ${snapshot.source}. Trạng thái: ${snapshot.playbackStatus}."
+    }
+
+    private fun currentArtistMetadataQuestionAnswer(): String {
+        if (isYoutubePlaybackContextActiveForAi()) {
+            return youtubeControlResponse("current_artist")
+        }
+
+        val snapshot = currentPlaybackSnapshotForAi()
+            ?: return "Hiện chưa có metadata nghệ sĩ của bài đang phát."
+        if (snapshot.source.equals("Radio", ignoreCase = true)) {
+            return "Đây là luồng Radio “${snapshot.title}”, không phải metadata của một bản thu có tên ca sĩ."
+        }
+        val artist = snapshot.artistOrStation.trim()
+            .takeIf { it.isNotBlank() && !it.equals("<unknown>", ignoreCase = true) }
+            ?: return "Bài “${snapshot.title}” chưa có tên nghệ sĩ trong metadata."
+        return "Nghệ sĩ được ghi trong metadata của bài “${snapshot.title}” là $artist. Đây là metadata của tệp phát, chưa phải kết quả nhận diện giọng hát trực tiếp."
     }
 
     private fun runYouTubeControl(action: String, response: String): String {
@@ -2422,6 +2507,8 @@ private fun NgocSiAiPreviewScreen(
     onSendOnline: NgocSiAiRequest,
     onExecuteAppCommand: NgocSiAiToolExecutor,
     onLocalCommand: (NgocSiAiLocalCommand, String) -> String,
+    onCurrentTrackQuestion: () -> String,
+    onCurrentArtistMetadataQuestion: () -> String,
     onVoiceReply: (String) -> Unit,
     onSpeakMessage: (String) -> Unit,
     voiceRepliesEnabled: Boolean,
@@ -2577,8 +2664,11 @@ private fun NgocSiAiPreviewScreen(
         val clean = text.trim()
         if (clean.isBlank()) return
 
+        val youtubeSingerIdentificationQuestion =
+            NgocSiAiPlaybackQuestionRules.isYoutubeSingerIdentificationQuestion(clean, entryContext)
         val currentVideoAnalysisRequest =
-            isNgocSiAiCurrentYoutubeVideoAnalysisPrompt(clean, entryContext)
+            isNgocSiAiCurrentYoutubeVideoAnalysisPrompt(clean, entryContext) ||
+                youtubeSingerIdentificationQuestion
         if (
             currentVideoAnalysisRequest &&
             normalizeNgocSiAiEntryContext(entryContext) != "YouTube"
@@ -2618,6 +2708,35 @@ private fun NgocSiAiPreviewScreen(
             onVoiceReply(unavailableReply)
             return
         }
+        // Questions about the current track are metadata lookups, not multi-step app tools.
+        // Answer them locally before the preferred on-device language model can refuse tool use.
+        val currentPlaybackMetadataReply = when {
+            NgocSiAiPlaybackQuestionRules.isCurrentTrackQuestion(clean) ->
+                onCurrentTrackQuestion()
+            !youtubeSingerIdentificationQuestion &&
+                NgocSiAiPlaybackQuestionRules.isCurrentArtistMetadataQuestion(clean) ->
+                onCurrentArtistMetadataQuestion()
+            else -> null
+        }
+        if (currentPlaybackMetadataReply != null) {
+            messages.add(AiPreviewMessage(true, clean))
+            messages.add(AiPreviewMessage(false, currentPlaybackMetadataReply))
+            while (messages.size > MAX_SAVED_AI_UI_MESSAGES) messages.removeAt(0)
+            input = ""
+            if (!isSending) {
+                conversation.add(NgocSiAiMessage(role = "user", content = clean))
+                conversation.add(NgocSiAiMessage(role = "assistant", content = currentPlaybackMetadataReply))
+                while (conversation.size > NGOC_SI_AI_MAX_HISTORY_MESSAGES) {
+                    conversation.removeAt(0)
+                    if (conversation.firstOrNull()?.role == "assistant") conversation.removeAt(0)
+                }
+                saveAiApiConversation(chatPreferences, conversation)
+            }
+            persistChatState()
+            onVoiceReply(currentPlaybackMetadataReply)
+            return
+        }
+
         // Voice-control exit phrases are handled before music-command classification
         // or Gemini so "AI, tạm dừng giọng nói" never becomes a music-pause request.
         if (isNgocSiAiStopVoiceControlPhrase(clean)) {
@@ -2741,7 +2860,7 @@ private fun NgocSiAiPreviewScreen(
             return
         }
 
-        val localModelNeedsAppTools =
+        val localModelNeedsAppTools = !currentVideoAnalysisRequest &&
             shouldOfferNgocSiAiAppCommandTool(clean, conversation.toList())
         if (preferLocalModel && localModelNeedsAppTools) {
             val safeReply =
@@ -2852,6 +2971,7 @@ private fun NgocSiAiPreviewScreen(
                     isNgocSiAiYoutubeUrlCapabilityDiagnosticRequest(clean)
                 val forceMultimodalReasoning =
                     isNgocSiAiYoutubeMultimodalAnalysisRequest(entryContext, clean, history) ||
+                        youtubeSingerIdentificationQuestion ||
                         videoCapabilityDiagnosticRequested ||
                         youtubeUrlCapabilityDiagnosticRequested
                 val requestTimeoutMillis = selectNgocSiAiRemoteTimeoutMillis(
@@ -2932,7 +3052,7 @@ private fun NgocSiAiPreviewScreen(
                         pageContext = entryContext,
                         prompt = clean,
                         previousMessages = conversation.toList()
-                    ) || videoCapabilityDiagnosticRequested ||
+                    ) || youtubeSingerIdentificationQuestion || videoCapabilityDiagnosticRequested ||
                         youtubeUrlCapabilityDiagnosticRequested
                 // Qwen3-0.6B is text-only. Never route the active YouTube video,
                 // MP4 canary, or public YouTube URL canary to text-only inference.
