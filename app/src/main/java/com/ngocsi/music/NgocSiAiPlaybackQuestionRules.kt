@@ -46,7 +46,7 @@ internal object NgocSiAiPlaybackQuestionRules {
         if (question.isBlank()) return false
 
         val hasTrackReference = listOf(
-            "bai hat", "bai nhac", "ten bai", "bai nay",
+            "bai hat", "bai nhac", "ten bai", "bai nay", "bai gi",
             "video", "ban nhac", "ca khuc"
         ).any(question::contains)
         val asksForIdentity = listOf(
@@ -80,9 +80,13 @@ internal object NgocSiAiPlaybackQuestionRules {
             "ai la nguoi dang hat",
             "ca si dang hat",
             "ca si nao dang hat",
+            "ca si hat bai nay",
+            "ai la ca si cua bai nay",
+            "ten nguoi hat bai nay",
             "ten ca si dang hat",
             "giong hat nay cua ai",
             "ai the hien bai nay",
+            "nguoi the hien bai hat la ai",
             "ai dang trinh bay bai nay"
         ).any(question::contains)
     }
