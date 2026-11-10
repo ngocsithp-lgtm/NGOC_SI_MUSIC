@@ -92,6 +92,7 @@ internal object NgocSiAiPlaybackQuestionRules {
         if (question.isBlank()) return false
         val asksWho = listOf(
             "ai hat", "ai dang hat", "ca si la ai", "nghe si la ai",
+            "ca si dang hat", "nghe si dang hat", "nguoi dang hat",
             "ten ca si", "ten nghe si", "nguoi hat la ai"
         ).any(question::contains)
         val refersToCurrentTrack = listOf(
