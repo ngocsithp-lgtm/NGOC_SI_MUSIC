@@ -395,7 +395,8 @@ internal fun buildNgocSiAiMediaContextInstruction(
         "nếu tiêu đề mô tả liên khúc/video chứ không xác định một bài riêng, hãy nói rõ đó là tiêu đề video. " +
         "Không coi tên kênh là tên ca sĩ; chỉ nêu người hát khi metadata nghệ sĩ hoặc dữ liệu âm thanh đáng tin cậy xác nhận. " +
         "Không suy ra khung hình, lời bài hát, giọng hát hoặc nội dung âm thanh chỉ từ tiêu đề/kênh; " +
-        "khi thiếu dữ liệu hình ảnh hoặc lời ca, hãy nói rõ giới hạn và không bịa nội dung."
+        "khi thiếu dữ liệu hình ảnh hoặc lời ca, hãy nói rõ giới hạn và chỉ đưa ví dụ minh họa; " +
+        "không bịa nội dung."
 }
 
 /**

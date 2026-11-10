@@ -649,9 +649,35 @@ internal fun shouldOfferNgocSiAiAppCommandTool(
     val normalized = normalizeNgocSiAiVoicePhrase(prompt)
     val intentText = stripNgocSiAiDirectIntentWakePrefix(normalized)
 
-    // Current-track identity questions are read-only metadata lookups, never app actions.
-    // This guard must run before the broad action-verb matcher ("nghe" + "bài hát").
-    if (isNgocSiAiSongOrSingerIdentificationRequest(prompt)) return false
+    // Current-track identity questions are read-only lookups, never app actions.
+    // Keep a normalized exact-phrase fallback so short ASR variants cannot be captured
+    // by the broad action-verb matcher ("nghe" + "bài hát").
+    val readOnlyCurrentTrackQuestions = setOf(
+        "bai hat dang nghe la gi",
+        "bai dang nghe la gi",
+        "bai hat dang phat la gi",
+        "bai dang phat la gi",
+        "dang nghe bai gi",
+        "dang phat bai gi",
+        "ten bai hat dang nghe la gi",
+        "ten bai hat dang phat la gi",
+        "ten bai dang nghe la gi",
+        "ten bai dang phat la gi",
+        "ten ca khuc dang nghe la gi",
+        "ten ca khuc dang phat la gi",
+        "bai nay ten gi",
+        "bai hat nay ten gi",
+        "ai dang hat bai nay",
+        "ai hat bai nay",
+        "ai la nguoi hat bai nay",
+        "nguoi dang hat bai nay",
+        "bai nay do ai hat",
+        "ca si nao dang hat bai nay"
+    )
+    if (
+        isNgocSiAiSongOrSingerIdentificationRequest(prompt) ||
+        intentText in readOnlyCurrentTrackQuestions
+    ) return false
 
     // Accent removal makes "đừng" and "dừng" identical. Reject clear negative
     // navigation/search verbs here, while preserving "đừng phát nhạc nữa" as
