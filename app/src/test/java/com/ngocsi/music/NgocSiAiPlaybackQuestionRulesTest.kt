@@ -128,6 +128,34 @@ class NgocSiAiPlaybackQuestionRulesTest {
         )
     }
 
+
+    @Test
+    fun recognizesCurrentTrackGenreQuestion() {
+        assertTrue(
+            NgocSiAiPlaybackQuestionRules.isCurrentGenreQuestion(
+                "Bài này thuộc thể loại gì?"
+            )
+        )
+    }
+
+    @Test
+    fun recognizesCurrentSongDongNhacQuestion() {
+        assertTrue(
+            NgocSiAiPlaybackQuestionRules.isCurrentGenreQuestion(
+                "Dòng nhạc của bài đang nghe là gì?"
+            )
+        )
+    }
+
+    @Test
+    fun doesNotTreatGeneralGenreQuestionAsCurrentTrackLookup() {
+        assertFalse(
+            NgocSiAiPlaybackQuestionRules.isCurrentGenreQuestion(
+                "Bạn thích thể loại nhạc nào?"
+            )
+        )
+    }
+
     @Test
     fun recognizesCurrentArtistMetadataQuestion() {
         assertTrue(
