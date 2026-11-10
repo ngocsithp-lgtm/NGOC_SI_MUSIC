@@ -61,6 +61,36 @@ class NgocSiAiPlaybackQuestionRulesTest {
     }
 
     @Test
+    fun recognizesSingerQuestionWithCaSiWording() {
+        assertTrue(
+            NgocSiAiPlaybackQuestionRules.isYoutubeSingerIdentificationQuestion(
+                "Ca sĩ đang hát bài này là ai?",
+                "YouTube"
+            )
+        )
+    }
+
+    @Test
+    fun recognizesWhoPerformsCurrentYoutubeSong() {
+        assertTrue(
+            NgocSiAiPlaybackQuestionRules.isYoutubeSingerIdentificationQuestion(
+                "Ai là ca sĩ của bài này?",
+                "YouTube"
+            )
+        )
+    }
+
+    @Test
+    fun doesNotTreatGeneralArtistQuestionAsCurrentYoutubeSingerRequest() {
+        assertFalse(
+            NgocSiAiPlaybackQuestionRules.isYoutubeSingerIdentificationQuestion(
+                "Hãy giới thiệu ca sĩ Tuấn Vũ",
+                "YouTube"
+            )
+        )
+    }
+
+    @Test
     fun doesNotClassifySingerQuestionAsYoutubeOutsideYoutubeContext() {
         assertFalse(
             NgocSiAiPlaybackQuestionRules.isYoutubeSingerIdentificationQuestion(
