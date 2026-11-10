@@ -76,6 +76,7 @@ internal object NgocSiAiPlaybackQuestionRules {
             "ai hat bai nay",
             "ai dang hat bai nay",
             "nguoi hat bai nay la ai",
+            "ai la nguoi hat bai nay",
             "nguoi dang hat bai nay",
             "ai la nguoi dang hat",
             "ca si dang hat",
@@ -86,7 +87,9 @@ internal object NgocSiAiPlaybackQuestionRules {
             "ten ca si dang hat",
             "giong hat nay cua ai",
             "ai the hien bai nay",
+            "ai the hien ca khuc nay",
             "nguoi the hien bai hat la ai",
+            "nguoi trinh bay bai nay la ai",
             "ai dang trinh bay bai nay"
         ).any(question::contains)
     }
@@ -97,7 +100,7 @@ internal object NgocSiAiPlaybackQuestionRules {
         val asksWho = listOf(
             "ai hat", "ai dang hat", "ca si la ai", "nghe si la ai",
             "ca si dang hat", "nghe si dang hat", "nguoi dang hat",
-            "ten ca si", "ten nghe si", "nguoi hat la ai"
+            "ai la nguoi hat bai nay", "ten ca si", "ten nghe si", "nguoi hat la ai"
         ).any(question::contains)
         val refersToCurrentTrack = listOf(
             "bai nay", "bai hat nay", "dang nghe", "dang phat",
