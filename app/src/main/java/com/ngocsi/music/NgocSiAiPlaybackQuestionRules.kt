@@ -105,7 +105,8 @@ internal object NgocSiAiPlaybackQuestionRules {
         if (question.isBlank()) return false
         val asksGenre = listOf(
             "the loai", "thuoc the loai", "dong nhac", "the loai nhac",
-            "genre", "style of music"
+            "nhac gi", "la bolero", "la nhac vang", "co phai bolero",
+            "co phai nhac vang", "genre", "style of music"
         ).any(question::contains)
         val refersToCurrentTrack = listOf(
             "bai nay", "bai hat nay", "ca khuc nay", "ban nhac nay",
