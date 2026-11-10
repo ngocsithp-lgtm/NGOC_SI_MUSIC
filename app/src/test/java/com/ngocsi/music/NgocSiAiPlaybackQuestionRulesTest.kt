@@ -33,6 +33,15 @@ class NgocSiAiPlaybackQuestionRulesTest {
     }
 
     @Test
+    fun recognizesShortTrackTitleQuestion() {
+        assertTrue(
+            NgocSiAiPlaybackQuestionRules.isCurrentTrackQuestion(
+                "Tên bài đang nghe?"
+            )
+        )
+    }
+
+    @Test
     fun doesNotTreatGeneralMusicQuestionAsCurrentTrackLookup() {
         assertFalse(
             NgocSiAiPlaybackQuestionRules.isCurrentTrackQuestion(
