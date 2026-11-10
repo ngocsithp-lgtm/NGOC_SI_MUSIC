@@ -403,6 +403,57 @@ internal fun resolveNgocSiAiCurrentYoutubeVideoId(
 }
 
 /**
+ * Resolve metadata against the exact active YouTube video ID.
+ *
+ * Queue transitions can update the process snapshot, persisted preferences and
+ * launch Intent at slightly different times. Never combine a title/channel from one
+ * video with the ID or playback position of another video.
+ */
+internal fun resolveNgocSiAiYoutubeMediaContextSnapshot(
+    pageContext: String?,
+    expectedVideoId: String?,
+    activeMedia: NgocSiAiYoutubeMediaContextSnapshot?,
+    persistedVideoId: String?,
+    persistedTitle: String?,
+    persistedChannel: String?,
+    launchVideoId: String?,
+    launchTitle: String?,
+    launchChannel: String?
+): NgocSiAiYoutubeMediaContextSnapshot? {
+    if (normalizeNgocSiAiEntryContext(pageContext) != "YouTube") return null
+
+    fun candidate(
+        videoId: String?,
+        title: String?,
+        channel: String?
+    ): NgocSiAiYoutubeMediaContextSnapshot? {
+        val safeId = normalizeNgocSiAiYoutubeVideoId(videoId) ?: return null
+        return NgocSiAiYoutubeMediaContextSnapshot(
+            videoId = safeId,
+            title = title.orEmpty().trim().take(160),
+            channel = channel.orEmpty().trim().take(100)
+        )
+    }
+
+    val candidates = listOfNotNull(
+        activeMedia?.let { candidate(it.videoId, it.title, it.channel) },
+        candidate(persistedVideoId, persistedTitle, persistedChannel),
+        candidate(launchVideoId, launchTitle, launchChannel)
+    )
+    val selectedVideoId = normalizeNgocSiAiYoutubeVideoId(expectedVideoId)
+        ?: candidates.firstOrNull()?.videoId
+        ?: return null
+    val matching = candidates.filter { it.videoId == selectedVideoId }
+    if (matching.isEmpty()) return null
+
+    return NgocSiAiYoutubeMediaContextSnapshot(
+        videoId = selectedVideoId,
+        title = matching.firstOrNull { it.title.isNotBlank() }?.title.orEmpty(),
+        channel = matching.firstOrNull { it.channel.isNotBlank() }?.channel.orEmpty()
+    )
+}
+
+/**
  * If YouTube is the selected playback source, keep video-analysis requests connected
  * to that player even when the AI screen was opened from a generic app page.
  * Explicit Radio, Drive, and TV pages remain authoritative.

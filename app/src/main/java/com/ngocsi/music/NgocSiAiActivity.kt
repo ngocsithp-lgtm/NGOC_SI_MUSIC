@@ -499,7 +499,10 @@ class NgocSiAiActivity : ComponentActivity() {
             val preferences = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
             val youtubeSourceActive = preferences.getBoolean("youtube_active_source", false)
             val activeMedia = NgocSiMainActivityState.youtubeMediaContextOrNull()
-            val persistedVideoId = if (youtubeSourceActive) {
+            val youtubePlayerActivityActive =
+                preferences.getBoolean("youtube_player_activity_active", false)
+            val youtubePlaybackActive = youtubeSourceActive || youtubePlayerActivityActive
+            val persistedVideoId = if (youtubePlaybackActive) {
                 preferences.getString("youtube_last_played_video_id", null)
             } else {
                 null
@@ -508,7 +511,7 @@ class NgocSiAiActivity : ComponentActivity() {
                 page,
                 activeMedia?.videoId ?: persistedVideoId
                     ?: intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_VIDEO_ID_EXTRA),
-                youtubeSourceActive
+                youtubePlaybackActive
             )
         }
     private val entryMediaContextInstruction: String
@@ -532,16 +535,52 @@ class NgocSiAiActivity : ComponentActivity() {
                 } else {
                     intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_CHANNEL_EXTRA)
                 }
-            val playbackPositionMs = entryYoutubeVideoId?.let { currentVideoId ->
-                preferences.getLong("youtube_position_ms_$currentVideoId", -1L)
+            val activeMedia = NgocSiMainActivityState.youtubeMediaContextOrNull()
+            val launchVideoId = intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_VIDEO_ID_EXTRA)
+            val launchTitle = intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_TITLE_EXTRA)
+            val launchChannel = intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_CHANNEL_EXTRA)
+            val persistedVideoId = if (usePersistedYoutubeMetadata || youtubePlayerActivityActive) {
+                preferences.getString("youtube_last_played_video_id", null)
+            } else {
+                null
             }
-            val youtubeContext = buildNgocSiAiCurrentYoutubeMediaContextInstruction(
+            val currentVideoId = resolveNgocSiAiCurrentYoutubeVideoId(
                 entryContext,
-                NgocSiMainActivityState.youtubeMediaContextOrNull(),
-                persistedOrLaunchTitle,
-                persistedOrLaunchChannel,
-                playbackPositionMs
+                activeMedia?.videoId ?: persistedVideoId,
+                launchVideoId
             )
+            val currentMedia = resolveNgocSiAiYoutubeMediaContextSnapshot(
+                pageContext = entryContext,
+                expectedVideoId = currentVideoId,
+                activeMedia = activeMedia,
+                persistedVideoId = persistedVideoId,
+                persistedTitle = persistedOrLaunchTitle,
+                persistedChannel = persistedOrLaunchChannel,
+                launchVideoId = launchVideoId,
+                launchTitle = launchTitle,
+                launchChannel = launchChannel
+            )
+            val playbackPositionMs = currentVideoId?.let { videoId ->
+                preferences.getLong("youtube_position_ms_$videoId", -1L)
+            }
+            val youtubeContext = if (currentVideoId != null) {
+                buildNgocSiAiCurrentYoutubeMediaContextInstruction(
+                    entryContext,
+                    currentMedia,
+                    null,
+                    null,
+                    playbackPositionMs
+                )
+            } else {
+                // Keep non-ID metadata as a last-resort display hint, but never pair it
+                // with a different active video ID or its playback timestamp.
+                buildNgocSiAiCurrentYoutubeMediaContextInstruction(
+                    entryContext,
+                    activeMedia,
+                    persistedOrLaunchTitle,
+                    persistedOrLaunchChannel
+                )
+            }
             val playbackContext = if (
                 normalizeNgocSiAiEntryContext(entryContext) == "YouTube"
             ) {
@@ -559,15 +598,14 @@ class NgocSiAiActivity : ComponentActivity() {
     private val entryYoutubeVideoId: String?
         get() {
             val preferences = getSharedPreferences("ngoc_si_music", MODE_PRIVATE)
-            val persistedVideoId = if (
-                preferences.getBoolean("youtube_active_source", false)
-            ) {
+            val youtubeSourceActive = preferences.getBoolean("youtube_active_source", false)
+            val youtubePlayerActivityActive =
+                preferences.getBoolean("youtube_player_activity_active", false)
+            val persistedVideoId = if (youtubeSourceActive || youtubePlayerActivityActive) {
                 preferences.getString("youtube_last_played_video_id", null)
             } else {
                 null
             }
-            val youtubePlayerActivityActive =
-                preferences.getBoolean("youtube_player_activity_active", false)
             return resolveNgocSiAiCurrentYoutubeVideoId(
                 entryContext,
                 NgocSiMainActivityState.youtubeMediaContextOrNull()?.videoId

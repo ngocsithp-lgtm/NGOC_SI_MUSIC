@@ -549,6 +549,61 @@ class NgocSiAiEntryContextTest {
     }
 
     @Test
+    fun youtubeMetadataResolverNeverMixesQueueItemsAcrossDifferentVideoIds() {
+        val activeOldVideo = NgocSiAiYoutubeMediaContextSnapshot(
+            videoId = "dQw4w9WgXcQ",
+            title = "Tiêu đề cũ",
+            channel = "Kênh cũ"
+        )
+        val resolved = resolveNgocSiAiYoutubeMediaContextSnapshot(
+            pageContext = "YouTube",
+            expectedVideoId = "a1b2c3d4e5F",
+            activeMedia = activeOldVideo,
+            persistedVideoId = "a1b2c3d4e5F",
+            persistedTitle = "Tiêu đề mới",
+            persistedChannel = "Kênh mới",
+            launchVideoId = "dQw4w9WgXcQ",
+            launchTitle = "Tiêu đề lúc mở AI",
+            launchChannel = "Kênh lúc mở AI"
+        )
+
+        assertEquals("a1b2c3d4e5F", resolved?.videoId)
+        assertEquals("Tiêu đề mới", resolved?.title)
+        assertEquals("Kênh mới", resolved?.channel)
+
+        val noMatchingMetadata = resolveNgocSiAiYoutubeMediaContextSnapshot(
+            pageContext = "YouTube",
+            expectedVideoId = "a1b2c3d4e5F",
+            activeMedia = activeOldVideo,
+            persistedVideoId = "dQw4w9WgXcQ",
+            persistedTitle = "Tiêu đề cũ",
+            persistedChannel = "Kênh cũ",
+            launchVideoId = "dQw4w9WgXcQ",
+            launchTitle = "Tiêu đề cũ",
+            launchChannel = "Kênh cũ"
+        )
+        assertNull(noMatchingMetadata)
+    }
+
+    @Test
+    fun youtubeMetadataResolverMergesOnlyFieldsForTheSameVideoId() {
+        val resolved = resolveNgocSiAiYoutubeMediaContextSnapshot(
+            pageContext = "YouTube",
+            expectedVideoId = "a1b2c3d4e5F",
+            activeMedia = NgocSiAiYoutubeMediaContextSnapshot(
+                videoId = "a1b2c3d4e5F",
+                title = "",
+                channel = "Kênh đang phát"
+            ),
+            persistedVideoId = "a1b2c3d4e5F",
+            persistedTitle = "Tiêu đề hiện tại",
+            persistedChannel = "Kênh cũ"
+        )
+        assertEquals("Tiêu đề hiện tại", resolved?.title)
+        assertEquals("Kênh đang phát", resolved?.channel)
+    }
+
+    @Test
     fun driveGuidanceUsesDriveForSourceNeutralSearchesOnlyOnDrivePage() {
         val drive = buildNgocSiAiEntryContextInstruction("Google Drive")
         assertTrue(drive.contains("mặc định tìm trong Drive"))
