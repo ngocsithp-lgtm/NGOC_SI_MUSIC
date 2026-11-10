@@ -597,7 +597,10 @@ class NgocSiAiEntryContextTest {
             ),
             persistedVideoId = "a1b2c3d4e5F",
             persistedTitle = "Tiêu đề hiện tại",
-            persistedChannel = "Kênh cũ"
+            persistedChannel = "Kênh cũ",
+            launchVideoId = null,
+            launchTitle = null,
+            launchChannel = null
         )
         assertEquals("Tiêu đề hiện tại", resolved?.title)
         assertEquals("Kênh đang phát", resolved?.channel)
