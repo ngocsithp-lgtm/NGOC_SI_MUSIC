@@ -450,25 +450,24 @@ class NgocSiAiEntryContextTest {
     }
 
     @Test
-    fun youtubePlayerActivityLaunchVideoOverridesStaleMainActivitySnapshot() {
-        val currentVideoId = "a1b2c3d4e5F"
-        val staleMainActivityVideoId = "dQw4w9WgXcQ"
+    fun latestActiveYoutubePlayerItemOverridesLaunchTimeVideoIdAfterQueueAdvance() {
+        val latestActiveVideoId = "a1b2c3d4e5F"
+        val staleLaunchVideoId = "dQw4w9WgXcQ"
 
         assertEquals(
-            currentVideoId,
+            latestActiveVideoId,
             resolveNgocSiAiCurrentYoutubeVideoId(
                 "YouTube",
-                activeVideoId = staleMainActivityVideoId,
-                launchVideoId = currentVideoId,
-                preferLaunchVideoId = true
+                activeVideoId = latestActiveVideoId,
+                launchVideoId = staleLaunchVideoId
             )
         )
         assertEquals(
-            staleMainActivityVideoId,
+            staleLaunchVideoId,
             resolveNgocSiAiCurrentYoutubeVideoId(
                 "YouTube",
-                activeVideoId = staleMainActivityVideoId,
-                launchVideoId = currentVideoId
+                activeVideoId = "invalid",
+                launchVideoId = staleLaunchVideoId
             )
         )
     }
@@ -504,23 +503,22 @@ class NgocSiAiEntryContextTest {
     }
 
     @Test
-    fun youtubePlayerActivityLaunchMetadataOverridesStaleMainActivitySnapshot() {
+    fun latestActiveYoutubePlayerMetadataOverridesStaleLaunchMetadataAfterQueueAdvance() {
         val instruction = buildNgocSiAiCurrentYoutubeMediaContextInstruction(
             pageContext = "YouTube",
             activeMedia = NgocSiAiYoutubeMediaContextSnapshot(
-                videoId = "dQw4w9WgXcQ",
-                title = "Video cũ từ màn hình chính",
-                channel = "Kênh cũ"
+                videoId = "a1b2c3d4e5F",
+                title = "Video đang phát mới",
+                channel = "Kênh mới"
             ),
-            launchTitle = "Nhạc Trữ Tình Remix Mới Nhất",
-            launchChannel = "DN TEAM",
-            preferLaunchMetadata = true
+            launchTitle = "Video cũ lúc mở AI",
+            launchChannel = "Kênh cũ lúc mở AI"
         )
 
-        assertTrue(instruction.contains("Nhạc Trữ Tình Remix Mới Nhất"))
-        assertTrue(instruction.contains("DN TEAM"))
-        assertFalse(instruction.contains("Video cũ từ màn hình chính"))
-        assertFalse(instruction.contains("Kênh cũ"))
+        assertTrue(instruction.contains("Video đang phát mới"))
+        assertTrue(instruction.contains("Kênh mới"))
+        assertFalse(instruction.contains("Video cũ lúc mở AI"))
+        assertFalse(instruction.contains("Kênh cũ lúc mở AI"))
     }
 
     @Test

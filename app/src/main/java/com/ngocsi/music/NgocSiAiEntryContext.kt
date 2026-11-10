@@ -369,14 +369,13 @@ internal fun buildNgocSiAiActivePlaybackContextInstruction(
 internal fun resolveNgocSiAiCurrentYoutubeVideoId(
     pageContext: String?,
     activeVideoId: String?,
-    launchVideoId: String?,
-    preferLaunchVideoId: Boolean = false
+    launchVideoId: String?
 ): String? {
     if (normalizeNgocSiAiEntryContext(pageContext) != "YouTube") return null
-    val preferredId = if (preferLaunchVideoId) launchVideoId else activeVideoId
-    val fallbackId = if (preferLaunchVideoId) activeVideoId else launchVideoId
-    return normalizeNgocSiAiYoutubeVideoId(preferredId)
-        ?: normalizeNgocSiAiYoutubeVideoId(fallbackId)
+    // The active player publishes every queue transition to process state. Its
+    // current item must win over the video ID captured when AI was opened.
+    return normalizeNgocSiAiYoutubeVideoId(activeVideoId)
+        ?: normalizeNgocSiAiYoutubeVideoId(launchVideoId)
 }
 
 /**
@@ -407,13 +406,14 @@ internal fun buildNgocSiAiCurrentYoutubeMediaContextInstruction(
     pageContext: String?,
     activeMedia: NgocSiAiYoutubeMediaContextSnapshot?,
     launchTitle: String?,
-    launchChannel: String?,
-    preferLaunchMetadata: Boolean = false
+    launchChannel: String?
 ): String {
     if (normalizeNgocSiAiEntryContext(pageContext) != "YouTube") return ""
+    // Metadata follows the same live queue snapshot as the video ID. Launch-time
+    // title/channel values are fallback context only, never stronger than the player.
     val validActiveMedia = activeMedia?.takeIf {
         normalizeNgocSiAiYoutubeVideoId(it.videoId) != null
-    }?.takeUnless { preferLaunchMetadata }
+    }
     return if (validActiveMedia != null) {
         buildNgocSiAiMediaContextInstruction(
             "YouTube",

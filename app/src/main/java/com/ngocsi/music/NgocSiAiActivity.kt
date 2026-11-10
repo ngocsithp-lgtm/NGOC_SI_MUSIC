@@ -518,19 +518,25 @@ class NgocSiAiActivity : ComponentActivity() {
                 preferences.getBoolean("youtube_active_source", false)
             val youtubePlayerActivityActive =
                 preferences.getBoolean("youtube_player_activity_active", false)
+            val persistedOrLaunchTitle =
+                if (usePersistedYoutubeMetadata || youtubePlayerActivityActive) {
+                    preferences.getString("youtube_last_played_title", null)
+                        ?: intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_TITLE_EXTRA)
+                } else {
+                    intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_TITLE_EXTRA)
+                }
+            val persistedOrLaunchChannel =
+                if (usePersistedYoutubeMetadata || youtubePlayerActivityActive) {
+                    preferences.getString("youtube_last_played_channel", null)
+                        ?: intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_CHANNEL_EXTRA)
+                } else {
+                    intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_CHANNEL_EXTRA)
+                }
             val youtubeContext = buildNgocSiAiCurrentYoutubeMediaContextInstruction(
                 entryContext,
-                if (youtubePlayerActivityActive) null
-                else NgocSiMainActivityState.youtubeMediaContextOrNull(),
-                intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_TITLE_EXTRA)
-                    ?: if (usePersistedYoutubeMetadata || youtubePlayerActivityActive) {
-                        preferences.getString("youtube_last_played_title", null)
-                    } else null,
-                intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_CHANNEL_EXTRA)
-                    ?: if (usePersistedYoutubeMetadata || youtubePlayerActivityActive) {
-                        preferences.getString("youtube_last_played_channel", null)
-                    } else null,
-                preferLaunchMetadata = youtubePlayerActivityActive
+                NgocSiMainActivityState.youtubeMediaContextOrNull(),
+                persistedOrLaunchTitle,
+                persistedOrLaunchChannel
             )
             val playbackContext = if (
                 normalizeNgocSiAiEntryContext(entryContext) == "YouTube"
@@ -562,8 +568,7 @@ class NgocSiAiActivity : ComponentActivity() {
                 entryContext,
                 NgocSiMainActivityState.youtubeMediaContextOrNull()?.videoId
                     ?: persistedVideoId,
-                intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_VIDEO_ID_EXTRA),
-                preferLaunchVideoId = youtubePlayerActivityActive
+                intent.getStringExtra(NGOC_SI_AI_ENTRY_MEDIA_VIDEO_ID_EXTRA)
             )
         }
     private var recognizedSpeech by mutableStateOf("")
