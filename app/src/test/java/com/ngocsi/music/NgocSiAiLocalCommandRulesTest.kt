@@ -533,6 +533,8 @@ class NgocSiAiLocalCommandRulesTest {
             "Đang phát bài gì?",
             "Ngọc Sĩ, bài gì đang phát",
             "Tên bài hát đang nghe là gì?",
+            "Bài hát đang nghe là gì?",
+            "AI, bài hát đang nghe là gì?",
             "Đang nghe bài nào?",
             "Bài này tên gì?",
             "AI, cho tôi biết tên ca khúc đang phát",

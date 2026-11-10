@@ -1121,9 +1121,10 @@ internal fun classifyNgocSiAiLocalCommand(
 
         isAnyOf(
             "dang phat bai gi", "bai gi dang phat", "ten bai hat hien tai",
-            "bai dang phat la gi", "bai nao dang phat", "ten bai dang phat",
+            "bai dang phat la gi", "bai hat dang phat la gi", "bai nao dang phat", "ten bai dang phat",
             "bai hat nao dang phat", "ten bai dang nghe", "ten bai hat dang nghe", "ten bai hat dang nghe la gi",
-            "bai dang nghe ten gi", "dang nghe bai gi", "dang nghe bai nao",
+            "bai dang nghe la gi", "bai hat dang nghe la gi", "bai dang nghe ten gi",
+            "dang nghe bai gi", "dang phat bai gi", "dang nghe bai nao",
             "bay gio dang nghe bai gi", "hien tai dang phat bai nao",
             "bai nhac nao dang phat", "ten ca khuc dang phat",
             "ca khuc dang phat la gi", "cho toi biet dang phat bai gi",

@@ -68,7 +68,8 @@ internal fun isNgocSiAiSongOrSingerIdentificationRequest(prompt: String): Boolea
         "nguoi dang hat", "ca si trong video", "ten nguoi hat",
         "nhan dien bai hat", "nhan dien ca si"
     )
-    return identityMarkers.any(normalized::contains)
+    return isNgocSiAiCurrentSongTitleMetadataQuestion(prompt) ||
+        identityMarkers.any(normalized::contains)
 }
 
 /**
