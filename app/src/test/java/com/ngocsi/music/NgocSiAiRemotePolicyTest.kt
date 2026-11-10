@@ -619,6 +619,21 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
+    fun currentTrackTitleAndSingerQuestionsNeverOfferAppControlTools() {
+        listOf(
+            "Bài hát đang nghe là gì?",
+            "AI, bài hát đang nghe là gì?",
+            "AI, tên bài hát đang nghe là gì?",
+            "AI, ai đang hát bài này?"
+        ).forEach { prompt ->
+            assertFalse(
+                "$prompt is a read-only identity question, not an app action",
+                shouldOfferNgocSiAiAppCommandTool(prompt)
+            )
+        }
+    }
+
+    @Test
     fun naturalVietnameseNavigationPhrasesKeepTheAppCommandToolAvailable() {
         listOf(
             "AI, chuyển qua Radio giúp tôi.",

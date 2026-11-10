@@ -218,23 +218,30 @@ class NgocSiAiEntryContextTest {
     }
 
     @Test
-    fun songTitleAndSingerQuestionsAttachOnlyTheCurrentYoutubeVideo() {
+    fun titleQuestionsUsePlayerMetadataWhileSingerQuestionsAttachYoutubeAudio() {
+        val bareTitlePrompt = "Bài hát đang nghe là gì?"
         val titlePrompt = "AI, tên bài hát đang nghe là gì?"
         val singerPrompt = "AI, ai đang hát bài này?"
         val history = emptyList<NgocSiAiMessage>()
 
+        assertTrue(isNgocSiAiCurrentSongTitleMetadataQuestion(bareTitlePrompt))
+        assertTrue(isNgocSiAiCurrentSongTitleMetadataQuestion(titlePrompt))
         assertTrue(isNgocSiAiSongOrSingerIdentificationRequest(titlePrompt))
         assertTrue(isNgocSiAiSongOrSingerIdentificationRequest(singerPrompt))
-        assertTrue(isNgocSiAiCurrentYoutubeVideoAnalysisPrompt(titlePrompt, "YouTube"))
-        assertTrue(isNgocSiAiCurrentYoutubeVideoAnalysisPrompt(singerPrompt, "YouTube"))
-        assertFalse(isNgocSiAiCurrentYoutubeVideoAnalysisPrompt(singerPrompt, "Radio"))
 
-        assertTrue(shouldAttachNgocSiAiYoutubeVideo(titlePrompt, history))
-        assertTrue(shouldAttachNgocSiAiYoutubeVideo(singerPrompt, history))
-        assertEquals(
-            "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        // A title lookup reads the supplied player metadata; it is not a video-analysis request.
+        assertFalse(isNgocSiAiCurrentYoutubeVideoAnalysisPrompt(bareTitlePrompt, "YouTube"))
+        assertFalse(isNgocSiAiCurrentYoutubeVideoAnalysisPrompt(titlePrompt, "YouTube"))
+        assertFalse(shouldAttachNgocSiAiYoutubeVideo(bareTitlePrompt, history))
+        assertFalse(shouldAttachNgocSiAiYoutubeVideo(titlePrompt, history))
+        assertNull(
             resolveNgocSiAiYoutubeVideoAnalysisUri("YouTube", "dQw4w9WgXcQ", titlePrompt, history)
         )
+
+        // Identifying the singer requires actual YouTube audio analysis, not the channel name.
+        assertTrue(isNgocSiAiCurrentYoutubeVideoAnalysisPrompt(singerPrompt, "YouTube"))
+        assertFalse(isNgocSiAiCurrentYoutubeVideoAnalysisPrompt(singerPrompt, "Radio"))
+        assertTrue(shouldAttachNgocSiAiYoutubeVideo(singerPrompt, history))
         assertEquals(
             "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
             resolveNgocSiAiYoutubeVideoAnalysisUri("YouTube", "dQw4w9WgXcQ", singerPrompt, history)
@@ -245,6 +252,13 @@ class NgocSiAiEntryContextTest {
         assertFalse(
             shouldAttachNgocSiAiYoutubeVideo("AI, ai là ca sĩ Tuấn Vũ?", history)
         )
+
+        val metadataInstruction = buildNgocSiAiMediaContextInstruction(
+            "YouTube", "Bài hát thử nghiệm - Liên khúc", "360 Entertainment"
+        )
+        assertTrue(metadataInstruction.contains("Bài hát thử nghiệm - Liên khúc"))
+        assertTrue(metadataInstruction.contains("tiêu đề metadata"))
+        assertTrue(metadataInstruction.contains("Không coi tên kênh là tên ca sĩ"))
     }
 
     @Test

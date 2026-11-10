@@ -649,6 +649,10 @@ internal fun shouldOfferNgocSiAiAppCommandTool(
     val normalized = normalizeNgocSiAiVoicePhrase(prompt)
     val intentText = stripNgocSiAiDirectIntentWakePrefix(normalized)
 
+    // Current-track identity questions are read-only metadata lookups, never app actions.
+    // This guard must run before the broad action-verb matcher ("nghe" + "bài hát").
+    if (isNgocSiAiSongOrSingerIdentificationRequest(prompt)) return false
+
     // Accent removal makes "đừng" and "dừng" identical. Reject clear negative
     // navigation/search verbs here, while preserving "đừng phát nhạc nữa" as
     // a possible explicit stop request handled by the command router.
