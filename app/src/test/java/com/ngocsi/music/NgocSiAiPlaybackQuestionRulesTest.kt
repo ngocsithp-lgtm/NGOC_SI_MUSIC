@@ -42,6 +42,24 @@ class NgocSiAiPlaybackQuestionRulesTest {
     }
 
     @Test
+    fun recognizesQuestionAboutWhichSongIsPlaying() {
+        assertTrue(
+            NgocSiAiPlaybackQuestionRules.isCurrentTrackQuestion(
+                "Bài hát nào đang phát?"
+            )
+        )
+    }
+
+    @Test
+    fun recognizesCurrentTrackTitleUsingCaKhuc() {
+        assertTrue(
+            NgocSiAiPlaybackQuestionRules.isCurrentTrackQuestion(
+                "Tên ca khúc này là gì?"
+            )
+        )
+    }
+
+    @Test
     fun doesNotTreatGeneralMusicQuestionAsCurrentTrackLookup() {
         assertFalse(
             NgocSiAiPlaybackQuestionRules.isCurrentTrackQuestion(
