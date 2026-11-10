@@ -191,6 +191,19 @@ internal class NgocSiAiRemoteClient(context: Context) {
             isNgocSiAiVideoCapabilityDiagnosticRequest(newestUserMessage.content)
         val youtubeUrlCapabilityDiagnosticRequested =
             isNgocSiAiYoutubeUrlCapabilityDiagnosticRequest(newestUserMessage.content)
+        val youtubeSingerIdentificationQuestion =
+            NgocSiAiPlaybackQuestionRules.isYoutubeSingerIdentificationQuestion(
+                newestUserMessage.content,
+                entryContext
+            )
+        // Promote singer-identification questions to an explicit video-evidence request.
+        // A channel name or title must never be used as a substitute for audible evidence.
+        val youtubeEvidencePrompt = if (youtubeSingerIdentificationQuestion) {
+            "Phân tích video YouTube đang phát để xác minh người thực sự hát. " +
+                "Câu hỏi của người dùng: ${newestUserMessage.content}"
+        } else {
+            newestUserMessage.content
+        }
         // Never downgrade a YouTube evidence-analysis request to text-only chat.
         // Missing video context is a blocker, not permission to guess from metadata.
         if (
@@ -199,7 +212,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
             isNgocSiAiYoutubeVideoAttachmentMissing(
                 pageContext = entryContext,
                 currentVideoId = youtubeVideoId,
-                prompt = newestUserMessage.content,
+                prompt = youtubeEvidencePrompt,
                 previousMessages = normalized.dropLast(1)
             )
         ) {
@@ -212,13 +225,14 @@ internal class NgocSiAiRemoteClient(context: Context) {
             resolveNgocSiAiYoutubeVideoAnalysisUri(
                 pageContext = entryContext,
                 currentVideoId = youtubeVideoId,
-                prompt = newestUserMessage.content,
+                prompt = youtubeEvidencePrompt,
                 previousMessages = normalized.dropLast(1)
             )
         }
         val videoInputUri = if (videoCapabilityDiagnosticRequested) null else youtubeVideoAnalysisUri
         val forceMultimodalReasoning = videoCapabilityDiagnosticRequested || videoInputUri != null
         val offersAppCommandTool = !youtubeUrlCapabilityDiagnosticRequested &&
+            !youtubeSingerIdentificationQuestion &&
             shouldOfferNgocSiAiAppCommandTool(newestUserMessage.content, normalized.dropLast(1))
         val selectedModelName = selectNgocSiAiModelName(
             newestUserMessage.content,
@@ -257,7 +271,14 @@ internal class NgocSiAiRemoteClient(context: Context) {
                         buildNgocSiAiYoutubeUrlCapabilityDiagnosticPrompt(newestUserMessage.content)
                     } else {
                         buildNgocSiAiVideoAnalysisRequestText(
-                            userPrompt = newestUserMessage.content,
+                            userPrompt = if (youtubeSingerIdentificationQuestion) {
+                                "Hãy xác định người thực sự hát dựa trên âm thanh nghe được trong video. " +
+                                    "Chỉ nêu tên khi có bằng chứng âm thanh đủ rõ; không suy đoán từ tên kênh, " +
+                                    "tiêu đề, ảnh bìa hoặc chữ trên màn hình. Nếu không đủ bằng chứng, hãy nói rõ. " +
+                                    "Câu hỏi gốc: ${newestUserMessage.content}"
+                            } else {
+                                newestUserMessage.content
+                            },
                             recentMessages = normalized.dropLast(1),
                             mediaContextInstruction = mediaContextInstruction
                         )
