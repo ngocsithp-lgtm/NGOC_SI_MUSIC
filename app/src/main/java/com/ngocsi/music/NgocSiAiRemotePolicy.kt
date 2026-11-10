@@ -417,11 +417,17 @@ internal fun isNgocSiAiMultimodalVideoAnalysisRequest(prompt: String): Boolean {
         "giong hat", "loi bai hat", "cam xuc", "canh quay", "noi dung video",
         "dau hieu nghe duoc", "nghe duoc trong ban thu", "nhung gi nghe duoc",
         "dieu gi nghe duoc", "phan biet dieu gi chua the xac minh",
-        "chua the xac minh"
+        "chua the xac minh",
+        // Identifying the current track or vocalist also requires the actual media,
+        // not only a title/artist field copied from the player.
+        "ten bai hat", "ten ca khuc", "bai nay ten gi", "ai dang hat",
+        "ai hat bai nay", "nguoi dang hat", "ca si trong video",
+        "nhan dien bai hat", "nhan dien ca si", "ten nguoi hat"
     ).any(normalized::contains)
     val mediaContext = listOf(
         "video", "youtube", "mv", "bai hat", "ca khuc", "ca si",
-        "giong hat", "ban thu", "loi bai hat"
+        "giong hat", "ban thu", "loi bai hat",
+        "dang nghe", "dang phat", "bai nay", "video nay"
     ).any(normalized::contains)
     return analysisIntent && mediaContext
 }
@@ -443,6 +449,8 @@ internal fun isNgocSiAiQuickVideoOverviewRequest(prompt: String): Boolean {
         "maximum reasoning", "deepest reasoning", "kiem tra toan dien",
         "dau hieu nghe duoc", "nghe duoc", "ban thu",
         "cach hat", "chat giong", "giong hat", "loi bai hat",
+        "ten bai hat", "ten ca khuc", "ai dang hat", "ai hat bai nay",
+        "nhan dien bai hat", "nhan dien ca si", "ten nguoi hat",
         "so sanh", "cam xuc", "canh quay", "hinh anh",
         "moc thoi gian", "timestamp", "chi tiet", "chi ra"
     )

@@ -31,6 +31,30 @@ internal fun buildNgocSiAiYoutubeVideoUri(rawVideoId: String?): String? {
  * request, or a short follow-up to a recent music/video-analysis conversation.
  * Playback controls, ordinary chat, and requests from other pages never attach media.
  */
+/**
+ * Song-title and singer-identification questions refer to the active media when
+ * asked from the YouTube page. Keep this intent separate from ordinary artist
+ * knowledge questions so those do not trigger video ingestion.
+ */
+internal fun isNgocSiAiSongOrSingerIdentificationRequest(prompt: String): Boolean {
+    val normalized = stripNgocSiAiDirectIntentWakePrefix(
+        normalizeNgocSiAiVoicePhrase(prompt)
+    ).removePrefix("hay ").trim()
+    val identityMarkers = listOf(
+        "ten bai hat", "ten ca khuc", "bai nay ten gi",
+        "ai dang hat", "ai hat bai nay", "ai la nguoi hat",
+        "nguoi dang hat", "ca si trong video", "ten nguoi hat",
+        "nhan dien bai hat", "nhan dien ca si"
+    )
+    return identityMarkers.any(normalized::contains)
+}
+
+/**
+ * Attach the currently playing YouTube video only for an explicit media-analysis
+ * request, an active song/singer identification question, or a short follow-up
+ * to a recent music/video-analysis conversation.
+ * Playback controls, ordinary chat, and requests from other pages never attach media.
+ */
 internal fun shouldAttachNgocSiAiYoutubeVideo(
     prompt: String,
     previousMessages: List<NgocSiAiMessage>
@@ -39,6 +63,8 @@ internal fun shouldAttachNgocSiAiYoutubeVideo(
         normalizeNgocSiAiVoicePhrase(prompt)
     ).removePrefix("hay ").trim()
     if (latest.isBlank()) return false
+
+    if (isNgocSiAiSongOrSingerIdentificationRequest(latest)) return true
 
     val directAnalysisMarkers = listOf(
         "phan tich", "noi dung video", "mo ta video", "dieu gi xay ra trong video",
@@ -73,8 +99,11 @@ internal fun shouldAttachNgocSiAiYoutubeVideo(
         recentAnalysisMarkers.any(recentContext::contains)
 }
 
-/** Recognize explicit requests about the currently playing YouTube video. */
-internal fun isNgocSiAiCurrentYoutubeVideoAnalysisPrompt(prompt: String): Boolean {
+/** Recognize active-video analysis and track-identification questions on YouTube. */
+internal fun isNgocSiAiCurrentYoutubeVideoAnalysisPrompt(
+    prompt: String,
+    pageContext: String? = null
+): Boolean {
     val normalized = stripNgocSiAiDirectIntentWakePrefix(
         normalizeNgocSiAiVoicePhrase(prompt)
     ).removePrefix("hay ").trim()
@@ -84,9 +113,11 @@ internal fun isNgocSiAiCurrentYoutubeVideoAnalysisPrompt(prompt: String): Boolea
         "video dang phat", "video dang chay", "video hien tai",
         "video nay", "video youtube dang phat", "mv dang phat", "mv nay"
     ).any(normalized::contains)
-    return asksForAnalysis && refersToCurrentVideo
+    val asksToIdentifyCurrentTrackOrSinger =
+        normalizeNgocSiAiEntryContext(pageContext) == "YouTube" &&
+            isNgocSiAiSongOrSingerIdentificationRequest(normalized)
+    return (asksForAnalysis && refersToCurrentVideo) || asksToIdentifyCurrentTrackOrSinger
 }
-
 internal fun buildNgocSiAiVideoAnalysisRequiresGeminiReply(): String =
     "Yêu cầu phân tích video đang phát cần Gemini trực tuyến có khả năng xử lý hình ảnh và âm thanh. " +
         "Qwen3 chạy tại máy chỉ xử lý văn bản nên không thể xem hoặc nghe video YouTube. " +

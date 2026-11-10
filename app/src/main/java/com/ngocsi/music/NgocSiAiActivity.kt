@@ -2578,7 +2578,7 @@ private fun NgocSiAiPreviewScreen(
         if (clean.isBlank()) return
 
         val currentVideoAnalysisRequest =
-            isNgocSiAiCurrentYoutubeVideoAnalysisPrompt(clean)
+            isNgocSiAiCurrentYoutubeVideoAnalysisPrompt(clean, entryContext)
         if (
             currentVideoAnalysisRequest &&
             normalizeNgocSiAiEntryContext(entryContext) != "YouTube"

@@ -218,6 +218,36 @@ class NgocSiAiEntryContextTest {
     }
 
     @Test
+    fun songTitleAndSingerQuestionsAttachOnlyTheCurrentYoutubeVideo() {
+        val titlePrompt = "AI, tên bài hát đang nghe là gì?"
+        val singerPrompt = "AI, ai đang hát bài này?"
+        val history = emptyList<NgocSiAiMessage>()
+
+        assertTrue(isNgocSiAiSongOrSingerIdentificationRequest(titlePrompt))
+        assertTrue(isNgocSiAiSongOrSingerIdentificationRequest(singerPrompt))
+        assertTrue(isNgocSiAiCurrentYoutubeVideoAnalysisPrompt(titlePrompt, "YouTube"))
+        assertTrue(isNgocSiAiCurrentYoutubeVideoAnalysisPrompt(singerPrompt, "YouTube"))
+        assertFalse(isNgocSiAiCurrentYoutubeVideoAnalysisPrompt(singerPrompt, "Radio"))
+
+        assertTrue(shouldAttachNgocSiAiYoutubeVideo(titlePrompt, history))
+        assertTrue(shouldAttachNgocSiAiYoutubeVideo(singerPrompt, history))
+        assertEquals(
+            "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            resolveNgocSiAiYoutubeVideoAnalysisUri("YouTube", "dQw4w9WgXcQ", titlePrompt, history)
+        )
+        assertEquals(
+            "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            resolveNgocSiAiYoutubeVideoAnalysisUri("YouTube", "dQw4w9WgXcQ", singerPrompt, history)
+        )
+        assertNull(
+            resolveNgocSiAiYoutubeVideoAnalysisUri("Radio", "dQw4w9WgXcQ", singerPrompt, history)
+        )
+        assertFalse(
+            shouldAttachNgocSiAiYoutubeVideo("AI, ai là ca sĩ Tuấn Vũ?", history)
+        )
+    }
+
+    @Test
     fun unconfiguredGeminiDoesNotPretendLocalQwenCanAnalyzeVideo() {
         val reply = buildNgocSiAiVideoAnalysisRequiresGeminiReply()
         assertTrue(reply.contains("cần Gemini trực tuyến"))

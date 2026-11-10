@@ -20,6 +20,31 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
+    fun currentSongTitleAndSingerQuestionsRequireMultimodalVideoEvidence() {
+        val prompts = listOf(
+            "AI, tên bài hát đang nghe là gì?",
+            "AI, ai đang hát bài này?"
+        )
+
+        prompts.forEach { prompt ->
+            assertTrue(isNgocSiAiMultimodalVideoAnalysisRequest(prompt))
+            assertFalse(isNgocSiAiQuickVideoOverviewRequest(prompt))
+            assertEquals(
+                NGOC_SI_AI_REASONING_MODEL_NAME,
+                selectNgocSiAiModelName(prompt, forceMultimodalReasoning = true)
+            )
+            assertEquals(
+                NGOC_SI_AI_VIDEO_ANALYSIS_TIMEOUT_MILLIS,
+                selectNgocSiAiRemoteTimeoutMillis(prompt, forceMultimodalReasoning = true)
+            )
+        }
+
+        assertFalse(
+            isNgocSiAiMultimodalVideoAnalysisRequest("Ai là ca sĩ Tuấn Vũ?")
+        )
+    }
+
+    @Test
     fun extractsOnlyExplicitHttpOrGoogleRpcStatusesFromServerErrors() {
         assertEquals(
             "503",
