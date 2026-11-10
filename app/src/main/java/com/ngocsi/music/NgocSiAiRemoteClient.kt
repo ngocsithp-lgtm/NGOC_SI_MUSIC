@@ -199,7 +199,7 @@ internal class NgocSiAiRemoteClient(context: Context) {
         // Promote singer-identification questions to an explicit video-evidence request.
         // A channel name or title must never be used as a substitute for audible evidence.
         val youtubeEvidencePrompt = if (youtubeSingerIdentificationQuestion) {
-            "Phân tích video YouTube đang phát để xác minh người thực sự hát. " +
+            "Phân tích video đang phát trên YouTube để xác minh người thực sự hát. " +
                 "Câu hỏi của người dùng: ${newestUserMessage.content}"
         } else {
             newestUserMessage.content
@@ -222,12 +222,23 @@ internal class NgocSiAiRemoteClient(context: Context) {
         val youtubeVideoAnalysisUri = if (youtubeUrlCapabilityDiagnosticRequested) {
             NGOC_SI_AI_YOUTUBE_DIAGNOSTIC_SAMPLE_URI
         } else {
-            resolveNgocSiAiYoutubeVideoAnalysisUri(
+            val resolvedUri = resolveNgocSiAiYoutubeVideoAnalysisUri(
                 pageContext = entryContext,
                 currentVideoId = youtubeVideoId,
                 prompt = youtubeEvidencePrompt,
                 previousMessages = normalized.dropLast(1)
             )
+            if (youtubeSingerIdentificationQuestion && resolvedUri == null) {
+                // A validated active video ID may be attached directly when the generic
+                // prompt classifier does not recognize this new singer-question wording.
+                normalizeNgocSiAiYoutubeVideoId(youtubeVideoId)
+                    ?.let { "https://www.youtube.com/watch?v=$it" }
+            } else {
+                resolvedUri
+            }
+        }
+        if (youtubeSingerIdentificationQuestion && youtubeVideoAnalysisUri == null) {
+            throw NgocSiAiRemoteException(buildNgocSiAiYoutubeVideoUnavailableReply())
         }
         val videoInputUri = if (videoCapabilityDiagnosticRequested) null else youtubeVideoAnalysisUri
         val forceMultimodalReasoning = videoCapabilityDiagnosticRequested || videoInputUri != null
