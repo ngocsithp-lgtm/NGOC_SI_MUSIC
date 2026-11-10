@@ -50,12 +50,14 @@ internal object NgocSiAiPlaybackQuestionRules {
             "video", "ban nhac", "ca khuc"
         ).any(question::contains)
         val asksForIdentity = listOf(
-            "la gi", "ten gi", "ten bai", "bai gi", "video gi",
-            "what song", "what is playing", "what's playing"
+            "la gi", "ten gi", "ten bai", "ten bai hat", "ten bai nhac",
+            "bai gi", "bai hat gi", "bai nhac gi", "bai hat nao",
+            "bai nhac nao", "dang nghe bai nao", "dang phat bai nao",
+            "video gi", "what song", "what is playing", "what's playing"
         ).any(question::contains)
         val refersToCurrentPlayback = listOf(
             "dang nghe", "dang phat", "hien tai", "luc nay",
-            "bai nay", "video nay"
+            "bai nay", "ca khuc nay", "ban nhac nay", "video nay"
         ).any(question::contains)
 
         return hasTrackReference && asksForIdentity && refersToCurrentPlayback
