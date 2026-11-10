@@ -2663,8 +2663,13 @@ private fun NgocSiAiPreviewScreen(
         val localMemoryQuestionReply =
             answerNgocSiAiSavedPreferenceQuestion(clean, localMemories)
         val localCommand = if (
-            localMemoryReply != null || localMemoryQuestionReply != null || contextualActionConfirmation
+            localMemoryReply != null ||
+            localMemoryQuestionReply != null ||
+            contextualActionConfirmation ||
+            currentVideoAnalysisRequest
         ) {
+            // A YouTube singer-identification question must reach the multimodal Gemini
+            // path. CURRENT_ARTIST only reads metadata and cannot identify the audible voice.
             null
         } else if (explicitStop) {
             NgocSiAiLocalCommand.STOP
