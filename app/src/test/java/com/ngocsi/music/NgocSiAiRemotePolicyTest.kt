@@ -325,13 +325,20 @@ class NgocSiAiRemotePolicyTest {
 
     @Test
     fun videoServerErrorsExposeOnlyTheRelevantManualDiagnosticActions() {
+        val youtubeChecks = listOf(
+            "Kiểm tra YouTube mẫu" to "AI, kiểm tra kết nối YouTube mẫu.",
+            "Kiểm tra MP4 mẫu" to "AI, kiểm tra kết nối video mẫu."
+        )
         assertEquals(
-            listOf(
-                "Kiểm tra YouTube mẫu" to "AI, kiểm tra kết nối YouTube mẫu.",
-                "Kiểm tra MP4 mẫu" to "AI, kiểm tra kết nối video mẫu."
-            ),
+            youtubeChecks,
             ngocSiAiVideoDiagnosticActionsForError(
                 "Firebase AI Logic returned ServerException. YOUTUBE_VIDEO_SERVER_ERROR"
+            )
+        )
+        assertEquals(
+            youtubeChecks,
+            ngocSiAiVideoDiagnosticActionsForError(
+                "HTTP 400. YOUTUBE_VIDEO_HTTP_400"
             )
         )
         assertEquals(
@@ -344,6 +351,15 @@ class NgocSiAiRemotePolicyTest {
         )
         assertTrue(ngocSiAiVideoDiagnosticActionsForError("AI_QUOTA_429_DAILY").isEmpty())
         assertTrue(ngocSiAiVideoDiagnosticActionsForError("REMOTE_TIMEOUT").isEmpty())
+    }
+
+    @Test
+    fun youtubeHttp400ReplyKeepsTransientIngestionAndInvalidUrlCausesDistinct() {
+        val reply = buildNgocSiAiYoutubeHttp400DiagnosticReply()
+        assertTrue(reply.contains("chưa đủ để kết luận URL sai hoặc video riêng tư"))
+        assertTrue(reply.contains("có thể gặp lỗi tạm thời"))
+        assertTrue(reply.contains("không tự gửi lại"))
+        assertTrue(reply.contains(NGOC_SI_AI_YOUTUBE_VIDEO_HTTP_400_CODE))
     }
 
     @Test

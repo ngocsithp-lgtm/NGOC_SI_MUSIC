@@ -764,8 +764,10 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 "Firebase từ chối quyền truy cập. Mã chẩn đoán: ACCESS_DENIED_403. Cần kiểm tra App Check và quyền dịch vụ."
             errorCode == "401" || "unauthenticated" in details ->
                 "Firebase không xác thực được yêu cầu. Mã chẩn đoán: AUTH_401. Cần kiểm tra cấu hình Firebase của bản thử."
+            errorCode == "400" && isYoutubeVideoInput ->
+                buildNgocSiAiYoutubeHttp400DiagnosticReply()
             errorCode == "400" ->
-                "Gemini từ chối nội dung yêu cầu (HTTP 400). Với phân tích YouTube, hãy kiểm tra video ở chế độ công khai/không công khai và URL còn hợp lệ. Mã chẩn đoán: INVALID_REQUEST_400."
+                "Gemini từ chối nội dung yêu cầu (HTTP 400). Hãy kiểm tra cấu trúc dữ liệu đầu vào và định dạng media. Mã chẩn đoán: INVALID_REQUEST_400."
             errorCode == "404" || "model not found" in details || "not found" in details ->
                 "Không tìm thấy model hoặc endpoint AI. Mã chẩn đoán: MODEL_OR_ENDPOINT_404."
             errorCode == "413" ->

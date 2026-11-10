@@ -192,13 +192,26 @@ internal fun buildNgocSiAiYoutubeUrlCapabilityDiagnosticPrompt(userPrompt: Strin
         "Yêu cầu: " + userPrompt.take(160)
 
 /**
+ * HTTP 400 from YouTube ingestion can be a malformed/private URL or a transient
+ * provider-side ingestion failure. Do not claim either cause without evidence.
+ */
+internal const val NGOC_SI_AI_YOUTUBE_VIDEO_HTTP_400_CODE = "YOUTUBE_VIDEO_HTTP_400"
+
+internal fun buildNgocSiAiYoutubeHttp400DiagnosticReply(): String =
+    "Gemini trả về HTTP 400 khi tiếp nhận URL YouTube. Mã này chưa đủ để kết luận URL sai hoặc video riêng tư; " +
+        "quá trình tiếp nhận video cũng có thể gặp lỗi tạm thời. Hãy kiểm tra video ở chế độ công khai hoặc không công khai " +
+        "và URL còn hiệu lực; sau đó có thể thử thủ công lại một lần. Ứng dụng không tự gửi lại yêu cầu video " +
+        "để tránh phát sinh thêm lượt dùng Gemini. Mã chẩn đoán: $NGOC_SI_AI_YOUTUBE_VIDEO_HTTP_400_CODE."
+
+/**
  * Offer a targeted diagnostic action below a failed video-analysis response.
  * These buttons never retry automatically, avoiding surprise Gemini requests or quota use.
  */
 internal fun ngocSiAiVideoDiagnosticActionsForError(
     errorMessage: String
 ): List<Pair<String, String>> = when {
-    "YOUTUBE_VIDEO_SERVER_ERROR" in errorMessage -> listOf(
+    NGOC_SI_AI_YOUTUBE_VIDEO_HTTP_400_CODE in errorMessage ||
+        "YOUTUBE_VIDEO_SERVER_ERROR" in errorMessage -> listOf(
         "Kiểm tra YouTube mẫu" to "AI, kiểm tra kết nối YouTube mẫu.",
         "Kiểm tra MP4 mẫu" to "AI, kiểm tra kết nối video mẫu."
     )
