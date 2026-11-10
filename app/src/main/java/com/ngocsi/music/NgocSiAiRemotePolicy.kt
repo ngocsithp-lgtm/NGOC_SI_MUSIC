@@ -469,7 +469,7 @@ internal fun ngocSiAiRemoteTimeoutMessage(
 internal const val NGOC_SI_AI_VIDEO_HISTORY_TURNS = 3
 internal const val NGOC_SI_AI_VIDEO_HISTORY_MESSAGE_MAX_CHARS = 420
 internal const val NGOC_SI_AI_VIDEO_USER_PROMPT_MAX_CHARS = 1_200
-internal const val NGOC_SI_AI_VIDEO_METADATA_MAX_CHARS = 400
+internal const val NGOC_SI_AI_VIDEO_METADATA_MAX_CHARS = 1_200
 
 /**
  * Keeps video analysis requests compact: use only a few relevant turns, discard

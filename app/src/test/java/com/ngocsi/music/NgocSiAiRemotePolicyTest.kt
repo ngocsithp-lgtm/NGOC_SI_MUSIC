@@ -442,6 +442,28 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
+    fun finalVideoAnalysisPromptPreservesTimestampAndEvidenceBoundaryWithLongMetadata() {
+        val mediaContext = buildNgocSiAiMediaContextInstruction(
+            rawPageContext = "YouTube",
+            rawTitle = "T".repeat(160),
+            rawChannel = "C".repeat(100),
+            playbackPositionMs = 92_000L
+        )
+        val requestText = buildNgocSiAiVideoAnalysisRequestText(
+            userPrompt = "AI, phân tích đoạn đang phát.",
+            recentMessages = emptyList(),
+            mediaContextInstruction = mediaContext
+        )
+
+        assertTrue(requestText.contains("01:32"))
+        assertTrue(requestText.contains("có thể trễ vài giây"))
+        assertTrue(requestText.contains("không phải bằng chứng đã quan sát khung hình"))
+        assertTrue(requestText.contains("Không suy ra khung hình"))
+        assertTrue(requestText.contains("chỉ đưa ví dụ minh họa"))
+        assertTrue(requestText.contains("AI, phân tích đoạn đang phát."))
+    }
+
+    @Test
     fun ordinaryPlaybackAndChatKeepTheirExistingRemoteDeadlines() {
         assertFalse(isNgocSiAiMultimodalVideoAnalysisRequest("AI, tua tới 10 giây"))
         assertFalse(isNgocSiAiMultimodalVideoAnalysisRequest("Xin chào, bạn khỏe không?"))
