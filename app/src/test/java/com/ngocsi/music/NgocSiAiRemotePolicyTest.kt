@@ -21,14 +21,59 @@ class NgocSiAiRemotePolicyTest {
 
     @Test
     fun currentSongTitleAndSingerQuestionsRequireMultimodalVideoEvidence() {
-        val prompts = listOf(
-            "AI, tên bài hát đang nghe là gì?",
-            "AI, ai đang hát bài này?"
-        )
+        val titlePrompt = "AI, tên bài hát đang nghe là gì?"
+        val singerPrompt = "AI, ai đang hát bài này?"
 
-        prompts.forEach { prompt ->
+        listOf(titlePrompt, singerPrompt).forEach { prompt ->
             assertTrue(isNgocSiAiMultimodalVideoAnalysisRequest(prompt))
             assertFalse(isNgocSiAiQuickVideoOverviewRequest(prompt))
+        }
+
+        assertFalse(isNgocSiAiQuickSingerIdentificationRequest(titlePrompt))
+        assertEquals(
+            NGOC_SI_AI_REASONING_MODEL_NAME,
+            selectNgocSiAiModelName(titlePrompt, forceMultimodalReasoning = true)
+        )
+        assertEquals(
+            NGOC_SI_AI_VIDEO_ANALYSIS_TIMEOUT_MILLIS,
+            selectNgocSiAiRemoteTimeoutMillis(titlePrompt, forceMultimodalReasoning = true)
+        )
+
+        assertTrue(isNgocSiAiQuickSingerIdentificationRequest(singerPrompt))
+        assertEquals(
+            NGOC_SI_AI_FAST_CHAT_MODEL_NAME,
+            selectNgocSiAiModelName(singerPrompt, forceMultimodalReasoning = true)
+        )
+        assertEquals(
+            ThinkingLevel.MINIMAL,
+            selectNgocSiAiGenerationThinkingLevel(
+                singerPrompt,
+                modelName = NGOC_SI_AI_FAST_CHAT_MODEL_NAME,
+                forceMultimodalReasoning = true
+            )
+        )
+        assertEquals(
+            NGOC_SI_AI_SHORT_REPLY_MAX_OUTPUT_TOKENS,
+            selectNgocSiAiMaxOutputTokens(singerPrompt, forceMultimodalReasoning = true)
+        )
+        assertEquals(
+            NGOC_SI_AI_SINGER_IDENTIFICATION_TIMEOUT_MILLIS,
+            selectNgocSiAiRemoteTimeoutMillis(singerPrompt, forceMultimodalReasoning = true)
+        )
+
+        assertFalse(
+            isNgocSiAiMultimodalVideoAnalysisRequest("Ai là ca sĩ Tuấn Vũ?")
+        )
+    }
+
+    @Test
+    fun detailedSingerAndVocalEvidenceRequestsKeepTheStrongerFlashPath() {
+        val prompts = listOf(
+            "AI, phân tích kỹ chất giọng của người đang hát trong video này.",
+            "AI, so sánh cách hát và chỉ ra dấu hiệu nghe được trong bản thu."
+        )
+        prompts.forEach { prompt ->
+            assertFalse(isNgocSiAiQuickSingerIdentificationRequest(prompt))
             assertEquals(
                 NGOC_SI_AI_REASONING_MODEL_NAME,
                 selectNgocSiAiModelName(prompt, forceMultimodalReasoning = true)
@@ -38,10 +83,6 @@ class NgocSiAiRemotePolicyTest {
                 selectNgocSiAiRemoteTimeoutMillis(prompt, forceMultimodalReasoning = true)
             )
         }
-
-        assertFalse(
-            isNgocSiAiMultimodalVideoAnalysisRequest("Ai là ca sĩ Tuấn Vũ?")
-        )
     }
 
     @Test

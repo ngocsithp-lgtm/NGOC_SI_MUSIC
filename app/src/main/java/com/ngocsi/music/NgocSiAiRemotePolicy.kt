@@ -77,6 +77,7 @@ internal const val NGOC_SI_AI_REMOTE_CONVERSATION_TIMEOUT_MILLIS = 25_000L
 internal const val NGOC_SI_AI_COMPLEX_REMOTE_CONVERSATION_TIMEOUT_MILLIS = 40_000L
 internal const val NGOC_SI_AI_DEEP_REMOTE_CONVERSATION_TIMEOUT_MILLIS = 60_000L
 internal const val NGOC_SI_AI_VIDEO_ANALYSIS_TIMEOUT_MILLIS = 120_000L
+internal const val NGOC_SI_AI_SINGER_IDENTIFICATION_TIMEOUT_MILLIS = 60_000L
 
 /**
  * Small public-domain MDN MP4 used only for an explicit video-path diagnostic.
@@ -349,11 +350,15 @@ internal fun selectNgocSiAiModelName(
     // Use the same Gemini Flash model as YouTube analysis so the inline MP4 canary
     // also verifies that model's video access before isolating YouTube URL ingestion.
     NGOC_SI_AI_REASONING_MODEL_NAME
-} else if (forceMultimodalReasoning && !isNgocSiAiQuickVideoOverviewRequest(prompt)) {
+} else if (
+    forceMultimodalReasoning &&
+    !isNgocSiAiQuickVideoOverviewRequest(prompt) &&
+    !isNgocSiAiQuickSingerIdentificationRequest(prompt)
+) {
     NGOC_SI_AI_REASONING_MODEL_NAME
 } else if (forceMultimodalReasoning) {
-    // The broad first-pass overview uses multimodal Flash-Lite for lower latency.
-    // Explicit evidence, vocal, comparison and deep requests stay on Gemini Flash.
+    // Broad overviews and focused singer-name checks use video-capable Flash-Lite.
+    // Detailed evidence, vocal technique, comparisons and deep analysis stay on Flash.
     NGOC_SI_AI_FAST_CHAT_MODEL_NAME
 } else {
     when (selectNgocSiAiThinkingLevel(prompt)) {
@@ -457,6 +462,26 @@ internal fun isNgocSiAiQuickVideoOverviewRequest(prompt: String): Boolean {
     return detailedEvidenceMarkers.none(normalized::contains)
 }
 
+/**
+ * A focused "who is singing?" question needs only a cautious name-or-unknown answer.
+ * Keep requests for vocal analysis, comparisons, lyrics, timestamps or explicit evidence
+ * on the stronger Flash path.
+ */
+internal fun isNgocSiAiQuickSingerIdentificationRequest(prompt: String): Boolean {
+    if (!NgocSiAiPlaybackQuestionRules.isYoutubeSingerIdentificationQuestion(prompt, "YouTube")) {
+        return false
+    }
+    val normalized = normalizeNgocSiAiVoicePhrase(prompt)
+    if (normalized.length > 180) return false
+    val detailedMarkers = listOf(
+        "phan tich", "so sanh", "cach hat", "chat giong",
+        "loi bai hat", "dau hieu nghe duoc", "nghe duoc",
+        "ban thu", "moc thoi gian", "timestamp", "chi tiet",
+        "kiem tra toan dien", "suy nghi that sau", "suy nghi toi da"
+    )
+    return detailedMarkers.none(normalized::contains)
+}
+
 /** Video ingestion may take longer; extend only its deadline, not its reasoning tier. */
 internal fun selectNgocSiAiRemoteTimeoutMillis(
     prompt: String,
@@ -467,14 +492,14 @@ internal fun selectNgocSiAiRemoteTimeoutMillis(
         ThinkingLevel.MEDIUM -> NGOC_SI_AI_COMPLEX_REMOTE_CONVERSATION_TIMEOUT_MILLIS
         else -> NGOC_SI_AI_REMOTE_CONVERSATION_TIMEOUT_MILLIS
     }
-    return if (
+    return when {
+        isNgocSiAiQuickSingerIdentificationRequest(prompt) ->
+            NGOC_SI_AI_SINGER_IDENTIFICATION_TIMEOUT_MILLIS
         forceMultimodalReasoning ||
-        isNgocSiAiYoutubeUrlCapabilityDiagnosticRequest(prompt) ||
-        isNgocSiAiMultimodalVideoAnalysisRequest(prompt)
-    ) {
-        maxOf(normalBudget, NGOC_SI_AI_VIDEO_ANALYSIS_TIMEOUT_MILLIS)
-    } else {
-        normalBudget
+            isNgocSiAiYoutubeUrlCapabilityDiagnosticRequest(prompt) ||
+            isNgocSiAiMultimodalVideoAnalysisRequest(prompt) ->
+            maxOf(normalBudget, NGOC_SI_AI_VIDEO_ANALYSIS_TIMEOUT_MILLIS)
+        else -> normalBudget
     }
 }
 
@@ -609,6 +634,8 @@ internal fun selectNgocSiAiMaxOutputTokens(
     isNgocSiAiVideoCapabilityDiagnosticRequest(prompt) ||
         isNgocSiAiYoutubeUrlCapabilityDiagnosticRequest(prompt) ->
         NGOC_SI_AI_VIDEO_DIAGNOSTIC_MAX_OUTPUT_TOKENS
+    forceMultimodalReasoning && isNgocSiAiQuickSingerIdentificationRequest(prompt) ->
+        NGOC_SI_AI_SHORT_REPLY_MAX_OUTPUT_TOKENS
     forceMultimodalReasoning && isNgocSiAiQuickVideoOverviewRequest(prompt) ->
         NGOC_SI_AI_VIDEO_OVERVIEW_MAX_OUTPUT_TOKENS
     selectNgocSiAiThinkingLevel(prompt) == ThinkingLevel.HIGH -> NGOC_SI_AI_DEEP_REPLY_MAX_OUTPUT_TOKENS

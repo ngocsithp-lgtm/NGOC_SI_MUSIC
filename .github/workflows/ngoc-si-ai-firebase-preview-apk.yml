@@ -101,6 +101,18 @@ jobs:
         with:
           gradle-version: "8.11.1"
 
+      - name: Install Android Build Tools 35.0.0 for 16 KB APK verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print | sort -V | tail -n1)"
+          test -n "$SDKMANAGER"
+          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" "build-tools;35.0.0"
+          test -x "$ANDROID_HOME/build-tools/35.0.0/zipalign"
+          test -x "$ANDROID_HOME/build-tools/35.0.0/aapt"
+          test -x "$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          echo "Installed Android Build Tools 35.0.0 for 16 KB page-size checks."
+
       - name: Cache sherpa-onnx Vietnamese runtime and model
         uses: actions/cache@v4
         with:
@@ -215,9 +227,9 @@ jobs:
         run: |
           set -euo pipefail
           APK="app/build/outputs/apk/debug/app-debug.apk"
-          ZIPALIGN="$(find "$ANDROID_HOME/build-tools" -type f -name zipalign -print -quit)"
-          test -n "$ZIPALIGN"
-          "$ZIPALIGN" -c -P 16 -v 4 "$APK"
+          ZIPALIGN="$ANDROID_HOME/build-tools/35.0.0/zipalign"
+          test -x "$ZIPALIGN"
+          "$ZIPALIGN" -v -c -P 16 4 "$APK"
           python3 - "$APK" <<'PY'
           import pathlib
           import struct
@@ -262,8 +274,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt -print -quit)"
-          test -n "$AAPT"
+          AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
+          test -x "$AAPT"
           APK="app/build/outputs/apk/debug/app-debug.apk"
           test -s "$APK"
           EXPECTED_VERSION_CODE="$(sed -nE 's/^[[:space:]]*versionCode[[:space:]]*=[[:space:]]*([0-9]+).*$/\1/p' app/build.gradle.kts | head -n1)"
@@ -281,8 +293,8 @@ jobs:
         run: |
           set -euo pipefail
           APK="app/build/outputs/apk/debug/app-debug.apk"
-          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner -print -quit)"
-          test -n "$APKSIGNER"
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          test -x "$APKSIGNER"
           "$APKSIGNER" verify --verbose --print-certs "$APK" 2>&1 | tee "$RUNNER_TEMP/ngocsi-ai-preview-signing.txt"
           SHA1="$(grep -E "certificate SHA-1 digest:" "$RUNNER_TEMP/ngocsi-ai-preview-signing.txt" | head -n1 | sed 's/.*certificate SHA-1 digest:[[:space:]]*//' | tr -d '\r')"
           SHA256="$(grep -E "certificate SHA-256 digest:" "$RUNNER_TEMP/ngocsi-ai-preview-signing.txt" | head -n1 | sed 's/.*certificate SHA-256 digest:[[:space:]]*//' | tr -d '\r')"
