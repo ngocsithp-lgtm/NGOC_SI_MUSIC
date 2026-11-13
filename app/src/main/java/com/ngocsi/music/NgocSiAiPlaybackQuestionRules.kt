@@ -107,7 +107,23 @@ internal object NgocSiAiPlaybackQuestionRules {
             "ten ca si cua video nay la gi",
             "giong hat trong video nay la cua ai",
             "nguoi the hien bai dang phat la ai",
-            "bai dang phat do ai trinh bay"
+            "bai dang phat do ai trinh bay",
+            "ai trinh bay bai hat nay",
+            "ai dang hat ca khuc nay",
+            "nguoi hat ca khuc dang phat la ai",
+            "nguoi hat trong video nay la ai",
+            "giong ca trong video nay la ai",
+            "ca si cua ca khuc nay la ai",
+            "ca si nao trinh bay bai hat dang phat",
+            "bai hat dang phat do ca si nao the hien",
+            "ai dang the hien bai hat nay",
+            "ai la nguoi the hien bai hat nay",
+            "nguoi the hien bai hat nay la ai",
+            "nguoi trinh bay ca khuc nay la ai",
+            "nguoi bieu dien bai hat nay la ai",
+            "ai bieu dien bai hat nay",
+            "nghe si the hien ca khuc dang phat la ai",
+            "ca si nao hat ca khuc dang phat",
         ).any(question::contains)
     }
 

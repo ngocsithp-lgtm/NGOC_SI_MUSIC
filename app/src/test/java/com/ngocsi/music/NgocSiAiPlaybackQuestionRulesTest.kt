@@ -66,7 +66,19 @@ class NgocSiAiPlaybackQuestionRulesTest {
             "AI, bài đang phát là gì?",
             "AI, tên bài đang nghe là gì?",
             "AI, tên bài hát đang phát là gì?",
-            "AI, tên ca khúc đang nghe là gì?"
+            "AI, tên ca khúc đang nghe là gì?",
+            "AI, bài hát đang phát tên gì?",
+            "AI, bài đang phát tên gì?",
+            "AI, bài đang nghe tên gì?",
+            "AI, tên bài hiện tại là gì?",
+            "AI, tên bài nhạc đang nghe là gì?",
+            "AI, tên bài nhạc đang phát là gì?",
+            "AI, bài này là bài gì?",
+            "AI, bài hát này là bài gì?",
+            "AI, tên của bài đang phát là gì?",
+            "AI, tên của bài đang nghe là gì?",
+            "AI, cho tôi biết tên bài đang phát.",
+            "AI, cho tôi biết tên bài đang nghe."
         ).forEach { question ->
             assertTrue(
                 "Expected current-track metadata route for: $question",
@@ -133,7 +145,23 @@ class NgocSiAiPlaybackQuestionRulesTest {
             "AI, tên ca sĩ của video này là gì?",
             "AI, giọng hát trong video này là của ai?",
             "AI, người thể hiện bài đang phát là ai?",
-            "AI, bài đang phát do ai trình bày?"
+            "AI, bài đang phát do ai trình bày?",
+            "AI, ai trình bày bài hát này?",
+            "AI, ai đang hát ca khúc này?",
+            "AI, người hát ca khúc đang phát là ai?",
+            "AI, người hát trong video này là ai?",
+            "AI, giọng ca trong video này là ai?",
+            "AI, ca sĩ của ca khúc này là ai?",
+            "AI, ca sĩ nào trình bày bài hát đang phát?",
+            "AI, bài hát đang phát do ca sĩ nào thể hiện?",
+            "AI, ai đang thể hiện bài hát này?",
+            "AI, ai là người thể hiện bài hát này?",
+            "AI, người thể hiện bài hát này là ai?",
+            "AI, người trình bày ca khúc này là ai?",
+            "AI, người biểu diễn bài hát này là ai?",
+            "AI, ai biểu diễn bài hát này?",
+            "AI, nghệ sĩ thể hiện ca khúc đang phát là ai?",
+            "AI, ca sĩ nào hát ca khúc đang phát?"
         ).forEach { question ->
             assertTrue(
                 "Expected YouTube audio-evidence route for: $question",

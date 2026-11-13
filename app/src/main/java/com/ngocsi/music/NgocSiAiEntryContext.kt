@@ -53,7 +53,23 @@ internal fun isNgocSiAiCurrentSongTitleMetadataQuestion(prompt: String): Boolean
         "ten ca khuc dang nghe la gi",
         "ten ca khuc dang phat la gi",
         "bai nay ten gi",
-        "bai hat nay ten gi"
+        "bai hat nay ten gi",
+        "bai hat dang phat ten gi",
+        "bai dang phat ten gi",
+        "bai dang nghe ten gi",
+        "bai hat hien tai ten gi",
+        "ten bai hien tai la gi",
+        "ten bai hat hien tai la gi",
+        "ten bai nhac dang nghe la gi",
+        "ten bai nhac dang phat la gi",
+        "bai nhac dang nghe la gi",
+        "bai nhac dang phat la gi",
+        "bai nay la bai gi",
+        "bai hat nay la bai gi",
+        "ten cua bai dang phat la gi",
+        "ten cua bai dang nghe la gi",
+        "cho toi biet ten bai dang phat",
+        "cho toi biet ten bai dang nghe",
     )
     return normalized in titleQuestions
 }
