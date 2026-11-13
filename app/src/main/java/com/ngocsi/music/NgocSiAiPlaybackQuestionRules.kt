@@ -148,13 +148,16 @@ internal object NgocSiAiPlaybackQuestionRules {
         val question = stripWakePrefix(normalize(text), includeBareAi = false)
         if (question.isBlank()) return false
         val asksWho = listOf(
-            "ai hat", "ai dang hat", "ca si la ai", "nghe si la ai",
-            "ca si dang hat", "nghe si dang hat", "nguoi dang hat",
+            "ai hat", "ai dang hat", "ai trinh bay", "ai the hien", "ai bieu dien",
+            "ca si la ai", "nghe si la ai", "ca si dang hat", "nghe si dang hat",
+            "nguoi dang hat", "nguoi hat", "nguoi the hien", "nguoi trinh bay",
+            "nguoi bieu dien", "giong ca", "ca si cua", "ca si nao trinh bay",
+            "ca si nao hat", "ca si nao the hien", "nghe si the hien",
             "ai la nguoi hat bai nay", "ten ca si", "ten nghe si", "nguoi hat la ai"
         ).any(question::contains)
         val refersToCurrentTrack = listOf(
-            "bai nay", "bai hat nay", "dang nghe", "dang phat",
-            "bai dang phat", "bai dang nghe", "hien tai"
+            "bai nay", "bai hat nay", "ca khuc nay", "dang nghe", "dang phat",
+            "bai dang phat", "bai dang nghe", "video nay", "hien tai"
         ).any(question::contains)
         return asksWho && refersToCurrentTrack
     }

@@ -250,6 +250,33 @@ class NgocSiAiPlaybackQuestionRulesTest {
     }
 
     @Test
+    fun recognizesNaturalCurrentArtistMetadataQuestionsWithoutAssumingAudioRecognition() {
+        listOf(
+            "AI, ai trình bày bài hát này?",
+            "AI, ai đang hát ca khúc này?",
+            "AI, người hát ca khúc đang phát là ai?",
+            "AI, người hát trong video này là ai?",
+            "AI, giọng ca trong video này là ai?",
+            "AI, ca sĩ của ca khúc này là ai?",
+            "AI, ca sĩ nào trình bày bài hát đang phát?",
+            "AI, bài hát đang phát do ca sĩ nào thể hiện?",
+            "AI, ai đang thể hiện bài hát này?",
+            "AI, ai là người thể hiện bài hát này?",
+            "AI, người thể hiện bài hát này là ai?",
+            "AI, người trình bày ca khúc này là ai?",
+            "AI, người biểu diễn bài hát này là ai?",
+            "AI, ai biểu diễn bài hát này?",
+            "AI, nghệ sĩ thể hiện ca khúc đang phát là ai?",
+            "AI, ca sĩ nào hát ca khúc đang phát?"
+        ).forEach { question ->
+            assertTrue(
+                "Expected current-player artist metadata lookup for: $question",
+                NgocSiAiPlaybackQuestionRules.isCurrentArtistMetadataQuestion(question)
+            )
+        }
+    }
+
+    @Test
     fun recognizesCurrentArtistMetadataQuestion() {
         assertTrue(
             NgocSiAiPlaybackQuestionRules.isCurrentArtistMetadataQuestion(
