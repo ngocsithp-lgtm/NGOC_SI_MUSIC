@@ -45,6 +45,11 @@ internal object NgocSiAiPlaybackQuestionRules {
         // A genre question can contain "bài này" and "là gì" too; never
         // let the title lookup consume it before the genre metadata route.
         if (isCurrentGenreQuestion(text)) return false
+        // Keep title-question routing aligned with the canonical metadata phrases used
+        // by the entry-context and command-safety routers. Without this check, short
+        // forms such as "Bài đang nghe là gì?" can fall through to the local chat model.
+        if (isNgocSiAiCurrentSongTitleMetadataQuestion(text)) return true
+
         val question = stripWakePrefix(normalize(text), includeBareAi = true)
         if (question.isBlank()) return false
 

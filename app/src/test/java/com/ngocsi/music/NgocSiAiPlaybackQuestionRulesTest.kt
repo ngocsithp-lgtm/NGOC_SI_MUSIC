@@ -60,6 +60,22 @@ class NgocSiAiPlaybackQuestionRulesTest {
     }
 
     @Test
+    fun recognizesCanonicalCurrentSongMetadataPhrasesBeforeLocalChatRouting() {
+        listOf(
+            "AI, bài đang nghe là gì?",
+            "AI, bài đang phát là gì?",
+            "AI, tên bài đang nghe là gì?",
+            "AI, tên bài hát đang phát là gì?",
+            "AI, tên ca khúc đang nghe là gì?"
+        ).forEach { question ->
+            assertTrue(
+                "Expected current-track metadata route for: $question",
+                NgocSiAiPlaybackQuestionRules.isCurrentTrackQuestion(question)
+            )
+        }
+    }
+
+    @Test
     fun doesNotTreatGeneralMusicQuestionAsCurrentTrackLookup() {
         assertFalse(
             NgocSiAiPlaybackQuestionRules.isCurrentTrackQuestion(
