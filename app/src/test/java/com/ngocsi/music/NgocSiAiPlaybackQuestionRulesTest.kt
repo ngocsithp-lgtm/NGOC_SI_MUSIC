@@ -125,6 +125,37 @@ class NgocSiAiPlaybackQuestionRulesTest {
     }
 
     @Test
+    fun recognizesNaturalSingerIdentificationVariantsForCurrentYoutubeVideo() {
+        listOf(
+            "AI, ca sĩ của bài hát này là ai?",
+            "AI, ai là ca sĩ đang trình bày bài hát này?",
+            "AI, ai trình bày ca khúc đang phát?",
+            "AI, tên ca sĩ của video này là gì?",
+            "AI, giọng hát trong video này là của ai?",
+            "AI, người thể hiện bài đang phát là ai?",
+            "AI, bài đang phát do ai trình bày?"
+        ).forEach { question ->
+            assertTrue(
+                "Expected YouTube audio-evidence route for: $question",
+                NgocSiAiPlaybackQuestionRules.isYoutubeSingerIdentificationQuestion(
+                    question,
+                    "YouTube"
+                )
+            )
+        }
+    }
+
+    @Test
+    fun doesNotRouteSingerIdentificationToYoutubeOutsideYoutubeContext() {
+        assertFalse(
+            NgocSiAiPlaybackQuestionRules.isYoutubeSingerIdentificationQuestion(
+                "AI, ca sĩ của bài hát này là ai?",
+                "Radio"
+            )
+        )
+    }
+
+    @Test
     fun doesNotTreatGeneralArtistQuestionAsCurrentYoutubeSingerRequest() {
         assertFalse(
             NgocSiAiPlaybackQuestionRules.isYoutubeSingerIdentificationQuestion(
