@@ -262,6 +262,52 @@ class NgocSiAiEntryContextTest {
     }
 
     @Test
+    fun expandedSingerQuestionsShareTheSameYoutubeVideoAttachmentRoute() {
+        val prompts = listOf(
+            "AI, ca sĩ của bài hát này là ai?",
+            "AI, ai là ca sĩ đang trình bày bài hát này?",
+            "AI, ai trình bày ca khúc đang phát?",
+            "AI, tên ca sĩ của video này là gì?",
+            "AI, giọng hát trong video này là của ai?",
+            "AI, người thể hiện bài đang phát là ai?",
+            "AI, bài đang phát do ai trình bày?"
+        )
+        val history = emptyList<NgocSiAiMessage>()
+        val expectedVideoUri = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+
+        prompts.forEach { prompt ->
+            assertTrue(
+                "Expected song/singer identity intent for: $prompt",
+                isNgocSiAiSongOrSingerIdentificationRequest(prompt)
+            )
+            assertTrue(
+                "Expected YouTube analysis route for: $prompt",
+                isNgocSiAiCurrentYoutubeVideoAnalysisPrompt(prompt, "YouTube")
+            )
+            assertFalse(
+                "Must not route Radio through YouTube analysis for: $prompt",
+                isNgocSiAiCurrentYoutubeVideoAnalysisPrompt(prompt, "Radio")
+            )
+            assertTrue(shouldAttachNgocSiAiYoutubeVideo(prompt, history))
+            assertEquals(
+                expectedVideoUri,
+                resolveNgocSiAiYoutubeVideoAnalysisUri(
+                    "YouTube", "dQw4w9WgXcQ", prompt, history
+                )
+            )
+            assertNull(
+                resolveNgocSiAiYoutubeVideoAnalysisUri(
+                    "Radio", "dQw4w9WgXcQ", prompt, history
+                )
+            )
+        }
+
+        assertFalse(
+            isNgocSiAiSongOrSingerIdentificationRequest("AI, giới thiệu ca sĩ Tuấn Vũ.")
+        )
+    }
+
+    @Test
     fun unconfiguredGeminiDoesNotPretendLocalQwenCanAnalyzeVideo() {
         val reply = buildNgocSiAiVideoAnalysisRequiresGeminiReply()
         assertTrue(reply.contains("cần Gemini trực tuyến"))

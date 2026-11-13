@@ -69,6 +69,9 @@ internal fun isNgocSiAiSongOrSingerIdentificationRequest(prompt: String): Boolea
         "nhan dien bai hat", "nhan dien ca si"
     )
     return isNgocSiAiCurrentSongTitleMetadataQuestion(prompt) ||
+        // Reuse the canonical YouTube singer matcher so the question router and
+        // video-attachment policy cannot disagree on newly supported Vietnamese wording.
+        NgocSiAiPlaybackQuestionRules.isYoutubeSingerIdentificationQuestion(prompt, "YouTube") ||
         identityMarkers.any(normalized::contains)
 }
 
