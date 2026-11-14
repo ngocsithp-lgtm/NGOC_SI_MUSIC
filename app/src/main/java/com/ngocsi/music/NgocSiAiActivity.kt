@@ -2690,6 +2690,8 @@ private fun NgocSiAiPreviewScreen(
         val clean = text.trim()
         if (clean.isBlank()) return
 
+        val geminiOnlyVideoDiagnosticRequest =
+            isNgocSiAiGeminiOnlyVideoDiagnosticRequest(clean)
         val youtubeSingerIdentificationQuestion =
             NgocSiAiPlaybackQuestionRules.isYoutubeSingerIdentificationQuestion(clean, entryContext)
         val currentVideoAnalysisRequest =
@@ -2721,7 +2723,7 @@ private fun NgocSiAiPreviewScreen(
             onVoiceReply(unavailableReply)
             return
         }
-        if (currentVideoAnalysisRequest && !isOnlineConfigured) {
+        if ((currentVideoAnalysisRequest || geminiOnlyVideoDiagnosticRequest) && !isOnlineConfigured) {
             val unavailableReply = buildNgocSiAiVideoAnalysisRequiresGeminiReply()
             messages.add(AiPreviewMessage(true, clean))
             messages.add(AiPreviewMessage(false, unavailableReply))
@@ -2832,7 +2834,8 @@ private fun NgocSiAiPreviewScreen(
             localMemoryReply != null ||
             localMemoryQuestionReply != null ||
             contextualActionConfirmation ||
-            currentVideoAnalysisRequest
+            currentVideoAnalysisRequest ||
+            geminiOnlyVideoDiagnosticRequest
         ) {
             // A YouTube singer-identification question must reach the multimodal Gemini
             // path. CURRENT_ARTIST only reads metadata and cannot identify the audible voice.
@@ -2844,7 +2847,11 @@ private fun NgocSiAiPreviewScreen(
         }
         val localReply = localMemoryReply
             ?: localMemoryQuestionReply
-            ?: if (localCommand == null && !contextualActionConfirmation) {
+            ?: if (
+                localCommand == null &&
+                !contextualActionConfirmation &&
+                !geminiOnlyVideoDiagnosticRequest
+            ) {
                 localConversationFallback(
                     userText = clean,
                     previousAssistantReply = messages.lastOrNull { !it.isUser }?.text,
@@ -2908,6 +2915,7 @@ private fun NgocSiAiPreviewScreen(
         }
 
         val localModelNeedsAppTools = !currentVideoAnalysisRequest &&
+            !geminiOnlyVideoDiagnosticRequest &&
             shouldOfferNgocSiAiAppCommandTool(clean, conversation.toList())
         if (preferLocalModel && localModelNeedsAppTools) {
             val safeReply =
@@ -2930,6 +2938,7 @@ private fun NgocSiAiPreviewScreen(
         if (localModelInstalled &&
             !localModelNeedsAppTools &&
             !currentVideoAnalysisRequest &&
+            !geminiOnlyVideoDiagnosticRequest &&
             (preferLocalModel || !isOnlineConfigured)
         ) {
             val userTurn = NgocSiAiMessage(role = "user", content = clean)
@@ -3025,8 +3034,7 @@ private fun NgocSiAiPreviewScreen(
                 val forceMultimodalReasoning =
                     isNgocSiAiYoutubeMultimodalAnalysisRequest(entryContext, clean, history) ||
                         youtubeSingerIdentificationQuestion ||
-                        videoCapabilityDiagnosticRequested ||
-                        youtubeUrlCapabilityDiagnosticRequested
+                        geminiOnlyVideoDiagnosticRequest
                 val requestTimeoutMillis = selectNgocSiAiRemoteTimeoutMillis(
                     clean,
                     forceMultimodalReasoning = forceMultimodalReasoning
