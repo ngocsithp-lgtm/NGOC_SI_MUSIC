@@ -412,6 +412,14 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
+    fun videoDiagnosticsAlwaysRequireGeminiEvenWhenOnDeviceAiIsPreferred() {
+        assertTrue(isNgocSiAiGeminiOnlyVideoDiagnosticRequest("Al, kiểm tra kết nối YouTube mẫu."))
+        assertTrue(isNgocSiAiGeminiOnlyVideoDiagnosticRequest("AI, kiểm tra kết nối video mẫu."))
+        assertFalse(isNgocSiAiGeminiOnlyVideoDiagnosticRequest("AI, tên bài hát đang nghe là gì?"))
+        assertFalse(isNgocSiAiGeminiOnlyVideoDiagnosticRequest("AI, mở YouTube."))
+    }
+
+    @Test
     fun videoServerErrorsExposeOnlyTheRelevantManualDiagnosticActions() {
         val youtubeChecks = listOf(
             "Kiểm tra YouTube mẫu" to "AI, kiểm tra kết nối YouTube mẫu.",
