@@ -211,6 +211,14 @@ internal fun buildNgocSiAiYoutubeUrlCapabilityDiagnosticPrompt(userPrompt: Strin
         "Yêu cầu: " + userPrompt.take(160)
 
 /**
+ * Video capability checks must never be answered by the text-only on-device model.
+ * They are explicit Gemini multimodal diagnostics, even when local-AI preference is on.
+ */
+internal fun isNgocSiAiGeminiOnlyVideoDiagnosticRequest(prompt: String): Boolean =
+    isNgocSiAiVideoCapabilityDiagnosticRequest(prompt) ||
+        isNgocSiAiYoutubeUrlCapabilityDiagnosticRequest(prompt)
+
+/**
  * HTTP 400 from YouTube ingestion can be a malformed/private URL or a transient
  * provider-side ingestion failure. Do not claim either cause without evidence.
  */
