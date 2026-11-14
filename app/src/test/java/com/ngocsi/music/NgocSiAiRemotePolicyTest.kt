@@ -56,9 +56,20 @@ class NgocSiAiRemotePolicyTest {
             NGOC_SI_AI_SHORT_REPLY_MAX_OUTPUT_TOKENS,
             selectNgocSiAiMaxOutputTokens(singerPrompt, forceMultimodalReasoning = true)
         )
+        assertEquals(120_000L, NGOC_SI_AI_SINGER_IDENTIFICATION_TIMEOUT_MILLIS)
+        assertEquals(
+            NGOC_SI_AI_VIDEO_ANALYSIS_TIMEOUT_MILLIS,
+            NGOC_SI_AI_SINGER_IDENTIFICATION_TIMEOUT_MILLIS
+        )
         assertEquals(
             NGOC_SI_AI_SINGER_IDENTIFICATION_TIMEOUT_MILLIS,
             selectNgocSiAiRemoteTimeoutMillis(singerPrompt, forceMultimodalReasoning = true)
+        )
+        assertTrue(
+            ngocSiAiRemoteTimeoutMessage(
+                singerPrompt,
+                forceMultimodalReasoning = true
+            ).contains("120 giây")
         )
 
         assertFalse(
