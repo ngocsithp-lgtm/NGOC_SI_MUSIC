@@ -9,6 +9,36 @@ import org.junit.Test
 
 class NgocSiAiRemotePolicyTest {
     @Test
+    fun remoteDiagnosticClassifierPreservesConcreteFirebaseSdkException() {
+        assertEquals(
+            "PermissionMissingException",
+            ngocSiAiRemoteDiagnosticExceptionType(
+                listOf(
+                    "com.google.firebase.ai.type.PermissionMissingException",
+                    "com.google.firebase.ai.type.FirebaseAIException",
+                    "java.lang.RuntimeException"
+                )
+            )
+        )
+        assertEquals(
+            "UnknownException",
+            ngocSiAiRemoteDiagnosticExceptionType(
+                listOf(
+                    "com.google.firebase.ai.type.UnknownException",
+                    "com.google.firebase.ai.type.FirebaseAIException",
+                    "java.lang.RuntimeException"
+                )
+            )
+        )
+        assertEquals(
+            "FirebaseAIException",
+            ngocSiAiRemoteDiagnosticExceptionType(
+                listOf("com.google.firebase.ai.type.FirebaseAIException")
+            )
+        )
+    }
+
+    @Test
     fun videoAnalysisSystemInstructionSeparatesDirectEvidenceFromMetadataAndInference() {
         val instruction = NGOC_SI_AI_VIDEO_ANALYSIS_SYSTEM_INSTRUCTIONS
         assertTrue(instruction.contains("Tách riêng bốn lớp thông tin"))
