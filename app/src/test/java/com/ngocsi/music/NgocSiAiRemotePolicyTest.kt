@@ -445,6 +445,12 @@ class NgocSiAiRemotePolicyTest {
             listOf("Kiểm tra YouTube mẫu" to "AI, kiểm tra kết nối YouTube mẫu."),
             ngocSiAiVideoDiagnosticActionsForError("VIDEO_SAMPLE_SERVER_ERROR")
         )
+        assertEquals(
+            youtubeChecks,
+            ngocSiAiVideoDiagnosticActionsForError(
+                "Gemini chưa phát token đầu tiên. VIDEO_ANALYSIS_TIMEOUT"
+            )
+        )
         assertTrue(ngocSiAiVideoDiagnosticActionsForError("AI_QUOTA_429_DAILY").isEmpty())
         assertTrue(ngocSiAiVideoDiagnosticActionsForError("REMOTE_TIMEOUT").isEmpty())
     }

@@ -237,6 +237,13 @@ internal fun buildNgocSiAiYoutubeHttp400DiagnosticReply(): String =
 internal fun ngocSiAiVideoDiagnosticActionsForError(
     errorMessage: String
 ): List<Pair<String, String>> = when {
+    // A timeout before the first token does not identify whether YouTube ingestion
+    // or the general Gemini video path stalled. Offer two explicit, user-triggered
+    // canaries; never retry automatically or spend additional quota.
+    "VIDEO_ANALYSIS_TIMEOUT" in errorMessage -> listOf(
+        "Kiểm tra YouTube mẫu" to "AI, kiểm tra kết nối YouTube mẫu.",
+        "Kiểm tra MP4 mẫu" to "AI, kiểm tra kết nối video mẫu."
+    )
     NGOC_SI_AI_YOUTUBE_VIDEO_HTTP_400_CODE in errorMessage ||
         "YOUTUBE_VIDEO_SERVER_ERROR" in errorMessage -> listOf(
         "Kiểm tra YouTube mẫu" to "AI, kiểm tra kết nối YouTube mẫu.",
