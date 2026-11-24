@@ -408,7 +408,7 @@ class NgocSiAiRemotePolicyTest {
     @Test
     fun explicitVideoCapabilityDiagnosticUsesOnlyThePublicSampleUrl() {
         assertEquals(
-            "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
+            "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
             NGOC_SI_AI_VIDEO_DIAGNOSTIC_SAMPLE_URI
         )
         assertTrue(isNgocSiAiVideoCapabilityDiagnosticRequest("AI, kiểm tra kết nối video mẫu."))
@@ -514,7 +514,7 @@ class NgocSiAiRemotePolicyTest {
     @Test
     fun videoDiagnosticUsesACompactPublicMp4Sample() {
         assertEquals(
-            "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
+            "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
             NGOC_SI_AI_VIDEO_DIAGNOSTIC_SAMPLE_URI
         )
         assertEquals(14L * 1024L * 1024L, NGOC_SI_AI_VIDEO_DIAGNOSTIC_MAX_INLINE_BYTES)
@@ -1903,7 +1903,7 @@ class NgocSiAiRemotePolicyTest {
     @Test
     fun officialFirebaseVideoCanaryUsesDocumentedPublicSample() {
         assertEquals(
-            "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
+            "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
             NGOC_SI_AI_VIDEO_DIAGNOSTIC_SAMPLE_URI
         )
         assertEquals(14L * 1024L * 1024L, NGOC_SI_AI_VIDEO_DIAGNOSTIC_MAX_INLINE_BYTES)

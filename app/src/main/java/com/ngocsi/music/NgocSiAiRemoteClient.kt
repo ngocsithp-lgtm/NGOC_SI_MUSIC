@@ -642,6 +642,8 @@ internal class NgocSiAiRemoteClient(context: Context) {
         withContext(Dispatchers.IO) {
             val request = Request.Builder()
                 .url(NGOC_SI_AI_VIDEO_DIAGNOSTIC_SAMPLE_URI)
+                .header("User-Agent", "NGOC-SI-MUSIC-AI/1.0 (Android; video diagnostic)")
+                .header("Accept", "video/mp4,application/octet-stream;q=0.9,*/*;q=0.8")
                 .get()
                 .build()
             val client = OkHttpClient.Builder()
