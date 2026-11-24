@@ -519,8 +519,14 @@ internal class NgocSiAiRemoteClient(context: Context) {
                     )
                 }
                 answer = response.text?.trim()
+            } else if (multimodalUserMessage != null) {
+                // Video requests use a single non-streaming response. This avoids treating
+                // a prematurely closed text stream as a successful partial video analysis,
+                // and does not issue an automatic second request if the SDK stops the response.
+                val response = model.generateContent(multimodalUserMessage)
+                answer = response.text?.trim()
             } else {
-                // Stream ordinary chat. Retry once only when a transient failure happens
+                // Stream ordinary text chat. Retry once only when a transient failure happens
                 // before any text is emitted; replaying a partially visible answer would duplicate it.
                 var attempt = 0
                 var completedStream: String? = null
@@ -813,6 +819,9 @@ internal class NgocSiAiRemoteClient(context: Context) {
             errorCode in setOf("408", "500", "501", "502", "503", "504") ->
                 "Máy chủ Gemini đang tạm thời bận hoặc kết nối bị gián đoạn (HTTP $errorCode). " +
                     "Ứng dụng chỉ tự thử lại một lần cho câu chat thông thường; lệnh điều khiển không tự gửi lại."
+            "responsestoppedexception" in exceptionTypeDetails &&
+                (isVideoCapabilityDiagnostic || isYoutubeVideoInput || isYoutubeUrlCapabilityDiagnostic) ->
+                "Firebase AI Logic đã dừng phản hồi trong khi xử lý video; ứng dụng chưa xác nhận được kết quả phân tích hoàn chỉnh. Chưa đủ dữ liệu để kết luận nguyên nhân là mạng, quyền truy cập hay máy chủ. Ứng dụng không tự gửi lại yêu cầu để tránh tiêu tốn quota. Mã chẩn đoán: VIDEO_RESPONSE_STOPPED."
             "requesttimeoutexception" in exceptionTypeDetails ->
                 "Yêu cầu Gemini đã quá thời gian chờ. Mã chẩn đoán: REMOTE_TIMEOUT. Hãy thử lại sau khi mạng ổn định."
             "invalidapikeyexception" in exceptionTypeDetails ->

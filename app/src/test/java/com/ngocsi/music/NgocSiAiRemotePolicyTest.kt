@@ -36,6 +36,15 @@ class NgocSiAiRemotePolicyTest {
                 listOf("com.google.firebase.ai.type.FirebaseAIException")
             )
         )
+        assertEquals(
+            "ResponseStoppedException",
+            ngocSiAiRemoteDiagnosticExceptionType(
+                listOf(
+                    "com.google.firebase.ai.type.ResponseStoppedException",
+                    "com.google.firebase.ai.type.FirebaseAIException"
+                )
+            )
+        )
     }
 
     @Test
@@ -399,7 +408,7 @@ class NgocSiAiRemotePolicyTest {
     @Test
     fun explicitVideoCapabilityDiagnosticUsesOnlyThePublicSampleUrl() {
         assertEquals(
-            "https://storage.googleapis.com/cloud-samples-data/video/animals.mp4",
+            "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
             NGOC_SI_AI_VIDEO_DIAGNOSTIC_SAMPLE_URI
         )
         assertTrue(isNgocSiAiVideoCapabilityDiagnosticRequest("AI, kiểm tra kết nối video mẫu."))

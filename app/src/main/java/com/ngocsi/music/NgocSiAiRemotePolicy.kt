@@ -88,7 +88,7 @@ internal const val NGOC_SI_AI_SINGER_IDENTIFICATION_TIMEOUT_MILLIS = 120_000L
  * The inline guard leaves headroom for base64 expansion under Firebase's 20 MB request cap.
  */
 internal const val NGOC_SI_AI_VIDEO_DIAGNOSTIC_SAMPLE_URI =
-    "https://storage.googleapis.com/cloud-samples-data/video/animals.mp4"
+    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4"
 
 internal const val NGOC_SI_AI_VIDEO_DIAGNOSTIC_MAX_INLINE_BYTES = 14L * 1024L * 1024L
 
