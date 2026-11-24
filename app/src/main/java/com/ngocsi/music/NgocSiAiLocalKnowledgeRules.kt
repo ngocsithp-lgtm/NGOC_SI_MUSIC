@@ -1,12 +1,30 @@
 package com.ngocsi.music
 
+import java.time.LocalDate
+
 /**
  * Small, deterministic facts that are safe to answer without a Gemini request.
  *
  * Keep this deliberately narrow: unknown or changing facts must still go online
  * when available rather than being guessed by the offline fallback.
  */
-internal fun localNgocSiAiKnowledgeFallback(userText: String): String? {
+internal fun formatNgocSiAiTodayAnswer(today: LocalDate): String {
+    val weekday = when (today.dayOfWeek.value) {
+        1 -> "thứ hai"
+        2 -> "thứ ba"
+        3 -> "thứ tư"
+        4 -> "thứ năm"
+        5 -> "thứ sáu"
+        6 -> "thứ bảy"
+        else -> "Chủ Nhật"
+    }
+    return "Hôm nay là $weekday, ngày ${today.dayOfMonth} tháng ${today.monthValue} năm ${today.year}."
+}
+
+internal fun localNgocSiAiKnowledgeFallback(
+    userText: String,
+    today: LocalDate = LocalDate.now()
+): String? {
     var normalized = normalizeNgocSiAiVoicePhrase(userText)
     val wakePrefixes = listOf(
         "hey ai oi ", "ok ai oi ", "alo ai oi ", "ai oi ",
@@ -16,6 +34,12 @@ internal fun localNgocSiAiKnowledgeFallback(userText: String): String? {
     wakePrefixes.firstOrNull { normalized.startsWith(it) }?.let {
         normalized = normalized.removePrefix(it).trim()
     }
+
+    // The device clock is the source of truth for local date questions. This path
+    // is deterministic, offline, and follows the phone's configured time zone.
+    val asksToday = normalized.contains("hom nay") &&
+        listOf("ngay", "thu", "may", "date").any(normalized::contains)
+    if (asksToday) return formatNgocSiAiTodayAnswer(today)
 
     val mentionsVietnamOrOurCountry =
         normalized.contains("viet nam") ||
