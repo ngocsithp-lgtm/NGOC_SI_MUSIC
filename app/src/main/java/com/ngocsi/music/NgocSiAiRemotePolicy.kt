@@ -22,6 +22,10 @@ internal fun ngocSiAiRemoteDiagnosticExceptionType(classNames: List<String>): St
         "PromptBlockedException",
         "ServiceConnectionHandshakeFailedException",
         "SerializationException",
+        "ServiceConnectionHandshakeFailedException",
+        "ResponseStoppedException",
+        "InvalidStateException",
+        "UnsupportedUserLocationException",
         "UnknownException",
         "FirebaseAIException"
     )
@@ -80,11 +84,11 @@ internal const val NGOC_SI_AI_VIDEO_ANALYSIS_TIMEOUT_MILLIS = 120_000L
 internal const val NGOC_SI_AI_SINGER_IDENTIFICATION_TIMEOUT_MILLIS = 120_000L
 
 /**
- * Small public MP4 canary used only for an explicit video-path diagnostic.
- * The 14 MiB guard leaves headroom for base64 expansion under Firebase's 20 MB request cap.
+ * Official Firebase video-understanding sample used only for an explicit diagnostic.
+ * The inline guard leaves headroom for base64 expansion under Firebase's 20 MB request cap.
  */
 internal const val NGOC_SI_AI_VIDEO_DIAGNOSTIC_SAMPLE_URI =
-    "https://storage.googleapis.com/generativeai-downloads/videos/Pottery.mp4"
+    "https://storage.googleapis.com/cloud-samples-data/video/animals.mp4"
 
 internal const val NGOC_SI_AI_VIDEO_DIAGNOSTIC_MAX_INLINE_BYTES = 14L * 1024L * 1024L
 
@@ -160,7 +164,7 @@ internal fun describeNgocSiAiVideoSampleDownloadFailure(error: Throwable): Strin
             "429" -> "máy chủ mẫu đang giới hạn lượt tải (HTTP 429)."
             else -> "máy chủ mẫu trả về HTTP $httpStatus."
         }
-        tooLarge -> "tệp mẫu vượt giới hạn 14 MiB của trình kiểm tra."
+        tooLarge -> "video mẫu chính thức vượt ngưỡng inline an toàn 14 MiB; chưa gửi video lên Gemini."
         emptyResponse -> "máy chủ không trả về dữ liệu video hợp lệ."
         timedOut -> "kết nối tải video đã quá thời gian chờ."
         unknownHost -> "điện thoại không phân giải được tên miền máy chủ mẫu (kiểm tra DNS/Private DNS)."
@@ -177,14 +181,29 @@ internal fun ngocSiAiFirebaseAiSdkDiagnosticSuffix(errorCode: String?, details: 
     if (!errorCode.isNullOrBlank()) return "_HTTP_$errorCode"
     val normalized = details.lowercase()
     return when {
-        "permissionmissing" in normalized || "permission denied" in normalized -> "_PERMISSION"
-        "app check" in normalized || "attestation" in normalized -> "_APP_CHECK"
+        "permissionmissingexception" in normalized || "permission_denied" in normalized ||
+            "permission denied" in normalized -> "_PERMISSION"
+        "appcheck" in normalized || "app_check" in normalized ||
+            "app check" in normalized || "attestation" in normalized ||
+            "invalid app check token" in normalized || "limited-use token" in normalized -> "_APP_CHECK"
+        "invalidapikeyexception" in normalized || "api key not valid" in normalized -> "_API_KEY"
+        "servicedisabledexception" in normalized || "apinotconfiguredexception" in normalized ||
+            "service disabled" in normalized || "api not configured" in normalized -> "_SERVICE_CONFIG"
         "invalid argument" in normalized || "invalid_argument" in normalized -> "_INVALID_ARGUMENT"
         "unsupported media" in normalized || "mime type" in normalized -> "_UNSUPPORTED_MEDIA"
-        "model not found" in normalized -> "_MODEL_NOT_FOUND"
-        "resource exhausted" in normalized || "quota" in normalized -> "_QUOTA"
-        "deadline exceeded" in normalized || "timed out" in normalized || "timeout" in normalized -> "_TIMEOUT"
-        "safety" in normalized || "blocked" in normalized -> "_SAFETY"
+        "model not found" in normalized || "not_found" in normalized -> "_MODEL_NOT_FOUND"
+        "quotaexceededexception" in normalized || "resource exhausted" in normalized ||
+            "resource_exhausted" in normalized || "quota" in normalized -> "_QUOTA"
+        "requesttimeoutexception" in normalized || "deadline exceeded" in normalized ||
+            "deadline_exceeded" in normalized || "timed out" in normalized ||
+            "timeout" in normalized -> "_TIMEOUT"
+        "serviceconnectionhandshakefailedexception" in normalized ||
+            "handshake" in normalized -> "_HANDSHAKE"
+        "serializationexception" in normalized || "serialization" in normalized -> "_SERIALIZATION"
+        "contentblockedexception" in normalized || "promptblockedexception" in normalized ||
+            "safety" in normalized || "blocked" in normalized -> "_SAFETY"
+        "serverexception" in normalized || "unavailable" in normalized -> "_SERVER"
+        "unknownexception" in normalized -> "_SDK_UNKNOWN"
         else -> "_UNKNOWN_CAUSE"
     }
 }
