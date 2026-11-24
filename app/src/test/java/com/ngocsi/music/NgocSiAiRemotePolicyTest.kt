@@ -320,14 +320,14 @@ class NgocSiAiRemotePolicyTest {
         assertEquals(ThinkingLevel.LOW, selectNgocSiAiThinkingLevel(prompt))
         assertEquals(NGOC_SI_AI_FAST_CHAT_MODEL_NAME, selectNgocSiAiModelName(prompt))
         assertEquals(
-            NGOC_SI_AI_REASONING_MODEL_NAME,
+            NGOC_SI_AI_FAST_CHAT_MODEL_NAME,
             selectNgocSiAiModelName(prompt, forceMultimodalReasoning = true)
         )
         assertEquals(
-            ThinkingLevel.MEDIUM,
+            ThinkingLevel.MINIMAL,
             selectNgocSiAiGenerationThinkingLevel(
                 prompt,
-                modelName = NGOC_SI_AI_REASONING_MODEL_NAME,
+                modelName = NGOC_SI_AI_FAST_CHAT_MODEL_NAME,
                 forceMultimodalReasoning = true
             )
         )
@@ -505,7 +505,7 @@ class NgocSiAiRemotePolicyTest {
     @Test
     fun videoDiagnosticUsesACompactPublicMp4Sample() {
         assertEquals(
-            "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
+            "https://storage.googleapis.com/cloud-samples-data/video/animals.mp4",
             NGOC_SI_AI_VIDEO_DIAGNOSTIC_SAMPLE_URI
         )
         assertEquals(14L * 1024L * 1024L, NGOC_SI_AI_VIDEO_DIAGNOSTIC_MAX_INLINE_BYTES)
@@ -575,7 +575,7 @@ class NgocSiAiRemotePolicyTest {
     }
 
     @Test
-    fun videoConnectivityDiagnosticUsesSameGeminiFlashModelAsYoutubeAnalysis() {
+    fun videoConnectivityDiagnosticUsesLightweightModelThatAlreadyAnswersTextChat() {
         val prompt = "AI, kiểm tra kết nối video mẫu."
         assertTrue(isNgocSiAiVideoCapabilityDiagnosticRequest(prompt))
         assertEquals(
