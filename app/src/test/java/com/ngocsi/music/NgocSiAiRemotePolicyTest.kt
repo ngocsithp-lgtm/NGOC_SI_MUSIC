@@ -399,7 +399,7 @@ class NgocSiAiRemotePolicyTest {
     @Test
     fun explicitVideoCapabilityDiagnosticUsesOnlyThePublicSampleUrl() {
         assertEquals(
-            "https://storage.googleapis.com/cloud-samples-data/video/animals.mp4",
+            "https://storage.googleapis.com/generativeai-downloads/videos/Pottery.mp4",
             NGOC_SI_AI_VIDEO_DIAGNOSTIC_SAMPLE_URI
         )
         assertTrue(isNgocSiAiVideoCapabilityDiagnosticRequest("AI, kiểm tra kết nối video mẫu."))
@@ -505,7 +505,7 @@ class NgocSiAiRemotePolicyTest {
     @Test
     fun videoDiagnosticUsesACompactPublicMp4Sample() {
         assertEquals(
-            "https://storage.googleapis.com/cloud-samples-data/video/animals.mp4",
+            "https://storage.googleapis.com/generativeai-downloads/videos/Pottery.mp4",
             NGOC_SI_AI_VIDEO_DIAGNOSTIC_SAMPLE_URI
         )
         assertEquals(14L * 1024L * 1024L, NGOC_SI_AI_VIDEO_DIAGNOSTIC_MAX_INLINE_BYTES)
@@ -537,6 +537,20 @@ class NgocSiAiRemotePolicyTest {
                 hasActiveQuotaCooldown = true
             )
         )
+    }
+
+    @Test
+    fun firebaseAiSdkFailureSuffixClassifiesSafeCausesWithoutLeakingRawDetails() {
+        assertEquals("_HTTP_400", ngocSiAiFirebaseAiSdkDiagnosticSuffix("400", "invalid argument"))
+        assertEquals("_PERMISSION", ngocSiAiFirebaseAiSdkDiagnosticSuffix(null, "PermissionMissingException"))
+        assertEquals("_APP_CHECK", ngocSiAiFirebaseAiSdkDiagnosticSuffix(null, "App Check attestation failed"))
+        assertEquals("_INVALID_ARGUMENT", ngocSiAiFirebaseAiSdkDiagnosticSuffix(null, "INVALID_ARGUMENT"))
+        assertEquals("_UNSUPPORTED_MEDIA", ngocSiAiFirebaseAiSdkDiagnosticSuffix(null, "unsupported media MIME type"))
+        assertEquals("_MODEL_NOT_FOUND", ngocSiAiFirebaseAiSdkDiagnosticSuffix(null, "model not found"))
+        assertEquals("_QUOTA", ngocSiAiFirebaseAiSdkDiagnosticSuffix(null, "resource exhausted quota"))
+        assertEquals("_TIMEOUT", ngocSiAiFirebaseAiSdkDiagnosticSuffix(null, "deadline exceeded"))
+        assertEquals("_SAFETY", ngocSiAiFirebaseAiSdkDiagnosticSuffix(null, "content blocked by safety"))
+        assertEquals("_UNKNOWN_CAUSE", ngocSiAiFirebaseAiSdkDiagnosticSuffix(null, "opaque failure"))
     }
 
     @Test
