@@ -1890,5 +1890,28 @@ class NgocSiAiRemotePolicyTest {
         )
     }
 
+
+    @Test
+    fun officialFirebaseVideoCanaryUsesDocumentedPublicSample() {
+        assertEquals(
+            "https://storage.googleapis.com/cloud-samples-data/video/animals.mp4",
+            NGOC_SI_AI_VIDEO_DIAGNOSTIC_SAMPLE_URI
+        )
+        assertEquals(14L * 1024L * 1024L, NGOC_SI_AI_VIDEO_DIAGNOSTIC_MAX_INLINE_BYTES)
+    }
+
+    @Test
+    fun firebaseAiSdkDiagnosticsClassifyDocumentedFailureFamilies() {
+        assertEquals("_PERMISSION", ngocSiAiFirebaseAiSdkDiagnosticSuffix(null, "PermissionMissingException"))
+        assertEquals("_APP_CHECK", ngocSiAiFirebaseAiSdkDiagnosticSuffix(null, "invalid app check token"))
+        assertEquals("_API_KEY", ngocSiAiFirebaseAiSdkDiagnosticSuffix(null, "InvalidAPIKeyException"))
+        assertEquals("_SERVICE_CONFIG", ngocSiAiFirebaseAiSdkDiagnosticSuffix(null, "APINotConfiguredException"))
+        assertEquals("_QUOTA", ngocSiAiFirebaseAiSdkDiagnosticSuffix(null, "QuotaExceededException"))
+        assertEquals("_TIMEOUT", ngocSiAiFirebaseAiSdkDiagnosticSuffix(null, "RequestTimeoutException"))
+        assertEquals("_HANDSHAKE", ngocSiAiFirebaseAiSdkDiagnosticSuffix(null, "ServiceConnectionHandshakeFailedException"))
+        assertEquals("_SERIALIZATION", ngocSiAiFirebaseAiSdkDiagnosticSuffix(null, "SerializationException"))
+        assertEquals("_SERVER", ngocSiAiFirebaseAiSdkDiagnosticSuffix(null, "ServerException"))
+        assertEquals("_HTTP_403", ngocSiAiFirebaseAiSdkDiagnosticSuffix("403", "UnknownException"))
+    }
 }
 
