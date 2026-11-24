@@ -13,7 +13,7 @@ class NgocSiAiLocalKnowledgeRulesTest {
         assertEquals(expected, localNgocSiAiKnowledgeFallback("Hôm nay là ngày gì?", today))
         assertEquals(expected, localNgocSiAiKnowledgeFallback("AI, hôm nay là ngày mấy?", today))
         assertEquals(expected, localNgocSiAiKnowledgeFallback("Hey AI, hôm nay thứ mấy?", today))
-        assertEquals(expected, localConversationFallback("AI, hôm nay là ngày gì?"))
+        assertEquals(formatNgocSiAiTodayAnswer(LocalDate.now()), localConversationFallback("AI, hôm nay là ngày gì?"))
     }
 
     @Test
@@ -96,7 +96,7 @@ class NgocSiAiLocalKnowledgeRulesTest {
         assertEquals(expected, localNgocSiAiKnowledgeFallback("Al, thủ đô Việt Nam là gì?"))
         assertEquals(
             "Đúng, Hà Nội là thủ đô của Việt Nam.",
-            localNgocSiAiLocalKnowledgeFallback("Hà Nội có phải là thủ đô Việt Nam không?")
+            localNgocSiAiKnowledgeFallback("Hà Nội có phải là thủ đô Việt Nam không?")
         )
     }
 
