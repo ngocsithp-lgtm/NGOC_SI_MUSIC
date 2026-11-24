@@ -107,7 +107,7 @@ dependencies {
     // Optional on-device language model; its 614 MB model file is downloaded only after user consent.
     implementation("com.google.ai.edge.litertlm:litertlm-android:0.18.1")
     // Firebase AI Logic client; missing Firebase settings deliberately leave preview offline.
-    implementation(platform("com.google.firebase:firebase-bom:35.1.0"))
+    implementation(platform("com.google.firebase:firebase-bom:35.2.0"))
     implementation("com.google.firebase:firebase-ai")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
     implementation("com.google.firebase:firebase-appcheck-playintegrity")
