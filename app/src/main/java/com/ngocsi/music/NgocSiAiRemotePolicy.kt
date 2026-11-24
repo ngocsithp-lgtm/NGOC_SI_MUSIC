@@ -80,8 +80,8 @@ internal const val NGOC_SI_AI_VIDEO_ANALYSIS_TIMEOUT_MILLIS = 120_000L
 internal const val NGOC_SI_AI_SINGER_IDENTIFICATION_TIMEOUT_MILLIS = 120_000L
 
 /**
- * Small public-domain MDN MP4 used only for an explicit video-path diagnostic.
- * It keeps inline data below Firebase's request budget after base64 expansion.
+ * Small public MP4 canary used only for an explicit video-path diagnostic.
+ * The 14 MiB guard leaves headroom for base64 expansion under Firebase's 20 MB request cap.
  */
 internal const val NGOC_SI_AI_VIDEO_DIAGNOSTIC_SAMPLE_URI =
     "https://storage.googleapis.com/generativeai-downloads/videos/Pottery.mp4"
