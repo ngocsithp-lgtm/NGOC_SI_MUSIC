@@ -399,7 +399,7 @@ class NgocSiAiRemotePolicyTest {
     @Test
     fun explicitVideoCapabilityDiagnosticUsesOnlyThePublicSampleUrl() {
         assertEquals(
-            "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
+            "https://storage.googleapis.com/cloud-samples-data/video/animals.mp4",
             NGOC_SI_AI_VIDEO_DIAGNOSTIC_SAMPLE_URI
         )
         assertTrue(isNgocSiAiVideoCapabilityDiagnosticRequest("AI, kiểm tra kết nối video mẫu."))
@@ -428,8 +428,16 @@ class NgocSiAiRemotePolicyTest {
         assertTrue(requestText.contains("URL YouTube mẫu công khai"))
         assertTrue(requestText.contains("Đã đọc được YouTube mẫu"))
         assertEquals(
-            NGOC_SI_AI_REASONING_MODEL_NAME,
+            NGOC_SI_AI_FAST_CHAT_MODEL_NAME,
             selectNgocSiAiModelName(prompt, forceMultimodalReasoning = true)
+        )
+        assertEquals(
+            ThinkingLevel.MINIMAL,
+            selectNgocSiAiGenerationThinkingLevel(
+                prompt,
+                modelName = NGOC_SI_AI_FAST_CHAT_MODEL_NAME,
+                forceMultimodalReasoning = true
+            )
         )
         assertEquals(
             NGOC_SI_AI_VIDEO_ANALYSIS_TIMEOUT_MILLIS,
