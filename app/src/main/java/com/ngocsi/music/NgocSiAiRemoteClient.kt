@@ -533,15 +533,8 @@ internal class NgocSiAiRemoteClient(context: Context) {
                 while (completedStream == null) {
                     val streamedAnswer = StringBuilder()
                     try {
-                        val responseStream = if (multimodalUserMessage != null && !offersAppCommandTool) {
-                            // Use the documented single-turn multimodal streaming API.
-                            // Compact context is included with the video; full chat history is skipped.
-                            model.generateContentStream(multimodalUserMessage)
-                        } else {
-                            val chat = model.startChat(history = previousTurns)
-                            multimodalUserMessage?.let { chat.sendMessageStream(it) }
-                                ?: chat.sendMessageStream(newestUserMessage.content)
-                        }
+                        val chat = model.startChat(history = previousTurns)
+                        val responseStream = chat.sendMessageStream(newestUserMessage.content)
                         responseStream.collect { chunk ->
                                 val textChunk = chunk.text.orEmpty()
                                 if (textChunk.isNotEmpty()) {
