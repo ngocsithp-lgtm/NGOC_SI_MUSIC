@@ -514,7 +514,7 @@ class NgocSiAiRemotePolicyTest {
     @Test
     fun videoDiagnosticUsesACompactPublicMp4Sample() {
         assertEquals(
-            "https://storage.googleapis.com/cloud-samples-data/video/animals.mp4",
+            "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
             NGOC_SI_AI_VIDEO_DIAGNOSTIC_SAMPLE_URI
         )
         assertEquals(14L * 1024L * 1024L, NGOC_SI_AI_VIDEO_DIAGNOSTIC_MAX_INLINE_BYTES)
@@ -1903,7 +1903,7 @@ class NgocSiAiRemotePolicyTest {
     @Test
     fun officialFirebaseVideoCanaryUsesDocumentedPublicSample() {
         assertEquals(
-            "https://storage.googleapis.com/cloud-samples-data/video/animals.mp4",
+            "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
             NGOC_SI_AI_VIDEO_DIAGNOSTIC_SAMPLE_URI
         )
         assertEquals(14L * 1024L * 1024L, NGOC_SI_AI_VIDEO_DIAGNOSTIC_MAX_INLINE_BYTES)
