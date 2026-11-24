@@ -84,7 +84,7 @@ internal const val NGOC_SI_AI_SINGER_IDENTIFICATION_TIMEOUT_MILLIS = 120_000L
  * It keeps inline data below Firebase's request budget after base64 expansion.
  */
 internal const val NGOC_SI_AI_VIDEO_DIAGNOSTIC_SAMPLE_URI =
-    "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"
+    "https://storage.googleapis.com/cloud-samples-data/video/animals.mp4"
 
 internal const val NGOC_SI_AI_VIDEO_DIAGNOSTIC_MAX_INLINE_BYTES = 14L * 1024L * 1024L
 
@@ -361,10 +361,14 @@ internal fun selectNgocSiAiModelName(
     prompt: String,
     offersAppCommandTool: Boolean = false,
     forceMultimodalReasoning: Boolean = false
-): String = if (isNgocSiAiVideoCapabilityDiagnosticRequest(prompt)) {
-    // Use the same Gemini Flash model as YouTube analysis so the inline MP4 canary
-    // also verifies that model's video access before isolating YouTube URL ingestion.
-    NGOC_SI_AI_REASONING_MODEL_NAME
+): String = if (
+    isNgocSiAiVideoCapabilityDiagnosticRequest(prompt) ||
+    isNgocSiAiYoutubeUrlCapabilityDiagnosticRequest(prompt)
+) {
+    // Capability canaries deliberately use the same Flash-Lite model that already
+    // answers ordinary text chat. This separates video ingestion from the separate
+    // reasoning-model path; detailed production analysis retains Gemini Flash.
+    NGOC_SI_AI_FAST_CHAT_MODEL_NAME
 } else if (
     forceMultimodalReasoning &&
     !isNgocSiAiQuickVideoOverviewRequest(prompt) &&
