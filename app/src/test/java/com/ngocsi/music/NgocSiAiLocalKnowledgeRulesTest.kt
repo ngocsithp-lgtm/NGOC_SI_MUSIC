@@ -1,10 +1,29 @@
 package com.ngocsi.music
 
+import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
 class NgocSiAiLocalKnowledgeRulesTest {
+    @Test
+    fun answersTodayFromTheDeviceLocalDateWithoutCallingGemini() {
+        val today = LocalDate.of(2026, 11, 24)
+        val expected = "Hôm nay là thứ ba, ngày 24 tháng 11 năm 2026."
+        assertEquals(expected, localNgocSiAiKnowledgeFallback("Hôm nay là ngày gì?", today))
+        assertEquals(expected, localNgocSiAiKnowledgeFallback("AI, hôm nay là ngày mấy?", today))
+        assertEquals(expected, localNgocSiAiKnowledgeFallback("Hey AI, hôm nay thứ mấy?", today))
+        assertEquals(expected, localConversationFallback("AI, hôm nay là ngày gì?"))
+    }
+
+    @Test
+    fun formatsSundayCorrectly() {
+        assertEquals(
+            "Hôm nay là Chủ Nhật, ngày 29 tháng 11 năm 2026.",
+            formatNgocSiAiTodayAnswer(LocalDate.of(2026, 11, 29))
+        )
+    }
+
     @Test
     fun answersVietnamCapitalWithoutCallingGemini() {
         assertEquals(
@@ -77,7 +96,7 @@ class NgocSiAiLocalKnowledgeRulesTest {
         assertEquals(expected, localNgocSiAiKnowledgeFallback("Al, thủ đô Việt Nam là gì?"))
         assertEquals(
             "Đúng, Hà Nội là thủ đô của Việt Nam.",
-            localNgocSiAiKnowledgeFallback("Hà Nội có phải là thủ đô Việt Nam không?")
+            localNgocSiAiLocalKnowledgeFallback("Hà Nội có phải là thủ đô Việt Nam không?")
         )
     }
 
