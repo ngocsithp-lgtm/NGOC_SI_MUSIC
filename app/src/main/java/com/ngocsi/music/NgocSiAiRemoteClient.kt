@@ -836,7 +836,8 @@ internal class NgocSiAiRemoteClient(context: Context) {
             "firebaseaiexception" in exceptionTypeDetails ->
                 "Firebase AI Logic SDK phát sinh ngoại lệ trong lúc gửi hoặc nhận video (" +
                     diagnosticExceptionType + "). Mã chẩn đoán: FIREBASE_AI_SDK_ERROR_" +
-                    diagnosticExceptionType.uppercase(Locale.ROOT) + "."
+                    diagnosticExceptionType.uppercase(Locale.ROOT) +
+                    ngocSiAiFirebaseAiSdkDiagnosticSuffix(errorCode, details) + "."
             "api key" in details || "api has not been used" in details ||
                 "service disabled" in details || "not enabled" in details ->
                 "Firebase AI Logic chưa được bật hoặc cấu hình đúng. Mã chẩn đoán: FIREBASE_CONFIG."
