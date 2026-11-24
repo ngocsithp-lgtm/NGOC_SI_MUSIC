@@ -84,7 +84,7 @@ internal const val NGOC_SI_AI_SINGER_IDENTIFICATION_TIMEOUT_MILLIS = 120_000L
  * It keeps inline data below Firebase's request budget after base64 expansion.
  */
 internal const val NGOC_SI_AI_VIDEO_DIAGNOSTIC_SAMPLE_URI =
-    "https://storage.googleapis.com/cloud-samples-data/video/animals.mp4"
+    "https://storage.googleapis.com/generativeai-downloads/videos/Pottery.mp4"
 
 internal const val NGOC_SI_AI_VIDEO_DIAGNOSTIC_MAX_INLINE_BYTES = 14L * 1024L * 1024L
 
@@ -170,6 +170,23 @@ internal fun describeNgocSiAiVideoSampleDownloadFailure(error: Throwable): Strin
         else -> "đã xảy ra lỗi tải video chưa xác định."
     }
     return "Không tải được video MP4 mẫu: $reason Mã chẩn đoán: $diagnosticCode."
+}
+
+/** Convert Firebase AI SDK details into a safe, actionable suffix without exposing raw server text. */
+internal fun ngocSiAiFirebaseAiSdkDiagnosticSuffix(errorCode: String?, details: String): String {
+    if (!errorCode.isNullOrBlank()) return "_HTTP_$errorCode"
+    val normalized = details.lowercase()
+    return when {
+        "permissionmissing" in normalized || "permission denied" in normalized -> "_PERMISSION"
+        "app check" in normalized || "attestation" in normalized -> "_APP_CHECK"
+        "invalid argument" in normalized || "invalid_argument" in normalized -> "_INVALID_ARGUMENT"
+        "unsupported media" in normalized || "mime type" in normalized -> "_UNSUPPORTED_MEDIA"
+        "model not found" in normalized -> "_MODEL_NOT_FOUND"
+        "resource exhausted" in normalized || "quota" in normalized -> "_QUOTA"
+        "deadline exceeded" in normalized || "timed out" in normalized || "timeout" in normalized -> "_TIMEOUT"
+        "safety" in normalized || "blocked" in normalized -> "_SAFETY"
+        else -> "_UNKNOWN_CAUSE"
+    }
 }
 
 internal fun isNgocSiAiVideoCapabilityDiagnosticRequest(prompt: String): Boolean {
