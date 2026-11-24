@@ -833,8 +833,10 @@ internal class NgocSiAiRemoteClient(context: Context) {
             "contentblockedexception" in exceptionTypeDetails ||
                 "promptblockedexception" in exceptionTypeDetails ->
                 "Yêu cầu bị bộ lọc an toàn của Gemini chặn. Mã chẩn đoán: CONTENT_BLOCKED."
-            diagnosticExceptionType == "FirebaseAIException" ->
-                "Firebase AI Logic SDK phát sinh ngoại lệ trong lúc gửi hoặc nhận video. Mã chẩn đoán: FIREBASE_AI_SDK_ERROR."
+            "firebaseaiexception" in exceptionTypeDetails ->
+                "Firebase AI Logic SDK phát sinh ngoại lệ trong lúc gửi hoặc nhận video (" +
+                    diagnosticExceptionType + "). Mã chẩn đoán: FIREBASE_AI_SDK_ERROR_" +
+                    diagnosticExceptionType.uppercase(Locale.ROOT) + "."
             "api key" in details || "api has not been used" in details ||
                 "service disabled" in details || "not enabled" in details ->
                 "Firebase AI Logic chưa được bật hoặc cấu hình đúng. Mã chẩn đoán: FIREBASE_CONFIG."
